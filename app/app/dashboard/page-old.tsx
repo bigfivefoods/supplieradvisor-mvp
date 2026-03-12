@@ -39,7 +39,7 @@ export default function Onboarding() {
 
         if (data) {
           setProfileExists(true)
-          // Pre-fill form for edit mode
+          // Pre-fill form for potential edit
           setFormData({
             address: data.address || '',
             bankAccount: data.bank_account || '',
@@ -122,7 +122,7 @@ export default function Onboarding() {
       if (functionError) throw new Error(functionError.message || 'Failed to call function')
       if (!data?.success) throw new Error(data?.error || 'Onboarding failed')
 
-      toast.success('Profile saved successfully!', { duration: 5000 })
+      toast.success('Profile saved successfully!')
       setProfileExists(true)
       setEditMode(false) // Hide form after save
 
