@@ -20,26 +20,40 @@ export default function Onboarding() {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [profileExists, setProfileExists] = useState(false)
+  const [editMode, setEditMode] = useState(false)
 
-  // Check if profile already exists on load
+  // Fetch existing profile on load
   useEffect(() => {
     if (!ready || !authenticated || !user?.id) return
 
     const checkProfile = async () => {
       setLoading(true)
       try {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from('profiles')
-          .select('id')
+          .select('*')
           .eq('user_id', user.id)
-          .maybeSingle()
+          .single()
+
+        if (error && error.code !== 'PGRST116') throw error // PGRST116 = no rows
 
         if (data) {
           setProfileExists(true)
-          toast.success('Profile already saved! You can edit it below.', { duration: 4000 })
+          // Pre-fill form for potential edit
+          setFormData({
+            address: data.address || '',
+            bankAccount: data.bank_account || '',
+            vatNumber: data.vat_number || '',
+            businessType: data.business_type || 'Foods',
+            npoNumber: data.npo_number || '',
+            certificates: [],
+            verificationMethod: 'Self-Verified',
+          })
+          toast.success('Profile already saved! You can edit it below.', { duration: 5000 })
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Profile check error:', err)
+        toast.error('Failed to check profile status')
       } finally {
         setLoading(false)
       }
@@ -109,7 +123,8 @@ export default function Onboarding() {
       if (!data?.success) throw new Error(data?.error || 'Onboarding failed')
 
       toast.success('Profile saved successfully!')
-      setProfileExists(true) // Hide form, show success message
+      setProfileExists(true)
+      setEditMode(false) // Hide form after save
 
     } catch (err: any) {
       console.error('Onboarding error:', err)
@@ -142,7 +157,7 @@ export default function Onboarding() {
 
         {loading ? (
           <div className="text-center text-xl">Checking profile status...</div>
-        ) : profileExists ? (
+        ) : profileExists && !editMode ? (
           <div className="bg-green-900/30 border border-green-800 rounded-3xl p-12 text-center backdrop-blur-xl">
             <h2 className="text-4xl font-bold text-green-400 mb-6">Profile Already Complete!</h2>
             <p className="text-xl text-gray-300 mb-8">
@@ -156,7 +171,7 @@ export default function Onboarding() {
                 View Dashboard
               </Link>
               <button
-                onClick={() => setProfileExists(false)} // show form for edit
+                onClick={() => setEditMode(true)}
                 className="px-10 py-5 bg-gray-700 hover:bg-gray-600 rounded-2xl text-white font-bold text-xl transition shadow-lg"
               >
                 Edit Profile
