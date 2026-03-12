@@ -14,18 +14,17 @@ export function PrivyWrapper({ children }: { children: React.ReactNode }) {
     <PrivyProvider
       appId={appId}
       config={{
-        // Login methods – 'wallet' enables injected (MetaMask)
         loginMethods: ['wallet', 'email', 'google'],
 
         appearance: {
           theme: 'dark',
           accentColor: '#10b981',
-          logo: '/logo.png', // optional
+          logo: '/logo.png', // optional – add later
         },
 
         // Full Chain objects – required to avoid TS errors
         supportedChains: [
-          // Ethereum Mainnet (optional)
+          // Ethereum Mainnet (optional – remove if not needed)
           {
             id: 1,
             name: 'Ethereum',
@@ -63,14 +62,17 @@ export function PrivyWrapper({ children }: { children: React.ReactNode }) {
           },
         ],
 
-        // Use embeddedWallets to avoid external SDKs (Coinbase/WalletConnect crash)
+        // Correct embeddedWallets structure (only valid keys)
         embeddedWallets: {
-          createOnLogin: 'users-without-wallets', // auto-create if no wallet
-          noPromptOnSignature: false,
+          ethereum: {
+            createOnLogin: 'users-without-wallets', // valid value
+          },
+          solana: {
+            createOnLogin: 'users-without-wallets',
+          },
         },
 
-        // Do NOT include externalWallets – omitting disables them
-        // This stops Coinbase SDK from loading → no COOP 404 crash
+        // No external wallets → no Coinbase/WalletConnect SDK crash
       }}
     >
       {children}
