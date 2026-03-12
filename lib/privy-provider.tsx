@@ -14,17 +14,15 @@ export function PrivyWrapper({ children }: { children: React.ReactNode }) {
     <PrivyProvider
       appId={appId}
       config={{
-        loginMethods: ['wallet', 'email', 'google'],
+        loginMethods: ['wallet', 'email', 'google'], // 'wallet' = injected/MetaMask
 
         appearance: {
           theme: 'dark',
           accentColor: '#10b981',
-          logo: '/logo.png', // optional – add later
         },
 
-        // Full Chain objects – required to avoid TS errors
+        // Full chains (fixes previous TS errors)
         supportedChains: [
-          // Ethereum Mainnet (optional – remove if not needed)
           {
             id: 1,
             name: 'Ethereum',
@@ -42,7 +40,6 @@ export function PrivyWrapper({ children }: { children: React.ReactNode }) {
               default: { name: 'Etherscan', url: 'https://etherscan.io' },
             },
           },
-          // Polygon Amoy testnet
           {
             id: 80002,
             name: 'Polygon Amoy',
@@ -62,17 +59,15 @@ export function PrivyWrapper({ children }: { children: React.ReactNode }) {
           },
         ],
 
-        // Correct embeddedWallets structure (only valid keys)
+        // Explicitly disable embedded wallets if not needed (optional)
         embeddedWallets: {
           ethereum: {
-            createOnLogin: 'users-without-wallets', // valid value
-          },
-          solana: {
             createOnLogin: 'users-without-wallets',
           },
         },
 
-        // No external wallets → no Coinbase/WalletConnect SDK crash
+        // The key fix: do NOT enable Coinbase or WalletConnect
+        // Omitting externalWallets prevents Coinbase SDK from loading → no 404 COOP error
       }}
     >
       {children}
