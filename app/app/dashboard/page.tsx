@@ -5,9 +5,13 @@ import { usePrivy } from '@privy-io/react-auth'
 import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
+import { useSearchParams, useRouter } from 'next/navigation'
 
 export default function Onboarding() {
   const { ready, authenticated, user, getAccessToken } = usePrivy()
+  const searchParams = useSearchParams()
+  const router = useRouter()
+
   const [formData, setFormData] = useState({
     address: '',
     bankAccount: '',
@@ -21,6 +25,17 @@ export default function Onboarding() {
   const [loading, setLoading] = useState(false)
   const [hasProfile, setHasProfile] = useState(false)
   const [editMode, setEditMode] = useState(true)
+
+  // Check for success param from redirect
+  useEffect(() => {
+    if (searchParams.get('success') === 'true') {
+      setHasProfile(true)
+      setEditMode(false)
+      toast.success('Profile saved successfully!', { duration: 5000 })
+      // Clean URL
+      router.replace('/onboarding')
+    }
+  }, [searchParams, router])
 
   // Fetch profile
   const fetchProfile = async () => {
@@ -46,7 +61,7 @@ export default function Onboarding() {
           certificates: [],
           verificationMethod: 'Self-Verified',
         })
-        toast.success('Profile already saved!', { duration: 4000 })
+        toast.success('Your profile is already saved!', { duration: 5000 })
       } else {
         setHasProfile(false)
         setEditMode(true)
@@ -102,7 +117,7 @@ export default function Onboarding() {
 
     try {
       const accessToken = await getAccessToken()
-      if (!accessToken) throw new Error('No access token')
+      if (!accessToken) throw new Error('No access token from Privy')
 
       const profileData = {
         address: formData.address.trim(),
@@ -113,20 +128,23 @@ export default function Onboarding() {
       }
 
       const { data, error } = await supabase.functions.invoke('onboard-profile', {
-        body: { token: accessToken, profileData },
+        body: {
+          token: accessToken,
+          profileData,
+        },
       })
 
       if (error) throw error
       if (!data?.success) throw new Error(data?.error || 'Failed')
 
-      toast.success('Profile saved!', { duration: 4000 })
+      toast.success('Profile saved successfully!', { duration: 5000 })
       setHasProfile(true)
       setEditMode(false)
-      fetchProfile() // Force refresh UI
+      fetchProfile() // Re-fetch to update UI
 
     } catch (err: any) {
-      console.error(err)
-      toast.error(err.message || 'Save failed')
+      console.error('Submit error:', err)
+      toast.error(err.message || 'Failed to save profile')
     } finally {
       setLoading(false)
     }
@@ -149,7 +167,7 @@ export default function Onboarding() {
           <div className="bg-green-900/40 border border-green-700 rounded-3xl p-12 text-center">
             <h2 className="text-4xl font-bold text-green-400 mb-6">Profile Complete!</h2>
             <p className="text-xl text-gray-300 mb-8">
-              Your profile is saved. You can view or edit it.
+              Your business profile is saved. View or edit it.
             </p>
             <div className="flex justify-center gap-6">
               <Link href="/dashboard" className="px-10 py-5 bg-green-600 hover:bg-green-700 rounded-xl text-white font-bold">
@@ -163,7 +181,7 @@ export default function Onboarding() {
         ) : (
           <form onSubmit={handleSubmit} className="space-y-12">
             {/* Your form fields here - keep your existing ones */}
-            {/* ... copy your form content from previous version ... */}
+            {/* ... paste your Business Details and Certificates sections here ... */}
 
             <button
               type="submit"
