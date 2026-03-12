@@ -22,47 +22,50 @@ export default function Onboarding() {
   const [profileExists, setProfileExists] = useState(false)
   const [editMode, setEditMode] = useState(false)
 
-  // Fetch existing profile on load
-  useEffect(() => {
-    if (!ready || !authenticated || !user?.id) return
+  // Fetch or re-fetch profile whenever needed
+  const fetchProfile = async () => {
+    if (!user?.id) return
 
-    const checkProfile = async () => {
-      setLoading(true)
-      try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('user_id', user.id)
-          .single()
+    setLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', user.id)
+        .single()
 
-        if (error && error.code !== 'PGRST116') {
-          console.error('Fetch error:', error)
-          throw error
-        }
+      if (error && error.code !== 'PGRST116') throw error // PGRST116 = no rows
 
-        if (data) {
-          setProfileExists(true)
-          // Pre-fill form for edit
-          setFormData({
-            address: data.address || '',
-            bankAccount: data.bank_account || '',
-            vatNumber: data.vat_number || '',
-            businessType: data.business_type || 'Foods',
-            npoNumber: data.npo_number || '',
-            certificates: [],
-            verificationMethod: 'Self-Verified',
-          })
+      if (data) {
+        setProfileExists(true)
+        setFormData({
+          address: data.address || '',
+          bankAccount: data.bank_account || '',
+          vatNumber: data.vat_number || '',
+          businessType: data.business_type || 'Foods',
+          npoNumber: data.npo_number || '',
+          certificates: [],
+          verificationMethod: 'Self-Verified',
+        })
+        if (!editMode) {
           toast.success('Your profile is already saved!', { duration: 5000 })
         }
-      } catch (err: any) {
-        console.error('Profile check failed:', err)
-        toast.error('Failed to check profile')
-      } finally {
-        setLoading(false)
+      } else {
+        setProfileExists(false)
       }
+    } catch (err: any) {
+      console.error('Profile fetch error:', err)
+      toast.error('Failed to check profile')
+    } finally {
+      setLoading(false)
     }
+  }
 
-    checkProfile()
+  // Run fetch on mount + after auth ready
+  useEffect(() => {
+    if (ready && authenticated && user?.id) {
+      fetchProfile()
+    }
   }, [ready, authenticated, user?.id])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -127,7 +130,8 @@ export default function Onboarding() {
 
       toast.success('Profile saved successfully!', { duration: 5000 })
       setProfileExists(true)
-      setEditMode(false)
+      setEditMode(false) // Hide form
+      fetchProfile() // Re-fetch to confirm
 
     } catch (err: any) {
       console.error('Onboarding error:', err)
