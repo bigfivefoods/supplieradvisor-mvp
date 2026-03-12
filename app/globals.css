@@ -2,8 +2,30 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  body {
-    @apply bg-gray-950 text-white;
-  }
+/* Force dark theme everywhere */
+:root {
+  --background: #000000;
+  --foreground: #ffffff;
+}
+
+html, body, #__next {
+  background: linear-gradient(to bottom, #0f172a, #000000);
+  color: var(--foreground);
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+}
+
+/* Make all inputs/selects dark */
+input, select, textarea {
+  @apply bg-gray-900 border-gray-700 text-white placeholder-gray-500;
+}
+
+input:focus, select:focus {
+  @apply border-green-500 ring-2 ring-green-500/30;
+}
+
+button {
+  @apply transition-all duration-200 hover:scale-105 active:scale-95;
 }
