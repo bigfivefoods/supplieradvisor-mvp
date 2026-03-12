@@ -22,7 +22,7 @@ export default function Onboarding() {
   const [profileExists, setProfileExists] = useState(false)
   const [editMode, setEditMode] = useState(false)
 
-  // Fetch profile function (called on mount and after save)
+  // Fetch profile (runs on mount + after save)
   const fetchProfile = async () => {
     if (!user?.id) return
 
@@ -34,10 +34,7 @@ export default function Onboarding() {
         .eq('user_id', user.id)
         .single()
 
-      if (error && error.code !== 'PGRST116') {
-        console.error('Fetch error:', error)
-        throw error
-      }
+      if (error && error.code !== 'PGRST116') throw error
 
       if (data) {
         setProfileExists(true)
@@ -56,15 +53,14 @@ export default function Onboarding() {
       } else {
         setProfileExists(false)
       }
-    } catch (err: any) {
-      console.error('Profile fetch failed:', err)
-      toast.error('Failed to check profile')
+    } catch (err) {
+      console.error('Profile fetch error:', err)
+      toast.error('Failed to load profile status')
     } finally {
       setLoading(false)
     }
   }
 
-  // Run fetch on auth ready
   useEffect(() => {
     if (ready && authenticated && user?.id) {
       fetchProfile()
@@ -134,7 +130,7 @@ export default function Onboarding() {
       toast.success('Profile saved successfully!', { duration: 5000 })
       setProfileExists(true)
       setEditMode(false)
-      fetchProfile() // Re-check to confirm
+      fetchProfile() // Re-fetch to confirm UI update
 
     } catch (err: any) {
       console.error('Onboarding error:', err)
