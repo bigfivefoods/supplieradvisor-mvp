@@ -18,11 +18,11 @@ export default function Onboarding() {
     verificationMethod: 'Self-Verified' as 'Third-Party' | 'Self-Verified',
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [hasProfile, setHasProfile] = useState(false)
-  const [editMode, setEditMode] = useState(true) // start with form
+  const [editMode, setEditMode] = useState(true) // start with form visible
 
-  // Fetch profile function (runs on mount + after save)
+  // Fetch profile (runs on mount + after save)
   const fetchProfile = async () => {
     if (!user?.id) return
 
@@ -53,7 +53,7 @@ export default function Onboarding() {
       }
     } catch (err) {
       console.error('Fetch error:', err)
-      toast.error('Failed to load profile status')
+      toast.error('Failed to check profile status')
     } finally {
       setLoading(false)
     }
@@ -127,7 +127,7 @@ export default function Onboarding() {
       toast.success('Profile saved successfully!', { duration: 5000 })
       setHasProfile(true)
       setEditMode(false)
-      fetchProfile() // Re-fetch to confirm
+      fetchProfile() // Re-fetch to update UI
 
     } catch (err: any) {
       console.error('Submit error:', err)
