@@ -18,46 +18,52 @@ export default function Onboarding() {
     verificationMethod: 'Self-Verified' as 'Third-Party' | 'Self-Verified',
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const [loading, setLoading] = useState(false)
-  const [success, setSuccess] = useState(false)
-  const [editMode, setEditMode] = useState(true) // Start with form visible
+  const [loading, setLoading] = useState(true)
+  const [hasProfile, setHasProfile] = useState(false)
+  const [editMode, setEditMode] = useState(true) // start with form
 
-  // Fetch profile on load
-  useEffect(() => {
-    if (!ready || !authenticated || !user?.id) return
+  // Fetch profile function (runs on mount + after save)
+  const fetchProfile = async () => {
+    if (!user?.id) return
 
-    const fetchProfile = async () => {
-      setLoading(true)
-      try {
-        const { data } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('user_id', user.id)
-          .single()
+    setLoading(true)
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', user.id)
+        .single()
 
-        if (data) {
-          setSuccess(true)
-          setEditMode(false)
-          // Pre-fill for potential edit
-          setFormData({
-            address: data.address || '',
-            bankAccount: data.bank_account || '',
-            vatNumber: data.vat_number || '',
-            businessType: data.business_type || 'Foods',
-            npoNumber: data.npo_number || '',
-            certificates: [],
-            verificationMethod: 'Self-Verified',
-          })
-          toast.success('Your profile is already saved!', { duration: 5000 })
-        }
-      } catch (err) {
-        console.error('Profile fetch error:', err)
-      } finally {
-        setLoading(false)
+      if (data) {
+        setHasProfile(true)
+        setEditMode(false)
+        setFormData({
+          address: data.address || '',
+          bankAccount: data.bank_account || '',
+          vatNumber: data.vat_number || '',
+          businessType: data.business_type || 'Foods',
+          npoNumber: data.npo_number || '',
+          certificates: [],
+          verificationMethod: 'Self-Verified',
+        })
+        toast.success('Your profile is already saved!', { duration: 5000 })
+      } else {
+        setHasProfile(false)
+        setEditMode(true)
       }
+    } catch (err) {
+      console.error('Fetch error:', err)
+      toast.error('Failed to load profile status')
+    } finally {
+      setLoading(false)
     }
+  }
 
-    fetchProfile()
+  // Run fetch on auth ready
+  useEffect(() => {
+    if (ready && authenticated && user?.id) {
+      fetchProfile()
+    }
   }, [ready, authenticated, user?.id])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -108,37 +114,23 @@ export default function Onboarding() {
         npo_number: formData.businessType === 'Foundation' ? formData.npoNumber.trim() : null,
       }
 
-      const { data, error: functionError } = await supabase.functions.invoke('onboard-profile', {
+      const { data, error } = await supabase.functions.invoke('onboard-profile', {
         body: {
           token: accessToken,
           profileData,
         },
       })
 
-      if (functionError) throw functionError
+      if (error) throw error
       if (!data?.success) throw new Error(data?.error || 'Onboarding failed')
 
       toast.success('Profile saved successfully!', { duration: 5000 })
-      setSuccess(true)
+      setHasProfile(true)
       setEditMode(false)
-      // Re-fetch to confirm
-      const { data: updated } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', user.id)
-        .single()
-      if (updated) setFormData({
-        address: updated.address || '',
-        bankAccount: updated.bank_account || '',
-        vatNumber: updated.vat_number || '',
-        businessType: updated.business_type || 'Foods',
-        npoNumber: updated.npo_number || '',
-        certificates: [],
-        verificationMethod: 'Self-Verified',
-      })
+      fetchProfile() // Re-fetch to confirm
 
     } catch (err: any) {
-      console.error('Onboarding error:', err)
+      console.error('Submit error:', err)
       toast.error(err.message || 'Failed to save profile')
     } finally {
       setLoading(false)
@@ -168,7 +160,7 @@ export default function Onboarding() {
 
         {loading ? (
           <div className="text-center text-xl">Loading...</div>
-        ) : profileExists && !editMode ? (
+        ) : hasProfile && !editMode ? (
           <div className="bg-green-900/30 border border-green-800 rounded-3xl p-12 text-center backdrop-blur-xl">
             <h2 className="text-4xl font-bold text-green-400 mb-6">Profile Already Complete!</h2>
             <p className="text-xl text-gray-300 mb-8">
