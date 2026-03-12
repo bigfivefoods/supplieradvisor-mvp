@@ -35,11 +35,14 @@ export default function Onboarding() {
           .eq('user_id', user.id)
           .single()
 
-        if (error && error.code !== 'PGRST116') throw error // PGRST116 = no rows
+        if (error && error.code !== 'PGRST116') {
+          console.error('Fetch error:', error)
+          throw error
+        }
 
         if (data) {
           setProfileExists(true)
-          // Pre-fill form for edit mode
+          // Pre-fill form for edit
           setFormData({
             address: data.address || '',
             bankAccount: data.bank_account || '',
@@ -49,11 +52,11 @@ export default function Onboarding() {
             certificates: [],
             verificationMethod: 'Self-Verified',
           })
-          toast.success('Profile already saved! You can edit it below.', { duration: 5000 })
+          toast.success('Your profile is already saved!', { duration: 5000 })
         }
       } catch (err: any) {
-        console.error('Profile check error:', err)
-        toast.error('Failed to check profile status')
+        console.error('Profile check failed:', err)
+        toast.error('Failed to check profile')
       } finally {
         setLoading(false)
       }
@@ -124,7 +127,7 @@ export default function Onboarding() {
 
       toast.success('Profile saved successfully!', { duration: 5000 })
       setProfileExists(true)
-      setEditMode(false) // Hide form after save
+      setEditMode(false)
 
     } catch (err: any) {
       console.error('Onboarding error:', err)
