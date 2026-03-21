@@ -46,6 +46,7 @@ export default function Dashboard() {
       case 'home':
         return (
           <div>
+            <div className="text-5xl font-black text-red-500 mb-8">✅ NEW VERTICAL TESLA DASHBOARD LOADED</div>
             <h2 className="text-7xl font-black tracking-[-3px] mb-12 text-white">Operations Overview</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
               {[
