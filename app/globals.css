@@ -2,30 +2,21 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Force dark theme everywhere */
-:root {
-  --background: #000000;
-  --foreground: #ffffff;
-}
-
+/* Tesla Premium Dark Theme */
 html, body, #__next {
-  background: linear-gradient(to bottom, #0f172a, #000000);
-  color: var(--foreground);
-  margin: 0;
-  padding: 0;
-  height: 100%;
-  width: 100%;
+  background: #050505;
+  color: white;
+  height: 100vh;
+  overflow: hidden;
 }
 
-/* Make all inputs/selects dark */
-input, select, textarea {
-  @apply bg-gray-900 border-gray-700 text-white placeholder-gray-500;
+/* Glassmorphism + Neon Glows */
+.glass {
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-input:focus, select:focus {
-  @apply border-green-500 ring-2 ring-green-500/30;
-}
-
-button {
-  @apply transition-all duration-200 hover:scale-105 active:scale-95;
+.shadow-neon {
+  box-shadow: 0 0 60px -15px rgb(16 185 129);
 }
