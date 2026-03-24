@@ -2,21 +2,35 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Tesla Premium Dark Theme */
-html, body, #__next {
-  background: #050505;
-  color: white;
-  height: 100vh;
-  overflow: hidden;
+@layer base {
+  html, body, #__next {
+    background: #f8fafc;
+    color: #0f172a;
+  }
+  
+  /* ALL HEADINGS = SupplierAdvisor blue */
+  h1, h2, h3, h4, h5, h6 {
+    color: #00b4d8 !important;
+  }
 }
 
-/* Glassmorphism + Neon Glows */
-.glass {
-  background: rgba(15, 23, 42, 0.85);
-  backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
+@layer components {
+  .card {
+    @apply bg-white border border-slate-200 rounded-3xl shadow-sm p-8 text-slate-900;
+    box-shadow: 0 10px 30px -10px rgb(0 0 0 / 0.1);
+  }
 
-.shadow-neon {
-  box-shadow: 0 0 60px -15px rgb(16 185 129);
+  /* BREADCRUMBS — MAXIMUM OVERRIDE */
+  .breadcrumb,
+  .breadcrumb a,
+  .breadcrumb span,
+  .breadcrumb *,
+  [class*="breadcrumb"],
+  .text-emerald-400 {
+    color: #64748b !important;
+  }
+  .breadcrumb a:hover,
+  .breadcrumb a:hover * {
+    color: #0f172a !important;
+  }
 }

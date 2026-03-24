@@ -1,54 +1,21 @@
-'use client'
-
-import { useRouter } from 'next/navigation'
-import { useEffect } from 'react'
-import { usePrivy } from '@privy-io/react-auth'
-
 export default function Home() {
-  const router = useRouter()
-  const { ready, authenticated, login } = usePrivy()
-
-  // Redirect to onboarding after login
-  useEffect(() => {
-    if (ready && authenticated) {
-      router.push('/onboarding')
-    }
-  }, [ready, authenticated, router])
-
-  if (!ready) {
-    return (
-      <div className="flex min-h-screen items-center justify-center text-2xl text-white bg-gradient-to-b from-gray-900 to-black">
-        Loading...
-      </div>
-    )
-  }
-
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-8 md:p-24 bg-gradient-to-b from-gray-900 via-gray-950 to-black text-white">
-      <h1 className="text-5xl md:text-6xl font-bold mb-6 text-center tracking-tight">
-        SupplierAdvisor MVP
-      </h1>
-
-      <p className="text-xl md:text-2xl mb-6 text-center text-gray-300 max-w-3xl">
-        On-chain B2B/B2C supply chain platform – Built for trust, transparency, and impact.
-      </p>
-
-      <p className="text-lg md:text-xl mb-12 text-center text-green-400 font-medium">
-        Day 1 complete. Ready for wallet login & onboarding.
-      </p>
-
-      {!authenticated ? (
-        <button
-          onClick={login}
-          className="px-10 py-5 md:px-12 md:py-6 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-bold rounded-2xl text-xl md:text-2xl shadow-2xl transition-all transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-green-500"
-        >
-          Connect Wallet to Continue
-        </button>
-      ) : (
-        <p className="text-xl md:text-2xl text-green-400 font-medium animate-pulse">
-          Logged in! Redirecting to onboarding...
-        </p>
-      )}
-    </main>
+    <div>
+      <h1 style={{ fontSize: '64px', fontWeight: '900', marginBottom: '40px' }}>Operations Overview</h1>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px' }}>
+        {[
+          { label: 'Active POs', value: '12', icon: '📦' },
+          { label: 'Avg Rating', value: '4.98', icon: '⭐' },
+          { label: 'New Connections', value: '7', icon: '🔗' },
+          { label: 'Revenue This Month', value: 'R 248k', icon: '📈' },
+        ].map((stat, i) => (
+          <div key={i} style={{ background: '#111', padding: '40px', borderRadius: '24px', textAlign: 'center' }}>
+            <div style={{ fontSize: '60px', marginBottom: '16px' }}>{stat.icon}</div>
+            <div style={{ fontSize: '56px', fontWeight: '900', color: '#10b981' }}>{stat.value}</div>
+            <div style={{ fontSize: '22px', color: '#888' }}>{stat.label}</div>
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }
