@@ -11,6 +11,10 @@ import { Wallet, ChevronDown } from "lucide-react";
 
 const modules = [
   { id: 'home', name: 'Home', icon: '📊', href: '/dashboard', sub: [] },
+
+  // ← NEW: My Business Profile (added here for easy access)
+  { id: 'profile', name: 'My Business', icon: '👤', href: '/dashboard/profile', sub: [] },
+
   { 
     id: 'suppliers', 
     name: 'Suppliers', 
