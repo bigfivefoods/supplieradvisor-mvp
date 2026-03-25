@@ -95,42 +95,49 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     setExpandedModules(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
+  // Smart highlighting: parent is highlighted if on main page OR any sub-node
+  const isModuleActive = (mod: any) => {
+    if (pathname === mod.href) return true;
+    if (mod.sub) return mod.sub.some((sub: any) => pathname === sub.href);
+    return false;
+  };
+
   return (
     <html lang="en" className="scroll-smooth">
       <body className="antialiased bg-[#f8fafc] text-[#0f172a] min-h-screen font-sans">
         <div className="flex min-h-screen">
-          {/* Sidebar – compact & fits screen */}
+          {/* ULTRA-COMPACT STICKY SIDEBAR */}
           {isDashboard && (
-            <div className="w-80 bg-white border-r border-slate-200 flex flex-col h-screen flex-shrink-0 shadow-sm overflow-hidden">
-              {/* Logo */}
-              <div className="px-8 pt-8 pb-4 flex justify-center">
-                <Image src="/sa-logo.png" alt="SupplierAdvisor" width={180} height={60} priority />
+            <div className="w-64 bg-white border-r border-slate-200 flex flex-col h-screen sticky top-0 flex-shrink-0 shadow-sm overflow-hidden">
+              {/* Smaller logo */}
+              <div className="px-6 pt-5 pb-2 flex justify-center">
+                <Image src="/sa-logo.png" alt="SupplierAdvisor" width={140} height={48} priority />
               </div>
-              <div className="px-8 pb-6 text-4xl font-black tracking-[-2px] text-[#00b4d8] text-center">SupplierAdvisor</div>
+              <div className="px-6 pb-4 text-3xl font-black tracking-[-2px] text-[#00b4d8] text-center">SupplierAdvisor</div>
 
-              {/* Modules List – compact to fit screen */}
-              <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1 custom-scrollbar">
+              {/* Modules – very tight to fit all on screen */}
+              <div className="flex-1 overflow-y-auto px-3 py-1 space-y-0.5 custom-scrollbar">
                 {modules.map(mod => (
-                  <div key={mod.id} className="mb-1">
+                  <div key={mod.id} className="mb-0.5">
                     <button
                       onClick={() => mod.sub?.length ? toggleModule(mod.id) : null}
-                      className={`w-full flex items-center gap-4 px-6 py-4 rounded-3xl text-xl font-medium transition-all hover:bg-slate-100 ${pathname.startsWith(mod.href) ? 'bg-[#00b4d8] text-white' : 'text-slate-800'}`}
+                      className={`w-full flex items-center gap-3 px-5 py-2.5 rounded-3xl text-lg font-medium transition-all hover:bg-slate-100 ${isModuleActive(mod) ? 'bg-[#00b4d8] text-white' : 'text-slate-800'}`}
                     >
-                      <span className="text-3xl">{mod.icon}</span>
+                      <span className="text-2xl">{mod.icon}</span>
                       <span className="flex-1 text-left">{mod.name}</span>
                       {mod.sub?.length > 0 && (
-                        <ChevronDown className={`transition-transform ${expandedModules[mod.id] ? 'rotate-180' : ''}`} size={22} />
+                        <ChevronDown className={`transition-transform ${expandedModules[mod.id] ? 'rotate-180' : ''}`} size={18} />
                       )}
                     </button>
 
-                    {/* Sub-nodes (expandable) */}
+                    {/* Expandable Sub-Nodes */}
                     {mod.sub?.length > 0 && expandedModules[mod.id] && (
-                      <div className="ml-12 mt-1 space-y-1 mb-3">
-                        {mod.sub.map((sub, i) => (
+                      <div className="ml-11 mt-1 space-y-0.5 mb-2">
+                        {mod.sub.map((sub: any, i: number) => (
                           <Link
                             key={i}
                             href={sub.href}
-                            className={`block px-6 py-3 rounded-3xl text-[17px] transition-all ${pathname === sub.href ? 'text-[#00b4d8] bg-blue-50 font-medium' : 'text-slate-600 hover:text-slate-900'}`}
+                            className={`block px-6 py-2 rounded-3xl text-[16px] transition-all ${pathname === sub.href ? 'text-[#00b4d8] bg-blue-50 font-medium' : 'text-slate-600 hover:text-slate-900'}`}
                           >
                             {sub.name}
                           </Link>
@@ -142,15 +149,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </div>
 
               {/* Wallet Button */}
-              <div className="p-6 border-t mt-auto">
-                <button onClick={logout} className="w-full flex items-center justify-center gap-3 bg-slate-900 hover:bg-black text-white font-medium py-4 rounded-3xl transition-all">
-                  <Wallet size={20} /> {user ? 'Disconnect Wallet' : 'Connect Wallet'}
+              <div className="p-4 border-t mt-auto">
+                <button onClick={logout} className="w-full flex items-center justify-center gap-3 bg-slate-900 hover:bg-black text-white font-medium py-3.5 rounded-3xl transition-all text-sm">
+                  <Wallet size={18} /> {user ? 'Disconnect Wallet' : 'Connect Wallet'}
                 </button>
               </div>
             </div>
           )}
 
-          {/* Content Area */}
+          {/* Main Content – only this scrolls */}
           <div className={`flex-1 overflow-auto ${isDashboard ? 'pl-[25px] pr-12 py-12' : 'min-h-screen'}`}>
             {children}
           </div>

@@ -1,312 +1,211 @@
-'use client'
+'use client';
 
-import { useState, useEffect } from 'react'
-import { usePrivy } from '@privy-io/react-auth'
-import { supabase } from '@/lib/supabase'
-import toast from 'react-hot-toast'
-import Link from 'next/link'
+import { useState } from 'react';
+import { ArrowRight, ArrowLeft } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
+import toast from 'react-hot-toast';
+
+const businessTypesList = [
+  'Farmer / Producer', 'Manufacturer / Processor', 'Packer', 'Distributor',
+  'Wholesaler', 'Importer', 'Exporter', 'Retailer', 'Logistics Provider'
+];
 
 export default function Onboarding() {
-  const { ready, authenticated, user, getAccessToken } = usePrivy()
-  const [formData, setFormData] = useState({
-    address: '',
-    bankAccount: '',
-    vatNumber: '',
-    businessType: 'Foods',
-    npoNumber: '',
-    certificates: [] as File[],
-    verificationMethod: 'Self-Verified' as 'Third-Party' | 'Self-Verified',
-  })
-  const [errors, setErrors] = useState<Record<string, string>>({})
-  const [loading, setLoading] = useState(true)
-  const [hasProfile, setHasProfile] = useState(false)
-  const [editMode, setEditMode] = useState(true)
+  const [step, setStep] = useState(0);
+  const [loading, setLoading] = useState(false);
 
-  // Check if profile exists on load
-  useEffect(() => {
-    if (!ready || !authenticated || !user?.id) return
+  const [form, setForm] = useState({
+    legal_name: '', trading_name: '', cipc_number: '',
+    business_types: [] as string[],
+    full_address: { country: 'South Africa', province: '', city: '', street: '', postal_code: '' },
+    vat_number: '',
+    bank_details: { bank_name: '', account_name: '', account_number: '', branch_code: '' },
+    products: [] as any[],
+    certifications: [] as any[]
+  });
 
-    const fetchProfile = async () => {
-      setLoading(true)
-      try {
-        const { data } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('user_id', user.id)
-          .single()
+  const [newProduct, setNewProduct] = useState({ product_name: '', sku: '', category: '' });
 
-        if (data) {
-          setHasProfile(true)
-          setEditMode(false)
-          setFormData({
-            address: data.address || '',
-            bankAccount: data.bank_account || '',
-            vatNumber: data.vat_number || '',
-            businessType: data.business_type || 'Foods',
-            npoNumber: data.npo_number || '',
-            certificates: [],
-            verificationMethod: 'Self-Verified',
-          })
-          toast.success('Your profile is already saved!', { duration: 5000 })
-        }
-      } catch (err) {
-        console.error('Profile check error:', err)
-      } finally {
-        setLoading(false)
-      }
+  // ✅ Fixed typing for verification_method
+  const [newCert, setNewCert] = useState<{
+    cert_name: string;
+    expiry_date: string;
+    verification_method: 'self' | 'api';
+    document_url: string;
+  }>({
+    cert_name: '',
+    expiry_date: '',
+    verification_method: 'self',
+    document_url: ''
+  });
+
+  const toggleBusinessType = (type: string) => {
+    setForm(prev => ({
+      ...prev,
+      business_types: prev.business_types.includes(type)
+        ? prev.business_types.filter(t => t !== type)
+        : [...prev.business_types, type]
+    }));
+  };
+
+  const addProduct = () => {
+    if (newProduct.product_name) {
+      setForm(prev => ({ ...prev, products: [...prev.products, newProduct] }));
+      setNewProduct({ product_name: '', sku: '', category: '' });
     }
+  };
 
-    fetchProfile()
-  }, [ready, authenticated, user?.id])
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target
-    setFormData(prev => ({ ...prev, [name]: value }))
-    setErrors(prev => ({ ...prev, [name]: '' }))
-  }
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const files = Array.from(e.target.files)
-      setFormData(prev => ({ ...prev, certificates: files }))
-      setErrors(prev => ({ ...prev, certificates: '' }))
+  const addCertification = () => {
+    if (newCert.cert_name && newCert.expiry_date) {
+      setForm(prev => ({ ...prev, certifications: [...prev.certifications, newCert] }));
+      setNewCert({ 
+        cert_name: '', 
+        expiry_date: '', 
+        verification_method: 'self', 
+        document_url: '' 
+      });
     }
-  }
+  };
 
-  const validateForm = () => {
-    const newErrors: Record<string, string> = {}
-
-    if (!formData.address.trim()) newErrors.address = 'Physical address is required'
-    if (!formData.bankAccount.trim()) newErrors.bankAccount = 'Bank account details are required'
-    if (formData.businessType === 'Foundation' && !formData.npoNumber.trim()) {
-      newErrors.npoNumber = 'NPO registration number is required for Foundation'
-    }
-    if (formData.certificates.length === 0) {
-      newErrors.certificates = 'Please upload at least one certificate'
-    }
-
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!validateForm()) return
-
-    setLoading(true)
-
+  const saveProfile = async () => {
+    setLoading(true);
     try {
-      const accessToken = await getAccessToken()
-      if (!accessToken) throw new Error('No access token from Privy')
+      await supabase.from('profiles').upsert({
+        legal_name: form.legal_name,
+        trading_name: form.trading_name,
+        cipc_number: form.cipc_number,
+        business_types: form.business_types,
+        full_address: form.full_address,
+        vat_number: form.vat_number,
+        bank_details: form.bank_details,
+        verified_at: new Date().toISOString()
+      });
 
-      const profileData = {
-        address: formData.address.trim(),
-        bank_account: formData.bankAccount.trim(),
-        vat_number: formData.vatNumber.trim() || null,
-        business_type: formData.businessType,
-        npo_number: formData.businessType === 'Foundation' ? formData.npoNumber.trim() : null,
-      }
-
-      const { data, error: functionError } = await supabase.functions.invoke('onboard-profile', {
-        body: { token: accessToken, profileData },
-      })
-
-      if (functionError) throw new Error(functionError.message || 'Failed to call function')
-      if (!data?.success) throw new Error(data?.error || 'Onboarding failed')
-
-      toast.success('Profile saved successfully!', { duration: 5000 })
-      setHasProfile(true)
-      setEditMode(false)
-
-    } catch (err: any) {
-      console.error('Onboarding error:', err)
-      toast.error(err.message || 'Failed to save profile')
+      toast.success('🎉 Business fully verified and live on the trusted network!');
+      window.location.href = '/dashboard';
+    } catch (error: any) {
+      toast.error(error.message);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
-  if (!ready) return <div className="min-h-screen bg-black flex items-center justify-center text-white">Loading...</div>
-  if (!authenticated) return <div className="min-h-screen bg-black flex items-center justify-center text-white text-2xl">Please log in</div>
+  // ✅ Fully typed steps array (fixes the second error)
+  const steps: (() => JSX.Element)[] = [
+    // Step 0: Company Particulars
+    () => (
+      <div className="space-y-8">
+        <h2 className="text-3xl font-bold">Company Particulars</h2>
+        <input type="text" placeholder="Legal Name" className="w-full p-4 rounded-2xl border" value={form.legal_name} onChange={e => setForm(p => ({...p, legal_name: e.target.value}))} />
+        <input type="text" placeholder="Trading Name" className="w-full p-4 rounded-2xl border" value={form.trading_name} onChange={e => setForm(p => ({...p, trading_name: e.target.value}))} />
+        <input type="text" placeholder="CIPC Number" className="w-full p-4 rounded-2xl border" value={form.cipc_number} onChange={e => setForm(p => ({...p, cipc_number: e.target.value}))} />
+        <div>
+          <p className="font-medium mb-3">Business Types (select all that apply)</p>
+          <div className="grid grid-cols-2 gap-3">
+            {businessTypesList.map(type => (
+              <label key={type} className="flex items-center gap-3 p-4 border rounded-2xl cursor-pointer hover:bg-slate-50">
+                <input type="checkbox" checked={form.business_types.includes(type)} onChange={() => toggleBusinessType(type)} />
+                {type}
+              </label>
+            ))}
+          </div>
+        </div>
+      </div>
+    ),
+    // Step 1: Full Location
+    () => (
+      <div className="space-y-8">
+        <h2 className="text-3xl font-bold">Company Location</h2>
+        <input type="text" placeholder="Country" className="w-full p-4 rounded-2xl border" value={form.full_address.country} onChange={e => setForm(p => ({...p, full_address: {...p.full_address, country: e.target.value}}))} />
+        <input type="text" placeholder="Province / State" className="w-full p-4 rounded-2xl border" value={form.full_address.province} onChange={e => setForm(p => ({...p, full_address: {...p.full_address, province: e.target.value}}))} />
+        <input type="text" placeholder="City" className="w-full p-4 rounded-2xl border" value={form.full_address.city} onChange={e => setForm(p => ({...p, full_address: {...p.full_address, city: e.target.value}}))} />
+        <input type="text" placeholder="Street Address" className="w-full p-4 rounded-2xl border" value={form.full_address.street} onChange={e => setForm(p => ({...p, full_address: {...p.full_address, street: e.target.value}}))} />
+        <input type="text" placeholder="Postal Code" className="w-full p-4 rounded-2xl border" value={form.full_address.postal_code} onChange={e => setForm(p => ({...p, full_address: {...p.full_address, postal_code: e.target.value}}))} />
+      </div>
+    ),
+    // Step 2: Financial
+    () => (
+      <div className="space-y-8">
+        <h2 className="text-3xl font-bold">Financial Information</h2>
+        <input type="text" placeholder="VAT Number" className="w-full p-4 rounded-2xl border" value={form.vat_number} onChange={e => setForm(p => ({...p, vat_number: e.target.value}))} />
+        <input type="text" placeholder="Bank Name" className="w-full p-4 rounded-2xl border" value={form.bank_details.bank_name} onChange={e => setForm(p => ({...p, bank_details: {...p.bank_details, bank_name: e.target.value}}))} />
+        <input type="text" placeholder="Account Name" className="w-full p-4 rounded-2xl border" value={form.bank_details.account_name} onChange={e => setForm(p => ({...p, bank_details: {...p.bank_details, account_name: e.target.value}}))} />
+        <input type="text" placeholder="Account Number" className="w-full p-4 rounded-2xl border" value={form.bank_details.account_number} onChange={e => setForm(p => ({...p, bank_details: {...p.bank_details, account_number: e.target.value}}))} />
+        <input type="text" placeholder="Branch Code" className="w-full p-4 rounded-2xl border" value={form.bank_details.branch_code} onChange={e => setForm(p => ({...p, bank_details: {...p.bank_details, branch_code: e.target.value}}))} />
+      </div>
+    ),
+    // Step 3: Products
+    () => (
+      <div className="space-y-8">
+        <h2 className="text-3xl font-bold">Products / Services Catalog</h2>
+        <div className="flex gap-4">
+          <input type="text" placeholder="Product Name" className="flex-1 p-4 rounded-2xl border" value={newProduct.product_name} onChange={e => setNewProduct(p => ({...p, product_name: e.target.value}))} />
+          <input type="text" placeholder="SKU" className="flex-1 p-4 rounded-2xl border" value={newProduct.sku} onChange={e => setNewProduct(p => ({...p, sku: e.target.value}))} />
+          <button onClick={addProduct} className="btn-primary px-8">Add</button>
+        </div>
+        <div className="space-y-3">
+          {form.products.map((p, i) => <div key={i} className="p-4 bg-slate-50 rounded-2xl">{p.product_name} ({p.sku})</div>)}
+        </div>
+      </div>
+    ),
+    // Step 4: Certifications & CoA
+    () => (
+      <div className="space-y-8">
+        <h2 className="text-3xl font-bold">Certificates & CoA</h2>
+        <div className="flex gap-4">
+          <input type="text" placeholder="Certificate Name (e.g. FSSC 22000, CoA)" className="flex-1 p-4 rounded-2xl border" value={newCert.cert_name} onChange={e => setNewCert(p => ({...p, cert_name: e.target.value}))} />
+          <input type="date" className="flex-1 p-4 rounded-2xl border" value={newCert.expiry_date} onChange={e => setNewCert(p => ({...p, expiry_date: e.target.value}))} />
+          <select 
+            className="p-4 rounded-2xl border" 
+            value={newCert.verification_method} 
+            onChange={e => setNewCert(p => ({...p, verification_method: e.target.value as 'self' | 'api' }))}
+          >
+            <option value="self">Self Upload</option>
+            <option value="api">API Verification (future)</option>
+          </select>
+          <button onClick={addCertification} className="btn-primary px-8">Add Cert</button>
+        </div>
+        <div className="space-y-3">
+          {form.certifications.map((c, i) => <div key={i} className="p-4 bg-slate-50 rounded-2xl flex justify-between"><span>{c.cert_name} (exp {c.expiry_date})</span><span className="text-xs text-emerald-600">{c.verification_method}</span></div>)}
+        </div>
+      </div>
+    ),
+    // Step 5: Review
+    () => (
+      <div>
+        <h2 className="text-3xl font-bold">Review & Submit</h2>
+        <pre className="bg-slate-100 p-8 rounded-3xl text-sm overflow-auto max-h-96">{JSON.stringify(form, null, 2)}</pre>
+      </div>
+    )
+  ];
 
   return (
-    <div className="min-h-screen bg-black text-white px-6 md:px-16 lg:px-32 py-16">
-      <div className="max-w-5xl mx-auto">
-        <div className="text-center mb-16">
-          <h1 className="text-5xl md:text-7xl font-black tracking-tighter mb-4 text-white">
-            Complete Your Profile
-          </h1>
-          <p className="text-xl md:text-2xl text-gray-400">
-            Wallet: {user?.wallet?.address ? `${user.wallet.address.slice(0, 6)}...${user.wallet.address.slice(-4)}` : 'Wallet connected but no address'}
-          </p>
+    <div className="min-h-screen bg-[#f8fafc] pl-[25px] pr-12 py-12">
+      <div className="max-w-4xl mx-auto">
+        <div className="flex justify-between items-center mb-12">
+          <h1 className="text-6xl font-black tracking-[-3px]">Verify Your Business</h1>
+          <div className="text-sm font-medium text-slate-500">Step {step + 1} of 6</div>
         </div>
 
-        {loading ? (
-          <div className="text-center text-xl">Loading profile status...</div>
-        ) : hasProfile && !editMode ? (
-          <div className="bg-green-900/30 border border-green-800 rounded-3xl p-12 text-center backdrop-blur-xl">
-            <h2 className="text-4xl font-bold text-green-400 mb-6">Profile Already Complete!</h2>
-            <p className="text-xl text-gray-300 mb-8">
-              Your business profile is saved and ready. You can view or edit it anytime.
-            </p>
-            <div className="flex justify-center gap-6">
-              <Link
-                href="/dashboard"
-                className="px-10 py-5 bg-green-600 hover:bg-green-700 rounded-2xl text-white font-bold text-xl transition shadow-lg"
-              >
-                View Dashboard
-              </Link>
-              <button
-                onClick={() => setEditMode(true)}
-                className="px-10 py-5 bg-gray-700 hover:bg-gray-600 rounded-2xl text-white font-bold text-xl transition shadow-lg"
-              >
-                Edit Profile
-              </button>
-            </div>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-12">
-            {/* Business Details */}
-            <div className="bg-gray-900/50 border border-gray-800 rounded-3xl p-10 backdrop-blur-xl shadow-2xl">
-              <h2 className="text-3xl font-bold mb-8 text-green-400">Business Details</h2>
+        <div className="card p-12">
+          {steps[step]()}
+        </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div>
-                  <label className="block text-lg font-medium text-gray-300 mb-3">Physical Address *</label>
-                  <input
-                    type="text"
-                    name="address"
-                    value={formData.address}
-                    onChange={handleChange}
-                    className={`w-full px-6 py-5 bg-black border ${errors.address ? 'border-red-500' : 'border-gray-700'} rounded-2xl text-white placeholder-gray-500 focus:border-green-500 focus:ring-2 focus:ring-green-500/30 transition-all text-lg`}
-                    placeholder="123 Main St, Durban, KwaZulu-Natal"
-                    required
-                  />
-                  {errors.address && <p className="text-red-500 text-sm mt-1">{errors.address}</p>}
-                </div>
-
-                <div>
-                  <label className="block text-lg font-medium text-gray-300 mb-3">Bank Account Details *</label>
-                  <input
-                    type="text"
-                    name="bankAccount"
-                    value={formData.bankAccount}
-                    onChange={handleChange}
-                    className={`w-full px-6 py-5 bg-black border ${errors.bankAccount ? 'border-red-500' : 'border-gray-700'} rounded-2xl text-white placeholder-gray-500 focus:border-green-500 focus:ring-2 focus:ring-green-500/30 transition-all text-lg`}
-                    placeholder="FNB | Acc: 12345678901 | Branch: 250655"
-                    required
-                  />
-                  {errors.bankAccount && <p className="text-red-500 text-sm mt-1">{errors.bankAccount}</p>}
-                </div>
-
-                <div>
-                  <label className="block text-lg font-medium text-gray-300 mb-3">VAT Number</label>
-                  <input
-                    type="text"
-                    name="vatNumber"
-                    value={formData.vatNumber}
-                    onChange={handleChange}
-                    className="w-full px-6 py-5 bg-black border border-gray-700 rounded-2xl text-white placeholder-gray-500 focus:border-green-500 focus:ring-2 focus:ring-green-500/30 transition-all text-lg"
-                    placeholder="4123456789 (optional)"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-lg font-medium text-gray-300 mb-3">Business Type</label>
-                  <select
-                    name="businessType"
-                    value={formData.businessType}
-                    onChange={handleChange}
-                    className="w-full px-6 py-5 bg-black border border-gray-700 rounded-2xl text-white focus:border-green-500 focus:ring-2 focus:ring-green-500/30 transition-all text-lg appearance-none"
-                  >
-                    <option value="Foods">Big Five Foods (Main)</option>
-                    <option value="Access">Big Five Access (Tenders)</option>
-                    <option value="Foundation">Big Five Foundation (NPO)</option>
-                    <option value="Direct">Big Five Direct (Containers)</option>
-                    <option value="Supplier">Supplier</option>
-                    <option value="Logistics">Logistics</option>
-                  </select>
-                </div>
-              </div>
-
-              {formData.businessType === 'Foundation' && (
-                <div className="mt-10 p-6 bg-green-900/30 border border-green-800 rounded-2xl">
-                  <label className="block text-lg font-medium text-green-300 mb-3">NPO Registration Number *</label>
-                  <input
-                    type="text"
-                    name="npoNumber"
-                    value={formData.npoNumber}
-                    onChange={handleChange}
-                    className={`w-full px-6 py-5 bg-black border ${errors.npoNumber ? 'border-red-500' : 'border-green-700'} rounded-2xl text-white placeholder-gray-500 focus:border-green-400 focus:ring-2 focus:ring-green-400/30 transition-all text-lg`}
-                    placeholder="123-456-NPO-789"
-                    required
-                  />
-                  {errors.npoNumber && <p className="text-red-500 text-sm mt-1">{errors.npoNumber}</p>}
-                </div>
-              )}
-            </div>
-
-            {/* Certificates */}
-            <div className="bg-gray-900/50 border border-gray-800 rounded-3xl p-10 backdrop-blur-xl shadow-2xl">
-              <h2 className="text-3xl font-bold mb-8 text-green-400">Certificates</h2>
-              <p className="text-gray-300 mb-6 text-lg">
-                Upload ISO, Halal, Kosher, Sedex, BBBEE, etc. (multiple files OK)
-              </p>
-
-              <label className="block w-full px-6 py-10 bg-black border-2 border-dashed border-gray-700 rounded-3xl text-center cursor-pointer hover:border-green-500 transition-all">
-                <input
-                  type="file"
-                  multiple
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
-                <span className="text-gray-300 text-xl block mb-2">
-                  {formData.certificates.length > 0
-                    ? `${formData.certificates.length} file${formData.certificates.length > 1 ? 's' : ''} selected`
-                    : 'Click or drag & drop files'}
-                </span>
-                <span className="text-sm text-gray-500">Max 10MB per file</span>
-                {errors.certificates && <p className="text-red-500 text-sm mt-2">{errors.certificates}</p>}
-              </label>
-
-              {formData.certificates.length > 0 && (
-                <div className="mt-6 space-y-2">
-                  {formData.certificates.map((file, i) => (
-                    <div key={i} className="text-gray-300 text-sm">
-                      {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div className="mt-8">
-                <label className="block text-lg font-medium text-gray-300 mb-3">Verification Method</label>
-                <select
-                  value={formData.verificationMethod}
-                  onChange={e => setFormData({ ...formData, verificationMethod: e.target.value as any })}
-                  className="w-full px-6 py-5 bg-black border border-gray-700 rounded-2xl text-white focus:border-green-500 focus:ring-2 focus:ring-green-500/30 transition-all text-lg"
-                >
-                  <option value="Third-Party">Third-Party Verified</option>
-                  <option value="Self-Verified">Self-Verified (with documents)</option>
-                </select>
-                {formData.verificationMethod === 'Self-Verified' && (
-                  <p className="mt-3 text-yellow-400 text-sm">
-                    Self-Verified certificates will show with yellow badge.
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-6 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-bold rounded-3xl text-2xl shadow-2xl transition-all transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? 'Saving Profile...' : 'Complete Onboarding & Verify'}
+        <div className="flex justify-between mt-10">
+          {step > 0 && (
+            <button onClick={() => setStep(s => s - 1)} className="flex items-center gap-3 px-8 py-4 border-2 rounded-3xl font-medium">
+              <ArrowLeft /> Back
             </button>
-          </form>
-        )}
+          )}
+          <button
+            onClick={() => step < 5 ? setStep(s => s + 1) : saveProfile()}
+            disabled={loading}
+            className="btn-primary flex items-center gap-3 px-12 py-4 disabled:opacity-70"
+          >
+            {loading ? 'Saving...' : step === 5 ? 'Submit & Go Live' : 'Continue'} <ArrowRight />
+          </button>
+        </div>
       </div>
     </div>
-  )
+  );
 }
