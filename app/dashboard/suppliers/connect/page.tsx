@@ -11,10 +11,13 @@ export default function ConnectPage() {
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
   const [approvedConnections, setApprovedConnections] = useState<any[]>([]);
 
-  // Load all verified businesses (for search)
+  // Load all verified businesses
   useEffect(() => {
     const loadBusinesses = async () => {
-      const { data } = await supabase.from('profiles').select('*').eq('verified_at', 'is not null');
+      const { data } = await supabase
+        .from('profiles')
+        .select('*')
+        .not('verified_at', 'is', null);
       setBusinesses(data || []);
     };
     loadBusinesses();
@@ -41,7 +44,7 @@ export default function ConnectPage() {
 
   const sendConnectionRequest = async (targetProfileId: number, targetName: string) => {
     const { error } = await supabase.from('business_connections').insert({
-      requester_id: 1, // TODO: replace with real current user profile id later
+      requester_id: 1, // TODO: Replace with real current user profile ID later
       requestee_id: targetProfileId,
       message: `Would love to connect and start transacting with ${targetName}`,
       status: 'pending'
@@ -49,36 +52,38 @@ export default function ConnectPage() {
 
     if (!error) {
       toast.success(`Connection request sent to ${targetName}`);
+    } else {
+      toast.error('Failed to send request');
     }
   };
 
-  const filteredBusinesses = businesses.filter(b => 
+  const filteredBusinesses = businesses.filter(b =>
     b.legal_name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
     <div className="space-y-12">
       <h1 className="text-6xl font-black tracking-tighter text-[#00b4d8]">Connect with Businesses</h1>
-      <p className="text-2xl text-slate-600">Search • Send Request • Only approved connections can transact</p>
+      <p className="text-2xl text-slate-600">Only approved connections can raise POs, send invoices, or ship goods</p>
 
-      {/* Search */}
+      {/* Search Bar */}
       <div className="card p-8">
         <input
           type="text"
           placeholder="Search by company name..."
-          className="w-full p-5 rounded-3xl border text-xl"
+          className="input"
           value={searchTerm}
           onChange={e => setSearchTerm(e.target.value)}
         />
       </div>
 
-      {/* Results */}
+      {/* Search Results */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {filteredBusinesses.map(b => (
           <div key={b.id} className="card p-8 flex justify-between items-center">
             <div>
               <div className="text-2xl font-bold">{b.legal_name}</div>
-              <div className="text-slate-500">{b.trading_name}</div>
+              <div className="text-slate-500">{b.trading_name || '—'}</div>
             </div>
             <button 
               onClick={() => sendConnectionRequest(b.id, b.legal_name)}
@@ -95,9 +100,9 @@ export default function ConnectPage() {
         <div className="card p-8">
           <h2 className="text-2xl font-bold mb-6 flex items-center gap-3"><Users /> Pending Requests</h2>
           {pendingRequests.map(req => (
-            <div key={req.id} className="flex justify-between py-4 border-b">
+            <div key={req.id} className="flex justify-between py-4 border-b last:border-0">
               <div>{req.requestee?.legal_name}</div>
-              <div className="text-amber-600">Awaiting approval</div>
+              <div className="text-amber-600 font-medium">Awaiting approval</div>
             </div>
           ))}
         </div>
@@ -108,9 +113,9 @@ export default function ConnectPage() {
         <div className="card p-8">
           <h2 className="text-2xl font-bold mb-6 flex items-center gap-3"><Check className="text-emerald-600" /> Approved Connections</h2>
           {approvedConnections.map(conn => (
-            <div key={conn.id} className="flex justify-between py-4 border-b text-emerald-700">
+            <div key={conn.id} className="flex justify-between py-4 border-b last:border-0 text-emerald-700">
               <div>{conn.requestee?.legal_name}</div>
-              <div>✓ Can now transact</div>
+              <div>✓ Can now transact (POs, Invoices, Shipments)</div>
             </div>
           ))}
         </div>
