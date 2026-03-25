@@ -8,11 +8,13 @@ export default function Breadcrumb() {
   const pathname = usePathname();
   const segments = pathname.split('/').filter(Boolean);
 
+  // Build breadcrumb items
   const items = segments.map((segment, index) => {
     const href = '/' + segments.slice(0, index + 1).join('/');
     const label = segment
       .replace(/-/g, ' ')
       .replace(/\b\w/g, l => l.toUpperCase());
+
     return { href, label };
   });
 
