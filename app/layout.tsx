@@ -65,32 +65,59 @@ const modules = [
       { name: 'Cycle Counts', href: '/dashboard/inventory/cycle-counts' }
     ]
   },
+  { id: 'manufacturing', name: 'Manufacturing', icon: '🏭', href: '/dashboard/manufacturing', sub: [] },
+  { id: 'logistics', name: 'Logistics', icon: '🚚', href: '/dashboard/logistics', sub: [] },
   { 
-    id: 'manufacturing', 
-    name: 'Manufacturing', 
-    icon: '🏭', 
-    href: '/dashboard/manufacturing', 
+    id: 'quality', 
+    name: 'Quality', 
+    icon: '✅', 
+    href: '/dashboard/quality', 
     sub: [
-      { name: 'MPS', href: '/dashboard/manufacturing/mps' },
-      { name: 'MRP', href: '/dashboard/manufacturing/mrp' },
-      { name: 'Batch Creation', href: '/dashboard/manufacturing/batches' }
+      { name: 'Inspections & Checklists', href: '/dashboard/quality/inspections' },
+      { name: 'HACCP Records', href: '/dashboard/quality/haccp' },
+      { name: 'Traceability Graph', href: '/dashboard/quality/traceability' },
+      { name: 'Regulatory Reports', href: '/dashboard/quality/reports' },
+      { name: 'Recall Simulator', href: '/dashboard/quality/recall' }
     ]
   },
   { 
-    id: 'logistics', 
-    name: 'Logistics', 
-    icon: '🚚', 
-    href: '/dashboard/logistics', 
+    id: 'finance', 
+    name: 'Finance', 
+    icon: '💰', 
+    href: '/dashboard/finance', 
     sub: [
-      { name: 'Shipments', href: '/dashboard/logistics/shipments' },
-      { name: 'Live Tracking', href: '/dashboard/logistics/tracking' },
-      { name: 'Fleet & Drivers', href: '/dashboard/logistics/fleet' }
+      { name: 'Invoices & Payments', href: '/dashboard/finance/invoices' },
+      { name: 'Ledgers', href: '/dashboard/finance/ledgers' },
+      { name: 'Budgeting & Forecasting', href: '/dashboard/finance/budget' },
+      { name: 'Supply-Chain Finance', href: '/dashboard/finance/supply-finance' },
+      { name: 'Tax & Compliance', href: '/dashboard/finance/tax' }
     ]
   },
-  { id: 'quality', name: 'Quality', icon: '✅', href: '/dashboard/quality', sub: [] },
-  { id: 'finance', name: 'Finance', icon: '💰', href: '/dashboard/finance', sub: [] },
-  { id: 'projects', name: 'Projects', icon: '📋', href: '/dashboard/projects', sub: [] },
-  { id: 'people', name: 'People', icon: '👥', href: '/dashboard/people', sub: [] },
+  { 
+    id: 'projects', 
+    name: 'Projects', 
+    icon: '📋', 
+    href: '/dashboard/projects', 
+    sub: [
+      { name: 'Project Portfolio', href: '/dashboard/projects/portfolio' },
+      { name: 'Kanban Boards', href: '/dashboard/projects/kanban' },
+      { name: 'Gantt Charts', href: '/dashboard/projects/gantt' },
+      { name: 'Resource Allocation', href: '/dashboard/projects/resources' },
+      { name: 'Milestones', href: '/dashboard/projects/milestones' }
+    ]
+  },
+  { 
+    id: 'people', 
+    name: 'People', 
+    icon: '👥', 
+    href: '/dashboard/people', 
+    sub: [
+      { name: 'Employee Directory', href: '/dashboard/people/employees' },
+      { name: 'Onboarding', href: '/dashboard/people/onboarding' },
+      { name: 'Performance Reviews', href: '/dashboard/people/performance' },
+      { name: 'Payroll', href: '/dashboard/people/payroll' }
+    ]
+  },
   { 
     id: 'governance', 
     name: 'Governance', 
@@ -113,7 +140,18 @@ const modules = [
       { name: 'Leadership Scorecards', href: '/dashboard/ai-lab/scorecards' }
     ]
   },
-  { id: 'sustainability', name: 'Sustainability', icon: '🌱', href: '/dashboard/sustainability', sub: [] },
+  { 
+    id: 'sustainability', 
+    name: 'Sustainability', 
+    icon: '🌱', 
+    href: '/dashboard/sustainability', 
+    sub: [
+      { name: 'Carbon Footprint Tracking', href: '/dashboard/sustainability/carbon' },
+      { name: 'Ethical Sourcing', href: '/dashboard/sustainability/ethical' },
+      { name: 'Water & Waste Metrics', href: '/dashboard/sustainability/water-waste' },
+      { name: 'Reports', href: '/dashboard/sustainability/reports' }
+    ]
+  },
 ];
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
