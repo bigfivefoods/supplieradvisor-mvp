@@ -17,6 +17,7 @@ export default function RaisePO() {
     notes: '',
   });
 
+  // Load approved connections
   useEffect(() => {
     const loadSuppliers = async () => {
       const { data } = await supabase
@@ -56,10 +57,13 @@ export default function RaisePO() {
 
   return (
     <div className="pl-[25px]">
+      {/* Mandatory breadcrumb on every page */}
       <Breadcrumb />
+
       <h1 className="text-6xl font-black tracking-tighter text-[#00b4d8]">Raise Purchase Order</h1>
       <p className="text-2xl text-slate-600">Only with approved connections • Auto-pulls verified data • Tokenized on Base</p>
 
+      {/* Supplier Selection */}
       <div className="card mt-8">
         <h3 className="text-2xl font-bold mb-6">Select Connected Supplier</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -82,6 +86,7 @@ export default function RaisePO() {
         </div>
       </div>
 
+      {/* PO Form */}
       {selectedSupplier && (
         <div className="card mt-8">
           <h3 className="text-2xl font-bold mb-8">PO Details (auto-filled from supplier)</h3>
@@ -92,24 +97,40 @@ export default function RaisePO() {
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">Amount (R)</label>
-              <input type="text" className="input" placeholder="0.00" value={poForm.amount} onChange={(e) => setPoForm({...poForm, amount: e.target.value})} />
+              <input
+                type="text"
+                className="input"
+                placeholder="0.00"
+                value={poForm.amount}
+                onChange={(e) => setPoForm({ ...poForm, amount: e.target.value })}
+              />
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">Due Date</label>
-              <input type="date" className="input" value={poForm.dueDate} onChange={(e) => setPoForm({...poForm, dueDate: e.target.value})} />
+              <input
+                type="date"
+                className="input"
+                value={poForm.dueDate}
+                onChange={(e) => setPoForm({ ...poForm, dueDate: e.target.value })}
+              />
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">Incoterms</label>
-              <select className="input" value={poForm.incoterms} onChange={(e) => setPoForm({...poForm, incoterms: e.target.value})}>
-                <option value="DDP">DDP</option>
-                <option value="DAP">DAP</option>
-                <option value="FOB">FOB</option>
-                <option value="EXW">EXW</option>
-                <option value="CIF">CIF</option>
+              <select
+                className="input"
+                value={poForm.incoterms}
+                onChange={(e) => setPoForm({ ...poForm, incoterms: e.target.value })}
+              >
+                <option value="DDP">DDP (Delivered Duty Paid)</option>
+                <option value="DAP">DAP (Delivered at Place)</option>
+                <option value="FOB">FOB (Free on Board)</option>
+                <option value="EXW">EXW (Ex Works)</option>
+                <option value="CIF">CIF (Cost, Insurance & Freight)</option>
               </select>
             </div>
           </div>
 
+          {/* CoA Attachment */}
           <div className="mt-10">
             <label className="block text-sm font-medium mb-3">Attach Certificate of Analysis / Documents</label>
             <div className="border-2 border-dashed border-slate-300 rounded-3xl p-8 text-center hover:border-[#00b4d8] transition-colors">
@@ -118,8 +139,11 @@ export default function RaisePO() {
             </div>
           </div>
 
-          <button onClick={handleCreatePO} className="btn-primary w-full mt-12 py-7 text-xl font-semibold">
-            Create PO & Tokenize on Base Blockchain
+          <button
+            onClick={handleCreatePO}
+            className="btn-primary w-full mt-12 py-7 text-xl font-semibold"
+          >
+            Create PO &amp; Tokenize on Base Blockchain
           </button>
         </div>
       )}
