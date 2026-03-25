@@ -1,13 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { Search, Plus, FileText, TrendingUp } from 'lucide-react';
+import { Search, Plus, FileText, TrendingUp, Award, AlertTriangle } from 'lucide-react';
 import Breadcrumb from '../../../components/ui/Breadcrumb';   // ← Correct relative path
 
 export default function SuppliersPage() {
   return (
     <div className="pl-[25px]">
-      {/* Mandatory breadcrumb */}
       <Breadcrumb />
 
       <h1 className="text-6xl font-black tracking-tighter text-[#00b4d8]">Suppliers</h1>
