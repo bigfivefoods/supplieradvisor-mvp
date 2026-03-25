@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { supabase } from '@/lib/supabase';
-import { ArrowRight, ChevronDown } from 'lucide-react';
+import { ArrowRight, ChevronDown, RefreshCw } from 'lucide-react';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 import toast from 'react-hot-toast';
 
@@ -18,6 +18,7 @@ export default function MyBusinessProfile() {
   const { user } = usePrivy();
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [status, setStatus] = useState("Click Save or Refresh to load data");
 
   const [form, setForm] = useState({
     legal_name: '', trading_name: '', cipc_number: '',
@@ -35,7 +36,6 @@ export default function MyBusinessProfile() {
   const [newCert, setNewCert] = useState({ name: '', awarded_date: '', expiry_date: '', verification_method: 'self' as 'self' | 'api', document_url: '' });
   const [noExpiry, setNoExpiry] = useState(false);
 
-  // Expandable sections – fixed TS typing
   const [expanded, setExpanded] = useState<Record<string, boolean>>({
     basics: true,
     location: true,
@@ -49,22 +49,33 @@ export default function MyBusinessProfile() {
     setExpanded(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  // Load saved data on mount / refresh
+  // FIXED LOAD – single merge, no race conditions
   const loadData = async () => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      setStatus("❌ No user ID found");
+      return;
+    }
+    setStatus("🔄 Loading from Supabase...");
     console.log("🔄 Loading profile for:", user.id);
 
-    const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-    if (profile) {
-      console.log("✅ Profile loaded");
-      setForm(profile);
+    try {
+      const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+      const { data: products } = await supabase.from('business_products').select('*').eq('profile_id', user.id);
+      const { data: certs } = await supabase.from('business_certifications').select('*').eq('profile_id', user.id);
+
+      setForm({
+        ...form,
+        ...(profile || {}),
+        products: products || [],
+        certifications: certs || [],
+      });
+
+      setStatus(`✅ Loaded – ${products?.length || 0} products • ${certs?.length || 0} certifications`);
+      console.log("✅ Data loaded successfully");
+    } catch (err: any) {
+      console.error("💥 Load error:", err);
+      setStatus("❌ Load failed – check console");
     }
-
-    const { data: products } = await supabase.from('business_products').select('*').eq('profile_id', user.id);
-    if (products) setForm(prev => ({ ...prev, products }));
-
-    const { data: certs } = await supabase.from('business_certifications').select('*').eq('profile_id', user.id);
-    if (certs) setForm(prev => ({ ...prev, certifications: certs }));
   };
 
   useEffect(() => {
@@ -80,8 +91,9 @@ export default function MyBusinessProfile() {
       if (form.products.length > 0) await supabase.from('business_products').insert(form.products.map(p => ({ profile_id: user.id, ...p })));
       await supabase.from('business_certifications').delete().eq('profile_id', user.id);
       if (form.certifications.length > 0) await supabase.from('business_certifications').insert(form.certifications.map(c => ({ profile_id: user.id, ...c })));
-      toast.success('✅ Profile updated successfully!');
-      loadData(); // Refresh immediately
+
+      toast.success('✅ Profile saved successfully!');
+      await loadData(); // immediate refresh
     } catch (err: any) {
       toast.error('Save failed: ' + err.message);
     } finally {
@@ -203,6 +215,14 @@ export default function MyBusinessProfile() {
         <Breadcrumb />
         <h1 className="text-6xl font-black tracking-[-3px] text-[#00b4d8] mb-12">My Business Profile</h1>
 
+        {/* DEBUG STATUS BAR */}
+        <div className="mb-8 p-6 bg-white border border-slate-200 rounded-3xl flex items-center justify-between">
+          <div className="text-lg font-medium">Status: <span className="font-bold text-[#00b4d8]">{status}</span></div>
+          <button onClick={loadData} className="flex items-center gap-3 border border-slate-300 hover:bg-slate-100 px-6 py-3 rounded-3xl transition">
+            <RefreshCw size={18} /> Force Refresh Data
+          </button>
+        </div>
+
         <div className="space-y-6">
 
           {/* Company Basics */}
@@ -283,7 +303,7 @@ export default function MyBusinessProfile() {
             )}
           </div>
 
-          {/* Financial */}
+          {/* Financial Details */}
           <div className="card">
             <button onClick={() => toggleSection('financial')} className="w-full flex justify-between items-center p-8 text-left border-b">
               <h2 className="text-4xl font-black tracking-tighter text-[#00b4d8]">Financial Details</h2>
@@ -301,7 +321,7 @@ export default function MyBusinessProfile() {
             )}
           </div>
 
-          {/* Products */}
+          {/* Products / Services */}
           <div className="card">
             <button onClick={() => toggleSection('products')} className="w-full flex justify-between items-center p-8 text-left border-b">
               <h2 className="text-4xl font-black tracking-tighter text-[#00b4d8]">Products / Services</h2>
@@ -320,7 +340,7 @@ export default function MyBusinessProfile() {
             )}
           </div>
 
-          {/* Certifications */}
+          {/* Certifications & Documents */}
           <div className="card">
             <button onClick={() => toggleSection('certifications')} className="w-full flex justify-between items-center p-8 text-left border-b">
               <h2 className="text-4xl font-black tracking-tighter text-[#00b4d8]">Certifications & Documents</h2>
@@ -379,7 +399,8 @@ export default function MyBusinessProfile() {
           </div>
         </div>
 
-        <div className="flex justify-end mt-12">
+        <div className="flex justify-end gap-4 mt-12">
+          <button onClick={loadData} className="border px-8 py-4 rounded-3xl hover:bg-slate-100">Refresh Only</button>
           <button onClick={saveProfile} disabled={loading} className="btn-primary flex items-center gap-3 px-12 py-4">
             {loading ? 'Saving...' : 'Save All Changes'} <ArrowRight />
           </button>
