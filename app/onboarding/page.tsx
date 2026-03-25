@@ -37,11 +37,8 @@ export default function Onboarding() {
   const [expandedSectors, setExpandedSectors] = useState<Record<string, boolean>>({});
   const [noExpiry, setNoExpiry] = useState(false);
 
-  // Privy ready check
   useEffect(() => {
-    if (privyReady && !user?.id) {
-      toast.error("Please connect your wallet first");
-    }
+    if (privyReady && !user?.id) toast.error("Please connect your wallet first");
   }, [privyReady, user]);
 
   const toggleSector = (sector: string) => {
@@ -157,7 +154,6 @@ export default function Onboarding() {
   };
 
   const steps = [
-    // Step 1
     () => (
       <div>
         <h2 className="text-4xl font-black tracking-tighter mb-8 text-[#00b4d8]">Tell us about your business</h2>
@@ -170,8 +166,6 @@ export default function Onboarding() {
         <div className="mt-6"><label className="block text-sm font-medium mb-2">CIPC / Company Registration Number</label><input className="input w-full" value={form.cipc_number} onChange={e => setForm(p => ({...p, cipc_number: e.target.value}))} /></div>
       </div>
     ),
-
-    // Step 2
     () => (
       <div>
         <h2 className="text-4xl font-black tracking-tighter mb-8 text-[#00b4d8]">What type of business are you?</h2>
@@ -221,8 +215,6 @@ export default function Onboarding() {
         </div>
       </div>
     ),
-
-    // Step 3
     () => (
       <div>
         <h2 className="text-4xl font-black tracking-tighter mb-8 text-[#00b4d8]">Where are you located?</h2>
@@ -238,8 +230,6 @@ export default function Onboarding() {
         <div className="mt-8"><label className="block text-sm font-medium mb-2">Postal Code</label><input className="input w-1/2" value={form.postal_code} onChange={e => setForm(p => ({...p, postal_code: e.target.value}))} /></div>
       </div>
     ),
-
-    // Step 4
     () => (
       <div>
         <h2 className="text-4xl font-black tracking-tighter mb-8 text-[#00b4d8]">Financial details</h2>
@@ -254,8 +244,6 @@ export default function Onboarding() {
         </div>
       </div>
     ),
-
-    // Step 5
     () => (
       <div>
         <h2 className="text-4xl font-black tracking-tighter mb-8 text-[#00b4d8]">Your Products / Services</h2>
@@ -269,8 +257,6 @@ export default function Onboarding() {
         </div>
       </div>
     ),
-
-    // Step 6: Certifications
     () => (
       <div>
         <h2 className="text-4xl font-black tracking-tighter mb-8 text-[#00b4d8]">Certifications & Documents</h2>
@@ -323,8 +309,6 @@ export default function Onboarding() {
         </div>
       </div>
     ),
-
-    // Step 7
     () => (
       <div>
         <h2 className="text-4xl font-black tracking-tighter mb-8 text-[#00b4d8]">Review & Join the Network</h2>
@@ -341,15 +325,29 @@ export default function Onboarding() {
     }
     setLoading(true);
     try {
-      await supabase.from('profiles').upsert({ id: user.id, ...form, status: 'awaiting_verification' });
+      console.log("=== Starting saveProfile ===");
+
+      const { error: profileError } = await supabase.from('profiles').upsert({ id: user.id, ...form, status: 'awaiting_verification' });
+      if (profileError) console.error("Profile error:", profileError);
+
       await supabase.from('business_products').delete().eq('profile_id', user.id);
-      if (form.products.length > 0) await supabase.from('business_products').insert(form.products.map(p => ({ profile_id: user.id, ...p })));
+      if (form.products.length > 0) {
+        const { error: prodError } = await supabase.from('business_products').insert(form.products.map(p => ({ profile_id: user.id, ...p })));
+        if (prodError) console.error("Products error:", prodError);
+      }
+
       await supabase.from('business_certifications').delete().eq('profile_id', user.id);
-      if (form.certifications.length > 0) await supabase.from('business_certifications').insert(form.certifications.map(c => ({ profile_id: user.id, ...c })));
-      toast.success('🎉 Profile fully saved!');
+      if (form.certifications.length > 0) {
+        const { error: certError } = await supabase.from('business_certifications').insert(form.certifications.map(c => ({ profile_id: user.id, ...c })));
+        if (certError) console.error("Certifications error:", certError);
+      }
+
+      console.log("=== Save completed successfully ===");
+      toast.success('🎉 Profile fully saved! You are now “Awaiting Verification”.');
       window.location.href = '/dashboard';
     } catch (err: any) {
-      toast.error('Save failed: ' + err.message);
+      console.error("=== CRITICAL SAVE ERROR ===", err);
+      toast.error('Save failed – check terminal for details');
     } finally {
       setLoading(false);
     }
