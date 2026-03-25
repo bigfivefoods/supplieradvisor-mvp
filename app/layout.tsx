@@ -175,7 +175,7 @@ const modules = [
 
 function RootLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isDashboard = true;   // Sidebar shows on ALL pages (including onboarding)
+  const isDashboard = true;
 
   const { user, logout } = usePrivy();
   const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({});
