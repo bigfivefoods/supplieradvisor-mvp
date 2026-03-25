@@ -18,8 +18,15 @@ const modules = [
     href: '/dashboard/suppliers', 
     sub: [
       { name: 'Search Suppliers', href: '/dashboard/suppliers/search' },
+      { name: 'Onboard Suppliers', href: '/dashboard/suppliers/onboard' },
+      { name: 'Supplier Profiles', href: '/dashboard/suppliers/profiles' },
       { name: 'Connect', href: '/dashboard/suppliers/connect' },
       { name: 'Raise PO', href: '/dashboard/procurement/po' },
+      { name: 'Supplier Contracts', href: '/dashboard/suppliers/contracts' },
+      { name: 'Supplier Metrics', href: '/dashboard/suppliers/metrics' },
+      { name: 'Performance Scorecards', href: '/dashboard/suppliers/scorecards' },
+      { name: 'Supplier Portal', href: '/dashboard/suppliers/portal' },
+      { name: 'Risk Alerts', href: '/dashboard/suppliers/risks' },
       { name: 'OTIFEF Metrics', href: '/otifef' }
     ]
   },
@@ -28,7 +35,11 @@ const modules = [
     name: 'Customers', 
     icon: '🤝', 
     href: '/dashboard/customers', 
-    sub: [] 
+    sub: [
+      { name: 'Search Customers', href: '/dashboard/customers/search' },
+      { name: 'Profiles', href: '/dashboard/customers' },
+      { name: 'Quotes & Orders', href: '/dashboard/customers/orders' }
+    ]
   },
   { 
     id: 'procurement', 
@@ -37,6 +48,7 @@ const modules = [
     href: '/dashboard/procurement', 
     sub: [
       { name: 'Requisitions', href: '/dashboard/procurement/requisitions' },
+      { name: 'Bids & Negotiation', href: '/dashboard/procurement/bids' },
       { name: 'Purchase Orders', href: '/dashboard/procurement/po' }
     ]
   },
@@ -50,12 +62,31 @@ const modules = [
       { name: 'Finished Goods', href: '/dashboard/inventory/finished-goods' },
       { name: 'Warehouses & Containers', href: '/dashboard/inventory/warehouses' },
       { name: 'Transfers', href: '/dashboard/inventory/transfers' },
-      { name: 'Cycle Counts', href: '/dashboard/inventory/cycle-counts' },
-      { name: 'Tokenized Lots', href: '/dashboard/inventory/tokenized' }
+      { name: 'Cycle Counts', href: '/dashboard/inventory/cycle-counts' }
     ]
   },
-  { id: 'manufacturing', name: 'Manufacturing', icon: '🏭', href: '/dashboard/manufacturing', sub: [] },
-  { id: 'logistics', name: 'Logistics', icon: '🚚', href: '/dashboard/logistics', sub: [] },
+  { 
+    id: 'manufacturing', 
+    name: 'Manufacturing', 
+    icon: '🏭', 
+    href: '/dashboard/manufacturing', 
+    sub: [
+      { name: 'MPS', href: '/dashboard/manufacturing/mps' },
+      { name: 'MRP', href: '/dashboard/manufacturing/mrp' },
+      { name: 'Batch Creation', href: '/dashboard/manufacturing/batches' }
+    ]
+  },
+  { 
+    id: 'logistics', 
+    name: 'Logistics', 
+    icon: '🚚', 
+    href: '/dashboard/logistics', 
+    sub: [
+      { name: 'Shipments', href: '/dashboard/logistics/shipments' },
+      { name: 'Live Tracking', href: '/dashboard/logistics/tracking' },
+      { name: 'Fleet & Drivers', href: '/dashboard/logistics/fleet' }
+    ]
+  },
   { id: 'quality', name: 'Quality', icon: '✅', href: '/dashboard/quality', sub: [] },
   { id: 'finance', name: 'Finance', icon: '💰', href: '/dashboard/finance', sub: [] },
   { id: 'projects', name: 'Projects', icon: '📋', href: '/dashboard/projects', sub: [] },
