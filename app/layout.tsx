@@ -50,7 +50,17 @@ const modules = [
       { name: 'PESTLE Analysis', href: '/dashboard/governance/pestle' }
     ]
   },
-  { id: 'ai-lab', name: 'AI Lab', icon: '🧠', href: '/dashboard/ai-lab', sub: [] },
+  { 
+    id: 'ai-lab', 
+    name: 'AI Lab', 
+    icon: '🧠', 
+    href: '/dashboard/ai-lab', 
+    sub: [
+      { name: 'Assessment', href: '/dashboard/ai-lab/assessment' },
+      { name: 'Neural Choices', href: '/dashboard/ai-lab/choices' },
+      { name: 'Simulations', href: '/dashboard/ai-lab/simulations' }
+    ]
+  },
   { id: 'sustainability', name: 'Sustainability', icon: '🌱', href: '/dashboard/sustainability', sub: [] },
 ];
 
