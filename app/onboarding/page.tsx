@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { supabase } from '@/lib/supabase';
-import { ArrowRight, ArrowLeft, ChevronDown, Upload } from 'lucide-react';
+import { ArrowRight, ArrowLeft, ChevronDown } from 'lucide-react';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 import toast from 'react-hot-toast';
 
@@ -15,10 +15,11 @@ type LocationData = {
 };
 
 export default function Onboarding() {
-  const { user } = usePrivy();
+  const { user, ready: privyReady } = usePrivy();
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [fileUploaded, setFileUploaded] = useState(false);
 
   const [form, setForm] = useState({
     legal_name: '', trading_name: '', cipc_number: '',
@@ -36,6 +37,14 @@ export default function Onboarding() {
   const [newCert, setNewCert] = useState({ name: '', awarded_date: '', expiry_date: '', verification_method: 'self' as 'self' | 'api', document_url: '' });
   const [expandedSectors, setExpandedSectors] = useState<Record<string, boolean>>({});
   const [noExpiry, setNoExpiry] = useState(false);
+
+  // Prevent "user not found" error
+  useEffect(() => {
+    if (privyReady && !user?.id) {
+      toast.error("Please connect your wallet first");
+      window.location.href = '/';
+    }
+  }, [privyReady, user]);
 
   const toggleSector = (sector: string) => {
     setExpandedSectors(prev => ({ ...prev, [sector]: !prev[sector] }));
@@ -150,7 +159,7 @@ export default function Onboarding() {
   };
 
   const steps = [
-    // Step 1: Basics
+    // Step 1
     () => (
       <div>
         <h2 className="text-4xl font-black tracking-tighter mb-8 text-[#00b4d8]">Tell us about your business</h2>
@@ -164,7 +173,7 @@ export default function Onboarding() {
       </div>
     ),
 
-    // Step 2: Industry Sectors (3-column)
+    // Step 2: Industry Sectors
     () => (
       <div>
         <h2 className="text-4xl font-black tracking-tighter mb-8 text-[#00b4d8]">What type of business are you?</h2>
@@ -263,37 +272,65 @@ export default function Onboarding() {
       </div>
     ),
 
-    // Step 6: Certifications – REAL FILE UPLOAD
+    // Step 6: Certifications – FIXED UPLOAD
     () => (
       <div>
         <h2 className="text-4xl font-black tracking-tighter mb-8 text-[#00b4d8]">Certifications & Documents</h2>
-        <p className="text-slate-600 mb-8">Upload the actual certificate file (PDF or image). It will be stored securely and shared with connected businesses.</p>
+        <p className="text-slate-600 mb-8">Upload the actual certificate file (PDF or image).</p>
+
         <div className="flex items-end gap-4 flex-wrap">
-          <div className="flex-1 min-w-[200px]"><label className="block text-sm font-medium mb-2">Certification Body / Name</label><select className="input w-full" value={newCert.name} onChange={e => setNewCert(p => ({...p, name: e.target.value}))}><option value="">Select certification</option><option value="ISO 9001">ISO 9001 – Quality Management</option><option value="ISO 22000">ISO 22000 – Food Safety</option><option value="BEE">BEE (Broad-Based Black Economic Empowerment)</option><option value="Halal">Halal Certification</option><option value="Kosher">Kosher Certification</option><option value="Sedex">Sedex Member Ethical Trade Audit</option><option value="Fairtrade">Fairtrade</option><option value="FDA">FDA Registration</option><option value="HACCP">HACCP</option><option value="Other">Other (specify below)</option></select></div>
+          <div className="flex-1 min-w-[200px]">
+            <label className="block text-sm font-medium mb-2">Certification Body / Name</label>
+            <select className="input w-full" value={newCert.name} onChange={e => setNewCert(p => ({...p, name: e.target.value}))}>
+              <option value="">Select certification</option>
+              <option value="ISO 9001">ISO 9001 – Quality Management</option>
+              <option value="ISO 22000">ISO 22000 – Food Safety</option>
+              <option value="BEE">BEE (Broad-Based Black Economic Empowerment)</option>
+              <option value="Halal">Halal Certification</option>
+              <option value="Kosher">Kosher Certification</option>
+              <option value="Sedex">Sedex Member Ethical Trade Audit</option>
+              <option value="Fairtrade">Fairtrade</option>
+              <option value="FDA">FDA Registration</option>
+              <option value="HACCP">HACCP</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
           <div className="flex-1 min-w-[180px]"><label className="block text-sm font-medium mb-2">Awarded Date</label><input type="date" className="input w-full" value={newCert.awarded_date} onChange={e => setNewCert(p => ({...p, awarded_date: e.target.value}))} /></div>
           <div className="flex-1 min-w-[180px]"><label className="block text-sm font-medium mb-2">Expiry Date</label><input type="date" className="input w-full" value={newCert.expiry_date} onChange={e => setNewCert(p => ({...p, expiry_date: e.target.value}))} disabled={noExpiry} /></div>
           <div className="flex-1 min-w-[200px]"><label className="block text-sm font-medium mb-2">Verification Method</label><select className="input w-full" value={newCert.verification_method} onChange={e => setNewCert(p => ({...p, verification_method: e.target.value as 'self' | 'api'}))}><option value="self">Self Upload</option><option value="api">API Verified</option></select></div>
-          <div className="flex-1 min-w-[160px]"><label className="block text-sm font-medium mb-2">Upload Certificate File</label><input type="file" accept=".pdf,.jpg,.jpeg,.png" className="input w-full" onChange={async (e) => {
-            const file = e.target.files?.[0];
-            if (!file || !newCert.name) return toast.error("Please select a certificate name first");
-            setUploading(true);
-            const fileExt = file.name.split('.').pop();
-            const fileName = `${user?.id}-${Date.now()}.${fileExt}`;
-            const { data, error } = await supabase.storage.from('certificates').upload(fileName, file, { upsert: true });
-            if (error) { toast.error('Upload failed'); setUploading(false); return; }
-            const { data: { publicUrl } } = supabase.storage.from('certificates').getPublicUrl(fileName);
-            setNewCert(p => ({...p, document_url: publicUrl}));
-            toast.success('File uploaded!');
-            setUploading(false);
-          }} /></div>
-          <button onClick={() => { if (newCert.name && newCert.document_url) { setForm(p => ({...p, certifications: [...p.certifications, newCert]})); setNewCert({ name: '', awarded_date: '', expiry_date: '', verification_method: 'self', document_url: '' }); setNoExpiry(false); } else { toast.error("Please upload a file and select a name"); } }} disabled={uploading} className="btn-primary px-8 py-3 flex-shrink-0">{uploading ? 'Uploading...' : 'Add Certificate'}</button>
+          <div className="flex-1 min-w-[220px]">
+            <label className="block text-sm font-medium mb-2">Upload Certificate File</label>
+            <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="input w-full" onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              setUploading(true);
+              const fileExt = file.name.split('.').pop();
+              const fileName = `${user?.id}-${Date.now()}.${fileExt}`;
+              const { data, error } = await supabase.storage.from('certificates').upload(fileName, file, { upsert: true });
+              if (error) { toast.error('Upload failed'); setUploading(false); return; }
+              const { data: { publicUrl } } = supabase.storage.from('certificates').getPublicUrl(fileName);
+              setNewCert(p => ({ ...p, document_url: publicUrl }));
+              setFileUploaded(true);
+              toast.success('✅ File uploaded successfully!');
+              setUploading(false);
+            }} />
+          </div>
+          <button onClick={() => {
+            if (!newCert.name) return toast.error("Please select a certification name");
+            if (!newCert.document_url) return toast.error("Please upload a file first");
+            setForm(p => ({ ...p, certifications: [...p.certifications, newCert] }));
+            setNewCert({ name: '', awarded_date: '', expiry_date: '', verification_method: 'self', document_url: '' });
+            setFileUploaded(false);
+            toast.success('Certificate added!');
+          }} disabled={uploading || !newCert.name || !newCert.document_url} className="btn-primary px-8 py-3 flex-shrink-0">{uploading ? 'Uploading…' : 'Add Certificate'}</button>
           <label className="flex items-center gap-2 whitespace-nowrap"><input type="checkbox" checked={noExpiry} onChange={e => setNoExpiry(e.target.checked)} />Never Expires / N/A</label>
         </div>
+
         <div className="mt-8">
           <h4 className="font-medium mb-3">Added Certifications</h4>
           <div className="space-y-3">
             {form.certifications.map((c, i) => (
-              <div key={i} className="card p-4 text-sm flex justify-between">
+              <div key={i} className="card p-4 text-sm flex justify-between items-center">
                 <div>{c.name} (exp {c.expiry_date || 'N/A'})</div>
                 <span className="text-emerald-600">{c.verification_method}</span>
               </div>
@@ -314,7 +351,10 @@ export default function Onboarding() {
   ];
 
   const saveProfile = async () => {
-    if (!user?.id) return toast.error("User not found");
+    if (!privyReady || !user?.id) {
+      toast.error("Please wait – still connecting your wallet");
+      return;
+    }
     setLoading(true);
     try {
       await supabase.from('profiles').upsert({
@@ -349,7 +389,7 @@ export default function Onboarding() {
         await supabase.from('business_certifications').insert(form.certifications.map(c => ({ profile_id: user.id, ...c })));
       }
 
-      toast.success('🎉 Business profile fully saved! You are now “Awaiting Verification”.');
+      toast.success('🎉 Business profile fully saved! You are now “Awaiting Verification”. A confirmation email has been sent.');
       window.location.href = '/dashboard';
     } catch (err: any) {
       console.error(err);
