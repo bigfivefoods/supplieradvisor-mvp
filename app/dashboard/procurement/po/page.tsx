@@ -92,30 +92,15 @@ export default function RaisePO() {
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">Amount (R)</label>
-              <input
-                type="text"
-                className="input"
-                placeholder="0.00"
-                value={poForm.amount}
-                onChange={(e) => setPoForm({ ...poForm, amount: e.target.value })}
-              />
+              <input type="text" className="input" placeholder="0.00" value={poForm.amount} onChange={(e) => setPoForm({...poForm, amount: e.target.value})} />
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">Due Date</label>
-              <input
-                type="date"
-                className="input"
-                value={poForm.dueDate}
-                onChange={(e) => setPoForm({ ...poForm, dueDate: e.target.value })}
-              />
+              <input type="date" className="input" value={poForm.dueDate} onChange={(e) => setPoForm({...poForm, dueDate: e.target.value})} />
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">Incoterms</label>
-              <select
-                className="input"
-                value={poForm.incoterms}
-                onChange={(e) => setPoForm({ ...poForm, incoterms: e.target.value })}
-              >
+              <select className="input" value={poForm.incoterms} onChange={(e) => setPoForm({...poForm, incoterms: e.target.value})}>
                 <option value="DDP">DDP</option>
                 <option value="DAP">DAP</option>
                 <option value="FOB">FOB</option>
@@ -133,10 +118,7 @@ export default function RaisePO() {
             </div>
           </div>
 
-          <button
-            onClick={handleCreatePO}
-            className="btn-primary w-full mt-12 py-7 text-xl font-semibold"
-          >
+          <button onClick={handleCreatePO} className="btn-primary w-full mt-12 py-7 text-xl font-semibold">
             Create PO & Tokenize on Base Blockchain
           </button>
         </div>
