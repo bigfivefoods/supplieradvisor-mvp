@@ -175,7 +175,8 @@ const modules = [
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isDashboard = pathname.startsWith('/dashboard');
+  const isDashboard = true;   // ← CHANGED: Sidebar now shows on ALL pages (including app/page.tsx)
+
   const { user, logout } = usePrivy();
   const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({});
 
@@ -193,64 +194,63 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className="scroll-smooth">
       <body className="antialiased bg-[#f8fafc] text-[#0f172a] min-h-screen font-sans">
         <div className="flex min-h-screen">
-          {isDashboard && (
-            <div className="w-64 bg-white border-r border-slate-200 flex flex-col h-screen sticky top-0 flex-shrink-0 shadow-sm overflow-hidden">
-              <div className="px-6 pt-5 pb-2 flex justify-center">
-                <Image src="/sa-logo.png" alt="SupplierAdvisor" width={140} height={48} priority />
-              </div>
-              <div className="px-6 pb-4 text-3xl font-black tracking-[-2px] text-[#00b4d8] text-center">SupplierAdvisor</div>
+          {/* Sidebar now shows on every page */}
+          <div className="w-64 bg-white border-r border-slate-200 flex flex-col h-screen sticky top-0 flex-shrink-0 shadow-sm overflow-hidden">
+            <div className="px-6 pt-5 pb-2 flex justify-center">
+              <Image src="/sa-logo.png" alt="SupplierAdvisor" width={140} height={48} priority />
+            </div>
+            <div className="px-6 pb-4 text-3xl font-black tracking-[-2px] text-[#00b4d8] text-center">SupplierAdvisor</div>
 
-              <div className="flex-1 overflow-y-auto px-3 py-1 space-y-0.5 custom-scrollbar">
-                {modules.map(mod => (
-                  <div key={mod.id} className="mb-0.5">
-                    <div className="flex items-center">
-                      <Link
-                        href={mod.href}
-                        className={`flex-1 flex items-center gap-3 px-5 py-2.5 rounded-3xl text-lg font-medium transition-all hover:bg-slate-100 ${isModuleActive(mod) ? 'bg-[#00b4d8] text-white' : 'text-slate-800'}`}
+            <div className="flex-1 overflow-y-auto px-3 py-1 space-y-0.5 custom-scrollbar">
+              {modules.map(mod => (
+                <div key={mod.id} className="mb-0.5">
+                  <div className="flex items-center">
+                    <Link
+                      href={mod.href}
+                      className={`flex-1 flex items-center gap-3 px-5 py-2.5 rounded-3xl text-lg font-medium transition-all hover:bg-slate-100 ${isModuleActive(mod) ? 'bg-[#00b4d8] text-white' : 'text-slate-800'}`}
+                    >
+                      <span className="text-2xl">{mod.icon}</span>
+                      <span className="flex-1 text-left">{mod.name}</span>
+                    </Link>
+
+                    {mod.sub?.length > 0 && (
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          toggleModule(mod.id);
+                        }}
+                        className="px-3 py-2.5 text-slate-400 hover:text-slate-600"
                       >
-                        <span className="text-2xl">{mod.icon}</span>
-                        <span className="flex-1 text-left">{mod.name}</span>
-                      </Link>
-
-                      {mod.sub?.length > 0 && (
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault();
-                            toggleModule(mod.id);
-                          }}
-                          className="px-3 py-2.5 text-slate-400 hover:text-slate-600"
-                        >
-                          <ChevronDown className={`transition-transform ${expandedModules[mod.id] ? 'rotate-180' : ''}`} size={18} />
-                        </button>
-                      )}
-                    </div>
-
-                    {mod.sub?.length > 0 && expandedModules[mod.id] && (
-                      <div className="ml-11 mt-1 space-y-0.5 mb-2">
-                        {mod.sub.map((sub: any, i: number) => (
-                          <Link
-                            key={i}
-                            href={sub.href}
-                            className={`block px-6 py-2 rounded-3xl text-[16px] transition-all ${pathname === sub.href ? 'text-[#00b4d8] bg-blue-50 font-medium' : 'text-slate-600 hover:text-slate-900'}`}
-                          >
-                            {sub.name}
-                          </Link>
-                        ))}
-                      </div>
+                        <ChevronDown className={`transition-transform ${expandedModules[mod.id] ? 'rotate-180' : ''}`} size={18} />
+                      </button>
                     )}
                   </div>
-                ))}
-              </div>
 
-              <div className="p-4 border-t mt-auto">
-                <button onClick={logout} className="w-full flex items-center justify-center gap-3 bg-slate-900 hover:bg-black text-white font-medium py-3.5 rounded-3xl transition-all text-sm">
-                  <Wallet size={18} /> {user ? 'Disconnect Wallet' : 'Connect Wallet'}
-                </button>
-              </div>
+                  {mod.sub?.length > 0 && expandedModules[mod.id] && (
+                    <div className="ml-11 mt-1 space-y-0.5 mb-2">
+                      {mod.sub.map((sub: any, i: number) => (
+                        <Link
+                          key={i}
+                          href={sub.href}
+                          className={`block px-6 py-2 rounded-3xl text-[16px] transition-all ${pathname === sub.href ? 'text-[#00b4d8] bg-blue-50 font-medium' : 'text-slate-600 hover:text-slate-900'}`}
+                        >
+                          {sub.name}
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
-          )}
 
-          <div className={`flex-1 overflow-auto ${isDashboard ? 'pl-[25px] pr-12 py-12' : 'min-h-screen'}`}>
+            <div className="p-4 border-t mt-auto">
+              <button onClick={logout} className="w-full flex items-center justify-center gap-3 bg-slate-900 hover:bg-black text-white font-medium py-3.5 rounded-3xl transition-all text-sm">
+                <Wallet size={18} /> {user ? 'Disconnect Wallet' : 'Connect Wallet'}
+              </button>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-auto pl-[25px] pr-12 py-12">
             {children}
           </div>
         </div>
