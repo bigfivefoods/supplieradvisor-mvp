@@ -37,7 +37,7 @@ export default function Onboarding() {
   const [expandedSectors, setExpandedSectors] = useState<Record<string, boolean>>({});
   const [noExpiry, setNoExpiry] = useState(false);
 
-  // Wait for Privy to be fully ready
+  // Privy ready check
   useEffect(() => {
     if (privyReady && !user?.id) {
       toast.error("Please connect your wallet first");
@@ -270,80 +270,46 @@ export default function Onboarding() {
       </div>
     ),
 
-    // Step 6: Certifications with FULL error handling
+    // Step 6: Certifications
     () => (
       <div>
         <h2 className="text-4xl font-black tracking-tighter mb-8 text-[#00b4d8]">Certifications & Documents</h2>
         <p className="text-slate-600 mb-8">Upload the actual certificate file (PDF or image).</p>
-
         <div className="flex items-end gap-4 flex-wrap">
-          <div className="flex-1 min-w-[200px]">
-            <label className="block text-sm font-medium mb-2">Certification Body / Name</label>
-            <select className="input w-full" value={newCert.name} onChange={e => setNewCert(p => ({...p, name: e.target.value}))}>
-              <option value="">Select certification</option>
-              <option value="ISO 9001">ISO 9001 – Quality Management</option>
-              <option value="ISO 22000">ISO 22000 – Food Safety</option>
-              <option value="BEE">BEE</option>
-              <option value="Halal">Halal Certification</option>
-              <option value="Kosher">Kosher Certification</option>
-              <option value="Sedex">Sedex</option>
-              <option value="Fairtrade">Fairtrade</option>
-              <option value="FDA">FDA Registration</option>
-              <option value="HACCP">HACCP</option>
-              <option value="Other">Other</option>
-            </select>
-          </div>
+          <div className="flex-1 min-w-[200px]"><label className="block text-sm font-medium mb-2">Certification Body / Name</label><select className="input w-full" value={newCert.name} onChange={e => setNewCert(p => ({...p, name: e.target.value}))}><option value="">Select certification</option><option value="ISO 9001">ISO 9001</option><option value="ISO 22000">ISO 22000</option><option value="BEE">BEE</option><option value="Halal">Halal</option><option value="Kosher">Kosher</option><option value="Sedex">Sedex</option><option value="Fairtrade">Fairtrade</option><option value="FDA">FDA</option><option value="HACCP">HACCP</option><option value="Other">Other</option></select></div>
           <div className="flex-1 min-w-[180px]"><label className="block text-sm font-medium mb-2">Awarded Date</label><input type="date" className="input w-full" value={newCert.awarded_date} onChange={e => setNewCert(p => ({...p, awarded_date: e.target.value}))} /></div>
           <div className="flex-1 min-w-[180px]"><label className="block text-sm font-medium mb-2">Expiry Date</label><input type="date" className="input w-full" value={newCert.expiry_date} onChange={e => setNewCert(p => ({...p, expiry_date: e.target.value}))} disabled={noExpiry} /></div>
           <div className="flex-1 min-w-[200px]"><label className="block text-sm font-medium mb-2">Verification Method</label><select className="input w-full" value={newCert.verification_method} onChange={e => setNewCert(p => ({...p, verification_method: e.target.value as 'self' | 'api'}))}><option value="self">Self Upload</option><option value="api">API Verified</option></select></div>
-
           <div className="flex-1 min-w-[220px]">
             <label className="block text-sm font-medium mb-2">Upload Certificate File</label>
-            <input 
-              type="file" 
-              accept=".pdf,.jpg,.jpeg,.png" 
-              className="input w-full"
-              onChange={async (e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                setUploading(true);
-                try {
-                  const fileExt = file.name.split('.').pop();
-                  const fileName = `${user?.id}-cert-${Date.now()}.${fileExt}`;
-                  const { error } = await supabase.storage.from('certificates').upload(fileName, file, { upsert: true });
-                  if (error) throw error;
-                  const { data: { publicUrl } } = supabase.storage.from('certificates').getPublicUrl(fileName);
-                  setNewCert(p => ({ ...p, document_url: publicUrl }));
-                  toast.success('✅ File uploaded successfully!');
-                } catch (err: any) {
-                  toast.error(`Upload failed: ${err.message}`);
-                } finally {
-                  setUploading(false);
-                }
-              }}
-            />
+            <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="input w-full" onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              setUploading(true);
+              try {
+                const fileExt = file.name.split('.').pop();
+                const fileName = `${user?.id}-cert-${Date.now()}.${fileExt}`;
+                const { error } = await supabase.storage.from('certificates').upload(fileName, file, { upsert: true });
+                if (error) throw error;
+                const { data: { publicUrl } } = supabase.storage.from('certificates').getPublicUrl(fileName);
+                setNewCert(p => ({ ...p, document_url: publicUrl }));
+                toast.success('✅ File uploaded successfully!');
+              } catch (err: any) {
+                toast.error(`Upload failed: ${err.message}`);
+              } finally {
+                setUploading(false);
+              }
+            }} />
           </div>
-
-          <button 
-            onClick={() => {
-              if (!newCert.name) return toast.error("Please select a certification name");
-              if (!newCert.document_url) return toast.error("Please upload a file first");
-              setForm(p => ({ ...p, certifications: [...p.certifications, newCert] }));
-              setNewCert({ name: '', awarded_date: '', expiry_date: '', verification_method: 'self', document_url: '' });
-              toast.success('Certificate added!');
-            }}
-            disabled={uploading || !newCert.name || !newCert.document_url}
-            className="btn-primary px-8 py-3 flex-shrink-0"
-          >
-            {uploading ? 'Uploading…' : 'Add Certificate'}
-          </button>
-
-          <label className="flex items-center gap-2 whitespace-nowrap">
-            <input type="checkbox" checked={noExpiry} onChange={e => setNoExpiry(e.target.checked)} />
-            Never Expires / N/A
-          </label>
+          <button onClick={() => {
+            if (!newCert.name) return toast.error("Please select a certification name");
+            if (!newCert.document_url) return toast.error("Please upload a file first");
+            setForm(p => ({ ...p, certifications: [...p.certifications, newCert] }));
+            setNewCert({ name: '', awarded_date: '', expiry_date: '', verification_method: 'self', document_url: '' });
+            toast.success('Certificate added!');
+          }} disabled={uploading || !newCert.name || !newCert.document_url} className="btn-primary px-8 py-3 flex-shrink-0">{uploading ? 'Uploading…' : 'Add Certificate'}</button>
+          <label className="flex items-center gap-2 whitespace-nowrap"><input type="checkbox" checked={noExpiry} onChange={e => setNoExpiry(e.target.checked)} />Never Expires / N/A</label>
         </div>
-
         <div className="mt-8">
           <h4 className="font-medium mb-3">Added Certifications</h4>
           <div className="space-y-3">
@@ -380,8 +346,7 @@ export default function Onboarding() {
       if (form.products.length > 0) await supabase.from('business_products').insert(form.products.map(p => ({ profile_id: user.id, ...p })));
       await supabase.from('business_certifications').delete().eq('profile_id', user.id);
       if (form.certifications.length > 0) await supabase.from('business_certifications').insert(form.certifications.map(c => ({ profile_id: user.id, ...c })));
-
-      toast.success('🎉 Business profile fully saved! You are now “Awaiting Verification”.');
+      toast.success('🎉 Profile fully saved!');
       window.location.href = '/dashboard';
     } catch (err: any) {
       toast.error('Save failed: ' + err.message);
@@ -396,7 +361,6 @@ export default function Onboarding() {
         <div className="text-center">
           <div className="animate-spin h-8 w-8 border-4 border-[#00b4d8] border-t-transparent rounded-full mx-auto mb-4"></div>
           <p className="text-2xl text-[#00b4d8]">Connecting wallet…</p>
-          <p className="text-slate-500 mt-2">Please wait a moment</p>
         </div>
       </div>
     );
@@ -413,11 +377,9 @@ export default function Onboarding() {
           </div>
           <div className="text-sm font-medium text-slate-500">Step {step + 1} of 7</div>
         </div>
-
         <div className="card p-12">
           {steps[step]()}
         </div>
-
         <div className="flex justify-between mt-10">
           {step > 0 && (
             <button onClick={() => setStep(s => s - 1)} className="flex items-center gap-3 px-8 py-4 border-2 rounded-3xl font-medium">
