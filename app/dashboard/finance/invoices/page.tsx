@@ -1,0 +1,15 @@
+'use client';
+
+import Breadcrumb from '@/components/ui/Breadcrumb';
+
+export default function InvoicesPage() {
+  return (
+    <div className="pl-[25px] min-h-screen bg-[#f8fafc]">
+      <div className="py-12">
+        <Breadcrumb />
+        <h1 className="text-6xl font-black tracking-[-3px] text-[#00b4d8] mb-12">Invoices & Payments</h1>
+        <div className="card p-12 text-xl">Invoice creation, approvals, and payment tracking module.</div>
+      </div>
+    </div>
+  );
+}
