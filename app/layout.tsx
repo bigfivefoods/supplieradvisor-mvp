@@ -18,15 +18,8 @@ const modules = [
     href: '/dashboard/suppliers', 
     sub: [
       { name: 'Search Suppliers', href: '/dashboard/suppliers/search' },
-      { name: 'Onboard Suppliers', href: '/dashboard/suppliers/onboard' },
-      { name: 'Supplier Profiles', href: '/dashboard/suppliers/profiles' },
       { name: 'Connect', href: '/dashboard/suppliers/connect' },
       { name: 'Raise PO', href: '/dashboard/procurement/po' },
-      { name: 'Supplier Contracts', href: '/dashboard/suppliers/contracts' },
-      { name: 'Supplier Metrics', href: '/dashboard/suppliers/metrics' },
-      { name: 'Performance Scorecards', href: '/dashboard/suppliers/scorecards' },
-      { name: 'Supplier Portal', href: '/dashboard/suppliers/portal' },
-      { name: 'Risk Alerts', href: '/dashboard/suppliers/risks' },
       { name: 'OTIFEF Metrics', href: '/otifef' }
     ]
   },
@@ -35,13 +28,7 @@ const modules = [
     name: 'Customers', 
     icon: '🤝', 
     href: '/dashboard/customers', 
-    sub: [
-      { name: 'Search Customers', href: '/dashboard/customers/search' },
-      { name: 'Customer Profiles', href: '/dashboard/customers' },
-      { name: 'Quotes & Orders', href: '/dashboard/customers/orders' },
-      { name: 'Loyalty & Retention', href: '/dashboard/customers/loyalty' },
-      { name: 'Customer Portal', href: '/dashboard/customers/portal' }
-    ]
+    sub: [] 
   },
   { 
     id: 'procurement', 
@@ -50,10 +37,7 @@ const modules = [
     href: '/dashboard/procurement', 
     sub: [
       { name: 'Requisitions', href: '/dashboard/procurement/requisitions' },
-      { name: 'Bids & Negotiation', href: '/dashboard/procurement/bids' },
-      { name: 'Purchase Orders', href: '/dashboard/procurement/po' },
-      { name: 'Goods Receipt', href: '/dashboard/procurement/receipt' },
-      { name: 'Invoice Automation', href: '/dashboard/procurement/invoices' }
+      { name: 'Purchase Orders', href: '/dashboard/procurement/po' }
     ]
   },
   { 
@@ -62,45 +46,17 @@ const modules = [
     icon: '📦', 
     href: '/dashboard/inventory', 
     sub: [
-      { name: 'Real-Time Stock', href: '/dashboard/inventory/stock' },
+      { name: 'Raw Materials', href: '/dashboard/inventory/raw-materials' },
+      { name: 'Finished Goods', href: '/dashboard/inventory/finished-goods' },
       { name: 'Warehouses & Containers', href: '/dashboard/inventory/warehouses' },
       { name: 'Transfers', href: '/dashboard/inventory/transfers' },
-      { name: 'Cycle Counts', href: '/dashboard/inventory/cycle-counts' }
+      { name: 'Cycle Counts', href: '/dashboard/inventory/cycle-counts' },
+      { name: 'Tokenized Lots', href: '/dashboard/inventory/tokenized' }
     ]
   },
-  { 
-    id: 'manufacturing', 
-    name: 'Manufacturing', 
-    icon: '🏭', 
-    href: '/dashboard/manufacturing', 
-    sub: [
-      { name: 'MPS', href: '/dashboard/manufacturing/mps' },
-      { name: 'MRP', href: '/dashboard/manufacturing/mrp' },
-      { name: 'BOM / Recipes', href: '/dashboard/manufacturing/bom' },
-      { name: 'Batch Creation', href: '/dashboard/manufacturing/batches' }
-    ]
-  },
-  { 
-    id: 'logistics', 
-    name: 'Logistics', 
-    icon: '🚚', 
-    href: '/dashboard/logistics', 
-    sub: [
-      { name: 'Shipments', href: '/dashboard/logistics/shipments' },
-      { name: 'Live Tracking', href: '/dashboard/logistics/tracking' },
-      { name: 'Fleet & Drivers', href: '/dashboard/logistics/fleet' }
-    ]
-  },
-  { 
-    id: 'quality', 
-    name: 'Quality', 
-    icon: '✅', 
-    href: '/dashboard/quality', 
-    sub: [
-      { name: 'Inspections', href: '/dashboard/quality/inspections' },
-      { name: 'Traceability Graph', href: '/dashboard/quality/traceability' }
-    ]
-  },
+  { id: 'manufacturing', name: 'Manufacturing', icon: '🏭', href: '/dashboard/manufacturing', sub: [] },
+  { id: 'logistics', name: 'Logistics', icon: '🚚', href: '/dashboard/logistics', sub: [] },
+  { id: 'quality', name: 'Quality', icon: '✅', href: '/dashboard/quality', sub: [] },
   { id: 'finance', name: 'Finance', icon: '💰', href: '/dashboard/finance', sub: [] },
   { id: 'projects', name: 'Projects', icon: '📋', href: '/dashboard/projects', sub: [] },
   { id: 'people', name: 'People', icon: '👥', href: '/dashboard/people', sub: [] },
