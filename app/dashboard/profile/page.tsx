@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { supabase } from '@/lib/supabase';
-import { ArrowRight, ChevronDown, RefreshCw } from 'lucide-react';
+import { ArrowRight, ChevronDown, RefreshCw, RotateCw } from 'lucide-react';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 import toast from 'react-hot-toast';
 
@@ -16,9 +16,14 @@ type LocationData = {
 
 export default function MyBusinessProfile() {
   const { user } = usePrivy();
+
+  // NORMALIZE PRIVY ID (this fixes the disappearing data bug)
+  const rawId = user?.id || '';
+  const cleanId = rawId.startsWith('privy:') ? rawId.slice(6) : rawId;
+
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [status, setStatus] = useState("Click Save or Refresh to load data");
+  const [status, setStatus] = useState("Ready – click Save or Refresh");
 
   const [form, setForm] = useState({
     legal_name: '', trading_name: '', cipc_number: '',
@@ -49,29 +54,43 @@ export default function MyBusinessProfile() {
     setExpanded(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  // FIXED LOAD – single merge, no race conditions
   const loadData = async () => {
-    if (!user?.id) {
+    if (!cleanId) {
       setStatus("❌ No user ID found");
       return;
     }
     setStatus("🔄 Loading from Supabase...");
-    console.log("🔄 Loading profile for:", user.id);
+    console.log(`[${new Date().toLocaleTimeString()}] 🔄 Loading for cleanId:`, cleanId);
 
     try {
-      const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-      const { data: products } = await supabase.from('business_products').select('*').eq('profile_id', user.id);
-      const { data: certs } = await supabase.from('business_certifications').select('*').eq('profile_id', user.id);
+      const { data: profile } = await supabase.from('profiles').select('*').eq('id', cleanId).single();
+      const { data: products } = await supabase.from('business_products').select('*').eq('profile_id', cleanId);
+      const { data: certs } = await supabase.from('business_certifications').select('*').eq('profile_id', cleanId);
 
       setForm({
-        ...form,
-        ...(profile || {}),
+        legal_name: profile?.legal_name || '',
+        trading_name: profile?.trading_name || '',
+        cipc_number: profile?.cipc_number || '',
+        contact_name: profile?.contact_name || '',
+        email: profile?.email || '',
+        business_types: profile?.business_types || [],
+        continent: profile?.continent || '',
+        country: profile?.country || '',
+        province: profile?.province || '',
+        city: profile?.city || '',
+        street: profile?.street || '',
+        postal_code: profile?.postal_code || '',
+        vat_number: profile?.vat_number || '',
+        export_license: profile?.export_license || '',
+        import_license: profile?.import_license || '',
+        bank_details: profile?.bank_details || { bank_name: '', account_name: '', account_number: '', branch_code: '' },
         products: products || [],
         certifications: certs || [],
+        other_business_type: profile?.other_business_type || '',
       });
 
       setStatus(`✅ Loaded – ${products?.length || 0} products • ${certs?.length || 0} certifications`);
-      console.log("✅ Data loaded successfully");
+      console.log(`[${new Date().toLocaleTimeString()}] ✅ Data loaded successfully`);
     } catch (err: any) {
       console.error("💥 Load error:", err);
       setStatus("❌ Load failed – check console");
@@ -83,23 +102,27 @@ export default function MyBusinessProfile() {
   }, [user]);
 
   const saveProfile = async () => {
-    if (!user?.id) return toast.error("User not found");
+    if (!cleanId) return toast.error("User not found");
     setLoading(true);
+    setStatus("💾 Saving...");
     try {
-      await supabase.from('profiles').upsert({ id: user.id, ...form });
-      await supabase.from('business_products').delete().eq('profile_id', user.id);
-      if (form.products.length > 0) await supabase.from('business_products').insert(form.products.map(p => ({ profile_id: user.id, ...p })));
-      await supabase.from('business_certifications').delete().eq('profile_id', user.id);
-      if (form.certifications.length > 0) await supabase.from('business_certifications').insert(form.certifications.map(c => ({ profile_id: user.id, ...c })));
+      await supabase.from('profiles').upsert({ id: cleanId, ...form });
+      await supabase.from('business_products').delete().eq('profile_id', cleanId);
+      if (form.products.length > 0) await supabase.from('business_products').insert(form.products.map(p => ({ profile_id: cleanId, ...p })));
+      await supabase.from('business_certifications').delete().eq('profile_id', cleanId);
+      if (form.certifications.length > 0) await supabase.from('business_certifications').insert(form.certifications.map(c => ({ profile_id: cleanId, ...c })));
 
       toast.success('✅ Profile saved successfully!');
-      await loadData(); // immediate refresh
+      await loadData();
     } catch (err: any) {
+      console.error("💥 Save error:", err);
       toast.error('Save failed: ' + err.message);
     } finally {
       setLoading(false);
     }
   };
+
+  const hardReload = () => window.location.reload();
 
   const industrySectors = {
     'Agriculture & Primary Production': ['Crop Farming', 'Horticulture', 'Viticulture', 'Organic Farming', 'Hydroponics', 'Beekeeping', 'Seed Production'],
@@ -215,12 +238,14 @@ export default function MyBusinessProfile() {
         <Breadcrumb />
         <h1 className="text-6xl font-black tracking-[-3px] text-[#00b4d8] mb-12">My Business Profile</h1>
 
-        {/* DEBUG STATUS BAR */}
         <div className="mb-8 p-6 bg-white border border-slate-200 rounded-3xl flex items-center justify-between">
-          <div className="text-lg font-medium">Status: <span className="font-bold text-[#00b4d8]">{status}</span></div>
-          <button onClick={loadData} className="flex items-center gap-3 border border-slate-300 hover:bg-slate-100 px-6 py-3 rounded-3xl transition">
-            <RefreshCw size={18} /> Force Refresh Data
-          </button>
+          <div>
+            <div className="text-sm text-slate-500">Active Privy ID used by Supabase</div>
+            <div className="font-mono text-[#00b4d8] break-all">{cleanId}</div>
+          </div>
+          <div className="text-right">
+            <div className="text-lg font-medium">Status: <span className="font-bold text-[#00b4d8]">{status}</span></div>
+          </div>
         </div>
 
         <div className="space-y-6">
@@ -361,7 +386,7 @@ export default function MyBusinessProfile() {
                       setUploading(true);
                       try {
                         const fileExt = file.name.split('.').pop();
-                        const fileName = `${user?.id}-cert-${Date.now()}.${fileExt}`;
+                        const fileName = `${cleanId}-cert-${Date.now()}.${fileExt}`;
                         const { error } = await supabase.storage.from('certificates').upload(fileName, file, { upsert: true });
                         if (error) throw error;
                         const { data: { publicUrl } } = supabase.storage.from('certificates').getPublicUrl(fileName);
@@ -400,7 +425,8 @@ export default function MyBusinessProfile() {
         </div>
 
         <div className="flex justify-end gap-4 mt-12">
-          <button onClick={loadData} className="border px-8 py-4 rounded-3xl hover:bg-slate-100">Refresh Only</button>
+          <button onClick={loadData} className="border px-8 py-4 rounded-3xl hover:bg-slate-100">Refresh Data</button>
+          <button onClick={hardReload} className="border px-8 py-4 rounded-3xl hover:bg-slate-100 flex items-center gap-2"><RotateCw size={18} /> Hard Reload</button>
           <button onClick={saveProfile} disabled={loading} className="btn-primary flex items-center gap-3 px-12 py-4">
             {loading ? 'Saving...' : 'Save All Changes'} <ArrowRight />
           </button>
