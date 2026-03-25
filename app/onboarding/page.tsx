@@ -19,7 +19,6 @@ export default function Onboarding() {
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [fileUploaded, setFileUploaded] = useState(false);
 
   const [form, setForm] = useState({
     legal_name: '', trading_name: '', cipc_number: '',
@@ -38,11 +37,10 @@ export default function Onboarding() {
   const [expandedSectors, setExpandedSectors] = useState<Record<string, boolean>>({});
   const [noExpiry, setNoExpiry] = useState(false);
 
-  // Prevent "user not found" error
+  // Wait for Privy to be fully ready
   useEffect(() => {
     if (privyReady && !user?.id) {
       toast.error("Please connect your wallet first");
-      window.location.href = '/';
     }
   }, [privyReady, user]);
 
@@ -173,7 +171,7 @@ export default function Onboarding() {
       </div>
     ),
 
-    // Step 2: Industry Sectors
+    // Step 2
     () => (
       <div>
         <h2 className="text-4xl font-black tracking-tighter mb-8 text-[#00b4d8]">What type of business are you?</h2>
@@ -224,7 +222,7 @@ export default function Onboarding() {
       </div>
     ),
 
-    // Step 3: Location
+    // Step 3
     () => (
       <div>
         <h2 className="text-4xl font-black tracking-tighter mb-8 text-[#00b4d8]">Where are you located?</h2>
@@ -241,7 +239,7 @@ export default function Onboarding() {
       </div>
     ),
 
-    // Step 4: Financial
+    // Step 4
     () => (
       <div>
         <h2 className="text-4xl font-black tracking-tighter mb-8 text-[#00b4d8]">Financial details</h2>
@@ -257,7 +255,7 @@ export default function Onboarding() {
       </div>
     ),
 
-    // Step 5: Products
+    // Step 5
     () => (
       <div>
         <h2 className="text-4xl font-black tracking-tighter mb-8 text-[#00b4d8]">Your Products / Services</h2>
@@ -272,7 +270,7 @@ export default function Onboarding() {
       </div>
     ),
 
-    // Step 6: Certifications – FIXED UPLOAD
+    // Step 6: Certifications with FULL error handling
     () => (
       <div>
         <h2 className="text-4xl font-black tracking-tighter mb-8 text-[#00b4d8]">Certifications & Documents</h2>
@@ -285,10 +283,10 @@ export default function Onboarding() {
               <option value="">Select certification</option>
               <option value="ISO 9001">ISO 9001 – Quality Management</option>
               <option value="ISO 22000">ISO 22000 – Food Safety</option>
-              <option value="BEE">BEE (Broad-Based Black Economic Empowerment)</option>
+              <option value="BEE">BEE</option>
               <option value="Halal">Halal Certification</option>
               <option value="Kosher">Kosher Certification</option>
-              <option value="Sedex">Sedex Member Ethical Trade Audit</option>
+              <option value="Sedex">Sedex</option>
               <option value="Fairtrade">Fairtrade</option>
               <option value="FDA">FDA Registration</option>
               <option value="HACCP">HACCP</option>
@@ -298,32 +296,52 @@ export default function Onboarding() {
           <div className="flex-1 min-w-[180px]"><label className="block text-sm font-medium mb-2">Awarded Date</label><input type="date" className="input w-full" value={newCert.awarded_date} onChange={e => setNewCert(p => ({...p, awarded_date: e.target.value}))} /></div>
           <div className="flex-1 min-w-[180px]"><label className="block text-sm font-medium mb-2">Expiry Date</label><input type="date" className="input w-full" value={newCert.expiry_date} onChange={e => setNewCert(p => ({...p, expiry_date: e.target.value}))} disabled={noExpiry} /></div>
           <div className="flex-1 min-w-[200px]"><label className="block text-sm font-medium mb-2">Verification Method</label><select className="input w-full" value={newCert.verification_method} onChange={e => setNewCert(p => ({...p, verification_method: e.target.value as 'self' | 'api'}))}><option value="self">Self Upload</option><option value="api">API Verified</option></select></div>
+
           <div className="flex-1 min-w-[220px]">
             <label className="block text-sm font-medium mb-2">Upload Certificate File</label>
-            <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="input w-full" onChange={async (e) => {
-              const file = e.target.files?.[0];
-              if (!file) return;
-              setUploading(true);
-              const fileExt = file.name.split('.').pop();
-              const fileName = `${user?.id}-${Date.now()}.${fileExt}`;
-              const { data, error } = await supabase.storage.from('certificates').upload(fileName, file, { upsert: true });
-              if (error) { toast.error('Upload failed'); setUploading(false); return; }
-              const { data: { publicUrl } } = supabase.storage.from('certificates').getPublicUrl(fileName);
-              setNewCert(p => ({ ...p, document_url: publicUrl }));
-              setFileUploaded(true);
-              toast.success('✅ File uploaded successfully!');
-              setUploading(false);
-            }} />
+            <input 
+              type="file" 
+              accept=".pdf,.jpg,.jpeg,.png" 
+              className="input w-full"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                setUploading(true);
+                try {
+                  const fileExt = file.name.split('.').pop();
+                  const fileName = `${user?.id}-cert-${Date.now()}.${fileExt}`;
+                  const { error } = await supabase.storage.from('certificates').upload(fileName, file, { upsert: true });
+                  if (error) throw error;
+                  const { data: { publicUrl } } = supabase.storage.from('certificates').getPublicUrl(fileName);
+                  setNewCert(p => ({ ...p, document_url: publicUrl }));
+                  toast.success('✅ File uploaded successfully!');
+                } catch (err: any) {
+                  toast.error(`Upload failed: ${err.message}`);
+                } finally {
+                  setUploading(false);
+                }
+              }}
+            />
           </div>
-          <button onClick={() => {
-            if (!newCert.name) return toast.error("Please select a certification name");
-            if (!newCert.document_url) return toast.error("Please upload a file first");
-            setForm(p => ({ ...p, certifications: [...p.certifications, newCert] }));
-            setNewCert({ name: '', awarded_date: '', expiry_date: '', verification_method: 'self', document_url: '' });
-            setFileUploaded(false);
-            toast.success('Certificate added!');
-          }} disabled={uploading || !newCert.name || !newCert.document_url} className="btn-primary px-8 py-3 flex-shrink-0">{uploading ? 'Uploading…' : 'Add Certificate'}</button>
-          <label className="flex items-center gap-2 whitespace-nowrap"><input type="checkbox" checked={noExpiry} onChange={e => setNoExpiry(e.target.checked)} />Never Expires / N/A</label>
+
+          <button 
+            onClick={() => {
+              if (!newCert.name) return toast.error("Please select a certification name");
+              if (!newCert.document_url) return toast.error("Please upload a file first");
+              setForm(p => ({ ...p, certifications: [...p.certifications, newCert] }));
+              setNewCert({ name: '', awarded_date: '', expiry_date: '', verification_method: 'self', document_url: '' });
+              toast.success('Certificate added!');
+            }}
+            disabled={uploading || !newCert.name || !newCert.document_url}
+            className="btn-primary px-8 py-3 flex-shrink-0"
+          >
+            {uploading ? 'Uploading…' : 'Add Certificate'}
+          </button>
+
+          <label className="flex items-center gap-2 whitespace-nowrap">
+            <input type="checkbox" checked={noExpiry} onChange={e => setNoExpiry(e.target.checked)} />
+            Never Expires / N/A
+          </label>
         </div>
 
         <div className="mt-8">
@@ -340,7 +358,7 @@ export default function Onboarding() {
       </div>
     ),
 
-    // Step 7: Review
+    // Step 7
     () => (
       <div>
         <h2 className="text-4xl font-black tracking-tighter mb-8 text-[#00b4d8]">Review & Join the Network</h2>
@@ -357,47 +375,32 @@ export default function Onboarding() {
     }
     setLoading(true);
     try {
-      await supabase.from('profiles').upsert({
-        id: user.id,
-        legal_name: form.legal_name,
-        trading_name: form.trading_name,
-        contact_name: form.contact_name,
-        email: form.email,
-        cipc_number: form.cipc_number,
-        continent: form.continent,
-        country: form.country,
-        province: form.province,
-        city: form.city,
-        street: form.street,
-        postal_code: form.postal_code,
-        vat_number: form.vat_number,
-        export_license: form.export_license,
-        import_license: form.import_license,
-        bank_details: form.bank_details,
-        business_types: form.business_types,
-        other_business_type: form.other_business_type,
-        status: 'awaiting_verification'
-      });
-
+      await supabase.from('profiles').upsert({ id: user.id, ...form, status: 'awaiting_verification' });
       await supabase.from('business_products').delete().eq('profile_id', user.id);
-      if (form.products.length > 0) {
-        await supabase.from('business_products').insert(form.products.map(p => ({ profile_id: user.id, ...p })));
-      }
-
+      if (form.products.length > 0) await supabase.from('business_products').insert(form.products.map(p => ({ profile_id: user.id, ...p })));
       await supabase.from('business_certifications').delete().eq('profile_id', user.id);
-      if (form.certifications.length > 0) {
-        await supabase.from('business_certifications').insert(form.certifications.map(c => ({ profile_id: user.id, ...c })));
-      }
+      if (form.certifications.length > 0) await supabase.from('business_certifications').insert(form.certifications.map(c => ({ profile_id: user.id, ...c })));
 
-      toast.success('🎉 Business profile fully saved! You are now “Awaiting Verification”. A confirmation email has been sent.');
+      toast.success('🎉 Business profile fully saved! You are now “Awaiting Verification”.');
       window.location.href = '/dashboard';
     } catch (err: any) {
-      console.error(err);
-      toast.error('Error saving profile. Please try again.');
+      toast.error('Save failed: ' + err.message);
     } finally {
       setLoading(false);
     }
   };
+
+  if (!privyReady) {
+    return (
+      <div className="pl-[25px] min-h-screen bg-[#f8fafc] flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin h-8 w-8 border-4 border-[#00b4d8] border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p className="text-2xl text-[#00b4d8]">Connecting wallet…</p>
+          <p className="text-slate-500 mt-2">Please wait a moment</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="pl-[25px] min-h-screen bg-[#f8fafc]">
@@ -410,9 +413,11 @@ export default function Onboarding() {
           </div>
           <div className="text-sm font-medium text-slate-500">Step {step + 1} of 7</div>
         </div>
+
         <div className="card p-12">
           {steps[step]()}
         </div>
+
         <div className="flex justify-between mt-10">
           {step > 0 && (
             <button onClick={() => setStep(s => s - 1)} className="flex items-center gap-3 px-8 py-4 border-2 rounded-3xl font-medium">
