@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { usePrivy } from '@privy-io/react-auth';
+import { PrivyProvider, usePrivy } from '@privy-io/react-auth';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Image from 'next/image';
@@ -173,9 +173,9 @@ const modules = [
   },
 ];
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+function RootLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isDashboard = true;   // ← CHANGED: Sidebar now shows on ALL pages (including app/page.tsx)
+  const isDashboard = true;   // Sidebar shows on ALL pages (including onboarding)
 
   const { user, logout } = usePrivy();
   const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({});
@@ -194,7 +194,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className="scroll-smooth">
       <body className="antialiased bg-[#f8fafc] text-[#0f172a] min-h-screen font-sans">
         <div className="flex min-h-screen">
-          {/* Sidebar now shows on every page */}
+          {/* Sidebar */}
           <div className="w-64 bg-white border-r border-slate-200 flex flex-col h-screen sticky top-0 flex-shrink-0 shadow-sm overflow-hidden">
             <div className="px-6 pt-5 pb-2 flex justify-center">
               <Image src="/sa-logo.png" alt="SupplierAdvisor" width={140} height={48} priority />
@@ -257,5 +257,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Toaster position="top-center" />
       </body>
     </html>
+  );
+}
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <PrivyProvider
+      appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID!}
+      config={{
+        loginMethods: ['email', 'wallet'],
+        appearance: { theme: 'light' },
+      }}
+    >
+      <RootLayoutContent>{children}</RootLayoutContent>
+    </PrivyProvider>
   );
 }
