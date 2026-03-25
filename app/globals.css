@@ -20,7 +20,15 @@
     box-shadow: 0 10px 30px -10px rgb(0 0 0 / 0.1);
   }
 
-  /* BREADCRUMBS — MAXIMUM OVERRIDE */
+  .btn-primary {
+    @apply bg-[#00b4d8] hover:bg-[#0099b8] active:scale-95 text-white font-semibold py-4 px-10 rounded-3xl transition-all duration-200;
+  }
+
+  .input {
+    @apply w-full p-5 rounded-3xl border border-slate-200 focus:border-[#00b4d8] focus:outline-none text-lg transition-all;
+  }
+
+  /* BREADCRUMBS — MAXIMUM OVERRIDE (kept exactly as you had it) */
   .breadcrumb,
   .breadcrumb a,
   .breadcrumb span,
