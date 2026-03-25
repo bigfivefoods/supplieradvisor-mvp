@@ -35,7 +35,7 @@ export default function MyBusinessProfile() {
   const [newCert, setNewCert] = useState({ name: '', awarded_date: '', expiry_date: '', verification_method: 'self' as 'self' | 'api', document_url: '' });
   const [noExpiry, setNoExpiry] = useState(false);
 
-  // Expandable sections – fixed typing
+  // Expandable sections – fixed TS typing
   const [expanded, setExpanded] = useState<Record<string, boolean>>({
     basics: true,
     location: true,
@@ -52,8 +52,13 @@ export default function MyBusinessProfile() {
   // Load saved data on mount / refresh
   const loadData = async () => {
     if (!user?.id) return;
+    console.log("🔄 Loading profile for:", user.id);
+
     const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-    if (profile) setForm(profile);
+    if (profile) {
+      console.log("✅ Profile loaded");
+      setForm(profile);
+    }
 
     const { data: products } = await supabase.from('business_products').select('*').eq('profile_id', user.id);
     if (products) setForm(prev => ({ ...prev, products }));
@@ -200,7 +205,7 @@ export default function MyBusinessProfile() {
 
         <div className="space-y-6">
 
-          {/* 1. Company Basics */}
+          {/* Company Basics */}
           <div className="card">
             <button onClick={() => toggleSection('basics')} className="w-full flex justify-between items-center p-8 text-left border-b">
               <h2 className="text-4xl font-black tracking-tighter text-[#00b4d8]">Company Basics</h2>
@@ -217,7 +222,7 @@ export default function MyBusinessProfile() {
             )}
           </div>
 
-          {/* 2. Location */}
+          {/* Location */}
           <div className="card">
             <button onClick={() => toggleSection('location')} className="w-full flex justify-between items-center p-8 text-left border-b">
               <h2 className="text-4xl font-black tracking-tighter text-[#00b4d8]">Location</h2>
@@ -239,7 +244,7 @@ export default function MyBusinessProfile() {
             )}
           </div>
 
-          {/* 3. Industries */}
+          {/* Industries */}
           <div className="card">
             <button onClick={() => toggleSection('industries')} className="w-full flex justify-between items-center p-8 text-left border-b">
               <h2 className="text-4xl font-black tracking-tighter text-[#00b4d8]">Industries</h2>
@@ -278,7 +283,7 @@ export default function MyBusinessProfile() {
             )}
           </div>
 
-          {/* 4. Financial */}
+          {/* Financial */}
           <div className="card">
             <button onClick={() => toggleSection('financial')} className="w-full flex justify-between items-center p-8 text-left border-b">
               <h2 className="text-4xl font-black tracking-tighter text-[#00b4d8]">Financial Details</h2>
@@ -296,7 +301,7 @@ export default function MyBusinessProfile() {
             )}
           </div>
 
-          {/* 5. Products */}
+          {/* Products */}
           <div className="card">
             <button onClick={() => toggleSection('products')} className="w-full flex justify-between items-center p-8 text-left border-b">
               <h2 className="text-4xl font-black tracking-tighter text-[#00b4d8]">Products / Services</h2>
@@ -315,7 +320,7 @@ export default function MyBusinessProfile() {
             )}
           </div>
 
-          {/* 6. Certifications & Documents */}
+          {/* Certifications */}
           <div className="card">
             <button onClick={() => toggleSection('certifications')} className="w-full flex justify-between items-center p-8 text-left border-b">
               <h2 className="text-4xl font-black tracking-tighter text-[#00b4d8]">Certifications & Documents</h2>
