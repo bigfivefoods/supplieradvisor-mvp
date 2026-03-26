@@ -61,7 +61,7 @@ export default function StockTake() {
         id: item.id,
         name: item.name,
         uom: item.uom,
-        systemQty: loc.stock[item.id] || 0,
+        systemQty: (loc.stock as Record<number, number>)[item.id] ?? 0,
         physicalQty: '',
         variance: 0,
         status: ''
