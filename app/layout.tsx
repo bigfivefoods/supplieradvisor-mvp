@@ -5,7 +5,6 @@ import { PrivyProvider } from '@privy-io/react-auth';
 import { usePrivy } from '@privy-io/react-auth';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import Image from 'next/image';
 import "./globals.css";
 import { Toaster } from "react-hot-toast";
 import { Wallet, ChevronDown } from "lucide-react";
@@ -103,7 +102,6 @@ const modules = [
     { name: 'Reports', href: '/dashboard/sustainability/reports' },
     { name: 'Green Certificates', href: '/dashboard/sustainability/green-certificates' }
   ]},
-  { id: 'risks', name: 'Risks', icon: '⚠️', href: '/dashboard/risks', sub: [] },
   { id: 'ai-lab', name: 'AI Lab', icon: '🤖', href: '/dashboard/ai-lab', sub: [
     { name: 'Pulse Dashboard', href: '/dashboard/ai-lab/pulse-dashboard' },
     { name: 'Predictive Forecasts', href: '/dashboard/ai-lab/predictive-forecasts' },
@@ -119,15 +117,16 @@ const modules = [
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <PrivyProvider
-      appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID!}
-      config={{
-        loginMethods: ['email', 'wallet'],
-        appearance: { theme: 'light' }
-      }}
-    >
-      <RootLayoutContent>{children}</RootLayoutContent>
-    </PrivyProvider>
+    <html lang="en">
+      <body>
+        <PrivyProvider
+          appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID!}
+          config={{ loginMethods: ['email', 'wallet'], appearance: { theme: 'light' } }}
+        >
+          <RootLayoutContent>{children}</RootLayoutContent>
+        </PrivyProvider>
+      </body>
+    </html>
   );
 }
 
@@ -140,17 +139,18 @@ function RootLayoutContent({ children }: { children: React.ReactNode }) {
     setExpandedModules(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const isDashboard = pathname.startsWith('/dashboard') || pathname === '/';
+  // STRICT CONDITION — sidebar ONLY on dashboard routes
+  const showSidebar = pathname?.startsWith('/dashboard') && !pathname.startsWith('/onboarding') && pathname !== '/' && pathname !== '';
 
   return (
-    <body>
-      <div className="flex h-screen">
-        {/* Sidebar */}
+    <div className="flex h-screen">
+      {/* Sidebar — completely hidden on landing page */}
+      {showSidebar && (
         <div className="w-72 bg-white border-r border-slate-200 flex flex-col overflow-y-auto">
           <div className="p-6 border-b">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 bg-[#00b4d8] rounded-2xl flex items-center justify-center text-white font-black text-3xl">S</div>
-              <div className="text-3xl font-black tracking-[-2px]">SupplierAdvisor</div>
+              <div className="text-3xl font-black tracking-[-2px]">SupplierAdvisor®</div>
             </div>
           </div>
 
@@ -191,13 +191,12 @@ function RootLayoutContent({ children }: { children: React.ReactNode }) {
             </button>
           </div>
         </div>
+      )}
 
-        {/* Main Content */}
-        <div className={`flex-1 overflow-auto ${isDashboard ? 'pl-[25px] pr-12 py-12' : 'min-h-screen'}`}>
-          {children}
-        </div>
+      {/* Main Content — full width on landing page */}
+      <div className={`flex-1 overflow-auto ${showSidebar ? 'pl-[25px] pr-12 py-12' : 'min-h-screen'}`}>
+        {children}
       </div>
-      <Toaster position="top-center" />
-    </body>
+    </div>
   );
 }
