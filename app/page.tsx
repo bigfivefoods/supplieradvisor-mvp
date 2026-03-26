@@ -92,8 +92,7 @@ export default function LandingPage() {
           </h1>
           
           <p className="text-lg sm:text-xl md:text-2xl text-white/90 max-w-2xl mx-auto mb-5">
-            SupplierAdvisor® is the B2B &amp; B2C supply-chain platform that combines<br />
-            blockchain verification, real-time AI insights, and ethical transparency to make every transaction trustworthy.
+            SupplierAdvisor® is the B2B & B2C supply-chain platform that combines blockchain verification, real-time AI insights, and ethical transparency to make every transaction trustworthy.
           </p>
 
           <div className="flex flex-col sm:flex-row justify-center gap-4 pb-5">
