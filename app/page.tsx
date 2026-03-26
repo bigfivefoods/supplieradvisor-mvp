@@ -92,7 +92,7 @@ export default function LandingPage() {
           </h1>
           
           <p className="text-lg sm:text-xl md:text-2xl text-white/90 max-w-2xl mx-auto mb-5">
-            SupplierAdvisor® is the B2B & B2C supply-chain platform that combines blockchain verification, real-time AI insights, and ethical transparency to make every transaction trustworthy.
+            SupplierAdvisor® is the B2B &amp; B2C supply-chain platform that combines blockchain verification, real-time AI insights, and ethical transparency to make every transaction trustworthy.
           </p>
 
           <div className="flex flex-col sm:flex-row justify-center gap-4 pb-5">
@@ -236,7 +236,7 @@ export default function LandingPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
             <div className="card p-6 sm:p-8 md:p-12 group">
               <Building2 className="text-[#00b4d8] text-5xl mb-8" />
-              <h3 className="text-3xl font-bold mb-4">Government &amp; Public Sector</h3>
+              <h3 className="text-3xl font-bold mb-4">Government<br />&amp; Public Sector</h3>
               <p className="text-slate-600 mb-8">
                 Run transparent tenders, eliminate corruption, and deliver services with full traceability. Get real-time public feedback on service levels. Use our AI Leadership Lab and RIAD tools to drive intelligent policy decisions and dramatically improve service delivery.
               </p>
@@ -305,7 +305,7 @@ export default function LandingPage() {
 
             <div className="card p-6 sm:p-8 md:p-12 group">
               <Zap className="text-[#00b4d8] text-5xl mb-8" />
-              <h3 className="text-3xl font-bold mb-4">A Better World<br />Together</h3>
+              <h3 className="text-3xl font-bold mb-4">A Better World Together</h3>
               <p className="text-slate-600 mb-8">
                 When governments, businesses, schools, associations, and conscious consumers unite on one verified, on-chain platform, we create unprecedented collective intelligence. Together we solve complex global problems — from ESG compliance to climate resilience — and accelerate humanity’s progress toward a more ethical, transparent, and prosperous future.
               </p>
