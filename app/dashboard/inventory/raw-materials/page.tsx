@@ -226,7 +226,7 @@ export default function RawMaterials() {
                 <td style={{ padding: '20px', color: '#fff' }}>{item.name}</td>
                 <td style={{ padding: '20px', textAlign: 'center', color: '#fff' }}>{item.quantity.toLocaleString()}</td>
                 <td style={{ padding: '20px', textAlign: 'center', color: '#aaa' }}>{item.uom}</td>
-                <td style={{ padding: '20px', color: '#aaa' }}>{item.warehouse}</td>
+                <td style={{ padding: '20px', color: '#aaa' }}>{item.defaultWarehouse}</td>
                 <td style={{ padding: '20px', textAlign: 'right', color: '#10b981', fontWeight: 'bold' }}>
                   R{(item.value || 0).toLocaleString()}
                 </td>
