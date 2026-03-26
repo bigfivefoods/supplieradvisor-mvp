@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import "./globals.css";
 import { Toaster } from "react-hot-toast";
-import { Wallet, ChevronDown } from "lucide-react";
+import { Wallet, ChevronDown, Menu, X } from "lucide-react";
 
 const modules = [
   { id: 'home', name: 'Home', icon: '📊', href: '/dashboard', sub: [] },
@@ -134,19 +134,19 @@ function RootLayoutContent({ children }: { children: React.ReactNode }) {
   const { user, logout } = usePrivy();
   const pathname = usePathname();
   const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({});
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const toggleModule = (id: string) => {
     setExpandedModules(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
-  // STRICT CONDITION — sidebar ONLY on dashboard routes
-  const showSidebar = pathname?.startsWith('/dashboard') && !pathname.startsWith('/onboarding') && pathname !== '/' && pathname !== '';
+  const showSidebar = pathname?.startsWith('/dashboard');
 
   return (
     <div className="flex h-screen">
-      {/* Sidebar — completely hidden on landing page */}
+      {/* Desktop Sidebar */}
       {showSidebar && (
-        <div className="w-72 bg-white border-r border-slate-200 flex flex-col overflow-y-auto">
+        <div className="hidden md:flex w-72 bg-white border-r border-slate-200 flex-col overflow-y-auto">
           <div className="p-6 border-b">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 bg-[#00b4d8] rounded-2xl flex items-center justify-center text-white font-black text-3xl">S</div>
@@ -167,7 +167,6 @@ function RootLayoutContent({ children }: { children: React.ReactNode }) {
                     <ChevronDown className={`ml-auto transition ${expandedModules[mod.id] ? 'rotate-180' : ''}`} />
                   )}
                 </button>
-
                 {mod.sub && mod.sub.length > 0 && expandedModules[mod.id] && (
                   <div className="ml-12 mt-1 space-y-0.5">
                     {mod.sub.map((sub, i) => (
@@ -193,10 +192,21 @@ function RootLayoutContent({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      {/* Main Content — full width on landing page */}
-      <div className={`flex-1 overflow-auto ${showSidebar ? 'pl-[25px] pr-12 py-12' : 'min-h-screen'}`}>
+      {/* Mobile Hamburger (only on dashboard) */}
+      {showSidebar && (
+        <button
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          className="md:hidden fixed top-6 left-6 z-50 p-3 bg-white rounded-3xl shadow-lg"
+        >
+          {mobileMenuOpen ? <X size={28} /> : <Menu size={28} />}
+        </button>
+      )}
+
+      {/* Main Content */}
+      <div className={`flex-1 overflow-auto ${showSidebar ? 'pl-[25px] pr-12 py-12 md:pl-72' : 'min-h-screen'}`}>
         {children}
       </div>
+      <Toaster position="top-center" />
     </div>
   );
 }
