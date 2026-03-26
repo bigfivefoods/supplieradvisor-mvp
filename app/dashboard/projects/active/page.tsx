@@ -1,7 +1,7 @@
 'use client';
 
 import Breadcrumb from '@/components/ui/Breadcrumb';
-import { Target, Calendar, Users } from 'lucide-react';
+import { Target, Calendar } from 'lucide-react';
 
 export default function ActiveProjectsPage() {
   return (
@@ -14,9 +14,9 @@ export default function ActiveProjectsPage() {
           <div className="card p-8">
             <div className="flex items-center gap-4 mb-6">
               <Target size={32} className="text-[#00b4d8]" />
-              <h3 className="text-3xl font-bold">Project Portfolio</h3>
+              <h3 className="text-3xl font-bold">Active Projects</h3>
             </div>
-            <p className="text-xl text-slate-600">All active projects with on-chain milestones and real-time status</p>
+            <p className="text-xl text-slate-600">All live projects with on-chain milestones and real-time status</p>
           </div>
           
           <div className="card p-8">
@@ -24,15 +24,15 @@ export default function ActiveProjectsPage() {
               <Calendar size={32} className="text-[#00b4d8]" />
               <h3 className="text-3xl font-bold">Milestones</h3>
             </div>
-            <p className="text-xl text-slate-600">On-chain milestone tracking, payments & approvals</p>
+            <p className="text-xl text-slate-600">On-chain milestone tracking and approvals</p>
           </div>
           
           <div className="card p-8">
             <div className="flex items-center gap-4 mb-6">
-              <Users size={32} className="text-[#00b4d8]" />
-              <h3 className="text-3xl font-bold">Team & Resources</h3>
+              <Target size={32} className="text-emerald-500" />
+              <h3 className="text-3xl font-bold">RIAD Summary</h3>
             </div>
-            <p className="text-xl text-slate-600">Resource allocation and team ratings</p>
+            <p className="text-xl text-slate-600">Risks, Issues, Actions & Decisions for active projects</p>
           </div>
         </div>
       </div>
