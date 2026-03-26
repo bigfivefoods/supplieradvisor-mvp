@@ -13,12 +13,12 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900 overflow-x-hidden">
-      {/* Top Navigation — clean Tesla style */}
+      {/* Top Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-lg border-b border-slate-100">
         <div className="max-w-screen-2xl mx-auto px-12 py-5 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-[#00b4d8] rounded-3xl flex items-center justify-center text-white font-black text-4xl leading-none pt-0.5">S</div>
-            <div className="text-3xl font-black tracking-[-2px]">SupplierAdvisor</div>
+            <div className="text-3xl font-black tracking-[-2px]">SupplierAdvisor®</div>
           </div>
 
           <div className="flex items-center gap-10 text-lg font-medium">
@@ -35,22 +35,39 @@ export default function LandingPage() {
         </div>
       </nav>
 
-      {/* HERO — visionary and emotional */}
-      <div className="pt-32 pb-20 px-12 max-w-screen-2xl mx-auto">
-        <div className="max-w-4xl mx-auto text-center">
-          <div className="inline-flex items-center gap-2 bg-white rounded-3xl px-6 py-2 mb-8 shadow-sm border border-slate-100">
+      {/* HERO with 4K Video Background */}
+      <div className="relative h-screen flex items-center justify-center overflow-hidden">
+        <video
+          autoPlay
+          muted
+          loop
+          playsInline
+          className="absolute inset-0 w-full h-full object-cover"
+        >
+          <source 
+            src="https://videos.pexels.com/video-files/11979793/11979793-uhd_2560_1440_30fps.mp4" 
+            type="video/mp4" 
+          />
+        </video>
+
+        {/* Tesla-style overlay */}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/30 to-black/50" />
+
+        {/* Hero Content */}
+        <div className="relative z-10 max-w-4xl mx-auto text-center px-6">
+          <div className="inline-flex items-center gap-2 bg-white/90 backdrop-blur-md rounded-3xl px-6 py-2 mb-8 shadow-sm">
             <Globe size={20} className="text-[#00b4d8]" />
-            <span className="font-semibold text-slate-600">From Farm to Fork • On-Chain • For Humanity</span>
+            <span className="font-semibold text-slate-700">Farm-to-Fork • On-Chain • AI-Powered</span>
           </div>
           
-          <h1 className="text-7xl md:text-8xl font-black tracking-[-4px] leading-none mb-8">
+          <h1 className="text-7xl md:text-8xl font-black tracking-[-4px] leading-none text-white mb-8">
             Verified.<br />
             Transparent.<br />
             Accelerating humanity.
           </h1>
           
-          <p className="text-2xl text-slate-600 max-w-2xl mx-auto mb-12">
-            SupplierAdvisor is the world’s most advanced B2B &amp; B2C supply-chain platform — combining blockchain verification, real-time AI insights, and ethical transparency to make every transaction trustworthy and every supply chain efficient.
+          <p className="text-2xl text-white/90 max-w-2xl mx-auto mb-12">
+            SupplierAdvisor® is the B2B &amp; B2C supply-chain platform that combines blockchain verification, real-time AI insights, and ethical transparency to make every transaction trustworthy.
           </p>
 
           <div className="flex flex-wrap justify-center gap-4">
@@ -62,20 +79,26 @@ export default function LandingPage() {
             </Link>
             <Link
               href="/onboarding?type=consumer"
-              className="px-12 py-7 border-2 border-slate-300 hover:border-slate-400 rounded-3xl text-xl font-medium flex items-center gap-3"
+              className="px-12 py-7 border-2 border-white/70 hover:border-white text-xl font-medium text-white rounded-3xl flex items-center gap-3"
             >
               Shop as a Conscious Consumer
             </Link>
           </div>
+        </div>
 
-          <p className="text-sm text-slate-500 mt-8">Trusted by forward-thinking farms, manufacturers, retailers, and conscious consumers across Africa and beyond.</p>
+        {/* Scroll indicator */}
+        <div className="absolute bottom-12 left-1/2 -translate-x-1/2 text-white/70 text-sm flex flex-col items-center gap-1">
+          <div className="w-5 h-8 border-2 border-white/70 rounded-full flex items-center justify-center">
+            <div className="w-1 h-2 bg-white/70 rounded-full animate-scroll" />
+          </div>
+          <span className="text-xs tracking-widest">SCROLL</span>
         </div>
       </div>
 
-      {/* HOW IT WORKS — the compelling story */}
+      {/* HOW IT WORKS */}
       <div id="how-it-works" className="bg-white py-24 px-12">
         <div className="max-w-screen-2xl mx-auto">
-          <h2 className="text-6xl font-black tracking-[-2px] text-center mb-6 text-[#00b4d8]">How SupplierAdvisor Works</h2>
+          <h2 className="text-6xl font-black tracking-[-2px] text-center mb-6 text-[#00b4d8]">How SupplierAdvisor® Works</h2>
           <p className="text-xl text-slate-600 text-center max-w-2xl mx-auto mb-16">
             We don’t just connect buyers and sellers — we build the transparent, ethical, and efficient backbone the world needs to progress humanity.
           </p>
@@ -113,7 +136,7 @@ export default function LandingPage() {
                 <h2 className="text-6xl font-black tracking-[-2px] leading-none mb-8">
                   The most powerful supply-chain operating system ever built
                 </h2>
-                <p className="text-2xl text-slate-600">From verified suppliers to on-chain POs and live logistics — SupplierAdvisor gives you total visibility, trust, and speed.</p>
+                <p className="text-2xl text-slate-600">From verified suppliers to on-chain POs and live logistics — SupplierAdvisor® gives you total visibility, trust, and speed.</p>
                 <Link href="/onboarding?type=business" className="btn-primary inline-flex mt-12 text-xl px-10 py-6">
                   Register Your Business <ArrowRight className="ml-3" />
                 </Link>
@@ -178,7 +201,7 @@ export default function LandingPage() {
         </div>
       </div>
 
-      {/* Final visionary CTA */}
+      {/* Final CTA */}
       <div className="bg-slate-900 text-white py-24 px-12 text-center">
         <div className="max-w-3xl mx-auto">
           <h2 className="text-5xl font-black tracking-[-2px] mb-6">The future of supply chains is here.</h2>
