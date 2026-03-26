@@ -3,17 +3,31 @@
 import Link from 'next/link';
 import { ArrowRight, ShieldCheck, Truck, Users, Factory, Leaf, Zap, Globe } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
+import { useRef, useEffect } from 'react';
 
 export default function LandingPage() {
   const { login } = usePrivy();
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   const scrollToSection = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  // Force reliable autoplay
+  useEffect(() => {
+    const video = videoRef.current;
+    if (video) {
+      video.muted = true;
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((err) => console.log('Autoplay prevented by browser:', err));
+      }
+    }
+  }, []);
+
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900 overflow-x-hidden">
-      {/* Top Navigation */}
+      {/* Top Navigation — unchanged */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-lg border-b border-slate-100">
         <div className="max-w-screen-2xl mx-auto px-12 py-5 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -35,13 +49,16 @@ export default function LandingPage() {
         </div>
       </nav>
 
-      {/* HERO with 4K Video Background */}
+      {/* HERO with fixed 4K video */}
       <div className="relative h-screen flex items-center justify-center overflow-hidden">
         <video
+          ref={videoRef}
           autoPlay
           muted
           loop
           playsInline
+          preload="auto"
+          poster="https://picsum.photos/id/1015/2560/1440"
           className="absolute inset-0 w-full h-full object-cover"
         >
           <source 
@@ -50,10 +67,8 @@ export default function LandingPage() {
           />
         </video>
 
-        {/* Tesla-style overlay */}
         <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/30 to-black/50" />
 
-        {/* Hero Content */}
         <div className="relative z-10 max-w-4xl mx-auto text-center px-6">
           <div className="inline-flex items-center gap-2 bg-white/90 backdrop-blur-md rounded-3xl px-6 py-2 mb-8 shadow-sm">
             <Globe size={20} className="text-[#00b4d8]" />
@@ -85,24 +100,15 @@ export default function LandingPage() {
             </Link>
           </div>
         </div>
-
-        {/* Scroll indicator */}
-        <div className="absolute bottom-12 left-1/2 -translate-x-1/2 text-white/70 text-sm flex flex-col items-center gap-1">
-          <div className="w-5 h-8 border-2 border-white/70 rounded-full flex items-center justify-center">
-            <div className="w-1 h-2 bg-white/70 rounded-full animate-scroll" />
-          </div>
-          <span className="text-xs tracking-widest">SCROLL</span>
-        </div>
       </div>
 
-      {/* HOW IT WORKS */}
+      {/* HOW IT WORKS — unchanged */}
       <div id="how-it-works" className="bg-white py-24 px-12">
         <div className="max-w-screen-2xl mx-auto">
           <h2 className="text-6xl font-black tracking-[-2px] text-center mb-6 text-[#00b4d8]">How SupplierAdvisor® Works</h2>
           <p className="text-xl text-slate-600 text-center max-w-2xl mx-auto mb-16">
             We don’t just connect buyers and sellers — we build the transparent, ethical, and efficient backbone the world needs to progress humanity.
           </p>
-
           <div className="grid md:grid-cols-3 gap-8">
             <div className="card p-10 text-center">
               <div className="w-16 h-16 mx-auto mb-6 bg-[#00b4d8]/10 rounded-3xl flex items-center justify-center text-4xl">1</div>
@@ -123,7 +129,7 @@ export default function LandingPage() {
         </div>
       </div>
 
-      {/* FOR BUSINESS (B2B) */}
+      {/* FOR BUSINESS — unchanged */}
       <div id="for-business" className="py-24 px-12 bg-[#f8fafc]">
         <div className="max-w-screen-2xl mx-auto">
           <div className="grid md:grid-cols-12 gap-16 items-center">
@@ -162,7 +168,7 @@ export default function LandingPage() {
         </div>
       </div>
 
-      {/* FOR CONSUMERS (B2C) */}
+      {/* FOR CONSUMERS — unchanged */}
       <div id="for-consumers" className="py-24 px-12 bg-white">
         <div className="max-w-screen-2xl mx-auto">
           <div className="grid md:grid-cols-12 gap-16 items-center">
@@ -201,7 +207,7 @@ export default function LandingPage() {
         </div>
       </div>
 
-      {/* Final CTA */}
+      {/* Final CTA — unchanged */}
       <div className="bg-slate-900 text-white py-24 px-12 text-center">
         <div className="max-w-3xl mx-auto">
           <h2 className="text-5xl font-black tracking-[-2px] mb-6">The future of supply chains is here.</h2>
