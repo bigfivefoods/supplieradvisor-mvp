@@ -147,7 +147,7 @@ function RootLayoutContent({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen">
-      {/* Desktop Sidebar */}
+      {/* Desktop Sidebar - unchanged */}
       {showSidebar && (
         <div className="hidden md:flex w-72 bg-white border-r border-slate-200 flex-col overflow-y-auto">
           <div className="p-6 border-b">
@@ -205,7 +205,7 @@ function RootLayoutContent({ children }: { children: React.ReactNode }) {
         </button>
       )}
 
-      {/* Main Content */}
+      {/* Main Content - responsive padding */}
       <div className={`flex-1 overflow-auto ${showSidebar ? 'pl-[25px] pr-12 py-12 md:pl-72' : 'min-h-screen'}`}>
         {children}
       </div>
