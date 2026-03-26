@@ -13,7 +13,7 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900">
-      {/* Top Navigation */}
+      {/* Top Navigation – previous design preserved */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-100">
         <div className="max-w-screen-2xl mx-auto px-12 py-5 flex items-center justify-between">
           {/* SA Logo */}
@@ -46,7 +46,7 @@ export default function LandingPage() {
         </div>
       </nav>
 
-      {/* Hero */}
+      {/* Hero – previous design preserved */}
       <div className="pt-32 pb-24 px-12 max-w-screen-2xl mx-auto">
         <div className="max-w-3xl mx-auto text-center">
           <h1 className="text-7xl font-black tracking-[-3px] leading-none mb-6">
@@ -72,7 +72,7 @@ export default function LandingPage() {
         </div>
       </div>
 
-      {/* How it Works Section */}
+      {/* How it Works Section – exactly as requested */}
       <div id="how-it-works" className="bg-white py-24 px-12">
         <div className="max-w-screen-2xl mx-auto">
           <h2 className="text-6xl font-black tracking-[-2px] text-center mb-16 text-[#00b4d8]">
@@ -80,7 +80,7 @@ export default function LandingPage() {
           </h2>
 
           <div className="grid md:grid-cols-2 gap-16 items-center">
-            {/* B2B Column */}
+            {/* B2B */}
             <div className="card p-12">
               <div className="flex items-center gap-4 mb-8">
                 <Factory size={42} className="text-[#00b4d8]" />
@@ -89,21 +89,15 @@ export default function LandingPage() {
               <ul className="space-y-8 text-xl">
                 <li className="flex gap-4">
                   <ShieldCheck className="text-emerald-500 mt-1" size={28} />
-                  <div>
-                    <strong>Verified suppliers &amp; buyers</strong> — every business completes full onboarding with certificates, bank details, and location metadata.
-                  </div>
+                  <div><strong>Verified suppliers &amp; buyers</strong> — full onboarding with certificates, bank details, VAT, and metadata.</div>
                 </li>
                 <li className="flex gap-4">
                   <Truck className="text-[#00b4d8] mt-1" size={28} />
-                  <div>
-                    <strong>End-to-end traceability</strong> — on-chain POs, invoices, shipments, CoA, and live GPS/IoT tracking from farm to fork.
-                  </div>
+                  <div><strong>End-to-end on-chain traceability</strong> — POs, invoices, shipments, CoA, live GPS tracking, and OTIFEF metrics.</div>
                 </li>
                 <li className="flex gap-4">
                   <Users className="text-amber-500 mt-1" size={28} />
-                  <div>
-                    <strong>Smart matching + OTIFEF metrics</strong> — AI-powered search, connection requests, performance scorecards, and RIAD (Risks/Issues/Actions/Decisions) embedded in every module.
-                  </div>
+                  <div><strong>AI-powered matching + RIAD</strong> — smart search, connection requests, performance scorecards, and embedded Risks/Issues/Actions/Decisions.</div>
                 </li>
               </ul>
               <Link href="/onboarding?type=business" className="btn-primary w-full mt-12 py-6 text-xl">
@@ -111,7 +105,7 @@ export default function LandingPage() {
               </Link>
             </div>
 
-            {/* B2C Column */}
+            {/* B2C */}
             <div className="card p-12">
               <div className="flex items-center gap-4 mb-8">
                 <Leaf size={42} className="text-[#00b4d8]" />
@@ -120,21 +114,15 @@ export default function LandingPage() {
               <ul className="space-y-8 text-xl">
                 <li className="flex gap-4">
                   <ShieldCheck className="text-emerald-500 mt-1" size={28} />
-                  <div>
-                    <strong>Scan any product QR code</strong> and instantly see the full verified chain of custody, certificates, and ethical ratings.
-                  </div>
+                  <div><strong>Scan any QR code</strong> — instantly see the full verified chain of custody and ethical ratings.</div>
                 </li>
                 <li className="flex gap-4">
                   <Users className="text-amber-500 mt-1" size={28} />
-                  <div>
-                    <strong>Support ethical brands</strong> — shop directly from verified farms, manufacturers, and retailers with transparent ratings and reviews.
-                  </div>
+                  <div><strong>Support ethical brands</strong> — shop directly from verified farms and manufacturers with transparent reviews.</div>
                 </li>
                 <li className="flex gap-4">
                   <Truck className="text-[#00b4d8] mt-1" size={28} />
-                  <div>
-                    <strong>Live delivery tracking</strong> and proof-of-delivery on-chain — know exactly where your food or goods are at every moment.
-                  </div>
+                  <div><strong>Live delivery tracking</strong> — real-time proof-of-delivery on-chain.</div>
                 </li>
               </ul>
               <Link href="/onboarding?type=consumer" className="btn-primary w-full mt-12 py-6 text-xl">
@@ -144,12 +132,12 @@ export default function LandingPage() {
           </div>
 
           <p className="text-center text-slate-500 mt-16 max-w-2xl mx-auto text-lg">
-            SupplierAdvisor accelerates ethical and efficient supply chains by combining world-class verification, real-time on-chain data, and AI-driven insights — making trust the new competitive advantage.
+            SupplierAdvisor accelerates ethical and efficient supply chains by combining world-class verification, real-time on-chain data, and AI-driven insights — making trust the new competitive advantage from farm to fork.
           </p>
         </div>
       </div>
 
-      {/* Footer teaser */}
+      {/* Simple footer teaser */}
       <div className="bg-slate-900 text-white py-12 text-center">
         <p className="text-2xl font-medium">Ready to build the most trusted supply chain in Africa and beyond?</p>
         <button onClick={login} className="mt-8 px-12 py-5 bg-[#00b4d8] rounded-3xl text-xl font-semibold">
