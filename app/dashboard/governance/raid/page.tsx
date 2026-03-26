@@ -2,11 +2,11 @@
 
 import { useState } from 'react';
 import Breadcrumb from '@/components/ui/Breadcrumb';
-import { AlertTriangle, CheckCircle, Target, BookOpen } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Target, BookOpen, ChevronDown } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function RaidPage() {
-  const [expanded, setExpanded] = useState({
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({
     risks: true,
     issues: false,
     actions: false,
