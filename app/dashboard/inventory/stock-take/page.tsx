@@ -56,7 +56,7 @@ export default function StockTake() {
     setCurrentLocation(loc)
 
     const itemsWithStock = existingItems
-      .filter(item => (loc.stock?.[item.id] ?? 0) > 0)
+      .filter(item => ((loc.stock as Record<number, number>)[item.id] ?? 0) > 0)
       .map(item => ({
         id: item.id,
         name: item.name,
