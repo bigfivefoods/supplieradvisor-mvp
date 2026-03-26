@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { PrivyProvider } from '@privy-io/react-auth';
+import { usePrivy } from '@privy-io/react-auth';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Image from 'next/image';
