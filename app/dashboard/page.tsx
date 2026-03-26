@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { ArrowUp, ArrowDown, AlertTriangle, Zap, ShieldCheck, Truck } from 'lucide-react';
 
 export default function Home() {
-  // ✅ Fixed typing – no more TS errors
   const [expanded, setExpanded] = useState<Record<string, boolean>>({
     financial: true,
     customer: true,
@@ -74,71 +73,68 @@ export default function Home() {
       title: 'Neural Alerts',
       icon: '🧠',
       color: '#00b4d8',
-      metrics: [] // special card below
+      metrics: [] 
     },
     {
       key: 'riad',
       title: 'RIAD Overview',
       icon: '🛡️',
       color: '#00b4d8',
-      metrics: [] // special card below
+      metrics: [] 
     },
     {
       key: 'logistics',
       title: 'Logistics Overview (Incoterms + CoA)',
       icon: '🚚',
       color: '#00b4d8',
-      metrics: [] // special card below
+      metrics: [] 
     },
   ];
 
   return (
-    <div className="pl-[25px]">   {/* Exactly 25px from the sidebar */}
+    <div className="pl-4 md:pl-[25px] pr-4 md:pr-12 py-8 md:py-12">   {/* Responsive padding */}
 
-      <h1 className="text-7xl font-black tracking-tighter mb-12 text-[#00b4d8]">
+      <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black tracking-tighter mb-12 text-[#00b4d8]">
         Supply Chain Pulse
       </h1>
 
       <div className="space-y-12">
         {sections.map(section => (
           <div key={section.key}>
-            {/* Expandable Heading */}
             <button
               onClick={() => toggleSection(section.key)}
               className="w-full flex items-center justify-between py-6 text-left hover:bg-transparent transition-none"
             >
               <div className="flex items-center gap-5">
-                <span className="text-5xl" style={{ color: section.color }}>{section.icon}</span>
-                <h2 className="text-5xl font-black tracking-tighter" style={{ color: section.color }}>
+                <span className="text-4xl sm:text-5xl" style={{ color: section.color }}>{section.icon}</span>
+                <h2 className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tighter" style={{ color: section.color }}>
                   {section.title}
                 </h2>
               </div>
-              <span className={`text-4xl transition-transform ${expanded[section.key] ? 'rotate-180' : ''}`} style={{ color: section.color }}>
+              <span className={`text-3xl sm:text-4xl transition-transform ${expanded[section.key] ? 'rotate-180' : ''}`} style={{ color: section.color }}>
                 ▼
               </span>
             </button>
 
-            {/* Expandable Content */}
             {expanded[section.key] && (
-              <div className="pl-14">
+              <div className="pl-4 sm:pl-14">
                 {section.metrics.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                     {section.metrics.map((stat, i) => (
-                      <div key={i} className="card text-center">
-                        <div className="flex justify-center text-6xl mb-6 opacity-80">
+                      <div key={i} className="card text-center p-6 sm:p-8">
+                        <div className="flex justify-center text-5xl sm:text-6xl mb-6 opacity-80">
                           {stat.icon}
                         </div>
-                        <div className="text-5xl font-black text-slate-900 mb-3">
+                        <div className="text-3xl sm:text-4xl md:text-5xl font-black text-slate-900 mb-3">
                           {stat.value}
                         </div>
-                        <div className="text-xl text-slate-600 font-medium">
+                        <div className="text-base sm:text-lg text-slate-600 font-medium">
                           {stat.label}
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  // Special sections
                   <div className="space-y-6">
                     {section.key === 'neural' && (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -173,14 +169,13 @@ export default function Home() {
         ))}
       </div>
 
-      {/* Quick Actions */}
-      <div className="card p-10 mt-16">
-        <h2 className="text-3xl font-bold mb-8">One-Click Actions</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-          <Link href="/onboarding" className="btn-primary text-center py-8 text-lg">Complete Onboarding</Link>
-          <Link href="/dashboard/suppliers/connect" className="btn-primary text-center py-8 text-lg">Send Connection Request</Link>
-          <Link href="/dashboard/procurement" className="btn-primary text-center py-8 text-lg">Raise New PO</Link>
-          <Link href="/dashboard/logistics/shipments" className="btn-primary text-center py-8 text-lg">Create Shipment (Incoterms + CoA)</Link>
+      <div className="card p-8 sm:p-10 mt-16">
+        <h2 className="text-2xl sm:text-3xl font-bold mb-8">One-Click Actions</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+          <Link href="/onboarding" className="btn-primary text-center py-6 text-base sm:text-lg">Complete Onboarding</Link>
+          <Link href="/dashboard/suppliers/connect" className="btn-primary text-center py-6 text-base sm:text-lg">Send Connection Request</Link>
+          <Link href="/dashboard/procurement" className="btn-primary text-center py-6 text-base sm:text-lg">Raise New PO</Link>
+          <Link href="/dashboard/logistics/shipments" className="btn-primary text-center py-6 text-base sm:text-lg">Create Shipment (Incoterms + CoA)</Link>
         </div>
       </div>
     </div>
