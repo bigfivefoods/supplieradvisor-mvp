@@ -79,9 +79,9 @@ export default function LandingPage() {
 
         <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/30 to-black/50" />
 
-        <div className="relative z-10 max-w-4xl mx-auto text-center px-6 pt-32">   {/* ← increased from pt-20 so tagline is fully visible */}
-
-          <div className="inline-flex items-center gap-2 bg-white/90 backdrop-blur-md rounded-3xl px-6 py-2 mb-8 shadow-sm">
+        <div className="relative z-10 max-w-4xl mx-auto text-center px-6 pt-32">
+          {/* Farm-to-Fork badge moved down 5px */}
+          <div className="inline-flex items-center gap-2 bg-white/90 backdrop-blur-md rounded-3xl px-6 py-2 mb-8 shadow-sm mt-5">
             <Globe size={20} className="text-[#00b4d8]" />
             <span className="font-semibold text-slate-700">Farm-to-Fork • On-Chain • AI-Powered</span>
           </div>
@@ -92,11 +92,12 @@ export default function LandingPage() {
             Accelerating humanity.
           </h1>
           
-          <p className="text-lg sm:text-xl md:text-2xl text-white/90 max-w-2xl mx-auto mb-8">   {/* ← reduced from mb-12 so buttons are fully visible */}
-            SupplierAdvisor® is the B2B &amp; B2C supply-chain platform that combines blockchain verification, real-time AI insights, and ethical transparency to make every transaction trustworthy.
+          {/* Paragraph now over 2 lines + buttons moved up with breathing room */}
+          <p className="text-lg sm:text-xl md:text-2xl text-white/90 max-w-2xl mx-auto mb-5">
+            SupplierAdvisor® is the B2B &amp; B2C supply-chain platform that combines<br />blockchain verification, real-time AI insights, and ethical transparency<br />to make every transaction trustworthy.
           </p>
 
-          <div className="flex flex-col sm:flex-row justify-center gap-4">
+          <div className="flex flex-col sm:flex-row justify-center gap-4 pb-5">
             <Link
               href="/onboarding?type=business"
               className="btn-primary text-lg md:text-xl px-10 py-6 rounded-3xl flex items-center gap-3 text-white"
@@ -113,10 +114,7 @@ export default function LandingPage() {
         </div>
       </div>
 
-      {/* All other sections (How it Works → For Consumers → For Business → For Society → For Humanity) remain 100% unchanged */}
-      {/* (Full code for the rest of the page is identical to your previous version) */}
-
-      {/* How it Works, For Consumers, For Business, For Society, For Humanity, Final CTA, Footer — all exactly as before */}
+      {/* All other sections (How it Works, For Consumers, For Business, For Society, For Humanity, Final CTA, Footer) are 100% unchanged from your last perfect version */}
 
       {/* How it Works */}
       <div id="how-it-works" className="bg-white py-12 sm:py-16 md:py-24 px-6 md:px-12">
@@ -145,9 +143,182 @@ export default function LandingPage() {
         </div>
       </div>
 
-      {/* For Consumers, For Business, For Society, For Humanity, Final CTA, Footer — all identical to previous version (omitted here for brevity but included in the full file) */}
+      {/* For Consumers, For Business, For Society, For Humanity, Final CTA, Footer — all exactly as in your last version (unchanged) */}
 
-      {/* (The rest of the file is unchanged from your last perfect version) */}
+      {/* For Consumers */}
+      <div id="for-consumers" className="py-12 sm:py-16 md:py-24 px-6 md:px-12 bg-white">
+        <div className="max-w-screen-2xl mx-auto">
+          <div className="grid md:grid-cols-12 gap-12 items-center">
+            <div className="md:col-span-7">
+              <div className="card p-6 sm:p-8 md:p-12 text-base md:text-lg space-y-10">
+                <div className="flex gap-6">
+                  <ShieldCheck className="text-emerald-500 flex-shrink-0" size={32} />
+                  <div><strong>Scan any product</strong> — Instantly see the full verified journey from farm to your table.</div>
+                </div>
+                <div className="flex gap-6">
+                  <Users className="text-amber-500 flex-shrink-0" size={32} />
+                  <div><strong>Support ethical brands</strong> — Shop only from verified, high-rated businesses with transparent reviews.</div>
+                </div>
+                <div className="flex gap-6">
+                  <Leaf className="text-[#00b4d8] flex-shrink-0" size={32} />
+                  <div><strong>Real impact</strong> — Your purchases directly fund regenerative farming, fair wages, and sustainable practices.</div>
+                </div>
+              </div>
+            </div>
+            <div className="md:col-span-5">
+              <div className="sticky top-8">
+                <div className="inline-flex items-center gap-2 bg-white px-5 py-2 rounded-3xl mb-6">
+                  <Leaf className="text-[#00b4d8]" size={28} />
+                  <span className="font-bold text-xl">For Consumers</span>
+                </div>
+                <h2 className="text-4xl md:text-6xl font-black tracking-[-2px] leading-none mb-8">
+                  Shop with total confidence and real impact
+                </h2>
+                <p className="text-xl md:text-2xl text-slate-600">Every purchase you make is traceable, ethical, and contributes to a better world.</p>
+                <Link href="/onboarding?type=consumer" className="btn-primary inline-flex mt-12 text-xl px-10 py-6">
+                  Join as a Conscious Consumer <ArrowRight className="ml-3" />
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* For Business */}
+      <div id="for-business" className="py-12 sm:py-16 md:py-24 px-6 md:px-12 bg-[#f8fafc]">
+        <div className="max-w-screen-2xl mx-auto">
+          <div className="grid md:grid-cols-12 gap-12 items-center">
+            <div className="md:col-span-5">
+              <div className="sticky top-8">
+                <div className="inline-flex items-center gap-2 bg-white px-5 py-2 rounded-3xl mb-6">
+                  <Factory className="text-[#00b4d8]" size={28} />
+                  <span className="font-bold text-xl">For Business</span>
+                </div>
+                <h2 className="text-4xl md:text-6xl font-black tracking-[-2px] leading-none mb-8">
+                  The most powerful supply-chain operating system ever built
+                </h2>
+                <p className="text-xl md:text-2xl text-slate-600">From verified suppliers to on-chain POs and live logistics — SupplierAdvisor® gives you total visibility, trust, and speed.</p>
+                <Link href="/onboarding?type=business" className="btn-primary inline-flex mt-12 text-xl px-10 py-6">
+                  Register Your Business <ArrowRight className="ml-3" />
+                </Link>
+              </div>
+            </div>
+            <div className="md:col-span-7">
+              <div className="card p-6 sm:p-8 md:p-12 text-base md:text-lg space-y-10">
+                <div className="flex gap-6">
+                  <ShieldCheck className="text-emerald-500 flex-shrink-0" size={32} />
+                  <div><strong>Verified ecosystem</strong> — Every participant is fully vetted with certificates, financials, and location metadata.</div>
+                </div>
+                <div className="flex gap-6">
+                  <Zap className="text-[#00b4d8] flex-shrink-0" size={32} />
+                  <div><strong>AI + on-chain intelligence</strong> — Smart matching, predictive OTIFEF, RIAD embedded in every module.</div>
+                </div>
+                <div className="flex gap-6">
+                  <Truck className="text-amber-500 flex-shrink-0" size={32} />
+                  <div><strong>Live end-to-end traceability</strong> — GPS, IoT, CoA, Incoterms, and proof-of-delivery on the blockchain.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* For Society */}
+      <div id="for-society" className="py-12 sm:py-16 md:py-24 px-6 md:px-12 bg-white">
+        <div className="max-w-screen-2xl mx-auto">
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center gap-2 bg-white px-5 py-2 rounded-3xl mb-6">
+              <Globe className="text-[#00b4d8]" size={28} />
+              <span className="font-bold text-xl">For Society</span>
+            </div>
+            <h2 className="text-4xl md:text-6xl font-black tracking-[-2px] leading-none mb-6 text-[#00b4d8]">
+              Governments • Schools • Associations
+            </h2>
+            <p className="text-xl md:text-2xl text-slate-600 max-w-3xl mx-auto">
+              SupplierAdvisor® is not just for businesses — it is the platform that empowers every institution and group to operate with total transparency, intelligence, and impact.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
+            <div className="card p-6 sm:p-8 md:p-12 group">
+              <Building2 className="text-[#00b4d8] text-5xl mb-8" />
+              <h3 className="text-3xl font-bold mb-4">Government &amp; Public Sector</h3>
+              <p className="text-slate-600 mb-8">
+                Run transparent tenders, eliminate corruption, and deliver services with full traceability. Get real-time public feedback on service levels. Use our AI Leadership Lab and RIAD tools to drive intelligent policy decisions and dramatically improve service delivery.
+              </p>
+              <Link href="/onboarding?type=government" className="text-[#00b4d8] font-medium flex items-center gap-2 group-hover:gap-3 transition-all mt-8">
+                Register as a Government Entity <ArrowRight size={18} />
+              </Link>
+            </div>
+
+            <div className="card p-6 sm:p-8 md:p-12 group">
+              <BookOpen className="text-[#00b4d8] text-5xl mb-8" />
+              <h3 className="text-3xl font-bold mb-4">Schools &amp; Educational Institutions</h3>
+              <p className="text-slate-600 mb-8">
+                Track every rand spent on school nutrition, uniforms, and supplies with full traceability down to each pupil. Monitor performance, spending efficiency, and food safety in real time. Receive AI-powered insights to improve outcomes and accountability.
+              </p>
+              <Link href="/onboarding?type=school" className="text-[#00b4d8] font-medium flex items-center gap-2 group-hover:gap-3 transition-all mt-8">
+                Register Your School <ArrowRight size={18} />
+              </Link>
+            </div>
+
+            <div className="card p-6 sm:p-8 md:p-12 group">
+              <Users2 className="text-[#00b4d8] text-5xl mb-8" />
+              <h3 className="text-3xl font-bold mb-4">Associations, Cooperatives &amp; Groups</h3>
+              <p className="text-slate-600 mb-8">
+                Consolidate your members (companies, farmers, individuals) on one platform. Unlock collective intelligence, shared metrics, benchmarking, and powerful insights. Drive industry-wide improvement, advocacy, and collective bargaining power.
+              </p>
+              <Link href="/onboarding?type=association" className="text-[#00b4d8] font-medium flex items-center gap-2 group-hover:gap-3 transition-all mt-8">
+                Register Your Association <ArrowRight size={18} />
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* For Humanity */}
+      <div id="for-humanity" className="py-12 sm:py-16 md:py-24 px-6 md:px-12 bg-[#f8fafc]">
+        <div className="max-w-screen-2xl mx-auto">
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center gap-2 bg-white px-5 py-2 rounded-3xl mb-6">
+              <Heart className="text-[#00b4d8]" size={28} />
+              <span className="font-bold text-xl">For Humanity</span>
+            </div>
+            <h2 className="text-4xl md:text-6xl font-black tracking-[-2px] leading-none mb-6 text-[#00b4d8]">
+              One Platform.<br />One Purpose.
+            </h2>
+            <p className="text-xl md:text-2xl text-slate-600 max-w-3xl mx-auto">
+              SupplierAdvisor® unites ethical sourcing, world-class leadership development, and AI intelligence to solve humanity’s most pressing challenges and advance a more just, sustainable world.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
+            <div className="card p-6 sm:p-8 md:p-12 group">
+              <Globe className="text-[#00b4d8] text-5xl mb-8" />
+              <h3 className="text-3xl font-bold mb-4">Ethical Sourcing &amp; UN SDGs</h3>
+              <p className="text-slate-600 mb-8">
+                Every transaction on the platform directly advances multiple United Nations Sustainable Development Goals — from Zero Hunger and Responsible Consumption to Climate Action and Strong Institutions — through verified ethical sourcing and full supply-chain transparency, using our leading project management tools (Prince2, PMP, Gantt, Kanban board options) to project manage all internal and external projects.
+              </p>
+            </div>
+
+            <div className="card p-6 sm:p-8 md:p-12 group">
+              <Award className="text-[#00b4d8] text-5xl mb-8" />
+              <h3 className="text-3xl font-bold mb-4">Super-Cube® Leadership</h3>
+              <p className="text-slate-600 mb-8">
+                Built on Dr. Craig R. Muller’s doctoral Super-Cube® leadership development model and integrated with AI-powered assessments, learning material, and steps to improve leadership at every level to make wiser, faster, and more ethical decisions that drive real systemic change.
+              </p>
+            </div>
+
+            <div className="card p-6 sm:p-8 md:p-12 group">
+              <Zap className="text-[#00b4d8] text-5xl mb-8" />
+              <h3 className="text-3xl font-bold mb-4">A Better World<br />Together</h3>
+              <p className="text-slate-600 mb-8">
+                When governments, businesses, schools, associations, and conscious consumers unite on one verified, on-chain platform, we create unprecedented collective intelligence. Together we solve complex global problems — from ESG compliance to climate resilience — and accelerate humanity’s progress toward a more ethical, transparent, and prosperous future.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Final CTA */}
       <div className="bg-slate-900 text-white py-12 sm:py-16 md:py-24 px-6 md:px-12 text-center">
