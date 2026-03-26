@@ -80,7 +80,6 @@ export default function LandingPage() {
         <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/30 to-black/50" />
 
         <div className="relative z-10 max-w-4xl mx-auto text-center px-6 pt-32">
-          {/* Farm-to-Fork badge moved down 5px */}
           <div className="inline-flex items-center gap-2 bg-white/90 backdrop-blur-md rounded-3xl px-6 py-2 mb-8 shadow-sm mt-5">
             <Globe size={20} className="text-[#00b4d8]" />
             <span className="font-semibold text-slate-700">Farm-to-Fork • On-Chain • AI-Powered</span>
@@ -92,9 +91,9 @@ export default function LandingPage() {
             Accelerating humanity.
           </h1>
           
-          {/* Paragraph now over 2 lines + buttons moved up with breathing room */}
           <p className="text-lg sm:text-xl md:text-2xl text-white/90 max-w-2xl mx-auto mb-5">
-            SupplierAdvisor® is the B2B &amp; B2C supply-chain platform that combines<br />blockchain verification, real-time AI insights, and ethical transparency<br />to make every transaction trustworthy.
+            SupplierAdvisor® is the B2B &amp; B2C supply-chain platform that combines<br />
+            blockchain verification, real-time AI insights, and ethical transparency to make every transaction trustworthy.
           </p>
 
           <div className="flex flex-col sm:flex-row justify-center gap-4 pb-5">
@@ -113,8 +112,6 @@ export default function LandingPage() {
           </div>
         </div>
       </div>
-
-      {/* All other sections (How it Works, For Consumers, For Business, For Society, For Humanity, Final CTA, Footer) are 100% unchanged from your last perfect version */}
 
       {/* How it Works */}
       <div id="how-it-works" className="bg-white py-12 sm:py-16 md:py-24 px-6 md:px-12">
@@ -142,8 +139,6 @@ export default function LandingPage() {
           </div>
         </div>
       </div>
-
-      {/* For Consumers, For Business, For Society, For Humanity, Final CTA, Footer — all exactly as in your last version (unchanged) */}
 
       {/* For Consumers */}
       <div id="for-consumers" className="py-12 sm:py-16 md:py-24 px-6 md:px-12 bg-white">
