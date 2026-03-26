@@ -59,6 +59,12 @@ export default function Onboarding() {
       return;
     }
 
+    // SAFE GUARD — prevents the "user is possibly null" error
+    if (!user) {
+      toast.error("Please connect your wallet first");
+      return;
+    }
+
     setLoading(true);
     try {
       const fileExt = file.name.split('.').pop();
