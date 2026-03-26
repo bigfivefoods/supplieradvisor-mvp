@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { ArrowRight, ShieldCheck, Truck, Users, Factory, Leaf, Zap, Globe } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { useRef, useEffect } from 'react';
@@ -13,25 +14,29 @@ export default function LandingPage() {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // Force reliable autoplay
   useEffect(() => {
     const video = videoRef.current;
     if (video) {
       video.muted = true;
-      const playPromise = video.play();
-      if (playPromise !== undefined) {
-        playPromise.catch((err) => console.log('Autoplay prevented by browser:', err));
-      }
+      video.play().catch(() => {});
     }
   }, []);
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900 overflow-x-hidden">
-      {/* Top Navigation — unchanged */}
+      {/* Top Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-lg border-b border-slate-100">
         <div className="max-w-screen-2xl mx-auto px-12 py-5 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-[#00b4d8] rounded-3xl flex items-center justify-center text-white font-black text-4xl leading-none pt-0.5">S</div>
+            {/* SA Logo added here - neatly before the text */}
+            <Image 
+              src="/sa-logo.png" 
+              alt="SupplierAdvisor" 
+              width={48} 
+              height={48} 
+              className="rounded-3xl object-contain" 
+              priority 
+            />
             <div className="text-3xl font-black tracking-[-2px]">SupplierAdvisor®</div>
           </div>
 
@@ -49,7 +54,7 @@ export default function LandingPage() {
         </div>
       </nav>
 
-      {/* HERO with fixed 4K video */}
+      {/* HERO with 4K Video - unchanged */}
       <div className="relative h-screen flex items-center justify-center overflow-hidden">
         <video
           ref={videoRef}
@@ -82,7 +87,7 @@ export default function LandingPage() {
           </h1>
           
           <p className="text-2xl text-white/90 max-w-2xl mx-auto mb-12">
-            SupplierAdvisor® is the B2B &amp; B2C supply-chain platform that combines blockchain verification, real-time AI insights, and ethical transparency to make every transaction trustworthy.
+            SupplierAdvisor® is the B2B & B2C supply-chain platform that combines blockchain verification, real-time AI insights, and ethical transparency to make every transaction trustworthy.
           </p>
 
           <div className="flex flex-wrap justify-center gap-4">
@@ -102,7 +107,7 @@ export default function LandingPage() {
         </div>
       </div>
 
-      {/* HOW IT WORKS — unchanged */}
+      {/* How it Works, For Business, For Consumers, and Final CTA sections remain exactly the same as your approved perfect version */}
       <div id="how-it-works" className="bg-white py-24 px-12">
         <div className="max-w-screen-2xl mx-auto">
           <h2 className="text-6xl font-black tracking-[-2px] text-center mb-6 text-[#00b4d8]">How SupplierAdvisor® Works</h2>
@@ -112,24 +117,24 @@ export default function LandingPage() {
           <div className="grid md:grid-cols-3 gap-8">
             <div className="card p-10 text-center">
               <div className="w-16 h-16 mx-auto mb-6 bg-[#00b4d8]/10 rounded-3xl flex items-center justify-center text-4xl">1</div>
-              <h3 className="text-3xl font-bold mb-3">Verify &amp; Onboard</h3>
+              <h3 className="text-3xl font-bold mb-3">Verify & Onboard</h3>
               <p className="text-slate-600">Every business completes world-class onboarding with certificates, bank details, and location metadata. AI + human verification ensures trust from day one.</p>
             </div>
             <div className="card p-10 text-center">
               <div className="w-16 h-16 mx-auto mb-6 bg-[#00b4d8]/10 rounded-3xl flex items-center justify-center text-4xl">2</div>
-              <h3 className="text-3xl font-bold mb-3">Connect &amp; Transact</h3>
+              <h3 className="text-3xl font-bold mb-3">Connect & Transact</h3>
               <p className="text-slate-600">Send connection requests, raise POs, ship with live GPS/IoT tracking, and mint everything on-chain. RIAD, ratings, and OTIFEF metrics are embedded in every step.</p>
             </div>
             <div className="card p-10 text-center">
               <div className="w-16 h-16 mx-auto mb-6 bg-[#00b4d8]/10 rounded-3xl flex items-center justify-center text-4xl">3</div>
-              <h3 className="text-3xl font-bold mb-3">Track &amp; Improve</h3>
+              <h3 className="text-3xl font-bold mb-3">Track & Improve</h3>
               <p className="text-slate-600">Consumers scan QR codes for full traceability. Businesses get AI-powered insights, risk alerts, and sustainability dashboards. Every transaction makes the world better.</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* FOR BUSINESS — unchanged */}
+      {/* For Business */}
       <div id="for-business" className="py-24 px-12 bg-[#f8fafc]">
         <div className="max-w-screen-2xl mx-auto">
           <div className="grid md:grid-cols-12 gap-16 items-center">
@@ -168,7 +173,7 @@ export default function LandingPage() {
         </div>
       </div>
 
-      {/* FOR CONSUMERS — unchanged */}
+      {/* For Consumers */}
       <div id="for-consumers" className="py-24 px-12 bg-white">
         <div className="max-w-screen-2xl mx-auto">
           <div className="grid md:grid-cols-12 gap-16 items-center">
@@ -207,7 +212,7 @@ export default function LandingPage() {
         </div>
       </div>
 
-      {/* Final CTA — unchanged */}
+      {/* Final CTA */}
       <div className="bg-slate-900 text-white py-24 px-12 text-center">
         <div className="max-w-3xl mx-auto">
           <h2 className="text-5xl font-black tracking-[-2px] mb-6">The future of supply chains is here.</h2>
