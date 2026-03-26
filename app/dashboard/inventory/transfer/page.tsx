@@ -53,7 +53,7 @@ export default function InventoryTransfer() {
   ]
 
   const fromLocation = allLocations.find(l => l.id === form.fromLocationId)
-  const availableItems = selectedItemsList.filter(item => (fromLocation?.stock[item.id] || 0) > 0)
+  const availableItems = selectedItemsList.filter(item => (fromLocation?(.stock as Record<number, number>)[item.id] ?? 0) > 0)
 
   const toLocations = allLocations.filter(l => l.id !== form.fromLocationId)
 
@@ -173,7 +173,7 @@ export default function InventoryTransfer() {
                 </thead>
                 <tbody>
                   {availableItems.map(item => {
-                    const available = fromLocation?.stock[item.id] || 0
+                    const available = fromLocation?(.stock as Record<number, number>)[item.id] ?? 0
                     const isSelected = selectedItemIds.includes(item.id)
                     return (
                       <tr key={item.id} style={{ borderBottom: '1px solid #222' }}>
