@@ -59,23 +59,13 @@ export default function LandingPage() {
         </div>
       </nav>
 
-      {/* HERO with 4K Video */}
+      {/* HERO – 4K VIDEO REMOVED, EXISTING POSTER IMAGE KEPT AS STATIC BACKGROUND */}
       <div className="relative h-screen flex items-center justify-center overflow-hidden">
-        <video
-          ref={videoRef}
-          autoPlay
-          muted
-          loop
-          playsInline
-          preload="auto"
-          poster="https://picsum.photos/id/1015/2560/1440"
+        <img 
+          src="https://picsum.photos/id/1015/2560/1440" 
+          alt="SupplierAdvisor Hero" 
           className="absolute inset-0 w-full h-full object-cover"
-        >
-          <source 
-            src="https://videos.pexels.com/video-files/11979793/11979793-uhd_2560_1440_30fps.mp4" 
-            type="video/mp4" 
-          />
-        </video>
+        />
 
         <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/30 to-black/50" />
 
