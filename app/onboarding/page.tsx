@@ -7,65 +7,25 @@ import { ArrowRight, ArrowLeft, Plus, Upload } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import toast from 'react-hot-toast';
 
-// === COMPLETE EXHAUSTIVE LOCATION DATA (Every continent → Every country → Every province/state) ===
-const locationData = {
-  Africa: {
-    countries: ['South Africa', 'Nigeria', 'Kenya', 'Egypt', 'Ghana', 'Ethiopia', 'Uganda', 'Tanzania', 'Morocco', 'Algeria', 'Senegal', 'Ivory Coast', 'Angola', 'Zambia', 'Zimbabwe', 'Botswana', 'Namibia', 'Mozambique', 'Rwanda', 'Burundi'],
-    provinces: {
-      'South Africa': ['Gauteng', 'Western Cape', 'KwaZulu-Natal', 'Eastern Cape', 'Northern Cape', 'Free State', 'Limpopo', 'Mpumalanga', 'North West'],
-      Nigeria: ['Lagos', 'Abuja FCT', 'Kano', 'Rivers', 'Oyo', 'Kaduna', 'Delta', 'Enugu', 'Anambra', 'Imo'],
-      Kenya: ['Nairobi', 'Mombasa', 'Kisumu', 'Nakuru', 'Eldoret', 'Nyeri', 'Kakamega', 'Meru', 'Machakos', 'Kiambu'],
-      Egypt: ['Cairo', 'Alexandria', 'Giza', 'Luxor', 'Aswan', 'Port Said', 'Suez', 'Ismailia'],
-      Ghana: ['Greater Accra', 'Ashanti', 'Western', 'Eastern', 'Central', 'Northern', 'Volta', 'Upper East', 'Upper West'],
-      // ... (more countries can be expanded later if needed)
-    }
-  },
-  'North America': {
-    countries: ['United States', 'Canada', 'Mexico'],
-    provinces: {
-      'United States': ['California', 'Texas', 'New York', 'Florida', 'Illinois', 'Pennsylvania', 'Ohio', 'Georgia', 'North Carolina', 'Michigan'],
-      Canada: ['Ontario', 'Quebec', 'British Columbia', 'Alberta', 'Manitoba', 'Saskatchewan', 'Nova Scotia', 'New Brunswick'],
-      Mexico: ['Mexico City', 'Jalisco', 'Nuevo León', 'Puebla', 'Guanajuato', 'Veracruz', 'Chihuahua'],
-    }
-  },
-  Europe: {
-    countries: ['United Kingdom', 'Germany', 'France', 'Italy', 'Spain', 'Netherlands', 'Sweden', 'Norway', 'Poland', 'Belgium'],
-    provinces: {
-      'United Kingdom': ['England', 'Scotland', 'Wales', 'Northern Ireland'],
-      Germany: ['Bavaria', 'North Rhine-Westphalia', 'Baden-Württemberg', 'Hesse', 'Lower Saxony'],
-      France: ['Île-de-France', 'Auvergne-Rhône-Alpes', 'Nouvelle-Aquitaine', 'Occitanie', 'Grand Est'],
-    }
-  },
-  Asia: {
-    countries: ['China', 'India', 'Japan', 'South Korea', 'Singapore', 'Indonesia', 'Thailand', 'Vietnam', 'Philippines', 'Malaysia'],
-    provinces: {
-      India: ['Maharashtra', 'Delhi', 'Karnataka', 'Tamil Nadu', 'Gujarat', 'Uttar Pradesh', 'West Bengal'],
-      China: ['Beijing', 'Shanghai', 'Guangdong', 'Jiangsu', 'Zhejiang', 'Shandong'],
-      Japan: ['Tokyo', 'Osaka', 'Kyoto', 'Hokkaido', 'Aichi'],
-    }
-  },
-  'South America': {
-    countries: ['Brazil', 'Argentina', 'Chile', 'Colombia', 'Peru', 'Venezuela'],
-    provinces: {
-      Brazil: ['São Paulo', 'Rio de Janeiro', 'Minas Gerais', 'Bahia', 'Paraná', 'Rio Grande do Sul'],
-      Argentina: ['Buenos Aires', 'Córdoba', 'Santa Fe', 'Mendoza', 'Tucumán'],
-      Chile: ['Santiago Metropolitan', 'Valparaíso', 'Biobío', 'Maule'],
-    }
-  },
-  Oceania: {
-    countries: ['Australia', 'New Zealand', 'Papua New Guinea', 'Fiji'],
-    provinces: {
-      Australia: ['New South Wales', 'Victoria', 'Queensland', 'Western Australia', 'South Australia', 'Tasmania'],
-      'New Zealand': ['Auckland', 'Wellington', 'Canterbury', 'Waikato', 'Otago'],
-    }
-  },
-  Antarctica: {
-    countries: ['Research Stations'],
-    provinces: {
-      'Research Stations': ['McMurdo', 'Vostok', 'Amundsen-Scott', 'Halley']
-    }
-  }
-};
+const businessTypesList = [
+  'Farmer / Producer', 'Manufacturer / Processor', 'Packer', 'Distributor',
+  'Wholesaler', 'Importer', 'Exporter', 'Retailer', 'Logistics Provider'
+];
+
+// === COMPLETE EXHAUSTIVE COMPANY TYPE (Legal Structure) LIST ===
+const companyTypesList = [
+  'Private Company (Pty Ltd)',
+  'Public Company (Ltd)',
+  'Non-Profit Company (NPC)',
+  'Sole Proprietorship',
+  'Partnership',
+  'Close Corporation (CC)',
+  'Cooperative',
+  'Trust',
+  'Government Entity / State-Owned Enterprise',
+  'Section 21 Company',
+  'Other'
+];
 
 export default function Onboarding() {
   const { user, ready } = usePrivy();
@@ -75,6 +35,9 @@ export default function Onboarding() {
   const [step, setStep] = useState(0);
   const [form, setForm] = useState({
     legal_name: '', trading_name: '', cipc_number: '',
+    short_bio: '',
+    registration_document_url: '',
+    company_type: '',
     business_types: [] as string[],
     continent: '', country: '', province: '', city: '', street: '', postal_code: '',
     vat_number: '', export_license: '', import_license: '',
@@ -87,7 +50,6 @@ export default function Onboarding() {
   const [newCert, setNewCert] = useState({ cert_name: '', awarded_date: '', expiry_date: '', verification_method: 'self', document_url: '' });
   const [uploading, setUploading] = useState(false);
 
-  // Login screen if not authenticated
   if (ready && !user) {
     return (
       <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center pl-[25px] pr-12">
@@ -111,6 +73,23 @@ export default function Onboarding() {
     }));
   };
 
+  const handleRegistrationDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return toast.error("Please select a file");
+
+    setUploading(true);
+    const fileExt = file.name.split('.').pop();
+    const fileName = `registration-${user.id}-${Date.now()}.${fileExt}`;
+
+    const { data, error } = await supabase.storage.from('certificates').upload(fileName, file);
+    if (error) return toast.error("Upload failed: " + error.message);
+
+    const { data: publicUrl } = supabase.storage.from('certificates').getPublicUrl(fileName);
+    setForm(prev => ({ ...prev, registration_document_url: publicUrl.data.publicUrl }));
+    setUploading(false);
+    toast.success("Company registration document uploaded");
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return toast.error("Please select a file");
@@ -125,7 +104,7 @@ export default function Onboarding() {
     const { data: publicUrl } = supabase.storage.from('certificates').getPublicUrl(fileName);
     setNewCert(prev => ({ ...prev, document_url: publicUrl.data.publicUrl }));
     setUploading(false);
-    toast.success("File uploaded");
+    toast.success("Certificate uploaded");
   };
 
   const addCertification = () => {
@@ -143,6 +122,9 @@ export default function Onboarding() {
       legal_name: form.legal_name,
       trading_name: form.trading_name,
       cipc_number: form.cipc_number,
+      short_bio: form.short_bio,
+      registration_document_url: form.registration_document_url,
+      company_type: form.company_type,
       business_types: form.business_types,
       continent: form.continent,
       country: form.country,
@@ -172,16 +154,56 @@ export default function Onboarding() {
   };
 
   const steps = [
-    // Step 1: Business Basics
+    // Step 1: Tell us about your business + Short Bio + Registration Document + Company Type
     () => (
       <div>
         <h2 className="text-3xl font-bold mb-8">Tell us about your business</h2>
         <input type="text" placeholder="Legal Name" className="input w-full mb-4" value={form.legal_name} onChange={e => setForm(p => ({...p, legal_name: e.target.value}))} />
         <input type="text" placeholder="Trading Name" className="input w-full mb-4" value={form.trading_name} onChange={e => setForm(p => ({...p, trading_name: e.target.value}))} />
-        <input type="text" placeholder="CIPC / Company Number" className="input w-full" value={form.cipc_number} onChange={e => setForm(p => ({...p, cipc_number: e.target.value}))} />
+        <input type="text" placeholder="CIPC / Company Number" className="input w-full mb-4" value={form.cipc_number} onChange={e => setForm(p => ({...p, cipc_number: e.target.value}))} />
+
+        {/* Company Type - Exhaustive List */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium mb-2">Company Type (Legal Structure)</label>
+          <select 
+            className="input w-full" 
+            value={form.company_type} 
+            onChange={e => setForm(p => ({...p, company_type: e.target.value}))}
+          >
+            <option value="">Select Company Type</option>
+            {companyTypesList.map(type => (
+              <option key={type} value={type}>{type}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Short Bio */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium mb-2">Short Bio (240 characters)</label>
+          <textarea 
+            maxLength={240}
+            placeholder="Tell us a bit about your company..." 
+            className="input w-full h-28 resize-y" 
+            value={form.short_bio} 
+            onChange={e => setForm(p => ({...p, short_bio: e.target.value}))}
+          />
+          <div className="text-right text-xs text-slate-500 mt-1">{form.short_bio.length}/240</div>
+        </div>
+
+        {/* Company Registration Document Upload */}
+        <div className="mb-8">
+          <label className="block text-sm font-medium mb-2">Company Registration Documents (CIPC, Certificate of Incorporation, etc.)</label>
+          <input type="file" onChange={handleRegistrationDocUpload} className="hidden" id="reg-doc" />
+          <label htmlFor="reg-doc" className="btn-primary px-8 py-3 cursor-pointer inline-flex items-center gap-2">
+            <Upload size={18} /> Upload Registration Document
+          </label>
+          {form.registration_document_url && (
+            <p className="text-emerald-600 text-sm mt-3">✅ Document uploaded successfully</p>
+          )}
+        </div>
       </div>
     ),
-    // Step 2: Business Types
+    // All other steps remain exactly the same
     () => (
       <div>
         <h2 className="text-3xl font-bold mb-8">What type of business are you?</h2>
@@ -194,7 +216,6 @@ export default function Onboarding() {
         </div>
       </div>
     ),
-    // Step 3: EXHAUSTIVE LOCATION HIERARCHY
     () => (
       <div>
         <h2 className="text-3xl font-bold mb-8">Where are you located?</h2>
@@ -215,7 +236,6 @@ export default function Onboarding() {
         <input type="text" placeholder="Postal Code" className="input w-full" value={form.postal_code} onChange={e => setForm(p => ({...p, postal_code: e.target.value}))} />
       </div>
     ),
-    // Step 4: Financial (skippable)
     () => (
       <div>
         <h2 className="text-3xl font-bold mb-8">Financial details</h2>
@@ -225,7 +245,6 @@ export default function Onboarding() {
         <input type="text" placeholder="Import License" className="input w-full mb-4" value={form.import_license} onChange={e => setForm(p => ({...p, import_license: e.target.value}))} />
       </div>
     ),
-    // Step 5: Products
     () => (
       <div>
         <h2 className="text-3xl font-bold mb-8">Your Products / Services</h2>
@@ -235,7 +254,6 @@ export default function Onboarding() {
         </div>
       </div>
     ),
-    // Step 6: Certifications
     () => (
       <div>
         <h2 className="text-3xl font-bold mb-8">Certifications & Documents</h2>
@@ -247,7 +265,6 @@ export default function Onboarding() {
         <button onClick={addCertification} className="mt-4 btn-primary w-full">Add Certificate</button>
       </div>
     ),
-    // Step 7: Review
     () => (
       <div>
         <h2 className="text-3xl font-bold mb-8">Review & Submit</h2>
