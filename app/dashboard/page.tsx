@@ -1,183 +1,206 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { ArrowRight, Plus, X } from 'lucide-react';
 import Link from 'next/link';
-import { ArrowUp, ArrowDown, AlertTriangle, Zap, ShieldCheck, Truck } from 'lucide-react';
 
-export default function Home() {
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({
+export default function Dashboard() {
+  const [expanded, setExpanded] = useState({
     financial: true,
     customer: true,
     supplier: true,
     inventory: true,
-    neural: true,
-    riad: true,
     logistics: true,
+    ai: true,
   });
+
+  // Widget system – users can add KPI cards from other modules
+  const [widgets, setWidgets] = useState([
+    { id: 1, title: 'Total Revenue', value: 'R 1.2M', icon: '📈', color: '#00b4d8' },
+    { id: 2, title: 'OTIFEF Rate', value: '96.8%', icon: '📦', color: '#00b4d8' },
+    { id: 3, title: 'Active Suppliers', value: '42', icon: '🏭', color: '#00b4d8' },
+  ]);
+
+  const availableKPIs = [
+    { title: 'Active Customers', value: '184', icon: '👥' },
+    { title: 'Inventory Value', value: 'R 1.8M', icon: '📦' },
+    { title: 'Cash on Hand', value: 'R 892k', icon: '💵' },
+    { title: 'NPS Score', value: '82', icon: '⭐' },
+    { title: 'Live Shipments', value: '12', icon: '🚚' },
+    { title: 'AI Risk Alerts', value: '3', icon: '⚠️' },
+  ];
+
+  const [showWidgetModal, setShowWidgetModal] = useState(false);
 
   const toggleSection = (section: string) => {
     setExpanded(prev => ({ ...prev, [section]: !prev[section] }));
   };
 
+  const addWidget = (kpi: any) => {
+    const newWidget = {
+      id: Date.now(),
+      title: kpi.title,
+      value: kpi.value,
+      icon: kpi.icon,
+      color: '#00b4d8',
+    };
+    setWidgets(prev => [...prev, newWidget]);
+    setShowWidgetModal(false);
+  };
+
+  const removeWidget = (id: number) => {
+    setWidgets(prev => prev.filter(w => w.id !== id));
+  };
+
   const sections = [
-    {
-      key: 'financial',
-      title: 'Financial',
-      icon: '💰',
-      color: '#00b4d8',
-      metrics: [
-        { label: 'Total Revenue', value: 'R 1.2M', icon: '📈' },
-        { label: 'Gross Profit', value: 'R 428k', icon: '📊' },
-        { label: 'Cash on Hand', value: 'R 892k', icon: '💵' },
-        { label: 'Operating Expenses', value: 'R 312k', icon: '📉' },
-      ]
-    },
-    {
-      key: 'customer',
-      title: 'Customer Relationship Metrics',
-      icon: '🤝',
-      color: '#00b4d8',
-      metrics: [
-        { label: 'Active Customers', value: '184', icon: '👥' },
-        { label: 'Avg Order Value', value: 'R 6,840', icon: '🛒' },
-        { label: 'Retention Rate', value: '94%', icon: '🔄' },
-        { label: 'NPS Score', value: '82', icon: '⭐' },
-      ]
-    },
-    {
-      key: 'supplier',
-      title: 'Supplier Relationship Metrics',
-      icon: '🔗',
-      color: '#00b4d8',
-      metrics: [
-        { label: 'Active Suppliers', value: '42', icon: '🏭' },
-        { label: 'OTIFEF Rate', value: '96.8%', icon: '📦' },
-        { label: 'Avg Supplier Rating', value: '4.7', icon: '⭐' },
-        { label: 'On-time Delivery', value: '98%', icon: '🚚' },
-      ]
-    },
-    {
-      key: 'inventory',
-      title: 'Inventory Metrics',
-      icon: '📦',
-      color: '#00b4d8',
-      metrics: [
-        { label: 'Total Inventory Value', value: 'R 1.8M', icon: '📊' },
-        { label: 'Stock Turnover', value: '8.4x', icon: '🔄' },
-        { label: 'Low Stock Items', value: '7', icon: '⚠️' },
-        { label: 'Warehouse Utilization', value: '82%', icon: '🏬' },
-      ]
-    },
-    {
-      key: 'neural',
-      title: 'Neural Alerts',
-      icon: '🧠',
-      color: '#00b4d8',
-      metrics: [] 
-    },
-    {
-      key: 'riad',
-      title: 'RIAD Overview',
-      icon: '🛡️',
-      color: '#00b4d8',
-      metrics: [] 
-    },
-    {
-      key: 'logistics',
-      title: 'Logistics Overview (Incoterms + CoA)',
-      icon: '🚚',
-      color: '#00b4d8',
-      metrics: [] 
-    },
+    { key: 'financial', title: 'Financial Overview', icon: '💰', metrics: [
+      { label: 'Total Revenue', value: 'R 1.2M' },
+      { label: 'Gross Profit', value: 'R 428k' },
+      { label: 'Cash on Hand', value: 'R 892k' },
+    ]},
+    { key: 'customer', title: 'Customer Relationship', icon: '🤝', metrics: [
+      { label: 'Active Customers', value: '184' },
+      { label: 'Avg Order Value', value: 'R 6,840' },
+      { label: 'Retention Rate', value: '94%' },
+    ]},
+    { key: 'supplier', title: 'Supplier Relationship', icon: '🔗', metrics: [
+      { label: 'Active Suppliers', value: '42' },
+      { label: 'OTIFEF Rate', value: '96.8%' },
+      { label: 'Avg Rating', value: '4.7' },
+    ]},
+    { key: 'inventory', title: 'Inventory Health', icon: '📦', metrics: [
+      { label: 'Total Value', value: 'R 1.8M' },
+      { label: 'Stock Turnover', value: '8.4x' },
+      { label: 'Low Stock Items', value: '7' },
+    ]},
+    { key: 'logistics', title: 'Logistics & Tracking', icon: '🚚', metrics: [
+      { label: 'Shipments in Transit', value: '12' },
+      { label: 'On-Time Delivery', value: '98%' },
+    ]},
+    { key: 'ai', title: 'AI Insights', icon: '🧠', metrics: [
+      { label: 'Risk Alerts', value: '3' },
+      { label: 'Predicted Savings', value: 'R 184k' },
+    ]},
   ];
 
   return (
-    <div className="pl-4 md:pl-[25px] pr-4 md:pr-12 py-8 md:py-12">   {/* Responsive padding */}
+    <div className="pl-[25px] pr-12 py-12 bg-[#f8fafc] min-h-screen">
+      <div className="max-w-screen-2xl mx-auto">
+        {/* Header */}
+        <div className="mb-12">
+          <h1 className="text-6xl font-black tracking-[-3px] text-[#00b4d8]">Supply Chain Pulse</h1>
+          <p className="text-xl text-slate-600 mt-2">Real-time overview • Updated just now</p>
+        </div>
 
-      <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black tracking-tighter mb-12 text-[#00b4d8]">
-        Supply Chain Pulse
-      </h1>
+        {/* Top Key KPI Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+          {[
+            { label: 'Total Revenue', value: 'R 1.2M', change: '+12%' },
+            { label: 'OTIFEF', value: '96.8%', change: '+2.1%' },
+            { label: 'Active Suppliers', value: '42', change: '+3' },
+            { label: 'Inventory Value', value: 'R 1.8M', change: '-4%' },
+          ].map((kpi, i) => (
+            <div key={i} className="card p-8 text-center">
+              <div className="text-4xl font-black text-slate-900 mb-2">{kpi.value}</div>
+              <div className="text-slate-600 font-medium">{kpi.label}</div>
+              <div className="text-xs text-emerald-600 mt-3">{kpi.change} this month</div>
+            </div>
+          ))}
+        </div>
 
-      <div className="space-y-12">
-        {sections.map(section => (
-          <div key={section.key}>
-            <button
-              onClick={() => toggleSection(section.key)}
-              className="w-full flex items-center justify-between py-6 text-left hover:bg-transparent transition-none"
-            >
-              <div className="flex items-center gap-5">
-                <span className="text-4xl sm:text-5xl" style={{ color: section.color }}>{section.icon}</span>
-                <h2 className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tighter" style={{ color: section.color }}>
-                  {section.title}
-                </h2>
-              </div>
-              <span className={`text-3xl sm:text-4xl transition-transform ${expanded[section.key] ? 'rotate-180' : ''}`} style={{ color: section.color }}>
-                ▼
-              </span>
-            </button>
+        {/* Expandable Sections */}
+        <div className="space-y-12">
+          {sections.map(section => (
+            <div key={section.key}>
+              <button
+                onClick={() => toggleSection(section.key)}
+                className="w-full flex items-center justify-between py-6 text-left hover:bg-transparent"
+              >
+                <div className="flex items-center gap-5">
+                  <span className="text-5xl" style={{ color: '#00b4d8' }}>{section.icon}</span>
+                  <h2 className="text-5xl font-black tracking-tighter text-[#00b4d8]">{section.title}</h2>
+                </div>
+                <span className={`text-4xl transition-transform ${expanded[section.key] ? 'rotate-180' : ''}`} style={{ color: '#00b4d8' }}>
+                  ▼
+                </span>
+              </button>
 
-            {expanded[section.key] && (
-              <div className="pl-4 sm:pl-14">
-                {section.metrics.length > 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {expanded[section.key] && (
+                <div className="pl-14">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {section.metrics.map((stat, i) => (
-                      <div key={i} className="card text-center p-6 sm:p-8">
-                        <div className="flex justify-center text-5xl sm:text-6xl mb-6 opacity-80">
-                          {stat.icon}
-                        </div>
-                        <div className="text-3xl sm:text-4xl md:text-5xl font-black text-slate-900 mb-3">
-                          {stat.value}
-                        </div>
-                        <div className="text-base sm:text-lg text-slate-600 font-medium">
-                          {stat.label}
-                        </div>
+                      <div key={i} className="card text-center p-8">
+                        <div className="text-5xl font-black text-slate-900 mb-3">{stat.value}</div>
+                        <div className="text-xl text-slate-600 font-medium">{stat.label}</div>
                       </div>
                     ))}
                   </div>
-                ) : (
-                  <div className="space-y-6">
-                    {section.key === 'neural' && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="card bg-amber-50 border border-amber-200 p-8 flex gap-4">
-                          <AlertTriangle className="text-amber-600 mt-1 flex-shrink-0" />
-                          <div>3 certificates expiring in <strong>14 days</strong></div>
-                        </div>
-                        <div className="card bg-blue-50 border border-blue-200 p-8 flex gap-4">
-                          <ShieldCheck className="text-[#00b4d8] mt-1 flex-shrink-0" />
-                          <div>New connection request from Cape Fresh Farms – awaiting approval</div>
-                        </div>
-                      </div>
-                    )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
 
-                    {section.key === 'riad' && (
-                      <div className="card p-8 text-slate-600">
-                        Enterprise RIAD Dashboard + PESTLE Analysis (full view coming next)
-                      </div>
-                    )}
-
-                    {section.key === 'logistics' && (
-                      <div className="card p-8">
-                        <p className="text-lg">12 shipments in transit • 3 using DDP Incoterms • 8 CoAs attached & verified on-chain</p>
-                        <div className="mt-6 text-[#00b4d8] font-medium">View Live Tracking Map →</div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
+        {/* Widget Area – Users can add KPI widgets */}
+        <div className="mt-16">
+          <div className="flex items-center justify-between mb-8">
+            <h2 className="text-4xl font-black tracking-tighter text-[#00b4d8]">My Widgets</h2>
+            <button
+              onClick={() => setShowWidgetModal(true)}
+              className="flex items-center gap-3 px-8 py-4 bg-[#00b4d8] hover:bg-[#0099b8] text-white rounded-3xl font-medium transition-all"
+            >
+              <Plus size={20} /> Add Widget
+            </button>
           </div>
-        ))}
-      </div>
 
-      <div className="card p-8 sm:p-10 mt-16">
-        <h2 className="text-2xl sm:text-3xl font-bold mb-8">One-Click Actions</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-          <Link href="/onboarding" className="btn-primary text-center py-6 text-base sm:text-lg">Complete Onboarding</Link>
-          <Link href="/dashboard/suppliers/connect" className="btn-primary text-center py-6 text-base sm:text-lg">Send Connection Request</Link>
-          <Link href="/dashboard/procurement" className="btn-primary text-center py-6 text-base sm:text-lg">Raise New PO</Link>
-          <Link href="/dashboard/logistics/shipments" className="btn-primary text-center py-6 text-base sm:text-lg">Create Shipment (Incoterms + CoA)</Link>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {widgets.map(widget => (
+              <div key={widget.id} className="card p-8 relative group">
+                <button
+                  onClick={() => removeWidget(widget.id)}
+                  className="absolute top-6 right-6 opacity-0 group-hover:opacity-100 transition-all text-slate-400 hover:text-red-500"
+                >
+                  <X size={20} />
+                </button>
+                <div className="text-6xl mb-6" style={{ color: widget.color }}>{widget.icon}</div>
+                <div className="text-5xl font-black text-slate-900 mb-3">{widget.value}</div>
+                <div className="text-xl text-slate-600 font-medium">{widget.title}</div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
+
+      {/* Add Widget Modal */}
+      {showWidgetModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-6">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-10">
+            <div className="flex justify-between items-center mb-8">
+              <h3 className="text-4xl font-black tracking-tighter">Add Widget</h3>
+              <button onClick={() => setShowWidgetModal(false)} className="text-4xl">×</button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              {availableKPIs.map((kpi, i) => (
+                <button
+                  key={i}
+                  onClick={() => addWidget(kpi)}
+                  className="card p-8 text-left hover:border-[#00b4d8] hover:shadow-xl transition-all group"
+                >
+                  <div className="text-6xl mb-6 opacity-80 group-hover:scale-110 transition-transform">{kpi.icon}</div>
+                  <div className="text-4xl font-black text-slate-900 mb-2">{kpi.value}</div>
+                  <div className="text-xl font-medium text-slate-600">{kpi.title}</div>
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setShowWidgetModal(false)}
+              className="mt-10 w-full py-5 text-slate-500 hover:text-slate-900 font-medium"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
