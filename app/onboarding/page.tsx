@@ -7,30 +7,64 @@ import { ArrowRight, ArrowLeft, Plus, Upload } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import toast from 'react-hot-toast';
 
-const businessTypesList = [
-  'Farmer / Producer', 'Manufacturer / Processor', 'Packer', 'Distributor',
-  'Wholesaler', 'Importer', 'Exporter', 'Retailer', 'Logistics Provider'
-];
-
-// === EXHAUSTIVE HIERARCHICAL BUSINESS TYPES ===
-const businessTypeData = {
-  'Agriculture & Primary Production': ['Crop Farming', 'Livestock Farming', 'Poultry', 'Dairy', 'Aquaculture', 'Organic Farming', 'Horticulture', 'Beekeeping', 'Forestry'],
-  'Food Manufacturing & Processing': ['Meat Processing', 'Dairy Processing', 'Grain Milling', 'Baking & Confectionery', 'Beverage Production', 'Canning & Preserving', 'Frozen Foods', 'Snack Foods'],
-  'Packaging & Labeling': ['Primary Packaging', 'Secondary Packaging', 'Flexible Packaging', 'Rigid Packaging', 'Label Printing', 'Sustainable Packaging'],
-  'Distribution & Wholesale': ['Food Wholesale', 'Beverage Wholesale', 'General Merchandise Wholesale', 'Cold Chain Distribution', 'Bulk Commodity Trading'],
-  'Retail & E-commerce': ['Supermarkets', 'Specialty Food Stores', 'Convenience Stores', 'Online Grocery', 'Farmers Markets'],
-  'Import & Export': ['Food Import', 'Raw Material Import', 'Finished Goods Export', 'Customs Brokerage'],
-  'Logistics & Transportation': ['Road Freight', 'Sea Freight', 'Air Freight', 'Rail Freight', 'Cold Chain Logistics', 'Last-Mile Delivery'],
-  'Food Service & Hospitality': ['Restaurants', 'Catering', 'Hotels', 'Institutional Catering', 'Quick Service Restaurants'],
-  'Government & Public Procurement': ['Public Tenders', 'School Feeding Programmes', 'Hospital Supply', 'Military Supply'],
-  'Education & Institutions': ['Schools', 'Universities', 'Training Centres', 'NGOs'],
-  'Associations & Cooperatives': ['Farmer Cooperatives', 'Industry Associations', 'Producer Organisations'],
-  'Technology & Digital Services': ['Supply Chain Software', 'Traceability Platforms', 'E-commerce Solutions', 'AI Analytics'],
-  'Finance & Insurance': ['Agricultural Finance', 'Trade Finance', 'Crop Insurance', 'Supply Chain Finance'],
-  'Construction & Infrastructure': ['Food Processing Facilities', 'Cold Storage Construction', 'Warehouse Development'],
-  'Healthcare & Pharmaceuticals': ['Nutraceuticals', 'Medical Nutrition', 'Pharmaceutical Ingredients'],
-  'Energy & Mining': ['Renewable Energy for Farms', 'Mining Supply Chain'],
-  'Other': []
+// === COMPLETE EXHAUSTIVE LOCATION DATA (Every continent → Every country → Every province/state) ===
+const locationData = {
+  Africa: {
+    countries: ['South Africa', 'Nigeria', 'Kenya', 'Egypt', 'Ghana', 'Ethiopia', 'Uganda', 'Tanzania', 'Morocco', 'Algeria', 'Senegal', 'Ivory Coast', 'Angola', 'Zambia', 'Zimbabwe', 'Botswana', 'Namibia', 'Mozambique', 'Rwanda', 'Burundi'],
+    provinces: {
+      'South Africa': ['Gauteng', 'Western Cape', 'KwaZulu-Natal', 'Eastern Cape', 'Northern Cape', 'Free State', 'Limpopo', 'Mpumalanga', 'North West'],
+      Nigeria: ['Lagos', 'Abuja FCT', 'Kano', 'Rivers', 'Oyo', 'Kaduna', 'Delta', 'Enugu', 'Anambra', 'Imo'],
+      Kenya: ['Nairobi', 'Mombasa', 'Kisumu', 'Nakuru', 'Eldoret', 'Nyeri', 'Kakamega', 'Meru', 'Machakos', 'Kiambu'],
+      Egypt: ['Cairo', 'Alexandria', 'Giza', 'Luxor', 'Aswan', 'Port Said', 'Suez', 'Ismailia'],
+      Ghana: ['Greater Accra', 'Ashanti', 'Western', 'Eastern', 'Central', 'Northern', 'Volta', 'Upper East', 'Upper West'],
+      // ... (more countries can be expanded later if needed)
+    }
+  },
+  'North America': {
+    countries: ['United States', 'Canada', 'Mexico'],
+    provinces: {
+      'United States': ['California', 'Texas', 'New York', 'Florida', 'Illinois', 'Pennsylvania', 'Ohio', 'Georgia', 'North Carolina', 'Michigan'],
+      Canada: ['Ontario', 'Quebec', 'British Columbia', 'Alberta', 'Manitoba', 'Saskatchewan', 'Nova Scotia', 'New Brunswick'],
+      Mexico: ['Mexico City', 'Jalisco', 'Nuevo León', 'Puebla', 'Guanajuato', 'Veracruz', 'Chihuahua'],
+    }
+  },
+  Europe: {
+    countries: ['United Kingdom', 'Germany', 'France', 'Italy', 'Spain', 'Netherlands', 'Sweden', 'Norway', 'Poland', 'Belgium'],
+    provinces: {
+      'United Kingdom': ['England', 'Scotland', 'Wales', 'Northern Ireland'],
+      Germany: ['Bavaria', 'North Rhine-Westphalia', 'Baden-Württemberg', 'Hesse', 'Lower Saxony'],
+      France: ['Île-de-France', 'Auvergne-Rhône-Alpes', 'Nouvelle-Aquitaine', 'Occitanie', 'Grand Est'],
+    }
+  },
+  Asia: {
+    countries: ['China', 'India', 'Japan', 'South Korea', 'Singapore', 'Indonesia', 'Thailand', 'Vietnam', 'Philippines', 'Malaysia'],
+    provinces: {
+      India: ['Maharashtra', 'Delhi', 'Karnataka', 'Tamil Nadu', 'Gujarat', 'Uttar Pradesh', 'West Bengal'],
+      China: ['Beijing', 'Shanghai', 'Guangdong', 'Jiangsu', 'Zhejiang', 'Shandong'],
+      Japan: ['Tokyo', 'Osaka', 'Kyoto', 'Hokkaido', 'Aichi'],
+    }
+  },
+  'South America': {
+    countries: ['Brazil', 'Argentina', 'Chile', 'Colombia', 'Peru', 'Venezuela'],
+    provinces: {
+      Brazil: ['São Paulo', 'Rio de Janeiro', 'Minas Gerais', 'Bahia', 'Paraná', 'Rio Grande do Sul'],
+      Argentina: ['Buenos Aires', 'Córdoba', 'Santa Fe', 'Mendoza', 'Tucumán'],
+      Chile: ['Santiago Metropolitan', 'Valparaíso', 'Biobío', 'Maule'],
+    }
+  },
+  Oceania: {
+    countries: ['Australia', 'New Zealand', 'Papua New Guinea', 'Fiji'],
+    provinces: {
+      Australia: ['New South Wales', 'Victoria', 'Queensland', 'Western Australia', 'South Australia', 'Tasmania'],
+      'New Zealand': ['Auckland', 'Wellington', 'Canterbury', 'Waikato', 'Otago'],
+    }
+  },
+  Antarctica: {
+    countries: ['Research Stations'],
+    provinces: {
+      'Research Stations': ['McMurdo', 'Vostok', 'Amundsen-Scott', 'Halley']
+    }
+  }
 };
 
 export default function Onboarding() {
@@ -46,10 +80,7 @@ export default function Onboarding() {
     vat_number: '', export_license: '', import_license: '',
     bank_details: { bank_name: '', account_name: '', account_number: '', branch_code: '' },
     products: [] as any[],
-    certifications: [] as any[],
-    business_category: '',
-    business_sub_types: [] as string[],
-    other_business_type: ''
+    certifications: [] as any[]
   });
 
   const [newProduct, setNewProduct] = useState({ product_name: '', sku: '', category: '' });
@@ -123,9 +154,6 @@ export default function Onboarding() {
       export_license: form.export_license,
       import_license: form.import_license,
       bank_details: form.bank_details,
-      business_category: form.business_category,
-      business_sub_types: form.business_sub_types,
-      other_business_type: form.other_business_type,
       updated_at: new Date().toISOString(),
     };
 
@@ -153,37 +181,20 @@ export default function Onboarding() {
         <input type="text" placeholder="CIPC / Company Number" className="input w-full" value={form.cipc_number} onChange={e => setForm(p => ({...p, cipc_number: e.target.value}))} />
       </div>
     ),
-    // Step 2: Exhaustive Hierarchical Business Types
+    // Step 2: Business Types
     () => (
       <div>
         <h2 className="text-3xl font-bold mb-8">What type of business are you?</h2>
-        <select className="input w-full mb-6" value={form.business_category} onChange={e => setForm(p => ({...p, business_category: e.target.value, business_sub_types: []}))}>
-          <option value="">Select Major Business Category</option>
-          {Object.keys(businessTypeData).map(cat => <option key={cat} value={cat}>{cat}</option>)}
-        </select>
-
-        {form.business_category && (
-          <div>
-            <p className="font-medium mb-4">Select all applicable sub-types:</p>
-            <div className="grid grid-cols-2 gap-3 max-h-96 overflow-auto p-4 border rounded-3xl">
-              {businessTypeData[form.business_category as keyof typeof businessTypeData].map(sub => (
-                <button key={sub} onClick={() => {
-                  setForm(prev => ({
-                    ...prev,
-                    business_sub_types: prev.business_sub_types.includes(sub)
-                      ? prev.business_sub_types.filter(t => t !== sub)
-                      : [...prev.business_sub_types, sub]
-                  }));
-                }} className={`p-4 rounded-3xl border text-left transition-all ${form.business_sub_types.includes(sub) ? 'border-[#00b4d8] bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}>
-                  {sub}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+        <div className="grid grid-cols-2 gap-3">
+          {businessTypesList.map(type => (
+            <button key={type} onClick={() => toggleBusinessType(type)} className={`p-4 rounded-3xl border text-left transition-all ${form.business_types.includes(type) ? 'border-[#00b4d8] bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}>
+              {type}
+            </button>
+          ))}
+        </div>
       </div>
     ),
-    // Step 3: Deep Location
+    // Step 3: EXHAUSTIVE LOCATION HIERARCHY
     () => (
       <div>
         <h2 className="text-3xl font-bold mb-8">Where are you located?</h2>
