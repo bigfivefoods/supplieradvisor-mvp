@@ -14,7 +14,7 @@ export default function Dashboard() {
     ai: true,
   });
 
-  // Widget system – users can add KPI cards from other modules
+  // Widget system
   const [widgets, setWidgets] = useState([
     { id: 1, title: 'Total Revenue', value: 'R 1.2M', icon: '📈', color: '#00b4d8' },
     { id: 2, title: 'OTIFEF Rate', value: '96.8%', icon: '📦', color: '#00b4d8' },
@@ -84,7 +84,7 @@ export default function Dashboard() {
   ];
 
   return (
-    <div className="pr-12 py-12 bg-[#f8fafc] min-h-screen">   {/* Removed pl-[25px] – layout already handles sidebar offset */}
+    <div className="pl-0 pr-12 py-12 bg-[#f8fafc] min-h-screen">   {/* pl-0 forces true left alignment */}
 
       <div className="max-w-screen-2xl mx-auto">
         {/* Header */}
@@ -109,7 +109,7 @@ export default function Dashboard() {
           ))}
         </div>
 
-        {/* Expandable Sections – headings now smaller */}
+        {/* Expandable Sections – smaller headings */}
         <div className="space-y-12">
           {sections.map(section => (
             <div key={section.key}>
@@ -119,7 +119,7 @@ export default function Dashboard() {
               >
                 <div className="flex items-center gap-5">
                   <span className="text-5xl" style={{ color: '#00b4d8' }}>{section.icon}</span>
-                  <h2 className="text-4xl font-black tracking-tighter text-[#00b4d8]">{section.title}</h2>   {/* Smaller heading */}
+                  <h2 className="text-4xl font-black tracking-tighter text-[#00b4d8]">{section.title}</h2>
                 </div>
                 <span className={`text-4xl transition-transform ${expanded[section.key] ? 'rotate-180' : ''}`} style={{ color: '#00b4d8' }}>
                   ▼
