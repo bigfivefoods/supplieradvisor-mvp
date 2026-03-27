@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { usePrivy } from '@privy-io/react-auth';
+import { usePrivy, useLogin } from '@privy-io/react-auth';
+import { useRouter } from 'next/navigation';
 import { ArrowRight, ArrowLeft, Plus, Upload } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import toast from 'react-hot-toast';
@@ -11,26 +12,64 @@ const businessTypesList = [
   'Wholesaler', 'Importer', 'Exporter', 'Retailer', 'Logistics Provider'
 ];
 
-export default function Onboarding() {
-  const { user } = usePrivy();
-  const [step, setStep] = useState(0);
-  const [loading, setLoading] = useState(false);
+// === EXHAUSTIVE HIERARCHICAL BUSINESS TYPES ===
+const businessTypeData = {
+  'Agriculture & Primary Production': ['Crop Farming', 'Livestock Farming', 'Poultry', 'Dairy', 'Aquaculture', 'Organic Farming', 'Horticulture', 'Beekeeping', 'Forestry'],
+  'Food Manufacturing & Processing': ['Meat Processing', 'Dairy Processing', 'Grain Milling', 'Baking & Confectionery', 'Beverage Production', 'Canning & Preserving', 'Frozen Foods', 'Snack Foods'],
+  'Packaging & Labeling': ['Primary Packaging', 'Secondary Packaging', 'Flexible Packaging', 'Rigid Packaging', 'Label Printing', 'Sustainable Packaging'],
+  'Distribution & Wholesale': ['Food Wholesale', 'Beverage Wholesale', 'General Merchandise Wholesale', 'Cold Chain Distribution', 'Bulk Commodity Trading'],
+  'Retail & E-commerce': ['Supermarkets', 'Specialty Food Stores', 'Convenience Stores', 'Online Grocery', 'Farmers Markets'],
+  'Import & Export': ['Food Import', 'Raw Material Import', 'Finished Goods Export', 'Customs Brokerage'],
+  'Logistics & Transportation': ['Road Freight', 'Sea Freight', 'Air Freight', 'Rail Freight', 'Cold Chain Logistics', 'Last-Mile Delivery'],
+  'Food Service & Hospitality': ['Restaurants', 'Catering', 'Hotels', 'Institutional Catering', 'Quick Service Restaurants'],
+  'Government & Public Procurement': ['Public Tenders', 'School Feeding Programmes', 'Hospital Supply', 'Military Supply'],
+  'Education & Institutions': ['Schools', 'Universities', 'Training Centres', 'NGOs'],
+  'Associations & Cooperatives': ['Farmer Cooperatives', 'Industry Associations', 'Producer Organisations'],
+  'Technology & Digital Services': ['Supply Chain Software', 'Traceability Platforms', 'E-commerce Solutions', 'AI Analytics'],
+  'Finance & Insurance': ['Agricultural Finance', 'Trade Finance', 'Crop Insurance', 'Supply Chain Finance'],
+  'Construction & Infrastructure': ['Food Processing Facilities', 'Cold Storage Construction', 'Warehouse Development'],
+  'Healthcare & Pharmaceuticals': ['Nutraceuticals', 'Medical Nutrition', 'Pharmaceutical Ingredients'],
+  'Energy & Mining': ['Renewable Energy for Farms', 'Mining Supply Chain'],
+  'Other': []
+};
 
+export default function Onboarding() {
+  const { user, ready } = usePrivy();
+  const { login } = useLogin();
+  const router = useRouter();
+
+  const [step, setStep] = useState(0);
   const [form, setForm] = useState({
     legal_name: '', trading_name: '', cipc_number: '',
-    contact_name: '', email: '',
     business_types: [] as string[],
-    continent: 'Africa', country: 'South Africa', province: 'KwaZulu-Natal',
-    city: '', street: '', postal_code: '',
+    continent: '', country: '', province: '', city: '', street: '', postal_code: '',
     vat_number: '', export_license: '', import_license: '',
     bank_details: { bank_name: '', account_name: '', account_number: '', branch_code: '' },
     products: [] as any[],
-    certifications: [] as any[]
+    certifications: [] as any[],
+    business_category: '',
+    business_sub_types: [] as string[],
+    other_business_type: ''
   });
 
-  const [newProduct, setNewProduct] = useState({ name: '', sku: '', category: '' });
-  const [newCert, setNewCert] = useState({ name: '', awarded_date: '', expiry_date: '', verification_method: 'self' as 'self' | 'api', document_url: '' });
-  const [noExpiry, setNoExpiry] = useState(false);
+  const [newProduct, setNewProduct] = useState({ product_name: '', sku: '', category: '' });
+  const [newCert, setNewCert] = useState({ cert_name: '', awarded_date: '', expiry_date: '', verification_method: 'self', document_url: '' });
+  const [uploading, setUploading] = useState(false);
+
+  // Login screen if not authenticated
+  if (ready && !user) {
+    return (
+      <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center pl-[25px] pr-12">
+        <div className="max-w-md w-full text-center">
+          <div className="text-6xl font-black tracking-[-3px] text-[#00b4d8] mb-8">Welcome to SupplierAdvisor®</div>
+          <p className="text-xl text-slate-600 mb-12">Join the verified supply-chain network. Create your profile in under 5 minutes.</p>
+          <button onClick={login} className="w-full py-6 bg-[#00b4d8] hover:bg-[#0099b8] text-white text-xl font-semibold rounded-3xl mb-4 transition-all">
+            Sign up with Email or Wallet
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const toggleBusinessType = (type: string) => {
     setForm(prev => ({
@@ -41,196 +80,163 @@ export default function Onboarding() {
     }));
   };
 
-  const addProduct = () => {
-    if (newProduct.name) {
-      setForm(prev => ({ ...prev, products: [...prev.products, newProduct] }));
-      setNewProduct({ name: '', sku: '', category: '' });
-    }
-  };
-
-  const removeProduct = (index: number) => {
-    setForm(prev => ({ ...prev, products: prev.products.filter((_, i) => i !== index) }));
-  };
-
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !newCert.name) {
-      toast.error("Please select a file and enter certificate name");
-      return;
-    }
+    if (!file || !user) return toast.error("Please select a file");
 
-    // SAFE GUARD — prevents the "user is possibly null" error
-    if (!user) {
-      toast.error("Please connect your wallet first");
-      return;
-    }
+    setUploading(true);
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${user.id}-${Date.now()}.${fileExt}`;
 
-    setLoading(true);
-    try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${user.id}-${Date.now()}.${fileExt}`;
+    const { data, error } = await supabase.storage.from('certificates').upload(fileName, file);
+    if (error) return toast.error("Upload failed: " + error.message);
 
-      const { data, error } = await supabase.storage
-        .from('certificates')
-        .upload(fileName, file, { upsert: true });
-
-      if (error) throw error;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('certificates')
-        .getPublicUrl(fileName);
-
-      setNewCert(prev => ({ ...prev, document_url: publicUrl }));
-      toast.success("Certificate uploaded");
-    } catch (err: any) {
-      toast.error("Upload failed: " + err.message);
-    } finally {
-      setLoading(false);
-    }
+    const { data: publicUrl } = supabase.storage.from('certificates').getPublicUrl(fileName);
+    setNewCert(prev => ({ ...prev, document_url: publicUrl.data.publicUrl }));
+    setUploading(false);
+    toast.success("File uploaded");
   };
 
-  const addCertificate = () => {
-    if (!newCert.name || !newCert.document_url) {
-      toast.error("Please add name and upload document");
-      return;
+  const addCertification = () => {
+    if (newCert.cert_name && newCert.document_url) {
+      setForm(prev => ({ ...prev, certifications: [...prev.certifications, newCert] }));
+      setNewCert({ cert_name: '', awarded_date: '', expiry_date: '', verification_method: 'self', document_url: '' });
     }
-    const cert = { ...newCert, expiry_date: noExpiry ? '' : newCert.expiry_date };
-    setForm(prev => ({ ...prev, certifications: [...prev.certifications, cert] }));
-    setNewCert({ name: '', awarded_date: '', expiry_date: '', verification_method: 'self', document_url: '' });
-    setNoExpiry(false);
-    toast.success("Certificate added");
-  };
-
-  const removeCertificate = (index: number) => {
-    setForm(prev => ({ ...prev, certifications: prev.certifications.filter((_, i) => i !== index) }));
   };
 
   const saveProfile = async () => {
-    if (!user?.id) {
-      toast.error("User not found. Please connect wallet first.");
-      return;
+    if (!user) return;
+
+    const profileData = {
+      id: user.id,
+      legal_name: form.legal_name,
+      trading_name: form.trading_name,
+      cipc_number: form.cipc_number,
+      business_types: form.business_types,
+      continent: form.continent,
+      country: form.country,
+      province: form.province,
+      city: form.city,
+      street: form.street,
+      postal_code: form.postal_code,
+      vat_number: form.vat_number,
+      export_license: form.export_license,
+      import_license: form.import_license,
+      bank_details: form.bank_details,
+      business_category: form.business_category,
+      business_sub_types: form.business_sub_types,
+      other_business_type: form.other_business_type,
+      updated_at: new Date().toISOString(),
+    };
+
+    await supabase.from('profiles').upsert(profileData);
+
+    if (form.products.length > 0) {
+      await supabase.from('business_products').upsert(form.products.map(p => ({ profile_id: user.id, ...p })));
     }
-    setLoading(true);
-    try {
-      await supabase.from('profiles').upsert({ id: user.id, ...form, status: 'awaiting_verification' });
-      if (form.products.length) {
-        await supabase.from('business_products').delete().eq('profile_id', user.id);
-        await supabase.from('business_products').insert(form.products.map(p => ({ profile_id: user.id, ...p })));
-      }
-      if (form.certifications.length) {
-        await supabase.from('business_certifications').delete().eq('profile_id', user.id);
-        await supabase.from('business_certifications').insert(form.certifications.map(c => ({ profile_id: user.id, ...c })));
-      }
-      toast.success("Profile saved! Awaiting verification.");
-      window.location.href = '/dashboard';
-    } catch (err: any) {
-      toast.error("Save failed: " + err.message);
-    } finally {
-      setLoading(false);
+
+    if (form.certifications.length > 0) {
+      await supabase.from('business_certifications').upsert(form.certifications.map(c => ({ profile_id: user.id, ...c })));
     }
+
+    toast.success("Profile saved successfully! Welcome to SupplierAdvisor®");
+    router.push('/dashboard');
   };
 
   const steps = [
-    // Step 0: Tell us about your business
+    // Step 1: Business Basics
     () => (
       <div>
         <h2 className="text-3xl font-bold mb-8">Tell us about your business</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div><label className="block text-sm font-medium mb-2">Legal Name</label><input type="text" value={form.legal_name} onChange={e => setForm(p => ({...p, legal_name: e.target.value}))} className="input w-full" placeholder="Company Legal Name" /></div>
-          <div><label className="block text-sm font-medium mb-2">Trading Name</label><input type="text" value={form.trading_name} onChange={e => setForm(p => ({...p, trading_name: e.target.value}))} className="input w-full" placeholder="Trading Name" /></div>
-          <div><label className="block text-sm font-medium mb-2">CIPC Number</label><input type="text" value={form.cipc_number} onChange={e => setForm(p => ({...p, cipc_number: e.target.value}))} className="input w-full" placeholder="CIPC Number" /></div>
-          <div><label className="block text-sm font-medium mb-2">Contact Name</label><input type="text" value={form.contact_name} onChange={e => setForm(p => ({...p, contact_name: e.target.value}))} className="input w-full" placeholder="Full Name" /></div>
-          <div className="md:col-span-2"><label className="block text-sm font-medium mb-2">Email Address</label><input type="email" value={form.email} onChange={e => setForm(p => ({...p, email: e.target.value}))} className="input w-full" placeholder="business@email.com" /></div>
-        </div>
+        <input type="text" placeholder="Legal Name" className="input w-full mb-4" value={form.legal_name} onChange={e => setForm(p => ({...p, legal_name: e.target.value}))} />
+        <input type="text" placeholder="Trading Name" className="input w-full mb-4" value={form.trading_name} onChange={e => setForm(p => ({...p, trading_name: e.target.value}))} />
+        <input type="text" placeholder="CIPC / Company Number" className="input w-full" value={form.cipc_number} onChange={e => setForm(p => ({...p, cipc_number: e.target.value}))} />
       </div>
     ),
-    // Step 1: What type of business are you?
+    // Step 2: Exhaustive Hierarchical Business Types
     () => (
       <div>
         <h2 className="text-3xl font-bold mb-8">What type of business are you?</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {businessTypesList.map(type => (
-            <button key={type} onClick={() => toggleBusinessType(type)} className={`p-6 rounded-3xl border text-left transition-all ${form.business_types.includes(type) ? 'border-[#00b4d8] bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}>
-              {type}
-            </button>
-          ))}
-        </div>
+        <select className="input w-full mb-6" value={form.business_category} onChange={e => setForm(p => ({...p, business_category: e.target.value, business_sub_types: []}))}>
+          <option value="">Select Major Business Category</option>
+          {Object.keys(businessTypeData).map(cat => <option key={cat} value={cat}>{cat}</option>)}
+        </select>
+
+        {form.business_category && (
+          <div>
+            <p className="font-medium mb-4">Select all applicable sub-types:</p>
+            <div className="grid grid-cols-2 gap-3 max-h-96 overflow-auto p-4 border rounded-3xl">
+              {businessTypeData[form.business_category as keyof typeof businessTypeData].map(sub => (
+                <button key={sub} onClick={() => {
+                  setForm(prev => ({
+                    ...prev,
+                    business_sub_types: prev.business_sub_types.includes(sub)
+                      ? prev.business_sub_types.filter(t => t !== sub)
+                      : [...prev.business_sub_types, sub]
+                  }));
+                }} className={`p-4 rounded-3xl border text-left transition-all ${form.business_sub_types.includes(sub) ? 'border-[#00b4d8] bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}>
+                  {sub}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     ),
-    // Step 2: Where are you located?
+    // Step 3: Deep Location
     () => (
       <div>
         <h2 className="text-3xl font-bold mb-8">Where are you located?</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div><label className="block text-sm font-medium mb-2">Continent</label><select value={form.continent} onChange={e => setForm(p => ({...p, continent: e.target.value}))} className="input w-full"><option>Africa</option><option>Europe</option><option>Asia</option><option>North America</option><option>South America</option><option>Australia</option></select></div>
-          <div><label className="block text-sm font-medium mb-2">Country</label><select value={form.country} onChange={e => setForm(p => ({...p, country: e.target.value}))} className="input w-full"><option>South Africa</option><option>Nigeria</option><option>Kenya</option></select></div>
-          <div><label className="block text-sm font-medium mb-2">Province / State</label><input type="text" value={form.province} onChange={e => setForm(p => ({...p, province: e.target.value}))} className="input w-full" placeholder="KwaZulu-Natal" /></div>
-          <div><label className="block text-sm font-medium mb-2">City</label><input type="text" value={form.city} onChange={e => setForm(p => ({...p, city: e.target.value}))} className="input w-full" placeholder="Durban" /></div>
-          <div className="md:col-span-2"><label className="block text-sm font-medium mb-2">Street Address</label><input type="text" value={form.street} onChange={e => setForm(p => ({...p, street: e.target.value}))} className="input w-full" placeholder="123 Main Street" /></div>
-          <div><label className="block text-sm font-medium mb-2">Postal Code</label><input type="text" value={form.postal_code} onChange={e => setForm(p => ({...p, postal_code: e.target.value}))} className="input w-full" placeholder="4001" /></div>
-        </div>
+        <select className="input w-full mb-4" value={form.continent} onChange={e => setForm(p => ({...p, continent: e.target.value, country: '', province: ''}))}>
+          <option value="">Select Continent</option>
+          {Object.keys(locationData).map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <select className="input w-full mb-4" value={form.country} onChange={e => setForm(p => ({...p, country: e.target.value, province: ''}))} disabled={!form.continent}>
+          <option value="">Select Country</option>
+          {form.continent && locationData[form.continent as keyof typeof locationData]?.countries.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <select className="input w-full mb-4" value={form.province} onChange={e => setForm(p => ({...p, province: e.target.value}))} disabled={!form.country}>
+          <option value="">Select Province / State</option>
+          {form.country && form.continent && locationData[form.continent as keyof typeof locationData]?.provinces[form.country]?.map(p => <option key={p} value={p}>{p}</option>)}
+        </select>
+        <input type="text" placeholder="Street Address" className="input w-full mb-4" value={form.street} onChange={e => setForm(p => ({...p, street: e.target.value}))} />
+        <input type="text" placeholder="City" className="input w-full mb-4" value={form.city} onChange={e => setForm(p => ({...p, city: e.target.value}))} />
+        <input type="text" placeholder="Postal Code" className="input w-full" value={form.postal_code} onChange={e => setForm(p => ({...p, postal_code: e.target.value}))} />
       </div>
     ),
-    // Step 3: Financial details (skippable)
+    // Step 4: Financial (skippable)
     () => (
       <div>
         <h2 className="text-3xl font-bold mb-8">Financial details</h2>
-        <p className="text-[#00b4d8] mb-8">You can skip this for now and complete it later. This information is used for purchase orders, invoicing, and payments.</p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div><label className="block text-sm font-medium mb-2">VAT Number</label><input type="text" value={form.vat_number} onChange={e => setForm(p => ({...p, vat_number: e.target.value}))} className="input w-full" /></div>
-          <div><label className="block text-sm font-medium mb-2">Export License Number</label><input type="text" value={form.export_license} onChange={e => setForm(p => ({...p, export_license: e.target.value}))} className="input w-full" /></div>
-          <div><label className="block text-sm font-medium mb-2">Import License Number</label><input type="text" value={form.import_license} onChange={e => setForm(p => ({...p, import_license: e.target.value}))} className="input w-full" /></div>
-          <div><label className="block text-sm font-medium mb-2">Bank Name</label><input type="text" value={form.bank_details.bank_name} onChange={e => setForm(p => ({...p, bank_details: {...p.bank_details, bank_name: e.target.value}}))} className="input w-full" /></div>
-          <div><label className="block text-sm font-medium mb-2">Account Name</label><input type="text" value={form.bank_details.account_name} onChange={e => setForm(p => ({...p, bank_details: {...p.bank_details, account_name: e.target.value}}))} className="input w-full" /></div>
-          <div><label className="block text-sm font-medium mb-2">Account Number</label><input type="text" value={form.bank_details.account_number} onChange={e => setForm(p => ({...p, bank_details: {...p.bank_details, account_number: e.target.value}}))} className="input w-full" /></div>
-          <div><label className="block text-sm font-medium mb-2">Branch Code</label><input type="text" value={form.bank_details.branch_code} onChange={e => setForm(p => ({...p, bank_details: {...p.bank_details, branch_code: e.target.value}}))} className="input w-full" /></div>
-        </div>
+        <p className="text-blue-600 mb-8">You can skip this for now and complete it later.</p>
+        <input type="text" placeholder="VAT Number" className="input w-full mb-4" value={form.vat_number} onChange={e => setForm(p => ({...p, vat_number: e.target.value}))} />
+        <input type="text" placeholder="Export License" className="input w-full mb-4" value={form.export_license} onChange={e => setForm(p => ({...p, export_license: e.target.value}))} />
+        <input type="text" placeholder="Import License" className="input w-full mb-4" value={form.import_license} onChange={e => setForm(p => ({...p, import_license: e.target.value}))} />
       </div>
     ),
-    // Step 4: Your Products / Services (skippable)
+    // Step 5: Products
     () => (
       <div>
         <h2 className="text-3xl font-bold mb-8">Your Products / Services</h2>
-        <p className="text-[#00b4d8] mb-8">You can skip this for now. Completing this helps with advertising, procurement matching, and search visibility. You can add more detailed metadata later in the Inventory section.</p>
-        <div className="flex gap-4 mb-6">
-          <input type="text" value={newProduct.name} onChange={e => setNewProduct(p => ({...p, name: e.target.value}))} className="input flex-1" placeholder="Product / Service" />
-          <input type="text" value={newProduct.sku} onChange={e => setNewProduct(p => ({...p, sku: e.target.value}))} className="input w-40" placeholder="SKU" />
-          <button onClick={addProduct} className="btn-primary px-8">Add</button>
-        </div>
-        <div className="space-y-3">
-          {form.products.map((p, i) => (
-            <div key={i} className="flex justify-between bg-white p-4 rounded-3xl border">
-              <div>{p.name} (SKU: {p.sku})</div>
-              <button onClick={() => removeProduct(i)} className="text-red-500">Remove</button>
-            </div>
-          ))}
+        <div className="flex gap-3">
+          <input type="text" placeholder="Product / Service" className="input flex-1" value={newProduct.product_name} onChange={e => setNewProduct(p => ({...p, product_name: e.target.value}))} />
+          <button onClick={() => { if (newProduct.product_name) setForm(prev => ({...prev, products: [...prev.products, newProduct]})); setNewProduct({product_name:'',sku:'',category:''}); }} className="btn-primary px-8">Add</button>
         </div>
       </div>
     ),
-    // Step 5: Certifications & Documents (mandatory)
+    // Step 6: Certifications
     () => (
       <div>
         <h2 className="text-3xl font-bold mb-8">Certifications & Documents</h2>
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end mb-8">
-          <div className="md:col-span-2"><label className="block text-sm font-medium mb-2">Certification Name</label><input type="text" value={newCert.name} onChange={e => setNewCert(p => ({...p, name: e.target.value}))} className="input w-full" /></div>
-          <div><label className="block text-sm font-medium mb-2">Awarded Date</label><input type="date" value={newCert.awarded_date} onChange={e => setNewCert(p => ({...p, awarded_date: e.target.value}))} className="input w-full" /></div>
-          <div><label className="block text-sm font-medium mb-2">Expiry Date</label><input type="date" value={newCert.expiry_date} onChange={e => setNewCert(p => ({...p, expiry_date: e.target.value}))} className="input w-full" disabled={noExpiry} /></div>
-          <div className="flex items-center gap-2"><input type="checkbox" checked={noExpiry} onChange={e => setNoExpiry(e.target.checked)} /><span className="text-sm">Never Expires</span></div>
-          <div><label className="block text-sm font-medium mb-2">Upload Document</label><input type="file" onChange={handleFileUpload} className="text-sm" /></div>
+        <div className="flex gap-3">
+          <input type="text" placeholder="Certification Name" className="input flex-1" value={newCert.cert_name} onChange={e => setNewCert(p => ({...p, cert_name: e.target.value}))} />
+          <input type="file" onChange={handleFileUpload} className="hidden" id="cert-file" />
+          <label htmlFor="cert-file" className="btn-primary px-8 cursor-pointer">Upload</label>
         </div>
-        <button onClick={addCertificate} className="btn-primary w-full py-4">Add Certificate</button>
-        <div className="mt-10">
-          <h4 className="font-medium mb-4">Current Certifications</h4>
-          {form.certifications.map((c, i) => (
-            <div key={i} className="bg-white p-4 rounded-3xl border flex justify-between mb-3">
-              <div>{c.name} (exp {c.expiry_date || 'N/A'})</div>
-              <button onClick={() => removeCertificate(i)} className="text-red-500">Remove</button>
-            </div>
-          ))}
-        </div>
+        <button onClick={addCertification} className="mt-4 btn-primary w-full">Add Certificate</button>
       </div>
     ),
-    // Step 6: Review & Submit
+    // Step 7: Review
     () => (
       <div>
         <h2 className="text-3xl font-bold mb-8">Review & Submit</h2>
@@ -246,9 +252,11 @@ export default function Onboarding() {
           <h1 className="text-6xl font-black tracking-[-3px]">Verify Your Business</h1>
           <div className="text-sm font-medium text-slate-500">Step {step + 1} of 7</div>
         </div>
+
         <div className="card p-12">
           {steps[step]()}
         </div>
+
         <div className="flex justify-between mt-10">
           {step > 0 && <button onClick={() => setStep(s => s - 1)} className="flex items-center gap-3 px-8 py-4 border-2 rounded-3xl font-medium"><ArrowLeft /> Back</button>}
           <button onClick={() => step < 6 ? setStep(s => s + 1) : saveProfile()} className="btn-primary flex items-center gap-3 px-12 py-4">
