@@ -84,7 +84,8 @@ export default function Dashboard() {
   ];
 
   return (
-    <div className="pl-[25px] pr-12 py-12 bg-[#f8fafc] min-h-screen">
+    <div className="pr-12 py-12 bg-[#f8fafc] min-h-screen">   {/* Removed pl-[25px] – layout already handles sidebar offset */}
+
       <div className="max-w-screen-2xl mx-auto">
         {/* Header */}
         <div className="mb-12">
@@ -108,7 +109,7 @@ export default function Dashboard() {
           ))}
         </div>
 
-        {/* Expandable Sections */}
+        {/* Expandable Sections – headings now smaller */}
         <div className="space-y-12">
           {sections.map(section => (
             <div key={section.key}>
@@ -118,7 +119,7 @@ export default function Dashboard() {
               >
                 <div className="flex items-center gap-5">
                   <span className="text-5xl" style={{ color: '#00b4d8' }}>{section.icon}</span>
-                  <h2 className="text-5xl font-black tracking-tighter text-[#00b4d8]">{section.title}</h2>
+                  <h2 className="text-4xl font-black tracking-tighter text-[#00b4d8]">{section.title}</h2>   {/* Smaller heading */}
                 </div>
                 <span className={`text-4xl transition-transform ${expanded[section.key] ? 'rotate-180' : ''}`} style={{ color: '#00b4d8' }}>
                   ▼
