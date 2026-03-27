@@ -11,6 +11,13 @@ import { Wallet, ChevronDown, Menu, X } from "lucide-react";
 
 const modules = [
   { id: 'home', name: 'Home', icon: '📊', href: '/dashboard', sub: [] },
+  { 
+    id: 'profile', 
+    name: 'Profile', 
+    icon: '👤', 
+    href: '/dashboard/profile', 
+    sub: [] 
+  },
   { id: 'suppliers', name: 'Suppliers', icon: '🔍', href: '/dashboard/suppliers', sub: [
     { name: 'Search Suppliers', href: '/dashboard/suppliers/search' },
     { name: 'Onboard Suppliers', href: '/dashboard/suppliers/onboard' },
