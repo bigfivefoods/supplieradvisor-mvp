@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { ArrowRight, Plus, X } from 'lucide-react';
+import { useState } from 'react';
+import { Plus, X } from 'lucide-react';
 import Link from 'next/link';
 
 export default function Dashboard() {
-  const [expanded, setExpanded] = useState({
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({
     financial: true,
     customer: true,
     supplier: true,
@@ -141,7 +141,7 @@ export default function Dashboard() {
           ))}
         </div>
 
-        {/* Widget Area – Users can add KPI widgets */}
+        {/* Widget Area */}
         <div className="mt-16">
           <div className="flex items-center justify-between mb-8">
             <h2 className="text-4xl font-black tracking-tighter text-[#00b4d8]">My Widgets</h2>
