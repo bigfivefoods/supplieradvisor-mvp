@@ -5,7 +5,7 @@ import { ArrowRight, Target, Calendar, AlertTriangle } from 'lucide-react';
 
 export default function ActiveProjectsPage() {
   return (
-    <div className="pl-[25px] min-h-screen bg-[#f8fafc]">
+    <div className="pl-0 min-h-screen bg-[#f8fafc]">
       <Breadcrumb />
       <div className="max-w-7xl mx-auto">
         <h1 className="text-6xl font-black tracking-[-3px] text-[#00b4d8] mb-12">Active Projects</h1>

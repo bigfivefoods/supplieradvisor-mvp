@@ -5,7 +5,7 @@ import { List } from 'lucide-react';
 
 export default function BillsOfMaterialsPage() {
   return (
-    <div className="pl-[25px] min-h-screen bg-[#f8fafc]">
+    <div className="pl-0 min-h-screen bg-[#f8fafc]">
       <div className="py-12">
         <Breadcrumb />
         <h1 className="text-6xl font-black tracking-[-3px] text-[#00b4d8] mb-12">Materials </h1>

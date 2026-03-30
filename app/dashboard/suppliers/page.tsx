@@ -6,7 +6,7 @@ import Breadcrumb from '../../../components/ui/Breadcrumb';   // ← Correct rel
 
 export default function SuppliersPage() {
   return (
-    <div className="pl-[25px]">
+    <div className="pl-0">
       <Breadcrumb />
 
       <h1 className="text-6xl font-black tracking-tighter text-[#00b4d8]">Suppliers</h1>

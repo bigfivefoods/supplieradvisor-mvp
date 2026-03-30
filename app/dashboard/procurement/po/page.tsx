@@ -55,7 +55,7 @@ export default function RaisePO() {
   };
 
   return (
-    <div className="pl-[25px]">
+    <div className="pl-0">
       <Breadcrumb />
       <h1 className="text-6xl font-black tracking-tighter text-[#00b4d8]">Raise Purchase Order</h1>
       <p className="text-2xl text-slate-600">Only with approved connections • Auto-pulls verified data • Tokenized on Base</p>
