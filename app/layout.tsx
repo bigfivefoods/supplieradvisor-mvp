@@ -212,8 +212,8 @@ function RootLayoutContent({ children }: { children: React.ReactNode }) {
         </button>
       )}
 
-      {/* Main Content – ONLY CHANGE MADE HERE (removed phantom pl-[25px]) */}
-      <div className={`flex-1 overflow-auto ${showSidebar ? 'pr-12 py-12 md:pl-72' : 'min-h-screen'}`}>
+      {/* Main Content - ONLY CHANGE: removed phantom sidebar assumption (now pl-0) */}
+      <div className={`flex-1 overflow-auto ${showSidebar ? 'pl-0 pr-12 py-12 md:pl-72' : 'min-h-screen'}`}>
         {children}
       </div>
       <Toaster position="top-center" />
