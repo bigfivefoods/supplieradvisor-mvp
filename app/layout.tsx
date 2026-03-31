@@ -212,7 +212,7 @@ function RootLayoutContent({ children }: { children: React.ReactNode }) {
         </button>
       )}
 
-      {/* Main Content - ONLY CHANGE: removed phantom sidebar assumption (now pl-0) */}
+      {/* Main Content - ONLY CHANGE MADE: removed phantom sidebar assumption */}
       <div className={`flex-1 overflow-auto ${showSidebar ? 'pl-0 pr-12 py-12 md:pl-72' : 'min-h-screen'}`}>
         {children}
       </div>
