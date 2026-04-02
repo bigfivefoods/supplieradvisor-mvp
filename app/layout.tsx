@@ -210,7 +210,7 @@ function RootLayoutContent({ children }: { children: React.ReactNode }) {
         </button>
       )}
 
-      {/* ONLY CHANGE: pl-0 forces zero phantom space */}
+      {/* pl-0 forces zero phantom space - ONLY CHANGE MADE */}
       <div className={`flex-1 overflow-auto ${showSidebar ? 'pl-0 pr-12 py-12 md:pl-72' : 'min-h-screen'}`}>
         {children}
       </div>
