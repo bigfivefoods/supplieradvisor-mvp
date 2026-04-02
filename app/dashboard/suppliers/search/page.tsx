@@ -91,7 +91,7 @@ export default function SuppliersSearch() {
   );
 
   return (
-    <div className="pl-0">
+    <div className="pl-0 pr-12 py-12 max-w-screen-2xl mx-auto">
       <Breadcrumb />
 
       <h1 className="text-6xl font-black tracking-tighter text-[#00b4d8]">Search Suppliers</h1>
@@ -227,9 +227,8 @@ export default function SuppliersSearch() {
           </div>
         </div>
 
-        {/* RIGHT COLUMN – TWO SEPARATE CARDS (Invite shorter + Sent Invitations below) */}
+        {/* RIGHT COLUMN – TWO SEPARATE CARDS */}
         <div className="col-span-12 lg:col-span-4 space-y-8">
-          {/* Invite New Business – now shorter and compact */}
           <div className="card p-8">
             <h3 className="text-3xl font-bold mb-6">Invite New Business</h3>
             <p className="text-slate-600 mb-6">Send a personalised invitation to join the verified SupplierAdvisor network.</p>
@@ -252,7 +251,6 @@ export default function SuppliersSearch() {
             </button>
           </div>
 
-          {/* Sent Invitations – separate card below */}
           <div className="card p-8">
             <h4 className="font-medium mb-4">Sent Invitations</h4>
             <div className="space-y-4 text-sm">
@@ -272,7 +270,7 @@ export default function SuppliersSearch() {
         </div>
       </div>
 
-      {/* RESULTS – 1/3 size cards */}
+      {/* RESULTS */}
       <div className="mt-12">
         <h3 className="text-2xl font-bold mb-6">Results ({filteredSuppliers.length})</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
