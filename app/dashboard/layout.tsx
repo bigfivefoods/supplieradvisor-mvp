@@ -5,13 +5,13 @@ import Sidebar from '@/components/Sidebar';
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="flex min-h-screen bg-[#f8f9fa] overflow-hidden">
-      {/* w-72 = perfect width, no scroll ever */}
-      <div className="w-72 flex-shrink-0 border-r border-neutral-200 bg-white hidden md:block">
+    <div className="flex min-h-screen bg-[#f8f9fa]">
+      {/* STICKY SIDEBAR - stays fixed when you scroll the page */}
+      <div className="w-80 flex-shrink-0 border-r border-neutral-200 bg-white hidden md:block sticky top-0 h-screen overflow-hidden">
         <Sidebar />
       </div>
 
-      {/* Main content – flush left, Tesla clean */}
+      {/* Main content area - scrolls normally */}
       <div className="flex-1 overflow-auto">
         <div className="pl-0 pr-12 py-12 max-w-screen-2xl mx-auto">
           {children}

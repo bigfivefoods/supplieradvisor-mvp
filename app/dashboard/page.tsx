@@ -1,17 +1,12 @@
 'use client';
 
-import Breadcrumb from '@/components/ui/Breadcrumb';
-import { TrendingUp, Users, Truck, DollarSign } from 'lucide-react';
-
 export default function DashboardHome() {
-  const breadcrumbItems = [
-    { label: 'Dashboard', href: '/dashboard' },
-    { label: 'Home' },
-  ];
-
   return (
     <div className="pl-0 pr-12 py-12 max-w-screen-2xl mx-auto">
-      <Breadcrumb items={breadcrumbItems} />
+      {/* Clean single breadcrumb - no duplicate */}
+      <div className="flex items-center gap-2 text-sm text-neutral-500 mb-8">
+        <span className="font-medium text-neutral-950">Dashboard</span>
+      </div>
 
       {/* Header */}
       <div className="flex items-end justify-between mb-8">
@@ -21,7 +16,7 @@ export default function DashboardHome() {
         </div>
       </div>
 
-      {/* Top KPI Cards - 4 columns */}
+      {/* Top KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
         <div className="bg-white rounded-3xl p-8 shadow-sm border border-neutral-100">
           <div className="flex items-center justify-between">

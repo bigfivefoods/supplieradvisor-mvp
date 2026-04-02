@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Search, ChevronDown, Plus, UserPlus } from 'lucide-react';
-import Breadcrumb from '@/components/ui/Breadcrumb';
 import toast from 'react-hot-toast';
 
 export default function SuppliersSearch() {
@@ -92,7 +91,14 @@ export default function SuppliersSearch() {
 
   return (
     <div className="pl-0 pr-12 py-12 max-w-screen-2xl mx-auto">
-      <Breadcrumb />
+      {/* CLEAN MANUAL BREADCRUMB - NO DUPLICATE DASHBOARD */}
+      <div className="flex items-center gap-2 text-sm text-neutral-500 mb-8">
+        <span className="font-medium text-neutral-400">Dashboard</span>
+        <span className="text-neutral-300">›</span>
+        <a href="/dashboard/suppliers" className="hover:text-neutral-700">Suppliers</a>
+        <span className="text-neutral-300">›</span>
+        <span className="font-medium text-neutral-950">Search</span>
+      </div>
 
       <h1 className="text-6xl font-black tracking-tighter text-[#00b4d8]">Search Suppliers</h1>
       <p className="text-2xl text-slate-600 mb-12">Multi-criteria metadata search</p>
@@ -106,7 +112,6 @@ export default function SuppliersSearch() {
               <h3 className="text-3xl font-bold">Advanced Metadata Filters</h3>
             </div>
 
-            {/* Company Name – FULL WIDTH */}
             <div className="mb-8">
               <button onClick={() => toggleFilter('companyName')} className="w-full flex justify-between text-lg font-medium mb-4">
                 Company Name
@@ -120,7 +125,6 @@ export default function SuppliersSearch() {
               )}
             </div>
 
-            {/* Other filters – 2 per row */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div>
                 <button onClick={() => toggleFilter('businessType')} className="w-full flex justify-between text-lg font-medium mb-4">
@@ -227,7 +231,7 @@ export default function SuppliersSearch() {
           </div>
         </div>
 
-        {/* RIGHT COLUMN – Invite + Sent Invitations */}
+        {/* RIGHT COLUMN */}
         <div className="col-span-12 lg:col-span-4 space-y-8">
           <div className="card p-8">
             <h3 className="text-3xl font-bold mb-6">Invite New Business</h3>
@@ -278,11 +282,9 @@ export default function SuppliersSearch() {
             <div key={s.id} className="card p-8 hover:shadow-xl transition-all">
               <div className="text-2xl font-bold mb-1">{s.legal_name}</div>
               <div className="text-slate-500 mb-6">{s.trading_name}</div>
-              
               <div className="flex items-center gap-2 text-amber-500 mb-8">
                 ⭐ 4.8 • 17 reviews
               </div>
-
               <button 
                 onClick={() => sendConnectionRequest(s.id, s.legal_name)}
                 className="btn-primary w-full py-4 flex items-center justify-center gap-2"
