@@ -155,12 +155,11 @@ function RootLayoutContent({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen">
-      {/* Desktop Sidebar - wider + real logo */}
       {showSidebar && (
         <div className="hidden md:flex w-80 bg-white border-r border-slate-200 flex-col overflow-y-auto">
           <div className="p-6 border-b">
             <div className="flex items-center gap-3">
-              <Image src="/sa-logo.png" alt="SupplierAdvisor" width={36} height={36} className="rounded-2xl" />
+              <Image src="/sa-logo.png" alt="SupplierAdvisor" width={40} height={40} className="rounded-2xl" />
               <div className="text-3xl font-black tracking-[-2px]">SupplierAdvisor®</div>
             </div>
           </div>
@@ -203,7 +202,6 @@ function RootLayoutContent({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      {/* Mobile Hamburger */}
       {showSidebar && (
         <button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -213,7 +211,6 @@ function RootLayoutContent({ children }: { children: React.ReactNode }) {
         </button>
       )}
 
-      {/* Main Content - pl-0 (gap fixed) */}
       <div className={`flex-1 overflow-auto ${showSidebar ? 'pl-0 pr-12 py-12 md:pl-80' : 'min-h-screen'}`}>
         {children}
       </div>
