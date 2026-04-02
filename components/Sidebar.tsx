@@ -126,7 +126,7 @@ export default function Sidebar() {
   };
 
   return (
-    <div className="w-full h-screen bg-white flex flex-col border-r border-neutral-200 overflow-hidden">
+    <div className="w-full min-h-screen bg-white flex flex-col border-r border-neutral-200 overflow-hidden">
       {/* Header */}
       <div className="p-6 border-b border-neutral-100">
         <div className="flex items-center gap-3">
@@ -142,7 +142,7 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {/* Navigation */}
+      {/* Navigation - now expands vertically when modules are opened */}
       <nav className="flex-1 p-4 overflow-y-auto">
         {modules.map((mod) => {
           const isActive = mod.id === 'home' 
@@ -176,7 +176,6 @@ export default function Sidebar() {
                 )}
               </div>
 
-              {/* SUB-ITEMS - now aligned directly underneath the module header */}
               {mod.sub && mod.sub.length > 0 && isExpanded && (
                 <div className="ml-8 mt-1 space-y-0.5">
                   {mod.sub.map((sub, i) => {
