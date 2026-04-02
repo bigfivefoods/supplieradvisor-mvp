@@ -227,7 +227,7 @@ export default function SuppliersSearch() {
           </div>
         </div>
 
-        {/* RIGHT COLUMN – TWO SEPARATE CARDS */}
+        {/* RIGHT COLUMN – Invite + Sent Invitations */}
         <div className="col-span-12 lg:col-span-4 space-y-8">
           <div className="card p-8">
             <h3 className="text-3xl font-bold mb-6">Invite New Business</h3>
