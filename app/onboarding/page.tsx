@@ -176,7 +176,7 @@ const uomOptions = ['Kg', 'G', 'Tonne', 'Litre', 'Ml', 'Piece', 'Box', 'Pallet',
 const certifiedBodies = ['ISO 9001', 'ISO 22000', 'FSSC 22000', 'HACCP', 'BEE', 'Halal', 'Kosher', 'SEDEX', 'Fairtrade', 'FDA', 'Other'];
 
 export default function Onboarding() {
-  const { user, login, isLoading: privyLoading } = usePrivy();
+  const { user, login, ready } = usePrivy();
   const router = useRouter();
 
   const rawId = user?.id || '';
@@ -279,7 +279,10 @@ export default function Onboarding() {
   };
 
   const saveAll = async () => {
-    if (!cleanId) return;
+    if (!cleanId) {
+      toast.error("Please log in with Privy first");
+      return;
+    }
     setLoading(true);
     try {
       const profileData = { id: cleanId, ...form, updated_at: new Date().toISOString() };
@@ -299,12 +302,16 @@ export default function Onboarding() {
   };
 
   const handleNext = () => {
-    if (step < 7) setStep(s => s + 1);
-    else saveAll();
+    if (step < 7) {
+      setStep(s => s + 1);
+    } else {
+      saveAll();
+    }
   };
 
   const progress = calculateProgress();
 
+  // PRIVY LOGIN SCREEN - FIRST STEP
   if (!user) {
     return (
       <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center">
