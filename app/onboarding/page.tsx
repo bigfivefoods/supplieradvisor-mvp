@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, ArrowLeft, Upload, ChevronDown } from 'lucide-react';
+import { ArrowRight, ArrowLeft, ChevronDown } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import toast from 'react-hot-toast';
 import Breadcrumb from '@/components/ui/Breadcrumb';
@@ -56,36 +56,35 @@ const locationData: LocationData = {
       { name: "Canada", flag: "🇨🇦" }, { name: "Mexico", flag: "🇲🇽" }, { name: "United States", flag: "🇺🇸" }
     ],
     provinces: {
-      'United States': ['Alabama', 'Alaska', 'Arizona', 'Arkansas', 'California', 'Colorado', 'Connecticut', 'Delaware', 'Florida', 'Georgia', 'Hawaii', 'Idaho', 'Illinois', 'Indiana', 'Iowa', 'Kansas', 'Kentucky', 'Louisiana', 'Maine', 'Maryland', 'Massachusetts', 'Michigan', 'Minnesota', 'Mississippi', 'Missouri', 'Montana', 'Nebraska', 'Nevada', 'New Hampshire', 'New Jersey', 'New Mexico', 'New York', 'North Carolina', 'North Dakota', 'Ohio', 'Oklahoma', 'Oregon', 'Pennsylvania', 'Rhode Island', 'South Carolina', 'South Dakota', 'Tennessee', 'Texas', 'Utah', 'Vermont', 'Virginia', 'Washington', 'West Virginia', 'Wisconsin', 'Wyoming'],
-      Canada: ['Alberta', 'British Columbia', 'Manitoba', 'New Brunswick', 'Newfoundland and Labrador', 'Nova Scotia', 'Ontario', 'Prince Edward Island', 'Quebec', 'Saskatchewan'],
-      Mexico: ['Mexico City', 'Jalisco', 'Nuevo León', 'Yucatán', 'Baja California', 'Chihuahua']
+      'United States': ['Alabama','Alaska','Arizona','Arkansas','California','Colorado','Connecticut','Delaware','Florida','Georgia','Hawaii','Idaho','Illinois','Indiana','Iowa','Kansas','Kentucky','Louisiana','Maine','Maryland','Massachusetts','Michigan','Minnesota','Mississippi','Missouri','Montana','Nebraska','Nevada','New Hampshire','New Jersey','New Mexico','New York','North Carolina','North Dakota','Ohio','Oklahoma','Oregon','Pennsylvania','Rhode Island','South Carolina','South Dakota','Tennessee','Texas','Utah','Vermont','Virginia','Washington','West Virginia','Wisconsin','Wyoming'],
+      Canada: ['Alberta','British Columbia','Manitoba','New Brunswick','Newfoundland and Labrador','Nova Scotia','Ontario','Prince Edward Island','Quebec','Saskatchewan'],
+      Mexico: ['Mexico City','Jalisco','Nuevo León','Yucatán','Baja California','Chihuahua']
     }
   },
   Europe: {
     countries: [
       { name: "Albania", flag: "🇦🇱" }, { name: "Andorra", flag: "🇦🇩" }, { name: "Austria", flag: "🇦🇹" },
       { name: "Belarus", flag: "🇧🇾" }, { name: "Belgium", flag: "🇧🇪" }, { name: "Bosnia and Herzegovina", flag: "🇧🇦" },
-      { name: "Bulgaria", flag: "🇧🇬" }, { name: "Croatia", flag: "🇭🇷" }, { name: "Cyprus", flag: "🇨🇾" },
-      { name: "Czech Republic", flag: "🇨🇿" }, { name: "Denmark", flag: "🇩🇰" }, { name: "Estonia", flag: "🇪🇪" },
-      { name: "Finland", flag: "🇫🇮" }, { name: "France", flag: "🇫🇷" }, { name: "Germany", flag: "🇩🇪" },
-      { name: "Greece", flag: "🇬🇷" }, { name: "Hungary", flag: "🇭🇺" }, { name: "Iceland", flag: "🇮🇸" },
-      { name: "Ireland", flag: "🇮🇪" }, { name: "Italy", flag: "🇮🇹" }, { name: "Kosovo", flag: "🇽🇰" },
-      { name: "Latvia", flag: "🇱🇻" }, { name: "Liechtenstein", flag: "🇱🇮" }, { name: "Lithuania", flag: "🇱🇹" },
-      { name: "Luxembourg", flag: "🇱🇺" }, { name: "Malta", flag: "🇲🇹" }, { name: "Moldova", flag: "🇲🇩" },
-      { name: "Monaco", flag: "🇲🇨" }, { name: "Montenegro", flag: "🇲🇪" }, { name: "Netherlands", flag: "🇳🇱" },
-      { name: "North Macedonia", flag: "🇲🇰" }, { name: "Norway", flag: "🇳🇴" }, { name: "Poland", flag: "🇵🇱" },
-      { name: "Portugal", flag: "🇵🇹" }, { name: "Romania", flag: "🇷🇴" }, { name: "Russia", flag: "🇷🇺" },
-      { name: "San Marino", flag: "🇸🇲" }, { name: "Serbia", flag: "🇷🇸" }, { name: "Slovakia", flag: "🇸🇰" },
-      { name: "Slovenia", flag: "🇸🇮" }, { name: "Spain", flag: "🇪🇸" }, { name: "Sweden", flag: "🇸🇪" },
-      { name: "Switzerland", flag: "🇨🇭" }, { name: "Ukraine", flag: "🇺🇦" }, { name: "United Kingdom", flag: "🇬🇧" },
-      { name: "Vatican City", flag: "🇻🇦" }
+      { name: "Bulgaria", flag: "🇧🇬" }, { name: "Croatia", flag: "🇭🇷" }, { name: "Czechia", flag: "🇨🇿" },
+      { name: "Denmark", flag: "🇩🇰" }, { name: "Estonia", flag: "🇪🇪" }, { name: "Finland", flag: "🇫🇮" },
+      { name: "France", flag: "🇫🇷" }, { name: "Germany", flag: "🇩🇪" }, { name: "Greece", flag: "🇬🇷" },
+      { name: "Hungary", flag: "🇭🇺" }, { name: "Iceland", flag: "🇮🇸" }, { name: "Ireland", flag: "🇮🇪" },
+      { name: "Italy", flag: "🇮🇹" }, { name: "Kosovo", flag: "🇽🇰" }, { name: "Latvia", flag: "🇱🇻" },
+      { name: "Liechtenstein", flag: "🇱🇮" }, { name: "Lithuania", flag: "🇱🇹" }, { name: "Luxembourg", flag: "🇱🇺" },
+      { name: "Malta", flag: "🇲🇹" }, { name: "Moldova", flag: "🇲🇩" }, { name: "Monaco", flag: "🇲🇨" },
+      { name: "Montenegro", flag: "🇲🇪" }, { name: "Netherlands", flag: "🇳🇱" }, { name: "North Macedonia", flag: "🇲🇰" },
+      { name: "Norway", flag: "🇳🇴" }, { name: "Poland", flag: "🇵🇱" }, { name: "Portugal", flag: "🇵🇹" },
+      { name: "Romania", flag: "🇷🇴" }, { name: "Russia", flag: "🇷🇺" }, { name: "San Marino", flag: "🇸🇲" },
+      { name: "Serbia", flag: "🇷🇸" }, { name: "Slovakia", flag: "🇸🇰" }, { name: "Slovenia", flag: "🇸🇮" },
+      { name: "Spain", flag: "🇪🇸" }, { name: "Sweden", flag: "🇸🇪" }, { name: "Switzerland", flag: "🇨🇭" },
+      { name: "Ukraine", flag: "🇺🇦" }, { name: "United Kingdom", flag: "🇬🇧" }, { name: "Vatican City", flag: "🇻🇦" }
     ],
     provinces: {
-      'United Kingdom': ['England', 'Scotland', 'Wales', 'Northern Ireland'],
-      Germany: ['Bavaria', 'Berlin', 'North Rhine-Westphalia'],
-      France: ['Île-de-France', 'Provence-Alpes-Côte d\'Azur'],
-      Spain: ['Madrid', 'Catalonia', 'Andalusia'],
-      Italy: ['Lombardy', 'Lazio', 'Campania']
+      'United Kingdom': ['England','Scotland','Wales','Northern Ireland'],
+      Germany: ['Bavaria','Berlin','North Rhine-Westphalia'],
+      France: ['Île-de-France','Provence-Alpes-Côte d\'Azur'],
+      Spain: ['Madrid','Catalonia','Andalusia'],
+      Italy: ['Lombardy','Lazio','Campania']
     }
   },
   Asia: {
@@ -109,10 +108,10 @@ const locationData: LocationData = {
       { name: "Yemen", flag: "🇾🇪" }
     ],
     provinces: {
-      India: ['Maharashtra', 'Delhi', 'Karnataka', 'Tamil Nadu', 'Uttar Pradesh'],
-      China: ['Beijing', 'Shanghai', 'Guangdong', 'Jiangsu'],
-      Japan: ['Tokyo', 'Osaka', 'Kanagawa'],
-      'South Korea': ['Seoul', 'Busan', 'Incheon']
+      India: ['Maharashtra','Delhi','Karnataka','Tamil Nadu','Uttar Pradesh'],
+      China: ['Beijing','Shanghai','Guangdong','Jiangsu'],
+      Japan: ['Tokyo','Osaka','Kanagawa'],
+      'South Korea': ['Seoul','Busan','Incheon']
     }
   },
   'South America': {
@@ -123,9 +122,9 @@ const locationData: LocationData = {
       { name: "Suriname", flag: "🇸🇷" }, { name: "Uruguay", flag: "🇺🇾" }, { name: "Venezuela", flag: "🇻🇪" }
     ],
     provinces: {
-      Brazil: ['São Paulo', 'Rio de Janeiro', 'Minas Gerais', 'Bahia'],
-      Argentina: ['Buenos Aires', 'Córdoba', 'Santa Fe'],
-      Chile: ['Santiago', 'Valparaíso', 'Biobío']
+      Brazil: ['São Paulo','Rio de Janeiro','Minas Gerais','Bahia'],
+      Argentina: ['Buenos Aires','Córdoba','Santa Fe'],
+      Chile: ['Santiago','Valparaíso','Biobío']
     }
   },
   Oceania: {
@@ -137,8 +136,8 @@ const locationData: LocationData = {
       { name: "Tuvalu", flag: "🇹🇻" }, { name: "Vanuatu", flag: "🇻🇺" }
     ],
     provinces: {
-      Australia: ['New South Wales', 'Victoria', 'Queensland', 'Western Australia', 'South Australia'],
-      'New Zealand': ['Auckland', 'Wellington', 'Canterbury']
+      Australia: ['New South Wales','Victoria','Queensland','Western Australia','South Australia'],
+      'New Zealand': ['Auckland','Wellington','Canterbury']
     }
   },
   Antarctica: {
@@ -183,8 +182,7 @@ export default function Onboarding() {
 
   const [form, setForm] = useState({
     legal_name: '', trading_name: '', contact_name: '', email: '', registration_number: '',
-    registration_document_url: '',
-    logo_url: '',
+    registration_document_url: '', logo_url: '',
     planet: 'Earth', continent: '', country: '', province: '', street: '', city: '', postal_code: '',
     industries: [] as string[], industries_other: '',
     tax_number: '', tax_document_url: '',
@@ -201,12 +199,9 @@ export default function Onboarding() {
   const [newService, setNewService] = useState('');
   const [newCert, setNewCert] = useState({ name: '', body: '', awarded_date: '', expiry_date: '', never_expires: false, document_url: '' });
   const [uploading, setUploading] = useState(false);
-
   const [openIndustries, setOpenIndustries] = useState<Record<string, boolean>>({});
 
-  const toggleIndustry = (name: string) => {
-    setOpenIndustries(prev => ({ ...prev, [name]: !prev[name] }));
-  };
+  const toggleIndustry = (name: string) => setOpenIndustries(prev => ({ ...prev, [name]: !prev[name] }));
 
   const calculateProgress = () => {
     const filled = [
@@ -307,7 +302,7 @@ export default function Onboarding() {
 
         <div className="bg-white rounded-3xl shadow-sm border border-neutral-100 p-12">
 
-          {/* STEP 1: Company Details - uploads in SAME ROW + SAME SIZE BUTTONS */}
+          {/* STEP 1 */}
           {step === 1 && (
             <div>
               <h2 className="text-3xl font-bold mb-8">1. Company Details</h2>
@@ -334,15 +329,15 @@ export default function Onboarding() {
             </div>
           )}
 
-          {/* STEP 2: Location - one row selects + cascading province */}
+          {/* STEP 2 */}
           {step === 2 && (
             <div>
               <h2 className="text-3xl font-bold mb-8">2. Location</h2>
               <div className="grid grid-cols-4 gap-6">
                 <select className="input w-full" value={form.planet} onChange={e => setForm(p => ({...p, planet: e.target.value}))}>
                   <option value="Earth">Earth</option>
-                  <option value="Moon">Moon (for fun)</option>
-                  <option value="Mars">Mars (for fun)</option>
+                  <option value="Moon">Moon</option>
+                  <option value="Mars">Mars</option>
                 </select>
                 <select className="input w-full" value={form.continent} onChange={e => setForm(p => ({...p, continent: e.target.value, country: '', province: ''}))}>
                   <option value="">Select Continent</option>
@@ -365,7 +360,7 @@ export default function Onboarding() {
             </div>
           )}
 
-          {/* STEP 3: Industries - 3 columns alphabetical */}
+          {/* STEP 3 */}
           {step === 3 && (
             <div>
               <h2 className="text-3xl font-bold mb-8">3. Industries & Sub-Industries</h2>
@@ -395,7 +390,7 @@ export default function Onboarding() {
             </div>
           )}
 
-          {/* STEP 4: Financial & Banking - 5 upload buttons */}
+          {/* STEP 4 */}
           {step === 4 && (
             <div className="space-y-8">
               <h2 className="text-3xl font-bold">4. Financial & Banking</h2>
@@ -410,22 +405,17 @@ export default function Onboarding() {
                 <div><label className="block text-sm font-medium mb-2">Account Name</label><input className="input w-full" value={form.account_name} onChange={e => setForm(p => ({...p, account_name: e.target.value}))} /></div>
                 <div><label className="block text-sm font-medium mb-2">Account Number</label><input className="input w-full" value={form.account_number} onChange={e => setForm(p => ({...p, account_number: e.target.value}))} /></div>
               </div>
-
               <div className="mt-10">
                 <label className="block text-sm mb-4 font-medium">Upload Documents</label>
                 <div className="flex flex-wrap gap-4">
                   <input type="file" onChange={e => handleUpload('bank_confirmation_url', e)} className="hidden" id="bank-conf" />
                   <label htmlFor="bank-conf" className="btn-primary cursor-pointer px-6 py-3">Choose Bank Confirmation</label>
-
                   <input type="file" onChange={e => handleUpload('tax_document_url', e)} className="hidden" id="tax" />
                   <label htmlFor="tax" className="btn-primary cursor-pointer px-6 py-3">TAX Certificate</label>
-
                   <input type="file" onChange={e => handleUpload('vat_document_url', e)} className="hidden" id="vat" />
                   <label htmlFor="vat" className="btn-primary cursor-pointer px-6 py-3">VAT Certificate</label>
-
                   <input type="file" onChange={e => handleUpload('export_document_url', e)} className="hidden" id="export" />
                   <label htmlFor="export" className="btn-primary cursor-pointer px-6 py-3">Export License</label>
-
                   <input type="file" onChange={e => handleUpload('import_document_url', e)} className="hidden" id="import" />
                   <label htmlFor="import" className="btn-primary cursor-pointer px-6 py-3">Import License</label>
                 </div>
@@ -433,13 +423,13 @@ export default function Onboarding() {
             </div>
           )}
 
-          {/* STEP 5: Products & Services */}
+          {/* STEP 5 */}
           {step === 5 && (
             <div>
               <h2 className="text-3xl font-bold mb-8">5. Products & Services</h2>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
                 <div>
-                  <h3 className="font-semibold mb-6">Add Product <span className="text-xs text-neutral-500">(editable later in Inventory)</span></h3>
+                  <h3 className="font-semibold mb-6">Add Product</h3>
                   <div className="space-y-5">
                     <input type="text" placeholder="Description" className="input w-full" value={newProduct.description} onChange={e => setNewProduct(p => ({...p, description: e.target.value}))} />
                     <input type="text" placeholder="SKU Number" className="input w-full" value={newProduct.sku} onChange={e => setNewProduct(p => ({...p, sku: e.target.value}))} />
@@ -449,15 +439,9 @@ export default function Onboarding() {
                     </select>
                     <input type="number" placeholder="Sell Price" className="input w-full" value={newProduct.sellPrice} onChange={e => setNewProduct(p => ({...p, sellPrice: e.target.value}))} />
                     <input type="text" placeholder="Lead Time (days)" className="input w-full" value={newProduct.leadTime} onChange={e => setNewProduct(p => ({...p, leadTime: e.target.value}))} />
-                    <div>
-                      <label className="block text-sm mb-2">Product Image</label>
-                      <input type="file" onChange={e => {/* image upload logic */}} className="hidden" id="prod-image" />
-                      <label htmlFor="prod-image" className="btn-primary cursor-pointer">Upload Image</label>
-                    </div>
                     <button onClick={addProduct} className="btn-primary w-full py-4">Add Product</button>
                   </div>
                 </div>
-
                 <div>
                   <h3 className="font-semibold mb-6">Add Service</h3>
                   <input type="text" placeholder="Service Name" className="input w-full" value={newService} onChange={e => setNewService(e.target.value)} />
@@ -467,7 +451,7 @@ export default function Onboarding() {
             </div>
           )}
 
-          {/* STEP 6: Certificates */}
+          {/* STEP 6 */}
           {step === 6 && (
             <div>
               <h2 className="text-3xl font-bold mb-8">6. Certificates & Documents</h2>
@@ -480,28 +464,27 @@ export default function Onboarding() {
                 </div>
                 <div><label>Award Date</label><input type="date" className="input w-full" value={newCert.awarded_date} onChange={e => setNewCert(p => ({...p, awarded_date: e.target.value}))} /></div>
                 <div><label>Expiry Date</label><input type="date" className="input w-full" value={newCert.expiry_date} onChange={e => setNewCert(p => ({...p, expiry_date: e.target.value}))} disabled={newCert.never_expires} /></div>
-                <div className="flex items-center gap-3"><input type="checkbox" checked={newCert.never_expires} onChange={e => setNewCert(p => ({...p, never_expires: e.target.checked}))} /><span className="text-sm">Never Expires / N/A</span></div>
+                <div className="flex items-center gap-3"><input type="checkbox" checked={newCert.never_expires} onChange={e => setNewCert(p => ({...p, never_expires: e.target.checked}))} /><span className="text-sm">Never Expires</span></div>
                 <div><input type="file" onChange={handleCertUpload} className="hidden" id="cert-file" /><label htmlFor="cert-file" className="btn-primary cursor-pointer text-center">Upload</label></div>
               </div>
               <button onClick={addCertification} className="mt-8 btn-primary w-full">Add Certificate</button>
             </div>
           )}
 
-          {/* STEP 7: Review */}
+          {/* STEP 7 — REVIEW */}
           {step === 7 && (
             <div>
               <h2 className="text-3xl font-bold mb-8">7. Review & Submit</h2>
-              <div className="bg-white p-10 rounded-3xl border border-neutral-100 shadow-inner space-y-8 text-sm">
-                <div className="grid grid-cols-2 gap-8">
-                  <div><strong>Legal Name:</strong> {form.legal_name}</div>
-                  <div><strong>Trading Name:</strong> {form.trading_name}</div>
+              <div className="bg-slate-50 p-10 rounded-3xl border border-neutral-100 space-y-8 text-base">
+                <div><strong>Company:</strong> {form.legal_name} ({form.trading_name})</div>
+                <div>
+                  <strong>Location:</strong> {form.planet} • {form.continent} • {form.country} • {form.province}<br />
+                  {form.street}, {form.city} {form.postal_code}
                 </div>
-                <div><strong>Location:</strong> {form.street}, {form.city}, {form.province}, {form.country} {form.postal_code}</div>
-                <div><strong>Industries:</strong> {form.industries.join(', ')} {form.industries_other && `(${form.industries_other})`}</div>
-                <div><strong>Financial:</strong> VAT {form.vat_number} | Export {form.export_license} | Bank {form.bank_name}</div>
-                <div><strong>Products:</strong> {form.products.map(p => p.description).join(', ')}</div>
-                <div><strong>Services:</strong> {form.services.join(', ')}</div>
-                <div><strong>Certificates:</strong> {form.certifications.map(c => c.name).join(', ')}</div>
+                <div><strong>Industries:</strong> {form.industries.join(', ') || 'None selected'}</div>
+                <div><strong>Products:</strong> {form.products.map(p => p.description).join(', ') || 'None'}</div>
+                <div><strong>Services:</strong> {form.services.join(', ') || 'None'}</div>
+                <div><strong>Certificates:</strong> {form.certifications.length} uploaded</div>
               </div>
             </div>
           )}
