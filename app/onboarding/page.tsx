@@ -52,7 +52,9 @@ const locationData: LocationData = {
     }
   },
   'North America': {
-    countries: [{ name: "Canada", flag: "🇨🇦" }, { name: "Mexico", flag: "🇲🇽" }, { name: "United States", flag: "🇺🇸" }],
+    countries: [
+      { name: "Canada", flag: "🇨🇦" }, { name: "Mexico", flag: "🇲🇽" }, { name: "United States", flag: "🇺🇸" }
+    ],
     provinces: {
       'United States': ['Alabama','Alaska','Arizona','Arkansas','California','Colorado','Connecticut','Delaware','Florida','Georgia','Hawaii','Idaho','Illinois','Indiana','Iowa','Kansas','Kentucky','Louisiana','Maine','Maryland','Massachusetts','Michigan','Minnesota','Mississippi','Missouri','Montana','Nebraska','Nevada','New Hampshire','New Jersey','New Mexico','New York','North Carolina','North Dakota','Ohio','Oklahoma','Oregon','Pennsylvania','Rhode Island','South Carolina','South Dakota','Tennessee','Texas','Utah','Vermont','Virginia','Washington','West Virginia','Wisconsin','Wyoming'],
       Canada: ['Alberta','British Columbia','Manitoba','New Brunswick','Newfoundland and Labrador','Nova Scotia','Ontario','Prince Edward Island','Quebec','Saskatchewan'],
@@ -277,23 +279,33 @@ export default function Onboarding() {
   };
 
   const saveAll = async () => {
-    if (!cleanId) return;
+    if (!cleanId) {
+      toast.error("Please complete Privy login first");
+      return;
+    }
     setLoading(true);
     try {
       const profileData = { id: cleanId, ...form, updated_at: new Date().toISOString() };
       await supabase.from('profiles').upsert(profileData);
 
-      if (form.products.length) await supabase.from('business_products').upsert(form.products.map(p => ({ profile_id: cleanId, ...p })));
-      if (form.services.length) await supabase.from('business_services').upsert(form.services.map(name => ({ profile_id: cleanId, name })));
-      if (form.certifications.length) await supabase.from('business_certifications').upsert(form.certifications.map(c => ({ profile_id: cleanId, ...c })));
+      if (form.products.length > 0) {
+        await supabase.from('business_products').upsert(form.products.map(p => ({ profile_id: cleanId, ...p })));
+      }
+      if (form.services.length > 0) {
+        await supabase.from('business_services').upsert(form.services.map(name => ({ profile_id: cleanId, name })));
+      }
+      if (form.certifications.length > 0) {
+        await supabase.from('business_certifications').upsert(form.certifications.map(c => ({ profile_id: cleanId, ...c })));
+      }
 
-      toast.success("🎉 All information saved to SupplierAdvisor®!");
+      toast.success("🎉 All information saved to Supabase and SupplierAdvisor®!");
       router.push('/dashboard');
     } catch (error: any) {
       console.error("Save error:", error);
-      toast.error(`Failed to save: ${error.message}`);
+      toast.error(`Failed to save to Supabase: ${error.message}`);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleNext = () => {
