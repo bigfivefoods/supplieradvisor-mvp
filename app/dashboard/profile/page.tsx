@@ -8,6 +8,35 @@ import toast from 'react-hot-toast';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 import Image from 'next/image';
 
+const industriesList = [
+  { name: 'Accommodation & Food Services', sub: ['Restaurants', 'Hotels', 'Catering'] },
+  { name: 'Agriculture & Farming', sub: ['Crop Production', 'Livestock Farming', 'Horticulture', 'Aquaculture', 'Organic Farming', 'Agri-Tech', 'Forestry', 'Beekeeping', 'Poultry', 'Dairy Farming'] },
+  { name: 'Arts, Entertainment & Recreation', sub: ['Tourism', 'Hospitality', 'Film & Media'] },
+  { name: 'Construction & Infrastructure', sub: ['Residential', 'Commercial', 'Roads', 'Bridges', 'Renewable Projects'] },
+  { name: 'Defense & Security', sub: ['Military Equipment', 'Private Security'] },
+  { name: 'Education & Academics', sub: ['Pre-School', 'Junior School', 'High School', 'Colleges', 'Universities', 'Vocational Training', 'Online Education', 'Research Institutions'] },
+  { name: 'Finance & Insurance', sub: ['Agri-Finance', 'Crop Insurance', 'Supply Chain Finance'] },
+  { name: 'Food & Beverage', sub: ['Fresh Produce', 'Meat & Poultry', 'Dairy Products', 'Processed Foods', 'Beverages', 'Seafood', 'Bakery & Confectionery', 'Ready Meals', 'Spices & Herbs'] },
+  { name: 'Government & Public Administration', sub: ['Regulatory Bodies', 'Public Health', 'Trade Promotion'] },
+  { name: 'Healthcare & Pharmaceuticals', sub: ['Medical Devices', 'Pharma Distribution', 'Nutraceuticals'] },
+  { name: 'Information Technology', sub: ['Software', 'Data Analytics', 'Traceability', 'AI & ML'] },
+  { name: 'Manufacturing', sub: ['Food Processing', 'Packaging Materials', 'Machinery', 'Chemicals', 'Textiles', 'Electronics', 'Automotive Parts', 'Pharmaceuticals'] },
+  { name: 'Mining & Extraction', sub: ['Coal Mining', 'Oil & Gas', 'Metal Ore', 'Stone & Quarrying', 'Mineral Processing'] },
+  { name: 'Professional Services', sub: ['Consulting', 'Legal', 'Accounting', 'Supply Chain Consulting'] },
+  { name: 'Real Estate', sub: ['Commercial', 'Agricultural Land', 'Warehousing'] },
+  { name: 'Retail Trade', sub: ['Supermarkets', 'Specialty Stores', 'E-commerce', 'Convenience'] },
+  { name: 'Sustainability & Environmental Services', sub: ['Carbon Trading', 'Waste Management', 'Water Treatment', 'Renewable Energy Consulting'] },
+  { name: 'Telecommunications', sub: ['Mobile Networks', 'Internet Services'] },
+  { name: 'Transportation & Logistics', sub: ['Freight', 'Cold Chain', 'Shipping', 'Air Freight', 'Warehousing'] },
+  { name: 'Utilities & Energy', sub: ['Electricity', 'Renewable Energy', 'Water Supply', 'Natural Gas'] },
+  { name: 'Wholesale Trade', sub: ['Food', 'Agricultural Products', 'Industrial Supplies', 'Import/Export'] },
+  { name: 'Other', sub: [] }
+];
+
+const uomOptions = ['Kg', 'G', 'Tonne', 'Litre', 'Ml', 'Piece', 'Box', 'Pallet', 'Case', 'Dozen', 'Meter', 'Sqm', 'Unit', 'Pack', 'Carton', 'Drum', 'Bottle', 'Roll'];
+
+const certifiedBodies = ['ISO 9001', 'ISO 22000', 'FSSC 22000', 'HACCP', 'BEE', 'Halal', 'Kosher', 'SEDEX', 'Fairtrade', 'FDA', 'Other'];
+
 export default function MyBusinessProfile() {
   const { user } = usePrivy();
   const rawId = user?.id || '';
@@ -40,6 +69,15 @@ export default function MyBusinessProfile() {
     services: [] as string[],
     certifications: [] as any[]
   });
+
+  const [newProduct, setNewProduct] = useState({ description: '', sku: '', uom: '', sellPrice: '', leadTime: '', imageUrl: '' });
+  const [newService, setNewService] = useState('');
+  const [newCert, setNewCert] = useState({ name: '', body: '', awarded_date: '', expiry_date: '', never_expires: false, document_url: '' });
+  const [openIndustries, setOpenIndustries] = useState<Record<string, boolean>>({});
+
+  const toggleIndustry = (name: string) => {
+    setOpenIndustries(prev => ({ ...prev, [name]: !prev[name] }));
+  };
 
   const toggleSection = (section: string) => {
     setExpanded(prev => ({ ...prev, [section]: !prev[section] }));
@@ -79,6 +117,41 @@ export default function MyBusinessProfile() {
     toast.success("File uploaded successfully");
   };
 
+  const handleCertUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return toast.error("Please select a file");
+    setUploading(true);
+    const fileName = `${cleanId}-cert-${Date.now()}.${file.name.split('.').pop()}`;
+    const { error } = await supabase.storage.from('certificates').upload(fileName, file);
+    if (error) return toast.error("Upload failed");
+    const { data: url } = supabase.storage.from('certificates').getPublicUrl(fileName);
+    setNewCert(prev => ({ ...prev, document_url: url.publicUrl }));
+    setUploading(false);
+    toast.success("✅ Certificate uploaded successfully");
+  };
+
+  const addProduct = () => {
+    if (newProduct.description) {
+      setForm(prev => ({ ...prev, products: [...prev.products, newProduct] }));
+      setNewProduct({ description: '', sku: '', uom: '', sellPrice: '', leadTime: '', imageUrl: '' });
+      toast.success("Product added");
+    }
+  };
+
+  const addService = () => {
+    if (newService) {
+      setForm(prev => ({ ...prev, services: [...prev.services, newService] }));
+      setNewService('');
+    }
+  };
+
+  const addCertification = () => {
+    if (newCert.name && newCert.document_url) {
+      setForm(prev => ({ ...prev, certifications: [...prev.certifications, newCert] }));
+      setNewCert({ name: '', body: '', awarded_date: '', expiry_date: '', never_expires: false, document_url: '' });
+    }
+  };
+
   const saveProfile = async () => {
     setLoading(true);
     const profileData = { id: cleanId, ...form, updated_at: new Date().toISOString() };
@@ -88,7 +161,7 @@ export default function MyBusinessProfile() {
     if (form.services.length) await supabase.from('business_services').upsert(form.services.map(name => ({ profile_id: cleanId, name })));
     if (form.certifications.length) await supabase.from('business_certifications').upsert(form.certifications.map(c => ({ profile_id: cleanId, ...c })));
 
-    toast.success("✅ All changes saved to Supabase — data is now on the server!");
+    toast.success("✅ All changes saved to Supabase — data persists on login");
     setLoading(false);
   };
 
@@ -98,13 +171,13 @@ export default function MyBusinessProfile() {
       <div className="flex items-end justify-between mb-8">
         <div>
           <h1 className="font-black text-5xl tracking-tight text-[#00b4d8]">My Business Profile</h1>
-          <p className="text-xl text-neutral-600">Exact mirror of onboarding • All data saved to Supabase</p>
+          <p className="text-xl text-neutral-600">Exact mirror of onboarding — edit every field</p>
         </div>
       </div>
 
       <div className="space-y-8">
 
-        {/* 1. Company Details */}
+        {/* 1. Company Details - EXACT MATCH */}
         <div className="bg-white rounded-3xl shadow-sm border border-neutral-100 p-8">
           <div className="flex justify-between items-center mb-6 cursor-pointer" onClick={() => toggleSection('basics')}>
             <h2 className="text-2xl font-bold">1. Company Details</h2>
@@ -129,7 +202,7 @@ export default function MyBusinessProfile() {
           )}
         </div>
 
-        {/* 2. Location */}
+        {/* 2. Location - EXACT MATCH */}
         <div className="bg-white rounded-3xl shadow-sm border border-neutral-100 p-8">
           <div className="flex justify-between items-center mb-6 cursor-pointer" onClick={() => toggleSection('location')}>
             <h2 className="text-2xl font-bold">2. Location</h2>
@@ -153,22 +226,40 @@ export default function MyBusinessProfile() {
           )}
         </div>
 
-        {/* 3. Industries */}
+        {/* 3. Industries - EXACT MATCH TO ONBOARDING (FULL EDITABLE GRID) */}
         <div className="bg-white rounded-3xl shadow-sm border border-neutral-100 p-8">
           <div className="flex justify-between items-center mb-6 cursor-pointer" onClick={() => toggleSection('industries')}>
-            <h2 className="text-2xl font-bold">3. Industries</h2>
+            <h2 className="text-2xl font-bold">3. Industries & Sub-Industries</h2>
             <ChevronDown className={`transition ${expanded.industries ? 'rotate-180' : ''}`} />
           </div>
           {expanded.industries && (
-            <div className="flex flex-wrap gap-3">
-              {form.industries.map((ind, i) => (
-                <div key={i} className="bg-[#00b4d8]/10 text-[#00b4d8] px-5 py-2 rounded-3xl text-sm font-medium">{ind}</div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {industriesList.map((ind) => (
+                <div key={ind.name} className="border border-neutral-200 rounded-3xl overflow-hidden">
+                  <button onClick={() => toggleIndustry(ind.name)} className="w-full flex justify-between px-8 py-5 text-left hover:bg-neutral-50">
+                    <span className="font-semibold text-lg">{ind.name}</span>
+                    <ChevronDown className={`transition ${openIndustries[ind.name] ? 'rotate-180' : ''}`} />
+                  </button>
+                  {openIndustries[ind.name] && (
+                    <div className="px-8 pb-6 grid grid-cols-1 gap-3 text-sm">
+                      {ind.sub.map((sub) => (
+                        <label key={sub} className="flex items-center gap-3 p-3 hover:bg-neutral-50 rounded-2xl cursor-pointer">
+                          <input type="checkbox" checked={form.industries.includes(sub)} onChange={() => {
+                            const newInd = form.industries.includes(sub) ? form.industries.filter(x => x !== sub) : [...form.industries, sub];
+                            setForm(p => ({...p, industries: newInd}));
+                          }} />
+                          {sub}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
           )}
         </div>
 
-        {/* 4. Financial & Banking */}
+        {/* 4. Financial & Banking - EXACT MATCH TO ONBOARDING */}
         <div className="bg-white rounded-3xl shadow-sm border border-neutral-100 p-8">
           <div className="flex justify-between items-center mb-6 cursor-pointer" onClick={() => toggleSection('financial')}>
             <h2 className="text-2xl font-bold">4. Financial & Banking</h2>
@@ -199,51 +290,60 @@ export default function MyBusinessProfile() {
           )}
         </div>
 
-        {/* 5. Products & Services */}
+        {/* 5. Products & Services - EXACT MATCH TO ONBOARDING (FULL ADD FORMS) */}
         <div className="bg-white rounded-3xl shadow-sm border border-neutral-100 p-8">
           <div className="flex justify-between items-center mb-6 cursor-pointer" onClick={() => toggleSection('products')}>
             <h2 className="text-2xl font-bold">5. Products & Services</h2>
             <ChevronDown className={`transition ${expanded.products ? 'rotate-180' : ''}`} />
           </div>
           {expanded.products && (
-            <div className="space-y-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+              {/* Add Product Form */}
               <div>
-                <h3 className="font-semibold mb-4">Products</h3>
-                <div className="space-y-3">
-                  {form.products.map((p, i) => (
-                    <div key={i} className="flex justify-between bg-neutral-50 p-4 rounded-3xl">
-                      <div>{p.description} • {p.sku} • {p.uom}</div>
-                      <div className="text-emerald-600">R {p.sellPrice}</div>
-                    </div>
-                  ))}
+                <h3 className="font-semibold mb-6">Add Product</h3>
+                <div className="space-y-5">
+                  <input type="text" placeholder="Description" className="input w-full" value={newProduct.description} onChange={e => setNewProduct(p => ({...p, description: e.target.value}))} />
+                  <input type="text" placeholder="SKU Number" className="input w-full" value={newProduct.sku} onChange={e => setNewProduct(p => ({...p, sku: e.target.value}))} />
+                  <select className="input w-full" value={newProduct.uom} onChange={e => setNewProduct(p => ({...p, uom: e.target.value}))}>
+                    <option value="">Unit of Measure</option>
+                    {uomOptions.map(u => <option key={u} value={u}>{u}</option>)}
+                  </select>
+                  <input type="number" placeholder="Sell Price" className="input w-full" value={newProduct.sellPrice} onChange={e => setNewProduct(p => ({...p, sellPrice: e.target.value}))} />
+                  <input type="text" placeholder="Lead Time (days)" className="input w-full" value={newProduct.leadTime} onChange={e => setNewProduct(p => ({...p, leadTime: e.target.value}))} />
+                  <button onClick={addProduct} className="btn-primary w-full py-4">Add Product</button>
                 </div>
               </div>
+              {/* Add Service Form */}
               <div>
-                <h3 className="font-semibold mb-4">Services</h3>
-                <div className="flex flex-wrap gap-3">
-                  {form.services.map((s, i) => (
-                    <div key={i} className="bg-neutral-50 px-5 py-2 rounded-3xl text-sm">{s}</div>
-                  ))}
-                </div>
+                <h3 className="font-semibold mb-6">Add Service</h3>
+                <input type="text" placeholder="Service Name" className="input w-full" value={newService} onChange={e => setNewService(e.target.value)} />
+                <button onClick={addService} className="btn-primary w-full mt-4">Add Service</button>
               </div>
             </div>
           )}
         </div>
 
-        {/* 6. Certifications */}
+        {/* 6. Certificates & Documents - EXACT MATCH TO ONBOARDING (FULL ADD FORM) */}
         <div className="bg-white rounded-3xl shadow-sm border border-neutral-100 p-8">
           <div className="flex justify-between items-center mb-6 cursor-pointer" onClick={() => toggleSection('certifications')}>
             <h2 className="text-2xl font-bold">6. Certificates & Documents</h2>
             <ChevronDown className={`transition ${expanded.certifications ? 'rotate-180' : ''}`} />
           </div>
           {expanded.certifications && (
-            <div className="space-y-4">
-              {form.certifications.map((c, i) => (
-                <div key={i} className="flex justify-between items-center bg-neutral-50 p-4 rounded-3xl">
-                  <div>{c.name} ({c.body})</div>
-                  <div className="text-emerald-600 text-sm">{c.document_url ? '✓ Document linked' : ''}</div>
+            <div>
+              <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
+                <div className="md:col-span-2"><label className="block text-sm mb-2">Certificate Name</label><input className="input w-full" value={newCert.name} onChange={e => setNewCert(p => ({...p, name: e.target.value}))} /></div>
+                <div className="md:col-span-2"><label className="block text-sm mb-2">Certified Body</label>
+                  <select className="input w-full" value={newCert.body} onChange={e => setNewCert(p => ({...p, body: e.target.value}))}>
+                    {certifiedBodies.map(b => <option key={b} value={b}>{b}</option>)}
+                  </select>
                 </div>
-              ))}
+                <div><label className="block text-sm mb-2">Award Date</label><input type="date" className="input w-full" value={newCert.awarded_date} onChange={e => setNewCert(p => ({...p, awarded_date: e.target.value}))} /></div>
+                <div><label className="block text-sm mb-2">Expiry Date</label><input type="date" className="input w-full" value={newCert.expiry_date} onChange={e => setNewCert(p => ({...p, expiry_date: e.target.value}))} disabled={newCert.never_expires} /></div>
+                <div className="flex items-center gap-3"><input type="checkbox" checked={newCert.never_expires} onChange={e => setNewCert(p => ({...p, never_expires: e.target.checked}))} /><span className="text-sm">Never Expires</span></div>
+                <div><input type="file" onChange={handleCertUpload} className="hidden" id="cert-file" /><label htmlFor="cert-file" className="btn-primary cursor-pointer text-center">Upload</label></div>
+              </div>
+              <button onClick={addCertification} className="mt-8 btn-primary w-full">Add Certificate</button>
             </div>
           )}
         </div>
@@ -254,6 +354,31 @@ export default function MyBusinessProfile() {
         <button onClick={loadProfile} className="border px-8 py-4 rounded-3xl hover:bg-slate-100 flex items-center gap-2"><RotateCw size={18} /> Refresh Data</button>
         <button onClick={saveProfile} disabled={loading} className="btn-primary flex items-center gap-3 px-12 py-4">
           {loading ? 'Saving to Supabase...' : 'Save All Changes'} <ArrowRight />
+        </button>
+      </div>
+
+      {/* SEED BUTTON */}
+      <div className="mt-12 flex justify-center">
+        <button 
+          onClick={async () => {
+            if (!confirm("Add 6 test companies to Supabase?")) return;
+            const testCompanies = [
+              { legal_name: "FreshFarm Co", trading_name: "FreshFarm", country: "South Africa", province: "KwaZulu-Natal" },
+              { legal_name: "OceanCatch Ltd", trading_name: "OceanCatch", country: "South Africa", province: "Western Cape" },
+              { legal_name: "GreenHarvest Pty", trading_name: "GreenHarvest", country: "South Africa", province: "Gauteng" },
+              { legal_name: "AgriTech SA", trading_name: "AgriTech", country: "South Africa", province: "Eastern Cape" },
+              { legal_name: "BioGrow Farms", trading_name: "BioGrow", country: "South Africa", province: "Free State" },
+              { legal_name: "SupplyChain Pro", trading_name: "SupplyChain", country: "South Africa", province: "Limpopo" }
+            ];
+            for (const comp of testCompanies) {
+              await supabase.from('profiles').insert({ ...comp, id: `test-${Date.now()}` });
+            }
+            toast.success("6 test companies added to Supabase!");
+            loadProfile();
+          }}
+          className="bg-emerald-600 text-white px-8 py-4 rounded-3xl font-semibold flex items-center gap-3"
+        >
+          <Upload size={20} /> Seed 6 Test Companies (for testing)
         </button>
       </div>
     </div>
