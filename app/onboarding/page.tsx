@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, ArrowLeft, ChevronDown } from 'lucide-react';
+import { ArrowRight, ArrowLeft, ChevronDown, Wallet } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import toast from 'react-hot-toast';
 import Breadcrumb from '@/components/ui/Breadcrumb';
@@ -176,9 +176,14 @@ const uomOptions = ['Kg', 'G', 'Tonne', 'Litre', 'Ml', 'Piece', 'Box', 'Pallet',
 const certifiedBodies = ['ISO 9001', 'ISO 22000', 'FSSC 22000', 'HACCP', 'BEE', 'Halal', 'Kosher', 'SEDEX', 'Fairtrade', 'FDA', 'Other'];
 
 export default function Onboarding() {
-  const { user } = usePrivy();
+  const { user, login, isLoading: privyLoading } = usePrivy();
   const router = useRouter();
+
+  const rawId = user?.id || '';
+  const cleanId = rawId.startsWith('privy:') ? rawId.slice(6) : rawId;
+
   const [step, setStep] = useState(1);
+  const [loading, setLoading] = useState(false);
 
   const [form, setForm] = useState({
     legal_name: '', trading_name: '', contact_name: '', email: '', registration_number: '',
@@ -216,19 +221,20 @@ export default function Onboarding() {
   };
 
   useEffect(() => {
-    if (user) loadExistingProfile();
-  }, [user]);
+    if (user && cleanId) loadExistingProfile();
+  }, [user, cleanId]);
 
   const loadExistingProfile = async () => {
-    const { data } = await supabase.from('profiles').select('*').eq('id', user!.id).single();
+    if (!cleanId) return;
+    const { data } = await supabase.from('profiles').select('*').eq('id', cleanId).single();
     if (data) setForm(prev => ({ ...prev, ...data }));
   };
 
   const handleUpload = async (field: keyof typeof form, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !user) return toast.error("Please select a file");
+    if (!file || !cleanId) return toast.error("Please select a file");
     setUploading(true);
-    const fileName = `${user.id}-${field}-${Date.now()}.${file.name.split('.').pop()}`;
+    const fileName = `${cleanId}-${field}-${Date.now()}.${file.name.split('.').pop()}`;
     const { error } = await supabase.storage.from('certificates').upload(fileName, file);
     if (error) return toast.error("Upload failed");
     const { data: url } = supabase.storage.from('certificates').getPublicUrl(fileName);
@@ -239,9 +245,9 @@ export default function Onboarding() {
 
   const handleCertUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !user) return toast.error("Please select a file");
+    if (!file || !cleanId) return toast.error("Please select a file");
     setUploading(true);
-    const fileName = `${user.id}-cert-${Date.now()}.${file.name.split('.').pop()}`;
+    const fileName = `${cleanId}-cert-${Date.now()}.${file.name.split('.').pop()}`;
     const { error } = await supabase.storage.from('certificates').upload(fileName, file);
     if (error) return toast.error("Upload failed");
     const { data: url } = supabase.storage.from('certificates').getPublicUrl(fileName);
@@ -273,17 +279,52 @@ export default function Onboarding() {
   };
 
   const saveAll = async () => {
-    if (!user) return;
-    const profileData = { id: user.id, ...form, updated_at: new Date().toISOString() };
-    await supabase.from('profiles').upsert(profileData);
-    if (form.products.length) await supabase.from('business_products').upsert(form.products.map(p => ({ profile_id: user.id, ...p })));
-    if (form.services.length) await supabase.from('business_services').upsert(form.services.map(name => ({ profile_id: user.id, name })));
-    if (form.certifications.length) await supabase.from('business_certifications').upsert(form.certifications.map(c => ({ profile_id: user.id, ...c })));
-    toast.success("✅ All information saved to SupplierAdvisor®!");
-    router.push('/dashboard');
+    if (!cleanId) return;
+    setLoading(true);
+    try {
+      const profileData = { id: cleanId, ...form, updated_at: new Date().toISOString() };
+      await supabase.from('profiles').upsert(profileData);
+
+      if (form.products.length) await supabase.from('business_products').upsert(form.products.map(p => ({ profile_id: cleanId, ...p })));
+      if (form.services.length) await supabase.from('business_services').upsert(form.services.map(name => ({ profile_id: cleanId, name })));
+      if (form.certifications.length) await supabase.from('business_certifications').upsert(form.certifications.map(c => ({ profile_id: cleanId, ...c })));
+
+      toast.success("🎉 All information saved to SupplierAdvisor®!");
+      router.push('/dashboard');
+    } catch (error: any) {
+      console.error("Save error:", error);
+      toast.error(`Failed to save: ${error.message}`);
+    }
+    setLoading(false);
+  };
+
+  const handleNext = () => {
+    if (step < 7) setStep(s => s + 1);
+    else saveAll();
   };
 
   const progress = calculateProgress();
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center">
+        <div className="max-w-md text-center">
+          <div className="mx-auto mb-8 w-20 h-20 bg-[#00b4d8] rounded-3xl flex items-center justify-center">
+            <Wallet className="w-12 h-12 text-white" />
+          </div>
+          <h1 className="font-black text-5xl tracking-tight text-[#00b4d8]">Welcome to SupplierAdvisor®</h1>
+          <p className="text-2xl text-neutral-600 mt-4">Log in with Privy to start your verified business onboarding</p>
+          <button 
+            onClick={login}
+            className="mt-12 btn-primary text-xl py-5 px-16 flex items-center gap-3 mx-auto"
+          >
+            <Wallet size={28} /> Log in with Privy
+          </button>
+          <p className="text-sm text-neutral-500 mt-8">Secure • On-chain verified • Zero extra steps</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="pl-0 pr-12 py-12 max-w-screen-2xl mx-auto">
@@ -493,8 +534,13 @@ export default function Onboarding() {
         <div className="flex gap-4 mt-12">
           {step > 1 && <button onClick={() => setStep(s => s - 1)} className="flex-1 border px-8 py-4 rounded-3xl font-medium">← Back</button>}
           <button onClick={() => setStep(s => s + 1)} className="flex-1 border px-8 py-4 rounded-3xl font-medium">Skip this Section</button>
-          <button onClick={() => step < 7 ? setStep(s => s + 1) : saveAll()} className="flex-1 bg-[#00b4d8] text-white py-4 rounded-3xl font-semibold flex items-center justify-center gap-3">
-            {step === 7 ? 'Submit & Go Live' : 'Continue'} <ArrowRight />
+          <button 
+            onClick={handleNext}
+            disabled={loading}
+            className="flex-1 bg-[#00b4d8] text-white py-4 rounded-3xl font-semibold flex items-center justify-center gap-3 disabled:opacity-70"
+          >
+            {loading ? 'Saving to Supabase...' : (step === 7 ? 'Submit & Go Live' : 'Continue')} 
+            <ArrowRight />
           </button>
         </div>
       </div>
