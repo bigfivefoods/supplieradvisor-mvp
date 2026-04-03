@@ -288,15 +288,9 @@ export default function Onboarding() {
       const profileData = { id: cleanId, ...form, updated_at: new Date().toISOString() };
       await supabase.from('profiles').upsert(profileData);
 
-      if (form.products.length > 0) {
-        await supabase.from('business_products').upsert(form.products.map(p => ({ profile_id: cleanId, ...p })));
-      }
-      if (form.services.length > 0) {
-        await supabase.from('business_services').upsert(form.services.map(name => ({ profile_id: cleanId, name })));
-      }
-      if (form.certifications.length > 0) {
-        await supabase.from('business_certifications').upsert(form.certifications.map(c => ({ profile_id: cleanId, ...c })));
-      }
+      if (form.products.length > 0) await supabase.from('business_products').upsert(form.products.map(p => ({ profile_id: cleanId, ...p })));
+      if (form.services.length > 0) await supabase.from('business_services').upsert(form.services.map(name => ({ profile_id: cleanId, name })));
+      if (form.certifications.length > 0) await supabase.from('business_certifications').upsert(form.certifications.map(c => ({ profile_id: cleanId, ...c })));
 
       toast.success("🎉 All information saved to Supabase and SupplierAdvisor®!");
       router.push('/dashboard');
@@ -318,19 +312,19 @@ export default function Onboarding() {
 
   const progress = calculateProgress();
 
-  // PRIVY LOGIN/REGISTER AS THE ABSOLUTE FIRST SCREEN
+  // PRIVY LOGIN/REGISTER — FIRST SCREEN ON ALL DEVICES
   if (!user || !ready) {
     return (
-      <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center">
-        <div className="max-w-md text-center">
+      <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center px-4">
+        <div className="max-w-md w-full text-center">
           <div className="mx-auto mb-8 w-20 h-20 bg-[#00b4d8] rounded-3xl flex items-center justify-center">
             <Wallet className="w-12 h-12 text-white" />
           </div>
-          <h1 className="font-black text-5xl tracking-tight text-[#00b4d8]">Welcome to SupplierAdvisor®</h1>
-          <p className="text-2xl text-neutral-600 mt-4">Log in or register with Privy to start your verified business onboarding</p>
+          <h1 className="font-black text-4xl md:text-5xl tracking-tight text-[#00b4d8]">Welcome to SupplierAdvisor®</h1>
+          <p className="text-xl md:text-2xl text-neutral-600 mt-4">Log in or register with Privy to start your verified business onboarding</p>
           <button 
             onClick={login}
-            className="mt-12 btn-primary text-xl py-5 px-16 flex items-center gap-3 mx-auto"
+            className="mt-12 btn-primary text-lg md:text-xl py-5 px-12 md:px-16 flex items-center gap-3 mx-auto"
           >
             <Wallet size={28} /> Log in / Register with Privy
           </button>
@@ -341,25 +335,26 @@ export default function Onboarding() {
   }
 
   return (
-    <div className="pl-0 pr-12 py-12 max-w-screen-2xl mx-auto">
+    <div className="min-h-screen bg-[#f8fafc] px-4 md:px-12 py-8 md:py-12">
       <Breadcrumb />
 
       <div className="max-w-7xl mx-auto">
-        <h1 className="font-black text-5xl tracking-tight text-[#00b4d8]">Complete Your Company Profile</h1>
-        <p className="text-xl text-neutral-600 mt-2">All data is saved securely to SupplierAdvisor®</p>
+        <h1 className="font-black text-4xl md:text-5xl tracking-tight text-[#00b4d8]">Complete Your Company Profile</h1>
+        <p className="text-lg md:text-xl text-neutral-600 mt-2">All data is saved securely to SupplierAdvisor®</p>
 
         <div className="flex items-center gap-4 my-8">
           <div className="flex-1 bg-neutral-200 h-2.5 rounded-full overflow-hidden">
-            <div className="bg-[#00b4d8] h-2.5 rounded-full" style={{ width: `${progress}%` }} />
+            <div className="bg-[#00b4d8] h-2.5 rounded-full transition-all" style={{ width: `${progress}%` }} />
           </div>
-          <span className="font-medium text-[#00b4d8]">{progress}% complete</span>
+          <span className="font-medium text-[#00b4d8] text-sm md:text-base">{progress}% complete</span>
         </div>
 
-        <div className="bg-white rounded-3xl shadow-sm border border-neutral-100 p-12">
+        <div className="bg-white rounded-3xl shadow-sm border border-neutral-100 p-6 md:p-12">
 
+          {/* STEP 1 RESPONSIVE */}
           {step === 1 && (
             <div>
-              <h2 className="text-3xl font-bold mb-8">1. Company Details</h2>
+              <h2 className="text-2xl md:text-3xl font-bold mb-8">1. Company Details</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <input type="text" placeholder="Legal Name" className="input w-full" value={form.legal_name} onChange={e => setForm(p => ({...p, legal_name: e.target.value}))} />
                 <input type="text" placeholder="Trading Name" className="input w-full" value={form.trading_name} onChange={e => setForm(p => ({...p, trading_name: e.target.value}))} />
@@ -368,7 +363,7 @@ export default function Onboarding() {
               <input type="email" placeholder="Email Address" className="input w-full mt-6" value={form.email} onChange={e => setForm(p => ({...p, email: e.target.value}))} />
               <input type="text" placeholder="Company Registration Number" className="input w-full mt-6" value={form.registration_number} onChange={e => setForm(p => ({...p, registration_number: e.target.value}))} />
 
-              <div className="grid grid-cols-2 gap-6 mt-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-8">
                 <div>
                   <label className="block text-sm mb-3">Upload Registration Certificate</label>
                   <input type="file" onChange={e => handleUpload('registration_document_url', e)} className="hidden" id="reg-upload" />
@@ -383,10 +378,11 @@ export default function Onboarding() {
             </div>
           )}
 
+          {/* STEP 2 RESPONSIVE */}
           {step === 2 && (
             <div>
-              <h2 className="text-3xl font-bold mb-8">2. Location</h2>
-              <div className="grid grid-cols-4 gap-6">
+              <h2 className="text-2xl md:text-3xl font-bold mb-8">2. Location</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
                 <select className="input w-full" value={form.planet} onChange={e => setForm(p => ({...p, planet: e.target.value}))}>
                   <option value="Earth">Earth</option>
                   <option value="Moon">Moon</option>
@@ -406,25 +402,26 @@ export default function Onboarding() {
                 </select>
               </div>
               <input type="text" placeholder="Street Address" className="input w-full mt-6" value={form.street} onChange={e => setForm(p => ({...p, street: e.target.value}))} />
-              <div className="grid grid-cols-2 gap-6 mt-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
                 <input type="text" placeholder="City" className="input w-full" value={form.city} onChange={e => setForm(p => ({...p, city: e.target.value}))} />
                 <input type="text" placeholder="Postal Code" className="input w-full" value={form.postal_code} onChange={e => setForm(p => ({...p, postal_code: e.target.value}))} />
               </div>
             </div>
           )}
 
+          {/* STEP 3 RESPONSIVE 3-COLUMN */}
           {step === 3 && (
             <div>
-              <h2 className="text-3xl font-bold mb-8">3. Industries & Sub-Industries</h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <h2 className="text-2xl md:text-3xl font-bold mb-8">3. Industries & Sub-Industries</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
                 {industriesList.map((ind) => (
                   <div key={ind.name} className="border border-neutral-200 rounded-3xl overflow-hidden">
-                    <button onClick={() => toggleIndustry(ind.name)} className="w-full flex justify-between px-8 py-5 text-left hover:bg-neutral-50">
-                      <span className="font-semibold text-lg">{ind.name}</span>
+                    <button onClick={() => toggleIndustry(ind.name)} className="w-full flex justify-between px-6 py-5 text-left hover:bg-neutral-50 text-sm md:text-base">
+                      <span className="font-semibold">{ind.name}</span>
                       <ChevronDown className={`transition ${openIndustries[ind.name] ? 'rotate-180' : ''}`} />
                     </button>
                     {openIndustries[ind.name] && (
-                      <div className="px-8 pb-6 grid grid-cols-1 gap-3 text-sm">
+                      <div className="px-6 pb-6 grid grid-cols-1 gap-3 text-sm">
                         {ind.sub.map((sub) => (
                           <label key={sub} className="flex items-center gap-3 p-3 hover:bg-neutral-50 rounded-2xl cursor-pointer">
                             <input type="checkbox" checked={form.industries.includes(sub)} onChange={() => {
@@ -442,9 +439,10 @@ export default function Onboarding() {
             </div>
           )}
 
+          {/* STEP 4 RESPONSIVE */}
           {step === 4 && (
             <div className="space-y-8">
-              <h2 className="text-3xl font-bold">4. Financial & Banking</h2>
+              <h2 className="text-2xl md:text-3xl font-bold">4. Financial & Banking</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div><label className="block text-sm font-medium mb-2">Tax Number</label><input className="input w-full" value={form.tax_number} onChange={e => setForm(p => ({...p, tax_number: e.target.value}))} /></div>
                 <div><label className="block text-sm font-medium mb-2">VAT Number</label><input className="input w-full" value={form.vat_number} onChange={e => setForm(p => ({...p, vat_number: e.target.value}))} /></div>
@@ -474,9 +472,10 @@ export default function Onboarding() {
             </div>
           )}
 
+          {/* STEP 5 RESPONSIVE */}
           {step === 5 && (
             <div>
-              <h2 className="text-3xl font-bold mb-8">5. Products & Services</h2>
+              <h2 className="text-2xl md:text-3xl font-bold mb-8">5. Products & Services</h2>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
                 <div>
                   <h3 className="font-semibold mb-6">Add Product</h3>
@@ -501,10 +500,11 @@ export default function Onboarding() {
             </div>
           )}
 
+          {/* STEP 6 RESPONSIVE */}
           {step === 6 && (
             <div>
-              <h2 className="text-3xl font-bold mb-8">6. Certificates & Documents</h2>
-              <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
+              <h2 className="text-2xl md:text-3xl font-bold mb-8">6. Certificates & Documents</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 items-end">
                 <div className="md:col-span-2"><label>Certificate Name</label><input className="input w-full" value={newCert.name} onChange={e => setNewCert(p => ({...p, name: e.target.value}))} /></div>
                 <div className="md:col-span-2"><label>Certified Body</label>
                   <select className="input w-full" value={newCert.body} onChange={e => setNewCert(p => ({...p, body: e.target.value}))}>
@@ -522,8 +522,8 @@ export default function Onboarding() {
 
           {step === 7 && (
             <div>
-              <h2 className="text-3xl font-bold mb-8">7. Review & Submit</h2>
-              <div className="bg-slate-50 p-10 rounded-3xl border border-neutral-100 space-y-8 text-base">
+              <h2 className="text-2xl md:text-3xl font-bold mb-8">7. Review & Submit</h2>
+              <div className="bg-slate-50 p-6 md:p-10 rounded-3xl border border-neutral-100 space-y-8 text-base">
                 <div><strong>Company:</strong> {form.legal_name} ({form.trading_name})</div>
                 <div>
                   <strong>Location:</strong> {form.planet} • {form.continent} • {form.country} • {form.province}<br />
@@ -538,7 +538,7 @@ export default function Onboarding() {
           )}
         </div>
 
-        <div className="flex gap-4 mt-12">
+        <div className="flex flex-col sm:flex-row gap-4 mt-12">
           {step > 1 && <button onClick={() => setStep(s => s - 1)} className="flex-1 border px-8 py-4 rounded-3xl font-medium">← Back</button>}
           <button onClick={() => setStep(s => s + 1)} className="flex-1 border px-8 py-4 rounded-3xl font-medium">Skip this Section</button>
           <button 
