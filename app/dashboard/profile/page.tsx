@@ -340,7 +340,7 @@ export default function MyBusinessProfile() {
           )}
         </div>
 
-        {/* 2. Location — EXACT SAME AS ONBOARDING (cascading dropdowns) */}
+        {/* 2. Location — EXACT SAME AS ONBOARDING (cascading) */}
         <div className="bg-white rounded-3xl shadow-sm border border-neutral-100 p-8">
           <div className="flex justify-between items-center mb-6 cursor-pointer" onClick={() => toggleSection('location')}>
             <h2 className="text-2xl font-bold">2. Location</h2>
@@ -376,7 +376,7 @@ export default function MyBusinessProfile() {
           )}
         </div>
 
-        {/* 3. Industries */}
+        {/* 3. Industries — EXACT SAME AS ONBOARDING (full grid with checkboxes) */}
         <div className="bg-white rounded-3xl shadow-sm border border-neutral-100 p-8">
           <div className="flex justify-between items-center mb-6 cursor-pointer" onClick={() => toggleSection('industries')}>
             <h2 className="text-2xl font-bold">3. Industries & Sub-Industries</h2>
@@ -502,31 +502,6 @@ export default function MyBusinessProfile() {
         <button onClick={loadProfile} className="border px-8 py-4 rounded-3xl hover:bg-slate-100 flex items-center gap-2"><RotateCw size={18} /> Refresh Data</button>
         <button onClick={saveProfile} disabled={loading} className="btn-primary flex items-center gap-3 px-12 py-4">
           {loading ? 'Saving to Supabase...' : 'Save All Changes'} <ArrowRight />
-        </button>
-      </div>
-
-      {/* SEED BUTTON */}
-      <div className="mt-12 flex justify-center">
-        <button 
-          onClick={async () => {
-            if (!confirm("Add 6 test companies to Supabase?")) return;
-            const testCompanies = [
-              { legal_name: "FreshFarm Co", trading_name: "FreshFarm", country: "South Africa", province: "KwaZulu-Natal" },
-              { legal_name: "OceanCatch Ltd", trading_name: "OceanCatch", country: "South Africa", province: "Western Cape" },
-              { legal_name: "GreenHarvest Pty", trading_name: "GreenHarvest", country: "South Africa", province: "Gauteng" },
-              { legal_name: "AgriTech SA", trading_name: "AgriTech", country: "South Africa", province: "Eastern Cape" },
-              { legal_name: "BioGrow Farms", trading_name: "BioGrow", country: "South Africa", province: "Free State" },
-              { legal_name: "SupplyChain Pro", trading_name: "SupplyChain", country: "South Africa", province: "Limpopo" }
-            ];
-            for (const comp of testCompanies) {
-              await supabase.from('profiles').insert({ ...comp, id: `test-${Date.now()}` });
-            }
-            toast.success("6 test companies added to Supabase!");
-            loadProfile();
-          }}
-          className="bg-emerald-600 text-white px-8 py-4 rounded-3xl font-semibold flex items-center gap-3"
-        >
-          <Upload size={20} /> Seed 6 Test Companies (for testing)
         </button>
       </div>
     </div>
