@@ -52,9 +52,7 @@ const locationData: LocationData = {
     }
   },
   'North America': {
-    countries: [
-      { name: "Canada", flag: "🇨🇦" }, { name: "Mexico", flag: "🇲🇽" }, { name: "United States", flag: "🇺🇸" }
-    ],
+    countries: [{ name: "Canada", flag: "🇨🇦" }, { name: "Mexico", flag: "🇲🇽" }, { name: "United States", flag: "🇺🇸" }],
     provinces: {
       'United States': ['Alabama','Alaska','Arizona','Arkansas','California','Colorado','Connecticut','Delaware','Florida','Georgia','Hawaii','Idaho','Illinois','Indiana','Iowa','Kansas','Kentucky','Louisiana','Maine','Maryland','Massachusetts','Michigan','Minnesota','Mississippi','Missouri','Montana','Nebraska','Nevada','New Hampshire','New Jersey','New Mexico','New York','North Carolina','North Dakota','Ohio','Oklahoma','Oregon','Pennsylvania','Rhode Island','South Carolina','South Dakota','Tennessee','Texas','Utah','Vermont','Virginia','Washington','West Virginia','Wisconsin','Wyoming'],
       Canada: ['Alberta','British Columbia','Manitoba','New Brunswick','Newfoundland and Labrador','Nova Scotia','Ontario','Prince Edward Island','Quebec','Saskatchewan'],
@@ -299,14 +297,17 @@ export default function Onboarding() {
   };
 
   const handleNext = () => {
-    if (step < 7) setStep(s => s + 1);
-    else saveAll();
+    if (step < 7) {
+      setStep(s => s + 1);
+    } else {
+      saveAll();
+    }
   };
 
   const progress = calculateProgress();
 
-  // === PRIVY LOGIN SCREEN AS FIRST STEP ===
-  if (!user) {
+  // PRIVY LOGIN/REGISTER AS THE ABSOLUTE FIRST SCREEN
+  if (!user || !ready) {
     return (
       <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center">
         <div className="max-w-md text-center">
@@ -314,14 +315,14 @@ export default function Onboarding() {
             <Wallet className="w-12 h-12 text-white" />
           </div>
           <h1 className="font-black text-5xl tracking-tight text-[#00b4d8]">Welcome to SupplierAdvisor®</h1>
-          <p className="text-2xl text-neutral-600 mt-4">Log in with Privy to start your verified business onboarding</p>
+          <p className="text-2xl text-neutral-600 mt-4">Log in or register with Privy to start your verified business onboarding</p>
           <button 
             onClick={login}
             className="mt-12 btn-primary text-xl py-5 px-16 flex items-center gap-3 mx-auto"
           >
-            <Wallet size={28} /> Log in with Privy
+            <Wallet size={28} /> Log in / Register with Privy
           </button>
-          <p className="text-sm text-neutral-500 mt-8">Secure • On-chain verified • Zero extra steps</p>
+          <p className="text-sm text-neutral-500 mt-8">Secure wallet login • On-chain verification starts here</p>
         </div>
       </div>
     );
@@ -344,7 +345,6 @@ export default function Onboarding() {
 
         <div className="bg-white rounded-3xl shadow-sm border border-neutral-100 p-12">
 
-          {/* STEP 1 */}
           {step === 1 && (
             <div>
               <h2 className="text-3xl font-bold mb-8">1. Company Details</h2>
@@ -371,7 +371,6 @@ export default function Onboarding() {
             </div>
           )}
 
-          {/* STEP 2 */}
           {step === 2 && (
             <div>
               <h2 className="text-3xl font-bold mb-8">2. Location</h2>
@@ -402,7 +401,6 @@ export default function Onboarding() {
             </div>
           )}
 
-          {/* STEP 3 */}
           {step === 3 && (
             <div>
               <h2 className="text-3xl font-bold mb-8">3. Industries & Sub-Industries</h2>
@@ -432,7 +430,6 @@ export default function Onboarding() {
             </div>
           )}
 
-          {/* STEP 4 */}
           {step === 4 && (
             <div className="space-y-8">
               <h2 className="text-3xl font-bold">4. Financial & Banking</h2>
@@ -465,7 +462,6 @@ export default function Onboarding() {
             </div>
           )}
 
-          {/* STEP 5 */}
           {step === 5 && (
             <div>
               <h2 className="text-3xl font-bold mb-8">5. Products & Services</h2>
@@ -493,7 +489,6 @@ export default function Onboarding() {
             </div>
           )}
 
-          {/* STEP 6 */}
           {step === 6 && (
             <div>
               <h2 className="text-3xl font-bold mb-8">6. Certificates & Documents</h2>
@@ -513,7 +508,6 @@ export default function Onboarding() {
             </div>
           )}
 
-          {/* STEP 7 — REVIEW */}
           {step === 7 && (
             <div>
               <h2 className="text-3xl font-bold mb-8">7. Review & Submit</h2>
