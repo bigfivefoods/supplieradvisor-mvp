@@ -279,10 +279,7 @@ export default function Onboarding() {
   };
 
   const saveAll = async () => {
-    if (!cleanId) {
-      toast.error("Please log in with Privy first");
-      return;
-    }
+    if (!cleanId) return;
     setLoading(true);
     try {
       const profileData = { id: cleanId, ...form, updated_at: new Date().toISOString() };
@@ -302,16 +299,13 @@ export default function Onboarding() {
   };
 
   const handleNext = () => {
-    if (step < 7) {
-      setStep(s => s + 1);
-    } else {
-      saveAll();
-    }
+    if (step < 7) setStep(s => s + 1);
+    else saveAll();
   };
 
   const progress = calculateProgress();
 
-  // PRIVY LOGIN SCREEN - FIRST STEP
+  // === PRIVY LOGIN SCREEN AS FIRST STEP ===
   if (!user) {
     return (
       <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center">
