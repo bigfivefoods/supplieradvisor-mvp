@@ -88,7 +88,7 @@ export default function MyBusinessProfile() {
     if (form.services.length) await supabase.from('business_services').upsert(form.services.map(name => ({ profile_id: cleanId, name })));
     if (form.certifications.length) await supabase.from('business_certifications').upsert(form.certifications.map(c => ({ profile_id: cleanId, ...c })));
 
-    toast.success("✅ All changes saved to SupplierAdvisor®");
+    toast.success("✅ All changes saved to Supabase — data is now on the server!");
     setLoading(false);
   };
 
@@ -98,7 +98,7 @@ export default function MyBusinessProfile() {
       <div className="flex items-end justify-between mb-8">
         <div>
           <h1 className="font-black text-5xl tracking-tight text-[#00b4d8]">My Business Profile</h1>
-          <p className="text-xl text-neutral-600">Complete & verified supplier record • All data from onboarding</p>
+          <p className="text-xl text-neutral-600">Exact mirror of onboarding • All data saved to Supabase</p>
         </div>
       </div>
 
@@ -112,26 +112,11 @@ export default function MyBusinessProfile() {
           </div>
           {expanded.basics && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div>
-                <label className="block text-sm mb-2">Legal Name</label>
-                <input type="text" className="input w-full" value={form.legal_name} onChange={e => setForm(p => ({...p, legal_name: e.target.value}))} />
-              </div>
-              <div>
-                <label className="block text-sm mb-2">Trading Name</label>
-                <input type="text" className="input w-full" value={form.trading_name} onChange={e => setForm(p => ({...p, trading_name: e.target.value}))} />
-              </div>
-              <div>
-                <label className="block text-sm mb-2">Contact Name</label>
-                <input type="text" className="input w-full" value={form.contact_name} onChange={e => setForm(p => ({...p, contact_name: e.target.value}))} />
-              </div>
-              <div>
-                <label className="block text-sm mb-2">Email Address</label>
-                <input type="email" className="input w-full" value={form.email} onChange={e => setForm(p => ({...p, email: e.target.value}))} />
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm mb-2">Company Registration Number</label>
-                <input type="text" className="input w-full" value={form.registration_number} onChange={e => setForm(p => ({...p, registration_number: e.target.value}))} />
-              </div>
+              <div><label className="block text-sm mb-2">Legal Name</label><input className="input w-full" value={form.legal_name} onChange={e => setForm(p => ({...p, legal_name: e.target.value}))} /></div>
+              <div><label className="block text-sm mb-2">Trading Name</label><input className="input w-full" value={form.trading_name} onChange={e => setForm(p => ({...p, trading_name: e.target.value}))} /></div>
+              <div><label className="block text-sm mb-2">Contact Name</label><input className="input w-full" value={form.contact_name} onChange={e => setForm(p => ({...p, contact_name: e.target.value}))} /></div>
+              <div><label className="block text-sm mb-2">Email Address</label><input type="email" className="input w-full" value={form.email} onChange={e => setForm(p => ({...p, email: e.target.value}))} /></div>
+              <div className="md:col-span-2"><label className="block text-sm mb-2">Company Registration Number</label><input className="input w-full" value={form.registration_number} onChange={e => setForm(p => ({...p, registration_number: e.target.value}))} /></div>
               <div className="flex items-center gap-8">
                 {form.logo_url && <Image src={form.logo_url} alt="Logo" width={120} height={120} className="rounded-2xl border" />}
                 <div>
@@ -222,7 +207,6 @@ export default function MyBusinessProfile() {
           </div>
           {expanded.products && (
             <div className="space-y-8">
-              {/* Products list */}
               <div>
                 <h3 className="font-semibold mb-4">Products</h3>
                 <div className="space-y-3">
@@ -234,7 +218,6 @@ export default function MyBusinessProfile() {
                   ))}
                 </div>
               </div>
-              {/* Services list */}
               <div>
                 <h3 className="font-semibold mb-4">Services</h3>
                 <div className="flex flex-wrap gap-3">
@@ -258,7 +241,7 @@ export default function MyBusinessProfile() {
               {form.certifications.map((c, i) => (
                 <div key={i} className="flex justify-between items-center bg-neutral-50 p-4 rounded-3xl">
                   <div>{c.name} ({c.body})</div>
-                  <div className="text-emerald-600 text-sm">{c.document_url ? '✓ Document' : ''}</div>
+                  <div className="text-emerald-600 text-sm">{c.document_url ? '✓ Document linked' : ''}</div>
                 </div>
               ))}
             </div>
@@ -268,9 +251,9 @@ export default function MyBusinessProfile() {
       </div>
 
       <div className="flex justify-end gap-4 mt-12">
-        <button onClick={loadProfile} className="border px-8 py-4 rounded-3xl hover:bg-slate-100 flex items-center gap-2"><RotateCw size={18} /> Refresh</button>
+        <button onClick={loadProfile} className="border px-8 py-4 rounded-3xl hover:bg-slate-100 flex items-center gap-2"><RotateCw size={18} /> Refresh Data</button>
         <button onClick={saveProfile} disabled={loading} className="btn-primary flex items-center gap-3 px-12 py-4">
-          {loading ? 'Saving...' : 'Save All Changes'} <ArrowRight />
+          {loading ? 'Saving to Supabase...' : 'Save All Changes'} <ArrowRight />
         </button>
       </div>
     </div>
