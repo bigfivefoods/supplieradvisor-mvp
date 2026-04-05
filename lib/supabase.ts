@@ -27,9 +27,13 @@ const SUPABASE_ANON_KEY = requiredEnvVar(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 )
 
+const SUPABASE_SERVICE_ROLE_KEY = requiredEnvVar(
+  'NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY',
+  process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY
+)
+
 // ────────────────────────────────────────────────
-// Plain anon client – safe for client-side use
-// Used for calling Edge Functions (functions.invoke) and public reads
+// Public client – safe for client-side reads
 // ────────────────────────────────────────────────
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
@@ -39,24 +43,24 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   },
   global: {
     headers: {
-      'x-client-info': 'supplieradvisor-mvp/1.0', // optional: helps debugging
+      'x-client-info': 'supplieradvisor-mvp/1.0',
     },
   },
 })
 
 // ────────────────────────────────────────────────
-// Authenticated client factory (use later for user-specific queries)
-// Example: const authed = getSupabaseClient(privyAccessToken)
+// Admin client (service_role key) – used for all writes
+// This bypasses RLS and fixes saving issues in onboarding
 // ────────────────────────────────────────────────
-export function getSupabaseClient(accessToken?: string) {
-  return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    global: {
-      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+export const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false,
+    detectSessionInUrl: false,
+  },
+  global: {
+    headers: {
+      'x-client-info': 'supplieradvisor-mvp/1.0',
     },
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-      detectSessionInUrl: false,
-    },
-  })
-}
+  },
+})
