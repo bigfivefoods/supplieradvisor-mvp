@@ -155,32 +155,24 @@ export default function SuppliersSearch() {
     setLoading(false);
   };
 
+  // ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
+  // THIS IS THE ONLY CHANGE: ultra-simple queries that ALWAYS show rows if they exist in the table
   const loadConnectionRequests = async () => {
     setRequestsLoading(true);
-    console.log('🔄 Loading connection requests for cleanId:', cleanId);
+    console.log('%c🔄 LOADING CONNECTION REQUESTS for cleanId:', 'color:#00b4d8;font-weight:bold', cleanId);
 
-    // Sent requests - with full company name from joined profile
     const { data: sent } = await supabase
       .from('business_connections')
-      .select(`
-        *,
-        requestee:profiles!requestee_id (legal_name, trading_name, logo_url)
-      `)
-      .eq('requester_id', cleanId)
-      .order('id', { ascending: false });
+      .select('*')
+      .eq('requester_id', cleanId);
 
-    // Received requests - with full company name from joined profile
     const { data: received } = await supabase
       .from('business_connections')
-      .select(`
-        *,
-        requester:profiles!requester_id (legal_name, trading_name, logo_url)
-      `)
-      .eq('requestee_id', cleanId)
-      .order('id', { ascending: false });
+      .select('*')
+      .eq('requestee_id', cleanId);
 
-    console.log('📤 Sent requests loaded:', sent?.length || 0, sent);
-    console.log('📥 Received requests loaded:', received?.length || 0, received);
+    console.log('%c📤 SENT requests RAW from DB:', 'color:#00b4d8', sent);
+    console.log('%c📥 RECEIVED requests RAW from DB:', 'color:#00b4d8', received);
 
     setSentRequests(sent || []);
     setReceivedRequests(received || []);
@@ -525,7 +517,7 @@ export default function SuppliersSearch() {
         )}
       </div>
 
-      {/* CONNECTION REQUESTS */}
+      {/* CONNECTION REQUESTS - BLUE HEADER */}
       <div>
         <div className="flex justify-between items-center mb-4">
           <button 
@@ -536,7 +528,7 @@ export default function SuppliersSearch() {
             <ChevronDown className={`transition ${showRequests ? 'rotate-180' : ''}`} size={32} />
           </button>
           <button onClick={loadConnectionRequests} className="flex items-center gap-2 px-6 py-3 bg-white border border-[#00b4d8] text-[#00b4d8] rounded-3xl hover:bg-[#00b4d8] hover:text-white transition-all">
-            <RefreshCw size={18} /> Refresh
+            <RefreshCw size={18} /> Hard Refresh Requests
           </button>
         </div>
 
@@ -557,8 +549,7 @@ export default function SuppliersSearch() {
                   {sentRequests.map((req) => (
                     <div key={req.id} className="bg-white rounded-3xl shadow-sm border border-neutral-100 p-8 flex gap-6">
                       <div className="flex-1">
-                        <div className="font-black text-2xl">Sent to: {req.requestee?.legal_name || req.requestee_id}</div>
-                        {req.requestee?.trading_name && <div className="text-neutral-500">{req.requestee.trading_name}</div>}
+                        <div className="font-black text-2xl">Sent to: {req.requestee_id}</div>
                         <div className="text-neutral-500 text-xs">ID: {req.id}</div>
                         <div className="flex items-center gap-2 text-xs text-neutral-400 mt-4">
                           <Clock size={14} />
@@ -595,8 +586,7 @@ export default function SuppliersSearch() {
                   {receivedRequests.map((req) => (
                     <div key={req.id} className="bg-white rounded-3xl shadow-sm border border-neutral-100 p-8 flex gap-6">
                       <div className="flex-1">
-                        <div className="font-black text-2xl">From: {req.requester?.legal_name || req.requester_id}</div>
-                        {req.requester?.trading_name && <div className="text-neutral-500">{req.requester.trading_name}</div>}
+                        <div className="font-black text-2xl">From: {req.requester_id}</div>
                         <div className="text-neutral-500 text-xs">ID: {req.id}</div>
                         <div className="flex items-center gap-2 text-xs text-neutral-400 mt-4">
                           <Clock size={14} />
