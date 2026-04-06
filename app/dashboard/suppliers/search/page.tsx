@@ -157,17 +157,26 @@ export default function SuppliersSearch() {
 
   const loadConnectionRequests = async () => {
     setRequestsLoading(true);
-    const { data: sent } = await supabase
+    console.log('🔄 Loading connection requests for cleanId:', cleanId);
+
+    // Simplified query (no joins) to avoid the empty error you are seeing
+    const { data: sent, error: sentError } = await supabase
       .from('business_connections')
-      .select(`*, requestee:profiles!requestee_id (legal_name, trading_name, logo_url, country, province, industries)`)
+      .select('*')
       .eq('requester_id', cleanId)
       .order('created_at', { ascending: false });
 
-    const { data: received } = await supabase
+    const { data: received, error: receivedError } = await supabase
       .from('business_connections')
-      .select(`*, requester:profiles!requester_id (legal_name, trading_name, logo_url, country, province, industries)`)
+      .select('*')
       .eq('requestee_id', cleanId)
       .order('created_at', { ascending: false });
+
+    if (sentError) console.error('Sent requests error FULL:', JSON.stringify(sentError, null, 2));
+    if (receivedError) console.error('Received requests error FULL:', JSON.stringify(receivedError, null, 2));
+
+    console.log('📤 Sent requests loaded from DB:', sent?.length || 0, sent);
+    console.log('📥 Received requests loaded from DB:', received?.length || 0, received);
 
     setSentRequests(sent || []);
     setReceivedRequests(received || []);
@@ -280,7 +289,6 @@ export default function SuppliersSearch() {
 
       {/* ROW 1: 2/3 Filters + 1/3 Invite */}
       <div className="grid grid-cols-12 gap-8 mb-12">
-        {/* 2/3 Advanced Metadata Filters */}
         <div className="col-span-12 lg:col-span-8">
           <button 
             onClick={() => setShowFilters(!showFilters)}
@@ -421,7 +429,6 @@ export default function SuppliersSearch() {
           )}
         </div>
 
-        {/* 1/3 Invite New Business */}
         <div className="col-span-12 lg:col-span-4">
           <button 
             onClick={() => setShowInvite(!showInvite)}
@@ -531,7 +538,6 @@ export default function SuppliersSearch() {
 
         {showRequests && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-            {/* Requests Sent */}
             <div>
               <h3 className="text-2xl font-bold mb-6 flex items-center gap-3">
                 Requests Sent <span className="text-sm bg-amber-100 text-amber-700 px-3 py-1 rounded-full">{sentRequests.length}</span>
@@ -546,8 +552,8 @@ export default function SuppliersSearch() {
                   {sentRequests.map((req) => (
                     <div key={req.id} className="bg-white rounded-3xl shadow-sm border border-neutral-100 p-8 flex gap-6">
                       <div className="flex-1">
-                        <div className="font-black text-2xl">{req.requestee?.legal_name}</div>
-                        <div className="text-neutral-500">{req.requestee?.trading_name}</div>
+                        <div className="font-black text-2xl">Request ID: {req.id}</div>
+                        <div className="text-neutral-500">To: {req.requestee_id}</div>
                         <div className="flex items-center gap-2 text-xs text-neutral-400 mt-4">
                           <Clock size={14} />
                           Sent {new Date(req.created_at).toLocaleDateString()} at {new Date(req.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -569,7 +575,6 @@ export default function SuppliersSearch() {
               )}
             </div>
 
-            {/* Requests Received */}
             <div>
               <h3 className="text-2xl font-bold mb-6 flex items-center gap-3">
                 Requests Received <span className="text-sm bg-blue-100 text-blue-700 px-3 py-1 rounded-full">{receivedRequests.length}</span>
@@ -583,8 +588,8 @@ export default function SuppliersSearch() {
                   {receivedRequests.map((req) => (
                     <div key={req.id} className="bg-white rounded-3xl shadow-sm border border-neutral-100 p-8 flex gap-6">
                       <div className="flex-1">
-                        <div className="font-black text-2xl">{req.requester?.legal_name}</div>
-                        <div className="text-neutral-500">{req.requester?.trading_name}</div>
+                        <div className="font-black text-2xl">Request ID: {req.id}</div>
+                        <div className="text-neutral-500">From: {req.requester_id}</div>
                         <div className="flex items-center gap-2 text-xs text-neutral-400 mt-4">
                           <Clock size={14} />
                           Received {new Date(req.created_at).toLocaleDateString()} at {new Date(req.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
