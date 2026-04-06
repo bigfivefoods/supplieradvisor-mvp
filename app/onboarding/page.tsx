@@ -51,26 +51,11 @@ const locationData: LocationData = {
       Senegal: ['Dakar']
     }
   },
-  'North America': {
-    countries: [{ name: "Canada", flag: "🇨🇦" }, { name: "Mexico", flag: "🇲🇽" }, { name: "United States", flag: "🇺🇸" }],
-    provinces: { 'United States': ['California', 'Texas', 'New York', 'Florida', 'Illinois'] }
-  },
-  Europe: {
-    countries: [{ name: "United Kingdom", flag: "🇬🇧" }, { name: "Germany", flag: "🇩🇪" }, { name: "France", flag: "🇫🇷" }, { name: "Italy", flag: "🇮🇹" }, { name: "Spain", flag: "🇪🇸" }],
-    provinces: {}
-  },
-  Asia: {
-    countries: [{ name: "India", flag: "🇮🇳" }, { name: "China", flag: "🇨🇳" }, { name: "Japan", flag: "🇯🇵" }, { name: "South Korea", flag: "🇰🇷" }],
-    provinces: {}
-  },
-  'South America': {
-    countries: [{ name: "Brazil", flag: "🇧🇷" }, { name: "Argentina", flag: "🇦🇷" }, { name: "Chile", flag: "🇨🇱" }],
-    provinces: {}
-  },
-  Oceania: {
-    countries: [{ name: "Australia", flag: "🇦🇺" }, { name: "New Zealand", flag: "🇳🇿" }],
-    provinces: {}
-  },
+  'North America': { countries: [{ name: "Canada", flag: "🇨🇦" }, { name: "Mexico", flag: "🇲🇽" }, { name: "United States", flag: "🇺🇸" }], provinces: { 'United States': ['California', 'Texas', 'New York', 'Florida', 'Illinois'] } },
+  Europe: { countries: [{ name: "United Kingdom", flag: "🇬🇧" }, { name: "Germany", flag: "🇩🇪" }, { name: "France", flag: "🇫🇷" }, { name: "Italy", flag: "🇮🇹" }, { name: "Spain", flag: "🇪🇸" }], provinces: {} },
+  Asia: { countries: [{ name: "India", flag: "🇮🇳" }, { name: "China", flag: "🇨🇳" }, { name: "Japan", flag: "🇯🇵" }, { name: "South Korea", flag: "🇰🇷" }], provinces: {} },
+  'South America': { countries: [{ name: "Brazil", flag: "🇧🇷" }, { name: "Argentina", flag: "🇦🇷" }, { name: "Chile", flag: "🇨🇱" }], provinces: {} },
+  Oceania: { countries: [{ name: "Australia", flag: "🇦🇺" }, { name: "New Zealand", flag: "🇳🇿" }], provinces: {} },
   Antarctica: { countries: [{ name: "Antarctica", flag: "🇦🇶" }], provinces: {} }
 };
 
@@ -148,8 +133,6 @@ export default function Onboarding() {
 
   const loadExistingProfile = async () => {
     console.log("=== LOADING EXISTING PROFILE ===", cleanId);
-
-    // SAFE LOAD – fixes PGRST116 "multiple rows" error (takes only newest row)
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
@@ -157,7 +140,6 @@ export default function Onboarding() {
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-
     if (error) console.error("Load profile error:", JSON.stringify(error, null, 2));
     if (data) {
       console.log("✅ Loaded profile:", data);
@@ -166,39 +148,29 @@ export default function Onboarding() {
   };
 
   const handleUpload = async (field: keyof typeof form, e: React.ChangeEvent<HTMLInputElement>) => {
-    console.log(`=== UPLOAD STARTED for ${field} ===`);
     const file = e.target.files?.[0];
     if (!file || !cleanId) return toast.error("Please select a file");
     setUploading(true);
     const fileName = `${cleanId}-${field}-${Date.now()}.${file.name.split('.').pop()}`;
     const { error } = await supabase.storage.from('certificates').upload(fileName, file, { upsert: true });
-    if (error) {
-      console.error("Upload error:", JSON.stringify(error, null, 2));
-      return toast.error("Upload failed");
-    }
+    if (error) return toast.error("Upload failed");
     const { data: { publicUrl } } = supabase.storage.from('certificates').getPublicUrl(fileName);
     setForm(p => ({ ...p, [field]: publicUrl }));
     setUploading(false);
     toast.success("✅ File uploaded");
-    console.log(`=== UPLOAD SUCCESS for ${field} ===`, publicUrl);
   };
 
   const handleCertUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    console.log("=== CERT UPLOAD STARTED ===");
     const file = e.target.files?.[0];
     if (!file || !cleanId) return toast.error("Please select a file");
     setUploading(true);
     const fileName = `${cleanId}-cert-${Date.now()}.${file.name.split('.').pop()}`;
     const { error } = await supabase.storage.from('certificates').upload(fileName, file, { upsert: true });
-    if (error) {
-      console.error("Cert upload error:", JSON.stringify(error, null, 2));
-      return toast.error("Upload failed");
-    }
+    if (error) return toast.error("Upload failed");
     const { data: { publicUrl } } = supabase.storage.from('certificates').getPublicUrl(fileName);
     setNewCert(p => ({ ...p, document_url: publicUrl }));
     setUploading(false);
     toast.success("✅ Certificate uploaded");
-    console.log("=== CERT UPLOAD SUCCESS ===", publicUrl);
   };
 
   const addProduct = () => {
@@ -228,9 +200,7 @@ export default function Onboarding() {
   const saveAll = async () => {
     console.log("=== SAVEALL STARTED ===");
     console.log("cleanId:", cleanId);
-
     if (!cleanId) return toast.error("Please log in with Privy first");
-
     setLoading(true);
     try {
       const profileData = {
@@ -264,6 +234,7 @@ export default function Onboarding() {
         iban: form.iban,
         swift: form.swift,
         bank_confirmation_url: form.bank_confirmation_url,
+        created_at: new Date().toISOString(),     // ← THIS FIXES THE 23502 ERROR
         updated_at: new Date().toISOString()
       };
 
@@ -303,7 +274,7 @@ export default function Onboarding() {
         else console.log("✅ Certs upsert success");
       }
 
-      toast.success("🎉 All information saved to Supabase and SupplierAdvisor®!");
+      toast.success("🎉 All information saved to SupplierAdvisor®!");
       console.log("=== SAVEALL COMPLETE – SUCCESS ===");
       router.push('/dashboard');
     } catch (error: any) {
@@ -456,7 +427,7 @@ export default function Onboarding() {
           </div>
         )}
 
-        {/* STEP 5 */}
+        {/* STEP 5 - Products & Services */}
         {step === 5 && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
             <div>
@@ -483,7 +454,7 @@ export default function Onboarding() {
           </div>
         )}
 
-        {/* STEP 6 */}
+        {/* STEP 6 - Certificates */}
         {step === 6 && (
           <div>
             <h2 className="text-3xl font-bold mb-8">6. Certificates & Documents</h2>
@@ -508,7 +479,7 @@ export default function Onboarding() {
           </div>
         )}
 
-        {/* STEP 7 */}
+        {/* STEP 7 - Review */}
         {step === 7 && (
           <div>
             <h2 className="text-3xl font-bold mb-8">7. Review & Submit</h2>
