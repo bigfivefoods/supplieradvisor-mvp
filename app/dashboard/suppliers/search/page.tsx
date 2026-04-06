@@ -524,10 +524,7 @@ export default function SuppliersSearch() {
             Connection Requests
             <ChevronDown className={`transition ${showRequests ? 'rotate-180' : ''}`} size={32} />
           </button>
-          <button 
-            onClick={loadConnectionRequests}
-            className="flex items-center gap-2 px-6 py-3 bg-white border border-[#00b4d8] text-[#00b4d8] rounded-3xl hover:bg-[#00b4d8] hover:text-white transition-all"
-          >
+          <button onClick={loadConnectionRequests} className="flex items-center gap-2 px-6 py-3 bg-white border border-[#00b4d8] text-[#00b4d8] rounded-3xl hover:bg-[#00b4d8] hover:text-white transition-all">
             <RefreshCw size={18} /> Refresh
           </button>
         </div>
