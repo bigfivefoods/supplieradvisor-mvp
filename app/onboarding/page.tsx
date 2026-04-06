@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, ArrowLeft, ChevronDown, Wallet, Upload } from 'lucide-react';
-import { getSupabaseAdmin } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import toast from 'react-hot-toast';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 
@@ -107,8 +107,6 @@ export default function Onboarding() {
   const router = useRouter();
   const cleanId = (user?.id || '').replace('privy:', '');
 
-  const admin = getSupabaseAdmin();   // ← LAZY ADMIN CLIENT (fixes Vercel build)
-
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -149,34 +147,49 @@ export default function Onboarding() {
   useEffect(() => { if (user && cleanId) loadExistingProfile(); }, [user, cleanId]);
 
   const loadExistingProfile = async () => {
-    const { data } = await admin.from('profiles').select('*').eq('id', cleanId).single();
-    if (data) setForm(prev => ({ ...prev, ...data }));
+    console.log("=== LOADING EXISTING PROFILE ===", cleanId);
+    const { data, error } = await supabase.from('profiles').select('*').eq('user_id', cleanId).maybeSingle();
+    if (error) console.error("Load profile error:", JSON.stringify(error, null, 2));
+    if (data) {
+      console.log("✅ Loaded profile:", data);
+      setForm(prev => ({ ...prev, ...data }));
+    }
   };
 
   const handleUpload = async (field: keyof typeof form, e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log(`=== UPLOAD STARTED for ${field} ===`);
     const file = e.target.files?.[0];
     if (!file || !cleanId) return toast.error("Please select a file");
     setUploading(true);
     const fileName = `${cleanId}-${field}-${Date.now()}.${file.name.split('.').pop()}`;
-    const { error } = await admin.storage.from('certificates').upload(fileName, file, { upsert: true });
-    if (error) return toast.error("Upload failed");
-    const { data: { publicUrl } } = admin.storage.from('certificates').getPublicUrl(fileName);
+    const { error } = await supabase.storage.from('certificates').upload(fileName, file, { upsert: true });
+    if (error) {
+      console.error("Upload error:", JSON.stringify(error, null, 2));
+      return toast.error("Upload failed");
+    }
+    const { data: { publicUrl } } = supabase.storage.from('certificates').getPublicUrl(fileName);
     setForm(p => ({ ...p, [field]: publicUrl }));
     setUploading(false);
     toast.success("✅ File uploaded");
+    console.log(`=== UPLOAD SUCCESS for ${field} ===`, publicUrl);
   };
 
   const handleCertUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log("=== CERT UPLOAD STARTED ===");
     const file = e.target.files?.[0];
     if (!file || !cleanId) return toast.error("Please select a file");
     setUploading(true);
     const fileName = `${cleanId}-cert-${Date.now()}.${file.name.split('.').pop()}`;
-    const { error } = await admin.storage.from('certificates').upload(fileName, file, { upsert: true });
-    if (error) return toast.error("Upload failed");
-    const { data: { publicUrl } } = admin.storage.from('certificates').getPublicUrl(fileName);
+    const { error } = await supabase.storage.from('certificates').upload(fileName, file, { upsert: true });
+    if (error) {
+      console.error("Cert upload error:", JSON.stringify(error, null, 2));
+      return toast.error("Upload failed");
+    }
+    const { data: { publicUrl } } = supabase.storage.from('certificates').getPublicUrl(fileName);
     setNewCert(p => ({ ...p, document_url: publicUrl }));
     setUploading(false);
     toast.success("✅ Certificate uploaded");
+    console.log("=== CERT UPLOAD SUCCESS ===", publicUrl);
   };
 
   const addProduct = () => {
@@ -204,18 +217,92 @@ export default function Onboarding() {
   };
 
   const saveAll = async () => {
-    if (!cleanId) return toast.error("Please log in with Privy first");
+    console.log("=== SAVEALL STARTED ===");
+    console.log("cleanId:", cleanId);
+
+    if (!cleanId) {
+      console.error("No cleanId - Privy login missing");
+      return toast.error("Please log in with Privy first");
+    }
+
     setLoading(true);
     try {
-      await admin.from('profiles').upsert({ id: cleanId, ...form, updated_at: new Date().toISOString() });
-      if (form.products.length > 0) await admin.from('business_products').upsert(form.products.map(p => ({ profile_id: cleanId, ...p })));
-      if (form.services.length > 0) await admin.from('business_services').upsert(form.services.map(name => ({ profile_id: cleanId, name })));
-      if (form.certifications.length > 0) await admin.from('business_certifications').upsert(form.certifications.map(c => ({ profile_id: cleanId, ...c })));
+      // Scalar-only profileData
+      const profileData = {
+        user_id: cleanId,
+        legal_name: form.legal_name,
+        trading_name: form.trading_name,
+        contact_name: form.contact_name,
+        email: form.email,
+        registration_number: form.registration_number,
+        registration_document_url: form.registration_document_url,
+        logo_url: form.logo_url,
+        planet: form.planet,
+        continent: form.continent,
+        country: form.country,
+        province: form.province,
+        street: form.street,
+        city: form.city,
+        postal_code: form.postal_code,
+        industries: form.industries,
+        tax_number: form.tax_number,
+        tax_document_url: form.tax_document_url,
+        vat_number: form.vat_number,
+        vat_document_url: form.vat_document_url,
+        export_license: form.export_license,
+        export_document_url: form.export_document_url,
+        import_license: form.import_license,
+        import_document_url: form.import_document_url,
+        bank_name: form.bank_name,
+        account_name: form.account_name,
+        account_number: form.account_number,
+        iban: form.iban,
+        swift: form.swift,
+        bank_confirmation_url: form.bank_confirmation_url,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      console.log("Upserting profiles...");
+      const { error: profileError } = await supabase.from('profiles').upsert(profileData);
+      if (profileError) console.error("Profile upsert error:", JSON.stringify(profileError, null, 2));
+      else console.log("✅ Profiles upsert success");
+
+      if (form.products.length > 0) {
+        console.log("Upserting business_products...");
+        const productsToInsert = form.products.map(p => ({
+          profile_id: cleanId,
+          description: p.description,
+          sku: p.sku,
+          uom: p.uom,
+          sellPrice: p.sellPrice,
+          leadTime: p.leadTime,
+          image_url: p.imageUrl
+        }));
+        const { error: prodError } = await supabase.from('business_products').upsert(productsToInsert);
+        if (prodError) console.error("Products upsert error:", JSON.stringify(prodError, null, 2));
+        else console.log("✅ Products upsert success");
+      }
+
+      if (form.services.length > 0) {
+        console.log("Upserting business_services...");
+        const { error: servError } = await supabase.from('business_services').upsert(form.services.map(name => ({ profile_id: cleanId, name })));
+        if (servError) console.error("Services upsert error:", JSON.stringify(servError, null, 2));
+        else console.log("✅ Services upsert success");
+      }
+
+      if (form.certifications.length > 0) {
+        console.log("Upserting business_certifications...");
+        const { error: certError } = await supabase.from('business_certifications').upsert(form.certifications.map(c => ({ profile_id: cleanId, ...c })));
+        if (certError) console.error("Certs upsert error:", JSON.stringify(certError, null, 2));
+        else console.log("✅ Certs upsert success");
+      }
 
       toast.success("🎉 All information saved to Supabase and SupplierAdvisor®!");
+      console.log("=== SAVEALL COMPLETE – SUCCESS ===");
       router.push('/dashboard');
     } catch (error: any) {
-      console.error("Save error:", error);
+      console.error("=== SAVEALL CATCH BLOCK ===", JSON.stringify(error, null, 2));
       toast.error(`Failed: ${error.message}`);
     } finally {
       setLoading(false);
@@ -255,7 +342,7 @@ export default function Onboarding() {
       </div>
 
       <div className="bg-white rounded-3xl shadow-sm border border-neutral-100 p-12">
-        {/* STEP 1 */}
+        {/* STEP 1 - Company Details */}
         {step === 1 && (
           <div>
             <h2 className="text-3xl font-bold mb-8">1. Company Details</h2>
@@ -281,7 +368,7 @@ export default function Onboarding() {
           </div>
         )}
 
-        {/* STEP 2 */}
+        {/* STEP 2 - Location */}
         {step === 2 && (
           <div>
             <h2 className="text-3xl font-bold mb-8">2. Location</h2>
@@ -312,7 +399,7 @@ export default function Onboarding() {
           </div>
         )}
 
-        {/* STEP 3 */}
+        {/* STEP 3 - Industries */}
         {step === 3 && (
           <div>
             <h2 className="text-3xl font-bold mb-8">3. Industries & Sub-Industries</h2>
@@ -341,7 +428,7 @@ export default function Onboarding() {
           </div>
         )}
 
-        {/* STEP 4 */}
+        {/* STEP 4 - Financial & Banking */}
         {step === 4 && (
           <div>
             <h2 className="text-3xl font-bold mb-8">4. Financial & Banking</h2>
