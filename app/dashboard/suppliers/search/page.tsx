@@ -161,24 +161,18 @@ export default function SuppliersSearch() {
 
     const { data: sent } = await supabase
       .from('business_connections')
-      .select(`
-        *,
-        requestee:profiles!requestee_id (legal_name, trading_name)
-      `)
+      .select('*')
       .eq('requester_id', cleanId)
       .order('id', { ascending: false });
 
     const { data: received } = await supabase
       .from('business_connections')
-      .select(`
-        *,
-        requester:profiles!requester_id (legal_name, trading_name)
-      `)
+      .select('*')
       .eq('requestee_id', cleanId)
       .order('id', { ascending: false });
 
-    console.log('📤 Sent requests loaded:', sent?.length || 0);
-    console.log('📥 Received requests loaded:', received?.length || 0);
+    console.log('📤 Sent requests loaded:', sent?.length || 0, sent);
+    console.log('📥 Received requests loaded:', received?.length || 0, received);
 
     setSentRequests(sent || []);
     setReceivedRequests(received || []);
@@ -523,7 +517,7 @@ export default function SuppliersSearch() {
         )}
       </div>
 
-      {/* CONNECTION REQUESTS – SHOWING COMPANY NAMES */}
+      {/* CONNECTION REQUESTS */}
       <div>
         <div className="flex justify-between items-center mb-4">
           <button 
@@ -555,8 +549,8 @@ export default function SuppliersSearch() {
                   {sentRequests.map((req) => (
                     <div key={req.id} className="bg-white rounded-3xl shadow-sm border border-neutral-100 p-8 flex gap-6">
                       <div className="flex-1">
-                        <div className="font-black text-2xl">Sent to: {req.requestee?.legal_name || req.requestee_id}</div>
-                        <div className="text-neutral-500">{req.requestee?.trading_name}</div>
+                        <div className="font-black text-2xl">Sent to: {req.requestee_id}</div>
+                        <div className="text-neutral-500 text-xs">ID: {req.id}</div>
                         <div className="flex items-center gap-2 text-xs text-neutral-400 mt-4">
                           <Clock size={14} />
                           Sent {new Date(req.created_at || Date.now()).toLocaleDateString()} at {new Date(req.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -592,8 +586,8 @@ export default function SuppliersSearch() {
                   {receivedRequests.map((req) => (
                     <div key={req.id} className="bg-white rounded-3xl shadow-sm border border-neutral-100 p-8 flex gap-6">
                       <div className="flex-1">
-                        <div className="font-black text-2xl">From: {req.requester?.legal_name || req.requester_id}</div>
-                        <div className="text-neutral-500">{req.requester?.trading_name}</div>
+                        <div className="font-black text-2xl">From: {req.requester_id}</div>
+                        <div className="text-neutral-500 text-xs">ID: {req.id}</div>
                         <div className="flex items-center gap-2 text-xs text-neutral-400 mt-4">
                           <Clock size={14} />
                           Received {new Date(req.created_at || Date.now()).toLocaleDateString()} at {new Date(req.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
