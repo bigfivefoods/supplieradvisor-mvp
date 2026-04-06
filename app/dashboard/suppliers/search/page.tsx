@@ -157,26 +157,17 @@ export default function SuppliersSearch() {
 
   const loadConnectionRequests = async () => {
     setRequestsLoading(true);
-    console.log('🔄 Loading connection requests for cleanId:', cleanId);
-
-    // Simplified query (no joins) to avoid the empty error you are seeing
-    const { data: sent, error: sentError } = await supabase
+    const { data: sent } = await supabase
       .from('business_connections')
       .select('*')
       .eq('requester_id', cleanId)
-      .order('created_at', { ascending: false });
+      .order('id', { ascending: false });
 
-    const { data: received, error: receivedError } = await supabase
+    const { data: received } = await supabase
       .from('business_connections')
       .select('*')
       .eq('requestee_id', cleanId)
-      .order('created_at', { ascending: false });
-
-    if (sentError) console.error('Sent requests error FULL:', JSON.stringify(sentError, null, 2));
-    if (receivedError) console.error('Received requests error FULL:', JSON.stringify(receivedError, null, 2));
-
-    console.log('📤 Sent requests loaded from DB:', sent?.length || 0, sent);
-    console.log('📥 Received requests loaded from DB:', received?.length || 0, received);
+      .order('id', { ascending: false });
 
     setSentRequests(sent || []);
     setReceivedRequests(received || []);
@@ -299,7 +290,6 @@ export default function SuppliersSearch() {
           </button>
           {showFilters && (
             <div className="card p-8">
-              {/* Company Name */}
               <div className="mb-8">
                 <button onClick={() => toggleFilter('companyName')} className="w-full flex justify-between text-lg font-medium mb-4">
                   Company Name
@@ -313,7 +303,6 @@ export default function SuppliersSearch() {
                 )}
               </div>
 
-              {/* Continent */}
               <div className="mb-8">
                 <button onClick={() => toggleFilter('continent')} className="w-full flex justify-between text-lg font-medium mb-4">
                   Continent
@@ -331,7 +320,6 @@ export default function SuppliersSearch() {
                 )}
               </div>
 
-              {/* Country */}
               <div className="mb-8">
                 <button onClick={() => toggleFilter('country')} className="w-full flex justify-between text-lg font-medium mb-4">
                   Country
@@ -353,7 +341,6 @@ export default function SuppliersSearch() {
                 )}
               </div>
 
-              {/* Province/State */}
               <div className="mb-8">
                 <button onClick={() => toggleFilter('province')} className="w-full flex justify-between text-lg font-medium mb-4">
                   Province / State
@@ -378,7 +365,6 @@ export default function SuppliersSearch() {
                 )}
               </div>
 
-              {/* Industry + Sub-Industry */}
               <div className="mb-8">
                 <button onClick={() => toggleFilter('industry')} className="w-full flex justify-between text-lg font-medium mb-4">
                   Industry Type
@@ -408,7 +394,6 @@ export default function SuppliersSearch() {
                 )}
               </div>
 
-              {/* Trust Score */}
               <div>
                 <button onClick={() => toggleFilter('trustScore')} className="w-full flex justify-between text-lg font-medium mb-4">
                   Trust Score (Min)
@@ -556,7 +541,7 @@ export default function SuppliersSearch() {
                         <div className="text-neutral-500">To: {req.requestee_id}</div>
                         <div className="flex items-center gap-2 text-xs text-neutral-400 mt-4">
                           <Clock size={14} />
-                          Sent {new Date(req.created_at).toLocaleDateString()} at {new Date(req.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          Sent {new Date(req.created_at || Date.now()).toLocaleDateString()} at {new Date(req.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </div>
                       </div>
                       <div className="flex flex-col justify-between items-end">
@@ -592,7 +577,7 @@ export default function SuppliersSearch() {
                         <div className="text-neutral-500">From: {req.requester_id}</div>
                         <div className="flex items-center gap-2 text-xs text-neutral-400 mt-4">
                           <Clock size={14} />
-                          Received {new Date(req.created_at).toLocaleDateString()} at {new Date(req.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          Received {new Date(req.created_at || Date.now()).toLocaleDateString()} at {new Date(req.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </div>
                       </div>
                       <div className="flex flex-col justify-between items-end">
