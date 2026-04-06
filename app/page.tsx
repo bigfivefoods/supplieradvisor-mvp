@@ -49,6 +49,15 @@ export default function LandingPage() {
             <button onClick={() => scrollToSection('for-business')} className="hover:text-[#00b4d8] transition-colors">For Business</button>
             <button onClick={() => scrollToSection('for-society')} className="hover:text-[#00b4d8] transition-colors">For Society</button>
             <button onClick={() => scrollToSection('for-humanity')} className="hover:text-[#00b4d8] transition-colors">For Humanity</button>
+            
+            {/* EXISTING CUSTOMER LOGIN – verified email + password supported by Privy */}
+            <button
+              onClick={login}
+              className="px-6 md:px-8 py-3.5 border border-[#00b4d8] text-[#00b4d8] hover:bg-[#00b4d8]/5 rounded-3xl font-semibold transition-all flex items-center gap-2 whitespace-nowrap"
+            >
+              Log in
+            </button>
+
             <button
               onClick={login}
               className="px-6 md:px-8 py-3.5 bg-[#00b4d8] hover:bg-[#0099b8] text-white rounded-3xl font-semibold transition-all flex items-center gap-2 whitespace-nowrap"
@@ -59,7 +68,7 @@ export default function LandingPage() {
         </div>
       </nav>
 
-      {/* HERO – 4K VIDEO REMOVED, EXISTING POSTER IMAGE KEPT AS STATIC BACKGROUND */}
+      {/* HERO – unchanged */}
       <div className="relative h-screen flex items-center justify-center overflow-hidden">
         <img 
           src="https://picsum.photos/id/1015/2560/1440" 
@@ -281,7 +290,7 @@ export default function LandingPage() {
               <Globe className="text-[#00b4d8] text-5xl mb-8" />
               <h3 className="text-3xl font-bold mb-4">Ethical Sourcing &amp; UN SDGs</h3>
               <p className="text-slate-600 mb-8">
-                Every transaction on the platform directly advances multiple United Nations Sustainable Development Goals — from Zero Hunger and Responsible Consumption to Climate Action and Strong Institutions — through verified ethical sourcing and full supply-chain transparency, using our leading project management tools (Prince2, PMP, Gantt, Kanban board options) to project manage all internal and external projects.
+                Every transaction on the platform directly advances multiple United Nations Sustainable Development Goals — from Zero Hunger and Responsible Consumption to Climate Action and Strong Institutions — through verified ethical sourcing and full supply-chain transparency.
               </p>
             </div>
 
