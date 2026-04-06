@@ -1,12 +1,9 @@
 // lib/supabase.ts
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from '@supabase/supabase-js';
 
-// ────────────────────────────────────────────────
-// Helper
-// ────────────────────────────────────────────────
 function requiredEnvVar(name: string, value: string | undefined): string {
-  if (value === undefined || value.trim() === '') {
-    console.warn(`⚠️ Missing env var: ${name}. Some features disabled during build.`);
+  if (!value || value.trim() === '') {
+    console.warn(`⚠️ Missing env var: ${name} (some features disabled during build)`);
     return '';
   }
   return value;
@@ -21,14 +18,14 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   global: { headers: { 'x-client-info': 'supplieradvisor-mvp/1.0' } }
 });
 
-// Lazy admin client (only created at runtime – fixes Vercel prerender crash)
+// Lazy admin client (only created when used – fixes Vercel + dev crashes)
 export function getSupabaseAdmin() {
-  const SERVICE_ROLE_KEY = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY || '';
-  if (!SERVICE_ROLE_KEY) {
-    console.warn('⚠️ Service role key missing – falling back to anon client for build');
+  const key = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY || '';
+  if (!SUPABASE_URL || !key) {
+    console.error("❌ Missing SUPABASE_URL or service_role key - falling back to public client");
     return supabase;
   }
-  return createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+  return createClient(SUPABASE_URL, key, {
     auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
     global: { headers: { 'x-client-info': 'supplieradvisor-mvp/1.0' } }
   });

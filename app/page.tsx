@@ -4,11 +4,20 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { ArrowRight, ShieldCheck, Truck, Users, Factory, Leaf, Zap, Globe, Building2, BookOpen, Users2, Award, Heart } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
+import { useRouter } from 'next/navigation';
 import { useRef, useEffect } from 'react';
 
 export default function LandingPage() {
-  const { login } = usePrivy();
+  const { login, user, ready } = usePrivy();
+  const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  // AUTO REDIRECT TO PROFILE AFTER SUCCESSFUL LOGIN (for returning customers)
+  useEffect(() => {
+    if (ready && user) {
+      router.push('/dashboard/profile');
+    }
+  }, [ready, user, router]);
 
   const scrollToSection = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
@@ -50,7 +59,7 @@ export default function LandingPage() {
             <button onClick={() => scrollToSection('for-society')} className="hover:text-[#00b4d8] transition-colors">For Society</button>
             <button onClick={() => scrollToSection('for-humanity')} className="hover:text-[#00b4d8] transition-colors">For Humanity</button>
             
-            {/* EXISTING CUSTOMER LOGIN – verified email + password supported by Privy */}
+            {/* RETURNING CUSTOMER LOGIN – now redirects to /dashboard/profile */}
             <button
               onClick={login}
               className="px-6 md:px-8 py-3.5 border border-[#00b4d8] text-[#00b4d8] hover:bg-[#00b4d8]/5 rounded-3xl font-semibold transition-all flex items-center gap-2 whitespace-nowrap"
