@@ -28,7 +28,6 @@ export default function SuppliersSearch() {
   const [receivedRequests, setReceivedRequests] = useState<any[]>([]);
   const [requestsLoading, setRequestsLoading] = useState(true);
 
-  // Expandable sections – all default to open so you see updates immediately
   const [showFilters, setShowFilters] = useState(true);
   const [showInvite, setShowInvite] = useState(true);
   const [showResults, setShowResults] = useState(true);
@@ -211,8 +210,8 @@ export default function SuppliersSearch() {
       toast.error("Connection request failed – check console");
     } else {
       toast.success(`✅ Connection request sent to ${company.legal_name || company.trading_name}! Ready for PO.`);
-      // FORCE REFRESH so "Requests Sent" updates immediately
       await loadConnectionRequests();
+      setShowRequests(true);
     }
   };
 
@@ -517,85 +516,97 @@ export default function SuppliersSearch() {
 
       {/* CONNECTION REQUESTS */}
       <div>
-        <button 
-          onClick={() => setShowRequests(!showRequests)}
-          className="w-full flex justify-between items-center text-[#00b4d8] text-3xl font-black tracking-[-1px] hover:text-[#0099b8] transition-all mb-4"
-        >
-          Connection Requests
-          <ChevronDown className={`transition ${showRequests ? 'rotate-180' : ''}`} size={32} />
-        </button>
+        <div className="flex justify-between items-center mb-4">
+          <button 
+            onClick={() => setShowRequests(!showRequests)}
+            className="flex justify-between items-center text-[#00b4d8] text-3xl font-black tracking-[-1px] hover:text-[#0099b8] transition-all"
+          >
+            Connection Requests
+            <ChevronDown className={`transition ${showRequests ? 'rotate-180' : ''}`} size={32} />
+          </button>
+          <button 
+            onClick={loadConnectionRequests}
+            className="flex items-center gap-2 px-6 py-3 bg-white border border-[#00b4d8] text-[#00b4d8] rounded-3xl hover:bg-[#00b4d8] hover:text-white transition-all"
+          >
+            <RefreshCw size={18} /> Refresh
+          </button>
+        </div>
+
         {showRequests && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
             {/* Requests Sent */}
             <div>
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-2xl font-bold flex items-center gap-3">
-                  Requests Sent <span className="text-sm bg-amber-100 text-amber-700 px-3 py-1 rounded-full">{sentRequests.length}</span>
-                </h3>
-                <button onClick={loadConnectionRequests} className="flex items-center gap-2 text-[#00b4d8] hover:text-[#0099b8]">
-                  <RefreshCw size={18} /> Refresh
-                </button>
-              </div>
-              <div className="space-y-6">
-                {sentRequests.map((req) => (
-                  <div key={req.id} className="bg-white rounded-3xl shadow-sm border border-neutral-100 p-8 flex gap-6">
-                    <div className="flex-1">
-                      <div className="font-black text-2xl">{req.requestee?.legal_name}</div>
-                      <div className="text-neutral-500">{req.requestee?.trading_name}</div>
-                      <div className="flex items-center gap-2 text-xs text-neutral-400 mt-4">
-                        <Clock size={14} />
-                        Sent {new Date(req.created_at).toLocaleDateString()} at {new Date(req.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              <h3 className="text-2xl font-bold mb-6 flex items-center gap-3">
+                Requests Sent <span className="text-sm bg-amber-100 text-amber-700 px-3 py-1 rounded-full">{sentRequests.length}</span>
+              </h3>
+              {sentRequests.length === 0 ? (
+                <div className="card p-12 text-center text-slate-400">
+                  <p>No requests sent yet.</p>
+                  <p className="text-sm mt-2">Click "Connect &amp; Start Raising POs" on a supplier card above.</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {sentRequests.map((req) => (
+                    <div key={req.id} className="bg-white rounded-3xl shadow-sm border border-neutral-100 p-8 flex gap-6">
+                      <div className="flex-1">
+                        <div className="font-black text-2xl">{req.requestee?.legal_name}</div>
+                        <div className="text-neutral-500">{req.requestee?.trading_name}</div>
+                        <div className="flex items-center gap-2 text-xs text-neutral-400 mt-4">
+                          <Clock size={14} />
+                          Sent {new Date(req.created_at).toLocaleDateString()} at {new Date(req.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      </div>
+                      <div className="flex flex-col justify-between items-end">
+                        <span className={`px-4 py-1 rounded-full text-xs ${req.status === 'accepted' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                          {req.status.toUpperCase()}
+                        </span>
+                        {req.status === 'pending' && (
+                          <button onClick={() => resendRequest(req.id)} className="text-[#00b4d8] flex items-center gap-2 text-sm font-medium hover:underline">
+                            <RefreshCw size={16} /> Re-send
+                          </button>
+                        )}
                       </div>
                     </div>
-                    <div className="flex flex-col justify-between items-end">
-                      <span className={`px-4 py-1 rounded-full text-xs ${req.status === 'accepted' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                        {req.status.toUpperCase()}
-                      </span>
-                      {req.status === 'pending' && (
-                        <button onClick={() => resendRequest(req.id)} className="text-[#00b4d8] flex items-center gap-2 text-sm font-medium hover:underline">
-                          <RefreshCw size={16} /> Re-send
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Requests Received */}
             <div>
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-2xl font-bold flex items-center gap-3">
-                  Requests Received <span className="text-sm bg-blue-100 text-blue-700 px-3 py-1 rounded-full">{receivedRequests.length}</span>
-                </h3>
-                <button onClick={loadConnectionRequests} className="flex items-center gap-2 text-[#00b4d8] hover:text-[#0099b8]">
-                  <RefreshCw size={18} /> Refresh
-                </button>
-              </div>
-              <div className="space-y-6">
-                {receivedRequests.map((req) => (
-                  <div key={req.id} className="bg-white rounded-3xl shadow-sm border border-neutral-100 p-8 flex gap-6">
-                    <div className="flex-1">
-                      <div className="font-black text-2xl">{req.requester?.legal_name}</div>
-                      <div className="text-neutral-500">{req.requester?.trading_name}</div>
-                      <div className="flex items-center gap-2 text-xs text-neutral-400 mt-4">
-                        <Clock size={14} />
-                        Received {new Date(req.created_at).toLocaleDateString()} at {new Date(req.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              <h3 className="text-2xl font-bold mb-6 flex items-center gap-3">
+                Requests Received <span className="text-sm bg-blue-100 text-blue-700 px-3 py-1 rounded-full">{receivedRequests.length}</span>
+              </h3>
+              {receivedRequests.length === 0 ? (
+                <div className="card p-12 text-center text-slate-400">
+                  <p>No requests received yet.</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {receivedRequests.map((req) => (
+                    <div key={req.id} className="bg-white rounded-3xl shadow-sm border border-neutral-100 p-8 flex gap-6">
+                      <div className="flex-1">
+                        <div className="font-black text-2xl">{req.requester?.legal_name}</div>
+                        <div className="text-neutral-500">{req.requester?.trading_name}</div>
+                        <div className="flex items-center gap-2 text-xs text-neutral-400 mt-4">
+                          <Clock size={14} />
+                          Received {new Date(req.created_at).toLocaleDateString()} at {new Date(req.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      </div>
+                      <div className="flex flex-col justify-between items-end">
+                        <span className={`px-4 py-1 rounded-full text-xs ${req.status === 'accepted' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                          {req.status.toUpperCase()}
+                        </span>
+                        {req.status === 'pending' && (
+                          <button onClick={() => acceptRequest(req.id)} className="bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-3 rounded-3xl flex items-center gap-2 text-sm font-medium">
+                            <CheckCircle size={18} /> Accept
+                          </button>
+                        )}
                       </div>
                     </div>
-                    <div className="flex flex-col justify-between items-end">
-                      <span className={`px-4 py-1 rounded-full text-xs ${req.status === 'accepted' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                        {req.status.toUpperCase()}
-                      </span>
-                      {req.status === 'pending' && (
-                        <button onClick={() => acceptRequest(req.id)} className="bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-3 rounded-3xl flex items-center gap-2 text-sm font-medium">
-                          <CheckCircle size={18} /> Accept
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
