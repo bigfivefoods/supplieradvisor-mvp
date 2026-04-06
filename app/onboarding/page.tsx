@@ -148,7 +148,16 @@ export default function Onboarding() {
 
   const loadExistingProfile = async () => {
     console.log("=== LOADING EXISTING PROFILE ===", cleanId);
-    const { data, error } = await supabase.from('profiles').select('*').eq('user_id', cleanId).maybeSingle();
+
+    // SAFE LOAD – fixes PGRST116 "multiple rows" error (takes only newest row)
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('user_id', cleanId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
     if (error) console.error("Load profile error:", JSON.stringify(error, null, 2));
     if (data) {
       console.log("✅ Loaded profile:", data);
@@ -220,14 +229,10 @@ export default function Onboarding() {
     console.log("=== SAVEALL STARTED ===");
     console.log("cleanId:", cleanId);
 
-    if (!cleanId) {
-      console.error("No cleanId - Privy login missing");
-      return toast.error("Please log in with Privy first");
-    }
+    if (!cleanId) return toast.error("Please log in with Privy first");
 
     setLoading(true);
     try {
-      // Scalar-only profileData
       const profileData = {
         user_id: cleanId,
         legal_name: form.legal_name,
@@ -259,7 +264,6 @@ export default function Onboarding() {
         iban: form.iban,
         swift: form.swift,
         bank_confirmation_url: form.bank_confirmation_url,
-        created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
 
@@ -270,16 +274,17 @@ export default function Onboarding() {
 
       if (form.products.length > 0) {
         console.log("Upserting business_products...");
-        const productsToInsert = form.products.map(p => ({
-          profile_id: cleanId,
-          description: p.description,
-          sku: p.sku,
-          uom: p.uom,
-          sellPrice: p.sellPrice,
-          leadTime: p.leadTime,
-          image_url: p.imageUrl
-        }));
-        const { error: prodError } = await supabase.from('business_products').upsert(productsToInsert);
+        const { error: prodError } = await supabase.from('business_products').upsert(
+          form.products.map(p => ({
+            profile_id: cleanId,
+            description: p.description,
+            sku: p.sku,
+            uom: p.uom,
+            sell_price: Number(p.sellPrice) || 0,
+            lead_time: p.leadTime,
+            image_url: p.imageUrl
+          }))
+        );
         if (prodError) console.error("Products upsert error:", JSON.stringify(prodError, null, 2));
         else console.log("✅ Products upsert success");
       }
