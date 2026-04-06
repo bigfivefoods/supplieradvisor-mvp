@@ -8,9 +8,6 @@ import toast from 'react-hot-toast';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 import Image from 'next/image';
 
-// ────────────────────────────────────────────────
-// Type-safe LocationData with index signature
-// ────────────────────────────────────────────────
 interface LocationData {
   [continent: string]: {
     countries: Array<{ name: string; flag: string }>;
@@ -27,18 +24,16 @@ export default function SuppliersSearch() {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
 
-  // Connection Requests
   const [sentRequests, setSentRequests] = useState<any[]>([]);
   const [receivedRequests, setReceivedRequests] = useState<any[]>([]);
   const [requestsLoading, setRequestsLoading] = useState(true);
 
-  // Expandable sections
+  // Expandable sections – all default to open so you see updates immediately
   const [showFilters, setShowFilters] = useState(true);
   const [showInvite, setShowInvite] = useState(true);
   const [showResults, setShowResults] = useState(true);
   const [showRequests, setShowRequests] = useState(true);
 
-  // Filter state
   const [expanded, setExpanded] = useState<Record<string, boolean>>({
     companyName: true,
     businessType: false,
@@ -65,7 +60,6 @@ export default function SuppliersSearch() {
     provinces: [] as string[],
   });
 
-  // Invite state
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteNote, setInviteNote] = useState(
     'Hi [Company Name],\n\n[Your Name] from [Your Business] invites you to join SupplierAdvisor — the verified B2B network for transparent, trusted supply chains. Connect instantly, share certificates, and transact with confidence.\n\nLooking forward to partnering with you!\n\nBest regards,\n[Your Name]'
@@ -75,11 +69,6 @@ export default function SuppliersSearch() {
     { id: 1, company: 'Fresh Farms Pty Ltd', sent: '2025-03-20', status: 'Pending' },
     { id: 2, company: 'Cape Dairy Co.', sent: '2025-03-18', status: 'Accepted' },
   ]);
-
-  const businessTypeOptions = ['Farmer / Producer', 'Manufacturer', 'Distributor', 'Wholesaler', 'Importer', 'Exporter'];
-  const regionOptions = ['KwaZulu-Natal', 'Western Cape', 'Gauteng', 'Eastern Cape', 'Free State'];
-  const verificationMethodOptions = ['Self Upload', 'API Verified', 'Manual Review'];
-  const verificationStatusOptions = ['Fully Verified', 'Pending'];
 
   const locationData: LocationData = {
     Africa: {
@@ -171,19 +160,13 @@ export default function SuppliersSearch() {
     setRequestsLoading(true);
     const { data: sent } = await supabase
       .from('business_connections')
-      .select(`
-        *,
-        requestee:profiles!requestee_id (legal_name, trading_name, logo_url, country, province, industries)
-      `)
+      .select(`*, requestee:profiles!requestee_id (legal_name, trading_name, logo_url, country, province, industries)`)
       .eq('requester_id', cleanId)
       .order('created_at', { ascending: false });
 
     const { data: received } = await supabase
       .from('business_connections')
-      .select(`
-        *,
-        requester:profiles!requester_id (legal_name, trading_name, logo_url, country, province, industries)
-      `)
+      .select(`*, requester:profiles!requester_id (legal_name, trading_name, logo_url, country, province, industries)`)
       .eq('requestee_id', cleanId)
       .order('created_at', { ascending: false });
 
@@ -228,7 +211,8 @@ export default function SuppliersSearch() {
       toast.error("Connection request failed – check console");
     } else {
       toast.success(`✅ Connection request sent to ${company.legal_name || company.trading_name}! Ready for PO.`);
-      loadConnectionRequests();
+      // FORCE REFRESH so "Requests Sent" updates immediately
+      await loadConnectionRequests();
     }
   };
 
@@ -265,36 +249,20 @@ export default function SuppliersSearch() {
     setFilteredSuppliers(result);
   };
 
-  // Live filtering
   useEffect(() => {
     let result = suppliers;
-
     if (searchTerm) {
       result = result.filter(s =>
         (s.legal_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (s.trading_name || '').toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
-
-    if (filters.continents.length > 0) {
-      result = result.filter(s => filters.continents.includes(s.continent));
-    }
-    if (filters.countries.length > 0) {
-      result = result.filter(s => filters.countries.includes(s.country));
-    }
-    if (filters.provinces.length > 0) {
-      result = result.filter(s => filters.provinces.includes(s.province));
-    }
-    if (filters.industries.length > 0) {
-      result = result.filter(s => s.industries?.some((i: string) => filters.industries.includes(i)));
-    }
-    if (filters.subIndustries.length > 0) {
-      result = result.filter(s => s.industries?.some((i: string) => filters.subIndustries.includes(i)));
-    }
-    if (filters.trustScoreMin > 0) {
-      result = result.filter(s => (s.trust_score || 50) >= filters.trustScoreMin);
-    }
-
+    if (filters.continents.length > 0) result = result.filter(s => filters.continents.includes(s.continent));
+    if (filters.countries.length > 0) result = result.filter(s => filters.countries.includes(s.country));
+    if (filters.provinces.length > 0) result = result.filter(s => filters.provinces.includes(s.province));
+    if (filters.industries.length > 0) result = result.filter(s => s.industries?.some((i: string) => filters.industries.includes(i)));
+    if (filters.subIndustries.length > 0) result = result.filter(s => s.industries?.some((i: string) => filters.subIndustries.includes(i)));
+    if (filters.trustScoreMin > 0) result = result.filter(s => (s.trust_score || 50) >= filters.trustScoreMin);
     setFilteredSuppliers(result);
   }, [searchTerm, filters, suppliers]);
 
@@ -308,265 +276,266 @@ export default function SuppliersSearch() {
         <span className="font-medium text-neutral-950">Search</span>
       </div>
 
-      <h1 className="text-6xl font-black tracking-tighter text-[#00b4d8]">Search Suppliers</h1>
+      <h1 className="text-6xl font-black tracking-tighter text-[#00b4d8] mb-2">Search Suppliers</h1>
       <p className="text-2xl text-slate-600 mb-12">Multi-criteria metadata search • Verified partners only</p>
 
-      {/* ADVANCED METADATA FILTERS – EXPANDABLE BLUE HEADER */}
-      <div className="mb-8">
-        <button 
-          onClick={() => setShowFilters(!showFilters)}
-          className="w-full flex justify-between items-center bg-[#00b4d8] text-white px-8 py-6 rounded-3xl text-2xl font-bold hover:bg-[#0099b8] transition-all"
-        >
-          Advanced Metadata Filters
-          <ChevronDown className={`transition ${showFilters ? 'rotate-180' : ''}`} size={32} />
-        </button>
-        {showFilters && (
-          <div className="card p-8 mt-2">
-            {/* Company Name */}
-            <div className="mb-8">
-              <button onClick={() => toggleFilter('companyName')} className="w-full flex justify-between text-lg font-medium mb-4">
-                Company Name
-                <ChevronDown className={`transition ${expanded.companyName ? 'rotate-180' : ''}`} />
-              </button>
-              {expanded.companyName && (
-                <div className="relative">
-                  <Search className="absolute left-4 top-3.5 text-slate-400" />
-                  <input type="text" placeholder="Search companies..." className="input pl-11 w-full" value={searchTerm} onChange={e => handleSearch(e.target.value)} />
-                </div>
-              )}
-            </div>
-
-            {/* Continent */}
-            <div className="mb-8">
-              <button onClick={() => toggleFilter('continent')} className="w-full flex justify-between text-lg font-medium mb-4">
-                Continent
-                <ChevronDown className={`transition ${expanded.continent ? 'rotate-180' : ''}`} />
-              </button>
-              {expanded.continent && (
-                <div className="grid grid-cols-2 gap-3">
-                  {Object.keys(locationData).map(continent => (
-                    <label key={continent} className="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" checked={filters.continents.includes(continent)} onChange={() => toggleArrayFilter('continents', continent)} />
-                      {continent}
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Country */}
-            <div className="mb-8">
-              <button onClick={() => toggleFilter('country')} className="w-full flex justify-between text-lg font-medium mb-4">
-                Country
-                <ChevronDown className={`transition ${expanded.country ? 'rotate-180' : ''}`} />
-              </button>
-              {expanded.country && (
-                <div className="grid grid-cols-2 gap-3 max-h-80 overflow-y-auto">
-                  {filters.continents.length > 0 ? (
-                    filters.continents.flatMap(cont => locationData[cont].countries).map(c => (
-                      <label key={c.name} className="flex items-center gap-2 cursor-pointer text-sm">
-                        <input type="checkbox" checked={filters.countries.includes(c.name)} onChange={() => toggleArrayFilter('countries', c.name)} />
-                        {c.flag} {c.name}
-                      </label>
-                    ))
-                  ) : (
-                    <p className="text-slate-400 text-sm">Select continent(s) first</p>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Province/State */}
-            <div className="mb-8">
-              <button onClick={() => toggleFilter('province')} className="w-full flex justify-between text-lg font-medium mb-4">
-                Province / State
-                <ChevronDown className={`transition ${expanded.province ? 'rotate-180' : ''}`} />
-              </button>
-              {expanded.province && (
-                <div className="grid grid-cols-2 gap-3 max-h-80 overflow-y-auto">
-                  {filters.countries.length > 0 ? (
-                    filters.countries.flatMap(country => {
-                      const contKey = Object.keys(locationData).find(c => 
-                        locationData[c].countries.some(co => co.name === country)
-                      );
-                      return contKey && locationData[contKey].provinces[country] 
-                        ? locationData[contKey].provinces[country] 
-                        : [];
-                    }).map(p => (
-                      <label key={p} className="flex items-center gap-2 cursor-pointer text-sm">
-                        <input type="checkbox" checked={filters.provinces.includes(p)} onChange={() => toggleArrayFilter('provinces', p)} />
-                        {p}
-                      </label>
-                    ))
-                  ) : (
-                    <p className="text-slate-400 text-sm">Select country(ies) first</p>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Industry + Sub-Industry */}
-            <div className="mb-8">
-              <button onClick={() => toggleFilter('industry')} className="w-full flex justify-between text-lg font-medium mb-4">
-                Industry Type
-                <ChevronDown className={`transition ${expanded.industry ? 'rotate-180' : ''}`} />
-              </button>
-              {expanded.industry && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {industriesList.map(ind => (
-                    <div key={ind.name}>
-                      <label className="flex items-center gap-2 font-medium cursor-pointer">
-                        <input type="checkbox" checked={filters.industries.includes(ind.name)} onChange={() => toggleArrayFilter('industries', ind.name)} />
-                        {ind.name}
-                      </label>
-                      {filters.industries.includes(ind.name) && ind.sub.length > 0 && (
-                        <div className="pl-6 mt-2 space-y-1">
-                          {ind.sub.map(sub => (
-                            <label key={sub} className="flex items-center gap-2 text-sm cursor-pointer">
-                              <input type="checkbox" checked={filters.subIndustries.includes(sub)} onChange={() => toggleArrayFilter('subIndustries', sub)} />
-                              {sub}
-                            </label>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Trust Score */}
-            <div>
-              <button onClick={() => toggleFilter('trustScore')} className="w-full flex justify-between text-lg font-medium mb-4">
-                Trust Score (Min)
-                <ChevronDown className={`transition ${expanded.trustScore ? 'rotate-180' : ''}`} />
-              </button>
-              {expanded.trustScore && (
-                <div className="px-2">
-                  <div className="flex justify-between text-sm mb-2">
-                    <span>0%</span>
-                    <span className="font-medium">Trust Score: <span className="text-[#00b4d8]">{filters.trustScoreMin}%</span></span>
-                    <span>100%</span>
+      {/* ROW 1: 2/3 Filters + 1/3 Invite */}
+      <div className="grid grid-cols-12 gap-8 mb-12">
+        {/* 2/3 Advanced Metadata Filters */}
+        <div className="col-span-12 lg:col-span-8">
+          <button 
+            onClick={() => setShowFilters(!showFilters)}
+            className="w-full flex justify-between items-center text-[#00b4d8] text-3xl font-black tracking-[-1px] hover:text-[#0099b8] transition-all mb-4"
+          >
+            Advanced Metadata Filters
+            <ChevronDown className={`transition ${showFilters ? 'rotate-180' : ''}`} size={32} />
+          </button>
+          {showFilters && (
+            <div className="card p-8">
+              {/* Company Name */}
+              <div className="mb-8">
+                <button onClick={() => toggleFilter('companyName')} className="w-full flex justify-between text-lg font-medium mb-4">
+                  Company Name
+                  <ChevronDown className={`transition ${expanded.companyName ? 'rotate-180' : ''}`} />
+                </button>
+                {expanded.companyName && (
+                  <div className="relative">
+                    <Search className="absolute left-4 top-3.5 text-slate-400" />
+                    <input type="text" placeholder="Search companies..." className="input pl-11 w-full" value={searchTerm} onChange={e => handleSearch(e.target.value)} />
                   </div>
-                  <input type="range" min="0" max="100" value={filters.trustScoreMin} onChange={e => setFilters(p => ({...p, trustScoreMin: parseInt(e.target.value)}))} className="w-full accent-[#00b4d8]" />
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
+                )}
+              </div>
 
-      {/* INVITE NEW BUSINESS – EXPANDABLE BLUE HEADER */}
-      <div className="mb-8">
-        <button 
-          onClick={() => setShowInvite(!showInvite)}
-          className="w-full flex justify-between items-center bg-[#00b4d8] text-white px-8 py-6 rounded-3xl text-2xl font-bold hover:bg-[#0099b8] transition-all"
-        >
-          Invite New Business
-          <ChevronDown className={`transition ${showInvite ? 'rotate-180' : ''}`} size={32} />
-        </button>
-        {showInvite && (
-          <div className="card p-8 mt-2">
-            <p className="text-slate-600 mb-6">Send a personalised invitation to join the verified SupplierAdvisor network.</p>
-            <input type="email" placeholder="Business email address" className="input mb-6" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} />
-            <div className="mb-6">
-              <label className="block text-sm font-medium mb-2">Invitation Message</label>
-              <textarea rows={5} className="input w-full resize-y" value={inviteNote} onChange={e => setInviteNote(e.target.value)} />
-            </div>
-            <button onClick={sendInvitation} className="btn-primary w-full py-5 flex items-center justify-center gap-3">
-              <Plus size={22} /> Send Invitation
-            </button>
-            <div className="mt-12">
-              <h4 className="font-medium mb-4">Sent Invitations</h4>
-              <div className="space-y-4 text-sm">
-                {sentInvitations.map(inv => (
-                  <div key={inv.id} className="flex justify-between items-center border-b pb-3 last:border-none">
-                    <div>
-                      <div className="font-medium">{inv.company}</div>
-                      <div className="text-slate-500 text-xs">Sent {inv.sent}</div>
-                    </div>
-                    <span className={`px-3 py-1 rounded-full text-xs ${inv.status === 'Accepted' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                      {inv.status}
-                    </span>
+              {/* Continent */}
+              <div className="mb-8">
+                <button onClick={() => toggleFilter('continent')} className="w-full flex justify-between text-lg font-medium mb-4">
+                  Continent
+                  <ChevronDown className={`transition ${expanded.continent ? 'rotate-180' : ''}`} />
+                </button>
+                {expanded.continent && (
+                  <div className="grid grid-cols-2 gap-3">
+                    {Object.keys(locationData).map(continent => (
+                      <label key={continent} className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" checked={filters.continents.includes(continent)} onChange={() => toggleArrayFilter('continents', continent)} />
+                        {continent}
+                      </label>
+                    ))}
                   </div>
-                ))}
+                )}
+              </div>
+
+              {/* Country */}
+              <div className="mb-8">
+                <button onClick={() => toggleFilter('country')} className="w-full flex justify-between text-lg font-medium mb-4">
+                  Country
+                  <ChevronDown className={`transition ${expanded.country ? 'rotate-180' : ''}`} />
+                </button>
+                {expanded.country && (
+                  <div className="grid grid-cols-2 gap-3 max-h-80 overflow-y-auto">
+                    {filters.continents.length > 0 ? (
+                      filters.continents.flatMap(cont => locationData[cont].countries).map(c => (
+                        <label key={c.name} className="flex items-center gap-2 cursor-pointer text-sm">
+                          <input type="checkbox" checked={filters.countries.includes(c.name)} onChange={() => toggleArrayFilter('countries', c.name)} />
+                          {c.flag} {c.name}
+                        </label>
+                      ))
+                    ) : (
+                      <p className="text-slate-400 text-sm">Select continent(s) first</p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Province/State */}
+              <div className="mb-8">
+                <button onClick={() => toggleFilter('province')} className="w-full flex justify-between text-lg font-medium mb-4">
+                  Province / State
+                  <ChevronDown className={`transition ${expanded.province ? 'rotate-180' : ''}`} />
+                </button>
+                {expanded.province && (
+                  <div className="grid grid-cols-2 gap-3 max-h-80 overflow-y-auto">
+                    {filters.countries.length > 0 ? (
+                      filters.countries.flatMap(country => {
+                        const contKey = Object.keys(locationData).find(c => locationData[c].countries.some(co => co.name === country));
+                        return contKey && locationData[contKey].provinces[country] ? locationData[contKey].provinces[country] : [];
+                      }).map(p => (
+                        <label key={p} className="flex items-center gap-2 cursor-pointer text-sm">
+                          <input type="checkbox" checked={filters.provinces.includes(p)} onChange={() => toggleArrayFilter('provinces', p)} />
+                          {p}
+                        </label>
+                      ))
+                    ) : (
+                      <p className="text-slate-400 text-sm">Select country(ies) first</p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Industry + Sub-Industry */}
+              <div className="mb-8">
+                <button onClick={() => toggleFilter('industry')} className="w-full flex justify-between text-lg font-medium mb-4">
+                  Industry Type
+                  <ChevronDown className={`transition ${expanded.industry ? 'rotate-180' : ''}`} />
+                </button>
+                {expanded.industry && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {industriesList.map(ind => (
+                      <div key={ind.name}>
+                        <label className="flex items-center gap-2 font-medium cursor-pointer">
+                          <input type="checkbox" checked={filters.industries.includes(ind.name)} onChange={() => toggleArrayFilter('industries', ind.name)} />
+                          {ind.name}
+                        </label>
+                        {filters.industries.includes(ind.name) && ind.sub.length > 0 && (
+                          <div className="pl-6 mt-2 space-y-1">
+                            {ind.sub.map(sub => (
+                              <label key={sub} className="flex items-center gap-2 text-sm cursor-pointer">
+                                <input type="checkbox" checked={filters.subIndustries.includes(sub)} onChange={() => toggleArrayFilter('subIndustries', sub)} />
+                                {sub}
+                              </label>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Trust Score */}
+              <div>
+                <button onClick={() => toggleFilter('trustScore')} className="w-full flex justify-between text-lg font-medium mb-4">
+                  Trust Score (Min)
+                  <ChevronDown className={`transition ${expanded.trustScore ? 'rotate-180' : ''}`} />
+                </button>
+                {expanded.trustScore && (
+                  <div className="px-2">
+                    <div className="flex justify-between text-sm mb-2">
+                      <span>0%</span>
+                      <span className="font-medium">Trust Score: <span className="text-[#00b4d8]">{filters.trustScoreMin}%</span></span>
+                      <span>100%</span>
+                    </div>
+                    <input type="range" min="0" max="100" value={filters.trustScoreMin} onChange={e => setFilters(p => ({...p, trustScoreMin: parseInt(e.target.value)}))} className="w-full accent-[#00b4d8]" />
+                  </div>
+                )}
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
+
+        {/* 1/3 Invite New Business */}
+        <div className="col-span-12 lg:col-span-4">
+          <button 
+            onClick={() => setShowInvite(!showInvite)}
+            className="w-full flex justify-between items-center text-[#00b4d8] text-3xl font-black tracking-[-1px] hover:text-[#0099b8] transition-all mb-4"
+          >
+            Invite New Business
+            <ChevronDown className={`transition ${showInvite ? 'rotate-180' : ''}`} size={32} />
+          </button>
+          {showInvite && (
+            <div className="card p-8 h-full">
+              <p className="text-slate-600 mb-6">Send a personalised invitation to join the verified SupplierAdvisor network.</p>
+              <input type="email" placeholder="Business email address" className="input mb-6" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} />
+              <div className="mb-6">
+                <label className="block text-sm font-medium mb-2">Invitation Message</label>
+                <textarea rows={5} className="input w-full resize-y" value={inviteNote} onChange={e => setInviteNote(e.target.value)} />
+              </div>
+              <button onClick={sendInvitation} className="btn-primary w-full py-5 flex items-center justify-center gap-3">
+                <Plus size={22} /> Send Invitation
+              </button>
+              <div className="mt-12">
+                <h4 className="font-medium mb-4">Sent Invitations</h4>
+                <div className="space-y-4 text-sm">
+                  {sentInvitations.map(inv => (
+                    <div key={inv.id} className="flex justify-between items-center border-b pb-3 last:border-none">
+                      <div>
+                        <div className="font-medium">{inv.company}</div>
+                        <div className="text-slate-500 text-xs">Sent {inv.sent}</div>
+                      </div>
+                      <span className={`px-3 py-1 rounded-full text-xs ${inv.status === 'Accepted' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                        {inv.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* RESULTS – EXPANDABLE BLUE HEADER */}
-      <div className="mb-8">
+      {/* RESULTS */}
+      <div className="mb-12">
         <button 
           onClick={() => setShowResults(!showResults)}
-          className="w-full flex justify-between items-center bg-[#00b4d8] text-white px-8 py-6 rounded-3xl text-2xl font-bold hover:bg-[#0099b8] transition-all"
+          className="w-full flex justify-between items-center text-[#00b4d8] text-3xl font-black tracking-[-1px] hover:text-[#0099b8] transition-all mb-4"
         >
           Results ({filteredSuppliers.length})
           <ChevronDown className={`transition ${showResults ? 'rotate-180' : ''}`} size={32} />
         </button>
         {showResults && (
-          <div className="mt-2">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {filteredSuppliers.map((s) => (
-                <div key={s.user_id} className="bg-white rounded-3xl shadow-sm border border-neutral-100 overflow-hidden hover:shadow-2xl transition-all group">
-                  <div className="h-56 bg-neutral-100 relative flex items-center justify-center">
-                    {s.logo_url ? (
-                      <Image src={s.logo_url} alt={s.legal_name} width={160} height={160} className="object-contain" />
-                    ) : (
-                      <div className="text-7xl font-black text-[#00b4d8]/10">
-                        {(s.legal_name || 'BFF').slice(0, 2)}
-                      </div>
-                    )}
-                    <div className="absolute top-6 right-6 bg-emerald-500 text-white text-xs px-5 py-1 rounded-full font-medium flex items-center gap-1 shadow">
-                      <Award size={14} /> VERIFIED
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {filteredSuppliers.map((s) => (
+              <div key={s.user_id} className="bg-white rounded-3xl shadow-sm border border-neutral-100 overflow-hidden hover:shadow-2xl transition-all group">
+                <div className="h-56 bg-neutral-100 relative flex items-center justify-center">
+                  {s.logo_url ? (
+                    <Image src={s.logo_url} alt={s.legal_name} width={160} height={160} className="object-contain" />
+                  ) : (
+                    <div className="text-7xl font-black text-[#00b4d8]/10">
+                      {(s.legal_name || 'BFF').slice(0, 2)}
                     </div>
-                  </div>
-                  <div className="p-8">
-                    <h3 className="font-black text-3xl tracking-tight mb-1">{s.legal_name}</h3>
-                    {s.trading_name && <p className="text-neutral-500 mb-4">{s.trading_name}</p>}
-                    <div className="flex items-center gap-2 mt-4 text-sm text-neutral-600">
-                      <MapPin size={18} className="text-neutral-400" />
-                      <span>{s.country} • {s.province || '—'}</span>
-                    </div>
-                    {s.industries && s.industries.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mt-6">
-                        {s.industries.slice(0, 3).map((ind: string, i: number) => (
-                          <span key={i} className="bg-neutral-100 text-xs px-4 py-1.5 rounded-3xl">{ind}</span>
-                        ))}
-                      </div>
-                    )}
-                    <button 
-                      onClick={() => sendConnectionRequest(s)}
-                      className="mt-10 w-full bg-[#00b4d8] hover:bg-[#0099b8] text-white py-5 rounded-3xl font-semibold flex items-center justify-center gap-3 transition-all"
-                    >
-                      <UserPlus size={20} /> Connect & Start Raising POs
-                    </button>
+                  )}
+                  <div className="absolute top-6 right-6 bg-emerald-500 text-white text-xs px-5 py-1 rounded-full font-medium flex items-center gap-1 shadow">
+                    <Award size={14} /> VERIFIED
                   </div>
                 </div>
-              ))}
-            </div>
+                <div className="p-8">
+                  <h3 className="font-black text-3xl tracking-tight mb-1">{s.legal_name}</h3>
+                  {s.trading_name && <p className="text-neutral-500 mb-4">{s.trading_name}</p>}
+                  <div className="flex items-center gap-2 mt-4 text-sm text-neutral-600">
+                    <MapPin size={18} className="text-neutral-400" />
+                    <span>{s.country} • {s.province || '—'}</span>
+                  </div>
+                  {s.industries && s.industries.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-6">
+                      {s.industries.slice(0, 3).map((ind: string, i: number) => (
+                        <span key={i} className="bg-neutral-100 text-xs px-4 py-1.5 rounded-3xl">{ind}</span>
+                      ))}
+                    </div>
+                  )}
+                  <button 
+                    onClick={() => sendConnectionRequest(s)}
+                    className="mt-10 w-full bg-[#00b4d8] hover:bg-[#0099b8] text-white py-5 rounded-3xl font-semibold flex items-center justify-center gap-3 transition-all"
+                  >
+                    <UserPlus size={20} /> Connect & Start Raising POs
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
 
-      {/* CONNECTION REQUESTS – EXPANDABLE BLUE HEADER */}
+      {/* CONNECTION REQUESTS */}
       <div>
         <button 
           onClick={() => setShowRequests(!showRequests)}
-          className="w-full flex justify-between items-center bg-[#00b4d8] text-white px-8 py-6 rounded-3xl text-2xl font-bold hover:bg-[#0099b8] transition-all"
+          className="w-full flex justify-between items-center text-[#00b4d8] text-3xl font-black tracking-[-1px] hover:text-[#0099b8] transition-all mb-4"
         >
           Connection Requests
           <ChevronDown className={`transition ${showRequests ? 'rotate-180' : ''}`} size={32} />
         </button>
-
         {showRequests && (
-          <div className="mt-2 grid grid-cols-1 lg:grid-cols-2 gap-12">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
             {/* Requests Sent */}
             <div>
-              <h3 className="text-2xl font-bold mb-6 flex items-center gap-3">
-                Requests Sent <span className="text-sm bg-amber-100 text-amber-700 px-3 py-1 rounded-full">{sentRequests.length}</span>
-              </h3>
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-2xl font-bold flex items-center gap-3">
+                  Requests Sent <span className="text-sm bg-amber-100 text-amber-700 px-3 py-1 rounded-full">{sentRequests.length}</span>
+                </h3>
+                <button onClick={loadConnectionRequests} className="flex items-center gap-2 text-[#00b4d8] hover:text-[#0099b8]">
+                  <RefreshCw size={18} /> Refresh
+                </button>
+              </div>
               <div className="space-y-6">
                 {sentRequests.map((req) => (
                   <div key={req.id} className="bg-white rounded-3xl shadow-sm border border-neutral-100 p-8 flex gap-6">
@@ -595,9 +564,14 @@ export default function SuppliersSearch() {
 
             {/* Requests Received */}
             <div>
-              <h3 className="text-2xl font-bold mb-6 flex items-center gap-3">
-                Requests Received <span className="text-sm bg-blue-100 text-blue-700 px-3 py-1 rounded-full">{receivedRequests.length}</span>
-              </h3>
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-2xl font-bold flex items-center gap-3">
+                  Requests Received <span className="text-sm bg-blue-100 text-blue-700 px-3 py-1 rounded-full">{receivedRequests.length}</span>
+                </h3>
+                <button onClick={loadConnectionRequests} className="flex items-center gap-2 text-[#00b4d8] hover:text-[#0099b8]">
+                  <RefreshCw size={18} /> Refresh
+                </button>
+              </div>
               <div className="space-y-6">
                 {receivedRequests.map((req) => (
                   <div key={req.id} className="bg-white rounded-3xl shadow-sm border border-neutral-100 p-8 flex gap-6">
