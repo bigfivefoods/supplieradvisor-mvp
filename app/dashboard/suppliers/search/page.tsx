@@ -159,15 +159,23 @@ export default function SuppliersSearch() {
     setRequestsLoading(true);
     console.log('🔄 Loading connection requests for cleanId:', cleanId);
 
+    // Sent requests - with full company name from joined profile
     const { data: sent } = await supabase
       .from('business_connections')
-      .select('*')
+      .select(`
+        *,
+        requestee:profiles!requestee_id (legal_name, trading_name, logo_url)
+      `)
       .eq('requester_id', cleanId)
       .order('id', { ascending: false });
 
+    // Received requests - with full company name from joined profile
     const { data: received } = await supabase
       .from('business_connections')
-      .select('*')
+      .select(`
+        *,
+        requester:profiles!requester_id (legal_name, trading_name, logo_url)
+      `)
       .eq('requestee_id', cleanId)
       .order('id', { ascending: false });
 
@@ -549,7 +557,8 @@ export default function SuppliersSearch() {
                   {sentRequests.map((req) => (
                     <div key={req.id} className="bg-white rounded-3xl shadow-sm border border-neutral-100 p-8 flex gap-6">
                       <div className="flex-1">
-                        <div className="font-black text-2xl">Sent to: {req.requestee_id}</div>
+                        <div className="font-black text-2xl">Sent to: {req.requestee?.legal_name || req.requestee_id}</div>
+                        {req.requestee?.trading_name && <div className="text-neutral-500">{req.requestee.trading_name}</div>}
                         <div className="text-neutral-500 text-xs">ID: {req.id}</div>
                         <div className="flex items-center gap-2 text-xs text-neutral-400 mt-4">
                           <Clock size={14} />
@@ -586,7 +595,8 @@ export default function SuppliersSearch() {
                   {receivedRequests.map((req) => (
                     <div key={req.id} className="bg-white rounded-3xl shadow-sm border border-neutral-100 p-8 flex gap-6">
                       <div className="flex-1">
-                        <div className="font-black text-2xl">From: {req.requester_id}</div>
+                        <div className="font-black text-2xl">From: {req.requester?.legal_name || req.requester_id}</div>
+                        {req.requester?.trading_name && <div className="text-neutral-500">{req.requester.trading_name}</div>}
                         <div className="text-neutral-500 text-xs">ID: {req.id}</div>
                         <div className="flex items-center gap-2 text-xs text-neutral-400 mt-4">
                           <Clock size={14} />
