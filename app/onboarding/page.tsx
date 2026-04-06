@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, ArrowLeft, ChevronDown, Wallet, Upload } from 'lucide-react';
-import { supabaseAdmin } from '@/lib/supabase';
+import { getSupabaseAdmin } from '@/lib/supabase';
 import toast from 'react-hot-toast';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 
@@ -107,6 +107,8 @@ export default function Onboarding() {
   const router = useRouter();
   const cleanId = (user?.id || '').replace('privy:', '');
 
+  const admin = getSupabaseAdmin();   // ← LAZY ADMIN CLIENT (fixes Vercel build)
+
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -147,7 +149,7 @@ export default function Onboarding() {
   useEffect(() => { if (user && cleanId) loadExistingProfile(); }, [user, cleanId]);
 
   const loadExistingProfile = async () => {
-    const { data } = await supabaseAdmin.from('profiles').select('*').eq('id', cleanId).single();
+    const { data } = await admin.from('profiles').select('*').eq('id', cleanId).single();
     if (data) setForm(prev => ({ ...prev, ...data }));
   };
 
@@ -156,9 +158,9 @@ export default function Onboarding() {
     if (!file || !cleanId) return toast.error("Please select a file");
     setUploading(true);
     const fileName = `${cleanId}-${field}-${Date.now()}.${file.name.split('.').pop()}`;
-    const { error } = await supabaseAdmin.storage.from('certificates').upload(fileName, file, { upsert: true });
+    const { error } = await admin.storage.from('certificates').upload(fileName, file, { upsert: true });
     if (error) return toast.error("Upload failed");
-    const { data: { publicUrl } } = supabaseAdmin.storage.from('certificates').getPublicUrl(fileName);
+    const { data: { publicUrl } } = admin.storage.from('certificates').getPublicUrl(fileName);
     setForm(p => ({ ...p, [field]: publicUrl }));
     setUploading(false);
     toast.success("✅ File uploaded");
@@ -169,9 +171,9 @@ export default function Onboarding() {
     if (!file || !cleanId) return toast.error("Please select a file");
     setUploading(true);
     const fileName = `${cleanId}-cert-${Date.now()}.${file.name.split('.').pop()}`;
-    const { error } = await supabaseAdmin.storage.from('certificates').upload(fileName, file, { upsert: true });
+    const { error } = await admin.storage.from('certificates').upload(fileName, file, { upsert: true });
     if (error) return toast.error("Upload failed");
-    const { data: { publicUrl } } = supabaseAdmin.storage.from('certificates').getPublicUrl(fileName);
+    const { data: { publicUrl } } = admin.storage.from('certificates').getPublicUrl(fileName);
     setNewCert(p => ({ ...p, document_url: publicUrl }));
     setUploading(false);
     toast.success("✅ Certificate uploaded");
@@ -205,10 +207,10 @@ export default function Onboarding() {
     if (!cleanId) return toast.error("Please log in with Privy first");
     setLoading(true);
     try {
-      await supabaseAdmin.from('profiles').upsert({ id: cleanId, ...form, updated_at: new Date().toISOString() });
-      if (form.products.length > 0) await supabaseAdmin.from('business_products').upsert(form.products.map(p => ({ profile_id: cleanId, ...p })));
-      if (form.services.length > 0) await supabaseAdmin.from('business_services').upsert(form.services.map(name => ({ profile_id: cleanId, name })));
-      if (form.certifications.length > 0) await supabaseAdmin.from('business_certifications').upsert(form.certifications.map(c => ({ profile_id: cleanId, ...c })));
+      await admin.from('profiles').upsert({ id: cleanId, ...form, updated_at: new Date().toISOString() });
+      if (form.products.length > 0) await admin.from('business_products').upsert(form.products.map(p => ({ profile_id: cleanId, ...p })));
+      if (form.services.length > 0) await admin.from('business_services').upsert(form.services.map(name => ({ profile_id: cleanId, name })));
+      if (form.certifications.length > 0) await admin.from('business_certifications').upsert(form.certifications.map(c => ({ profile_id: cleanId, ...c })));
 
       toast.success("🎉 All information saved to Supabase and SupplierAdvisor®!");
       router.push('/dashboard');
@@ -310,7 +312,7 @@ export default function Onboarding() {
           </div>
         )}
 
-        {/* STEP 3 – EXHAUSTIVE INDUSTRIES */}
+        {/* STEP 3 */}
         {step === 3 && (
           <div>
             <h2 className="text-3xl font-bold mb-8">3. Industries & Sub-Industries</h2>
@@ -343,7 +345,6 @@ export default function Onboarding() {
         {step === 4 && (
           <div>
             <h2 className="text-3xl font-bold mb-8">4. Financial & Banking</h2>
-            {/* Tax, VAT, Export, Import, Bank Confirmation uploads + bank fields + IBAN/SWIFT – all coded */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div><label className="block text-sm mb-2">Tax Number</label><input type="text" className="input w-full" value={form.tax_number} onChange={e => setForm(p => ({ ...p, tax_number: e.target.value }))} /><input type="file" onChange={e => handleUpload('tax_document_url', e)} className="hidden" id="tax-upload" /><label htmlFor="tax-upload" className="btn-primary mt-3 w-full">Upload Tax Certificate</label></div>
               <div><label className="block text-sm mb-2">VAT Number</label><input type="text" className="input w-full" value={form.vat_number} onChange={e => setForm(p => ({ ...p, vat_number: e.target.value }))} /><input type="file" onChange={e => handleUpload('vat_document_url', e)} className="hidden" id="vat-upload" /><label htmlFor="vat-upload" className="btn-primary mt-3 w-full">Upload VAT Certificate</label></div>
