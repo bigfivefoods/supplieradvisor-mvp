@@ -87,6 +87,15 @@ const industriesList = [
 const uomOptions = ['Kg', 'G', 'Tonne', 'Litre', 'Ml', 'Piece', 'Box', 'Pallet', 'Case', 'Dozen', 'Meter', 'Sqm', 'Unit', 'Pack', 'Carton', 'Drum', 'Bottle', 'Roll'];
 const certifiedBodies = ['ISO 9001', 'ISO 22000', 'FSSC 22000', 'HACCP', 'BEE', 'Halal', 'Kosher', 'SEDEX', 'Fairtrade', 'FDA', 'Other'];
 
+const businessTypesList = [
+  'Private Company (Pty Ltd)', 'Public Company (Ltd)', 'Non-Profit Company (NPC)',
+  'Sole Proprietorship', 'Partnership', 'Close Corporation (CC)', 'Cooperative',
+  'Trust', 'Government Entity / State-Owned Enterprise', 'Section 21 Company',
+  'Association', 'School', 'University', 'College', 'Pre-School', 'NGO', 'Religious Organisation',
+  'Franchise', 'Joint Venture', 'Limited Liability Partnership (LLP)', 'Holding Company',
+  'Subsidiary Company', 'Startup / SME', 'Co-operative Society', 'Other'
+];
+
 export default function Onboarding() {
   const { user, login, ready } = usePrivy();
   const router = useRouter();
@@ -108,7 +117,8 @@ export default function Onboarding() {
     bank_name: '', account_name: '', account_number: '', iban: '', swift: '', bank_confirmation_url: '',
     products: [] as any[],
     services: [] as string[],
-    certifications: [] as any[]
+    certifications: [] as any[],
+    business_type: ''
   });
 
   const [newProduct, setNewProduct] = useState({ description: '', sku: '', uom: '', sellPrice: '', leadTime: '', imageUrl: '' });
@@ -234,7 +244,8 @@ export default function Onboarding() {
         iban: form.iban,
         swift: form.swift,
         bank_confirmation_url: form.bank_confirmation_url,
-        created_at: new Date().toISOString(),     // ← THIS FIXES THE 23502 ERROR
+        business_type: form.business_type,
+        created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
 
@@ -326,6 +337,21 @@ export default function Onboarding() {
               <input type="text" placeholder="Legal Name" className="input w-full" value={form.legal_name} onChange={e => setForm(p => ({ ...p, legal_name: e.target.value }))} />
               <input type="text" placeholder="Trading Name" className="input w-full" value={form.trading_name} onChange={e => setForm(p => ({ ...p, trading_name: e.target.value }))} />
             </div>
+            
+            <div className="mt-6">
+              <label className="block text-sm font-medium mb-2">Business Type</label>
+              <select 
+                className="input w-full" 
+                value={form.business_type || ''} 
+                onChange={e => setForm(p => ({ ...p, business_type: e.target.value }))}
+              >
+                <option value="">Select Business Type</option>
+                {businessTypesList.map(type => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
+              </select>
+            </div>
+
             <input type="text" placeholder="Contact Name" className="input w-full mt-6" value={form.contact_name} onChange={e => setForm(p => ({ ...p, contact_name: e.target.value }))} />
             <input type="email" placeholder="Email Address" className="input w-full mt-6" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} />
             <input type="text" placeholder="Company Registration Number" className="input w-full mt-6" value={form.registration_number} onChange={e => setForm(p => ({ ...p, registration_number: e.target.value }))} />
@@ -404,52 +430,104 @@ export default function Onboarding() {
           </div>
         )}
 
-        {/* STEP 4 - Financial & Banking */}
+        {/* STEP 4 - Financial & Banking (3 fields per row + upload directly below each) */}
         {step === 4 && (
           <div>
             <h2 className="text-3xl font-bold mb-8">4. Financial & Banking</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div><label className="block text-sm mb-2">Tax Number</label><input type="text" className="input w-full" value={form.tax_number} onChange={e => setForm(p => ({ ...p, tax_number: e.target.value }))} /><input type="file" onChange={e => handleUpload('tax_document_url', e)} className="hidden" id="tax-upload" /><label htmlFor="tax-upload" className="btn-primary mt-3 w-full">Upload Tax Certificate</label></div>
-              <div><label className="block text-sm mb-2">VAT Number</label><input type="text" className="input w-full" value={form.vat_number} onChange={e => setForm(p => ({ ...p, vat_number: e.target.value }))} /><input type="file" onChange={e => handleUpload('vat_document_url', e)} className="hidden" id="vat-upload" /><label htmlFor="vat-upload" className="btn-primary mt-3 w-full">Upload VAT Certificate</label></div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              {/* Tax */}
+              <div>
+                <label className="block text-sm mb-2">Tax Number</label>
+                <input type="text" className="input w-full" value={form.tax_number} onChange={e => setForm(p => ({ ...p, tax_number: e.target.value }))} />
+                <input type="file" onChange={e => handleUpload('tax_document_url', e)} className="hidden" id="tax-upload" />
+                <label htmlFor="tax-upload" className="btn-primary mt-3 w-full">Upload Tax Certificate</label>
+              </div>
+              {/* VAT */}
+              <div>
+                <label className="block text-sm mb-2">VAT Number</label>
+                <input type="text" className="input w-full" value={form.vat_number} onChange={e => setForm(p => ({ ...p, vat_number: e.target.value }))} />
+                <input type="file" onChange={e => handleUpload('vat_document_url', e)} className="hidden" id="vat-upload" />
+                <label htmlFor="vat-upload" className="btn-primary mt-3 w-full">Upload VAT Certificate</label>
+              </div>
+              {/* Export */}
+              <div>
+                <label className="block text-sm mb-2">Export License</label>
+                <input type="text" className="input w-full" value={form.export_license} onChange={e => setForm(p => ({ ...p, export_license: e.target.value }))} />
+                <input type="file" onChange={e => handleUpload('export_document_url', e)} className="hidden" id="export-upload" />
+                <label htmlFor="export-upload" className="btn-primary mt-3 w-full">Upload Export License</label>
+              </div>
+
+              {/* Import */}
+              <div>
+                <label className="block text-sm mb-2">Import License</label>
+                <input type="text" className="input w-full" value={form.import_license} onChange={e => setForm(p => ({ ...p, import_license: e.target.value }))} />
+                <input type="file" onChange={e => handleUpload('import_document_url', e)} className="hidden" id="import-upload" />
+                <label htmlFor="import-upload" className="btn-primary mt-3 w-full">Upload Import License</label>
+              </div>
+
+              {/* Bank Confirmation */}
+              <div>
+                <label className="block text-sm mb-2">Bank Confirmation</label>
+                <input type="file" onChange={e => handleUpload('bank_confirmation_url', e)} className="hidden" id="bank-upload" />
+                <label htmlFor="bank-upload" className="btn-primary mt-3 w-full">Upload Bank Confirmation</label>
+              </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-12">
-              <div><label className="block text-sm mb-2">Export License</label><input type="text" className="input w-full" value={form.export_license} onChange={e => setForm(p => ({ ...p, export_license: e.target.value }))} /><input type="file" onChange={e => handleUpload('export_document_url', e)} className="hidden" id="export-upload" /><label htmlFor="export-upload" className="btn-primary mt-3 w-full">Upload Export License</label></div>
-              <div><label className="block text-sm mb-2">Import License</label><input type="text" className="input w-full" value={form.import_license} onChange={e => setForm(p => ({ ...p, import_license: e.target.value }))} /><input type="file" onChange={e => handleUpload('import_document_url', e)} className="hidden" id="import-upload" /><label htmlFor="import-upload" className="btn-primary mt-3 w-full">Upload Import License</label></div>
-              <div><label className="block text-sm mb-2">Bank Confirmation</label><input type="file" onChange={e => handleUpload('bank_confirmation_url', e)} className="hidden" id="bank-upload" /><label htmlFor="bank-upload" className="btn-primary mt-3 w-full">Upload Bank Confirmation</label></div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-12">
-              <div><label className="block text-sm mb-2">Bank Name</label><input type="text" className="input w-full" value={form.bank_name} onChange={e => setForm(p => ({ ...p, bank_name: e.target.value }))} /></div>
-              <div><label className="block text-sm mb-2">Account Name</label><input type="text" className="input w-full" value={form.account_name} onChange={e => setForm(p => ({ ...p, account_name: e.target.value }))} /></div>
-              <div><label className="block text-sm mb-2">Account Number</label><input type="text" className="input w-full" value={form.account_number} onChange={e => setForm(p => ({ ...p, account_number: e.target.value }))} /></div>
-              <div><label className="block text-sm mb-2">IBAN</label><input type="text" className="input w-full" value={form.iban} onChange={e => setForm(p => ({ ...p, iban: e.target.value }))} /></div>
-              <div><label className="block text-sm mb-2">SWIFT / BIC</label><input type="text" className="input w-full" value={form.swift} onChange={e => setForm(p => ({ ...p, swift: e.target.value }))} /></div>
+
+            {/* Bank Details */}
+            <div className="mt-12">
+              <h3 className="text-xl font-bold mb-6">Bank Details</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div>
+                  <label className="block text-sm mb-2">Bank Name</label>
+                  <input type="text" className="input w-full" value={form.bank_name} onChange={e => setForm(p => ({ ...p, bank_name: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-sm mb-2">Account Name</label>
+                  <input type="text" className="input w-full" value={form.account_name} onChange={e => setForm(p => ({ ...p, account_name: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-sm mb-2">Account Number</label>
+                  <input type="text" className="input w-full" value={form.account_number} onChange={e => setForm(p => ({ ...p, account_number: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-sm mb-2">IBAN</label>
+                  <input type="text" className="input w-full" value={form.iban} onChange={e => setForm(p => ({ ...p, iban: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-sm mb-2">SWIFT / BIC</label>
+                  <input type="text" className="input w-full" value={form.swift} onChange={e => setForm(p => ({ ...p, swift: e.target.value }))} />
+                </div>
+              </div>
             </div>
           </div>
         )}
 
         {/* STEP 5 - Products & Services */}
         {step === 5 && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-            <div>
-              <h3 className="font-bold text-2xl mb-6">Add Products</h3>
-              <div className="space-y-4">
-                <input type="text" placeholder="Description" className="input w-full" value={newProduct.description} onChange={e => setNewProduct(p => ({ ...p, description: e.target.value }))} />
-                <input type="text" placeholder="SKU" className="input w-full" value={newProduct.sku} onChange={e => setNewProduct(p => ({ ...p, sku: e.target.value }))} />
-                <select className="input w-full" value={newProduct.uom} onChange={e => setNewProduct(p => ({ ...p, uom: e.target.value }))}>
-                  <option value="">Select UoM</option>
-                  {uomOptions.map(u => <option key={u} value={u}>{u}</option>)}
-                </select>
-                <div className="grid grid-cols-2 gap-4">
-                  <input type="number" placeholder="Sell Price" className="input w-full" value={newProduct.sellPrice} onChange={e => setNewProduct(p => ({ ...p, sellPrice: e.target.value }))} />
-                  <input type="text" placeholder="Lead Time (days)" className="input w-full" value={newProduct.leadTime} onChange={e => setNewProduct(p => ({ ...p, leadTime: e.target.value }))} />
+          <div>
+            <h2 className="text-3xl font-bold mb-8">5. Products & Services</h2>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+              <div>
+                <h3 className="font-bold text-2xl mb-6">Add Products</h3>
+                <div className="space-y-4">
+                  <input type="text" placeholder="Description" className="input w-full" value={newProduct.description} onChange={e => setNewProduct(p => ({ ...p, description: e.target.value }))} />
+                  <input type="text" placeholder="SKU" className="input w-full" value={newProduct.sku} onChange={e => setNewProduct(p => ({ ...p, sku: e.target.value }))} />
+                  <select className="input w-full" value={newProduct.uom} onChange={e => setNewProduct(p => ({ ...p, uom: e.target.value }))}>
+                    <option value="">Select UoM</option>
+                    {uomOptions.map(u => <option key={u} value={u}>{u}</option>)}
+                  </select>
+                  <div className="grid grid-cols-2 gap-4">
+                    <input type="number" placeholder="Sell Price" className="input w-full" value={newProduct.sellPrice} onChange={e => setNewProduct(p => ({ ...p, sellPrice: e.target.value }))} />
+                    <input type="text" placeholder="Lead Time (days)" className="input w-full" value={newProduct.leadTime} onChange={e => setNewProduct(p => ({ ...p, leadTime: e.target.value }))} />
+                  </div>
+                  <button onClick={addProduct} className="btn-primary w-full">Add Product</button>
                 </div>
-                <button onClick={addProduct} className="btn-primary w-full">Add Product</button>
               </div>
-            </div>
-            <div>
-              <h3 className="font-bold text-2xl mb-6">Add Services</h3>
-              <input type="text" placeholder="Service Name" className="input w-full" value={newService} onChange={e => setNewService(e.target.value)} />
-              <button onClick={addService} className="btn-primary w-full mt-4">Add Service</button>
+              <div>
+                <h3 className="font-bold text-2xl mb-6">Add Services</h3>
+                <input type="text" placeholder="Service Name" className="input w-full" value={newService} onChange={e => setNewService(e.target.value)} />
+                <button onClick={addService} className="btn-primary w-full mt-4">Add Service</button>
+              </div>
             </div>
           </div>
         )}
