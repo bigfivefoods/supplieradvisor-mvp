@@ -17,9 +17,16 @@ export default function SelectCompany() {
   const [profiles, setProfiles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  console.log('🔍 SelectCompany mounted - cleanId:', cleanId);
+
   useEffect(() => {
     const loadProfiles = async () => {
-      if (!cleanId) return;
+      console.log('🚀 loadProfiles started for cleanId:', cleanId);
+      if (!cleanId) {
+        console.log('❌ No cleanId found');
+        setLoading(false);
+        return;
+      }
 
       const { data, error } = await supabase
         .from('profiles')
@@ -28,9 +35,10 @@ export default function SelectCompany() {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Error loading profiles:', error);
+        console.error('❌ Error loading profiles:', error);
         toast.error('Failed to load your companies');
       } else {
+        console.log('✅ Profiles loaded:', data?.length || 0, 'profiles', data);
         setProfiles(data || []);
       }
       setLoading(false);
@@ -40,6 +48,7 @@ export default function SelectCompany() {
   }, [cleanId]);
 
   const selectProfile = (profileId: string) => {
+    console.log('👉 User clicked profile:', profileId);
     router.push(`/dashboard?profile_id=${profileId}`);
   };
 
@@ -53,10 +62,17 @@ export default function SelectCompany() {
   }
 
   if (profiles.length === 0) {
+    console.log('⚠️ No profiles found for this user');
     return (
       <div className="pl-0 pr-12 py-12 max-w-screen-2xl mx-auto">
         <Breadcrumb />
         <p className="text-xl text-slate-600">No companies found. Please complete onboarding first.</p>
+        <button 
+          onClick={() => router.push('/onboarding')}
+          className="mt-8 btn-primary"
+        >
+          Go to Onboarding
+        </button>
       </div>
     );
   }
