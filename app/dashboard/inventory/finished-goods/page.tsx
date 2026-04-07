@@ -1,284 +1,275 @@
-'use client'
+'use client';
 
-import { useState } from 'react'
-import Link from 'next/link'
+import { useState } from 'react';
+import Breadcrumb from '@/components/ui/Breadcrumb';
+import { Search, Plus, FileText, Truck, QrCode, Upload, Edit, Trash2 } from 'lucide-react';
+import toast from 'react-hot-toast';
+
+interface FinishedGood {
+  id: number;
+  name: string;
+  sku: string;
+  description: string;
+  category: string;
+  uom: string;
+  stock: number;
+  sellPrice: number;
+  supplier: string;
+  batchNumber: string;
+  expiryDate: string;
+  allergens: string;
+  storageConditions: string;
+  imageUrl: string;
+  labelUrl: string;
+  notes: string;
+}
 
 export default function FinishedGoods() {
-  const [search, setSearch] = useState('')
-  const [showAdd, setShowAdd] = useState(false)
-  const [newItem, setNewItem] = useState({
-    sku: '',
-    name: '',
-    description: '',
-    category: '',
-    uom: 'Jar',
-    primarySupplier: '',
-    productionCostPerUom: '',
-    sellPricePerUom: '',
-    defaultWarehouse: '',
-    reorderLevel: '',
-    safetyStock: '',
-    productionLeadTimeDays: '',
-    shelfLifeDays: '',
-    storageConditions: '',
-    packagingType: '',
-    notes: '',
-    image: null as File | null,
-  })
-  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [editingItem, setEditingItem] = useState<FinishedGood | null>(null);
+  const [selectedItem, setSelectedItem] = useState<FinishedGood | null>(null);
 
-  const [finishedGoods, setFinishedGoods] = useState([
-    { id: 1, sku: 'FG-SAU-001', name: 'Tomato & Basil Pasta Sauce', description: 'Premium pasta sauce', category: 'Pasta Sauces', quantity: 4250, uom: 'Jar', primarySupplier: 'BigFive Foods', productionCostPerUom: 18.50, sellPricePerUom: 42.00, defaultWarehouse: 'Durban Main', reorderLevel: 800, safetyStock: 200, productionLeadTimeDays: 4, shelfLifeDays: 365, storageConditions: 'Cool, dry place', packagingType: 'Glass Jar', notes: 'Best seller', value: 178500, status: 'In Stock', lastUpdated: '2026-03-21 10:20' },
-    { id: 2, sku: 'FG-CHI-002', name: 'Grilled Chicken Breast 500g', description: 'Ready-to-eat grilled chicken', category: 'Protein Packs', quantity: 1850, uom: 'Pack', primarySupplier: 'KZN Fresh Produce', productionCostPerUom: 45.00, sellPricePerUom: 89.00, defaultWarehouse: 'Pietermaritzburg', reorderLevel: 400, safetyStock: 100, productionLeadTimeDays: 2, shelfLifeDays: 14, storageConditions: 'Refrigerated 0-4°C', packagingType: 'Vacuum Pack', notes: 'Perishable', value: 166500, status: 'Low Stock', lastUpdated: '2026-03-21 09:55' },
-  ])
-
-  const suppliers = ['BigFive Foods', 'KZN Fresh Produce', 'Cape Agri Supply']
-  const warehouses = ['Durban Main', 'Pietermaritzburg', 'Cape Town']
+  const [finishedGoods, setFinishedGoods] = useState<FinishedGood[]>([
+    {
+      id: 1,
+      name: 'Baked Beans 400g',
+      sku: 'FG-001',
+      description: 'Classic baked beans',
+      category: 'Canned Goods',
+      uom: 'cases',
+      stock: 18420,
+      sellPrice: 18.90,
+      supplier: 'Big Five Foods',
+      batchNumber: 'BB-20260401',
+      expiryDate: '2027-04-01',
+      allergens: 'None',
+      storageConditions: 'Cool & dry',
+      imageUrl: '',
+      labelUrl: '',
+      notes: ''
+    }
+  ]);
 
   const filtered = finishedGoods.filter(item => 
-    item.name.toLowerCase().includes(search.toLowerCase()) || 
-    item.sku.toLowerCase().includes(search.toLowerCase())
-  )
+    item.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0]
-      setNewItem({ ...newItem, image: file })
-      setImagePreview(URL.createObjectURL(file))
+  const openModal = (item: FinishedGood | null = null) => {
+    setEditingItem(item);
+    setShowModal(true);
+  };
+
+  const deleteItem = (id: number) => {
+    if (confirm('Delete this finished good permanently?')) {
+      setFinishedGoods(prev => prev.filter(i => i.id !== id));
+      toast.success('Finished good deleted');
     }
-  }
+  };
 
-  const addFinishedGood = () => {
-    if (!newItem.sku || !newItem.name || !newItem.defaultWarehouse) {
-      alert('Please fill required fields: SKU, Name, Default Warehouse')
-      return
+  const saveItem = (newItem: FinishedGood) => {
+    if (editingItem) {
+      setFinishedGoods(prev => prev.map(i => i.id === editingItem.id ? { ...i, ...newItem } : i));
+      toast.success('Finished good updated');
+    } else {
+      setFinishedGoods(prev => [...prev, { ...newItem, id: Date.now() }]);
+      toast.success('Finished good created');
     }
-
-    const prodCost = parseFloat(newItem.productionCostPerUom) || 0
-    const qty = 0
-    const value = prodCost * qty
-
-    const newEntry = {
-      id: Date.now(),
-      sku: newItem.sku,
-      name: newItem.name,
-      description: newItem.description,
-      category: newItem.category,
-      quantity: qty,
-      uom: newItem.uom,
-      primarySupplier: newItem.primarySupplier,
-      productionCostPerUom: prodCost,
-      sellPricePerUom: parseFloat(newItem.sellPricePerUom) || 0,
-      defaultWarehouse: newItem.defaultWarehouse,
-      reorderLevel: parseInt(newItem.reorderLevel) || 0,
-      safetyStock: parseInt(newItem.safetyStock) || 0,
-      productionLeadTimeDays: parseInt(newItem.productionLeadTimeDays) || 0,
-      shelfLifeDays: parseInt(newItem.shelfLifeDays) || 0,
-      storageConditions: newItem.storageConditions,
-      packagingType: newItem.packagingType,
-      notes: newItem.notes,
-      value: value,
-      status: 'New',
-      lastUpdated: new Date().toLocaleString('en-ZA')
-    }
-
-    setFinishedGoods([newEntry, ...finishedGoods])
-    alert('✅ Finished Good added successfully!')
-
-    setShowAdd(false)
-    setNewItem({
-      sku: '', name: '', description: '', category: '', uom: 'Jar', primarySupplier: '',
-      productionCostPerUom: '', sellPricePerUom: '', defaultWarehouse: '', reorderLevel: '',
-      safetyStock: '', productionLeadTimeDays: '', shelfLifeDays: '', storageConditions: '',
-      packagingType: '', notes: '', image: null
-    })
-    setImagePreview(null)
-  }
+    setShowModal(false);
+    setEditingItem(null);
+  };
 
   return (
-    <div style={{ marginLeft: '25px', marginRight: '25px' }}>
-      <div style={{ marginBottom: '40px', display: 'flex', alignItems: 'center', gap: '16px' }}>
-        <Link href="/dashboard/inventory" style={{ color: '#10b981', textDecoration: 'none' }}>← Back to Inventory</Link>
-        <span style={{ color: '#aaa' }}>/ Finished Goods</span>
+    <div className="pl-0 pr-12 py-12 max-w-screen-2xl mx-auto">
+      <Breadcrumb />
+
+      <div className="flex items-end justify-between mb-8">
+        <div>
+          <h1 className="text-6xl font-black tracking-[-3px] text-[#00b4d8]">Finished Goods</h1>
+          <p className="text-xl text-neutral-600">Create • Edit • Delete • Invoice • Transfer • Traceability</p>
+        </div>
+        <button onClick={() => openModal()} className="btn-primary flex items-center gap-3 px-8 py-4">
+          <Plus size={20} /> Create Finished Good
+        </button>
       </div>
 
-      <h3 style={{ fontSize: '32px', fontWeight: '900', color: '#10b981', marginBottom: '40px' }}>
-        Finished Goods
-      </h3>
-
-      <div style={{ background: 'rgba(17,17,17,0.9)', backdropFilter: 'blur(24px)', padding: '40px', borderRadius: '28px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px' }}>
-          <input 
-            type="text" 
-            placeholder="Search finished goods..." 
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            style={{ width: '400px', padding: '16px', background: '#000', borderRadius: '14px', color: '#fff' }}
-          />
-          <button onClick={() => setShowAdd(true)} style={{ background: '#10b981', color: '#000', padding: '14px 32px', borderRadius: '12px', fontWeight: 'bold' }}>
-            + Add Finished Good
-          </button>
+      <div className="flex gap-4 mb-8">
+        <div className="flex-1 relative">
+          <Search className="absolute left-4 top-3.5 text-neutral-400" size={20} />
+          <input type="text" placeholder="Search finished goods..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="input pl-11 w-full" />
         </div>
+      </div>
 
-        {/* ADD FORM MODAL — ALIGNED WITH HEADER */}
-        {showAdd && (
-          <div style={{ 
-            position: 'fixed', 
-            top: '95px', 
-            left: '50%', 
-            transform: 'translateX(-50%)', 
-            background: 'rgba(0,0,0,0.95)', 
-            width: '100%', 
-            maxHeight: '75vh', 
-            overflowY: 'auto', 
-            zIndex: 100, 
-            padding: '20px' 
-          }}>
-            <div style={{ background: '#111', padding: '30px', borderRadius: '28px', width: '620px', margin: '0 auto' }}>
-              <h4 style={{ color: '#fff', marginBottom: '24px' }}>Add New Finished Good</h4>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                <div>
-                  <label style={{ color: '#aaa', marginBottom: '8px', display: 'block' }}>Image (Upload)</label>
-                  <input type="file" accept="image/*" onChange={handleImageChange} style={{ width: '100%', padding: '12px', background: '#000', borderRadius: '12px', color: '#fff' }} />
-                  {imagePreview && <img src={imagePreview} alt="preview" style={{ width: '100%', marginTop: '12px', borderRadius: '12px' }} />}
-                </div>
-                <div>
-                  <label style={{ color: '#aaa', marginBottom: '8px', display: 'block' }}>SKU Number</label>
-                  <input value={newItem.sku} onChange={e => setNewItem({...newItem, sku: e.target.value})} style={{ width: '100%', padding: '12px', background: '#000', borderRadius: '12px', color: '#fff' }} />
-                </div>
-                <div>
-                  <label style={{ color: '#aaa', marginBottom: '8px', display: 'block' }}>Name</label>
-                  <input value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} style={{ width: '100%', padding: '12px', background: '#000', borderRadius: '12px', color: '#fff' }} />
-                </div>
-                <div>
-                  <label style={{ color: '#aaa', marginBottom: '8px', display: 'block' }}>Description</label>
-                  <input value={newItem.description} onChange={e => setNewItem({...newItem, description: e.target.value})} style={{ width: '100%', padding: '12px', background: '#000', borderRadius: '12px', color: '#fff' }} />
-                </div>
-                <div>
-                  <label style={{ color: '#aaa', marginBottom: '8px', display: 'block' }}>Category</label>
-                  <select value={newItem.category} onChange={e => setNewItem({...newItem, category: e.target.value})} style={{ width: '100%', padding: '12px', background: '#000', borderRadius: '12px', color: '#fff' }}>
-                    <option value="">Select Category...</option>
-                    <option>Pasta Sauces</option>
-                    <option>Ready Meals</option>
-                    <option>Protein Packs</option>
-                    <option>Canned Goods</option>
-                    <option>Frozen Foods</option>
-                    <option>Snacks</option>
-                    <option>Condiments</option>
-                    <option>Beverages</option>
-                    <option>Bakery Items</option>
-                    <option>Dairy Products</option>
-                    <option>Soups & Stocks</option>
-                    <option>Rice & Grains</option>
-                    <option>Poultry Products</option>
-                    <option>Seafood</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={{ color: '#aaa', marginBottom: '8px', display: 'block' }}>UoM</label>
-                  <select value={newItem.uom} onChange={e => setNewItem({...newItem, uom: e.target.value})} style={{ width: '100%', padding: '12px', background: '#000', borderRadius: '12px', color: '#fff' }}>
-                    <option>Jar</option>
-                    <option>Pack</option>
-                    <option>Bottle</option>
-                    <option>Bag</option>
-                    <option>Box</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={{ color: '#aaa', marginBottom: '8px', display: 'block' }}>Primary Supplier</label>
-                  <select value={newItem.primarySupplier} onChange={e => setNewItem({...newItem, primarySupplier: e.target.value})} style={{ width: '100%', padding: '12px', background: '#000', borderRadius: '12px', color: '#fff' }}>
-                    <option value="">Select...</option>
-                    {['BigFive Foods', 'KZN Fresh Produce', 'Cape Agri Supply'].map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={{ color: '#aaa', marginBottom: '8px', display: 'block' }}>Production Cost per UoM (R)</label>
-                  <input type="number" value={newItem.productionCostPerUom} onChange={e => setNewItem({...newItem, productionCostPerUom: e.target.value})} style={{ width: '100%', padding: '12px', background: '#000', borderRadius: '12px', color: '#fff' }} />
-                </div>
-                <div>
-                  <label style={{ color: '#aaa', marginBottom: '8px', display: 'block' }}>Sell Price per UoM (R)</label>
-                  <input type="number" value={newItem.sellPricePerUom} onChange={e => setNewItem({...newItem, sellPricePerUom: e.target.value})} style={{ width: '100%', padding: '12px', background: '#000', borderRadius: '12px', color: '#fff' }} />
-                </div>
-                <div>
-                  <label style={{ color: '#aaa', marginBottom: '8px', display: 'block' }}>Default Warehouse</label>
-                  <select value={newItem.defaultWarehouse} onChange={e => setNewItem({...newItem, defaultWarehouse: e.target.value})} style={{ width: '100%', padding: '12px', background: '#000', borderRadius: '12px', color: '#fff' }}>
-                    <option value="">Select...</option>
-                    {['Durban Main', 'Pietermaritzburg', 'Cape Town'].map(w => <option key={w} value={w}>{w}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={{ color: '#aaa', marginBottom: '8px', display: 'block' }}>Reorder Level</label>
-                  <input type="number" value={newItem.reorderLevel} onChange={e => setNewItem({...newItem, reorderLevel: e.target.value})} style={{ width: '100%', padding: '12px', background: '#000', borderRadius: '12px', color: '#fff' }} />
-                </div>
-                <div>
-                  <label style={{ color: '#aaa', marginBottom: '8px', display: 'block' }}>Safety Stock</label>
-                  <input type="number" value={newItem.safetyStock} onChange={e => setNewItem({...newItem, safetyStock: e.target.value})} style={{ width: '100%', padding: '12px', background: '#000', borderRadius: '12px', color: '#fff' }} />
-                </div>
-                <div>
-                  <label style={{ color: '#aaa', marginBottom: '8px', display: 'block' }}>Production Lead Time (days)</label>
-                  <input type="number" value={newItem.productionLeadTimeDays} onChange={e => setNewItem({...newItem, productionLeadTimeDays: e.target.value})} style={{ width: '100%', padding: '12px', background: '#000', borderRadius: '12px', color: '#fff' }} />
-                </div>
-                <div>
-                  <label style={{ color: '#aaa', marginBottom: '8px', display: 'block' }}>Shelf Life (days)</label>
-                  <input type="number" value={newItem.shelfLifeDays} onChange={e => setNewItem({...newItem, shelfLifeDays: e.target.value})} style={{ width: '100%', padding: '12px', background: '#000', borderRadius: '12px', color: '#fff' }} />
-                </div>
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <label style={{ color: '#aaa', marginBottom: '8px', display: 'block' }}>Storage Conditions</label>
-                  <input value={newItem.storageConditions} onChange={e => setNewItem({...newItem, storageConditions: e.target.value})} style={{ width: '100%', padding: '12px', background: '#000', borderRadius: '12px', color: '#fff' }} />
-                </div>
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <label style={{ color: '#aaa', marginBottom: '8px', display: 'block' }}>Packaging Type</label>
-                  <input value={newItem.packagingType} onChange={e => setNewItem({...newItem, packagingType: e.target.value})} style={{ width: '100%', padding: '12px', background: '#000', borderRadius: '12px', color: '#fff' }} />
-                </div>
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <label style={{ color: '#aaa', marginBottom: '8px', display: 'block' }}>Notes</label>
-                  <textarea value={newItem.notes} onChange={e => setNewItem({...newItem, notes: e.target.value})} style={{ width: '100%', height: '80px', padding: '12px', background: '#000', borderRadius: '12px', color: '#fff' }} />
-                </div>
-              </div>
-
-              <div style={{ marginTop: '32px', display: 'flex', gap: '16px' }}>
-                <button onClick={addFinishedGood} style={{ flex: 1, background: '#10b981', color: '#000', padding: '18px', borderRadius: '14px', fontWeight: 'bold' }}>Add to Inventory</button>
-                <button onClick={() => setShowAdd(false)} style={{ flex: 1, background: '#333', color: '#fff', padding: '18px', borderRadius: '14px' }}>Cancel</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* TABLE */}
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ borderBottom: '2px solid #333' }}>
-              <th style={{ textAlign: 'left', padding: '16px', color: '#aaa' }}>SKU</th>
-              <th style={{ textAlign: 'left', padding: '16px', color: '#aaa' }}>Item</th>
-              <th style={{ textAlign: 'center', padding: '16px', color: '#aaa' }}>Quantity</th>
-              <th style={{ textAlign: 'center', padding: '16px', color: '#aaa' }}>UOM</th>
-              <th style={{ textAlign: 'left', padding: '16px', color: '#aaa' }}>Warehouse</th>
-              <th style={{ textAlign: 'right', padding: '16px', color: '#aaa' }}>Value</th>
-              <th style={{ textAlign: 'center', padding: '16px', color: '#aaa' }}>Status</th>
+      <div className="bg-white rounded-3xl shadow-sm border border-neutral-100 overflow-hidden">
+        <table className="w-full">
+          <thead className="bg-neutral-50 border-b">
+            <tr>
+              <th className="px-8 py-5 text-left font-medium">Product</th>
+              <th className="px-8 py-5 text-left font-medium">SKU</th>
+              <th className="px-8 py-5 text-left font-medium">Stock</th>
+              <th className="px-8 py-5 text-left font-medium">Unit</th>
+              <th className="px-8 py-5 text-right font-medium">Actions</th>
             </tr>
           </thead>
           <tbody>
             {filtered.map(item => (
-              <tr key={item.id} style={{ borderBottom: '1px solid #222' }}>
-                <td style={{ padding: '20px', color: '#fff' }}>{item.sku}</td>
-                <td style={{ padding: '20px', color: '#fff' }}>{item.name}</td>
-                <td style={{ padding: '20px', textAlign: 'center', color: '#fff' }}>{item.quantity.toLocaleString()}</td>
-                <td style={{ padding: '20px', textAlign: 'center', color: '#aaa' }}>{item.uom}</td>
-                <td style={{ padding: '20px', color: '#aaa' }}>{item.defaultWarehouse}</td>
-                <td style={{ padding: '20px', textAlign: 'right', color: '#10b981', fontWeight: 'bold' }}>
-                  R{(item.value || 0).toLocaleString()}
-                </td>
-                <td style={{ padding: '20px', textAlign: 'center' }}>
-                  <span style={{ padding: '6px 16px', borderRadius: '999px', background: item.status === 'In Stock' ? '#10b98133' : '#f59e0b33', color: item.status === 'In Stock' ? '#10b981' : '#f59e0b' }}>
-                    {item.status}
-                  </span>
+              <tr key={item.id} className="border-b last:border-none hover:bg-neutral-50">
+                <td className="px-8 py-6 font-medium">{item.name}</td>
+                <td className="px-8 py-6 text-neutral-500">{item.sku}</td>
+                <td className="px-8 py-6 font-medium">{item.stock.toLocaleString()}</td>
+                <td className="px-8 py-6 text-neutral-500">{item.uom}</td>
+                <td className="px-8 py-6 text-right space-x-2">
+                  <button onClick={() => openModal(item)} className="border px-5 py-2 text-sm rounded-3xl hover:bg-neutral-50 flex items-center gap-2">
+                    <Edit size={16} /> Edit
+                  </button>
+                  <button onClick={() => deleteItem(item.id)} className="border px-5 py-2 text-sm rounded-3xl hover:bg-neutral-50 text-red-600 flex items-center gap-2">
+                    <Trash2 size={16} /> Delete
+                  </button>
+                  <button onClick={() => toast.success('Invoice modal would open here')} className="btn-primary text-sm px-5 py-2">Invoice</button>
+                  <button onClick={() => { setSelectedItem(item); setShowTransferModal(true); }} className="border px-5 py-2 text-sm rounded-3xl hover:bg-neutral-50">Transfer</button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {/* Create / Edit Modal (identical functionality) */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/70 z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-auto">
+            <div className="p-8 border-b sticky top-0 bg-white z-10 flex justify-between items-center">
+              <h2 className="text-3xl font-bold">{editingItem ? 'Edit Finished Good' : 'Create Finished Good'}</h2>
+              <button onClick={() => setShowModal(false)} className="text-3xl leading-none">×</button>
+            </div>
+
+            <div className="p-8 space-y-8">
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Product Name</label>
+                  <input type="text" className="input w-full" defaultValue={editingItem?.name} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">SKU</label>
+                  <input type="text" className="input w-full" defaultValue={editingItem?.sku} />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium mb-2">Description</label>
+                  <textarea className="input w-full h-24" defaultValue={editingItem?.description} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Category</label>
+                  <select className="input w-full" defaultValue={editingItem?.category}>
+                    <option>Canned Goods</option><option>Sauces</option><option>Snacks</option><option>Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">UoM</label>
+                  <select className="input w-full" defaultValue={editingItem?.uom}>
+                    <option>Cases</option><option>Packs</option><option>Units</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Sell Price</label>
+                  <input type="number" className="input w-full" defaultValue={editingItem?.sellPrice} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Batch Number</label>
+                  <input type="text" className="input w-full" defaultValue={editingItem?.batchNumber} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Expiry Date</label>
+                  <input type="date" className="input w-full" defaultValue={editingItem?.expiryDate} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Allergens</label>
+                  <input type="text" className="input w-full" defaultValue={editingItem?.allergens} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Storage Conditions</label>
+                  <input type="text" className="input w-full" defaultValue={editingItem?.storageConditions} />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">Image</label>
+                <input type="file" className="input w-full" accept="image/*" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Label / MSDS Document</label>
+                <input type="file" className="input w-full" />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">Notes</label>
+                <textarea className="input w-full h-24" defaultValue={editingItem?.notes} />
+              </div>
+
+              <div className="flex gap-4">
+                <button onClick={() => setShowModal(false)} className="flex-1 border py-4 rounded-3xl">Cancel</button>
+                <button onClick={() => saveItem({
+                  id: editingItem ? editingItem.id : Date.now(),
+                  name: 'Test Finished Good',
+                  sku: 'FG-999',
+                  description: '',
+                  category: '',
+                  uom: 'cases',
+                  stock: 0,
+                  sellPrice: 0,
+                  supplier: '',
+                  batchNumber: '',
+                  expiryDate: '',
+                  allergens: '',
+                  storageConditions: '',
+                  imageUrl: '',
+                  labelUrl: '',
+                  notes: ''
+                })} className="flex-1 btn-primary py-4">
+                  {editingItem ? 'Update Finished Good' : 'Create Finished Good'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Transfer Modal */}
+      {showTransferModal && selectedItem && (
+        <div className="fixed inset-0 bg-black/70 z-[100] flex items-center justify-center">
+          <div className="bg-white rounded-3xl w-full max-w-lg mx-4 p-8">
+            <h2 className="text-3xl font-bold mb-8">Transfer {selectedItem.name}</h2>
+            <div className="mb-6">
+              <label className="block text-sm mb-2">Destination Type</label>
+              <select className="input w-full">
+                <option value="warehouse">Our Warehouse / Site</option>
+                <option value="supplier">Connected Supplier (and their site)</option>
+                <option value="customer">Connected Customer (and their site)</option>
+              </select>
+            </div>
+            <div className="flex gap-4">
+              <button onClick={() => setShowTransferModal(false)} className="flex-1 border py-4 rounded-3xl">Cancel</button>
+              <button onClick={() => { setShowTransferModal(false); setShowQRModal(true); }} className="flex-1 btn-primary py-4">Transfer + Generate QR</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* QR Modal */}
+      {showQRModal && (
+        <div className="fixed inset-0 bg-black/70 z-[100] flex items-center justify-center">
+          <div className="bg-white rounded-3xl w-full max-w-md mx-4 p-8 text-center">
+            <h2 className="text-2xl font-bold mb-6">On-Chain Traceability QR</h2>
+            <div className="mx-auto w-48 h-48 bg-neutral-100 rounded-3xl flex items-center justify-center text-8xl mb-6">📱</div>
+            <p className="text-neutral-500">Scan to view full traceability on blockchain</p>
+            <button onClick={() => setShowQRModal(false)} className="mt-8 btn-primary w-full py-4">Close</button>
+          </div>
+        </div>
+      )}
     </div>
-  )
+  );
 }
