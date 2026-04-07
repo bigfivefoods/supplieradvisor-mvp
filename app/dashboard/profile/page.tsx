@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
-import { ArrowRight, ChevronDown, RotateCw, Upload } from 'lucide-react';
+import { ArrowRight, ChevronDown, RotateCw, Upload, Plus, Users2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import toast from 'react-hot-toast';
 import Breadcrumb from '@/components/ui/Breadcrumb';
@@ -95,6 +95,24 @@ const businessTypesList = [
   'Subsidiary Company', 'Startup / SME', 'Co-operative Society', 'Other'
 ];
 
+const roleOptions = [
+  'CEO / Managing Director',
+  'Procurement Leader',
+  'Supply Chain Leader',
+  'Finance Leader',
+  'Quality Leader',
+  'Sales Leader',
+  'Operations Leader',
+  'Logistics Leader',
+  'Warehouse Leader',
+  'HR Leader',
+  'IT Leader',
+  'Compliance Leader',
+  'Sustainability Leader',
+  'Administrator',
+  'Other'
+];
+
 export default function MyBusinessProfile() {
   const { user } = usePrivy();
   const cleanId = (user?.id || '').replace('privy:', '');
@@ -116,12 +134,15 @@ export default function MyBusinessProfile() {
     products: [] as any[],
     services: [] as string[],
     certifications: [] as any[],
-    business_type: ''
+    business_type: '',
+    team_members: [] as any[]
   });
 
   const [newProduct, setNewProduct] = useState({ description: '', sku: '', uom: '', sellPrice: '', leadTime: '', imageUrl: '' });
   const [newService, setNewService] = useState('');
   const [newCert, setNewCert] = useState({ name: '', body: '', awarded_date: '', expiry_date: '', never_expires: false, document_url: '' });
+  const [newTeamMember, setNewTeamMember] = useState({ name: '', email: '', contact_number: '', role: '' });
+
   const [openIndustries, setOpenIndustries] = useState<Record<string, boolean>>({});
   const [expanded, setExpanded] = useState<Record<string, boolean>>({
     basics: true,
@@ -141,29 +162,21 @@ export default function MyBusinessProfile() {
 
   const loadProfile = async () => {
     setLoading(true);
-    console.log("=== LOADING PROFILE ===", cleanId);
-
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('user_id', cleanId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
+    const { data: profile } = await supabase.from('profiles').select('*').eq('user_id', cleanId).maybeSingle();
     if (profile) setForm(prev => ({ ...prev, ...profile }));
 
     const { data: products } = await supabase.from('business_products').select('*').eq('profile_id', cleanId);
     const { data: servicesData } = await supabase.from('business_services').select('name').eq('profile_id', cleanId);
     const { data: certifications } = await supabase.from('business_certifications').select('*').eq('profile_id', cleanId);
+    const { data: teamData } = await supabase.from('business_users').select('*').eq('profile_id', cleanId);
 
     setForm(prev => ({
       ...prev,
       products: products || [],
       services: servicesData?.map((s: any) => s.name) || [],
-      certifications: certifications || []
+      certifications: certifications || [],
+      team_members: teamData || []
     }));
-
     setLoading(false);
   };
 
@@ -217,6 +230,36 @@ export default function MyBusinessProfile() {
     }
   };
 
+  const addTeamMember = async () => {
+    if (!newTeamMember.name || !newTeamMember.email) {
+      toast.error('Name and Email are required');
+      return;
+    }
+
+    const memberData = {
+      profile_id: cleanId,
+      name: newTeamMember.name,
+      email: newTeamMember.email,
+      contact_number: newTeamMember.contact_number || '',
+      role: newTeamMember.role || 'Other',
+      status: 'invited',
+      invited_at: new Date().toISOString()
+    };
+
+    const { error } = await supabase.from('business_users').insert(memberData);
+
+    if (error) {
+      toast.error('Failed to add user');
+    } else {
+      toast.success(`✅ Invitation sent to ${newTeamMember.email}`);
+      setForm(p => ({
+        ...p,
+        team_members: [...(p.team_members || []), memberData]
+      }));
+      setNewTeamMember({ name: '', email: '', contact_number: '', role: '' });
+    }
+  };
+
   const saveProfile = async () => {
     setSaving(true);
     try {
@@ -259,17 +302,7 @@ export default function MyBusinessProfile() {
       await supabase.from('profiles').upsert(profileData);
 
       if (form.products.length > 0) {
-        await supabase.from('business_products').upsert(
-          form.products.map(p => ({
-            profile_id: cleanId,
-            description: p.description,
-            sku: p.sku,
-            uom: p.uom,
-            sell_price: Number(p.sellPrice) || 0,
-            lead_time: p.leadTime,
-            image_url: p.imageUrl
-          }))
-        );
+        await supabase.from('business_products').upsert(form.products.map(p => ({ profile_id: cleanId, ...p })));
       }
       if (form.services.length > 0) {
         await supabase.from('business_services').upsert(form.services.map(name => ({ profile_id: cleanId, name })));
@@ -316,57 +349,107 @@ export default function MyBusinessProfile() {
             <ChevronDown className={`transition ${expanded.basics ? 'rotate-180' : ''}`} />
           </div>
           {expanded.basics && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div>
-                <label className="block text-sm font-medium mb-2">Legal Name</label>
-                <input type="text" className="input w-full" value={form.legal_name} onChange={e => setForm(p => ({...p, legal_name: e.target.value}))} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Trading Name</label>
-                <input type="text" className="input w-full" value={form.trading_name} onChange={e => setForm(p => ({...p, trading_name: e.target.value}))} />
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Legal Name</label>
+                  <input type="text" className="input w-full" value={form.legal_name} onChange={e => setForm(p => ({...p, legal_name: e.target.value}))} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Trading Name</label>
+                  <input type="text" className="input w-full" value={form.trading_name} onChange={e => setForm(p => ({...p, trading_name: e.target.value}))} />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Business Type</label>
+                  <select className="input w-full" value={form.business_type || ''} onChange={e => setForm(p => ({ ...p, business_type: e.target.value }))}>
+                    <option value="">Select Business Type</option>
+                    {businessTypesList.map(type => <option key={type} value={type}>{type}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Contact Name</label>
+                  <input type="text" className="input w-full" value={form.contact_name} onChange={e => setForm(p => ({...p, contact_name: e.target.value}))} />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Contact Number</label>
+                  <input type="tel" className="input w-full" value={form.contact_number || ''} onChange={e => setForm(p => ({...p, contact_number: e.target.value}))} />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Email Address</label>
+                  <input type="email" className="input w-full" value={form.email} onChange={e => setForm(p => ({...p, email: e.target.value}))} />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Company Registration Number</label>
+                  <input type="text" className="input w-full" value={form.registration_number} onChange={e => setForm(p => ({...p, registration_number: e.target.value}))} />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-3">Company Logo</label>
+                  {form.logo_url && <img src={form.logo_url} alt="Logo" className="w-14 h-14 object-cover rounded-2xl border mb-3" />}
+                  <input type="file" onChange={e => handleUpload('logo_url', e)} className="hidden" id="logo-upload" />
+                  <label htmlFor="logo-upload" className="btn-primary cursor-pointer">Choose Logo</label>
+                </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-2">Business Type</label>
-                <select 
-                  className="input w-full" 
-                  value={form.business_type || ''} 
-                  onChange={e => setForm(p => ({ ...p, business_type: e.target.value }))}
-                >
-                  <option value="">Select Business Type</option>
-                  {businessTypesList.map(type => (
-                    <option key={type} value={type}>{type}</option>
+              {/* TEAM MEMBERS SECTION */}
+              <div className="mt-12 pt-8 border-t">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-xl font-semibold flex items-center gap-3">
+                    <Users2 size={24} /> Team Members / Users
+                  </h3>
+                  {form.team_members?.length > 0 && (
+                    <span className="text-sm bg-blue-100 text-blue-700 px-4 py-1 rounded-3xl">
+                      {form.team_members.length} user{form.team_members.length !== 1 ? 's' : ''}
+                    </span>
+                  )}
+                </div>
+
+                <div className="space-y-3 mb-8">
+                  {form.team_members?.map((member: any, i: number) => (
+                    <div key={i} className="flex justify-between items-center bg-neutral-50 p-5 rounded-3xl">
+                      <div>
+                        <div className="font-medium">{member.name}</div>
+                        <div className="text-sm text-neutral-500">{member.email} • {member.role}</div>
+                      </div>
+                      <div className="text-xs px-4 py-1 bg-emerald-100 text-emerald-700 rounded-3xl">
+                        {member.status || 'invited'}
+                      </div>
+                    </div>
                   ))}
-                </select>
-              </div>
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-2">Contact Name</label>
-                <input type="text" className="input w-full" value={form.contact_name} onChange={e => setForm(p => ({...p, contact_name: e.target.value}))} />
-              </div>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 bg-neutral-50 p-8 rounded-3xl">
+                  <div>
+                    <label className="block text-sm mb-2">Full Name</label>
+                    <input type="text" className="input w-full" value={newTeamMember.name} onChange={e => setNewTeamMember({...newTeamMember, name: e.target.value})} placeholder="John Doe" />
+                  </div>
+                  <div>
+                    <label className="block text-sm mb-2">Email Address</label>
+                    <input type="email" className="input w-full" value={newTeamMember.email} onChange={e => setNewTeamMember({...newTeamMember, email: e.target.value})} placeholder="john@company.com" />
+                  </div>
+                  <div>
+                    <label className="block text-sm mb-2">Contact Number</label>
+                    <input type="tel" className="input w-full" value={newTeamMember.contact_number} onChange={e => setNewTeamMember({...newTeamMember, contact_number: e.target.value})} placeholder="+27 82 581 4215" />
+                  </div>
+                  <div>
+                    <label className="block text-sm mb-2">Role</label>
+                    <select className="input w-full" value={newTeamMember.role} onChange={e => setNewTeamMember({...newTeamMember, role: e.target.value})}>
+                      <option value="">Select Role</option>
+                      {roleOptions.map(r => <option key={r} value={r}>{r}</option>)}
+                    </select>
+                  </div>
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-2">Contact Number</label>
-                <input type="tel" className="input w-full" value={form.contact_number || ''} onChange={e => setForm(p => ({...p, contact_number: e.target.value}))} />
+                <button onClick={addTeamMember} className="mt-6 btn-primary flex items-center gap-3">
+                  <Plus size={20} /> Send Invitation to New User
+                </button>
               </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">Email Address</label>
-                <input type="email" className="input w-full" value={form.email} onChange={e => setForm(p => ({...p, email: e.target.value}))} />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">Company Registration Number</label>
-                <input type="text" className="input w-full" value={form.registration_number} onChange={e => setForm(p => ({...p, registration_number: e.target.value}))} />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-3">Company Logo</label>
-                {form.logo_url && <img src={form.logo_url} alt="Logo" className="w-14 h-14 object-cover rounded-2xl border mb-3" />}
-                <input type="file" onChange={e => handleUpload('logo_url', e)} className="hidden" id="logo-upload" />
-                <label htmlFor="logo-upload" className="btn-primary cursor-pointer">Choose Logo</label>
-              </div>
-            </div>
+            </>
           )}
         </div>
 
