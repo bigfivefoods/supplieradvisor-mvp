@@ -155,12 +155,8 @@ export default function SuppliersSearch() {
     setLoading(false);
   };
 
-  // ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
-  // THIS IS THE ONLY CHANGE: ultra-simple queries that ALWAYS show rows if they exist in the table
   const loadConnectionRequests = async () => {
     setRequestsLoading(true);
-    console.log('%c🔄 LOADING CONNECTION REQUESTS for cleanId:', 'color:#00b4d8;font-weight:bold', cleanId);
-
     const { data: sent } = await supabase
       .from('business_connections')
       .select('*')
@@ -170,9 +166,6 @@ export default function SuppliersSearch() {
       .from('business_connections')
       .select('*')
       .eq('requestee_id', cleanId);
-
-    console.log('%c📤 SENT requests RAW from DB:', 'color:#00b4d8', sent);
-    console.log('%c📥 RECEIVED requests RAW from DB:', 'color:#00b4d8', received);
 
     setSentRequests(sent || []);
     setReceivedRequests(received || []);
@@ -193,14 +186,54 @@ export default function SuppliersSearch() {
     });
   };
 
-  const sendInvitation = () => {
+  // UPDATED: Real email invitation using the same Edge Function
+  const sendInvitation = async () => {
     if (!inviteEmail) return toast.error('Please enter an email');
-    setSentInvitations(prev => [
-      ...prev,
-      { id: Date.now(), company: inviteEmail, sent: new Date().toISOString().split('T')[0], status: 'Pending' }
-    ]);
-    toast.success('Invitation sent!');
-    setInviteEmail('');
+
+    const memberData = {
+      profile_id: cleanId,
+      name: inviteEmail.split('@')[0] || 'New Supplier',
+      email: inviteEmail,
+      contact_number: '',
+      role: 'Supplier',
+      status: 'invited',
+      invited_at: new Date().toISOString()
+    };
+
+    // Save to business_users table
+    const { error: insertError } = await supabase.from('business_users').insert(memberData);
+    if (insertError) {
+      toast.error('Failed to save invitation');
+      return;
+    }
+
+    // Send real email
+    try {
+      const { error: emailError } = await supabase.functions.invoke('send-team-invitation', {
+        body: {
+          to_email: inviteEmail,
+          to_name: inviteEmail.split('@')[0] || 'Supplier',
+          company_name: 'SupplierAdvisor Network',
+          role: 'Supplier',
+          inviter_name: 'Your Team'
+        }
+      });
+
+      if (emailError) throw emailError;
+
+      toast.success(`✅ Real invitation email sent to ${inviteEmail}`);
+
+      // Add to local UI list
+      setSentInvitations(prev => [
+        ...prev,
+        { id: Date.now(), company: inviteEmail, sent: new Date().toISOString().split('T')[0], status: 'Pending' }
+      ]);
+
+      setInviteEmail('');
+    } catch (err) {
+      console.error(err);
+      toast.error('Invitation saved, but email failed to send');
+    }
   };
 
   const sendConnectionRequest = async (company: any) => {
@@ -436,13 +469,27 @@ export default function SuppliersSearch() {
           {showInvite && (
             <div className="card p-8 h-full">
               <p className="text-slate-600 mb-6">Send a personalised invitation to join the verified SupplierAdvisor network.</p>
-              <input type="email" placeholder="Business email address" className="input mb-6" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} />
+              <input 
+                type="email" 
+                placeholder="Business email address" 
+                className="input mb-6" 
+                value={inviteEmail} 
+                onChange={e => setInviteEmail(e.target.value)} 
+              />
               <div className="mb-6">
                 <label className="block text-sm font-medium mb-2">Invitation Message</label>
-                <textarea rows={5} className="input w-full resize-y" value={inviteNote} onChange={e => setInviteNote(e.target.value)} />
+                <textarea 
+                  rows={5} 
+                  className="input w-full resize-y" 
+                  value={inviteNote} 
+                  onChange={e => setInviteNote(e.target.value)} 
+                />
               </div>
-              <button onClick={sendInvitation} className="btn-primary w-full py-5 flex items-center justify-center gap-3">
-                <Plus size={22} /> Send Invitation
+              <button 
+                onClick={sendInvitation} 
+                className="btn-primary w-full py-5 flex items-center justify-center gap-3"
+              >
+                <Plus size={22} /> Send Real Invitation Email
               </button>
               <div className="mt-12">
                 <h4 className="font-medium mb-4">Sent Invitations</h4>
