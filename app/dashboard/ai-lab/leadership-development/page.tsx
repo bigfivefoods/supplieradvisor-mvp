@@ -9,13 +9,50 @@ export default function LeadershipDevelopment() {
   const [step, setStep] = useState<'intro' | 'assessment' | 'results'>('intro');
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
 
+  // === 6 DIMENSIONS WITH YOUR EXACT CUBE ICONS + RICHER DESCRIPTIONS ===
   const dimensions = [
-    { key: 'choices', name: 'Choices', color: '#e74c3c', description: 'Decision-making intelligence, moral values, judgement, risk-taking' },
-    { key: 'principles', name: 'Principles', color: '#8e44ad', description: 'Ethical foundations, contextual awareness, situational judgement, governance' },
-    { key: 'mental', name: 'Mental', color: '#f39c12', description: 'Cognitive intelligence, strategic thinking, problem-solving, vision' },
-    { key: 'emotional', name: 'Emotional', color: '#27ae60', description: 'Emotional intelligence, empathy, social relationships, motivation' },
-    { key: 'physical', name: 'Physical', color: '#3498db', description: 'Physical health, energy management, fitness, nutrition, resilience' },
-    { key: 'spiritual', name: 'Spiritual', color: '#2c3e50', description: 'Purpose, meaning, faith, transcendence, spiritual intelligence' },
+    {
+      key: 'choices',
+      name: 'Choices',
+      color: '#e74c3c',
+      icon: 'icon-1-context-400x400.png',
+      description: 'Decision-making intelligence, moral values, judgement, and risk-taking. The red face represents the courage to choose what is right over what is easy — even when no one is watching. Choices define your legacy.'
+    },
+    {
+      key: 'principles',
+      name: 'Principles',
+      color: '#8e44ad',
+      icon: 'icon-2-context-400x400.png',
+      description: 'Ethical foundations, contextual awareness, situational judgement, and governance. The purple face anchors every decision in timeless values that transcend culture and circumstance. Principles are your leadership compass.'
+    },
+    {
+      key: 'mental',
+      name: 'Mental',
+      color: '#f39c12',
+      icon: 'icon-3-context-400x400.png',
+      description: 'Cognitive intelligence, strategic thinking, problem-solving, and vision. The orange face powers the clarity of thought and foresight that turns complexity into opportunity. Mental strength creates clarity.'
+    },
+    {
+      key: 'emotional',
+      name: 'Emotional',
+      color: '#27ae60',
+      icon: 'icon-4-context-400x400.png',
+      description: 'Emotional intelligence, empathy, social relationships, and motivation. The green face builds the human connection and resilience that inspires teams to greatness. Emotional mastery creates trust.'
+    },
+    {
+      key: 'physical',
+      name: 'Physical',
+      color: '#3498db',
+      icon: 'icon-5-context-400x400.png',
+      description: 'Physical health, energy management, fitness, nutrition, and resilience. The light-blue face fuels the sustained energy and vitality required for world-class leadership. Physical wellbeing powers everything else.'
+    },
+    {
+      key: 'spiritual',
+      name: 'Spiritual',
+      color: '#2c3e50',
+      icon: 'icon-6-context-400x400.png',
+      description: 'Purpose, meaning, faith, transcendence, and spiritual intelligence. The dark-blue face connects your leadership to something greater than yourself and inspires others to do the same. Spiritual alignment gives life to everything.'
+    },
   ];
 
   const questions: Record<string, string[]> = {
@@ -110,7 +147,7 @@ export default function LeadershipDevelopment() {
             <img 
               src="/images/supercube-logo-for-home-page.png" 
               alt="Super-Cube®" 
-              className="h-24 mb-8" 
+              className="h-28 mb-8" 
             />
             <h1 className="text-7xl font-black tracking-[-4px] text-[#00b4d8] leading-none mb-6">
               Super-Cube®
@@ -125,11 +162,10 @@ export default function LeadershipDevelopment() {
             <h2 className="text-4xl font-bold mb-6">What is Super-Cube®?</h2>
             <p className="text-xl text-neutral-600 leading-relaxed">
               Developed in 2020 as part of my Doctorate of Business Administration thesis at the University of KwaZulu-Natal, 
-              the Super-Cube® Leadership Model is a human-centric, multidimensional framework for leadership development.
+              Super-Cube® is a human-centric, multidimensional leadership framework that places the individual (“You”) at the centre of a 3D cube.
             </p>
             <p className="text-xl text-neutral-600 leading-relaxed mt-6">
-              It visualises leadership as a three-dimensional cube with six interconnected faces surrounding the individual ("You") at the centre. 
-              The six dimensions — Choices, Principles, Mental, Emotional, Physical and Spiritual — work together to build authentic, effective leadership capacity.
+              Six interconnected faces radiate outward, forming a complete leadership system that integrates cognitive, emotional, physical, spiritual, ethical, and decision-making intelligence.
             </p>
           </div>
 
@@ -137,11 +173,11 @@ export default function LeadershipDevelopment() {
           <div className="max-w-4xl mx-auto bg-white rounded-3xl shadow-sm border border-neutral-100 p-12 mb-12">
             <h2 className="text-4xl font-bold mb-6">Why Super-Cube® exists</h2>
             <p className="text-xl text-neutral-600 leading-relaxed">
-              Africa faces unique leadership challenges: rapid population growth, skills shortages, institutional complexity and the need for ethical, sustainable growth. 
-              Super-Cube® was created to address these realities by providing a practical, empirically validated model that helps leaders develop themselves so they can better serve their organisations, communities and ultimately progress humanity.
+              Africa (and the world) needs leaders who are whole, authentic, and capable of driving sustainable progress. 
+              Super-Cube® was created to solve the leadership development gap by giving every leader a practical, evidence-based roadmap to grow themselves — so they can better serve their organisations, communities, and ultimately progress humanity.
             </p>
             <p className="text-xl text-neutral-600 leading-relaxed mt-6 font-medium">
-              Leadership is approximately 70–76% developable. Super-Cube® gives you the structured path to unlock that potential.
+              Leadership is 70–76% developable. Super-Cube® gives you the structured path to unlock that potential.
             </p>
           </div>
 
@@ -154,16 +190,18 @@ export default function LeadershipDevelopment() {
             </p>
           </div>
 
-          {/* THE 6 DIMENSIONS */}
+          {/* THE 6 DIMENSIONS – WITH YOUR EXACT CUBE ICONS + RICHER TEXT */}
           <h2 className="text-4xl font-bold text-center mb-12">The Six Dimensions of Super-Cube® Leadership</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
             {dimensions.map((dim) => (
               <div key={dim.key} className="bg-white rounded-3xl p-8 border border-neutral-100 hover:shadow-xl transition-all">
-                <div className="w-16 h-16 rounded-3xl flex items-center justify-center text-5xl mb-6" style={{ backgroundColor: dim.color + '15', color: dim.color }}>
-                  ⬡
-                </div>
-                <h3 className="text-3xl font-bold mb-3" style={{ color: dim.color }}>{dim.name}</h3>
-                <p className="text-neutral-600 leading-relaxed">{dim.description}</p>
+                <img 
+                  src={`/images/${dim.icon}`} 
+                  alt={dim.name} 
+                  className="w-20 h-20 mx-auto mb-6 object-contain"
+                />
+                <h3 className="text-3xl font-bold mb-3 text-center" style={{ color: dim.color }}>{dim.name}</h3>
+                <p className="text-neutral-600 leading-relaxed text-center">{dim.description}</p>
               </div>
             ))}
           </div>
@@ -181,7 +219,7 @@ export default function LeadershipDevelopment() {
         </div>
       )}
 
-      {/* ==================== ASSESSMENT STEP ==================== */}
+      {/* ASSESSMENT STEP */}
       {step === 'assessment' && (
         <div className="max-w-4xl mx-auto">
           <h2 className="text-4xl font-bold mb-10 text-center">Super-Cube® Self-Assessment</h2>
@@ -195,13 +233,11 @@ export default function LeadershipDevelopment() {
               return (
                 <div key={dim.key} className="bg-white rounded-3xl border border-neutral-100 overflow-hidden">
                   <button
-                    onClick={() => setOpenSections(prev => ({ ...prev, [dim.key]: !prev[dim.key] }))}
+                    onClick={() => toggleSection(dim.key)}
                     className="w-full px-8 py-6 flex items-center justify-between hover:bg-neutral-50"
                   >
                     <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-4xl" style={{ backgroundColor: dim.color + '20', color: dim.color }}>
-                        ⬡
-                      </div>
+                      <img src={`/images/${dim.icon}`} alt={dim.name} className="w-12 h-12 object-contain" />
                       <div>
                         <div className="text-2xl font-semibold">{dim.name}</div>
                         <div className="text-sm text-neutral-500">{dim.description}</div>
@@ -226,11 +262,7 @@ export default function LeadershipDevelopment() {
                             min="1"
                             max="10"
                             value={scores[dim.key][i] || 5}
-                            onChange={(e) => {
-                              const newScores = [...scores[dim.key]];
-                              newScores[i] = Number(e.target.value);
-                              setScores(prev => ({ ...prev, [dim.key]: newScores }));
-                            }}
+                            onChange={(e) => updateQuestionScore(dim.key, i, Number(e.target.value))}
                             className="w-48 accent-[#00b4d8]"
                           />
                           <div className="w-8 text-right font-bold" style={{ color: dim.color }}>
@@ -252,11 +284,11 @@ export default function LeadershipDevelopment() {
         </div>
       )}
 
-      {/* ==================== RESULTS STEP ==================== */}
+      {/* RESULTS STEP */}
       {step === 'results' && (
         <div className="max-w-5xl mx-auto">
           <h2 className="text-4xl font-bold text-center mb-4">Your Super-Cube® Profile</h2>
-          <p className="text-center text-5xl font-black text-[#00b4d8] mb-12">Total Score: {Object.keys(scores).reduce((sum, key) => sum + calculateDimensionScore(key), 0)}/60</p>
+          <p className="text-center text-5xl font-black text-[#00b4d8] mb-12">Total Score: {totalScore}/60</p>
 
           {/* Spider Diagram */}
           <div className="bg-white rounded-3xl p-12 flex justify-center mb-12">
@@ -299,9 +331,7 @@ export default function LeadershipDevelopment() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {getRecommendations().map((rec) => (
               <div key={rec.key} className="bg-white rounded-3xl p-8 text-center">
-                <div className="text-6xl mb-4" style={{ color: dimensions.find(d => d.key === rec.key)?.color }}>
-                  ⬡
-                </div>
+                <img src={`/images/${dimensions.find(d => d.key === rec.key)?.icon}`} alt="" className="w-16 h-16 mx-auto mb-4" />
                 <h4 className="font-semibold text-xl mb-2">{dimensions.find(d => d.key === rec.key)?.name}</h4>
                 <p className="text-neutral-600">Your lowest score. Focus here for the biggest leadership growth.</p>
               </div>
