@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Breadcrumb from '@/components/ui/Breadcrumb';
-import { Search, Plus, ShoppingCart, Truck, QrCode, Edit, Trash2 } from 'lucide-react';
+import { Search, Plus, ShoppingCart, Truck, QrCode, Edit, Trash2, ChevronDown } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface RawMaterial {
@@ -12,6 +12,7 @@ interface RawMaterial {
   description: string;
   category: string;
   uom: string;
+  stock: number;
   reorderLevel: number;
   costPrice: number;
   supplier: string;
@@ -33,6 +34,15 @@ export default function RawMaterials() {
   const [editingItem, setEditingItem] = useState<RawMaterial | null>(null);
   const [selectedItem, setSelectedItem] = useState<RawMaterial | null>(null);
 
+  const [sortBy, setSortBy] = useState<keyof RawMaterial>('name');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+
+  const [filters, setFilters] = useState({
+    category: [] as string[],
+    supplier: [] as string[],
+    uom: [] as string[],
+  });
+
   const [rawMaterials, setRawMaterials] = useState<RawMaterial[]>([
     {
       id: 1,
@@ -41,6 +51,7 @@ export default function RawMaterials() {
       description: 'High-grade bread flour',
       category: 'Grains',
       uom: 'kg',
+      stock: 12450,
       reorderLevel: 2000,
       costPrice: 12.50,
       supplier: 'Golden Fields',
@@ -52,12 +63,64 @@ export default function RawMaterials() {
       imageUrl: '',
       msdsUrl: '',
       notes: ''
+    },
+    {
+      id: 2,
+      name: 'Sugar',
+      sku: 'RM-002',
+      description: 'White refined sugar',
+      category: 'Sweeteners',
+      uom: 'kg',
+      stock: 8750,
+      reorderLevel: 1500,
+      costPrice: 8.75,
+      supplier: 'Sweet Harvest',
+      originCountry: 'Brazil',
+      shelfLifeDays: 730,
+      allergens: 'None',
+      storageConditions: 'Dry',
+      hazardClass: 'None',
+      imageUrl: '',
+      msdsUrl: '',
+      notes: ''
     }
   ]);
 
-  const filtered = rawMaterials.filter(item => 
-    item.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const uniqueCategories = [...new Set(rawMaterials.map(i => i.category))];
+  const uniqueSuppliers = [...new Set(rawMaterials.map(i => i.supplier))];
+  const uniqueUoms = [...new Set(rawMaterials.map(i => i.uom))];
+
+  const filteredAndSorted = useMemo(() => {
+    let result = rawMaterials.filter(item =>
+      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.sku.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    if (filters.category.length > 0) result = result.filter(i => filters.category.includes(i.category));
+    if (filters.supplier.length > 0) result = result.filter(i => filters.supplier.includes(i.supplier));
+    if (filters.uom.length > 0) result = result.filter(i => filters.uom.includes(i.uom));
+
+    result.sort((a, b) => {
+      const valA = a[sortBy];
+      const valB = b[sortBy];
+      if (valA < valB) return sortDir === 'asc' ? -1 : 1;
+      if (valA > valB) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return result;
+  }, [rawMaterials, searchTerm, filters, sortBy, sortDir]);
+
+  const toggleFilter = (key: 'category' | 'supplier' | 'uom', value: string) => {
+    setFilters(prev => {
+      const current = prev[key];
+      if (current.includes(value)) {
+        return { ...prev, [key]: current.filter(v => v !== value) };
+      } else {
+        return { ...prev, [key]: [...current, value] };
+      }
+    });
+  };
 
   const openModal = (item: RawMaterial | null = null) => {
     setEditingItem(item);
@@ -68,6 +131,7 @@ export default function RawMaterials() {
     if (confirm('Delete this raw material permanently?')) {
       setRawMaterials(prev => prev.filter(i => i.id !== id));
       toast.success('Raw material deleted');
+      setShowModal(false);
     }
   };
 
@@ -100,7 +164,13 @@ export default function RawMaterials() {
       <div className="flex gap-4 mb-8">
         <div className="flex-1 relative">
           <Search className="absolute left-4 top-3.5 text-neutral-400" size={20} />
-          <input type="text" placeholder="Search raw materials..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="input pl-11 w-full" />
+          <input
+            type="text"
+            placeholder="Search raw materials..."
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            className="input pl-11 w-full"
+          />
         </div>
       </div>
 
@@ -108,31 +178,46 @@ export default function RawMaterials() {
         <table className="w-full">
           <thead className="bg-neutral-50 border-b">
             <tr>
-              <th className="px-8 py-5 text-left font-medium">Item</th>
-              <th className="px-8 py-5 text-left font-medium">SKU</th>
-              <th className="px-8 py-5 text-left font-medium">Stock</th>
-              <th className="px-8 py-5 text-left font-medium">Unit</th>
-              <th className="px-8 py-5 text-left font-medium">Supplier</th>
+              <th className="px-8 py-5 text-left font-medium cursor-pointer hover:bg-neutral-100" onClick={() => { setSortBy('name'); setSortDir(sortDir === 'asc' ? 'desc' : 'asc'); }}>
+                Item <ChevronDown size={14} className="inline ml-1" />
+              </th>
+              <th className="px-8 py-5 text-left font-medium cursor-pointer hover:bg-neutral-100" onClick={() => { setSortBy('sku'); setSortDir(sortDir === 'asc' ? 'desc' : 'asc'); }}>
+                SKU <ChevronDown size={14} className="inline ml-1" />
+              </th>
+              <th className="px-8 py-5 text-left font-medium cursor-pointer hover:bg-neutral-100" onClick={() => { setSortBy('stock'); setSortDir(sortDir === 'asc' ? 'desc' : 'asc'); }}>
+                Stock <ChevronDown size={14} className="inline ml-1" />
+              </th>
+              <th className="px-8 py-5 text-left font-medium cursor-pointer hover:bg-neutral-100" onClick={() => { setSortBy('uom'); setSortDir(sortDir === 'asc' ? 'desc' : 'asc'); }}>
+                Unit <ChevronDown size={14} className="inline ml-1" />
+              </th>
+              <th className="px-8 py-5 text-left font-medium cursor-pointer hover:bg-neutral-100" onClick={() => { setSortBy('supplier'); setSortDir(sortDir === 'asc' ? 'desc' : 'asc'); }}>
+                Supplier <ChevronDown size={14} className="inline ml-1" />
+              </th>
+              <th className="px-8 py-5 text-left font-medium cursor-pointer hover:bg-neutral-100" onClick={() => { setSortBy('category'); setSortDir(sortDir === 'asc' ? 'desc' : 'asc'); }}>
+                Category <ChevronDown size={14} className="inline ml-1" />
+              </th>
               <th className="px-8 py-5 text-right font-medium">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {filtered.map(item => (
+            {filteredAndSorted.map(item => (
               <tr key={item.id} className="border-b last:border-none hover:bg-neutral-50">
                 <td className="px-8 py-6 font-medium">{item.name}</td>
                 <td className="px-8 py-6 text-neutral-500">{item.sku}</td>
-                <td className="px-8 py-6 font-medium">0</td>
+                <td className="px-8 py-6 font-medium">{item.stock.toLocaleString()}</td>
                 <td className="px-8 py-6 text-neutral-500">{item.uom}</td>
                 <td className="px-8 py-6 text-neutral-600">{item.supplier}</td>
-                <td className="px-8 py-6 text-right space-x-2">
-                  <button onClick={() => openModal(item)} className="border px-5 py-2 text-sm rounded-3xl hover:bg-neutral-50 flex items-center gap-2">
+                <td className="px-8 py-6 text-neutral-600">{item.category}</td>
+                <td className="px-8 py-6 text-right flex items-center justify-end gap-2">
+                  <button onClick={() => openModal(item)} className="btn-primary text-sm px-6 py-2 flex items-center gap-2">
                     <Edit size={16} /> Edit
                   </button>
-                  <button onClick={() => deleteItem(item.id)} className="border px-5 py-2 text-sm rounded-3xl hover:bg-neutral-50 text-red-600 flex items-center gap-2">
-                    <Trash2 size={16} /> Delete
+                  <button onClick={() => { setSelectedItem(item); setShowTransferModal(true); }} className="btn-primary text-sm px-6 py-2 flex items-center gap-2">
+                    <Truck size={16} /> Transfer
                   </button>
-                  <button onClick={() => toast.success('Purchase Order modal would open here')} className="btn-primary text-sm px-5 py-2">Purchase</button>
-                  <button onClick={() => { setSelectedItem(item); setShowTransferModal(true); }} className="border px-5 py-2 text-sm rounded-3xl hover:bg-neutral-50">Transfer</button>
+                  <button onClick={() => toast.success('Purchase Order modal would open here')} className="btn-primary text-sm px-6 py-2 flex items-center gap-2">
+                    <ShoppingCart size={16} /> Purchase
+                  </button>
                 </td>
               </tr>
             ))}
@@ -140,7 +225,7 @@ export default function RawMaterials() {
         </table>
       </div>
 
-      {/* Create / Edit Modal (identical functionality) */}
+      {/* Create / Edit Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/70 z-[100] flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-auto">
@@ -228,24 +313,28 @@ export default function RawMaterials() {
 
               <div className="flex gap-4">
                 <button onClick={() => setShowModal(false)} className="flex-1 border py-4 rounded-3xl">Cancel</button>
+                {editingItem && (
+                  <button onClick={() => deleteItem(editingItem.id)} className="flex-1 border py-4 rounded-3xl text-red-600">Delete Raw Material</button>
+                )}
                 <button onClick={() => saveItem({
                   id: editingItem ? editingItem.id : Date.now(),
-                  name: 'Test Raw Material',
-                  sku: 'RM-999',
-                  description: '',
-                  category: '',
-                  uom: 'kg',
-                  reorderLevel: 0,
-                  costPrice: 0,
-                  supplier: '',
-                  originCountry: '',
-                  shelfLifeDays: 0,
-                  allergens: '',
-                  storageConditions: '',
-                  hazardClass: '',
+                  name: editingItem ? editingItem.name : 'New Raw Material',
+                  sku: editingItem ? editingItem.sku : 'RM-' + Date.now().toString().slice(-4),
+                  description: editingItem ? editingItem.description : '',
+                  category: editingItem ? editingItem.category : 'Grains',
+                  uom: editingItem ? editingItem.uom : 'kg',
+                  stock: editingItem ? editingItem.stock : 0,
+                  reorderLevel: editingItem ? editingItem.reorderLevel : 0,
+                  costPrice: editingItem ? editingItem.costPrice : 0,
+                  supplier: editingItem ? editingItem.supplier : '',
+                  originCountry: editingItem ? editingItem.originCountry : '',
+                  shelfLifeDays: editingItem ? editingItem.shelfLifeDays : 0,
+                  allergens: editingItem ? editingItem.allergens : '',
+                  storageConditions: editingItem ? editingItem.storageConditions : '',
+                  hazardClass: editingItem ? editingItem.hazardClass : 'None',
                   imageUrl: '',
                   msdsUrl: '',
-                  notes: ''
+                  notes: editingItem ? editingItem.notes : ''
                 })} className="flex-1 btn-primary py-4">
                   {editingItem ? 'Update Raw Material' : 'Create Raw Material'}
                 </button>
