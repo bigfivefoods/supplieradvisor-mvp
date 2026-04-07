@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Breadcrumb from '@/components/ui/Breadcrumb';
-import { Search, Plus, FileText, Truck, QrCode, Upload, Edit, Trash2 } from 'lucide-react';
+import { Search, Plus, FileText, Truck, QrCode, Edit, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface FinishedGood {
@@ -66,6 +66,7 @@ export default function FinishedGoods() {
     if (confirm('Delete this finished good permanently?')) {
       setFinishedGoods(prev => prev.filter(i => i.id !== id));
       toast.success('Finished good deleted');
+      setShowModal(false);
     }
   };
 
@@ -120,15 +121,16 @@ export default function FinishedGoods() {
                 <td className="px-8 py-6 text-neutral-500">{item.sku}</td>
                 <td className="px-8 py-6 font-medium">{item.stock.toLocaleString()}</td>
                 <td className="px-8 py-6 text-neutral-500">{item.uom}</td>
-                <td className="px-8 py-6 text-right space-x-2">
-                  <button onClick={() => openModal(item)} className="border px-5 py-2 text-sm rounded-3xl hover:bg-neutral-50 flex items-center gap-2">
+                <td className="px-8 py-6 text-right flex items-center justify-end gap-2">
+                  <button onClick={() => openModal(item)} className="btn-primary text-sm px-6 py-2 flex items-center gap-2">
                     <Edit size={16} /> Edit
                   </button>
-                  <button onClick={() => deleteItem(item.id)} className="border px-5 py-2 text-sm rounded-3xl hover:bg-neutral-50 text-red-600 flex items-center gap-2">
-                    <Trash2 size={16} /> Delete
+                  <button onClick={() => { setSelectedItem(item); setShowTransferModal(true); }} className="btn-primary text-sm px-6 py-2 flex items-center gap-2">
+                    <Truck size={16} /> Transfer
                   </button>
-                  <button onClick={() => toast.success('Invoice modal would open here')} className="btn-primary text-sm px-5 py-2">Invoice</button>
-                  <button onClick={() => { setSelectedItem(item); setShowTransferModal(true); }} className="border px-5 py-2 text-sm rounded-3xl hover:bg-neutral-50">Transfer</button>
+                  <button onClick={() => toast.success('Invoice modal would open here')} className="btn-primary text-sm px-6 py-2 flex items-center gap-2">
+                    <FileText size={16} /> Invoice
+                  </button>
                 </td>
               </tr>
             ))}
@@ -136,7 +138,7 @@ export default function FinishedGoods() {
         </table>
       </div>
 
-      {/* Create / Edit Modal (identical functionality) */}
+      {/* Create / Edit Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/70 z-[100] flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-auto">
@@ -212,6 +214,9 @@ export default function FinishedGoods() {
 
               <div className="flex gap-4">
                 <button onClick={() => setShowModal(false)} className="flex-1 border py-4 rounded-3xl">Cancel</button>
+                {editingItem && (
+                  <button onClick={() => deleteItem(editingItem.id)} className="flex-1 border py-4 rounded-3xl text-red-600">Delete Finished Good</button>
+                )}
                 <button onClick={() => saveItem({
                   id: editingItem ? editingItem.id : Date.now(),
                   name: 'Test Finished Good',
