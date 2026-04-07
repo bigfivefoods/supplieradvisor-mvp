@@ -50,26 +50,11 @@ const locationData: LocationData = {
       Senegal: ['Dakar']
     }
   },
-  'North America': {
-    countries: [{ name: "Canada", flag: "🇨🇦" }, { name: "Mexico", flag: "🇲🇽" }, { name: "United States", flag: "🇺🇸" }],
-    provinces: { 'United States': ['California', 'Texas', 'New York', 'Florida', 'Illinois'] }
-  },
-  Europe: {
-    countries: [{ name: "United Kingdom", flag: "🇬🇧" }, { name: "Germany", flag: "🇩🇪" }, { name: "France", flag: "🇫🇷" }, { name: "Italy", flag: "🇮🇹" }, { name: "Spain", flag: "🇪🇸" }],
-    provinces: {}
-  },
-  Asia: {
-    countries: [{ name: "India", flag: "🇮🇳" }, { name: "China", flag: "🇨🇳" }, { name: "Japan", flag: "🇯🇵" }, { name: "South Korea", flag: "🇰🇷" }],
-    provinces: {}
-  },
-  'South America': {
-    countries: [{ name: "Brazil", flag: "🇧🇷" }, { name: "Argentina", flag: "🇦🇷" }, { name: "Chile", flag: "🇨🇱" }],
-    provinces: {}
-  },
-  Oceania: {
-    countries: [{ name: "Australia", flag: "🇦🇺" }, { name: "New Zealand", flag: "🇳🇿" }],
-    provinces: {}
-  },
+  'North America': { countries: [{ name: "Canada", flag: "🇨🇦" }, { name: "Mexico", flag: "🇲🇽" }, { name: "United States", flag: "🇺🇸" }], provinces: { 'United States': ['California', 'Texas', 'New York', 'Florida', 'Illinois'] } },
+  Europe: { countries: [{ name: "United Kingdom", flag: "🇬🇧" }, { name: "Germany", flag: "🇩🇪" }, { name: "France", flag: "🇫🇷" }, { name: "Italy", flag: "🇮🇹" }, { name: "Spain", flag: "🇪🇸" }], provinces: {} },
+  Asia: { countries: [{ name: "India", flag: "🇮🇳" }, { name: "China", flag: "🇨🇳" }, { name: "Japan", flag: "🇯🇵" }, { name: "South Korea", flag: "🇰🇷" }], provinces: {} },
+  'South America': { countries: [{ name: "Brazil", flag: "🇧🇷" }, { name: "Argentina", flag: "🇦🇷" }, { name: "Chile", flag: "🇨🇱" }], provinces: {} },
+  Oceania: { countries: [{ name: "Australia", flag: "🇦🇺" }, { name: "New Zealand", flag: "🇳🇿" }], provinces: {} },
   Antarctica: { countries: [{ name: "Antarctica", flag: "🇦🇶" }], provinces: {} }
 };
 
@@ -101,6 +86,15 @@ const industriesList = [
 const uomOptions = ['Kg', 'G', 'Tonne', 'Litre', 'Ml', 'Piece', 'Box', 'Pallet', 'Case', 'Dozen', 'Meter', 'Sqm', 'Unit', 'Pack', 'Carton', 'Drum', 'Bottle', 'Roll'];
 const certifiedBodies = ['ISO 9001', 'ISO 22000', 'FSSC 22000', 'HACCP', 'BEE', 'Halal', 'Kosher', 'SEDEX', 'Fairtrade', 'FDA', 'Other'];
 
+const businessTypesList = [
+  'Private Company (Pty Ltd)', 'Public Company (Ltd)', 'Non-Profit Company (NPC)',
+  'Sole Proprietorship', 'Partnership', 'Close Corporation (CC)', 'Cooperative',
+  'Trust', 'Government Entity / State-Owned Enterprise', 'Section 21 Company',
+  'Association', 'School', 'University', 'College', 'Pre-School', 'NGO', 'Religious Organisation',
+  'Franchise', 'Joint Venture', 'Limited Liability Partnership (LLP)', 'Holding Company',
+  'Subsidiary Company', 'Startup / SME', 'Co-operative Society', 'Other'
+];
+
 export default function MyBusinessProfile() {
   const { user } = usePrivy();
   const cleanId = (user?.id || '').replace('privy:', '');
@@ -110,7 +104,7 @@ export default function MyBusinessProfile() {
   const [uploading, setUploading] = useState(false);
 
   const [form, setForm] = useState({
-    legal_name: '', trading_name: '', contact_name: '', email: '', registration_number: '',
+    legal_name: '', trading_name: '', contact_name: '', email: '', registration_number: '', contact_number: '',
     registration_document_url: '', logo_url: '',
     planet: 'Earth', continent: '', country: '', province: '', street: '', city: '', postal_code: '',
     industries: [] as string[],
@@ -121,7 +115,8 @@ export default function MyBusinessProfile() {
     bank_name: '', account_name: '', account_number: '', iban: '', swift: '', bank_confirmation_url: '',
     products: [] as any[],
     services: [] as string[],
-    certifications: [] as any[]
+    certifications: [] as any[],
+    business_type: ''
   });
 
   const [newProduct, setNewProduct] = useState({ description: '', sku: '', uom: '', sellPrice: '', leadTime: '', imageUrl: '' });
@@ -148,7 +143,6 @@ export default function MyBusinessProfile() {
     setLoading(true);
     console.log("=== LOADING PROFILE ===", cleanId);
 
-    // SAFE LOAD – newest row only (fixes multiple rows error)
     const { data: profile } = await supabase
       .from('profiles')
       .select('*')
@@ -232,6 +226,7 @@ export default function MyBusinessProfile() {
         trading_name: form.trading_name,
         contact_name: form.contact_name,
         email: form.email,
+        contact_number: form.contact_number,
         registration_number: form.registration_number,
         registration_document_url: form.registration_document_url,
         logo_url: form.logo_url,
@@ -257,6 +252,7 @@ export default function MyBusinessProfile() {
         iban: form.iban,
         swift: form.swift,
         bank_confirmation_url: form.bank_confirmation_url,
+        business_type: form.business_type,
         updated_at: new Date().toISOString()
       };
 
@@ -320,19 +316,55 @@ export default function MyBusinessProfile() {
             <ChevronDown className={`transition ${expanded.basics ? 'rotate-180' : ''}`} />
           </div>
           {expanded.basics && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <input type="text" placeholder="Legal Name" className="input w-full" value={form.legal_name} onChange={e => setForm(p => ({...p, legal_name: e.target.value}))} />
-              <input type="text" placeholder="Trading Name" className="input w-full" value={form.trading_name} onChange={e => setForm(p => ({...p, trading_name: e.target.value}))} />
-              <input type="text" placeholder="Contact Name" className="input w-full" value={form.contact_name} onChange={e => setForm(p => ({...p, contact_name: e.target.value}))} />
-              <input type="email" placeholder="Email Address" className="input w-full" value={form.email} onChange={e => setForm(p => ({...p, email: e.target.value}))} />
-              <input type="text" placeholder="Company Registration Number" className="input w-full" value={form.registration_number} onChange={e => setForm(p => ({...p, registration_number: e.target.value}))} />
-              <div className="flex items-center gap-8">
-                {form.logo_url && <img src={form.logo_url} alt="Logo" className="w-28 h-28 object-cover rounded-2xl border" />}
-                <div>
-                  <label className="block text-sm mb-3">Upload Company Logo</label>
-                  <input type="file" onChange={e => handleUpload('logo_url', e)} className="hidden" id="logo-upload" />
-                  <label htmlFor="logo-upload" className="btn-primary cursor-pointer">Choose Logo</label>
-                </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div>
+                <label className="block text-sm font-medium mb-2">Legal Name</label>
+                <input type="text" className="input w-full" value={form.legal_name} onChange={e => setForm(p => ({...p, legal_name: e.target.value}))} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Trading Name</label>
+                <input type="text" className="input w-full" value={form.trading_name} onChange={e => setForm(p => ({...p, trading_name: e.target.value}))} />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">Business Type</label>
+                <select 
+                  className="input w-full" 
+                  value={form.business_type || ''} 
+                  onChange={e => setForm(p => ({ ...p, business_type: e.target.value }))}
+                >
+                  <option value="">Select Business Type</option>
+                  {businessTypesList.map(type => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">Contact Name</label>
+                <input type="text" className="input w-full" value={form.contact_name} onChange={e => setForm(p => ({...p, contact_name: e.target.value}))} />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">Contact Number</label>
+                <input type="tel" className="input w-full" value={form.contact_number || ''} onChange={e => setForm(p => ({...p, contact_number: e.target.value}))} />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">Email Address</label>
+                <input type="email" className="input w-full" value={form.email} onChange={e => setForm(p => ({...p, email: e.target.value}))} />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">Company Registration Number</label>
+                <input type="text" className="input w-full" value={form.registration_number} onChange={e => setForm(p => ({...p, registration_number: e.target.value}))} />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-3">Company Logo</label>
+                {form.logo_url && <img src={form.logo_url} alt="Logo" className="w-14 h-14 object-cover rounded-2xl border mb-3" />}
+                <input type="file" onChange={e => handleUpload('logo_url', e)} className="hidden" id="logo-upload" />
+                <label htmlFor="logo-upload" className="btn-primary cursor-pointer">Choose Logo</label>
               </div>
             </div>
           )}
@@ -406,16 +438,64 @@ export default function MyBusinessProfile() {
             <ChevronDown className={`transition ${expanded.financial ? 'rotate-180' : ''}`} />
           </div>
           {expanded.financial && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div><label className="block text-sm mb-2">Tax Number</label><input type="text" className="input w-full" value={form.tax_number} onChange={e => setForm(p => ({...p, tax_number: e.target.value}))} /></div>
-              <div><label className="block text-sm mb-2">VAT Number</label><input type="text" className="input w-full" value={form.vat_number} onChange={e => setForm(p => ({...p, vat_number: e.target.value}))} /></div>
-              <div><label className="block text-sm mb-2">Export License</label><input type="text" className="input w-full" value={form.export_license} onChange={e => setForm(p => ({...p, export_license: e.target.value}))} /></div>
-              <div><label className="block text-sm mb-2">Import License</label><input type="text" className="input w-full" value={form.import_license} onChange={e => setForm(p => ({...p, import_license: e.target.value}))} /></div>
-              <div><label className="block text-sm mb-2">Bank Name</label><input type="text" className="input w-full" value={form.bank_name} onChange={e => setForm(p => ({...p, bank_name: e.target.value}))} /></div>
-              <div><label className="block text-sm mb-2">Account Name</label><input type="text" className="input w-full" value={form.account_name} onChange={e => setForm(p => ({...p, account_name: e.target.value}))} /></div>
-              <div><label className="block text-sm mb-2">Account Number</label><input type="text" className="input w-full" value={form.account_number} onChange={e => setForm(p => ({...p, account_number: e.target.value}))} /></div>
-              <div><label className="block text-sm mb-2">IBAN</label><input type="text" className="input w-full" value={form.iban} onChange={e => setForm(p => ({...p, iban: e.target.value}))} /></div>
-              <div><label className="block text-sm mb-2">SWIFT / BIC</label><input type="text" className="input w-full" value={form.swift} onChange={e => setForm(p => ({...p, swift: e.target.value}))} /></div>
+            <div className="space-y-12">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div>
+                  <label className="block text-sm mb-2">Tax Number</label>
+                  <input type="text" className="input w-full" value={form.tax_number} onChange={e => setForm(p => ({...p, tax_number: e.target.value}))} />
+                  <input type="file" onChange={e => handleUpload('tax_document_url', e)} className="hidden" id="tax-upload" />
+                  <label htmlFor="tax-upload" className="btn-primary mt-3 w-full">Upload Tax Certificate</label>
+                </div>
+                <div>
+                  <label className="block text-sm mb-2">VAT Number</label>
+                  <input type="text" className="input w-full" value={form.vat_number} onChange={e => setForm(p => ({...p, vat_number: e.target.value}))} />
+                  <input type="file" onChange={e => handleUpload('vat_document_url', e)} className="hidden" id="vat-upload" />
+                  <label htmlFor="vat-upload" className="btn-primary mt-3 w-full">Upload VAT Certificate</label>
+                </div>
+                <div>
+                  <label className="block text-sm mb-2">Export License</label>
+                  <input type="text" className="input w-full" value={form.export_license} onChange={e => setForm(p => ({...p, export_license: e.target.value}))} />
+                  <input type="file" onChange={e => handleUpload('export_document_url', e)} className="hidden" id="export-upload" />
+                  <label htmlFor="export-upload" className="btn-primary mt-3 w-full">Upload Export License</label>
+                </div>
+                <div>
+                  <label className="block text-sm mb-2">Import License</label>
+                  <input type="text" className="input w-full" value={form.import_license} onChange={e => setForm(p => ({...p, import_license: e.target.value}))} />
+                  <input type="file" onChange={e => handleUpload('import_document_url', e)} className="hidden" id="import-upload" />
+                  <label htmlFor="import-upload" className="btn-primary mt-3 w-full">Upload Import License</label>
+                </div>
+                <div>
+                  <label className="block text-sm mb-2">Bank Confirmation</label>
+                  <input type="file" onChange={e => handleUpload('bank_confirmation_url', e)} className="hidden" id="bank-upload" />
+                  <label htmlFor="bank-upload" className="btn-primary mt-3 w-full">Upload Bank Confirmation</label>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-xl font-bold mb-6">Bank Details</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div>
+                    <label className="block text-sm mb-2">Bank Name</label>
+                    <input type="text" className="input w-full" value={form.bank_name} onChange={e => setForm(p => ({...p, bank_name: e.target.value}))} />
+                  </div>
+                  <div>
+                    <label className="block text-sm mb-2">Account Name</label>
+                    <input type="text" className="input w-full" value={form.account_name} onChange={e => setForm(p => ({...p, account_name: e.target.value}))} />
+                  </div>
+                  <div>
+                    <label className="block text-sm mb-2">Account Number</label>
+                    <input type="text" className="input w-full" value={form.account_number} onChange={e => setForm(p => ({...p, account_number: e.target.value}))} />
+                  </div>
+                  <div>
+                    <label className="block text-sm mb-2">IBAN</label>
+                    <input type="text" className="input w-full" value={form.iban} onChange={e => setForm(p => ({...p, iban: e.target.value}))} />
+                  </div>
+                  <div>
+                    <label className="block text-sm mb-2">SWIFT / BIC</label>
+                    <input type="text" className="input w-full" value={form.swift} onChange={e => setForm(p => ({...p, swift: e.target.value}))} />
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>
