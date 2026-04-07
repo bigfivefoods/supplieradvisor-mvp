@@ -161,7 +161,7 @@ export default function LeadershipDevelopment() {
           <div className="max-w-4xl mx-auto bg-white rounded-3xl shadow-sm border border-neutral-100 p-12 mb-12">
             <h2 className="text-4xl font-bold mb-6">What is Super-Cube®?</h2>
             <p className="text-xl text-neutral-600 leading-relaxed">
-              Developed in 2020 as part of my Doctorate of Business Administration thesis at the University of KwaZulu-Natal, 
+              Developed in 2020 as part of a Doctorate of Business Administration thesis at the University of KwaZulu-Natal, 
               Super-Cube® is a human-centric, multidimensional leadership framework that places the individual (“You”) at the centre of a 3D cube.
             </p>
             <p className="text-xl text-neutral-600 leading-relaxed mt-6">
