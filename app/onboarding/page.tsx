@@ -430,26 +430,23 @@ export default function Onboarding() {
           </div>
         )}
 
-        {/* STEP 4 - Financial & Banking (3 fields per row + upload directly below each) */}
+        {/* STEP 4 - Financial & Banking */}
         {step === 4 && (
           <div>
             <h2 className="text-3xl font-bold mb-8">4. Financial & Banking</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {/* Tax */}
               <div>
                 <label className="block text-sm mb-2">Tax Number</label>
                 <input type="text" className="input w-full" value={form.tax_number} onChange={e => setForm(p => ({ ...p, tax_number: e.target.value }))} />
                 <input type="file" onChange={e => handleUpload('tax_document_url', e)} className="hidden" id="tax-upload" />
                 <label htmlFor="tax-upload" className="btn-primary mt-3 w-full">Upload Tax Certificate</label>
               </div>
-              {/* VAT */}
               <div>
                 <label className="block text-sm mb-2">VAT Number</label>
                 <input type="text" className="input w-full" value={form.vat_number} onChange={e => setForm(p => ({ ...p, vat_number: e.target.value }))} />
                 <input type="file" onChange={e => handleUpload('vat_document_url', e)} className="hidden" id="vat-upload" />
                 <label htmlFor="vat-upload" className="btn-primary mt-3 w-full">Upload VAT Certificate</label>
               </div>
-              {/* Export */}
               <div>
                 <label className="block text-sm mb-2">Export License</label>
                 <input type="text" className="input w-full" value={form.export_license} onChange={e => setForm(p => ({ ...p, export_license: e.target.value }))} />
@@ -457,7 +454,6 @@ export default function Onboarding() {
                 <label htmlFor="export-upload" className="btn-primary mt-3 w-full">Upload Export License</label>
               </div>
 
-              {/* Import */}
               <div>
                 <label className="block text-sm mb-2">Import License</label>
                 <input type="text" className="input w-full" value={form.import_license} onChange={e => setForm(p => ({ ...p, import_license: e.target.value }))} />
@@ -465,7 +461,6 @@ export default function Onboarding() {
                 <label htmlFor="import-upload" className="btn-primary mt-3 w-full">Upload Import License</label>
               </div>
 
-              {/* Bank Confirmation */}
               <div>
                 <label className="block text-sm mb-2">Bank Confirmation</label>
                 <input type="file" onChange={e => handleUpload('bank_confirmation_url', e)} className="hidden" id="bank-upload" />
@@ -473,7 +468,6 @@ export default function Onboarding() {
               </div>
             </div>
 
-            {/* Bank Details */}
             <div className="mt-12">
               <h3 className="text-xl font-bold mb-6">Bank Details</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
