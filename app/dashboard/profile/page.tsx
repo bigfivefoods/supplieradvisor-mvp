@@ -96,21 +96,9 @@ const businessTypesList = [
 ];
 
 const roleOptions = [
-  'CEO / Managing Director',
-  'Procurement Leader',
-  'Supply Chain Leader',
-  'Finance Leader',
-  'Quality Leader',
-  'Sales Leader',
-  'Operations Leader',
-  'Logistics Leader',
-  'Warehouse Leader',
-  'HR Leader',
-  'IT Leader',
-  'Compliance Leader',
-  'Sustainability Leader',
-  'Administrator',
-  'Other'
+  'CEO / Managing Director', 'Procurement Leader', 'Supply Chain Leader',
+  'Finance Leader', 'Quality Leader', 'Sustainability Leader', 'Operations Leader',
+  'Sales Leader', 'Logistics Leader', 'IT Leader', 'HR Leader', 'Other'
 ];
 
 export default function MyBusinessProfile() {
@@ -138,7 +126,7 @@ export default function MyBusinessProfile() {
     team_members: [] as any[]
   });
 
-  const [newProduct, setNewProduct] = useState({ description: '', sku: '', uom: '', sellPrice: '', leadTime: '', imageUrl: '' });
+  const [newProduct, setNewProduct] = useState({ description: '', sku: '', uom: '', sellPrice: '', leadTime: '', image_url: '' });
   const [newService, setNewService] = useState('');
   const [newCert, setNewCert] = useState({ name: '', body: '', awarded_date: '', expiry_date: '', never_expires: false, document_url: '' });
   const [newTeamMember, setNewTeamMember] = useState({ name: '', email: '', contact_number: '', role: '' });
@@ -157,27 +145,32 @@ export default function MyBusinessProfile() {
   const toggleSection = (section: string) => setExpanded(prev => ({ ...prev, [section]: !prev[section] }));
 
   useEffect(() => {
-    if (user && cleanId) loadProfile();
-  }, [user, cleanId]);
+    if (cleanId) loadProfile();
+  }, [cleanId]);
 
   const loadProfile = async () => {
     setLoading(true);
-    const { data: profile } = await supabase.from('profiles').select('*').eq('user_id', cleanId).maybeSingle();
-    if (profile) setForm(prev => ({ ...prev, ...profile }));
+    try {
+      const { data: profile } = await supabase.from('profiles').select('*').eq('user_id', cleanId).maybeSingle();
+      if (profile) setForm(prev => ({ ...prev, ...profile }));
 
-    const { data: products } = await supabase.from('business_products').select('*').eq('profile_id', cleanId);
-    const { data: servicesData } = await supabase.from('business_services').select('name').eq('profile_id', cleanId);
-    const { data: certifications } = await supabase.from('business_certifications').select('*').eq('profile_id', cleanId);
-    const { data: teamData } = await supabase.from('business_users').select('*').eq('profile_id', cleanId);
+      const { data: products } = await supabase.from('business_products').select('*').eq('profile_id', cleanId);
+      const { data: servicesData } = await supabase.from('business_services').select('name').eq('profile_id', cleanId);
+      const { data: certifications } = await supabase.from('business_certifications').select('*').eq('profile_id', cleanId);
+      const { data: teamData } = await supabase.from('business_users').select('*').eq('profile_id', cleanId);
 
-    setForm(prev => ({
-      ...prev,
-      products: products || [],
-      services: servicesData?.map((s: any) => s.name) || [],
-      certifications: certifications || [],
-      team_members: teamData || []
-    }));
-    setLoading(false);
+      setForm(prev => ({
+        ...prev,
+        products: products || [],
+        services: servicesData?.map((s: any) => s.name) || [],
+        certifications: certifications || [],
+        team_members: teamData || []
+      }));
+    } catch (e) {
+      console.error('Load error:', e);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleUpload = async (field: keyof typeof form, e: React.ChangeEvent<HTMLInputElement>) => {
@@ -209,7 +202,7 @@ export default function MyBusinessProfile() {
   const addProduct = () => {
     if (newProduct.description) {
       setForm(p => ({ ...p, products: [...p.products, { ...newProduct }] }));
-      setNewProduct({ description: '', sku: '', uom: '', sellPrice: '', leadTime: '', imageUrl: '' });
+      setNewProduct({ description: '', sku: '', uom: '', sellPrice: '', leadTime: '', image_url: '' });
       toast.success("Product added");
     }
   };
@@ -246,16 +239,14 @@ export default function MyBusinessProfile() {
       invited_at: new Date().toISOString()
     };
 
-    // 1. Save to database first
     const { error: insertError } = await supabase.from('business_users').insert(memberData);
     if (insertError) {
       toast.error('Failed to save user');
       return;
     }
 
-    // 2. Send real email via Edge Function
     try {
-      const { error: emailError } = await supabase.functions.invoke('send-team-invitation', {
+      await supabase.functions.invoke('send-team-invitation', {
         body: {
           to_email: newTeamMember.email,
           to_name: newTeamMember.name,
@@ -264,16 +255,12 @@ export default function MyBusinessProfile() {
           inviter_name: form.contact_name || 'The team'
         }
       });
-
-      if (emailError) throw emailError;
-
       toast.success(`✅ Real invitation email sent to ${newTeamMember.email}`);
     } catch (err: any) {
       console.error("Email error:", err);
       toast.error('User saved, but email failed to send. Check console for details.');
     }
 
-    // Refresh UI
     setForm(p => ({
       ...p,
       team_members: [...(p.team_members || []), memberData]
@@ -285,42 +272,7 @@ export default function MyBusinessProfile() {
   const saveProfile = async () => {
     setSaving(true);
     try {
-      const profileData = {
-        user_id: cleanId,
-        legal_name: form.legal_name,
-        trading_name: form.trading_name,
-        contact_name: form.contact_name,
-        email: form.email,
-        contact_number: form.contact_number,
-        registration_number: form.registration_number,
-        registration_document_url: form.registration_document_url,
-        logo_url: form.logo_url,
-        planet: form.planet,
-        continent: form.continent,
-        country: form.country,
-        province: form.province,
-        street: form.street,
-        city: form.city,
-        postal_code: form.postal_code,
-        industries: form.industries,
-        tax_number: form.tax_number,
-        tax_document_url: form.tax_document_url,
-        vat_number: form.vat_number,
-        vat_document_url: form.vat_document_url,
-        export_license: form.export_license,
-        export_document_url: form.export_document_url,
-        import_license: form.import_license,
-        import_document_url: form.import_document_url,
-        bank_name: form.bank_name,
-        account_name: form.account_name,
-        account_number: form.account_number,
-        iban: form.iban,
-        swift: form.swift,
-        bank_confirmation_url: form.bank_confirmation_url,
-        business_type: form.business_type,
-        updated_at: new Date().toISOString()
-      };
-
+      const profileData = { user_id: cleanId, ...form, updated_at: new Date().toISOString() };
       await supabase.from('profiles').upsert(profileData);
 
       if (form.products.length > 0) {
@@ -364,7 +316,7 @@ export default function MyBusinessProfile() {
 
       <div className="space-y-8">
 
-        {/* 1. Company Details */}
+        {/* 1. Company Details + Team Members */}
         <div className="bg-white rounded-3xl shadow-sm border border-neutral-100 p-8">
           <div className="flex justify-between items-center mb-6 cursor-pointer" onClick={() => toggleSection('basics')}>
             <h2 className="text-2xl font-bold">1. Company Details</h2>
