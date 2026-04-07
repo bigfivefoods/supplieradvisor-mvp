@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import Breadcrumb from '@/components/ui/Breadcrumb';
-import { Brain, TrendingUp, Zap, Target, BarChart3 } from 'lucide-react';
+import { Brain, TrendingUp, Zap, Target, BarChart3, Award } from 'lucide-react';
 
 export default function AILabHub() {
   const nodes = [
@@ -11,6 +11,7 @@ export default function AILabHub() {
     { name: 'Predictive Forecasts', href: '/dashboard/ai-lab/predictive-forecasts', icon: TrendingUp },
     { name: 'Simulation Lab', href: '/dashboard/ai-lab/simulation-lab', icon: Zap },
     { name: 'Custom Scorecards', href: '/dashboard/ai-lab/custom-scorecards', icon: Target },
+    { name: 'Leadership Development', href: '/dashboard/ai-lab/leadership-development', icon: Award },
   ];
 
   return (
@@ -18,6 +19,7 @@ export default function AILabHub() {
       <div className="py-12">
         <Breadcrumb />
         <h1 className="text-6xl font-black tracking-[-3px] text-[#00b4d8] mb-12">AI Lab</h1>
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {nodes.map((node, i) => (
             <Link key={i} href={node.href} className="card group hover:border-[#00b4d8] transition-all">
