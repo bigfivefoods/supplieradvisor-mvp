@@ -246,18 +246,38 @@ export default function MyBusinessProfile() {
       invited_at: new Date().toISOString()
     };
 
-    const { error } = await supabase.from('business_users').insert(memberData);
-
-    if (error) {
-      toast.error('Failed to add user');
-    } else {
-      toast.success(`✅ Invitation sent to ${newTeamMember.email}`);
-      setForm(p => ({
-        ...p,
-        team_members: [...(p.team_members || []), memberData]
-      }));
-      setNewTeamMember({ name: '', email: '', contact_number: '', role: '' });
+    // Save to database
+    const { error: insertError } = await supabase.from('business_users').insert(memberData);
+    if (insertError) {
+      toast.error('Failed to save user');
+      return;
     }
+
+    // Send real email invitation
+    const { error: emailError } = await supabase.functions.invoke('send-team-invitation', {
+      body: {
+        to_email: newTeamMember.email,
+        to_name: newTeamMember.name,
+        company_name: form.trading_name || form.legal_name || 'Your Company',
+        role: newTeamMember.role || 'Team Member',
+        inviter_name: form.contact_name || 'The team'
+      }
+    });
+
+    if (emailError) {
+      console.error(emailError);
+      toast.error('User saved but email failed to send');
+    } else {
+      toast.success(`✅ Real invitation email sent to ${newTeamMember.email}`);
+    }
+
+    // Refresh UI
+    setForm(p => ({
+      ...p,
+      team_members: [...(p.team_members || []), memberData]
+    }));
+
+    setNewTeamMember({ name: '', email: '', contact_number: '', role: '' });
   };
 
   const saveProfile = async () => {
@@ -396,7 +416,7 @@ export default function MyBusinessProfile() {
                 </div>
               </div>
 
-              {/* TEAM MEMBERS SECTION */}
+              {/* TEAM MEMBERS SECTION - REAL EMAIL ENABLED */}
               <div className="mt-12 pt-8 border-t">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-xl font-semibold flex items-center gap-3">
@@ -446,7 +466,7 @@ export default function MyBusinessProfile() {
                 </div>
 
                 <button onClick={addTeamMember} className="mt-6 btn-primary flex items-center gap-3">
-                  <Plus size={20} /> Send Invitation to New User
+                  <Plus size={20} /> Send Real Invitation Email
                 </button>
               </div>
             </>
