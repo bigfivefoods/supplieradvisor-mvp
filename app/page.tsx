@@ -6,6 +6,7 @@ import { ArrowRight, ShieldCheck, Truck, Users, Factory, Leaf, Zap, Globe, Build
 import { usePrivy } from '@privy-io/react-auth';
 import { useRouter } from 'next/navigation';
 import { useRef, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
 
 export default function LandingPage() {
   const { login, user, ready } = usePrivy();
@@ -17,6 +18,35 @@ export default function LandingPage() {
     if (ready && user) {
       router.push('/dashboard/profile');
     }
+  }, [ready, user, router]);
+
+  // NEW: MULTI-COMPANY SELECTOR FOR RETURNING USERS
+  useEffect(() => {
+    if (!ready || !user) return;
+
+    const handleLoginRedirect = async () => {
+      const cleanId = user.id.replace('privy:', '');
+
+      const { data: profiles, error } = await supabase
+        .from('profiles')
+        .select('id, legal_name, trading_name, logo_url')
+        .eq('user_id', cleanId);
+
+      if (error) {
+        console.error('Profile check error:', error);
+        return;
+      }
+
+      if (!profiles || profiles.length === 0) {
+        router.push('/onboarding');                    // New user
+      } else if (profiles.length === 1) {
+        router.push('/dashboard');                     // Single company → direct to dashboard
+      } else {
+        router.push('/dashboard/select-company');      // Multiple companies → show selector
+      }
+    };
+
+    handleLoginRedirect();
   }, [ready, user, router]);
 
   const scrollToSection = (id: string) => {
@@ -59,7 +89,7 @@ export default function LandingPage() {
             <button onClick={() => scrollToSection('for-society')} className="hover:text-[#00b4d8] transition-colors">For Society</button>
             <button onClick={() => scrollToSection('for-humanity')} className="hover:text-[#00b4d8] transition-colors">For Humanity</button>
             
-            {/* RETURNING CUSTOMER LOGIN – now redirects to /dashboard/profile */}
+            {/* RETURNING CUSTOMER LOGIN */}
             <button
               onClick={login}
               className="px-6 md:px-8 py-3.5 border border-[#00b4d8] text-[#00b4d8] hover:bg-[#00b4d8]/5 rounded-3xl font-semibold transition-all flex items-center gap-2 whitespace-nowrap"
