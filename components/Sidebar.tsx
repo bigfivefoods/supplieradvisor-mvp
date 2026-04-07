@@ -105,6 +105,7 @@ const modules = [
     { name: 'Green Certificates', href: '/dashboard/sustainability/green-certificates' }
   ]},
   { id: 'ai-lab', name: 'AI Lab', icon: Bot, href: '/dashboard/ai-lab', sub: [
+    { name: 'Leadership Development', href: '/dashboard/ai-lab/leadership-development' },
     { name: 'Pulse Dashboard', href: '/dashboard/ai-lab/pulse-dashboard' },
     { name: 'Predictive Forecasts', href: '/dashboard/ai-lab/predictive-forecasts' },
     { name: 'Neural Insights', href: '/dashboard/ai-lab/neural-insights' },
