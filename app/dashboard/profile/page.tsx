@@ -246,29 +246,31 @@ export default function MyBusinessProfile() {
       invited_at: new Date().toISOString()
     };
 
-    // Save to database
+    // 1. Save to database first
     const { error: insertError } = await supabase.from('business_users').insert(memberData);
     if (insertError) {
       toast.error('Failed to save user');
       return;
     }
 
-    // Send real email invitation
-    const { error: emailError } = await supabase.functions.invoke('send-team-invitation', {
-      body: {
-        to_email: newTeamMember.email,
-        to_name: newTeamMember.name,
-        company_name: form.trading_name || form.legal_name || 'Your Company',
-        role: newTeamMember.role || 'Team Member',
-        inviter_name: form.contact_name || 'The team'
-      }
-    });
+    // 2. Send real email via Edge Function
+    try {
+      const { error: emailError } = await supabase.functions.invoke('send-team-invitation', {
+        body: {
+          to_email: newTeamMember.email,
+          to_name: newTeamMember.name,
+          company_name: form.trading_name || form.legal_name || 'Your Company',
+          role: newTeamMember.role || 'Team Member',
+          inviter_name: form.contact_name || 'The team'
+        }
+      });
 
-    if (emailError) {
-      console.error(emailError);
-      toast.error('User saved but email failed to send');
-    } else {
+      if (emailError) throw emailError;
+
       toast.success(`✅ Real invitation email sent to ${newTeamMember.email}`);
+    } catch (err: any) {
+      console.error("Email error:", err);
+      toast.error('User saved, but email failed to send. Check console for details.');
     }
 
     // Refresh UI
@@ -416,7 +418,7 @@ export default function MyBusinessProfile() {
                 </div>
               </div>
 
-              {/* TEAM MEMBERS SECTION - REAL EMAIL ENABLED */}
+              {/* TEAM MEMBERS SECTION */}
               <div className="mt-12 pt-8 border-t">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-xl font-semibold flex items-center gap-3">
