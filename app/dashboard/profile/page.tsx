@@ -124,7 +124,7 @@ export default function MyBusinessProfile() {
     certifications: [] as any[],
     business_type: '',
     team_members: [] as any[],
-    created_at: ''   // ← important for existing records
+    created_at: ''
   });
 
   const [newProduct, setNewProduct] = useState({ description: '', sku: '', uom: '', sellPrice: '', leadTime: '', image_url: '' });
@@ -305,14 +305,13 @@ export default function MyBusinessProfile() {
         swift: form.swift,
         bank_confirmation_url: form.bank_confirmation_url,
         business_type: form.business_type,
-        created_at: form.created_at || new Date().toISOString(),   // ← THIS FIXES THE ERROR
+        created_at: form.created_at || new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
 
       const { error: profileError } = await supabase.from('profiles').upsert(profileData);
       if (profileError) throw profileError;
 
-      // Save relational tables
       if (form.products.length > 0) {
         await supabase.from('business_products').upsert(form.products.map(p => ({ profile_id: cleanId, ...p })));
       }
@@ -465,32 +464,69 @@ export default function MyBusinessProfile() {
           )}
         </div>
 
-        {/* 2. Location */}
+        {/* 2. LOCATION – UPDATED WITH STREET, CITY, POSTAL CODE IN ONE ROW */}
         <div className="bg-white rounded-3xl shadow-sm border border-neutral-100 p-8">
           <div className="flex justify-between items-center mb-6 cursor-pointer" onClick={() => toggleSection('location')}>
             <h2 className="text-2xl font-bold">2. Location</h2>
             <ChevronDown className={`transition ${expanded.location ? 'rotate-180' : ''}`} />
           </div>
           {expanded.location && (
-            <div className="grid grid-cols-4 gap-6">
-              <select className="input w-full" value={form.planet} onChange={e => setForm(p => ({...p, planet: e.target.value}))}>
-                <option value="Earth">Earth</option>
-                <option value="Moon">Moon</option>
-                <option value="Mars">Mars</option>
-              </select>
-              <select className="input w-full" value={form.continent} onChange={e => setForm(p => ({...p, continent: e.target.value, country: '', province: ''}))}>
-                <option value="">Select Continent</option>
-                {Object.keys(locationData).map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-              <select className="input w-full" value={form.country} onChange={e => setForm(p => ({...p, country: e.target.value, province: ''}))} disabled={!form.continent}>
-                <option value="">Select Country</option>
-                {form.continent && locationData[form.continent].countries.map(c => <option key={c.name} value={c.name}>{c.flag} {c.name}</option>)}
-              </select>
-              <select className="input w-full" value={form.province} onChange={e => setForm(p => ({...p, province: e.target.value}))} disabled={!form.country}>
-                <option value="">Select Province / State</option>
-                {form.country && form.continent && locationData[form.continent].provinces[form.country]?.map(p => <option key={p} value={p}>{p}</option>)}
-              </select>
-            </div>
+            <>
+              {/* First row: Planet, Continent, Country, Province */}
+              <div className="grid grid-cols-4 gap-6 mb-8">
+                <select className="input w-full" value={form.planet} onChange={e => setForm(p => ({...p, planet: e.target.value}))}>
+                  <option value="Earth">Earth</option>
+                  <option value="Moon">Moon</option>
+                  <option value="Mars">Mars</option>
+                </select>
+                <select className="input w-full" value={form.continent} onChange={e => setForm(p => ({...p, continent: e.target.value, country: '', province: ''}))}>
+                  <option value="">Select Continent</option>
+                  {Object.keys(locationData).map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <select className="input w-full" value={form.country} onChange={e => setForm(p => ({...p, country: e.target.value, province: ''}))} disabled={!form.continent}>
+                  <option value="">Select Country</option>
+                  {form.continent && locationData[form.continent].countries.map(c => <option key={c.name} value={c.name}>{c.flag} {c.name}</option>)}
+                </select>
+                <select className="input w-full" value={form.province} onChange={e => setForm(p => ({...p, province: e.target.value}))} disabled={!form.country}>
+                  <option value="">Select Province / State</option>
+                  {form.country && form.continent && locationData[form.continent].provinces[form.country]?.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+
+              {/* Second row: Street, City, Postal Code (3 fields) */}
+              <div className="grid grid-cols-3 gap-6">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Street Address</label>
+                  <input 
+                    type="text" 
+                    className="input w-full" 
+                    value={form.street || ''} 
+                    onChange={e => setForm(p => ({...p, street: e.target.value}))} 
+                    placeholder="123 Example Street"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">City</label>
+                  <input 
+                    type="text" 
+                    className="input w-full" 
+                    value={form.city || ''} 
+                    onChange={e => setForm(p => ({...p, city: e.target.value}))} 
+                    placeholder="Johannesburg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Postal Code</label>
+                  <input 
+                    type="text" 
+                    className="input w-full" 
+                    value={form.postal_code || ''} 
+                    onChange={e => setForm(p => ({...p, postal_code: e.target.value}))} 
+                    placeholder="2001"
+                  />
+                </div>
+              </div>
+            </>
           )}
         </div>
 
