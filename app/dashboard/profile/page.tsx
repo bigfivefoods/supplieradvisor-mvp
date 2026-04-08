@@ -123,7 +123,8 @@ export default function MyBusinessProfile() {
     services: [] as string[],
     certifications: [] as any[],
     business_type: '',
-    team_members: [] as any[]
+    team_members: [] as any[],
+    created_at: ''   // ← important for existing records
   });
 
   const [newProduct, setNewProduct] = useState({ description: '', sku: '', uom: '', sellPrice: '', leadTime: '', image_url: '' });
@@ -272,7 +273,6 @@ export default function MyBusinessProfile() {
   const saveProfile = async () => {
     setSaving(true);
     try {
-      // 1. Save only scalar fields to profiles table
       const profileData = {
         user_id: cleanId,
         legal_name: form.legal_name,
@@ -305,33 +305,26 @@ export default function MyBusinessProfile() {
         swift: form.swift,
         bank_confirmation_url: form.bank_confirmation_url,
         business_type: form.business_type,
+        created_at: form.created_at || new Date().toISOString(),   // ← THIS FIXES THE ERROR
         updated_at: new Date().toISOString()
       };
 
       const { error: profileError } = await supabase.from('profiles').upsert(profileData);
       if (profileError) throw profileError;
 
-      // 2. Save relational tables
+      // Save relational tables
       if (form.products.length > 0) {
-        await supabase.from('business_products').upsert(
-          form.products.map(p => ({ profile_id: cleanId, ...p }))
-        );
+        await supabase.from('business_products').upsert(form.products.map(p => ({ profile_id: cleanId, ...p })));
       }
-
       if (form.services.length > 0) {
-        await supabase.from('business_services').upsert(
-          form.services.map(name => ({ profile_id: cleanId, name }))
-        );
+        await supabase.from('business_services').upsert(form.services.map(name => ({ profile_id: cleanId, name })));
       }
-
       if (form.certifications.length > 0) {
-        await supabase.from('business_certifications').upsert(
-          form.certifications.map(c => ({ profile_id: cleanId, ...c }))
-        );
+        await supabase.from('business_certifications').upsert(form.certifications.map(c => ({ profile_id: cleanId, ...c })));
       }
 
       toast.success("🎉 Profile saved successfully to Supabase!");
-      await loadProfile(); // refresh data
+      await loadProfile();
     } catch (error: any) {
       console.error("Save error:", error);
       toast.error(`Failed: ${error.message}`);
