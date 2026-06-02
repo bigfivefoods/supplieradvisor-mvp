@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
-import { ArrowRight, ChevronDown, RotateCw, Upload, Plus, Users2 } from 'lucide-react';
+import { ArrowRight, ChevronDown, RotateCw, Upload, Plus, Users2, ShieldCheck } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { mintVerificationSBT } from '@/lib/onchain';
 import toast from 'react-hot-toast';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 
@@ -85,7 +86,6 @@ const industriesList = [
 
 const uomOptions = ['Kg', 'G', 'Tonne', 'Litre', 'Ml', 'Piece', 'Box', 'Pallet', 'Case', 'Dozen', 'Meter', 'Sqm', 'Unit', 'Pack', 'Carton', 'Drum', 'Bottle', 'Roll'];
 const certifiedBodies = ['ISO 9001', 'ISO 22000', 'FSSC 22000', 'HACCP', 'BEE', 'Halal', 'Kosher', 'SEDEX', 'Fairtrade', 'FDA', 'Other'];
-
 const businessTypesList = [
   'Private Company (Pty Ltd)', 'Public Company (Ltd)', 'Non-Profit Company (NPC)',
   'Sole Proprietorship', 'Partnership', 'Close Corporation (CC)', 'Cooperative',
@@ -94,12 +94,7 @@ const businessTypesList = [
   'Franchise', 'Joint Venture', 'Limited Liability Partnership (LLP)', 'Holding Company',
   'Subsidiary Company', 'Startup / SME', 'Co-operative Society', 'Other'
 ];
-
-const roleOptions = [
-  'CEO / Managing Director', 'Procurement Leader', 'Supply Chain Leader',
-  'Finance Leader', 'Quality Leader', 'Sustainability Leader', 'Operations Leader',
-  'Sales Leader', 'Logistics Leader', 'IT Leader', 'HR Leader', 'Other'
-];
+const roleOptions = ['CEO / Managing Director', 'Procurement Leader', 'Supply Chain Leader', 'Finance Leader', 'Quality Leader', 'Sustainability Leader', 'Operations Leader', 'Sales Leader', 'Logistics Leader', 'IT Leader', 'HR Leader', 'Other'];
 
 export default function MyBusinessProfile() {
   const { user } = usePrivy();
@@ -124,7 +119,8 @@ export default function MyBusinessProfile() {
     certifications: [] as any[],
     business_type: '',
     team_members: [] as any[],
-    created_at: ''
+    created_at: '',
+    on_chain_hash: '', sbt_token_id: null as string | null, verified_at: null as string | null
   });
 
   const [newProduct, setNewProduct] = useState({ description: '', sku: '', uom: '', sellPrice: '', leadTime: '', image_url: '' });
@@ -134,12 +130,7 @@ export default function MyBusinessProfile() {
 
   const [openIndustries, setOpenIndustries] = useState<Record<string, boolean>>({});
   const [expanded, setExpanded] = useState<Record<string, boolean>>({
-    basics: true,
-    location: true,
-    industries: true,
-    financial: true,
-    products: true,
-    certifications: true
+    basics: true, location: true, industries: true, financial: true, products: true, certifications: true
   });
 
   const toggleIndustry = (name: string) => setOpenIndustries(prev => ({ ...prev, [name]: !prev[name] }));
@@ -259,7 +250,7 @@ export default function MyBusinessProfile() {
       toast.success(`✅ Real invitation email sent to ${newTeamMember.email}`);
     } catch (err: any) {
       console.error("Email error:", err);
-      toast.error('User saved, but email failed to send. Check console for details.');
+      toast.error('User saved, but email failed to send. Check console.');
     }
 
     setForm(p => ({
@@ -268,6 +259,25 @@ export default function MyBusinessProfile() {
     }));
 
     setNewTeamMember({ name: '', email: '', contact_number: '', role: '' });
+  };
+
+  const verifyOnChain = async () => {
+    setLoading(true);
+    try {
+      const metadata = {
+        profileId: cleanId,
+        legal_name: form.legal_name,
+        trading_name: form.trading_name,
+        timestamp: new Date().toISOString()
+      };
+      const result = await mintVerificationSBT(cleanId, metadata);
+      setForm(p => ({ ...p, ...result }));
+      toast.success('🎉 Business verified on-chain! SBT minted on Polygon Amoy');
+    } catch (err) {
+      toast.error('On-chain verification failed');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const saveProfile = async () => {
@@ -340,6 +350,11 @@ export default function MyBusinessProfile() {
         <div>
           <h1 className="font-black text-5xl tracking-tight text-[#00b4d8]">My Business Profile</h1>
           <p className="text-xl text-neutral-600">Exact mirror of onboarding – edit every field</p>
+          {form.verified_at && (
+            <div className="inline-flex items-center gap-2 mt-2 text-emerald-600 font-medium">
+              <ShieldCheck size={22} /> Verified on Polygon Amoy
+            </div>
+          )}
         </div>
         <div className="flex gap-4">
           <button onClick={loadProfile} className="flex items-center gap-2 border px-8 py-4 rounded-3xl hover:bg-neutral-100">
@@ -347,6 +362,9 @@ export default function MyBusinessProfile() {
           </button>
           <button onClick={saveProfile} disabled={saving} className="btn-primary flex items-center gap-3 px-12 py-4">
             {saving ? 'Saving...' : 'Save All Changes'} <ArrowRight />
+          </button>
+          <button onClick={verifyOnChain} disabled={loading} className="btn-primary flex items-center gap-3 px-8 py-4">
+            <ShieldCheck size={20} /> Verify on Blockchain
           </button>
         </div>
       </div>
@@ -407,7 +425,7 @@ export default function MyBusinessProfile() {
                 </div>
               </div>
 
-              {/* TEAM MEMBERS SECTION */}
+              {/* Team Members Section */}
               <div className="mt-12 pt-8 border-t">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-xl font-semibold flex items-center gap-3">
@@ -464,7 +482,7 @@ export default function MyBusinessProfile() {
           )}
         </div>
 
-        {/* 2. LOCATION – UPDATED WITH STREET, CITY, POSTAL CODE IN ONE ROW */}
+        {/* 2. LOCATION */}
         <div className="bg-white rounded-3xl shadow-sm border border-neutral-100 p-8">
           <div className="flex justify-between items-center mb-6 cursor-pointer" onClick={() => toggleSection('location')}>
             <h2 className="text-2xl font-bold">2. Location</h2>
@@ -472,7 +490,6 @@ export default function MyBusinessProfile() {
           </div>
           {expanded.location && (
             <>
-              {/* First row: Planet, Continent, Country, Province */}
               <div className="grid grid-cols-4 gap-6 mb-8">
                 <select className="input w-full" value={form.planet} onChange={e => setForm(p => ({...p, planet: e.target.value}))}>
                   <option value="Earth">Earth</option>
@@ -493,37 +510,18 @@ export default function MyBusinessProfile() {
                 </select>
               </div>
 
-              {/* Second row: Street, City, Postal Code (3 fields) */}
               <div className="grid grid-cols-3 gap-6">
                 <div>
                   <label className="block text-sm font-medium mb-2">Street Address</label>
-                  <input 
-                    type="text" 
-                    className="input w-full" 
-                    value={form.street || ''} 
-                    onChange={e => setForm(p => ({...p, street: e.target.value}))} 
-                    placeholder="123 Example Street"
-                  />
+                  <input type="text" className="input w-full" value={form.street || ''} onChange={e => setForm(p => ({...p, street: e.target.value}))} placeholder="21A Old Howick Road" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-2">City</label>
-                  <input 
-                    type="text" 
-                    className="input w-full" 
-                    value={form.city || ''} 
-                    onChange={e => setForm(p => ({...p, city: e.target.value}))} 
-                    placeholder="Johannesburg"
-                  />
+                  <input type="text" className="input w-full" value={form.city || ''} onChange={e => setForm(p => ({...p, city: e.target.value}))} placeholder="Pietermaritzburg" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-2">Postal Code</label>
-                  <input 
-                    type="text" 
-                    className="input w-full" 
-                    value={form.postal_code || ''} 
-                    onChange={e => setForm(p => ({...p, postal_code: e.target.value}))} 
-                    placeholder="2001"
-                  />
+                  <input type="text" className="input w-full" value={form.postal_code || ''} onChange={e => setForm(p => ({...p, postal_code: e.target.value}))} placeholder="3201" />
                 </div>
               </div>
             </>
