@@ -84,9 +84,6 @@ const industriesList = [
   { name: 'Other', sub: [] }
 ];
 
-const uomOptions = ['Kg', 'G', 'Tonne', 'Litre', 'Ml', 'Piece', 'Box', 'Pallet', 'Case', 'Dozen', 'Meter', 'Sqm', 'Unit', 'Pack', 'Carton', 'Drum', 'Bottle', 'Roll'];
-const certifiedBodies = ['ISO 9001', 'ISO 22000', 'FSSC 22000', 'HACCP', 'BEE', 'Halal', 'Kosher', 'SEDEX', 'Fairtrade', 'FDA', 'Other'];
-
 const businessTypesList = [
   'Private Company (Pty Ltd)', 'Public Company (Ltd)', 'Non-Profit Company (NPC)',
   'Sole Proprietorship', 'Partnership', 'Close Corporation (CC)', 'Cooperative',
@@ -96,17 +93,19 @@ const businessTypesList = [
   'Subsidiary Company', 'Startup / SME', 'Co-operative Society', 'Other'
 ];
 
-export default function Onboarding() {
-  const { user, login, ready } = usePrivy();
-  const router = useRouter();
-  const cleanId = (user?.id || '').replace('privy:', '');
+const uomOptions = ['Kg', 'G', 'Tonne', 'Litre', 'Ml', 'Piece', 'Box', 'Pallet', 'Case', 'Dozen', 'Meter', 'Sqm', 'Unit', 'Pack', 'Carton', 'Drum', 'Bottle', 'Roll'];
+const certifiedBodies = ['ISO 9001', 'ISO 22000', 'FSSC 22000', 'HACCP', 'BEE', 'Halal', 'Kosher', 'SEDEX', 'Fairtrade', 'FDA', 'Other'];
 
-  const [step, setStep] = useState(1);
+export default function Onboarding() {
+  const { user } = usePrivy();
+  const cleanId = (user?.id || '').replace('privy:', '');
+  const router = useRouter();
+
+  const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [uploading, setUploading] = useState(false);
 
   const [form, setForm] = useState({
-    legal_name: '', trading_name: '', contact_name: '', email: '', registration_number: '',
+    legal_name: '', trading_name: '', contact_name: '', email: '', registration_number: '', contact_number: '',
     registration_document_url: '', logo_url: '',
     planet: 'Earth', continent: '', country: '', province: '', street: '', city: '', postal_code: '',
     industries: [] as string[],
@@ -118,75 +117,44 @@ export default function Onboarding() {
     products: [] as any[],
     services: [] as string[],
     certifications: [] as any[],
-    business_type: ''
+    business_type: '',
+    created_at: ''
   });
 
-  const [newProduct, setNewProduct] = useState({ description: '', sku: '', uom: '', sellPrice: '', leadTime: '', imageUrl: '' });
+  const [newProduct, setNewProduct] = useState({ description: '', sku: '', uom: '', sellPrice: '', leadTime: '', image_url: '' });
   const [newService, setNewService] = useState('');
   const [newCert, setNewCert] = useState({ name: '', body: '', awarded_date: '', expiry_date: '', never_expires: false, document_url: '' });
+
   const [openIndustries, setOpenIndustries] = useState<Record<string, boolean>>({});
 
-  const toggleIndustry = (name: string) => setOpenIndustries(p => ({ ...p, [name]: !p[name] }));
-
-  const calculateProgress = () => {
-    const filled = [
-      form.legal_name, form.trading_name, form.contact_name, form.email, form.registration_number,
-      form.street, form.city, form.postal_code, form.continent, form.country, form.province,
-      form.industries.length > 0, form.bank_name || form.iban,
-      form.products.length > 0 || form.services.length > 0,
-      form.certifications.length > 0
-    ].filter(Boolean).length;
-    return Math.round((filled / 15) * 100);
-  };
-
-  useEffect(() => { if (user && cleanId) loadExistingProfile(); }, [user, cleanId]);
-
-  const loadExistingProfile = async () => {
-    console.log("=== LOADING EXISTING PROFILE ===", cleanId);
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('user_id', cleanId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (error) console.error("Load profile error:", JSON.stringify(error, null, 2));
-    if (data) {
-      console.log("✅ Loaded profile:", data);
-      setForm(prev => ({ ...prev, ...data }));
-    }
-  };
+  const toggleIndustry = (name: string) => setOpenIndustries(prev => ({ ...prev, [name]: !prev[name] }));
 
   const handleUpload = async (field: keyof typeof form, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !cleanId) return toast.error("Please select a file");
-    setUploading(true);
     const fileName = `${cleanId}-${field}-${Date.now()}.${file.name.split('.').pop()}`;
     const { error } = await supabase.storage.from('certificates').upload(fileName, file, { upsert: true });
     if (error) return toast.error("Upload failed");
     const { data: { publicUrl } } = supabase.storage.from('certificates').getPublicUrl(fileName);
     setForm(p => ({ ...p, [field]: publicUrl }));
-    setUploading(false);
     toast.success("✅ File uploaded");
   };
 
   const handleCertUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !cleanId) return toast.error("Please select a file");
-    setUploading(true);
     const fileName = `${cleanId}-cert-${Date.now()}.${file.name.split('.').pop()}`;
     const { error } = await supabase.storage.from('certificates').upload(fileName, file, { upsert: true });
     if (error) return toast.error("Upload failed");
     const { data: { publicUrl } } = supabase.storage.from('certificates').getPublicUrl(fileName);
     setNewCert(p => ({ ...p, document_url: publicUrl }));
-    setUploading(false);
     toast.success("✅ Certificate uploaded");
   };
 
   const addProduct = () => {
     if (newProduct.description) {
       setForm(p => ({ ...p, products: [...p.products, { ...newProduct }] }));
-      setNewProduct({ description: '', sku: '', uom: '', sellPrice: '', leadTime: '', imageUrl: '' });
+      setNewProduct({ description: '', sku: '', uom: '', sellPrice: '', leadTime: '', image_url: '' });
       toast.success("Product added");
     }
   };
@@ -208,9 +176,6 @@ export default function Onboarding() {
   };
 
   const saveAll = async () => {
-    console.log("=== SAVEALL STARTED ===");
-    console.log("cleanId:", cleanId);
-    if (!cleanId) return toast.error("Please log in with Privy first");
     setLoading(true);
     try {
       const profileData = {
@@ -245,334 +210,289 @@ export default function Onboarding() {
         swift: form.swift,
         bank_confirmation_url: form.bank_confirmation_url,
         business_type: form.business_type,
-        created_at: new Date().toISOString(),
+        created_at: form.created_at || new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
 
-      console.log("Upserting profiles...");
       const { error: profileError } = await supabase.from('profiles').upsert(profileData);
-      if (profileError) console.error("Profile upsert error:", JSON.stringify(profileError, null, 2));
-      else console.log("✅ Profiles upsert success");
+      if (profileError) throw profileError;
 
       if (form.products.length > 0) {
-        console.log("Upserting business_products...");
-        const { error: prodError } = await supabase.from('business_products').upsert(
-          form.products.map(p => ({
-            profile_id: cleanId,
-            description: p.description,
-            sku: p.sku,
-            uom: p.uom,
-            sell_price: Number(p.sellPrice) || 0,
-            lead_time: p.leadTime,
-            image_url: p.imageUrl
-          }))
-        );
-        if (prodError) console.error("Products upsert error:", JSON.stringify(prodError, null, 2));
-        else console.log("✅ Products upsert success");
+        await supabase.from('business_products').upsert(form.products.map(p => ({ profile_id: cleanId, ...p })));
       }
-
       if (form.services.length > 0) {
-        console.log("Upserting business_services...");
-        const { error: servError } = await supabase.from('business_services').upsert(form.services.map(name => ({ profile_id: cleanId, name })));
-        if (servError) console.error("Services upsert error:", JSON.stringify(servError, null, 2));
-        else console.log("✅ Services upsert success");
+        await supabase.from('business_services').upsert(form.services.map(name => ({ profile_id: cleanId, name })));
       }
-
       if (form.certifications.length > 0) {
-        console.log("Upserting business_certifications...");
-        const { error: certError } = await supabase.from('business_certifications').upsert(form.certifications.map(c => ({ profile_id: cleanId, ...c })));
-        if (certError) console.error("Certs upsert error:", JSON.stringify(certError, null, 2));
-        else console.log("✅ Certs upsert success");
+        await supabase.from('business_certifications').upsert(form.certifications.map(c => ({ profile_id: cleanId, ...c })));
       }
 
-      toast.success("🎉 All information saved to SupplierAdvisor®!");
-      console.log("=== SAVEALL COMPLETE – SUCCESS ===");
+      toast.success("🎉 Business verified and saved to Supabase!");
       router.push('/dashboard');
     } catch (error: any) {
-      console.error("=== SAVEALL CATCH BLOCK ===", JSON.stringify(error, null, 2));
+      console.error("Save error:", error);
       toast.error(`Failed: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleNext = () => (step < 7 ? setStep(s => s + 1) : saveAll());
-
-  const progress = calculateProgress();
-
-  if (!user || !ready) {
-    return (
-      <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center px-4">
-        <div className="max-w-md w-full text-center">
-          <div className="mx-auto mb-8 w-20 h-20 bg-[#00b4d8] rounded-3xl flex items-center justify-center">
-            <Wallet className="w-12 h-12 text-white" />
+  const steps = [
+    () => (
+      <div>
+        <h2 className="text-3xl font-bold mb-8">1. Company Details</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label className="block text-sm mb-2">Legal Name</label>
+            <input type="text" className="input w-full" value={form.legal_name} onChange={e => setForm(p => ({...p, legal_name: e.target.value}))} />
           </div>
-          <h1 className="font-black text-5xl tracking-[-2px] text-[#00b4d8]">SupplierAdvisor®</h1>
-          <p className="text-2xl text-neutral-600 mt-4">Verify your business on-chain</p>
-          <button onClick={login} className="mt-12 btn-primary text-xl py-6 px-16 flex items-center gap-4 mx-auto">
-            <Wallet size={28} /> Log in / Register with Privy
-          </button>
+          <div>
+            <label className="block text-sm mb-2">Trading Name</label>
+            <input type="text" className="input w-full" value={form.trading_name} onChange={e => setForm(p => ({...p, trading_name: e.target.value}))} />
+          </div>
+          <div>
+            <label className="block text-sm mb-2">Business Type</label>
+            <select className="input w-full" value={form.business_type} onChange={e => setForm(p => ({...p, business_type: e.target.value}))}>
+              <option value="">Select Type</option>
+              {businessTypesList.map(type => <option key={type} value={type}>{type}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm mb-2">Contact Name</label>
+            <input type="text" className="input w-full" value={form.contact_name} onChange={e => setForm(p => ({...p, contact_name: e.target.value}))} />
+          </div>
+          <div>
+            <label className="block text-sm mb-2">Contact Number</label>
+            <input type="tel" className="input w-full" value={form.contact_number} onChange={e => setForm(p => ({...p, contact_number: e.target.value}))} />
+          </div>
+          <div>
+            <label className="block text-sm mb-2">Email</label>
+            <input type="email" className="input w-full" value={form.email} onChange={e => setForm(p => ({...p, email: e.target.value}))} />
+          </div>
+          <div>
+            <label className="block text-sm mb-2">Registration Number</label>
+            <input type="text" className="input w-full" value={form.registration_number} onChange={e => setForm(p => ({...p, registration_number: e.target.value}))} />
+          </div>
+          <div>
+            <label className="block text-sm mb-2">Company Logo</label>
+            <input type="file" onChange={e => handleUpload('logo_url', e)} className="hidden" id="logo-upload" />
+            <label htmlFor="logo-upload" className="btn-primary cursor-pointer w-full">Upload Logo</label>
+          </div>
         </div>
       </div>
-    );
-  }
+    ),
+    () => (
+      <div>
+        <h2 className="text-3xl font-bold mb-8">2. Location</h2>
+        <div className="grid grid-cols-4 gap-6">
+          <select className="input w-full" value={form.planet} onChange={e => setForm(p => ({...p, planet: e.target.value}))}>
+            <option value="Earth">Earth</option>
+            <option value="Moon">Moon</option>
+            <option value="Mars">Mars</option>
+          </select>
+          <select className="input w-full" value={form.continent} onChange={e => setForm(p => ({...p, continent: e.target.value, country: '', province: ''}))}>
+            <option value="">Select Continent</option>
+            {Object.keys(locationData).map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <select className="input w-full" value={form.country} onChange={e => setForm(p => ({...p, country: e.target.value, province: ''}))} disabled={!form.continent}>
+            <option value="">Select Country</option>
+            {form.continent && locationData[form.continent].countries.map(c => <option key={c.name} value={c.name}>{c.flag} {c.name}</option>)}
+          </select>
+          <select className="input w-full" value={form.province} onChange={e => setForm(p => ({...p, province: e.target.value}))} disabled={!form.country}>
+            <option value="">Select Province / State</option>
+            {form.country && form.continent && locationData[form.continent].provinces[form.country]?.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+        </div>
+        <div className="grid grid-cols-3 gap-6 mt-8">
+          <div>
+            <label className="block text-sm mb-2">Street Address</label>
+            <input type="text" className="input w-full" value={form.street} onChange={e => setForm(p => ({...p, street: e.target.value}))} />
+          </div>
+          <div>
+            <label className="block text-sm mb-2">City</label>
+            <input type="text" className="input w-full" value={form.city} onChange={e => setForm(p => ({...p, city: e.target.value}))} />
+          </div>
+          <div>
+            <label className="block text-sm mb-2">Postal Code</label>
+            <input type="text" className="input w-full" value={form.postal_code} onChange={e => setForm(p => ({...p, postal_code: e.target.value}))} />
+          </div>
+        </div>
+      </div>
+    ),
+    () => (
+      <div>
+        <h2 className="text-3xl font-bold mb-8">3. Industries & Sub-Industries</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {industriesList.map(ind => (
+            <div key={ind.name} className="border rounded-3xl p-6">
+              <button onClick={() => toggleIndustry(ind.name)} className="w-full flex justify-between items-center font-medium text-left">
+                {ind.name}
+                <ChevronDown className={`transition-transform ${openIndustries[ind.name] ? 'rotate-180' : ''}`} />
+              </button>
+              {openIndustries[ind.name] && (
+                <div className="mt-4 space-y-2 pl-2">
+                  {ind.sub.map(sub => (
+                    <label key={sub} className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={form.industries.includes(sub)} onChange={() => {
+                        setForm(p => ({ ...p, industries: p.industries.includes(sub) ? p.industries.filter(i => i !== sub) : [...p.industries, sub] }));
+                      }} />
+                      {sub}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    ),
+    () => (
+      <div>
+        <h2 className="text-3xl font-bold mb-8">4. Financial & Banking</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div>
+            <label className="block text-sm mb-2">Tax Number</label>
+            <input type="text" className="input w-full" value={form.tax_number} onChange={e => setForm(p => ({...p, tax_number: e.target.value}))} />
+            <input type="file" onChange={e => handleUpload('tax_document_url', e)} className="hidden" id="tax-upload" />
+            <label htmlFor="tax-upload" className="btn-primary mt-3 w-full">Upload Tax Certificate</label>
+          </div>
+          <div>
+            <label className="block text-sm mb-2">VAT Number</label>
+            <input type="text" className="input w-full" value={form.vat_number} onChange={e => setForm(p => ({...p, vat_number: e.target.value}))} />
+            <input type="file" onChange={e => handleUpload('vat_document_url', e)} className="hidden" id="vat-upload" />
+            <label htmlFor="vat-upload" className="btn-primary mt-3 w-full">Upload VAT Certificate</label>
+          </div>
+          <div>
+            <label className="block text-sm mb-2">Export License</label>
+            <input type="text" className="input w-full" value={form.export_license} onChange={e => setForm(p => ({...p, export_license: e.target.value}))} />
+            <input type="file" onChange={e => handleUpload('export_document_url', e)} className="hidden" id="export-upload" />
+            <label htmlFor="export-upload" className="btn-primary mt-3 w-full">Upload Export License</label>
+          </div>
+          <div>
+            <label className="block text-sm mb-2">Import License</label>
+            <input type="text" className="input w-full" value={form.import_license} onChange={e => setForm(p => ({...p, import_license: e.target.value}))} />
+            <input type="file" onChange={e => handleUpload('import_document_url', e)} className="hidden" id="import-upload" />
+            <label htmlFor="import-upload" className="btn-primary mt-3 w-full">Upload Import License</label>
+          </div>
+          <div>
+            <label className="block text-sm mb-2">Bank Confirmation</label>
+            <input type="file" onChange={e => handleUpload('bank_confirmation_url', e)} className="hidden" id="bank-upload" />
+            <label htmlFor="bank-upload" className="btn-primary mt-3 w-full">Upload Bank Confirmation</label>
+          </div>
+        </div>
+        <div className="mt-12">
+          <h3 className="text-xl font-bold mb-6">Bank Details</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div>
+              <label className="block text-sm mb-2">Bank Name</label>
+              <input type="text" className="input w-full" value={form.bank_name} onChange={e => setForm(p => ({...p, bank_name: e.target.value}))} />
+            </div>
+            <div>
+              <label className="block text-sm mb-2">Account Name</label>
+              <input type="text" className="input w-full" value={form.account_name} onChange={e => setForm(p => ({...p, account_name: e.target.value}))} />
+            </div>
+            <div>
+              <label className="block text-sm mb-2">Account Number</label>
+              <input type="text" className="input w-full" value={form.account_number} onChange={e => setForm(p => ({...p, account_number: e.target.value}))} />
+            </div>
+            <div>
+              <label className="block text-sm mb-2">IBAN</label>
+              <input type="text" className="input w-full" value={form.iban} onChange={e => setForm(p => ({...p, iban: e.target.value}))} />
+            </div>
+            <div>
+              <label className="block text-sm mb-2">SWIFT / BIC</label>
+              <input type="text" className="input w-full" value={form.swift} onChange={e => setForm(p => ({...p, swift: e.target.value}))} />
+            </div>
+          </div>
+        </div>
+      </div>
+    ),
+    () => (
+      <div>
+        <h2 className="text-3xl font-bold mb-8">5. Products & Services</h2>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+          <div>
+            <h3 className="font-semibold mb-6">Products</h3>
+            <div className="space-y-4">
+              <input type="text" placeholder="Description" className="input w-full" value={newProduct.description} onChange={e => setNewProduct(p => ({...p, description: e.target.value}))} />
+              <input type="text" placeholder="SKU" className="input w-full" value={newProduct.sku} onChange={e => setNewProduct(p => ({...p, sku: e.target.value}))} />
+              <select className="input w-full" value={newProduct.uom} onChange={e => setNewProduct(p => ({...p, uom: e.target.value}))}>
+                <option value="">Select UoM</option>
+                {uomOptions.map(u => <option key={u} value={u}>{u}</option>)}
+              </select>
+              <div className="grid grid-cols-2 gap-4">
+                <input type="number" placeholder="Sell Price" className="input w-full" value={newProduct.sellPrice} onChange={e => setNewProduct(p => ({...p, sellPrice: e.target.value}))} />
+                <input type="text" placeholder="Lead Time (days)" className="input w-full" value={newProduct.leadTime} onChange={e => setNewProduct(p => ({...p, leadTime: e.target.value}))} />
+              </div>
+              <button onClick={addProduct} className="btn-primary w-full">Add Product</button>
+            </div>
+          </div>
+          <div>
+            <h3 className="font-semibold mb-6">Services</h3>
+            <input type="text" placeholder="Service Name" className="input w-full" value={newService} onChange={e => setNewService(e.target.value)} />
+            <button onClick={addService} className="btn-primary w-full mt-4">Add Service</button>
+          </div>
+        </div>
+      </div>
+    ),
+    () => (
+      <div>
+        <h2 className="text-3xl font-bold mb-8">6. Certificates & Documents</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <input type="text" placeholder="Certificate Name" className="input w-full" value={newCert.name} onChange={e => setNewCert(p => ({...p, name: e.target.value}))} />
+          <select className="input w-full" value={newCert.body} onChange={e => setNewCert(p => ({...p, body: e.target.value}))}>
+            <option value="">Certification Body</option>
+            {certifiedBodies.map(b => <option key={b} value={b}>{b}</option>)}
+          </select>
+        </div>
+        <div className="grid grid-cols-2 gap-6 mt-6">
+          <input type="date" className="input w-full" value={newCert.awarded_date} onChange={e => setNewCert(p => ({...p, awarded_date: e.target.value}))} />
+          <input type="date" className="input w-full" value={newCert.expiry_date} onChange={e => setNewCert(p => ({...p, expiry_date: e.target.value}))} />
+        </div>
+        <div className="flex items-center gap-3 mt-6">
+          <input type="checkbox" checked={newCert.never_expires} onChange={e => setNewCert(p => ({...p, never_expires: e.target.checked}))} />
+          <span>Never expires / N/A</span>
+        </div>
+        <input type="file" onChange={handleCertUpload} className="hidden" id="cert-upload" />
+        <label htmlFor="cert-upload" className="btn-primary mt-6 w-full flex items-center justify-center gap-2"><Upload size={18} /> Upload Certificate</label>
+        <button onClick={addCertification} className="btn-primary w-full mt-6">Add Certificate</button>
+      </div>
+    ),
+    () => (
+      <div>
+        <h2 className="text-3xl font-bold mb-8">7. Review & Submit</h2>
+        <div className="bg-slate-100 p-8 rounded-3xl text-sm overflow-auto max-h-96">
+          <pre>{JSON.stringify(form, null, 2)}</pre>
+        </div>
+      </div>
+    )
+  ];
+
+  const handleNext = () => {
+    if (step < 6) {
+      setStep(s => s + 1);
+    } else {
+      saveAll();
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] pl-0 pr-12 py-12 max-w-screen-2xl mx-auto">
-      <Breadcrumb />
-      <h1 className="font-black text-5xl tracking-tight text-[#00b4d8]">Verify Your Business</h1>
-      <div className="flex items-center gap-4 my-8">
-        <div className="flex-1 bg-neutral-200 h-3 rounded-full overflow-hidden">
-          <div className="bg-[#00b4d8] h-3 rounded-full transition-all" style={{ width: `${progress}%` }} />
+    <div className="min-h-screen bg-[#f8fafc] pl-0 pr-12 py-12">
+      <div className="max-w-4xl mx-auto">
+        <div className="flex justify-between items-center mb-12">
+          <h1 className="text-6xl font-black tracking-[-3px]">Verify Your Business</h1>
+          <div className="text-sm font-medium text-slate-500">Step {step + 1} of 7</div>
         </div>
-        <span className="font-medium text-[#00b4d8]">{progress}% complete</span>
-      </div>
-
-      <div className="bg-white rounded-3xl shadow-sm border border-neutral-100 p-12">
-        {/* STEP 1 - Company Details */}
-        {step === 1 && (
-          <div>
-            <h2 className="text-3xl font-bold mb-8">1. Company Details</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <input type="text" placeholder="Legal Name" className="input w-full" value={form.legal_name} onChange={e => setForm(p => ({ ...p, legal_name: e.target.value }))} />
-              <input type="text" placeholder="Trading Name" className="input w-full" value={form.trading_name} onChange={e => setForm(p => ({ ...p, trading_name: e.target.value }))} />
-            </div>
-            
-            <div className="mt-6">
-              <label className="block text-sm font-medium mb-2">Business Type</label>
-              <select 
-                className="input w-full" 
-                value={form.business_type || ''} 
-                onChange={e => setForm(p => ({ ...p, business_type: e.target.value }))}
-              >
-                <option value="">Select Business Type</option>
-                {businessTypesList.map(type => (
-                  <option key={type} value={type}>{type}</option>
-                ))}
-              </select>
-            </div>
-
-            <input type="text" placeholder="Contact Name" className="input w-full mt-6" value={form.contact_name} onChange={e => setForm(p => ({ ...p, contact_name: e.target.value }))} />
-            <input type="email" placeholder="Email Address" className="input w-full mt-6" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} />
-            <input type="text" placeholder="Company Registration Number" className="input w-full mt-6" value={form.registration_number} onChange={e => setForm(p => ({ ...p, registration_number: e.target.value }))} />
-            <div className="grid grid-cols-2 gap-6 mt-8">
-              <div>
-                <label className="block text-sm mb-3">Registration Certificate</label>
-                <input type="file" onChange={e => handleUpload('registration_document_url', e)} className="hidden" id="reg-upload" />
-                <label htmlFor="reg-upload" className="btn-primary cursor-pointer w-full text-center whitespace-nowrap flex items-center justify-center gap-2"><Upload size={18} /> Choose File</label>
-              </div>
-              <div>
-                <label className="block text-sm mb-3">Company Logo</label>
-                <input type="file" onChange={e => handleUpload('logo_url', e)} className="hidden" id="logo-upload" />
-                <label htmlFor="logo-upload" className="btn-primary cursor-pointer w-full text-center whitespace-nowrap flex items-center justify-center gap-2"><Upload size={18} /> Choose Logo</label>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* STEP 2 - Location */}
-        {step === 2 && (
-          <div>
-            <h2 className="text-3xl font-bold mb-8">2. Location</h2>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <select className="input w-full" value={form.planet} onChange={e => setForm(p => ({ ...p, planet: e.target.value }))}>
-                <option value="Earth">Earth</option>
-                <option value="Moon">Moon</option>
-                <option value="Mars">Mars</option>
-              </select>
-              <select className="input w-full" value={form.continent} onChange={e => setForm(p => ({ ...p, continent: e.target.value, country: '', province: '' }))}>
-                <option value="">Select Continent</option>
-                {Object.keys(locationData).map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-              <select className="input w-full" value={form.country} onChange={e => setForm(p => ({ ...p, country: e.target.value, province: '' }))} disabled={!form.continent}>
-                <option value="">Select Country</option>
-                {form.continent && locationData[form.continent].countries.map(c => <option key={c.name} value={c.name}>{c.flag} {c.name}</option>)}
-              </select>
-              <select className="input w-full" value={form.province} onChange={e => setForm(p => ({ ...p, province: e.target.value }))} disabled={!form.country}>
-                <option value="">Select Province / State</option>
-                {form.country && form.continent && locationData[form.continent].provinces[form.country]?.map(p => <option key={p} value={p}>{p}</option>)}
-              </select>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
-              <input type="text" placeholder="Street Address" className="input w-full" value={form.street} onChange={e => setForm(p => ({ ...p, street: e.target.value }))} />
-              <input type="text" placeholder="City" className="input w-full" value={form.city} onChange={e => setForm(p => ({ ...p, city: e.target.value }))} />
-              <input type="text" placeholder="Postal Code" className="input w-full" value={form.postal_code} onChange={e => setForm(p => ({ ...p, postal_code: e.target.value }))} />
-            </div>
-          </div>
-        )}
-
-        {/* STEP 3 - Industries */}
-        {step === 3 && (
-          <div>
-            <h2 className="text-3xl font-bold mb-8">3. Industries & Sub-Industries</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {industriesList.map(ind => (
-                <div key={ind.name} className="border rounded-3xl p-6">
-                  <button onClick={() => toggleIndustry(ind.name)} className="w-full flex justify-between items-center font-medium text-left">
-                    {ind.name}
-                    <ChevronDown className={`transition-transform ${openIndustries[ind.name] ? 'rotate-180' : ''}`} />
-                  </button>
-                  {openIndustries[ind.name] && (
-                    <div className="mt-4 space-y-2 pl-2">
-                      {ind.sub.map(sub => (
-                        <label key={sub} className="flex items-center gap-2 cursor-pointer">
-                          <input type="checkbox" checked={form.industries.includes(sub)} onChange={() => {
-                            setForm(p => ({ ...p, industries: p.industries.includes(sub) ? p.industries.filter(i => i !== sub) : [...p.industries, sub] }));
-                          }} />
-                          {sub}
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* STEP 4 - Financial & Banking */}
-        {step === 4 && (
-          <div>
-            <h2 className="text-3xl font-bold mb-8">4. Financial & Banking</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <div>
-                <label className="block text-sm mb-2">Tax Number</label>
-                <input type="text" className="input w-full" value={form.tax_number} onChange={e => setForm(p => ({ ...p, tax_number: e.target.value }))} />
-                <input type="file" onChange={e => handleUpload('tax_document_url', e)} className="hidden" id="tax-upload" />
-                <label htmlFor="tax-upload" className="btn-primary mt-3 w-full">Upload Tax Certificate</label>
-              </div>
-              <div>
-                <label className="block text-sm mb-2">VAT Number</label>
-                <input type="text" className="input w-full" value={form.vat_number} onChange={e => setForm(p => ({ ...p, vat_number: e.target.value }))} />
-                <input type="file" onChange={e => handleUpload('vat_document_url', e)} className="hidden" id="vat-upload" />
-                <label htmlFor="vat-upload" className="btn-primary mt-3 w-full">Upload VAT Certificate</label>
-              </div>
-              <div>
-                <label className="block text-sm mb-2">Export License</label>
-                <input type="text" className="input w-full" value={form.export_license} onChange={e => setForm(p => ({ ...p, export_license: e.target.value }))} />
-                <input type="file" onChange={e => handleUpload('export_document_url', e)} className="hidden" id="export-upload" />
-                <label htmlFor="export-upload" className="btn-primary mt-3 w-full">Upload Export License</label>
-              </div>
-
-              <div>
-                <label className="block text-sm mb-2">Import License</label>
-                <input type="text" className="input w-full" value={form.import_license} onChange={e => setForm(p => ({ ...p, import_license: e.target.value }))} />
-                <input type="file" onChange={e => handleUpload('import_document_url', e)} className="hidden" id="import-upload" />
-                <label htmlFor="import-upload" className="btn-primary mt-3 w-full">Upload Import License</label>
-              </div>
-
-              <div>
-                <label className="block text-sm mb-2">Bank Confirmation</label>
-                <input type="file" onChange={e => handleUpload('bank_confirmation_url', e)} className="hidden" id="bank-upload" />
-                <label htmlFor="bank-upload" className="btn-primary mt-3 w-full">Upload Bank Confirmation</label>
-              </div>
-            </div>
-
-            <div className="mt-12">
-              <h3 className="text-xl font-bold mb-6">Bank Details</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div>
-                  <label className="block text-sm mb-2">Bank Name</label>
-                  <input type="text" className="input w-full" value={form.bank_name} onChange={e => setForm(p => ({ ...p, bank_name: e.target.value }))} />
-                </div>
-                <div>
-                  <label className="block text-sm mb-2">Account Name</label>
-                  <input type="text" className="input w-full" value={form.account_name} onChange={e => setForm(p => ({ ...p, account_name: e.target.value }))} />
-                </div>
-                <div>
-                  <label className="block text-sm mb-2">Account Number</label>
-                  <input type="text" className="input w-full" value={form.account_number} onChange={e => setForm(p => ({ ...p, account_number: e.target.value }))} />
-                </div>
-                <div>
-                  <label className="block text-sm mb-2">IBAN</label>
-                  <input type="text" className="input w-full" value={form.iban} onChange={e => setForm(p => ({ ...p, iban: e.target.value }))} />
-                </div>
-                <div>
-                  <label className="block text-sm mb-2">SWIFT / BIC</label>
-                  <input type="text" className="input w-full" value={form.swift} onChange={e => setForm(p => ({ ...p, swift: e.target.value }))} />
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* STEP 5 - Products & Services */}
-        {step === 5 && (
-          <div>
-            <h2 className="text-3xl font-bold mb-8">5. Products & Services</h2>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-              <div>
-                <h3 className="font-bold text-2xl mb-6">Add Products</h3>
-                <div className="space-y-4">
-                  <input type="text" placeholder="Description" className="input w-full" value={newProduct.description} onChange={e => setNewProduct(p => ({ ...p, description: e.target.value }))} />
-                  <input type="text" placeholder="SKU" className="input w-full" value={newProduct.sku} onChange={e => setNewProduct(p => ({ ...p, sku: e.target.value }))} />
-                  <select className="input w-full" value={newProduct.uom} onChange={e => setNewProduct(p => ({ ...p, uom: e.target.value }))}>
-                    <option value="">Select UoM</option>
-                    {uomOptions.map(u => <option key={u} value={u}>{u}</option>)}
-                  </select>
-                  <div className="grid grid-cols-2 gap-4">
-                    <input type="number" placeholder="Sell Price" className="input w-full" value={newProduct.sellPrice} onChange={e => setNewProduct(p => ({ ...p, sellPrice: e.target.value }))} />
-                    <input type="text" placeholder="Lead Time (days)" className="input w-full" value={newProduct.leadTime} onChange={e => setNewProduct(p => ({ ...p, leadTime: e.target.value }))} />
-                  </div>
-                  <button onClick={addProduct} className="btn-primary w-full">Add Product</button>
-                </div>
-              </div>
-              <div>
-                <h3 className="font-bold text-2xl mb-6">Add Services</h3>
-                <input type="text" placeholder="Service Name" className="input w-full" value={newService} onChange={e => setNewService(e.target.value)} />
-                <button onClick={addService} className="btn-primary w-full mt-4">Add Service</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* STEP 6 - Certificates */}
-        {step === 6 && (
-          <div>
-            <h2 className="text-3xl font-bold mb-8">6. Certificates & Documents</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <input type="text" placeholder="Certificate Name" className="input w-full" value={newCert.name} onChange={e => setNewCert(p => ({ ...p, name: e.target.value }))} />
-              <select className="input w-full" value={newCert.body} onChange={e => setNewCert(p => ({ ...p, body: e.target.value }))}>
-                <option value="">Certification Body</option>
-                {certifiedBodies.map(b => <option key={b} value={b}>{b}</option>)}
-              </select>
-            </div>
-            <div className="grid grid-cols-2 gap-6 mt-6">
-              <input type="date" className="input w-full" value={newCert.awarded_date} onChange={e => setNewCert(p => ({ ...p, awarded_date: e.target.value }))} />
-              <input type="date" className="input w-full" value={newCert.expiry_date} onChange={e => setNewCert(p => ({ ...p, expiry_date: e.target.value }))} />
-            </div>
-            <div className="flex items-center gap-3 mt-6">
-              <input type="checkbox" checked={newCert.never_expires} onChange={e => setNewCert(p => ({ ...p, never_expires: e.target.checked }))} />
-              <span>Never expires / N/A</span>
-            </div>
-            <input type="file" onChange={handleCertUpload} className="hidden" id="cert-upload" />
-            <label htmlFor="cert-upload" className="btn-primary mt-6 w-full flex items-center justify-center gap-2"><Upload size={18} /> Upload Certificate</label>
-            <button onClick={addCertification} className="btn-primary w-full mt-6">Add Certificate</button>
-          </div>
-        )}
-
-        {/* STEP 7 - Review */}
-        {step === 7 && (
-          <div>
-            <h2 className="text-3xl font-bold mb-8">7. Review & Submit</h2>
-            <div className="bg-neutral-50 rounded-3xl p-8 text-sm space-y-6">
-              <div><strong>Company:</strong> {form.legal_name} ({form.trading_name})</div>
-              <div><strong>Location:</strong> {form.planet} • {form.continent} • {form.country} • {form.province}<br />{form.street}, {form.city} {form.postal_code}</div>
-              <div><strong>Industries:</strong> {form.industries.join(', ') || 'None'}</div>
-              <div><strong>Bank:</strong> {form.bank_name} • IBAN {form.iban} • SWIFT {form.swift}</div>
-              <div><strong>Products:</strong> {form.products.length} • Services: {form.services.length}</div>
-              <div><strong>Certificates:</strong> {form.certifications.length} uploaded</div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div className="flex flex-col sm:flex-row gap-4 mt-12">
-        {step > 1 && <button onClick={() => setStep(s => s - 1)} className="flex-1 border-2 border-neutral-300 py-5 rounded-3xl font-medium flex items-center justify-center gap-3"><ArrowLeft /> Back</button>}
-        <button onClick={() => setStep(s => s + 1)} className="flex-1 border-2 border-neutral-300 py-5 rounded-3xl font-medium">Skip this Section</button>
-        <button onClick={handleNext} disabled={loading} className="flex-1 bg-[#00b4d8] text-white py-5 rounded-3xl font-semibold flex items-center justify-center gap-3 disabled:opacity-60">
-          {loading ? 'Saving to Supabase...' : (step === 7 ? 'Submit & Go Live' : 'Continue')} <ArrowRight />
-        </button>
+        <div className="bg-white rounded-3xl shadow-sm border border-neutral-100 p-12">
+          {steps[step]()}
+        </div>
+        <div className="flex flex-col sm:flex-row gap-4 mt-10">
+          {step > 0 && <button onClick={() => setStep(s => s - 1)} className="flex-1 border px-8 py-4 rounded-3xl font-medium">← Back</button>}
+          <button onClick={() => setStep(s => s + 1)} className="flex-1 border px-8 py-4 rounded-3xl font-medium">Skip this Section</button>
+          <button onClick={handleNext} disabled={loading} className="flex-1 bg-[#00b4d8] text-white py-4 rounded-3xl font-semibold flex items-center justify-center gap-3 disabled:opacity-70">
+            {loading ? 'Saving to Supabase...' : (step === 6 ? 'Submit & Go Live' : 'Continue')} <ArrowRight />
+          </button>
+        </div>
       </div>
     </div>
   );
