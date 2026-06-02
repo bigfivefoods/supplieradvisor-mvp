@@ -1,1 +1,1 @@
-updated with Stripe subscription checkout for business registration
+updated to reflect per-company pricing with unlimited users

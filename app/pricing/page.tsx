@@ -1,1 +1,1 @@
-full Tesla-style pricing page for company registration with 30-day free trial
+updated pricing with R299 per company per month, unlimited users recommendation
