@@ -1,1 +1,1 @@
-updated onboarding with payment/trial step for company registration
+updated with Stripe subscription checkout for business registration
