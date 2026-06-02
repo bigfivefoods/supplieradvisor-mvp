@@ -1,0 +1,1 @@
+full consumer loyalty registration and dashboard with points balance and rewards
