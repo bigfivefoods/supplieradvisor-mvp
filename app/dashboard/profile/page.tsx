@@ -98,7 +98,7 @@ const businessTypesList = [
 const roleOptions = ['CEO / Managing Director', 'Procurement Leader', 'Supply Chain Leader', 'Finance Leader', 'Quality Leader', 'Sustainability Leader', 'Operations Leader', 'Sales Leader', 'Logistics Leader', 'IT Leader', 'HR Leader', 'Other'];
 
 export default function MyBusinessProfile() {
-  const { user } = usePrivy();
+  const { user, ready } = usePrivy();
   const router = useRouter();
   const cleanId = (user?.id || '').replace('privy:', '');
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
@@ -140,7 +140,14 @@ export default function MyBusinessProfile() {
   const toggleSection = (section: string) => setExpanded(prev => ({ ...prev, [section]: !prev[section] }));
 
   useEffect(() => {
-    if (!cleanId) return;
+    if (ready && !cleanId) {
+      localStorage.removeItem('selected_company_id');
+      router.push('/');
+    }
+  }, [cleanId, ready, router]);
+
+  useEffect(() => {
+    if (!ready || !cleanId) return;
 
     const resolveSelectedProfile = async () => {
       try {
@@ -166,10 +173,7 @@ export default function MyBusinessProfile() {
 
         if (!nextSelected || !ownedIds.includes(nextSelected)) {
           if (ownedIds.length === 1) {
-            const onlyOwnedProfileId = ownedIds[0];
-            if (!onlyOwnedProfileId) {
-              return;
-            }
+            const onlyOwnedProfileId = ownedIds[0] as string;
             nextSelected = onlyOwnedProfileId;
             localStorage.setItem('selected_company_id', onlyOwnedProfileId);
           } else {
@@ -186,7 +190,7 @@ export default function MyBusinessProfile() {
     };
 
     resolveSelectedProfile();
-  }, [cleanId, router]);
+  }, [cleanId, ready, router]);
 
   useEffect(() => {
     if (cleanId && selectedProfileId) {
