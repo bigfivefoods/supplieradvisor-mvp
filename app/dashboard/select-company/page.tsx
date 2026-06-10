@@ -36,6 +36,10 @@ function getErrorMessage(error: unknown) {
   return 'Unable to load your businesses right now.';
 }
 
+function getProfileIds(memberships: BusinessMembership[]) {
+  return Array.from(new Set(memberships.map((membership) => membership.profile_id).filter(Boolean))) as string[];
+}
+
 export default function Page() {
   const { user, ready } = usePrivy();
   const router = useRouter();
@@ -68,9 +72,7 @@ export default function Page() {
           console.error('Membership lookup error:', membershipsError);
         }
 
-        const profileIds = Array.from(
-          new Set((memberships || []).map((membership: BusinessMembership) => membership.profile_id).filter(Boolean))
-        ) as string[];
+        const profileIds = getProfileIds(memberships || []);
 
         if (profileIds.length > 0) {
           const { data: linkedProfiles, error: linkedProfilesError } = await supabase
@@ -148,7 +150,7 @@ export default function Page() {
           </p>
           <button
             onClick={() => router.push('/onboarding')}
-            className="btn-primary px-6 py-3 rounded-3xl text-white"
+            className="inline-flex items-center justify-center rounded-3xl bg-[#00b4d8] px-6 py-3 font-semibold text-white transition-colors hover:bg-[#0099b8]"
           >
             Complete onboarding
           </button>
