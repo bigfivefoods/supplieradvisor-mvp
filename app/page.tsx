@@ -13,14 +13,7 @@ export default function LandingPage() {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // AUTO REDIRECT TO PROFILE AFTER SUCCESSFUL LOGIN (for returning customers)
-  useEffect(() => {
-    if (ready && user) {
-      router.push('/dashboard/profile');
-    }
-  }, [ready, user, router]);
-
-  // NEW: MULTI-COMPANY SELECTOR FOR RETURNING USERS
+  // Login redirect with company selection support
   useEffect(() => {
     if (!ready || !user) return;
 
@@ -38,11 +31,15 @@ export default function LandingPage() {
       }
 
       if (!profiles || profiles.length === 0) {
-        router.push('/onboarding');                    // New user
+        router.push('/onboarding');
       } else if (profiles.length === 1) {
-        router.push('/dashboard');                     // Single company → direct to dashboard
+        localStorage.setItem('selected_company_id', profiles[0].id);
+        router.push('/dashboard/profile');
       } else {
-        router.push('/dashboard/select-company');      // Multiple companies → show selector
+        const selectedCompanyId = localStorage.getItem('selected_company_id');
+        const hasValidSelection = !!selectedCompanyId && profiles.some(profile => profile.id === selectedCompanyId);
+
+        router.push(hasValidSelection ? '/dashboard/profile' : '/dashboard/select-company');
       }
     };
 

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
+import { useRouter } from 'next/navigation';
 import { ArrowRight, ChevronDown, RotateCw, Upload, Plus, Users2, ShieldCheck } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { mintVerificationSBT } from '@/lib/onchain';
@@ -98,7 +99,9 @@ const roleOptions = ['CEO / Managing Director', 'Procurement Leader', 'Supply Ch
 
 export default function MyBusinessProfile() {
   const { user } = usePrivy();
+  const router = useRouter();
   const cleanId = (user?.id || '').replace('privy:', '');
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -137,19 +140,79 @@ export default function MyBusinessProfile() {
   const toggleSection = (section: string) => setExpanded(prev => ({ ...prev, [section]: !prev[section] }));
 
   useEffect(() => {
-    if (cleanId) loadProfile();
-  }, [cleanId]);
+    if (!cleanId) return;
+
+    const resolveSelectedProfile = async () => {
+      try {
+        const { data: ownedProfiles, error } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('user_id', cleanId);
+
+        if (error) {
+          console.error('Ownership check error:', error);
+          toast.error('Unable to load your companies');
+          return;
+        }
+
+        if (!ownedProfiles || ownedProfiles.length === 0) {
+          localStorage.removeItem('selected_company_id');
+          router.push('/onboarding');
+          return;
+        }
+
+        const ownedIds = ownedProfiles.map(profile => profile.id);
+        let nextSelected = localStorage.getItem('selected_company_id');
+
+        if (!nextSelected || !ownedIds.includes(nextSelected)) {
+          if (ownedIds.length === 1) {
+            const onlyOwnedProfileId = ownedIds[0]!;
+            nextSelected = onlyOwnedProfileId;
+            localStorage.setItem('selected_company_id', onlyOwnedProfileId);
+          } else {
+            localStorage.removeItem('selected_company_id');
+            router.push('/dashboard/select-company');
+            return;
+          }
+        }
+
+        setSelectedProfileId(nextSelected);
+      } catch (err) {
+        console.error('Selection resolution error:', err);
+      }
+    };
+
+    resolveSelectedProfile();
+  }, [cleanId, router]);
+
+  useEffect(() => {
+    if (cleanId && selectedProfileId) loadProfile();
+  }, [cleanId, selectedProfileId]);
 
   const loadProfile = async () => {
+    if (!cleanId || !selectedProfileId) return;
+
     setLoading(true);
     try {
-      const { data: profile } = await supabase.from('profiles').select('*').eq('user_id', cleanId).maybeSingle();
-      if (profile) setForm(prev => ({ ...prev, ...profile }));
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', selectedProfileId)
+        .eq('user_id', cleanId)
+        .maybeSingle();
 
-      const { data: products } = await supabase.from('business_products').select('*').eq('profile_id', cleanId);
-      const { data: servicesData } = await supabase.from('business_services').select('name').eq('profile_id', cleanId);
-      const { data: certifications } = await supabase.from('business_certifications').select('*').eq('profile_id', cleanId);
-      const { data: teamData } = await supabase.from('business_users').select('*').eq('profile_id', cleanId);
+      if (!profile) {
+        localStorage.removeItem('selected_company_id');
+        router.push('/dashboard/select-company');
+        return;
+      }
+
+      setForm(prev => ({ ...prev, ...profile }));
+
+      const { data: products } = await supabase.from('business_products').select('*').eq('profile_id', selectedProfileId);
+      const { data: servicesData } = await supabase.from('business_services').select('name').eq('profile_id', selectedProfileId);
+      const { data: certifications } = await supabase.from('business_certifications').select('*').eq('profile_id', selectedProfileId);
+      const { data: teamData } = await supabase.from('business_users').select('*').eq('profile_id', selectedProfileId);
 
       setForm(prev => ({
         ...prev,
@@ -167,9 +230,9 @@ export default function MyBusinessProfile() {
 
   const handleUpload = async (field: keyof typeof form, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !cleanId) return toast.error("Please select a file");
+    if (!file || !selectedProfileId) return toast.error("Please select a file");
     setUploading(true);
-    const fileName = `${cleanId}-${field}-${Date.now()}.${file.name.split('.').pop()}`;
+    const fileName = `${selectedProfileId}-${field}-${Date.now()}.${file.name.split('.').pop()}`;
     const { error } = await supabase.storage.from('certificates').upload(fileName, file, { upsert: true });
     if (error) return toast.error("Upload failed");
     const { data: { publicUrl } } = supabase.storage.from('certificates').getPublicUrl(fileName);
@@ -180,9 +243,9 @@ export default function MyBusinessProfile() {
 
   const handleCertUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !cleanId) return toast.error("Please select a file");
+    if (!file || !selectedProfileId) return toast.error("Please select a file");
     setUploading(true);
-    const fileName = `${cleanId}-cert-${Date.now()}.${file.name.split('.').pop()}`;
+    const fileName = `${selectedProfileId}-cert-${Date.now()}.${file.name.split('.').pop()}`;
     const { error } = await supabase.storage.from('certificates').upload(fileName, file, { upsert: true });
     if (error) return toast.error("Upload failed");
     const { data: { publicUrl } } = supabase.storage.from('certificates').getPublicUrl(fileName);
@@ -216,13 +279,18 @@ export default function MyBusinessProfile() {
   };
 
   const addTeamMember = async () => {
+    if (!selectedProfileId) {
+      toast.error('Please select a company first');
+      return;
+    }
+
     if (!newTeamMember.name || !newTeamMember.email) {
       toast.error('Name and Email are required');
       return;
     }
 
     const memberData = {
-      profile_id: cleanId,
+      profile_id: selectedProfileId,
       name: newTeamMember.name,
       email: newTeamMember.email,
       contact_number: newTeamMember.contact_number || '',
@@ -262,15 +330,20 @@ export default function MyBusinessProfile() {
   };
 
   const verifyOnChain = async () => {
+    if (!selectedProfileId) {
+      toast.error('Please select a company first');
+      return;
+    }
+
     setLoading(true);
     try {
       const metadata = {
-        profileId: cleanId,
+        profileId: selectedProfileId,
         legal_name: form.legal_name,
         trading_name: form.trading_name,
         timestamp: new Date().toISOString()
       };
-      const result = await mintVerificationSBT(cleanId, metadata);
+      const result = await mintVerificationSBT(selectedProfileId, metadata);
       setForm(p => ({ ...p, ...result }));
       toast.success('🎉 Business verified on-chain! SBT minted on Polygon Amoy');
     } catch (err) {
@@ -281,9 +354,15 @@ export default function MyBusinessProfile() {
   };
 
   const saveProfile = async () => {
+    if (!cleanId || !selectedProfileId) {
+      toast.error('Please select a company first');
+      return;
+    }
+
     setSaving(true);
     try {
       const profileData = {
+        id: selectedProfileId,
         user_id: cleanId,
         legal_name: form.legal_name,
         trading_name: form.trading_name,
@@ -323,13 +402,13 @@ export default function MyBusinessProfile() {
       if (profileError) throw profileError;
 
       if (form.products.length > 0) {
-        await supabase.from('business_products').upsert(form.products.map(p => ({ profile_id: cleanId, ...p })));
+        await supabase.from('business_products').upsert(form.products.map(p => ({ profile_id: selectedProfileId, ...p })));
       }
       if (form.services.length > 0) {
-        await supabase.from('business_services').upsert(form.services.map(name => ({ profile_id: cleanId, name })));
+        await supabase.from('business_services').upsert(form.services.map(name => ({ profile_id: selectedProfileId, name })));
       }
       if (form.certifications.length > 0) {
-        await supabase.from('business_certifications').upsert(form.certifications.map(c => ({ profile_id: cleanId, ...c })));
+        await supabase.from('business_certifications').upsert(form.certifications.map(c => ({ profile_id: selectedProfileId, ...c })));
       }
 
       toast.success("🎉 Profile saved successfully to Supabase!");

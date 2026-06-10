@@ -33,17 +33,8 @@ export default function SelectCompany() {
       setLoading(true);
 
       const { data, error } = await supabase
-        .from('business_users')
-        .select(`
-          profile_id,
-          profiles!inner (
-            legal_name,
-            trading_name,
-            logo_url,
-            verified_at,
-            sbt_token_id
-          )
-        `)
+        .from('profiles')
+        .select('id, legal_name, trading_name, logo_url, verified_at, sbt_token_id')
         .eq('user_id', cleanId);
 
       if (error) {
@@ -52,20 +43,14 @@ export default function SelectCompany() {
         return;
       }
 
-      // Properly map and deduplicate
-      const mapped: Company[] = (data || []).map((item: any) => ({
-        profile_id: item.profile_id,
-        legal_name: item.profiles.legal_name,
-        trading_name: item.profiles.trading_name,
-        logo_url: item.profiles.logo_url,
-        verified_at: item.profiles.verified_at,
-        sbt_token_id: item.profiles.sbt_token_id,
+      const unique: Company[] = (data || []).map((item: any) => ({
+        profile_id: item.id,
+        legal_name: item.legal_name,
+        trading_name: item.trading_name,
+        logo_url: item.logo_url,
+        verified_at: item.verified_at,
+        sbt_token_id: item.sbt_token_id,
       }));
-
-      // Remove duplicates (in case of multiple roles per company)
-      const unique = Array.from(
-        new Map(mapped.map(item => [item.profile_id, item])).values()
-      );
 
       setCompanies(unique);
       setLoading(false);
