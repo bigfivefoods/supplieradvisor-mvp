@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Search, Plus, FileText, TrendingUp, Award, AlertTriangle } from 'lucide-react';
+import { Search, Plus, FileText, TrendingUp, ShoppingCart } from 'lucide-react';
 import Breadcrumb from '../../../components/ui/Breadcrumb';   // ← Correct relative path
 
 export default function SuppliersPage() {
@@ -43,6 +43,17 @@ export default function SuppliersPage() {
           <p className="text-slate-600">Create purchase orders with auto-filled metadata</p>
           <div className="mt-8 text-[#00b4d8] font-medium flex items-center gap-2 group-hover:gap-3 transition-all">
             Raise New PO →
+          </div>
+        </Link>
+
+        <Link href="/dashboard/suppliers/big-five" className="card hover:shadow-xl transition-all group">
+          <div className="flex items-center gap-4 mb-6">
+            <ShoppingCart size={36} className="text-[#00b4d8]" />
+            <h3 className="text-3xl font-bold">Big Five Foods Orders</h3>
+          </div>
+          <p className="text-slate-600">Browse porridges, soya mince, one-pot meals and soups for Container Spaza ordering</p>
+          <div className="mt-8 text-[#00b4d8] font-medium flex items-center gap-2 group-hover:gap-3 transition-all">
+            Open Catalog →
           </div>
         </Link>
 

@@ -19,6 +19,7 @@ const modules = [
     { name: 'Supplier Profiles', href: '/dashboard/suppliers/profiles' },
     { name: 'Connect', href: '/dashboard/suppliers/connect' },
     { name: 'Raise PO', href: '/dashboard/procurement/po' },
+    { name: 'Big Five Foods Orders', href: '/dashboard/suppliers/big-five' },
     { name: 'Contracts', href: '/dashboard/suppliers/contracts' },
     { name: 'Supplier Portal', href: '/dashboard/suppliers/portal' },
     { name: 'Risk Alerts', href: '/dashboard/suppliers/risk-alerts' }
