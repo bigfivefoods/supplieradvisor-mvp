@@ -16,6 +16,26 @@ interface Business {
   province: string | null;
 }
 
+interface BusinessMembership {
+  profile_id: string | null;
+}
+
+function getCleanUserId(userId: string) {
+  return userId.startsWith('privy:') ? userId.slice('privy:'.length) : userId;
+}
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (typeof error === 'object' && error && 'message' in error && typeof error.message === 'string') {
+    return error.message;
+  }
+
+  return 'Unable to load your businesses right now.';
+}
+
 export default function Page() {
   const { user, ready } = usePrivy();
   const router = useRouter();
@@ -36,7 +56,7 @@ export default function Page() {
       setError('');
 
       try {
-        const cleanId = user.id.replace('privy:', '');
+        const cleanId = getCleanUserId(user.id);
         let nextBusinesses: Business[] = [];
 
         const { data: memberships, error: membershipsError } = await supabase
@@ -49,7 +69,7 @@ export default function Page() {
         }
 
         const profileIds = Array.from(
-          new Set((memberships || []).map((membership: { profile_id: string | null }) => membership.profile_id).filter(Boolean))
+          new Set((memberships || []).map((membership: BusinessMembership) => membership.profile_id).filter(Boolean))
         ) as string[];
 
         if (profileIds.length > 0) {
@@ -79,9 +99,9 @@ export default function Page() {
         }
 
         setBusinesses(nextBusinesses);
-      } catch (loadError: any) {
+      } catch (loadError: unknown) {
         console.error('Select company load error:', loadError);
-        setError(loadError?.message || 'Unable to load your businesses right now.');
+        setError(getErrorMessage(loadError));
       } finally {
         setLoading(false);
       }
