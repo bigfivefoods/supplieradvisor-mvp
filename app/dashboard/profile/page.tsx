@@ -166,7 +166,10 @@ export default function MyBusinessProfile() {
 
         if (!nextSelected || !ownedIds.includes(nextSelected)) {
           if (ownedIds.length === 1) {
-            const onlyOwnedProfileId = ownedIds[0]!;
+            const onlyOwnedProfileId = ownedIds[0];
+            if (!onlyOwnedProfileId) {
+              return;
+            }
             nextSelected = onlyOwnedProfileId;
             localStorage.setItem('selected_company_id', onlyOwnedProfileId);
           } else {
@@ -186,7 +189,9 @@ export default function MyBusinessProfile() {
   }, [cleanId, router]);
 
   useEffect(() => {
-    if (cleanId && selectedProfileId) loadProfile();
+    if (cleanId && selectedProfileId) {
+      void loadProfile();
+    }
   }, [cleanId, selectedProfileId]);
 
   const loadProfile = async () => {
