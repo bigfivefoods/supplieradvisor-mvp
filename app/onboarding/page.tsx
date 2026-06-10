@@ -7,6 +7,7 @@ import { ArrowRight, ArrowLeft, ChevronDown, Wallet, Upload, Plus, Users2, Shiel
 import { supabase } from '@/lib/supabase';
 import toast from 'react-hot-toast';
 import Breadcrumb from '@/components/ui/Breadcrumb';
+import VerifyCompanyModal from '@/components/ui/VerifyCompanyModal';
 
 interface LocationData {
   [continent: string]: {
@@ -104,6 +105,7 @@ export default function Onboarding() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [showVerifyModal, setShowVerifyModal] = useState(false);
 
   const [form, setForm] = useState({
     legal_name: '', trading_name: '', contact_name: '', email: '', registration_number: '', contact_number: '',
@@ -319,8 +321,43 @@ export default function Onboarding() {
         <div>
           <h1 className="font-black text-5xl tracking-tight text-[#00b4d8]">Verify Your Business</h1>
           <p className="text-xl text-neutral-600">Exact mirror of onboarding – all company information in one place</p>
+          <div className="flex items-center gap-3 mt-3">
+            {form.verified_at ? (
+              <button
+                onClick={() => setShowVerifyModal(true)}
+                className="inline-flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 font-semibold px-5 py-2 rounded-2xl hover:bg-emerald-100 transition-colors"
+              >
+                <ShieldCheck size={18} /> Verified ✓
+              </button>
+            ) : (
+              <button
+                onClick={() => setShowVerifyModal(true)}
+                className="inline-flex items-center gap-2 bg-[#00b4d8] text-white font-bold px-6 py-2.5 rounded-2xl hover:bg-[#0096b7] transition-colors shadow-sm"
+              >
+                <ShieldCheck size={18} /> Get Verified
+              </button>
+            )}
+          </div>
         </div>
       </div>
+
+      {showVerifyModal && (
+        <VerifyCompanyModal
+          profileId={cleanId}
+          legalName={form.legal_name}
+          tradingName={form.trading_name}
+          country={form.country}
+          registrationNumber={form.registration_number}
+          businessType={form.business_type}
+          isVerified={!!form.verified_at}
+          verifiedAt={form.verified_at}
+          onVerified={(result) => {
+            setForm(p => ({ ...p, ...result }));
+            setShowVerifyModal(false);
+          }}
+          onClose={() => setShowVerifyModal(false)}
+        />
+      )}
 
       <div className="space-y-8">
 
