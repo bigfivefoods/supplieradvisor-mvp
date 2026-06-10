@@ -38,7 +38,7 @@ export default function BigFiveOrderingPage() {
       .join('%0A');
 
     window.open(
-      `mailto:orders@bigfivefoods.co.za?subject=Container Spaza Order Request&body=Please process this order:%0A%0A${lines}%0A%0AEstimated total: R${total.toFixed(2)}`,
+      `mailto:orders@bigfivefoods.co.za?subject=ContainerSpaza Order Request&body=Please process this order:%0A%0A${lines}%0A%0AEstimated total: R${total.toFixed(2)}`,
       '_blank'
     );
 
@@ -50,7 +50,7 @@ export default function BigFiveOrderingPage() {
       <Breadcrumb />
       <h1 className="text-6xl font-black tracking-tighter text-[#00b4d8]">Big Five Foods Ordering</h1>
       <p className="text-2xl text-slate-600">
-        Container Spaza catalog ordering for porridges, soya mince, one-pot meals and soups
+        ContainerSpaza catalog ordering for porridges, soya mince, one-pot meals and soups
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

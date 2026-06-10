@@ -51,7 +51,7 @@ export default function SuppliersPage() {
             <ShoppingCart size={36} className="text-[#00b4d8]" />
             <h3 className="text-3xl font-bold">Big Five Foods Orders</h3>
           </div>
-          <p className="text-slate-600">Browse porridges, soya mince, one-pot meals and soups for Container Spaza ordering</p>
+          <p className="text-slate-600">Browse porridges, soya mince, one-pot meals and soups for ContainerSpaza ordering</p>
           <div className="mt-8 text-[#00b4d8] font-medium flex items-center gap-2 group-hover:gap-3 transition-all">
             Open Catalog →
           </div>
