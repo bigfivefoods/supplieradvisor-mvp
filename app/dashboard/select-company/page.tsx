@@ -40,6 +40,23 @@ function getProfileIds(memberships: BusinessMembership[]) {
   return Array.from(new Set(memberships.map((membership) => membership.profile_id).filter(Boolean))) as string[];
 }
 
+function isSafeLogoUrl(logoUrl: string | null) {
+  if (!logoUrl) {
+    return false;
+  }
+
+  if (logoUrl.startsWith('/')) {
+    return true;
+  }
+
+  try {
+    const parsedUrl = new URL(logoUrl);
+    return parsedUrl.protocol === 'https:' || parsedUrl.protocol === 'http:';
+  } catch {
+    return false;
+  }
+}
+
 export default function Page() {
   const { user, ready } = usePrivy();
   const router = useRouter();
@@ -166,10 +183,10 @@ export default function Page() {
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-center gap-4 min-w-0">
-                  {business.logo_url ? (
+                  {isSafeLogoUrl(business.logo_url) ? (
                     <img
-                      src={business.logo_url}
-                      alt={business.trading_name || business.legal_name || 'Business logo'}
+                      src={business.logo_url || undefined}
+                      alt={`Logo for ${business.trading_name || business.legal_name || business.id}`}
                       className="w-16 h-16 rounded-2xl object-cover border border-neutral-200"
                     />
                   ) : (
