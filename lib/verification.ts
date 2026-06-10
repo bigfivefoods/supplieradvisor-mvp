@@ -142,7 +142,10 @@ async function verifyCIPC(
   // TODO: replace with real CIPC API call
   // const response = await fetch('https://api.cipc.co.za/company/verify', {
   //   method: 'POST',
-  //   headers: { 'Authorization': `****** 'Content-Type': 'application/json' },
+  //   headers: {
+  //     'Authorization': '******',
+  //     'Content-Type': 'application/json',
+  //   },
   //   body: JSON.stringify({ registrationNumber }),
   // });
   // const data = await response.json();
@@ -176,7 +179,10 @@ async function verifySARS(
   // TODO: replace with real SARS API call
   // const response = await fetch('https://efiling.sars.gov.za/api/taxpayer/verify', {
   //   method: 'POST',
-  //   headers: { 'Authorization': `****** 'Content-Type': 'application/json' },
+  //   headers: {
+  //     'Authorization': '******',
+  //     'Content-Type': 'application/json',
+  //   },
   //   body: JSON.stringify({ taxNumber }),
   // });
   // const data = await response.json();
