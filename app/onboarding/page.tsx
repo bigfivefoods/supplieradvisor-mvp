@@ -5,6 +5,12 @@ import { usePrivy } from '@privy-io/react-auth';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, ArrowLeft, ChevronDown, Wallet, Upload, Plus, Users2, ShieldCheck, RotateCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import {
+  verifyCompanyRegistration,
+  getVerificationAuthority,
+  VERIFICATION_AUTHORITIES,
+  type VerificationResult,
+} from '@/lib/verification';
 import toast from 'react-hot-toast';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 
@@ -121,7 +127,8 @@ export default function Onboarding() {
     business_type: '',
     team_members: [] as any[],
     created_at: '',
-    on_chain_hash: '', sbt_token_id: null as string | null, verified_at: null as string | null
+    on_chain_hash: '', sbt_token_id: null as string | null, verified_at: null as string | null,
+    verification_authority: ''
   });
 
   const [newProduct, setNewProduct] = useState({ description: '', sku: '', uom: '', sellPrice: '', leadTime: '', image_url: '' });
@@ -133,6 +140,10 @@ export default function Onboarding() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({
     basics: true, location: true, industries: true, financial: true, products: true, certifications: true
   });
+  const [showVerifyModal, setShowVerifyModal] = useState(false);
+  const [verifyCountry, setVerifyCountry] = useState('');
+  const [verifyAuthorityId, setVerifyAuthorityId] = useState('');
+  const [lastVerificationResult, setLastVerificationResult] = useState<VerificationResult | null>(null);
 
   const toggleIndustry = (name: string) => setOpenIndustries(prev => ({ ...prev, [name]: !prev[name] }));
   const toggleSection = (section: string) => setExpanded(prev => ({ ...prev, [section]: !prev[section] }));
@@ -233,6 +244,44 @@ export default function Onboarding() {
     setNewTeamMember({ name: '', email: '', contact_number: '', role: '' });
   };
 
+  const openVerifyModal = () => {
+    setVerifyCountry(form.country || '');
+    const authority = getVerificationAuthority(form.country || '');
+    setVerifyAuthorityId(authority.id);
+    setShowVerifyModal(true);
+  };
+
+  const verifyBusiness = async () => {
+    if (!form.registration_number) {
+      toast.error('Please enter a Company Registration Number first');
+      return;
+    }
+    setLoading(true);
+    setShowVerifyModal(false);
+    try {
+      const verificationResult = await verifyCompanyRegistration({
+        country: verifyCountry || form.country || '',
+        registrationNumber: form.registration_number,
+        taxNumber: form.tax_number,
+        companyName: form.legal_name || form.trading_name,
+        authorityId: verifyAuthorityId || undefined,
+      });
+
+      if (!verificationResult.success) {
+        toast.error(`Verification failed: ${verificationResult.error ?? 'Unknown error'}`);
+        return;
+      }
+
+      setLastVerificationResult(verificationResult);
+      setForm(p => ({ ...p, verification_authority: verificationResult.authority.id }));
+      toast.success(`✅ Business verified via ${verificationResult.authority.name}`);
+    } catch (err) {
+      toast.error('Verification failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const saveProfile = async () => {
     setSaving(true);
     try {
@@ -315,12 +364,143 @@ export default function Onboarding() {
     <div className="pl-0 pr-12 py-12 max-w-screen-2xl mx-auto">
       <Breadcrumb />
 
+      {/* Verification Modal */}
+      {showVerifyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-3xl shadow-2xl p-10 max-w-lg w-full mx-4">
+            <h2 className="text-2xl font-bold mb-2">Verify Your Business</h2>
+            <p className="text-neutral-500 mb-8">
+              Select the country and authority to use for company registration verification.
+            </p>
+
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium mb-2">Country</label>
+                <select
+                  className="input w-full"
+                  value={verifyCountry}
+                  onChange={e => {
+                    setVerifyCountry(e.target.value);
+                    setVerifyAuthorityId(getVerificationAuthority(e.target.value).id);
+                  }}
+                >
+                  <option value="">Select Country</option>
+                  {Object.values(VERIFICATION_AUTHORITIES)
+                    .filter(a => a.countries.length > 0)
+                    .flatMap(a => a.countries)
+                    .filter((c, i, arr) => arr.indexOf(c) === i)
+                    .sort()
+                    .map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  <option value="__other__">Other (Generic)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">Verification Authority</label>
+                <select
+                  className="input w-full"
+                  value={verifyAuthorityId}
+                  onChange={e => setVerifyAuthorityId(e.target.value)}
+                >
+                  {Object.values(VERIFICATION_AUTHORITIES).map(a => (
+                    <option key={a.id} value={a.id}>{a.name}</option>
+                  ))}
+                </select>
+                {verifyAuthorityId && VERIFICATION_AUTHORITIES[verifyAuthorityId]?.website && (
+                  <a
+                    href={VERIFICATION_AUTHORITIES[verifyAuthorityId].website}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-[#00b4d8] mt-1 inline-block hover:underline"
+                  >
+                    {VERIFICATION_AUTHORITIES[verifyAuthorityId].website}
+                  </a>
+                )}
+                {verifyAuthorityId && !VERIFICATION_AUTHORITIES[verifyAuthorityId]?.liveIntegration && (
+                  <p className="text-xs text-amber-600 mt-1">
+                    ⚠ Mock integration — real API not yet wired up for this authority.
+                  </p>
+                )}
+              </div>
+
+              <div className="bg-neutral-50 rounded-2xl p-4 text-sm text-neutral-600">
+                <p><strong>Registration Number:</strong> {form.registration_number || '—'}</p>
+                {form.tax_number && <p className="mt-1"><strong>Tax Number:</strong> {form.tax_number}</p>}
+              </div>
+            </div>
+
+            <div className="flex gap-4 mt-8">
+              <button
+                onClick={() => setShowVerifyModal(false)}
+                className="flex-1 border px-6 py-3 rounded-3xl hover:bg-neutral-100"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={verifyBusiness}
+                disabled={loading}
+                className="flex-1 btn-primary flex items-center justify-center gap-2"
+              >
+                <ShieldCheck size={18} /> {loading ? 'Verifying…' : 'Verify Business'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-end justify-between mb-8">
         <div>
           <h1 className="font-black text-5xl tracking-tight text-[#00b4d8]">Verify Your Business</h1>
-          <p className="text-xl text-neutral-600">Exact mirror of onboarding – all company information in one place</p>
+          <p className="text-xl text-neutral-600">Complete your company profile and verify with your national authority</p>
+          {form.verification_authority && (
+            <div className="inline-flex items-center gap-2 mt-2 text-emerald-600 font-medium">
+              <ShieldCheck size={22} />
+              Verified via {VERIFICATION_AUTHORITIES[form.verification_authority]?.name ?? form.verification_authority}
+            </div>
+          )}
         </div>
+        <button
+          onClick={openVerifyModal}
+          disabled={loading}
+          className="btn-primary flex items-center gap-3 px-8 py-4"
+        >
+          <ShieldCheck size={20} /> {loading ? 'Verifying…' : 'Verify Business'}
+        </button>
       </div>
+
+      {/* Verification result panel */}
+      {lastVerificationResult && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-3xl p-6 mb-8">
+          <div className="flex items-start gap-4">
+            <ShieldCheck className="text-emerald-500 flex-shrink-0 mt-1" size={28} />
+            <div className="flex-1">
+              <h3 className="font-semibold text-emerald-800 text-lg mb-1">
+                Verified via {lastVerificationResult.authority.name}
+              </h3>
+              <p className="text-sm text-emerald-700 mb-3">
+                Checked at {new Date(lastVerificationResult.verifiedAt).toLocaleString()}
+                {!lastVerificationResult.authority.liveIntegration && (
+                  <span className="ml-2 text-amber-600">(mock data — live API integration pending)</span>
+                )}
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {Object.entries(lastVerificationResult.data)
+                  .filter(([, v]) => v !== undefined && v !== null && v !== '')
+                  .map(([key, value]) => (
+                    <div key={key} className="bg-white rounded-2xl p-3 border border-emerald-100">
+                      <div className="text-xs text-neutral-500 capitalize mb-1">
+                        {key.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').trim()}
+                      </div>
+                      <div className="font-medium text-sm">{String(value)}</div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="space-y-8">
 
@@ -368,6 +548,27 @@ export default function Onboarding() {
                 <div>
                   <label className="block text-sm font-medium mb-2">Company Registration Number</label>
                   <input type="text" className="input w-full" value={form.registration_number} onChange={e => setForm(p => ({...p, registration_number: e.target.value}))} />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Verification Authority</label>
+                  <select
+                    className="input w-full"
+                    value={form.verification_authority || ''}
+                    onChange={e => setForm(p => ({ ...p, verification_authority: e.target.value }))}
+                  >
+                    <option value="">Auto-detect from country</option>
+                    {Object.values(VERIFICATION_AUTHORITIES).map(a => (
+                      <option key={a.id} value={a.id}>{a.name}</option>
+                    ))}
+                  </select>
+                  {form.verification_authority && VERIFICATION_AUTHORITIES[form.verification_authority] && (
+                    <p className="text-xs text-neutral-500 mt-1">
+                      {VERIFICATION_AUTHORITIES[form.verification_authority].liveIntegration
+                        ? '✅ Live API integration'
+                        : '⚠ Mock / placeholder integration'}
+                    </p>
+                  )}
                 </div>
 
                 <div>

@@ -23,17 +23,27 @@ export async function uploadToIPFS(metadata: any): Promise<string> {
   return `ipfs://${data.IpfsHash}`;
 }
 
-export async function mintVerificationSBT(profileId: string, metadata: any) {
+export async function mintVerificationSBT(
+  profileId: string,
+  metadata: any,
+  verificationAuthorityId?: string,
+) {
   const ipfsHash = await uploadToIPFS(metadata);
+
+  const updatePayload: Record<string, unknown> = {
+    on_chain_hash: ipfsHash,
+    sbt_token_id: Date.now().toString(),
+    verified_at: new Date().toISOString(),
+    attestation_id: ipfsHash,
+  };
+
+  if (verificationAuthorityId) {
+    updatePayload.verification_authority = verificationAuthorityId;
+  }
 
   const { data, error } = await supabase
     .from('profiles')
-    .update({
-      on_chain_hash: ipfsHash,
-      sbt_token_id: Date.now().toString(),
-      verified_at: new Date().toISOString(),
-      attestation_id: ipfsHash
-    })
+    .update(updatePayload)
     .eq('user_id', profileId)
     .select()
     .single();
