@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { supabase } from '@/lib/supabase';
-import { Search, ChevronDown, Plus, UserPlus, MapPin, Award, Clock, RefreshCw, CheckCircle } from 'lucide-react';
+import { Search, ChevronDown, Plus, UserPlus, MapPin, Award, Clock, RefreshCw, CheckCircle, BadgeCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 import Image from 'next/image';
@@ -74,7 +74,10 @@ export default function SuppliersSearch() {
 
   const loadSuppliers = async () => {
     setLoading(true);
-    const { data } = await supabase.from('profiles').select('*');
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, user_id, legal_name, trading_name, country, province, industries, verification_status, official_name, cipc_verified_at')
+      .neq('user_id', cleanId);
     setSuppliers(data || []);
     setFilteredSuppliers(data || []);
     setLoading(false);
@@ -258,8 +261,18 @@ export default function SuppliersSearch() {
             <div className="space-y-6">
               {filteredSuppliersList.map(s => (
                 <div key={s.id} className="card p-6 hover:shadow-xl transition-all">
-                  <div className="text-2xl font-bold mb-1">{s.legal_name}</div>
-                  <div className="text-slate-500 mb-6">{s.trading_name}</div>
+                  <div className="flex items-start justify-between mb-1">
+                    <div className="text-2xl font-bold">{s.legal_name}</div>
+                    {s.verification_status === 'verified' && (
+                      <div className="flex items-center gap-1 text-emerald-700 text-xs font-semibold bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full flex-shrink-0 ml-2">
+                        <BadgeCheck size={14} /> CIPC Verified
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-slate-500 mb-2">{s.trading_name}</div>
+                  {s.verification_status === 'verified' && s.official_name && (
+                    <div className="text-emerald-700 text-xs mb-2">Registered as: <span className="font-semibold">{s.official_name}</span></div>
+                  )}
                   <div className="flex items-center gap-2 text-amber-500 mb-8">
                     ⭐ 4.8 • 17 reviews
                   </div>

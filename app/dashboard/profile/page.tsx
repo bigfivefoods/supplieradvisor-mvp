@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
-import { ArrowRight, ChevronDown, RotateCw, Upload, Plus, Users2, ShieldCheck } from 'lucide-react';
+import { ArrowRight, ChevronDown, RotateCw, Upload, Plus, Users2, ShieldCheck, BadgeCheck, Clock, XCircle, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { mintVerificationSBT } from '@/lib/onchain';
 import toast from 'react-hot-toast';
@@ -120,7 +120,12 @@ export default function MyBusinessProfile() {
     business_type: '',
     team_members: [] as any[],
     created_at: '',
-    on_chain_hash: '', sbt_token_id: null as string | null, verified_at: null as string | null
+    on_chain_hash: '', sbt_token_id: null as string | null, verified_at: null as string | null,
+    // CIPC / registry verification
+    verification_status: '' as '' | 'pending' | 'verified' | 'failed',
+    official_name: '',
+    status_from_registry: '',
+    cipc_verified_at: null as string | null,
   });
 
   const [newProduct, setNewProduct] = useState({ description: '', sku: '', uom: '', sellPrice: '', leadTime: '', image_url: '' });
@@ -130,8 +135,10 @@ export default function MyBusinessProfile() {
 
   const [openIndustries, setOpenIndustries] = useState<Record<string, boolean>>({});
   const [expanded, setExpanded] = useState<Record<string, boolean>>({
-    basics: true, location: true, industries: true, financial: true, products: true, certifications: true
+    basics: true, location: true, industries: true, financial: true, products: true, certifications: true,
+    verification: true,
   });
+  const [cipcVerifying, setCipcVerifying] = useState(false);
 
   const toggleIndustry = (name: string) => setOpenIndustries(prev => ({ ...prev, [name]: !prev[name] }));
   const toggleSection = (section: string) => setExpanded(prev => ({ ...prev, [section]: !prev[section] }));
@@ -280,6 +287,66 @@ export default function MyBusinessProfile() {
     }
   };
 
+  const verifyWithCIPC = async () => {
+    if (!form.registration_number) {
+      toast.error('Please enter your Company Registration Number first.');
+      return;
+    }
+    setCipcVerifying(true);
+    try {
+      const res = await fetch('/api/verify-cipc', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          registration_number: form.registration_number,
+          country: form.country || 'South Africa',
+        }),
+      });
+      const json = await res.json();
+
+      if (!res.ok || !json.success) {
+        setForm(p => ({ ...p, verification_status: 'failed', status_from_registry: '', official_name: '', cipc_verified_at: null }));
+        toast.error(json.error || 'Verification failed. Please check your registration number.');
+        // Persist failed status to Supabase
+        await supabase.from('profiles').update({
+          verification_status: 'failed',
+          official_name: null,
+          status_from_registry: null,
+          cipc_verified_at: null,
+        }).eq('user_id', cleanId);
+        return;
+      }
+
+      const { verification_status, official_name, status_from_registry, verified_at } = json;
+      setForm(p => ({
+        ...p,
+        verification_status,
+        official_name: official_name || '',
+        status_from_registry: status_from_registry || '',
+        cipc_verified_at: verified_at || null,
+      }));
+
+      // Persist to Supabase
+      await supabase.from('profiles').update({
+        verification_status,
+        official_name: official_name || null,
+        status_from_registry: status_from_registry || null,
+        cipc_verified_at: verified_at || null,
+      }).eq('user_id', cleanId);
+
+      if (verification_status === 'verified') {
+        toast.success('🎉 Company verified with CIPC registry!');
+      } else {
+        toast(`ℹ️ ${json.message || 'Verification submitted for manual review.'}`, { icon: 'ℹ️' });
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Verification request failed. Please try again.');
+    } finally {
+      setCipcVerifying(false);
+    }
+  };
+
   const saveProfile = async () => {
     setSaving(true);
     try {
@@ -316,7 +383,11 @@ export default function MyBusinessProfile() {
         bank_confirmation_url: form.bank_confirmation_url,
         business_type: form.business_type,
         created_at: form.created_at || new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        verification_status: form.verification_status || null,
+        official_name: form.official_name || null,
+        status_from_registry: form.status_from_registry || null,
+        cipc_verified_at: form.cipc_verified_at || null,
       };
 
       const { error: profileError } = await supabase.from('profiles').upsert(profileData);
@@ -350,11 +421,28 @@ export default function MyBusinessProfile() {
         <div>
           <h1 className="font-black text-5xl tracking-tight text-[#00b4d8]">My Business Profile</h1>
           <p className="text-xl text-neutral-600">Exact mirror of onboarding – edit every field</p>
-          {form.verified_at && (
-            <div className="inline-flex items-center gap-2 mt-2 text-emerald-600 font-medium">
-              <ShieldCheck size={22} /> Verified on Polygon Amoy
-            </div>
-          )}
+          <div className="flex items-center gap-4 mt-3 flex-wrap">
+            {form.verified_at && (
+              <div className="inline-flex items-center gap-2 text-emerald-600 font-medium">
+                <ShieldCheck size={22} /> Verified on Polygon Amoy
+              </div>
+            )}
+            {form.verification_status === 'verified' && (
+              <div className="inline-flex items-center gap-2 text-emerald-700 font-semibold bg-emerald-50 px-4 py-1.5 rounded-full border border-emerald-200">
+                <BadgeCheck size={20} /> CIPC Verified
+              </div>
+            )}
+            {form.verification_status === 'pending' && (
+              <div className="inline-flex items-center gap-2 text-amber-700 font-medium bg-amber-50 px-4 py-1.5 rounded-full border border-amber-200">
+                <Clock size={18} /> Verification Pending
+              </div>
+            )}
+            {form.verification_status === 'failed' && (
+              <div className="inline-flex items-center gap-2 text-red-700 font-medium bg-red-50 px-4 py-1.5 rounded-full border border-red-200">
+                <XCircle size={18} /> Verification Failed
+              </div>
+            )}
+          </div>
         </div>
         <div className="flex gap-4">
           <button onClick={loadProfile} className="flex items-center gap-2 border px-8 py-4 rounded-3xl hover:bg-neutral-100">
@@ -688,6 +776,134 @@ export default function MyBusinessProfile() {
               <input type="file" onChange={handleCertUpload} className="hidden" id="cert-upload" />
               <label htmlFor="cert-upload" className="btn-primary mt-6 w-full flex items-center justify-center gap-2"><Upload size={18} /> Upload Certificate</label>
               <button onClick={addCertification} className="btn-primary w-full mt-6">Add Certificate</button>
+            </div>
+          )}
+        </div>
+
+        {/* 7. Company Registry Verification (CIPC & International) */}
+        <div className="bg-white rounded-3xl shadow-sm border-2 border-emerald-100 p-8">
+          <div className="flex justify-between items-center mb-6 cursor-pointer" onClick={() => toggleSection('verification')}>
+            <div className="flex items-center gap-3">
+              <BadgeCheck size={26} className="text-emerald-600" />
+              <h2 className="text-2xl font-bold">7. Company Registry Verification</h2>
+              {form.verification_status === 'verified' && (
+                <span className="bg-emerald-100 text-emerald-700 text-sm font-semibold px-3 py-1 rounded-full border border-emerald-200">✓ Verified</span>
+              )}
+              {form.verification_status === 'pending' && (
+                <span className="bg-amber-100 text-amber-700 text-sm font-medium px-3 py-1 rounded-full border border-amber-200">Pending Review</span>
+              )}
+              {form.verification_status === 'failed' && (
+                <span className="bg-red-100 text-red-700 text-sm font-medium px-3 py-1 rounded-full border border-red-200">Failed</span>
+              )}
+            </div>
+            <ChevronDown className={`transition ${expanded.verification ? 'rotate-180' : ''}`} />
+          </div>
+
+          {expanded.verification && (
+            <div className="space-y-6">
+              <p className="text-neutral-500 text-sm">
+                Verify your company with the official registry (CIPC for South Africa). A verified badge is shown to all buyers and partners, building trust in your supply chain.
+              </p>
+
+              {/* Verified result banner */}
+              {form.verification_status === 'verified' && form.official_name && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-6 flex items-start gap-4">
+                  <BadgeCheck size={32} className="text-emerald-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-bold text-emerald-800 text-lg">{form.official_name}</div>
+                    <div className="text-emerald-700 text-sm mt-1">Registry Status: <span className="font-semibold">{form.status_from_registry}</span></div>
+                    {form.cipc_verified_at && (
+                      <div className="text-emerald-600 text-xs mt-1">
+                        Verified on {new Date(form.cipc_verified_at).toLocaleDateString('en-GB', { year: 'numeric', month: 'long', day: 'numeric' })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {form.verification_status === 'pending' && (
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 flex items-center gap-4">
+                  <Clock size={28} className="text-amber-600 flex-shrink-0" />
+                  <div>
+                    <div className="font-semibold text-amber-800">Verification in Progress</div>
+                    <div className="text-amber-700 text-sm mt-1">{form.status_from_registry || 'Your registration is being reviewed. This usually takes 1–2 business days.'}</div>
+                  </div>
+                </div>
+              )}
+
+              {form.verification_status === 'failed' && (
+                <div className="bg-red-50 border border-red-200 rounded-2xl p-6 flex items-center gap-4">
+                  <XCircle size={28} className="text-red-600 flex-shrink-0" />
+                  <div>
+                    <div className="font-semibold text-red-800">Verification Failed</div>
+                    <div className="text-red-700 text-sm mt-1">The registration number could not be found in the registry. Please check and try again.</div>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Company Registration Number <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    className="input w-full"
+                    placeholder="e.g. 2023/123456/07"
+                    value={form.registration_number}
+                    onChange={e => setForm(p => ({...p, registration_number: e.target.value}))}
+                  />
+                  <p className="text-xs text-neutral-400 mt-1">As it appears on your certificate of incorporation.</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Official Registered Name (from registry)</label>
+                  <input
+                    type="text"
+                    className="input w-full bg-neutral-50"
+                    value={form.official_name}
+                    readOnly
+                    placeholder="Auto-populated after verification"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Registry Status</label>
+                  <input
+                    type="text"
+                    className="input w-full bg-neutral-50"
+                    value={form.status_from_registry}
+                    readOnly
+                    placeholder="Auto-populated after verification"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Verification Status</label>
+                  <div className="flex items-center gap-3 h-[42px]">
+                    {!form.verification_status && <span className="text-neutral-400 text-sm">Not yet verified</span>}
+                    {form.verification_status === 'verified' && <span className="flex items-center gap-2 text-emerald-700 font-semibold"><BadgeCheck size={20} /> Verified</span>}
+                    {form.verification_status === 'pending' && <span className="flex items-center gap-2 text-amber-700 font-medium"><Clock size={18} /> Pending Review</span>}
+                    {form.verification_status === 'failed' && <span className="flex items-center gap-2 text-red-700 font-medium"><XCircle size={18} /> Failed</span>}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4 pt-2">
+                <button
+                  onClick={verifyWithCIPC}
+                  disabled={cipcVerifying || !form.registration_number}
+                  className="flex items-center gap-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold px-8 py-4 rounded-3xl transition-colors"
+                >
+                  {cipcVerifying ? (
+                    <><Loader2 size={20} className="animate-spin" /> Verifying...</>
+                  ) : (
+                    <><BadgeCheck size={20} /> Verify with CIPC</>
+                  )}
+                </button>
+                <span className="text-neutral-400 text-sm">
+                  {form.country && form.country !== 'South Africa'
+                    ? `Automated verification coming soon for ${form.country}. Will submit for manual review.`
+                    : 'Queries the official CIPC company registry (South Africa).'}
+                </span>
+              </div>
             </div>
           )}
         </div>
