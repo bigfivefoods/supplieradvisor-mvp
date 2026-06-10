@@ -275,6 +275,22 @@ export default function Onboarding() {
       const { error: profileError } = await supabase.from('profiles').upsert(profileData);
       if (profileError) throw profileError;
 
+      // === CRITICAL FIX: Create the link in business_users so the company appears in "Select Company" ===
+      const { error: linkError } = await supabase
+        .from('business_users')
+        .upsert({
+          user_id: cleanId,
+          profile_id: cleanId,           // owner link
+          role: 'owner',
+          status: 'active',
+          joined_at: new Date().toISOString()
+        }, { onConflict: 'user_id,profile_id' });
+
+      if (linkError) {
+        console.error('business_users link error:', linkError);
+        // Do not block the user — they can still continue
+      }
+
       if (form.products.length > 0) {
         await supabase.from('business_products').upsert(form.products.map(p => ({ profile_id: cleanId, ...p })));
       }
