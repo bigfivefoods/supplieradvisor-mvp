@@ -69,7 +69,7 @@ export default function Page() {
           .eq('user_id', cleanId);
 
         if (membershipsError) {
-          console.error('Membership lookup error:', membershipsError);
+          throw membershipsError;
         }
 
         const profileIds = getProfileIds(memberships || []);
@@ -81,7 +81,7 @@ export default function Page() {
             .in('id', profileIds);
 
           if (linkedProfilesError) {
-            console.error('Linked business lookup error:', linkedProfilesError);
+            throw linkedProfilesError;
           } else {
             nextBusinesses = linkedProfiles || [];
           }
