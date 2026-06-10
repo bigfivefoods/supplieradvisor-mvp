@@ -58,8 +58,9 @@ export default function VerifyCompanyModal({
       const { data: { publicUrl } } = supabase.storage.from('certificates').getPublicUrl(fileName);
       setDocUrl(publicUrl);
       toast.success('✅ Document uploaded');
-    } catch {
-      toast.error('Upload failed. Please try again.');
+    } catch (err: any) {
+      const msg = err?.message || 'Unknown error';
+      toast.error(`Upload failed: ${msg}. Please check the file and try again.`);
     } finally {
       setUploading(false);
     }
@@ -81,17 +82,21 @@ export default function VerifyCompanyModal({
 
     setVerifying(true);
     try {
-      // Save the (possibly updated) registration number back to the profile
+      // Save the (possibly updated) registration number and document back to the profile.
+      // These must succeed before minting the SBT to keep DB and blockchain in sync.
+      const updatePayload: Record<string, string> = { registration_document_url: docUrl };
       if (regNumber && regNumber !== registrationNumber) {
-        await supabase
-          .from('profiles')
-          .update({ registration_number: regNumber, registration_document_url: docUrl })
-          .eq('user_id', profileId);
-      } else if (docUrl) {
-        await supabase
-          .from('profiles')
-          .update({ registration_document_url: docUrl })
-          .eq('user_id', profileId);
+        updatePayload.registration_number = regNumber;
+      }
+
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update(updatePayload)
+        .eq('user_id', profileId);
+
+      if (updateError) {
+        setValidationError(`Failed to save registration details: ${updateError.message}. Please try again.`);
+        return;
       }
 
       // Mint the on-chain SBT
@@ -109,8 +114,9 @@ export default function VerifyCompanyModal({
       onVerified(chainResult);
       setStep('done');
       toast.success('🎉 Company verified! Your Verified Badge has been issued on Polygon.');
-    } catch {
-      toast.error('Verification failed. Please try again or contact support.');
+    } catch (err: any) {
+      const msg = err?.message || 'Unknown error';
+      toast.error(`Verification failed: ${msg}. Please try again or contact support.`);
     } finally {
       setVerifying(false);
     }

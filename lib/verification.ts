@@ -328,7 +328,7 @@ export const VERIFICATION_AUTHORITIES: Record<string, VerificationAuthority> = {
     name: 'State SOS',
     fullName: 'State Secretary of State / Business Registry',
     country: 'United States',
-    url: 'https://www.sos.state/',
+    url: 'https://www.usa.gov/start-business',
     description: 'US companies are registered at the state level with the Secretary of State.',
     requiredDocs: [
       'Articles of Incorporation / Organization',
@@ -490,8 +490,8 @@ function verifyCAC(registrationNumber: string): VerificationResult {
 
 function verifyCompaniesHouse(registrationNumber: string): VerificationResult {
   const clean = registrationNumber.trim();
-  if (clean.length < 8 || !/^[0-9A-Z]{6,8}$/.test(clean)) {
-    return { success: false, message: 'Invalid Companies House number. Must be 8 alphanumeric characters.' };
+  if (clean.length < 6 || !/^[0-9A-Z]{6,8}$/.test(clean)) {
+    return { success: false, message: 'Invalid Companies House number. Must be 6–8 alphanumeric characters.' };
   }
   return { success: true, message: 'Companies House number format is valid. Submitting for verification…', authority: 'Companies House' };
 }
