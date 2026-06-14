@@ -209,7 +209,7 @@ export default function Onboarding() {
     }));
 
     setNewTeamMember({ name: '', email: '', contact_number: '', role: '' });
-    toast.success('Team member added');
+    toast.success('Team member queued to save with profile');
   };
 
   const saveProfile = async () => {

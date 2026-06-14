@@ -344,7 +344,10 @@ export default function MyBusinessProfile() {
       return;
     }
 
-    void loadProfile(profileId);
+    loadProfile(profileId).catch(error => {
+      console.error('Refresh error:', error);
+      toast.error('Failed to refresh company data');
+    });
   };
 
   const saveProfile = async () => {
