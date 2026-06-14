@@ -309,7 +309,7 @@ export default function Onboarding() {
         if (teamError) {
           console.error('Team member link error:', teamError);
         } else {
-          await Promise.allSettled(
+          const inviteResults = await Promise.allSettled(
             form.team_members.map(member =>
               supabase.functions.invoke('send-team-invitation', {
                 body: {
@@ -322,6 +322,12 @@ export default function Onboarding() {
               })
             )
           );
+
+          inviteResults.forEach((result, index) => {
+            if (result.status === 'rejected') {
+              console.error(`Invitation send failed for ${form.team_members[index]?.email}:`, result.reason);
+            }
+          });
         }
       }
 

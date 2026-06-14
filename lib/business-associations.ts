@@ -23,10 +23,14 @@ export interface AssociatedBusiness {
   updated_at?: string | null;
 }
 
-function unique(values: Array<string | null | undefined>) {
+function uniqueTrimmedStrings(values: Array<string | null | undefined>) {
   return Array.from(new Set(values.map(value => value?.trim()).filter(Boolean) as string[]));
 }
 
+/**
+ * Privy user ids may be prefixed before they are stored in Supabase-facing tables.
+ * Strip the transport prefix so we always use the canonical auth uid as the primary key.
+ */
 export function getPrimarySupabaseUid(user: PrivyUserLike | null | undefined) {
   return (user?.id || '').replace(/^privy:/, '').trim();
 }
@@ -34,7 +38,7 @@ export function getPrimarySupabaseUid(user: PrivyUserLike | null | undefined) {
 export function getWalletLinkIds(user: PrivyUserLike | null | undefined) {
   const linkedAccounts = user?.linkedAccounts ?? user?.linked_accounts ?? [];
 
-  return unique(
+  return uniqueTrimmedStrings(
     linkedAccounts.flatMap(account => {
       if ((account?.type !== 'wallet' && account?.type !== 'smart_wallet') || !account.address) {
         return [];
@@ -46,7 +50,7 @@ export function getWalletLinkIds(user: PrivyUserLike | null | undefined) {
 }
 
 export function getAssociatedUserIds(user: PrivyUserLike | null | undefined) {
-  return unique([getPrimarySupabaseUid(user), user?.id || '', ...getWalletLinkIds(user)]);
+  return uniqueTrimmedStrings([getPrimarySupabaseUid(user), user?.id || '', ...getWalletLinkIds(user)]);
 }
 
 export async function getAssociatedBusinesses(user: PrivyUserLike | null | undefined) {
@@ -75,7 +79,7 @@ export async function getAssociatedBusinesses(user: PrivyUserLike | null | undef
     throw businessLinksError;
   }
 
-  const linkedProfileIds = unique((businessLinks || []).map(link => link.profile_id));
+  const linkedProfileIds = uniqueTrimmedStrings((businessLinks || []).map(link => link.profile_id));
   let linkedProfiles: AssociatedBusiness[] = [];
 
   if (linkedProfileIds.length > 0) {

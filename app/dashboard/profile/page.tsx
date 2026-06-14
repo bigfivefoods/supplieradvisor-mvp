@@ -153,7 +153,15 @@ export default function MyBusinessProfile() {
         const requestedProfileId = searchParams.get('businessId');
         const storedProfileId = typeof window !== 'undefined' ? localStorage.getItem('selectedBusinessId') : '';
         const validProfileIds = new Set(businesses.map(business => business.id));
-        const nextProfileId = [requestedProfileId, storedProfileId, businesses[0]?.id].find(candidate => candidate && validProfileIds.has(candidate));
+        let nextProfileId = '';
+
+        if (requestedProfileId && validProfileIds.has(requestedProfileId)) {
+          nextProfileId = requestedProfileId;
+        } else if (storedProfileId && validProfileIds.has(storedProfileId)) {
+          nextProfileId = storedProfileId;
+        } else if (businesses[0]?.id) {
+          nextProfileId = businesses[0].id;
+        }
 
         if (!cancelled && nextProfileId) {
           localStorage.setItem('selectedBusinessId', nextProfileId);
