@@ -5,7 +5,7 @@ import { usePrivy } from '@privy-io/react-auth';
 import { useSearchParams } from 'next/navigation';
 import { ArrowRight, ChevronDown, RotateCw, Upload, Plus, Users2, ShieldCheck } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { getAssociatedBusinesses, getPrimarySupabaseUid, getWalletLinkIds } from '@/lib/business-associations';
+import { getAssociatedBusinesses, getAssociatedUserIds, getPrimarySupabaseUid } from '@/lib/business-associations';
 import { mintVerificationSBT } from '@/lib/onchain';
 import toast from 'react-hot-toast';
 import Breadcrumb from '@/components/ui/Breadcrumb';
@@ -397,7 +397,7 @@ export default function MyBusinessProfile() {
       const { error: profileError } = await supabase.from('profiles').upsert(profileData);
       if (profileError) throw profileError;
 
-      const ownerLinkIds = Array.from(new Set([primaryUserId, ...getWalletLinkIds(user)]));
+      const ownerLinkIds = getAssociatedUserIds(user);
       const { error: linkError } = await supabase
         .from('business_users')
         .upsert(

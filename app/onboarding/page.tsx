@@ -5,7 +5,7 @@ import { usePrivy } from '@privy-io/react-auth';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, ArrowLeft, ChevronDown, Wallet, Upload, Plus, Users2, ShieldCheck, RotateCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { getPrimarySupabaseUid, getWalletLinkIds } from '@/lib/business-associations';
+import { getAssociatedUserIds, getPrimarySupabaseUid } from '@/lib/business-associations';
 import toast from 'react-hot-toast';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 
@@ -265,7 +265,7 @@ export default function Onboarding() {
       if (profileError) throw profileError;
       if (!profile?.id) throw new Error('Profile saved without an id.');
 
-      const ownerLinkIds = Array.from(new Set([primaryUserId, ...getWalletLinkIds(user)]));
+      const ownerLinkIds = getAssociatedUserIds(user);
 
       const { error: linkError } = await supabase
         .from('business_users')
