@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
+import { useSearchParams } from 'next/navigation';
 import { ArrowRight, ChevronDown, RotateCw, Upload, Plus, Users2, ShieldCheck } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { getAssociatedBusinesses, getPrimarySupabaseUid, getWalletLinkIds } from '@/lib/business-associations';
 import { mintVerificationSBT } from '@/lib/onchain';
 import toast from 'react-hot-toast';
 import Breadcrumb from '@/components/ui/Breadcrumb';
@@ -97,8 +99,10 @@ const businessTypesList = [
 const roleOptions = ['CEO / Managing Director', 'Procurement Leader', 'Supply Chain Leader', 'Finance Leader', 'Quality Leader', 'Sustainability Leader', 'Operations Leader', 'Sales Leader', 'Logistics Leader', 'IT Leader', 'HR Leader', 'Other'];
 
 export default function MyBusinessProfile() {
-  const { user } = usePrivy();
-  const cleanId = (user?.id || '').replace('privy:', '');
+  const { user, ready } = usePrivy();
+  const searchParams = useSearchParams();
+  const primaryUserId = getPrimarySupabaseUid(user);
+  const [profileId, setProfileId] = useState('');
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -137,19 +141,56 @@ export default function MyBusinessProfile() {
   const toggleSection = (section: string) => setExpanded(prev => ({ ...prev, [section]: !prev[section] }));
 
   useEffect(() => {
-    if (cleanId) loadProfile();
-  }, [cleanId]);
+    if (!ready || !user) return;
 
-  const loadProfile = async () => {
+    let cancelled = false;
+
+    const resolveProfile = async () => {
+      setLoading(true);
+
+      try {
+        const { businesses } = await getAssociatedBusinesses(user);
+        const requestedProfileId = searchParams.get('businessId');
+        const storedProfileId = typeof window !== 'undefined' ? localStorage.getItem('selectedBusinessId') : '';
+        const validProfileIds = new Set(businesses.map(business => business.id));
+        const nextProfileId = [requestedProfileId, storedProfileId, businesses[0]?.id].find(candidate => candidate && validProfileIds.has(candidate));
+
+        if (!cancelled && nextProfileId) {
+          localStorage.setItem('selectedBusinessId', nextProfileId);
+          setProfileId(nextProfileId);
+        }
+      } catch (error) {
+        console.error('Resolve profile error:', error);
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    resolveProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [ready, searchParams, user]);
+
+  useEffect(() => {
+    if (profileId) {
+      loadProfile(profileId);
+    }
+  }, [profileId]);
+
+  const loadProfile = async (targetProfileId: string) => {
     setLoading(true);
     try {
-      const { data: profile } = await supabase.from('profiles').select('*').eq('user_id', cleanId).maybeSingle();
+      const { data: profile } = await supabase.from('profiles').select('*').eq('id', targetProfileId).maybeSingle();
       if (profile) setForm(prev => ({ ...prev, ...profile }));
 
-      const { data: products } = await supabase.from('business_products').select('*').eq('profile_id', cleanId);
-      const { data: servicesData } = await supabase.from('business_services').select('name').eq('profile_id', cleanId);
-      const { data: certifications } = await supabase.from('business_certifications').select('*').eq('profile_id', cleanId);
-      const { data: teamData } = await supabase.from('business_users').select('*').eq('profile_id', cleanId);
+      const { data: products } = await supabase.from('business_products').select('*').eq('profile_id', targetProfileId);
+      const { data: servicesData } = await supabase.from('business_services').select('name').eq('profile_id', targetProfileId);
+      const { data: certifications } = await supabase.from('business_certifications').select('*').eq('profile_id', targetProfileId);
+      const { data: teamData } = await supabase.from('business_users').select('*').eq('profile_id', targetProfileId);
 
       setForm(prev => ({
         ...prev,
@@ -167,9 +208,9 @@ export default function MyBusinessProfile() {
 
   const handleUpload = async (field: keyof typeof form, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !cleanId) return toast.error("Please select a file");
+    if (!file || !profileId) return toast.error("Please select a company and file");
     setUploading(true);
-    const fileName = `${cleanId}-${field}-${Date.now()}.${file.name.split('.').pop()}`;
+    const fileName = `${profileId}-${field}-${Date.now()}.${file.name.split('.').pop()}`;
     const { error } = await supabase.storage.from('certificates').upload(fileName, file, { upsert: true });
     if (error) return toast.error("Upload failed");
     const { data: { publicUrl } } = supabase.storage.from('certificates').getPublicUrl(fileName);
@@ -180,9 +221,9 @@ export default function MyBusinessProfile() {
 
   const handleCertUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !cleanId) return toast.error("Please select a file");
+    if (!file || !profileId) return toast.error("Please select a company and file");
     setUploading(true);
-    const fileName = `${cleanId}-cert-${Date.now()}.${file.name.split('.').pop()}`;
+    const fileName = `${profileId}-cert-${Date.now()}.${file.name.split('.').pop()}`;
     const { error } = await supabase.storage.from('certificates').upload(fileName, file, { upsert: true });
     if (error) return toast.error("Upload failed");
     const { data: { publicUrl } } = supabase.storage.from('certificates').getPublicUrl(fileName);
@@ -220,9 +261,13 @@ export default function MyBusinessProfile() {
       toast.error('Name and Email are required');
       return;
     }
+    if (!profileId) {
+      toast.error('Select a company before adding team members');
+      return;
+    }
 
     const memberData = {
-      profile_id: cleanId,
+      profile_id: profileId,
       name: newTeamMember.name,
       email: newTeamMember.email,
       contact_number: newTeamMember.contact_number || '',
@@ -262,15 +307,20 @@ export default function MyBusinessProfile() {
   };
 
   const verifyOnChain = async () => {
+    if (!profileId) {
+      toast.error('Select a company before verifying');
+      return;
+    }
+
     setLoading(true);
     try {
       const metadata = {
-        profileId: cleanId,
+        profileId,
         legal_name: form.legal_name,
         trading_name: form.trading_name,
         timestamp: new Date().toISOString()
       };
-      const result = await mintVerificationSBT(cleanId, metadata);
+      const result = await mintVerificationSBT(profileId, metadata);
       setForm(p => ({ ...p, ...result }));
       toast.success('🎉 Business verified on-chain! SBT minted on Polygon Amoy');
     } catch (err) {
@@ -283,8 +333,13 @@ export default function MyBusinessProfile() {
   const saveProfile = async () => {
     setSaving(true);
     try {
+      if (!primaryUserId || !profileId) {
+        throw new Error('No company is selected for saving.');
+      }
+
       const profileData = {
-        user_id: cleanId,
+        id: profileId,
+        user_id: primaryUserId,
         legal_name: form.legal_name,
         trading_name: form.trading_name,
         contact_name: form.contact_name,
@@ -322,18 +377,36 @@ export default function MyBusinessProfile() {
       const { error: profileError } = await supabase.from('profiles').upsert(profileData);
       if (profileError) throw profileError;
 
+      const ownerLinkIds = Array.from(new Set([primaryUserId, ...getWalletLinkIds(user)]));
+      const { error: linkError } = await supabase
+        .from('business_users')
+        .upsert(
+          ownerLinkIds.map(userId => ({
+            user_id: userId,
+            profile_id: profileId,
+            role: 'owner',
+            status: 'active',
+            joined_at: new Date().toISOString()
+          })),
+          { onConflict: 'user_id,profile_id' }
+        );
+
+      if (linkError) {
+        console.error('business_users link error:', linkError);
+      }
+
       if (form.products.length > 0) {
-        await supabase.from('business_products').upsert(form.products.map(p => ({ profile_id: cleanId, ...p })));
+        await supabase.from('business_products').upsert(form.products.map(p => ({ profile_id: profileId, ...p })));
       }
       if (form.services.length > 0) {
-        await supabase.from('business_services').upsert(form.services.map(name => ({ profile_id: cleanId, name })));
+        await supabase.from('business_services').upsert(form.services.map(name => ({ profile_id: profileId, name })));
       }
       if (form.certifications.length > 0) {
-        await supabase.from('business_certifications').upsert(form.certifications.map(c => ({ profile_id: cleanId, ...c })));
+        await supabase.from('business_certifications').upsert(form.certifications.map(c => ({ profile_id: profileId, ...c })));
       }
 
       toast.success("🎉 Profile saved successfully to Supabase!");
-      await loadProfile();
+      await loadProfile(profileId);
     } catch (error: any) {
       console.error("Save error:", error);
       toast.error(`Failed: ${error.message}`);

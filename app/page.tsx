@@ -6,43 +6,35 @@ import { ArrowRight, ShieldCheck, Truck, Users, Factory, Leaf, Zap, Globe, Build
 import { usePrivy } from '@privy-io/react-auth';
 import { useRouter } from 'next/navigation';
 import { useRef, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { getAssociatedBusinesses } from '@/lib/business-associations';
 
 export default function LandingPage() {
   const { login, user, ready } = usePrivy();
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // AUTO REDIRECT TO PROFILE AFTER SUCCESSFUL LOGIN (for returning customers)
-  useEffect(() => {
-    if (ready && user) {
-      router.push('/dashboard/profile');
-    }
-  }, [ready, user, router]);
-
-  // NEW: MULTI-COMPANY SELECTOR FOR RETURNING USERS
   useEffect(() => {
     if (!ready || !user) return;
 
     const handleLoginRedirect = async () => {
-      const cleanId = user.id.replace('privy:', '');
+      try {
+        const { businesses } = await getAssociatedBusinesses(user);
 
-      const { data: profiles, error } = await supabase
-        .from('profiles')
-        .select('id, legal_name, trading_name, logo_url')
-        .eq('user_id', cleanId);
+        if (!businesses || businesses.length === 0) {
+          router.push('/onboarding');
+          return;
+        }
 
-      if (error) {
+        if (businesses.length === 1) {
+          localStorage.setItem('selectedBusinessId', businesses[0].id);
+          router.push(`/dashboard/profile?businessId=${businesses[0].id}`);
+          return;
+        }
+
+        router.push('/dashboard/select-company');
+      } catch (error) {
         console.error('Profile check error:', error);
         return;
-      }
-
-      if (!profiles || profiles.length === 0) {
-        router.push('/onboarding');                    // New user
-      } else if (profiles.length === 1) {
-        router.push('/dashboard');                     // Single company → direct to dashboard
-      } else {
-        router.push('/dashboard/select-company');      // Multiple companies → show selector
       }
     };
 
