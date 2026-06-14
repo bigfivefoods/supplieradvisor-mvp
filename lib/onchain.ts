@@ -34,7 +34,7 @@ export async function mintVerificationSBT(profileId: string, metadata: any) {
       verified_at: new Date().toISOString(),
       attestation_id: ipfsHash
     })
-    .eq('user_id', profileId)
+    .eq('id', profileId)
     .select()
     .single();
 

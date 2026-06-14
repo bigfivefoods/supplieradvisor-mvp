@@ -5,6 +5,7 @@ import { usePrivy } from '@privy-io/react-auth';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, ArrowLeft, ChevronDown, Wallet, Upload, Plus, Users2, ShieldCheck, RotateCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { getAssociatedUserIds, getPrimarySupabaseUid } from '@/lib/business-associations';
 import toast from 'react-hot-toast';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 
@@ -98,7 +99,7 @@ const roleOptions = ['CEO / Managing Director', 'Procurement Leader', 'Supply Ch
 export default function Onboarding() {
   const { user } = usePrivy();
   const router = useRouter();
-  const cleanId = (user?.id || '').replace('privy:', '');
+  const primaryUserId = getPrimarySupabaseUid(user);
 
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -139,9 +140,9 @@ export default function Onboarding() {
 
   const handleUpload = async (field: keyof typeof form, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !cleanId) return toast.error("Please select a file");
+    if (!file || !primaryUserId) return toast.error("Please select a file");
     setUploading(true);
-    const fileName = `${cleanId}-${field}-${Date.now()}.${file.name.split('.').pop()}`;
+    const fileName = `${primaryUserId}-${field}-${Date.now()}.${file.name.split('.').pop()}`;
     const { error } = await supabase.storage.from('certificates').upload(fileName, file, { upsert: true });
     if (error) return toast.error("Upload failed");
     const { data: { publicUrl } } = supabase.storage.from('certificates').getPublicUrl(fileName);
@@ -152,9 +153,9 @@ export default function Onboarding() {
 
   const handleCertUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !cleanId) return toast.error("Please select a file");
+    if (!file || !primaryUserId) return toast.error("Please select a file");
     setUploading(true);
-    const fileName = `${cleanId}-cert-${Date.now()}.${file.name.split('.').pop()}`;
+    const fileName = `${primaryUserId}-cert-${Date.now()}.${file.name.split('.').pop()}`;
     const { error } = await supabase.storage.from('certificates').upload(fileName, file, { upsert: true });
     if (error) return toast.error("Upload failed");
     const { data: { publicUrl } } = supabase.storage.from('certificates').getPublicUrl(fileName);
@@ -194,7 +195,6 @@ export default function Onboarding() {
     }
 
     const memberData = {
-      profile_id: cleanId,
       name: newTeamMember.name,
       email: newTeamMember.email,
       contact_number: newTeamMember.contact_number || '',
@@ -203,41 +203,25 @@ export default function Onboarding() {
       invited_at: new Date().toISOString()
     };
 
-    const { error: insertError } = await supabase.from('business_users').insert(memberData);
-    if (insertError) {
-      toast.error('Failed to save user');
-      return;
-    }
-
-    try {
-      await supabase.functions.invoke('send-team-invitation', {
-        body: {
-          to_email: newTeamMember.email,
-          to_name: newTeamMember.name,
-          company_name: form.trading_name || form.legal_name || 'Your Company',
-          role: newTeamMember.role || 'Team Member',
-          inviter_name: form.contact_name || 'The team'
-        }
-      });
-      toast.success(`✅ Real invitation email sent to ${newTeamMember.email}`);
-    } catch (err: any) {
-      console.error("Email error:", err);
-      toast.error('User saved, but email failed to send. Check console.');
-    }
-
     setForm(p => ({
       ...p,
       team_members: [...(p.team_members || []), memberData]
     }));
 
     setNewTeamMember({ name: '', email: '', contact_number: '', role: '' });
+    toast.success('Team member queued to save with profile');
   };
 
   const saveProfile = async () => {
     setSaving(true);
     try {
+      if (!primaryUserId) {
+        throw new Error('Please log in before saving your company.');
+      }
+
+      const now = new Date().toISOString();
       const profileData = {
-        user_id: cleanId,
+        user_id: primaryUserId,
         legal_name: form.legal_name,
         trading_name: form.trading_name,
         contact_name: form.contact_name,
@@ -268,37 +252,83 @@ export default function Onboarding() {
         swift: form.swift,
         bank_confirmation_url: form.bank_confirmation_url,
         business_type: form.business_type,
-        created_at: form.created_at || new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        created_at: form.created_at || now,
+        updated_at: now
       };
 
-      const { error: profileError } = await supabase.from('profiles').upsert(profileData);
-      if (profileError) throw profileError;
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .insert(profileData)
+        .select('id')
+        .single();
 
-      // === CRITICAL FIX: Create the link in business_users so the company appears in "Select Company" ===
+      if (profileError) throw profileError;
+      if (!profile?.id) throw new Error('Profile saved without an id.');
+
+      const ownerLinkIds = getAssociatedUserIds(user);
+
       const { error: linkError } = await supabase
         .from('business_users')
-        .upsert({
-          user_id: cleanId,
-          profile_id: cleanId,           // owner link
-          role: 'owner',
-          status: 'active',
-          joined_at: new Date().toISOString()
-        }, { onConflict: 'user_id,profile_id' });
+        .upsert(
+          ownerLinkIds.map(userId => ({
+            user_id: userId,
+            profile_id: profile.id,
+            role: 'owner',
+            status: 'active',
+            joined_at: now
+          })),
+          { onConflict: 'user_id,profile_id' }
+        );
 
       if (linkError) {
         console.error('business_users link error:', linkError);
-        // Do not block the user — they can still continue
       }
 
       if (form.products.length > 0) {
-        await supabase.from('business_products').upsert(form.products.map(p => ({ profile_id: cleanId, ...p })));
+        await supabase.from('business_products').upsert(form.products.map(p => ({ profile_id: profile.id, ...p })));
       }
       if (form.services.length > 0) {
-        await supabase.from('business_services').upsert(form.services.map(name => ({ profile_id: cleanId, name })));
+        await supabase.from('business_services').upsert(form.services.map(name => ({ profile_id: profile.id, name })));
       }
       if (form.certifications.length > 0) {
-        await supabase.from('business_certifications').upsert(form.certifications.map(c => ({ profile_id: cleanId, ...c })));
+        await supabase.from('business_certifications').upsert(form.certifications.map(c => ({ profile_id: profile.id, ...c })));
+      }
+      if (form.team_members.length > 0) {
+        const { error: teamError } = await supabase.from('business_users').insert(
+          form.team_members.map(member => ({
+            profile_id: profile.id,
+            name: member.name,
+            email: member.email,
+            contact_number: member.contact_number || '',
+            role: member.role || 'Other',
+            status: member.status || 'invited',
+            invited_at: member.invited_at || now
+          }))
+        );
+
+        if (teamError) {
+          console.error('Team member link error:', teamError);
+        } else {
+          const inviteResults = await Promise.allSettled(
+            form.team_members.map(member =>
+              supabase.functions.invoke('send-team-invitation', {
+                body: {
+                  to_email: member.email,
+                  to_name: member.name,
+                  company_name: form.trading_name || form.legal_name || 'Your Company',
+                  role: member.role || 'Team Member',
+                  inviter_name: form.contact_name || 'The team'
+                }
+              })
+            )
+          );
+
+          inviteResults.forEach((result, index) => {
+            if (result.status === 'rejected') {
+              console.error(`Invitation send failed for ${form.team_members[index]?.email}:`, result.reason);
+            }
+          });
+        }
       }
 
       toast.success("🎉 Onboarding complete – Profile saved to Supabase!");
