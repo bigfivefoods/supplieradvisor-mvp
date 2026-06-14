@@ -330,6 +330,15 @@ export default function MyBusinessProfile() {
     }
   };
 
+  const refreshProfile = () => {
+    if (!profileId) {
+      toast.error('Select a company before refreshing');
+      return;
+    }
+
+    void loadProfile(profileId);
+  };
+
   const saveProfile = async () => {
     setSaving(true);
     try {
@@ -430,7 +439,7 @@ export default function MyBusinessProfile() {
           )}
         </div>
         <div className="flex gap-4">
-          <button onClick={loadProfile} className="flex items-center gap-2 border px-8 py-4 rounded-3xl hover:bg-neutral-100">
+          <button onClick={refreshProfile} className="flex items-center gap-2 border px-8 py-4 rounded-3xl hover:bg-neutral-100">
             <RotateCw size={18} /> Refresh
           </button>
           <button onClick={saveProfile} disabled={saving} className="btn-primary flex items-center gap-3 px-12 py-4">
@@ -768,7 +777,7 @@ export default function MyBusinessProfile() {
       </div>
 
       <div className="flex justify-end gap-4 mt-12">
-        <button onClick={loadProfile} className="border px-8 py-4 rounded-3xl hover:bg-slate-100 flex items-center gap-2"><RotateCw size={18} /> Refresh Data</button>
+        <button onClick={refreshProfile} className="border px-8 py-4 rounded-3xl hover:bg-slate-100 flex items-center gap-2"><RotateCw size={18} /> Refresh Data</button>
         <button onClick={saveProfile} disabled={saving} className="btn-primary flex items-center gap-3 px-12 py-4">
           {saving ? 'Saving...' : 'Save All Changes'} <ArrowRight />
         </button>

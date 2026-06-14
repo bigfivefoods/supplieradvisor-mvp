@@ -140,9 +140,9 @@ export default function Onboarding() {
 
   const handleUpload = async (field: keyof typeof form, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !cleanId) return toast.error("Please select a file");
+    if (!file || !primaryUserId) return toast.error("Please select a file");
     setUploading(true);
-    const fileName = `${cleanId}-${field}-${Date.now()}.${file.name.split('.').pop()}`;
+    const fileName = `${primaryUserId}-${field}-${Date.now()}.${file.name.split('.').pop()}`;
     const { error } = await supabase.storage.from('certificates').upload(fileName, file, { upsert: true });
     if (error) return toast.error("Upload failed");
     const { data: { publicUrl } } = supabase.storage.from('certificates').getPublicUrl(fileName);
@@ -153,9 +153,9 @@ export default function Onboarding() {
 
   const handleCertUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !cleanId) return toast.error("Please select a file");
+    if (!file || !primaryUserId) return toast.error("Please select a file");
     setUploading(true);
-    const fileName = `${cleanId}-cert-${Date.now()}.${file.name.split('.').pop()}`;
+    const fileName = `${primaryUserId}-cert-${Date.now()}.${file.name.split('.').pop()}`;
     const { error } = await supabase.storage.from('certificates').upload(fileName, file, { upsert: true });
     if (error) return toast.error("Upload failed");
     const { data: { publicUrl } } = supabase.storage.from('certificates').getPublicUrl(fileName);
