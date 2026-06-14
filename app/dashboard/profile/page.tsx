@@ -91,6 +91,7 @@ const businessTypesList = [
   'Sole Proprietorship', 'Partnership', 'Close Corporation (CC)', 'Cooperative',
   'Trust', 'Government Entity / State-Owned Enterprise', 'Section 21 Company',
   'Association', 'School', 'University', 'College', 'Pre-School', 'NGO', 'Religious Organisation',
+  'ContainerSpaza',
   'Franchise', 'Joint Venture', 'Limited Liability Partnership (LLP)', 'Holding Company',
   'Subsidiary Company', 'Startup / SME', 'Co-operative Society', 'Other'
 ];
@@ -118,6 +119,9 @@ export default function MyBusinessProfile() {
     services: [] as string[],
     certifications: [] as any[],
     business_type: '',
+    container_id: '',
+    container_location_details: '',
+    wifi_enabled: false,
     team_members: [] as any[],
     created_at: '',
     on_chain_hash: '', sbt_token_id: null as string | null, verified_at: null as string | null
@@ -315,6 +319,9 @@ export default function MyBusinessProfile() {
         swift: form.swift,
         bank_confirmation_url: form.bank_confirmation_url,
         business_type: form.business_type,
+        container_id: form.container_id,
+        container_location_details: form.container_location_details,
+        wifi_enabled: form.wifi_enabled,
         created_at: form.created_at || new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
@@ -396,6 +403,30 @@ export default function MyBusinessProfile() {
                     {businessTypesList.map(type => <option key={type} value={type}>{type}</option>)}
                   </select>
                 </div>
+                {form.business_type === 'ContainerSpaza' && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Container ID</label>
+                      <input
+                        type="text"
+                        className="input w-full"
+                        value={form.container_id}
+                        onChange={e => setForm(p => ({ ...p, container_id: e.target.value }))}
+                        placeholder="BFF-TAXI-001"
+                      />
+                    </div>
+                    <div className="flex items-end">
+                      <label className="inline-flex items-center gap-3 text-sm font-medium">
+                        <input
+                          type="checkbox"
+                          checked={form.wifi_enabled}
+                          onChange={e => setForm(p => ({ ...p, wifi_enabled: e.target.checked }))}
+                        />
+                        WiFi Enabled
+                      </label>
+                    </div>
+                  </>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium mb-2">Contact Name</label>
@@ -524,6 +555,17 @@ export default function MyBusinessProfile() {
                   <input type="text" className="input w-full" value={form.postal_code || ''} onChange={e => setForm(p => ({...p, postal_code: e.target.value}))} placeholder="3201" />
                 </div>
               </div>
+              {form.business_type === 'ContainerSpaza' && (
+                <div className="mt-6">
+                  <label className="block text-sm font-medium mb-2">Container Location Details</label>
+                  <textarea
+                    className="input w-full min-h-24"
+                    value={form.container_location_details}
+                    onChange={e => setForm(p => ({ ...p, container_location_details: e.target.value }))}
+                    placeholder="Taxi rank, bay number, nearby landmarks"
+                  />
+                </div>
+              )}
             </>
           )}
         </div>
