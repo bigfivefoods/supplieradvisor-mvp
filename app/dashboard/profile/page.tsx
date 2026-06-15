@@ -5,34 +5,26 @@ import { supabase } from '@/lib/supabase';
 export default async function MyBusinessProfile({ searchParams }: { searchParams: { companyId?: string } }) {
   const companyId = searchParams.companyId;
 
-  let data = {
-    legal_name: 'Big Five Foods',
-    trading_name: 'BFF',
-    contact_name: 'Dr Craig Muller',
-    email: 'craig@bigfivefoods.com',
-    registration_number: '2025/123456/07',
-    street: '21A Old Howick Road',
-    city: 'Pietermaritzburg',
-    province: 'KwaZulu-Natal',
-    country: 'South Africa',
-    bank_name: 'FNB',
-    account_number: '63156727625',
-    industries: 'Food Processing, Distributors',
-    certifications: 'ISO 22000',
-    products: 'OnePot Meals, Fortified Porridge',
-  };
+  let data: any = null;
 
   if (companyId) {
     const { data: row } = await supabase.from('profiles').select('*').eq('id', companyId).single();
-    if (row) data = row;
+    data = row;
+  } else {
+    const { data: row } = await supabase.from('profiles').select('*').eq('user_id', 'did:cmmkfe47g012f0djolmvhx6x3').limit(1).single();
+    data = row;
+  }
+
+  if (!data) {
+    data = { legal_name: 'No data found in Supabase for this company/UID' };
   }
 
   return (
     <div className="pl-0 pr-12 py-12 max-w-screen-2xl mx-auto">
       <h1 className="font-black text-5xl tracking-tight text-[#00b4d8]">
-        {data.legal_name}
+        {data.legal_name || 'My Business Profile'}
       </h1>
-      <p className="text-xl text-neutral-600">Company ID: {companyId || 'None'} • ALL fields from "profiles" table loaded</p>
+      <p className="text-xl text-neutral-600">Company ID: {companyId || 'None'} • Pure Supabase pull (no hard-coded data)</p>
 
       <div className="bg-white rounded-3xl p-8 mt-8 space-y-4">
         <p><strong>Legal Name:</strong> {data.legal_name}</p>
