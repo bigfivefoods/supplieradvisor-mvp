@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
+import { useSearchParams } from 'next/navigation';
 import { ArrowRight, ChevronDown, RotateCw, Upload, Plus, ShieldCheck, CreditCard } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { mintVerificationSBT } from '@/lib/onchain';
@@ -98,12 +99,15 @@ const roleOptions = ['CEO / Managing Director', 'Procurement Leader', 'Supply Ch
 export default function MyBusinessProfile() {
   const { user } = usePrivy();
   const cleanId = (user?.id || '').replace('privy:', '');
+  const searchParams = useSearchParams();
+  const companyId = searchParams.get('companyId');
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showPaystack, setShowPaystack] = useState(false);
 
   const [form, setForm] = useState({
+    id: '',
     legal_name: '',
     trading_name: '',
     contact_name: '',
@@ -160,16 +164,15 @@ export default function MyBusinessProfile() {
 
   useEffect(() => {
     if (cleanId) loadProfile();
-  }, [cleanId]);
+  }, [cleanId, companyId]);
 
   const loadProfile = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('business_profiles')
-        .select('*')
-        .eq('user_id', cleanId)
-        .single();
+      let query = supabase.from('business_profiles').select('*').eq('user_id', cleanId);
+      if (companyId) query = query.eq('id', companyId);
+
+      const { data, error } = await query.single();
 
       if (error && error.code !== 'PGRST116') console.error(error);
 
@@ -179,9 +182,9 @@ export default function MyBusinessProfile() {
           ...data,
           industries: data.industries || [],
         });
-        toast.success("✅ Company details loaded from Supabase");
+        toast.success(`✅ Loaded ${data.legal_name || 'Company'}`);
       } else {
-        toast.success("No profile found — starting fresh");
+        toast.success("No profile data found for this company");
       }
     } catch (e) {
       console.error(e);
@@ -205,10 +208,9 @@ export default function MyBusinessProfile() {
 
   const initiatePaystackPayment = () => {
     if (typeof (window as any).PaystackPop === 'undefined') {
-      toast.error("Paystack script not loaded. Please add the script to layout.tsx and refresh.");
+      toast.error("Paystack script not loaded. Refresh page.");
       return;
     }
-
     const paystack = new (window as any).PaystackPop();
     paystack.newTransaction({
       key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || 'pk_live_0defd04924811cc9f25050e8ad53ce51',
@@ -222,9 +224,9 @@ export default function MyBusinessProfile() {
         ]
       },
       onSuccess: () => {
-        toast.success('🎉 Payment successful via Paystack! Verified with CIPC/SARS/CAC + on-chain SBT minted! Badge added and details pulled.');
+        toast.success('🎉 Payment successful! Verified with CIPC/SARS/CAC + on-chain SBT minted!');
         setShowPaystack(false);
-        mintVerificationSBT(cleanId, { profileId: cleanId, legal_name: form.legal_name });
+        mintVerificationSBT(cleanId, { profileId: companyId || cleanId, legal_name: form.legal_name });
       },
       onCancel: () => {
         toast.error('Payment cancelled');
@@ -263,14 +265,13 @@ export default function MyBusinessProfile() {
 
       <div className="flex items-end justify-between mb-8">
         <div>
-          <h1 className="font-black text-5xl tracking-tight text-[#00b4d8]">My Business Profile</h1>
-          <p className="text-xl text-neutral-600">Edit every field • All data loads from Supabase</p>
+          <h1 className="font-black text-5xl tracking-tight text-[#00b4d8]">
+            {form.legal_name ? form.legal_name : 'My Business Profile'}
+          </h1>
+          <p className="text-xl text-neutral-600">Data for selected company from Supabase</p>
           <button onClick={verifyOnChain} className="mt-4 bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-xl flex items-center gap-2 text-lg font-medium">
             <ShieldCheck size={24} /> Get Verified (CIPC / SARS / CAC) - R49 with Paystack
           </button>
-          <div className="inline-flex items-center gap-2 mt-2 text-emerald-600 font-medium">
-            <ShieldCheck size={22} /> Verified on Polygon Amoy • Official data pulled • Badge visible to all users
-          </div>
         </div>
         <div className="flex gap-4">
           <button onClick={loadProfile} className="flex items-center gap-2 border px-8 py-4 rounded-3xl hover:bg-neutral-100">
@@ -289,7 +290,6 @@ export default function MyBusinessProfile() {
         <button onClick={verifyOnChain} className="mt-4 bg-emerald-600 text-white px-10 py-3 rounded-2xl text-lg font-medium">
           Verify Now (CIPC / SARS / CAC) - R49 with Paystack
         </button>
-        <p className="text-sm mt-4">Button will show green badge once verified.</p>
       </div>
 
       {/* PAYSTACK CHECKOUT MODAL */}
@@ -310,12 +310,11 @@ export default function MyBusinessProfile() {
             <button onClick={() => setShowPaystack(false)} className="mt-4 text-neutral-500 w-full py-2 hover:underline">
               Cancel
             </button>
-            <p className="text-xs text-center mt-6 text-neutral-500">Secure checkout powered by Paystack</p>
           </div>
         </div>
       )}
 
-      {/* 1. Company Details + Team Members */}
+      {/* 1. Company Details */}
       <div className="bg-white rounded-3xl shadow-sm border border-neutral-100 p-8">
         <div className="flex justify-between items-center mb-6 cursor-pointer" onClick={() => toggleSection('basics')}>
           <h2 className="text-2xl font-bold">1. Company Details</h2>
@@ -388,15 +387,15 @@ export default function MyBusinessProfile() {
             <div className="grid grid-cols-3 gap-6">
               <div>
                 <label className="block text-sm font-medium mb-2">Street Address</label>
-                <input type="text" className="input w-full" value={form.street} onChange={e => setForm(p => ({...p, street: e.target.value}))} placeholder="21A Old Howick Road" />
+                <input type="text" className="input w-full" value={form.street} onChange={e => setForm(p => ({...p, street: e.target.value}))} />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">City</label>
-                <input type="text" className="input w-full" value={form.city} onChange={e => setForm(p => ({...p, city: e.target.value}))} placeholder="Pietermaritzburg" />
+                <input type="text" className="input w-full" value={form.city} onChange={e => setForm(p => ({...p, city: e.target.value}))} />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">Postal Code</label>
-                <input type="text" className="input w-full" value={form.postal_code} onChange={e => setForm(p => ({...p, postal_code: e.target.value}))} placeholder="3201" />
+                <input type="text" className="input w-full" value={form.postal_code} onChange={e => setForm(p => ({...p, postal_code: e.target.value}))} />
               </div>
             </div>
           </>
