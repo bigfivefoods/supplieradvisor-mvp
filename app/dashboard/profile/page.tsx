@@ -101,7 +101,6 @@ export default function MyBusinessProfile() {
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [showPaystack, setShowPaystack] = useState(false);
 
   const [form, setForm] = useState({
@@ -172,9 +171,7 @@ export default function MyBusinessProfile() {
         .eq('user_id', cleanId)
         .single();
 
-      if (error && error.code !== 'PGRST116') {
-        console.error('Supabase error:', error);
-      }
+      if (error && error.code !== 'PGRST116') console.error(error);
 
       if (data) {
         setForm({
@@ -184,7 +181,7 @@ export default function MyBusinessProfile() {
         });
         toast.success("✅ Company details loaded from Supabase");
       } else {
-        toast.success("No saved profile found — starting fresh");
+        toast.success("No profile found — starting fresh");
       }
     } catch (e) {
       console.error(e);
@@ -208,13 +205,13 @@ export default function MyBusinessProfile() {
 
   const initiatePaystackPayment = () => {
     if (typeof (window as any).PaystackPop === 'undefined') {
-      toast.error("Paystack script not loaded. Please refresh the page.");
+      toast.error("Paystack script not loaded. Please add the script to layout.tsx and refresh.");
       return;
     }
 
     const paystack = new (window as any).PaystackPop();
     paystack.newTransaction({
-      key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || 'pk_test_your_key_here',
+      key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || 'pk_live_0defd04924811cc9f25050e8ad53ce51',
       email: form.email || 'craig@bigfivefoods.com',
       amount: 4900,
       currency: 'ZAR',
@@ -224,7 +221,7 @@ export default function MyBusinessProfile() {
           { display_name: "Purpose", variable_name: "purpose", value: "SupplierAdvisor Company Verification" }
         ]
       },
-      onSuccess: (transaction: any) => {
+      onSuccess: () => {
         toast.success('🎉 Payment successful via Paystack! Verified with CIPC/SARS/CAC + on-chain SBT minted! Badge added and details pulled.');
         setShowPaystack(false);
         mintVerificationSBT(cleanId, { profileId: cleanId, legal_name: form.legal_name });
@@ -255,7 +252,6 @@ export default function MyBusinessProfile() {
       toast.success("🎉 Profile saved successfully to Supabase!");
     } catch (e) {
       toast.error("Failed to save profile");
-      console.error(e);
     } finally {
       setSaving(false);
     }
@@ -280,8 +276,8 @@ export default function MyBusinessProfile() {
           <button onClick={loadProfile} className="flex items-center gap-2 border px-8 py-4 rounded-3xl hover:bg-neutral-100">
             <RotateCw size={18} /> Refresh Data
           </button>
-          <button onClick={saveProfile} disabled={saving} className="btn-primary flex items-center gap-3 px-12 py-4">
-            {saving ? 'Saving...' : 'Save All Changes'} <ArrowRight />
+          <button onClick={saveProfile} className="btn-primary flex items-center gap-3 px-12 py-4">
+            Save All Changes <ArrowRight />
           </button>
         </div>
       </div>
@@ -314,7 +310,7 @@ export default function MyBusinessProfile() {
             <button onClick={() => setShowPaystack(false)} className="mt-4 text-neutral-500 w-full py-2 hover:underline">
               Cancel
             </button>
-            <p className="text-xs text-center mt-6 text-neutral-500">You will be redirected to secure Paystack checkout</p>
+            <p className="text-xs text-center mt-6 text-neutral-500">Secure checkout powered by Paystack</p>
           </div>
         </div>
       )}
