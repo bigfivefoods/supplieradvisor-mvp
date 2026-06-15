@@ -1,5 +1,3 @@
-'use client';
-
 import { PrivyProvider } from '@privy-io/react-auth';
 import "./globals.css";
 import { Toaster } from "react-hot-toast";
@@ -9,7 +7,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <head>
         <link rel="icon" href="/sa-logo.png" type="image/png" />
-        {/* ✅ Paystack Script */}
+        {/* Paystack Script */}
         <script src="https://js.paystack.co/v1/inline.js" />
       </head>
       <body className="antialiased">
