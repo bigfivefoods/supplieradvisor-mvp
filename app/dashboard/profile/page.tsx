@@ -175,7 +175,12 @@ export default function MyBusinessProfile() {
   };
 
   const verifyOnChain = async () => {
-    toast.success('🎉 Verified with CIPC/SARS/CAC + on-chain SBT minted! Badge added and details pulled.');
+    // Stripe payment prompt (test mode)
+    toast.success("💳 Stripe checkout opened - use test card 4242 4242 4242 4242");
+    // After payment simulation
+    setTimeout(() => {
+      toast.success('🎉 Verified with CIPC/SARS/CAC + on-chain SBT minted! Badge added and details pulled.');
+    }, 1000);
   };
 
   const saveProfile = async () => {
@@ -191,7 +196,7 @@ export default function MyBusinessProfile() {
           <h1 className="font-black text-5xl tracking-tight text-[#00b4d8]">My Business Profile</h1>
           <p className="text-xl text-neutral-600">Edit every field • All data loads from Supabase</p>
           <button onClick={verifyOnChain} className="mt-4 bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-xl flex items-center gap-2 text-lg font-medium">
-            <ShieldCheck size={24} /> Get Verified (CIPC / SARS / CAC Nigeria + On-chain Proof)
+            <ShieldCheck size={24} /> Get Verified (CIPC / SARS / CAC Nigeria + On-chain Proof) - Pay with Stripe
           </button>
           <div className="inline-flex items-center gap-2 mt-2 text-emerald-600 font-medium">
             <ShieldCheck size={22} /> Verified on Polygon Amoy • Official data pulled • Badge visible to all users
@@ -212,7 +217,7 @@ export default function MyBusinessProfile() {
         <h2 className="text-2xl font-bold flex items-center gap-2">🔐 Verification & Official Data</h2>
         <p>Pulls real government registration details and mints proof on-chain. Visible to all users on SupplierAdvisor.</p>
         <button onClick={verifyOnChain} className="mt-4 bg-emerald-600 text-white px-10 py-3 rounded-2xl text-lg font-medium">
-          Verify Now (CIPC / SARS / CAC Nigeria)
+          Verify Now (CIPC / SARS / CAC Nigeria) - Pay with Stripe
         </button>
         <p className="text-sm mt-4">Button will show green badge once verified.</p>
       </div>
