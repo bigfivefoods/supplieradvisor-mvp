@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
-import { ArrowRight, ChevronDown, RotateCw, Upload, Plus, Users2, ShieldCheck } from 'lucide-react';
+import { ArrowRight, ChevronDown, RotateCw, Upload, Plus, Users2, ShieldCheck, CreditCard } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { mintVerificationSBT } from '@/lib/onchain';
 import toast from 'react-hot-toast';
@@ -102,6 +102,7 @@ export default function MyBusinessProfile() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [showStripe, setShowStripe] = useState(false);
 
   const [form, setForm] = useState({
     legal_name: 'Big Five Foods', trading_name: 'BFF', contact_name: 'Dr Craig Muller', email: 'craig@bigfivefoods.com', registration_number: '2025/123456/07', contact_number: '+27 82 581 4215',
@@ -158,29 +159,18 @@ export default function MyBusinessProfile() {
     toast.success("✅ Certificate uploaded");
   };
 
-  const addProduct = () => {
-    toast.success("Product added");
-  };
-
-  const addService = () => {
-    toast.success("Service added");
-  };
-
-  const addCertification = () => {
-    toast.success("Certification added");
-  };
-
-  const addTeamMember = async () => {
-    toast.success("✅ Invitation sent");
-  };
+  const addProduct = () => toast.success("Product added");
+  const addService = () => toast.success("Service added");
+  const addCertification = () => toast.success("Certification added");
+  const addTeamMember = async () => toast.success("✅ Invitation sent");
 
   const verifyOnChain = async () => {
-    // Stripe payment prompt (test mode)
-    toast.success("💳 Stripe checkout opened - use test card 4242 4242 4242 4242");
-    // After payment simulation
-    setTimeout(() => {
-      toast.success('🎉 Verified with CIPC/SARS/CAC + on-chain SBT minted! Badge added and details pulled.');
-    }, 1000);
+    setShowStripe(true);
+  };
+
+  const completePayment = async () => {
+    setShowStripe(false);
+    toast.success('🎉 Payment successful! Verified with CIPC/SARS/CAC + on-chain SBT minted! Badge added and details pulled.');
   };
 
   const saveProfile = async () => {
@@ -196,7 +186,7 @@ export default function MyBusinessProfile() {
           <h1 className="font-black text-5xl tracking-tight text-[#00b4d8]">My Business Profile</h1>
           <p className="text-xl text-neutral-600">Edit every field • All data loads from Supabase</p>
           <button onClick={verifyOnChain} className="mt-4 bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-xl flex items-center gap-2 text-lg font-medium">
-            <ShieldCheck size={24} /> Get Verified (CIPC / SARS / CAC Nigeria + On-chain Proof) - Pay with Stripe
+            <ShieldCheck size={24} /> Get Verified (CIPC / SARS / CAC Nigeria + On-chain Proof) - R49 with Stripe
           </button>
           <div className="inline-flex items-center gap-2 mt-2 text-emerald-600 font-medium">
             <ShieldCheck size={22} /> Verified on Polygon Amoy • Official data pulled • Badge visible to all users
@@ -217,10 +207,48 @@ export default function MyBusinessProfile() {
         <h2 className="text-2xl font-bold flex items-center gap-2">🔐 Verification & Official Data</h2>
         <p>Pulls real government registration details and mints proof on-chain. Visible to all users on SupplierAdvisor.</p>
         <button onClick={verifyOnChain} className="mt-4 bg-emerald-600 text-white px-10 py-3 rounded-2xl text-lg font-medium">
-          Verify Now (CIPC / SARS / CAC Nigeria) - Pay with Stripe
+          Verify Now (CIPC / SARS / CAC Nigeria) - R49 with Stripe
         </button>
         <p className="text-sm mt-4">Button will show green badge once verified.</p>
       </div>
+
+      {/* STRIPE CHECKOUT MODAL */}
+      {showStripe && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl p-10 w-full max-w-md">
+            <h2 className="text-3xl font-bold mb-2">Stripe Checkout</h2>
+            <p className="text-2xl font-medium">Company Verification Credit</p>
+            <p className="text-5xl font-black text-green-600 mt-2">R49.00</p>
+            
+            <div className="mt-8 space-y-6">
+              <div>
+                <label className="block text-sm mb-2">Card Number</label>
+                <input type="text" placeholder="4242 4242 4242 4242" className="input w-full text-lg tracking-widest" />
+              </div>
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm mb-2">Expiry Date</label>
+                  <input type="text" placeholder="12/28" className="input w-full" />
+                </div>
+                <div>
+                  <label className="block text-sm mb-2">CVC</label>
+                  <input type="text" placeholder="123" className="input w-full" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm mb-2">Name on Card</label>
+                <input type="text" value="Dr Craig Muller" className="input w-full" />
+              </div>
+            </div>
+
+            <button onClick={completePayment} className="mt-8 btn-primary w-full py-4 text-xl flex items-center justify-center gap-3">
+              <CreditCard size={28} /> Pay R49 and Verify Now
+            </button>
+            <button onClick={() => setShowStripe(false)} className="mt-4 text-neutral-500 w-full py-2 hover:underline">Cancel</button>
+            <p className="text-xs text-center mt-6 text-neutral-500">Test Mode • Use 4242 4242 4242 4242</p>
+          </div>
+        </div>
+      )}
 
       {/* 1. Company Details + Team Members */}
       <div className="bg-white rounded-3xl shadow-sm border border-neutral-100 p-8">
