@@ -51,7 +51,7 @@ export default function MyBusinessProfile() {
       </div>
 
       <button className="mt-8 bg-green-600 text-white px-10 py-3 rounded-2xl text-lg font-medium">
-        Get Verified - R69 with Paystack
+        Get Verified - R49 with Paystack
       </button>
     </div>
   );
