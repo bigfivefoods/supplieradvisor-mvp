@@ -27,7 +27,7 @@ export default function MyBusinessProfile() {
       <h1 className="text-4xl font-bold">My Business Profile</h1>
       <p>Company ID: {companyId || 'None'}</p>
       <p>Legal Name: {form.legal_name}</p>
-      <p>Build should now pass.</p>
+      <p className="text-green-600 mt-8">✅ Build should now pass. We can restore full UI next.</p>
     </div>
   );
 }
