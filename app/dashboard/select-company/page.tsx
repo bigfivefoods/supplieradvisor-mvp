@@ -42,7 +42,9 @@ export default function SelectCompany() {
   };
 
   const handleSelect = (b: Business) => {
-    router.push(`/dashboard/profile?companyId=${b.id}`);
+    const url = `/dashboard/profile?companyId=${b.id}`;
+    console.log('Navigating to:', url); // Debug
+    router.push(url);
   };
 
   return (
