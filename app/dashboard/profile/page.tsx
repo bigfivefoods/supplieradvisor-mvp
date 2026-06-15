@@ -13,7 +13,7 @@ export default async function MyBusinessProfile({ searchParams }: { searchParams
   }
 
   if (!data) {
-    const { data: row } = await supabase.from('profiles').select('*').limit(1).single();
+    const { data: row } = await supabase.from('profiles').select('*').eq('user_id', 'did:cmmkfe47g012f0djolmvhx6x3').limit(1).single();
     data = row;
   }
 
@@ -39,7 +39,7 @@ export default async function MyBusinessProfile({ searchParams }: { searchParams
       </div>
 
       <button className="mt-8 bg-green-600 text-white px-10 py-3 rounded-2xl text-lg font-medium">
-        Get Verified - R69 with Paystack
+        Get Verified - R49 with Paystack
       </button>
     </div>
   );
