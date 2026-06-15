@@ -1,6 +1,15 @@
+import type { Metadata } from 'next';
 import { PrivyProvider } from '@privy-io/react-auth';
 import "./globals.css";
 import { Toaster } from "react-hot-toast";
+
+export const metadata: Metadata = {
+  title: 'SupplierAdvisor',
+  description: 'Business Network for Africa',
+  icons: {
+    icon: '/sa-logo.png',
+  },
+};
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
