@@ -1,66 +1,35 @@
-'use client';
+import type { Metadata } from 'next';
+import { PrivyProvider } from '@privy-io/react-auth';
+import "./globals.css";
+import { Toaster } from "react-hot-toast";
 
-import { useState } from 'react';
-import Sidebar from '@/components/Sidebar';
-import { Menu, X } from 'lucide-react';
+export const metadata: Metadata = {
+  title: 'SupplierAdvisor',
+  description: 'Business Network for Africa',
+  icons: {
+    icon: '/sa-logo.png',
+  },
+};
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen bg-[#f8f9fa]">
-      {/* DESKTOP + TABLET SIDEBAR – NOW TRULY STICKY */}
-      <div className="w-72 flex-shrink-0 border-r border-neutral-200 bg-white hidden md:block sticky top-0 h-screen overflow-y-auto">
-        <Sidebar />
-      </div>
-
-      {/* MOBILE / TABLET HEADER + HAMBURGER */}
-      <div className="md:hidden fixed top-0 left-0 right-0 z-50 bg-white border-b border-neutral-200 px-4 py-4 flex items-center justify-between shadow-sm">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setIsMobileMenuOpen(true)}
-            className="p-3 hover:bg-neutral-100 rounded-3xl transition-colors"
-          >
-            <Menu size={26} />
-          </button>
-          <div className="font-black text-3xl tracking-[-1px] text-[#00b4d8]">SupplierAdvisor®</div>
-        </div>
-      </div>
-
-      {/* MOBILE DRAWER – FULLY SCROLLABLE */}
-      {isMobileMenuOpen && (
-        <div className="fixed inset-0 z-[100] md:hidden">
-          {/* Backdrop */}
-          <div className="absolute inset-0 bg-black/60" onClick={() => setIsMobileMenuOpen(false)} />
-
-          {/* Drawer */}
-          <div className="absolute left-0 top-0 bottom-0 w-72 bg-white shadow-2xl overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between p-6 border-b">
-              <div className="font-black text-3xl tracking-[-1px] text-[#00b4d8]">SupplierAdvisor®</div>
-              <button
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="p-3 hover:bg-neutral-100 rounded-3xl transition-colors"
-              >
-                <X size={26} />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto">
-              <Sidebar />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MAIN CONTENT – SCROLLABLE */}
-      <div className="flex-1 overflow-auto">
-        {/* Top padding for mobile fixed header */}
-        <div className="md:hidden h-16" />
-
-        <div className="pl-0 pr-4 md:pr-12 py-6 md:py-12 max-w-screen-2xl mx-auto">
+    <html lang="en">
+      <head>
+        <link rel="icon" href="/sa-logo.png" type="image/png" />
+        <script src="https://js.paystack.co/v1/inline.js" />
+      </head>
+      <body className="antialiased">
+        <PrivyProvider
+          appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID!}
+          config={{ 
+            loginMethods: ['email', 'wallet'], 
+            appearance: { theme: 'light' } 
+          }}
+        >
           {children}
-        </div>
-      </div>
-    </div>
+          <Toaster position="top-center" />
+        </PrivyProvider>
+      </body>
+    </html>
   );
 }
