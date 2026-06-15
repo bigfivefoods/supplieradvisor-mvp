@@ -16,7 +16,7 @@ export default function MyBusinessProfile() {
   const searchParams = useSearchParams();
   const companyId = searchParams.get('companyId');
 
-  const [form, setForm] = useState<any>({});
+  const [form, setForm] = useState<Record<string, any>>({});
   const [saving, setSaving] = useState(false);
 
   const loadProfile = async () => {
@@ -38,14 +38,14 @@ export default function MyBusinessProfile() {
   const saveProfile = async () => {
     setSaving(true);
     try {
-      const payload = { ...form, user_id: cleanId, updated_at: new Date().toISOString() };
+      const payload = { ...form, user_id: cleanId, updated_at: new Date().toISOString() } as any;
       if (companyId) payload.id = companyId;
 
       const { error } = await supabase.from('profiles').upsert(payload);
 
       if (error) throw error;
       toast.success("✅ Saved to Supabase – all fields updated");
-      loadProfile(); // reload to confirm
+      loadProfile();
     } catch (e) {
       toast.error("Save failed");
     } finally {
@@ -89,7 +89,7 @@ export default function MyBusinessProfile() {
       </div>
 
       <button className="mt-8 bg-green-600 text-white px-10 py-3 rounded-2xl text-lg font-medium">
-        Get Verified - R49 with Paystack
+        Get Verified - R69 with Paystack
       </button>
     </div>
   );
