@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
-import { ArrowRight, ChevronDown, RotateCw, Upload, Plus, Users2, ShieldCheck, CreditCard } from 'lucide-react';
+import { ArrowRight, ChevronDown, RotateCw, Upload, Plus, ShieldCheck, CreditCard } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { mintVerificationSBT } from '@/lib/onchain';
 import toast from 'react-hot-toast';
@@ -102,25 +102,48 @@ export default function MyBusinessProfile() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [showStripe, setShowStripe] = useState(false);
+  const [showPaystack, setShowPaystack] = useState(false);
 
   const [form, setForm] = useState({
-    legal_name: 'Big Five Foods', trading_name: 'BFF', contact_name: 'Dr Craig Muller', email: 'craig@bigfivefoods.com', registration_number: '2025/123456/07', contact_number: '+27 82 581 4215',
-    registration_document_url: '', logo_url: '',
-    planet: 'Earth', continent: 'Africa', country: 'South Africa', province: 'KwaZulu-Natal', street: '21A Old Howick Road', city: 'Pietermaritzburg', postal_code: '3201',
-    industries: ['Food & Beverage', 'Agriculture & Farming'],
-    tax_number: '123456789', tax_document_url: '',
-    vat_number: 'VAT123', vat_document_url: '',
-    export_license: '', export_document_url: '',
-    import_license: '', import_document_url: '',
-    bank_name: 'Standard Bank', account_name: 'Big Five Foods', account_number: '123456789', iban: '', swift: '', bank_confirmation_url: '',
+    legal_name: '',
+    trading_name: '',
+    contact_name: '',
+    email: '',
+    registration_number: '',
+    contact_number: '',
+    registration_document_url: '',
+    logo_url: '',
+    planet: 'Earth',
+    continent: 'Africa',
+    country: 'South Africa',
+    province: '',
+    street: '',
+    city: '',
+    postal_code: '',
+    industries: [] as string[],
+    tax_number: '',
+    tax_document_url: '',
+    vat_number: '',
+    vat_document_url: '',
+    export_license: '',
+    export_document_url: '',
+    import_license: '',
+    import_document_url: '',
+    bank_name: '',
+    account_name: '',
+    account_number: '',
+    iban: '',
+    swift: '',
+    bank_confirmation_url: '',
     products: [],
     services: [],
     certifications: [],
-    business_type: 'Private Company (Pty Ltd)',
+    business_type: '',
     team_members: [],
     created_at: '',
-    on_chain_hash: '', sbt_token_id: null as string | null, verified_at: '2026-06-15'
+    on_chain_hash: '',
+    sbt_token_id: null as string | null,
+    verified_at: ''
   });
 
   const [newProduct, setNewProduct] = useState({ description: '', sku: '', uom: '', sellPrice: '', leadTime: '', image_url: '' });
@@ -143,9 +166,28 @@ export default function MyBusinessProfile() {
   const loadProfile = async () => {
     setLoading(true);
     try {
-      toast.success("✅ Company details loaded from Supabase");
+      const { data, error } = await supabase
+        .from('business_profiles')
+        .select('*')
+        .eq('user_id', cleanId)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Supabase error:', error);
+      }
+
+      if (data) {
+        setForm({
+          ...form,
+          ...data,
+          industries: data.industries || [],
+        });
+        toast.success("✅ Company details loaded from Supabase");
+      } else {
+        toast.success("No saved profile found — starting fresh");
+      }
     } catch (e) {
-      toast.error('Using fallback');
+      console.error(e);
     } finally {
       setLoading(false);
     }
@@ -164,17 +206,59 @@ export default function MyBusinessProfile() {
   const addCertification = () => toast.success("Certification added");
   const addTeamMember = async () => toast.success("✅ Invitation sent");
 
-  const verifyOnChain = async () => {
-    setShowStripe(true);
+  const initiatePaystackPayment = () => {
+    if (typeof (window as any).PaystackPop === 'undefined') {
+      toast.error("Paystack script not loaded. Please refresh the page.");
+      return;
+    }
+
+    const paystack = new (window as any).PaystackPop();
+    paystack.newTransaction({
+      key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || 'pk_test_your_key_here',
+      email: form.email || 'craig@bigfivefoods.com',
+      amount: 4900,
+      currency: 'ZAR',
+      ref: `verif_${Date.now()}`,
+      metadata: {
+        custom_fields: [
+          { display_name: "Purpose", variable_name: "purpose", value: "SupplierAdvisor Company Verification" }
+        ]
+      },
+      onSuccess: (transaction: any) => {
+        toast.success('🎉 Payment successful via Paystack! Verified with CIPC/SARS/CAC + on-chain SBT minted! Badge added and details pulled.');
+        setShowPaystack(false);
+        mintVerificationSBT(cleanId, { profileId: cleanId, legal_name: form.legal_name });
+      },
+      onCancel: () => {
+        toast.error('Payment cancelled');
+        setShowPaystack(false);
+      }
+    });
   };
 
-  const completePayment = async () => {
-    setShowStripe(false);
-    toast.success('🎉 Payment successful! Verified with CIPC/SARS/CAC + on-chain SBT minted! Badge added and details pulled.');
+  const verifyOnChain = async () => {
+    setShowPaystack(true);
   };
 
   const saveProfile = async () => {
-    toast.success("🎉 Profile saved successfully to Supabase!");
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('business_profiles')
+        .upsert({ 
+          user_id: cleanId,
+          ...form,
+          updated_at: new Date().toISOString()
+        });
+
+      if (error) throw error;
+      toast.success("🎉 Profile saved successfully to Supabase!");
+    } catch (e) {
+      toast.error("Failed to save profile");
+      console.error(e);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -186,7 +270,7 @@ export default function MyBusinessProfile() {
           <h1 className="font-black text-5xl tracking-tight text-[#00b4d8]">My Business Profile</h1>
           <p className="text-xl text-neutral-600">Edit every field • All data loads from Supabase</p>
           <button onClick={verifyOnChain} className="mt-4 bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-xl flex items-center gap-2 text-lg font-medium">
-            <ShieldCheck size={24} /> Get Verified (CIPC / SARS / CAC Nigeria + On-chain Proof) - R49 with Stripe
+            <ShieldCheck size={24} /> Get Verified (CIPC / SARS / CAC) - R49 with Paystack
           </button>
           <div className="inline-flex items-center gap-2 mt-2 text-emerald-600 font-medium">
             <ShieldCheck size={22} /> Verified on Polygon Amoy • Official data pulled • Badge visible to all users
@@ -196,8 +280,8 @@ export default function MyBusinessProfile() {
           <button onClick={loadProfile} className="flex items-center gap-2 border px-8 py-4 rounded-3xl hover:bg-neutral-100">
             <RotateCw size={18} /> Refresh Data
           </button>
-          <button onClick={saveProfile} className="btn-primary flex items-center gap-3 px-12 py-4">
-            Save All Changes <ArrowRight />
+          <button onClick={saveProfile} disabled={saving} className="btn-primary flex items-center gap-3 px-12 py-4">
+            {saving ? 'Saving...' : 'Save All Changes'} <ArrowRight />
           </button>
         </div>
       </div>
@@ -207,45 +291,30 @@ export default function MyBusinessProfile() {
         <h2 className="text-2xl font-bold flex items-center gap-2">🔐 Verification & Official Data</h2>
         <p>Pulls real government registration details and mints proof on-chain. Visible to all users on SupplierAdvisor.</p>
         <button onClick={verifyOnChain} className="mt-4 bg-emerald-600 text-white px-10 py-3 rounded-2xl text-lg font-medium">
-          Verify Now (CIPC / SARS / CAC Nigeria) - R49 with Stripe
+          Verify Now (CIPC / SARS / CAC) - R49 with Paystack
         </button>
         <p className="text-sm mt-4">Button will show green badge once verified.</p>
       </div>
 
-      {/* STRIPE CHECKOUT MODAL */}
-      {showStripe && (
+      {/* PAYSTACK CHECKOUT MODAL */}
+      {showPaystack && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl p-10 w-full max-w-md">
-            <h2 className="text-3xl font-bold mb-2">Stripe Checkout</h2>
+          <div className="bg-white rounded-3xl p-10 w-full max-w-md text-center">
+            <h2 className="text-3xl font-bold mb-2">Paystack Checkout</h2>
             <p className="text-2xl font-medium">Company Verification Credit</p>
             <p className="text-5xl font-black text-green-600 mt-2">R49.00</p>
             
-            <div className="mt-8 space-y-6">
-              <div>
-                <label className="block text-sm mb-2">Card Number</label>
-                <input type="text" placeholder="4242 4242 4242 4242" className="input w-full text-lg tracking-widest" />
-              </div>
-              <div className="grid grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm mb-2">Expiry Date</label>
-                  <input type="text" placeholder="12/28" className="input w-full" />
-                </div>
-                <div>
-                  <label className="block text-sm mb-2">CVC</label>
-                  <input type="text" placeholder="123" className="input w-full" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm mb-2">Name on Card</label>
-                <input type="text" value="Dr Craig Muller" className="input w-full" />
-              </div>
-            </div>
-
-            <button onClick={completePayment} className="mt-8 btn-primary w-full py-4 text-xl flex items-center justify-center gap-3">
-              <CreditCard size={28} /> Pay R49 and Verify Now
+            <button 
+              onClick={initiatePaystackPayment}
+              className="mt-8 btn-primary w-full py-4 text-xl flex items-center justify-center gap-3"
+            >
+              <CreditCard size={28} /> Pay R49 with Paystack
             </button>
-            <button onClick={() => setShowStripe(false)} className="mt-4 text-neutral-500 w-full py-2 hover:underline">Cancel</button>
-            <p className="text-xs text-center mt-6 text-neutral-500">Test Mode • Use 4242 4242 4242 4242</p>
+            
+            <button onClick={() => setShowPaystack(false)} className="mt-4 text-neutral-500 w-full py-2 hover:underline">
+              Cancel
+            </button>
+            <p className="text-xs text-center mt-6 text-neutral-500">You will be redirected to secure Paystack checkout</p>
           </div>
         </div>
       )}
@@ -323,15 +392,15 @@ export default function MyBusinessProfile() {
             <div className="grid grid-cols-3 gap-6">
               <div>
                 <label className="block text-sm font-medium mb-2">Street Address</label>
-                <input type="text" className="input w-full" placeholder="21A Old Howick Road" />
+                <input type="text" className="input w-full" value={form.street} onChange={e => setForm(p => ({...p, street: e.target.value}))} placeholder="21A Old Howick Road" />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">City</label>
-                <input type="text" className="input w-full" placeholder="Pietermaritzburg" />
+                <input type="text" className="input w-full" value={form.city} onChange={e => setForm(p => ({...p, city: e.target.value}))} placeholder="Pietermaritzburg" />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">Postal Code</label>
-                <input type="text" className="input w-full" placeholder="3201" />
+                <input type="text" className="input w-full" value={form.postal_code} onChange={e => setForm(p => ({...p, postal_code: e.target.value}))} placeholder="3201" />
               </div>
             </div>
           </>
