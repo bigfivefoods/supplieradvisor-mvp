@@ -36,7 +36,7 @@ export default function SelectCompany() {
       toast.error("Failed: " + error.message);
     } else {
       setBusinesses(data || []);
-      toast.success(`Loaded ${data.length} companies`);
+      toast.success(`Loaded ${data?.length || 0} companies`);
     }
     setLoading(false);
   };
@@ -58,8 +58,6 @@ export default function SelectCompany() {
           </div>
         ))}
       </div>
-
-      {businesses.length === 0 && <p>No companies – create one in onboarding.</p>}
 
       <button onClick={loadBusinesses} className="mt-6 bg-green-600 text-white px-6 py-2">Refresh List</button>
     </div>
