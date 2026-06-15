@@ -21,12 +21,11 @@ export default function SelectCompany() {
     { id: '3', name: 'BFFK', type: 'ContainerSpaza', suburb: 'KwaDukuza' },
     { id: '4', name: 'EVERWAVE', type: 'Business', suburb: 'Howick' },
     { id: '5', name: 'VUKA', type: 'Main', suburb: 'Pietermaritzburg' },
-    // Add more from your list if needed
   ]);
 
   const handleSelect = (b: Business) => {
     localStorage.setItem('selectedBusinessId', b.id);
-    router.push(`/dashboard/profile?businessId=${b.id}`);
+    router.push(`/dashboard/profile?companyId=${b.id}`);
   };
 
   return (
