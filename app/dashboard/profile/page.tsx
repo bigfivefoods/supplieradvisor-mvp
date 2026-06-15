@@ -1,25 +1,37 @@
-export const dynamic = 'force-dynamic';
+'use client';
 
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 
-export default async function MyBusinessProfile({ searchParams }: { searchParams: { companyId?: string } }) {
-  const companyId = searchParams.companyId;
+export default function MyBusinessProfile() {
+  const searchParams = useSearchParams();
+  const companyId = searchParams.get('companyId');
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  let data = null;
+  useEffect(() => {
+    const loadData = async () => {
+      let row = null;
 
-  if (companyId) {
-    const { data: row } = await supabase.from('profiles').select('*').eq('id', companyId).single();
-    data = row;
-  }
+      if (companyId) {
+        const { data: r } = await supabase.from('profiles').select('*').eq('id', companyId).single();
+        row = r;
+      }
 
-  if (!data) {
-    const { data: row } = await supabase.from('profiles').select('*').limit(1).single();
-    data = row;
-  }
+      if (!row) {
+        const { data: r } = await supabase.from('profiles').select('*').limit(1).single();
+        row = r;
+      }
 
-  if (!data) {
-    data = { legal_name: 'No data found' };
-  }
+      setData(row || { legal_name: 'No data found' });
+      setLoading(false);
+    };
+
+    loadData();
+  }, [companyId]);
+
+  if (loading) return <div className="p-12">Loading company data...</div>;
 
   return (
     <div className="pl-0 pr-12 py-12 max-w-screen-2xl mx-auto">
