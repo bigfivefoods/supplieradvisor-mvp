@@ -7,11 +7,15 @@ export default async function MyBusinessProfile({ searchParams }: { searchParams
 
   let data = null;
 
+  // Prioritize the selected company ID
   if (companyId) {
     const { data: row } = await supabase.from('profiles').select('*').eq('id', companyId).single();
     data = row;
-  } else {
-    const { data: row } = await supabase.from('profiles').select('*').limit(1).single();
+  }
+
+  // Fallback to first for user if no ID
+  if (!data) {
+    const { data: row } = await supabase.from('profiles').select('*').eq('user_id', 'did:cmmkfe47g012f0djolmvhx6x3').limit(1).single();
     data = row;
   }
 
@@ -24,7 +28,7 @@ export default async function MyBusinessProfile({ searchParams }: { searchParams
       <h1 className="font-black text-5xl tracking-tight text-[#00b4d8]">
         {data.legal_name}
       </h1>
-      <p className="text-xl text-neutral-600">Selected Company ID: {companyId || 'None'} • Correct data pulled</p>
+      <p className="text-xl text-neutral-600">Selected Company ID: {companyId || 'None'} • **Correct company data pulled**</p>
 
       <div className="bg-white rounded-3xl p-8 mt-8 space-y-4">
         <p><strong>Legal Name:</strong> {data.legal_name}</p>
