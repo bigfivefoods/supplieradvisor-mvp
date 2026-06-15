@@ -12,7 +12,6 @@ type Business = {
   trading_name?: string;
   business_type?: string;
   suburb?: string;
-  containerId?: string;
 };
 
 export default function SelectCompany() {
@@ -27,10 +26,10 @@ export default function SelectCompany() {
 
   const loadBusinesses = async () => {
     setLoading(true);
-    const cleanId = user?.id.replace('privy:', '');
+    const cleanId = 'did:cmmkfe47g012f0djolmvhx6x3'; // Your UID
 
     const { data, error } = await supabase
-      .from('business_profiles')
+      .from('profiles')
       .select('id, legal_name, trading_name, business_type, suburb')
       .eq('user_id', cleanId);
 
@@ -39,6 +38,7 @@ export default function SelectCompany() {
       toast.error("Failed to load companies");
     } else {
       setBusinesses(data || []);
+      toast.success(`Loaded ${data?.length || 0} companies`);
     }
     setLoading(false);
   };
@@ -64,7 +64,7 @@ export default function SelectCompany() {
       </div>
 
       {businesses.length === 0 && !loading && (
-        <p>No companies found. Create one in onboarding.</p>
+        <p>No companies found for your UID in the "profiles" table. Create one in onboarding.</p>
       )}
 
       <button onClick={loadBusinesses} className="mt-6 bg-green-600 text-white px-6 py-2">Refresh List</button>
