@@ -1,37 +1,25 @@
-'use client';
+export const dynamic = 'force-dynamic';
 
-import { useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 
-export default function MyBusinessProfile() {
-  const searchParams = useSearchParams();
-  const companyId = searchParams.get('companyId');
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+export default async function MyBusinessProfile({ searchParams }: { searchParams: { companyId?: string } }) {
+  const companyId = searchParams.companyId;
 
-  useEffect(() => {
-    const loadData = async () => {
-      let row = null;
+  let data = null;
 
-      if (companyId) {
-        const { data: r } = await supabase.from('profiles').select('*').eq('id', companyId).single();
-        row = r;
-      }
+  if (companyId) {
+    const { data: row } = await supabase.from('profiles').select('*').eq('id', companyId).single();
+    data = row;
+  }
 
-      if (!row) {
-        const { data: r } = await supabase.from('profiles').select('*').limit(1).single();
-        row = r;
-      }
+  if (!data) {
+    const { data: row } = await supabase.from('profiles').select('*').limit(1).single();
+    data = row;
+  }
 
-      setData(row || { legal_name: 'No data found' });
-      setLoading(false);
-    };
-
-    loadData();
-  }, [companyId]);
-
-  if (loading) return <div className="p-12">Loading company data...</div>;
+  if (!data) {
+    data = { legal_name: 'No data found' };
+  }
 
   return (
     <div className="pl-0 pr-12 py-12 max-w-screen-2xl mx-auto">
@@ -51,7 +39,7 @@ export default function MyBusinessProfile() {
       </div>
 
       <button className="mt-8 bg-green-600 text-white px-10 py-3 rounded-2xl text-lg font-medium">
-        Get Verified - R49 with Paystack
+        Get Verified - R69 with Paystack
       </button>
     </div>
   );
