@@ -7,13 +7,15 @@ export default async function MyBusinessProfile({ searchParams }: { searchParams
 
   let data = null;
 
+  // Try to load the selected company
   if (companyId) {
     const { data: row } = await supabase.from('profiles').select('*').eq('id', companyId).single();
     data = row;
   }
 
+  // Fallback to first record if no companyId or not found
   if (!data) {
-    const { data: row } = await supabase.from('profiles').select('*').eq('user_id', 'did:cmmkfe47g012f0djolmvhx6x3').limit(1).single();
+    const { data: row } = await supabase.from('profiles').select('*').limit(1).single();
     data = row;
   }
 
