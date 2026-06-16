@@ -117,13 +117,34 @@ export default function ContainersPage() {
       return 0;
     });
 
-  // Handle column sorting
   const handleSort = (field: 'container_id' | 'name' | 'status') => {
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
     } else {
       setSortField(field);
       setSortDirection('asc');
+    }
+  };
+
+  // Toggle container status (Active / Inactive)
+  const toggleContainerStatus = async (container: Container) => {
+    const newStatus = container.status === 'active' ? 'inactive' : 'active';
+
+    const { error } = await supabase
+      .from('containers')
+      .update({ status: newStatus })
+      .eq('id', container.id);
+
+    if (error) {
+      toast.error('Failed to update status');
+    } else {
+      toast.success(`Container marked as ${newStatus}`);
+      // Optimistic UI update
+      setContainers((prev) =>
+        prev.map((c) =>
+          c.id === container.id ? { ...c, status: newStatus } : c
+        )
+      );
     }
   };
 
@@ -394,16 +415,25 @@ export default function ContainersPage() {
                     {container.current_lead_name || '—'}
                   </td>
                   <td className="px-6 py-4">
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                      container.status === 'active' 
-                        ? 'bg-emerald-100 text-emerald-700' 
-                        : 'bg-gray-100 text-gray-600'
-                    }`}>
-                      {container.status}
-                    </span>
+                    {/* Status Toggle Switch */}
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={container.status === 'active'}
+                        onChange={() => toggleContainerStatus(container)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[#00b4d8] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                      <span className="ml-3 text-sm font-medium text-neutral-600">
+                        {container.status === 'active' ? 'Active' : 'Inactive'}
+                      </span>
+                    </label>
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <button onClick={() => openEditModal(container)} className="p-2 hover:bg-neutral-100 rounded-xl">
+                    <button 
+                      onClick={() => openEditModal(container)} 
+                      className="p-2 hover:bg-neutral-100 rounded-xl"
+                    >
                       <Edit2 size={18} />
                     </button>
                   </td>
