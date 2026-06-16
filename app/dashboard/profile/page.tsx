@@ -45,6 +45,8 @@ function ProfileContent() {
       account_number: form.account_number,
       business_type: form.business_type,
       director_id_number: form.director_id_number,
+      industry: form.industry,
+      short_description: form.short_description,
     }).eq('id', Number(companyId));
 
     if (error) toast.error('Failed to save changes');
@@ -99,7 +101,6 @@ function ProfileContent() {
       if (PaystackPop) {
         clearInterval(interval);
 
-        // Define callbacks as regular named functions (fixes the error)
         function onCloseCallback() {
           setVerifying(false);
           toast.error('Payment cancelled');
@@ -172,6 +173,25 @@ function ProfileContent() {
     verificationStatus === 'pending' ? 'bg-yellow-100 text-yellow-700' :
     'bg-gray-100 text-gray-600';
 
+  // Industry options (same style as onboarding)
+  const industryOptions = [
+    "Agriculture & Farming",
+    "Food Processing & Manufacturing",
+    "Food Distribution & Wholesale",
+    "Retail & FMCG",
+    "Logistics & Transportation",
+    "Packaging & Materials",
+    "Technology & Software",
+    "Financial Services",
+    "Education & Training",
+    "Healthcare & Pharmaceuticals",
+    "Renewable Energy",
+    "Manufacturing",
+    "Construction & Infrastructure",
+    "Hospitality & Tourism",
+    "Other"
+  ];
+
   return (
     <div className="pl-0 pr-12 py-12 max-w-screen-2xl mx-auto">
       <div className="flex items-center justify-between mb-6">
@@ -205,6 +225,37 @@ function ProfileContent() {
             <label className="text-sm font-medium">Registration Number</label>
             <input className="input w-full mt-1" value={form.registration_number || ''} onChange={(e) => handleInputChange('registration_number', e.target.value)} />
           </div>
+
+          {/* NEW: Industry Dropdown */}
+          <div>
+            <label className="text-sm font-medium">Industry / Sector</label>
+            <select
+              className="input w-full mt-1"
+              value={form.industry || ''}
+              onChange={(e) => handleInputChange('industry', e.target.value)}
+            >
+              <option value="">Select Industry</option>
+              {industryOptions.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* NEW: Short Description */}
+          <div className="md:col-span-2">
+            <label className="text-sm font-medium">Short Description (max 120 characters)</label>
+            <textarea
+              className="input w-full mt-1 min-h-[90px]"
+              value={form.short_description || ''}
+              onChange={(e) => handleInputChange('short_description', e.target.value)}
+              maxLength={120}
+              placeholder="Briefly describe what your company does..."
+            />
+            <div className="text-xs text-neutral-500 text-right mt-1">
+              {form.short_description?.length || 0}/120
+            </div>
+          </div>
+
           <div>
             <label className="text-sm font-medium">Director ID Number (for VerifyNow)</label>
             <input className="input w-full mt-1" value={form.director_id_number || ''} onChange={(e) => handleInputChange('director_id_number', e.target.value)} placeholder="e.g. 8001015009087" />
