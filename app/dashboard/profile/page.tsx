@@ -5,37 +5,26 @@ export const dynamic = 'force-dynamic';
 import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { mintVerificationSBT } from '@/lib/onchain';
 import toast from 'react-hot-toast';
+
+const VERIFYNOW_API_KEY = "vn_live_5794ec10e11c478a0d42e41f021881120fbb8085f677a0c35709e73a9a03cce5";
 
 function ProfileContent() {
   const searchParams = useSearchParams();
   const companyId = searchParams.get('companyId');
 
   const [form, setForm] = useState<any>({});
-  const [originalData, setOriginalData] = useState<any>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [verifying, setVerifying] = useState(false);
 
-  // Load company data
   useEffect(() => {
     const loadData = async () => {
       if (!companyId) return;
-
-      const { data: row } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', Number(companyId))
-        .single();
-
-      if (row) {
-        setForm(row);
-        setOriginalData(row);
-      }
+      const { data: row } = await supabase.from('profiles').select('*').eq('id', Number(companyId)).single();
+      if (row) setForm(row);
       setLoading(false);
     };
-
     loadData();
   }, [companyId]);
 
@@ -43,37 +32,61 @@ function ProfileContent() {
     setForm((prev: any) => ({ ...prev, [field]: value }));
   };
 
-  // Save changes to Supabase
   const saveProfile = async () => {
     if (!companyId) return;
-
     setSaving(true);
-    const { error } = await supabase
-      .from('profiles')
-      .update({
-        legal_name: form.legal_name,
-        trading_name: form.trading_name,
-        email: form.email,
-        registration_number: form.registration_number,
-        street: form.street,
-        city: form.city,
-        province: form.province,
-        bank_name: form.bank_name,
-        account_number: form.account_number,
-        business_type: form.business_type,
-      })
-      .eq('id', Number(companyId));
+    const { error } = await supabase.from('profiles').update({
+      legal_name: form.legal_name,
+      trading_name: form.trading_name,
+      email: form.email,
+      registration_number: form.registration_number,
+      street: form.street,
+      city: form.city,
+      province: form.province,
+      bank_name: form.bank_name,
+      account_number: form.account_number,
+      business_type: form.business_type,
+    }).eq('id', Number(companyId));
 
-    if (error) {
-      toast.error('Failed to save changes');
-    } else {
-      toast.success('Profile saved successfully!');
-      setOriginalData(form);
-    }
+    if (error) toast.error('Failed to save changes');
+    else toast.success('Profile saved successfully!');
     setSaving(false);
   };
 
-  // ==================== IMPROVED PAYSTACK HANDLER ====================
+  // ==================== VERIFY WITH VERIFY NOW ====================
+  const verifyWithVerifyNow = async (regNumber: string) => {
+    try {
+      const response = await fetch('https://www.verifynow.co.za/api/external/verify', {
+        method: 'POST',
+        headers: {
+          'x-api-key': VERIFYNOW_API_KEY,
+          'Content-Type': 'application/json',
+          'Idempotency-Key': crypto.randomUUID(),
+        },
+        body: JSON.stringify({
+          reportType: "company_verification",
+          registrationNumber: regNumber,
+          mode: "production"
+        }),
+      });
+
+      const result = await response.json();
+
+      await supabase.from('profiles').update({
+        verification_data: result,
+        verification_status: 'verified',
+        verified_at: new Date().toISOString(),
+      }).eq('id', Number(companyId));
+
+      return result;
+    } catch (error) {
+      console.error('VerifyNow error:', error);
+      throw error;
+    }
+  };
+  // ==================== END VERIFY NOW ====================
+
+  // ==================== PAYSTACK + AUTO VERIFY NOW (R69) ====================
   const handleGetVerified = () => {
     if (!companyId || !form.email) {
       toast.error('Missing company ID or email');
@@ -82,93 +95,73 @@ function ProfileContent() {
 
     setVerifying(true);
 
-    let attempts = 0;
-    const maxAttempts = 50;
+    const PaystackPop = (window as any).PaystackPop;
 
-    const interval = setInterval(() => {
-      const PaystackPop = (window as any).PaystackPop;
-      attempts++;
+    if (!PaystackPop) {
+      toast.error('Paystack is still loading. Please refresh and try again.');
+      setVerifying(false);
+      return;
+    }
 
-      if (PaystackPop) {
-        clearInterval(interval);
+    const handler = PaystackPop.setup({
+      key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY!,
+      email: form.email,
+      amount: 6900, // R69 in cents
+      currency: 'ZAR',
+      ref: `verify_${companyId}_${Date.now()}`,
+      metadata: {
+        company_id: companyId,
+        company_name: form.legal_name,
+      },
+      onClose: () => {
+        setVerifying(false);
+        toast.error('Payment cancelled');
+      },
+      callback: async function (response: any) {
+        console.log('Paystack success:', response);
 
         try {
-          const handler = PaystackPop.setup({
-            key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY!,
-            email: form.email,
-            amount: 4900,
-            currency: 'ZAR',
-            ref: `verify_${companyId}_${Date.now()}`,
-            metadata: {
-              company_id: companyId,
-              company_name: form.legal_name || 'Unknown',
-            },
-            onClose: function onCloseCallback() {
-              setVerifying(false);
-              toast.error('Payment cancelled');
-            },
-            callback: function paymentCallback(response: any) {
-              console.log('Paystack success:', response);
+          await supabase.from('profiles').update({
+            verification_status: 'verified',
+            verified_at: new Date().toISOString(),
+          }).eq('id', Number(companyId));
 
-              (async () => {
-                try {
-                  const { error } = await supabase
-                    .from('profiles')
-                    .update({
-                      verification_status: 'verified',
-                      verified_at: new Date().toISOString(),
-                    })
-                    .eq('id', Number(companyId));
+          if (form.registration_number) {
+            toast.loading('Verifying company with VerifyNow...', { id: 'verifynow' });
+            await verifyWithVerifyNow(form.registration_number);
+            toast.success('Company verified with VerifyNow!', { id: 'verifynow' });
+          } else {
+            toast.success('Payment successful!');
+          }
 
-                  if (error) throw error;
-
-                  toast.success('🎉 Payment successful! Company verified.');
-                  setTimeout(() => window.location.reload(), 1200);
-                } catch (err: any) {
-                  console.error(err);
-                  toast.error('Payment succeeded but update failed.');
-                } finally {
-                  setVerifying(false);
-                }
-              })();
-            },
-          });
-
-          handler.openIframe();
-        } catch (err: any) {
-          console.error('Paystack setup error:', err);
-          toast.error(`Paystack Error: ${err.message || 'Could not open popup'}`);
+          setTimeout(() => window.location.reload(), 1500);
+        } catch (err) {
+          console.error(err);
+          toast.error('Payment succeeded but verification failed.');
+        } finally {
           setVerifying(false);
         }
-      } else if (attempts >= maxAttempts) {
-        clearInterval(interval);
-        setVerifying(false);
-        toast.error('Paystack failed to load. Please refresh and try again.');
-      }
-    }, 100);
+      },
+    });
+
+    handler.openIframe();
   };
-  // ==================== END OF PAYSTACK HANDLER ====================
+  // ==================== END PAYSTACK + VERIFY NOW ====================
 
   if (loading) return <div className="p-12">Loading company data...</div>;
 
   const verificationStatus = form.verification_status || 'unverified';
   const badgeColor =
-    verificationStatus === 'verified'
-      ? 'bg-emerald-100 text-emerald-700'
-      : verificationStatus === 'pending'
-      ? 'bg-yellow-100 text-yellow-700'
-      : 'bg-gray-100 text-gray-600';
+    verificationStatus === 'verified' ? 'bg-emerald-100 text-emerald-700' :
+    verificationStatus === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+    'bg-gray-100 text-gray-600';
 
   return (
     <div className="pl-0 pr-12 py-12 max-w-screen-2xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="font-black text-5xl tracking-tight text-[#00b4d8]">
-            {form.legal_name}
-          </h1>
-          <p className="text-xl text-neutral-600 mt-1">
-            Selected Company ID: {companyId}
-          </p>
+          <h1 className="font-black text-5xl tracking-tight text-[#00b4d8]">{form.legal_name}</h1>
+          <p className="text-xl text-neutral-600 mt-1">Selected Company ID: {companyId}</p>
         </div>
 
         <div className={`px-4 py-1.5 rounded-full text-sm font-semibold ${badgeColor}`}>
@@ -232,7 +225,7 @@ function ProfileContent() {
             disabled={verifying}
             className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-2xl font-semibold flex items-center gap-2 disabled:opacity-70"
           >
-            {verifying ? 'Processing...' : 'Get Verified - R49 with Paystack'}
+            {verifying ? 'Processing...' : 'Get Verified - R69 with Paystack + VerifyNow'}
           </button>
         </div>
       </div>
