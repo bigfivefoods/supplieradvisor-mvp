@@ -1,8 +1,8 @@
+'use client';
+
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
 export const revalidate = 0;
-
-'use client';
 
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -74,7 +74,7 @@ export default function MyBusinessProfile() {
       </div>
 
       <button className="mt-8 bg-green-600 text-white px-10 py-3 rounded-2xl text-lg font-medium">
-        Get Verified - R49 with Paystack
+        Get Verified - R69 with Paystack
       </button>
     </div>
   );
