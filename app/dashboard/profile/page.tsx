@@ -85,7 +85,7 @@ function ProfileContent() {
   };
   // ==================== END VERIFY NOW ====================
 
-  // ==================== FIXED PAYSTACK HANDLER ====================
+  // Paystack + Auto VerifyNow (R69)
   const handleGetVerified = () => {
     if (!companyId || !form.email) {
       toast.error('Missing company ID or email');
@@ -94,79 +94,79 @@ function ProfileContent() {
 
     setVerifying(true);
 
-    let attempts = 0;
-    const maxAttempts = 50;
+    const PaystackPop = (window as any).PaystackPop;
+    if (!PaystackPop) {
+      toast.error('Paystack is still loading. Please refresh and try again.');
+      setVerifying(false);
+      return;
+    }
 
-    const interval = setInterval(() => {
-      const PaystackPop = (window as any).PaystackPop;
-      attempts++;
-
-      if (PaystackPop) {
-        clearInterval(interval);
-
-        // Define callbacks as regular functions (this fixes the error)
-        function onCloseCallback() {
-          setVerifying(false);
-          toast.error('Payment cancelled');
-        }
-
-        function paymentCallback(response: any) {
-          console.log('Paystack success:', response);
-
-          (async () => {
-            try {
-              await supabase.from('profiles').update({
-                verification_status: 'verified',
-                verified_at: new Date().toISOString(),
-              }).eq('id', Number(companyId));
-
-              if (form.registration_number) {
-                toast.loading('Verifying with VerifyNow...', { id: 'verifynow' });
-                await verifyWithVerifyNow(form.registration_number);
-                toast.success('Verified with VerifyNow!', { id: 'verifynow' });
-              } else {
-                toast.success('Payment successful!');
-              }
-
-              setTimeout(() => window.location.reload(), 1500);
-            } catch (err) {
-              console.error(err);
-              toast.error('Payment succeeded but verification failed.');
-            } finally {
-              setVerifying(false);
-            }
-          })();
-        }
+    const handler = PaystackPop.setup({
+      key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY!,
+      email: form.email,
+      amount: 6900, // R69
+      currency: 'ZAR',
+      ref: `verify_${companyId}_${Date.now()}`,
+      metadata: {
+        company_id: companyId,
+        company_name: form.legal_name,
+      },
+      onClose: () => {
+        setVerifying(false);
+        toast.error('Payment cancelled');
+      },
+      callback: async function (response: any) {
+        console.log('Paystack success:', response);
 
         try {
-          const handler = PaystackPop.setup({
-            key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY!,
-            email: form.email,
-            amount: 6900, // R69
-            currency: 'ZAR',
-            ref: `verify_${companyId}_${Date.now()}`,
-            metadata: {
-              company_id: companyId,
-              company_name: form.legal_name,
-            },
-            onClose: onCloseCallback,
-            callback: paymentCallback,
-          });
+          await supabase.from('profiles').update({
+            verification_status: 'verified',
+            verified_at: new Date().toISOString(),
+          }).eq('id', Number(companyId));
 
-          handler.openIframe();
-        } catch (err: any) {
-          console.error('Paystack setup error:', err);
-          toast.error(`Paystack Error: ${err.message}`);
+          if (form.registration_number) {
+            toast.loading('Verifying with VerifyNow...', { id: 'verifynow' });
+            await verifyWithVerifyNow(form.registration_number);
+            toast.success('Verified with VerifyNow!', { id: 'verifynow' });
+          } else {
+            toast.success('Payment successful!');
+          }
+
+          setTimeout(() => window.location.reload(), 1500);
+        } catch (err) {
+          console.error(err);
+          toast.error('Payment succeeded but verification failed.');
+        } finally {
           setVerifying(false);
         }
-      } else if (attempts >= maxAttempts) {
-        clearInterval(interval);
-        setVerifying(false);
-        toast.error('Paystack failed to load. Please refresh the page.');
-      }
-    }, 100);
+      },
+    });
+
+    handler.openIframe();
   };
-  // ==================== END PAYSTACK HANDLER ====================
+
+  // ==================== TEST VERIFY NOW ONLY (No Payment) ====================
+  const handleTestVerifyNow = async () => {
+    if (!form.registration_number) {
+      toast.error('No registration number found to verify');
+      return;
+    }
+
+    setVerifying(true);
+    toast.loading('Testing VerifyNow...', { id: 'test-verifynow' });
+
+    try {
+      await verifyWithVerifyNow(form.registration_number);
+      toast.success('VerifyNow test successful! Badge should now show Verified.', { id: 'test-verifynow' });
+      setTimeout(() => window.location.reload(), 1500);
+    } catch (err) {
+      console.error(err);
+      toast.error('VerifyNow test failed. Check console for details.', { id: 'test-verifynow' });
+    } finally {
+      setVerifying(false);
+    }
+  };
+  // ==================== END TEST VERIFY NOW ====================
 
   if (loading) return <div className="p-12">Loading company data...</div>;
 
@@ -235,17 +235,27 @@ function ProfileContent() {
           </div>
         </div>
 
-        <div className="flex justify-end gap-4 pt-4">
+        <div className="flex flex-col sm:flex-row justify-end gap-4 pt-4">
           <button onClick={saveProfile} disabled={saving} className="btn-primary px-8 py-3">
             {saving ? 'Saving...' : 'Save Changes'}
           </button>
 
+          {/* Main button: Pay + Auto VerifyNow */}
           <button
             onClick={handleGetVerified}
             disabled={verifying}
             className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-2xl font-semibold flex items-center gap-2 disabled:opacity-70"
           >
             {verifying ? 'Processing...' : 'Get Verified - R69 with Paystack + VerifyNow'}
+          </button>
+
+          {/* Test button - No payment needed */}
+          <button
+            onClick={handleTestVerifyNow}
+            disabled={verifying}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-2xl font-semibold flex items-center gap-2 disabled:opacity-70"
+          >
+            {verifying ? 'Processing...' : 'Test VerifyNow Only (No Payment)'}
           </button>
         </div>
       </div>
