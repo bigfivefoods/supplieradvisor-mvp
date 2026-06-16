@@ -13,6 +13,17 @@ import {
 const modules = [
   { id: 'home', name: 'Home', icon: Home, href: '/dashboard', sub: [] },
   { id: 'profile', name: 'Profile', icon: User, href: '/dashboard/profile', sub: [] },
+  
+  // ==================== CONTAINERS (NEW) ====================
+  { 
+    id: 'containers', 
+    name: 'Containers', 
+    icon: Box, 
+    href: '/dashboard/containers', 
+    sub: [] 
+  },
+  // ========================================================
+
   { id: 'suppliers', name: 'Suppliers', icon: Search, href: '/dashboard/suppliers', sub: [
     { name: 'Search Suppliers', href: '/dashboard/suppliers/search' },
     { name: 'Onboard Suppliers', href: '/dashboard/suppliers/onboard' },
@@ -143,7 +154,7 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {/* Navigation - now expands vertically when modules are opened */}
+      {/* Navigation */}
       <nav className="flex-1 p-4 overflow-y-auto">
         {modules.map((mod) => {
           const isActive = mod.id === 'home' 
