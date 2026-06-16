@@ -74,15 +74,21 @@ export default function LandingPage() {
             <button onClick={() => scrollToSection('for-society')} className="hover:text-[#00b4d8] transition-colors">For Society</button>
             <button onClick={() => scrollToSection('for-humanity')} className="hover:text-[#00b4d8] transition-colors">For Humanity</button>
             
-            {/* RETURNING CUSTOMER LOGIN */}
+            {/* LOG IN BUTTON - FIXED */}
             <button
-              onClick={login}
+              onClick={() => {
+                if (user) {
+                  router.push('/dashboard/select-company');
+                } else {
+                  login();
+                }
+              }}
               className="px-6 md:px-8 py-3.5 border border-[#00b4d8] text-[#00b4d8] hover:bg-[#00b4d8]/5 rounded-3xl font-semibold transition-all flex items-center gap-2 whitespace-nowrap"
             >
               Log in
             </button>
 
-            {/* JOIN BETA - NOW GOES TO ONBOARDING */}
+            {/* JOIN BETA - Goes to Onboarding */}
             <button
               onClick={() => router.push('/onboarding')}
               className="px-6 md:px-8 py-3.5 bg-[#00b4d8] hover:bg-[#0099b8] text-white rounded-3xl font-semibold transition-all flex items-center gap-2 whitespace-nowrap"
