@@ -44,6 +44,7 @@ function ProfileContent() {
       bank_name: form.bank_name,
       account_number: form.account_number,
       business_type: form.business_type,
+      director_id_number: form.director_id_number, // New field
     }).eq('id', Number(companyId));
 
     if (error) toast.error('Failed to save changes');
@@ -51,21 +52,22 @@ function ProfileContent() {
     setSaving(false);
   };
 
-  // Call our secure API route for VerifyNow
-  const callVerifyNow = async (regNumber: string, reportType = "consumer_trace") => {
+  // Call VerifyNow via our secure API route
+  const callVerifyNow = async (idNumber: string) => {
     const response = await fetch('/api/verify-now', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        reportType,
-        registrationNumber: regNumber,
+        reportType: "consumer_trace", // Most reliable for ID-based verification
+        idNumber: idNumber,
         mode: "production"
       }),
     });
 
     const result = await response.json();
+    console.log("VerifyNow Response:", result);
 
-    if (!response.ok) {
+    if (!response.ok || result.error) {
       throw new Error(result.error || 'VerifyNow verification failed');
     }
 
@@ -97,7 +99,7 @@ function ProfileContent() {
     const handler = PaystackPop.setup({
       key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY!,
       email: form.email,
-      amount: 6900,
+      amount: 6900, // R69
       currency: 'ZAR',
       ref: `verify_${companyId}_${Date.now()}`,
       metadata: {
@@ -117,9 +119,11 @@ function ProfileContent() {
             verified_at: new Date().toISOString(),
           }).eq('id', Number(companyId));
 
-          if (form.registration_number) {
+          // Prefer Director ID Number for VerifyNow
+          const idToVerify = form.director_id_number || form.registration_number;
+          if (idToVerify) {
             toast.loading('Verifying with VerifyNow...', { id: 'verifynow' });
-            await callVerifyNow(form.registration_number);
+            await callVerifyNow(idToVerify);
             toast.success('Verified with VerifyNow!', { id: 'verifynow' });
           } else {
             toast.success('Payment successful!');
@@ -128,7 +132,7 @@ function ProfileContent() {
           setTimeout(() => window.location.reload(), 1500);
         } catch (err: any) {
           console.error(err);
-          toast.error(`Payment succeeded but verification failed: ${err.message}`);
+          toast.error(`Verification failed: ${err.message}`);
         } finally {
           setVerifying(false);
         }
@@ -138,10 +142,11 @@ function ProfileContent() {
     handler.openIframe();
   };
 
-  // Test VerifyNow only (no payment)
+  // Test VerifyNow Only (No Payment) - Best for testing
   const handleTestVerifyNow = async () => {
-    if (!form.registration_number) {
-      toast.error('No registration number to verify');
+    const idToVerify = form.director_id_number || form.registration_number;
+    if (!idToVerify) {
+      toast.error('Please enter a Director ID Number or Registration Number to test');
       return;
     }
 
@@ -149,8 +154,8 @@ function ProfileContent() {
     toast.loading('Testing VerifyNow...', { id: 'test-verifynow' });
 
     try {
-      await callVerifyNow(form.registration_number);
-      toast.success('VerifyNow test successful!', { id: 'test-verifynow' });
+      await callVerifyNow(idToVerify);
+      toast.success('VerifyNow test successful! Badge updated.', { id: 'test-verifynow' });
       setTimeout(() => window.location.reload(), 1500);
     } catch (err: any) {
       console.error(err);
@@ -200,6 +205,10 @@ function ProfileContent() {
           <div>
             <label className="text-sm font-medium">Registration Number</label>
             <input className="input w-full mt-1" value={form.registration_number || ''} onChange={(e) => handleInputChange('registration_number', e.target.value)} />
+          </div>
+          <div>
+            <label className="text-sm font-medium">Director ID Number (for VerifyNow)</label>
+            <input className="input w-full mt-1" value={form.director_id_number || ''} onChange={(e) => handleInputChange('director_id_number', e.target.value)} placeholder="e.g. 8001015009087" />
           </div>
           <div>
             <label className="text-sm font-medium">Street</label>
