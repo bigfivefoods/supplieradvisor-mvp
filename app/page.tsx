@@ -16,12 +16,6 @@ export default function LandingPage() {
   // State for verified companies
   const [verifiedCompanies, setVerifiedCompanies] = useState<any[]>([]);
 
-  // REMOVED: Automatic redirect for logged-in users
-  // Users can now browse the homepage even when logged in.
-
-  // REMOVED: Multi-company auto-redirect logic for returning users
-  // They can now stay on the homepage and choose when to go to their dashboard.
-
   // Fetch verified companies for the new section
   useEffect(() => {
     const fetchVerifiedCompanies = async () => {
@@ -80,22 +74,17 @@ export default function LandingPage() {
             <button onClick={() => scrollToSection('for-society')} className="hover:text-[#00b4d8] transition-colors">For Society</button>
             <button onClick={() => scrollToSection('for-humanity')} className="hover:text-[#00b4d8] transition-colors">For Humanity</button>
             
-            {/* RETURNING CUSTOMER LOGIN - UPDATED */}
+            {/* RETURNING CUSTOMER LOGIN */}
             <button
-              onClick={() => {
-                if (user) {
-                  router.push('/dashboard/select-company');
-                } else {
-                  login();
-                }
-              }}
+              onClick={login}
               className="px-6 md:px-8 py-3.5 border border-[#00b4d8] text-[#00b4d8] hover:bg-[#00b4d8]/5 rounded-3xl font-semibold transition-all flex items-center gap-2 whitespace-nowrap"
             >
               Log in
             </button>
 
+            {/* JOIN BETA - NOW GOES TO ONBOARDING */}
             <button
-              onClick={login}
+              onClick={() => router.push('/onboarding')}
               className="px-6 md:px-8 py-3.5 bg-[#00b4d8] hover:bg-[#0099b8] text-white rounded-3xl font-semibold transition-all flex items-center gap-2 whitespace-nowrap"
             >
               Join the Beta <ArrowRight size={18} />
@@ -174,7 +163,7 @@ export default function LandingPage() {
         </div>
       </div>
 
-      {/* ==================== NEW: VERIFIED COMPANIES SECTION ==================== */}
+      {/* ==================== VERIFIED COMPANIES SECTION ==================== */}
       <div className="bg-white py-16 px-6 md:px-12 border-t border-slate-100">
         <div className="max-w-screen-2xl mx-auto">
           <div className="text-center mb-12">
