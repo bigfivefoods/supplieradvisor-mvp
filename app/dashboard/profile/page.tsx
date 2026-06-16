@@ -16,15 +16,52 @@ function ProfileContent() {
   const [saving, setSaving] = useState(false);
   const [verifying, setVerifying] = useState(false);
 
+  // Lookup data
+  const [industries, setIndustries] = useState<any[]>([]);
+  const [countries, setCountries] = useState<any[]>([]);
+  const [provinces, setProvinces] = useState<any[]>([]);
+
+  // Load company + lookup data
   useEffect(() => {
     const loadData = async () => {
       if (!companyId) return;
+
       const { data: row } = await supabase.from('profiles').select('*').eq('id', Number(companyId)).single();
       if (row) setForm(row);
+
+      const [indRes, countryRes] = await Promise.all([
+        supabase.from('industries').select('id, name, parent_id').eq('is_active', true).order('name'),
+        supabase.from('countries').select('id, name, flag').order('name')
+      ]);
+
+      if (indRes.data) setIndustries(indRes.data);
+      if (countryRes.data) setCountries(countryRes.data);
+
       setLoading(false);
     };
+
     loadData();
   }, [companyId]);
+
+  // Load provinces when country changes
+  useEffect(() => {
+    const loadProvinces = async () => {
+      if (!form.country) {
+        setProvinces([]);
+        return;
+      }
+
+      const { data } = await supabase
+        .from('provinces')
+        .select('id, name')
+        .eq('country_id', form.country)
+        .order('name');
+
+      setProvinces(data || []);
+    };
+
+    loadProvinces();
+  }, [form.country]);
 
   const handleInputChange = (field: string, value: string) => {
     setForm((prev: any) => ({ ...prev, [field]: value }));
@@ -42,22 +79,17 @@ function ProfileContent() {
       registration_number: form.registration_number,
       contact_number: form.contact_number,
       business_type: form.business_type,
-      logo_url: form.logo_url,
 
-      // Location
-      planet: form.planet,
       continent: form.continent,
       country: form.country,
       province: form.province,
-      street: form.street,
       city: form.city,
+      street: form.street,
       postal_code: form.postal_code,
 
-      // New fields
       industry: form.industry,
       short_description: form.short_description,
 
-      // Financial
       tax_number: form.tax_number,
       vat_number: form.vat_number,
       export_license: form.export_license,
@@ -68,19 +100,15 @@ function ProfileContent() {
       iban: form.iban,
       swift: form.swift,
 
-      // Verification
       director_id_number: form.director_id_number,
     }).eq('id', Number(companyId));
 
-    if (error) {
-      toast.error('Failed to save changes');
-    } else {
-      toast.success('Profile saved successfully!');
-    }
+    if (error) toast.error('Failed to save changes');
+    else toast.success('Profile saved successfully!');
     setSaving(false);
   };
 
-  // ==================== VERIFY NOW + PAYSTACK (kept exactly as working) ====================
+  // ==================== VERIFY NOW ====================
   const callVerifyNow = async (idNumber: string) => {
     const response = await fetch('/api/verify-now', {
       method: 'POST',
@@ -106,6 +134,7 @@ function ProfileContent() {
     return result;
   };
 
+  // ==================== PAYSTACK + VERIFY ====================
   const handleGetVerified = () => {
     if (!companyId || !form.email) {
       toast.error('Missing company ID or email');
@@ -180,7 +209,6 @@ function ProfileContent() {
       }
     }, 100);
   };
-  // ==================== END VERIFY NOW + PAYSTACK ====================
 
   if (loading) return <div className="p-12">Loading company data...</div>;
 
@@ -190,20 +218,12 @@ function ProfileContent() {
     verificationStatus === 'pending' ? 'bg-yellow-100 text-yellow-700' :
     'bg-gray-100 text-gray-600';
 
-  const industryOptions = [
-    "Agriculture & Farming", "Food & Beverage", "Food Processing & Manufacturing",
-    "Retail & FMCG", "Logistics & Transportation", "Manufacturing", "Construction & Infrastructure",
-    "Education & Training", "Healthcare & Pharmaceuticals", "Information Technology",
-    "Financial Services", "Government & Public Administration", "Wholesale Trade",
-    "Sustainability & Environmental Services", "Other"
-  ];
-
   return (
     <div className="pl-0 pr-12 py-12 max-w-screen-2xl mx-auto">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="font-black text-5xl tracking-tight text-[#00b4d8]">{form.legal_name}</h1>
-          <p className="text-xl text-neutral-600 mt-1">Company Profile • Editable</p>
+          <p className="text-xl text-neutral-600 mt-1">Company Profile</p>
         </div>
         <div className={`px-5 py-2 rounded-3xl text-sm font-semibold ${badgeColor}`}>
           {verificationStatus === 'verified' && '✅ Verified'}
@@ -214,7 +234,7 @@ function ProfileContent() {
 
       <div className="bg-white rounded-3xl p-8 space-y-10">
 
-        {/* SECTION 1: Company Basics */}
+        {/* 1. Company Basics */}
         <div>
           <h2 className="text-2xl font-bold mb-6">1. Company Basics</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -249,27 +269,33 @@ function ProfileContent() {
           </div>
         </div>
 
-        {/* SECTION 2: Location */}
+        {/* 2. Location */}
         <div>
           <h2 className="text-2xl font-bold mb-6">2. Location</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="text-sm font-medium">Continent</label>
-              <input className="input w-full mt-1" value={form.continent || ''} onChange={e => handleInputChange('continent', e.target.value)} />
-            </div>
-            <div>
               <label className="text-sm font-medium">Country</label>
-              <input className="input w-full mt-1" value={form.country || ''} onChange={e => handleInputChange('country', e.target.value)} />
+              <select className="input w-full mt-1" value={form.country || ''} onChange={e => handleInputChange('country', e.target.value)}>
+                <option value="">Select Country</option>
+                {countries.map(c => (
+                  <option key={c.id} value={c.name}>{c.flag} {c.name}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="text-sm font-medium">Province / State</label>
-              <input className="input w-full mt-1" value={form.province || ''} onChange={e => handleInputChange('province', e.target.value)} />
+              <select className="input w-full mt-1" value={form.province || ''} onChange={e => handleInputChange('province', e.target.value)} disabled={!form.country}>
+                <option value="">Select Province</option>
+                {provinces.map(p => (
+                  <option key={p.id} value={p.name}>{p.name}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="text-sm font-medium">City</label>
               <input className="input w-full mt-1" value={form.city || ''} onChange={e => handleInputChange('city', e.target.value)} />
             </div>
-            <div className="md:col-span-2">
+            <div>
               <label className="text-sm font-medium">Street Address</label>
               <input className="input w-full mt-1" value={form.street || ''} onChange={e => handleInputChange('street', e.target.value)} />
             </div>
@@ -280,28 +306,22 @@ function ProfileContent() {
           </div>
         </div>
 
-        {/* SECTION 3: Industry & Description */}
+        {/* 3. Industry & Description */}
         <div>
           <h2 className="text-2xl font-bold mb-6">3. Industry & Description</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="text-sm font-medium">Industry / Sector</label>
+              <label className="text-sm font-medium">Industry</label>
               <select className="input w-full mt-1" value={form.industry || ''} onChange={e => handleInputChange('industry', e.target.value)}>
                 <option value="">Select Industry</option>
-                {industryOptions.map(opt => (
-                  <option key={opt} value={opt}>{opt}</option>
+                {industries.filter(i => !i.parent_id).map(ind => (
+                  <option key={ind.id} value={ind.name}>{ind.name}</option>
                 ))}
               </select>
             </div>
             <div className="md:col-span-2">
               <label className="text-sm font-medium">Short Description (max 120 characters)</label>
-              <textarea
-                className="input w-full mt-1 min-h-[90px]"
-                value={form.short_description || ''}
-                onChange={e => handleInputChange('short_description', e.target.value)}
-                maxLength={120}
-                placeholder="Briefly describe what your company does..."
-              />
+              <textarea className="input w-full mt-1 min-h-[90px]" value={form.short_description || ''} onChange={e => handleInputChange('short_description', e.target.value)} maxLength={120} />
               <div className="text-xs text-neutral-500 text-right mt-1">
                 {form.short_description?.length || 0}/120
               </div>
@@ -309,7 +329,7 @@ function ProfileContent() {
           </div>
         </div>
 
-        {/* SECTION 4: Financial & Banking */}
+        {/* 4. Financial & Banking */}
         <div>
           <h2 className="text-2xl font-bold mb-6">4. Financial & Banking</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -344,7 +364,7 @@ function ProfileContent() {
           </div>
         </div>
 
-        {/* SECTION 5: Verification */}
+        {/* 5. Verification */}
         <div>
           <h2 className="text-2xl font-bold mb-6">5. Verification</h2>
           <div>
