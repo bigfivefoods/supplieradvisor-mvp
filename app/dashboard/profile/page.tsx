@@ -3,12 +3,13 @@
 export const dynamic = 'force-dynamic';
 
 import { useEffect, useState, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import toast from 'react-hot-toast';
 
 function ProfileContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const companyId = searchParams.get('companyId');
 
   const [form, setForm] = useState<any>({});
@@ -33,15 +34,26 @@ function ProfileContent() {
     role: ''
   });
 
+  // Redirect or show message if no companyId
+  useEffect(() => {
+    if (!companyId) {
+      // You can either redirect or show a message.
+      // For now, we'll show a message with a button (cleaner UX)
+      setLoading(false);
+    }
+  }, [companyId]);
+
   // Load company data + team members
   useEffect(() => {
     const loadData = async () => {
       if (!companyId) return;
 
+      setLoading(true);
+
       const { data: row } = await supabase.from('profiles').select('*').eq('id', Number(companyId)).single();
       if (row) setForm(row);
 
-      // Load team members for this company
+      // Load team members
       const { data: members } = await supabase
         .from('business_users')
         .select('*')
@@ -129,7 +141,7 @@ function ProfileContent() {
       return;
     }
 
-    // Send invitation email via Supabase Edge Function
+    // Send invitation email
     try {
       await supabase.functions.invoke('send-team-invitation', {
         body: {
@@ -146,7 +158,6 @@ function ProfileContent() {
       toast.success('Team member added (email may have failed to send)');
     }
 
-    // Refresh team members list
     setTeamMembers(prev => [memberData, ...prev]);
     setNewTeamMember({ name: '', email: '', role: '' });
   };
@@ -263,6 +274,22 @@ function ProfileContent() {
     }, 100);
   };
 
+  // Show message if no companyId
+  if (!companyId) {
+    return (
+      <div className="p-12 text-center">
+        <h2 className="text-2xl font-bold mb-4">No Company Selected</h2>
+        <p className="text-neutral-600 mb-6">Please select a company to view its profile.</p>
+        <button 
+          onClick={() => router.push('/dashboard/select-company')}
+          className="btn-primary px-8 py-3"
+        >
+          Go to Select Company
+        </button>
+      </div>
+    );
+  }
+
   if (loading) return <div className="p-12">Loading company data...</div>;
 
   const verificationStatus = form.verification_status || 'unverified';
@@ -370,7 +397,6 @@ function ProfileContent() {
         <div>
           <h2 className="text-2xl font-bold mb-6">4. Team Members</h2>
 
-          {/* Existing Team Members */}
           <div className="mb-8">
             {teamMembers.length > 0 ? (
               <div className="space-y-3">
@@ -391,7 +417,6 @@ function ProfileContent() {
             )}
           </div>
 
-          {/* Add New Team Member */}
           <div className="bg-neutral-50 p-6 rounded-3xl">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
