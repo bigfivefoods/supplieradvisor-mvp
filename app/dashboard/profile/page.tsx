@@ -44,7 +44,7 @@ function ProfileContent() {
       bank_name: form.bank_name,
       account_number: form.account_number,
       business_type: form.business_type,
-      director_id_number: form.director_id_number, // New field
+      director_id_number: form.director_id_number, // ← Added
     }).eq('id', Number(companyId));
 
     if (error) toast.error('Failed to save changes');
@@ -58,7 +58,7 @@ function ProfileContent() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        reportType: "consumer_trace", // Most reliable for ID-based verification
+        reportType: "consumer_trace",
         idNumber: idNumber,
         mode: "production"
       }),
@@ -80,7 +80,7 @@ function ProfileContent() {
     return result;
   };
 
-  // Main button: Pay R69 + VerifyNow
+  // Pay R69 + VerifyNow
   const handleGetVerified = () => {
     if (!companyId || !form.email) {
       toast.error('Missing company ID or email');
@@ -99,7 +99,7 @@ function ProfileContent() {
     const handler = PaystackPop.setup({
       key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY!,
       email: form.email,
-      amount: 6900, // R69
+      amount: 6900,
       currency: 'ZAR',
       ref: `verify_${companyId}_${Date.now()}`,
       metadata: {
@@ -119,7 +119,6 @@ function ProfileContent() {
             verified_at: new Date().toISOString(),
           }).eq('id', Number(companyId));
 
-          // Prefer Director ID Number for VerifyNow
           const idToVerify = form.director_id_number || form.registration_number;
           if (idToVerify) {
             toast.loading('Verifying with VerifyNow...', { id: 'verifynow' });
@@ -142,11 +141,11 @@ function ProfileContent() {
     handler.openIframe();
   };
 
-  // Test VerifyNow Only (No Payment) - Best for testing
+  // Test VerifyNow Only (No Payment)
   const handleTestVerifyNow = async () => {
     const idToVerify = form.director_id_number || form.registration_number;
     if (!idToVerify) {
-      toast.error('Please enter a Director ID Number or Registration Number to test');
+      toast.error('Please enter a Director ID Number or Registration Number');
       return;
     }
 
@@ -155,7 +154,7 @@ function ProfileContent() {
 
     try {
       await callVerifyNow(idToVerify);
-      toast.success('VerifyNow test successful! Badge updated.', { id: 'test-verifynow' });
+      toast.success('VerifyNow test successful!', { id: 'test-verifynow' });
       setTimeout(() => window.location.reload(), 1500);
     } catch (err: any) {
       console.error(err);
