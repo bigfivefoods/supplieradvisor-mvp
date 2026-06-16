@@ -16,26 +16,46 @@ function ProfileContent() {
   const [saving, setSaving] = useState(false);
   const [verifying, setVerifying] = useState(false);
 
-  // Lookup data
+  // Lookup data from Supabase
   const [industries, setIndustries] = useState<any[]>([]);
   const [countries, setCountries] = useState<any[]>([]);
   const [provinces, setProvinces] = useState<any[]>([]);
+  const [businessTypes, setBusinessTypes] = useState<any[]>([]);
 
-  // Load company + lookup data
+  // Selected country ID (for loading provinces)
+  const [selectedCountryId, setSelectedCountryId] = useState<number | null>(null);
+
+  // Load company data + lookup tables
   useEffect(() => {
     const loadData = async () => {
       if (!companyId) return;
 
       const { data: row } = await supabase.from('profiles').select('*').eq('id', Number(companyId)).single();
-      if (row) setForm(row);
+      if (row) {
+        setForm(row);
 
-      const [indRes, countryRes] = await Promise.all([
+        // If country already exists, find its ID
+        if (row.country) {
+          const { data: countryData } = await supabase
+            .from('countries')
+            .select('id')
+            .eq('name', row.country)
+            .single();
+
+          if (countryData) setSelectedCountryId(countryData.id);
+        }
+      }
+
+      // Load lookup tables
+      const [indRes, countryRes, btRes] = await Promise.all([
         supabase.from('industries').select('id, name, parent_id').eq('is_active', true).order('name'),
-        supabase.from('countries').select('id, name, flag').order('name')
+        supabase.from('countries').select('id, name, flag').order('name'),
+        supabase.from('business_types').select('id, name').order('name')
       ]);
 
       if (indRes.data) setIndustries(indRes.data);
       if (countryRes.data) setCountries(countryRes.data);
+      if (btRes.data) setBusinessTypes(btRes.data);
 
       setLoading(false);
     };
@@ -43,10 +63,10 @@ function ProfileContent() {
     loadData();
   }, [companyId]);
 
-  // Load provinces when country changes
+  // Load provinces when selectedCountryId changes
   useEffect(() => {
     const loadProvinces = async () => {
-      if (!form.country) {
+      if (!selectedCountryId) {
         setProvinces([]);
         return;
       }
@@ -54,17 +74,26 @@ function ProfileContent() {
       const { data } = await supabase
         .from('provinces')
         .select('id, name')
-        .eq('country_id', form.country)
+        .eq('country_id', selectedCountryId)
         .order('name');
 
       setProvinces(data || []);
     };
 
     loadProvinces();
-  }, [form.country]);
+  }, [selectedCountryId]);
 
   const handleInputChange = (field: string, value: string) => {
     setForm((prev: any) => ({ ...prev, [field]: value }));
+  };
+
+  // Handle country change (store both name and ID)
+  const handleCountryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const countryName = e.target.value;
+    const selectedCountry = countries.find(c => c.name === countryName);
+
+    setForm((prev: any) => ({ ...prev, country: countryName, province: '' }));
+    setSelectedCountryId(selectedCountry ? selectedCountry.id : null);
   };
 
   const saveProfile = async () => {
@@ -92,8 +121,6 @@ function ProfileContent() {
 
       tax_number: form.tax_number,
       vat_number: form.vat_number,
-      export_license: form.export_license,
-      import_license: form.import_license,
       bank_name: form.bank_name,
       account_name: form.account_name,
       account_number: form.account_number,
@@ -108,7 +135,7 @@ function ProfileContent() {
     setSaving(false);
   };
 
-  // ==================== VERIFY NOW ====================
+  // ==================== PAYSTACK + VERIFYNOW ====================
   const callVerifyNow = async (idNumber: string) => {
     const response = await fetch('/api/verify-now', {
       method: 'POST',
@@ -121,9 +148,7 @@ function ProfileContent() {
     });
 
     const result = await response.json();
-    if (!response.ok || result.error) {
-      throw new Error(result.error || 'VerifyNow verification failed');
-    }
+    if (!response.ok || result.error) throw new Error(result.error || 'VerifyNow failed');
 
     await supabase.from('profiles').update({
       verification_data: result,
@@ -134,7 +159,6 @@ function ProfileContent() {
     return result;
   };
 
-  // ==================== PAYSTACK + VERIFY ====================
   const handleGetVerified = () => {
     if (!companyId || !form.email) {
       toast.error('Missing company ID or email');
@@ -190,10 +214,7 @@ function ProfileContent() {
             amount: 6900,
             currency: 'ZAR',
             ref: `verify_${companyId}_${Date.now()}`,
-            metadata: {
-              company_id: companyId,
-              company_name: form.legal_name,
-            },
+            metadata: { company_id: companyId, company_name: form.legal_name },
             onClose: onCloseCallback,
             callback: paymentCallback,
           });
@@ -248,7 +269,12 @@ function ProfileContent() {
             </div>
             <div>
               <label className="text-sm font-medium">Business Type</label>
-              <input className="input w-full mt-1" value={form.business_type || ''} onChange={e => handleInputChange('business_type', e.target.value)} />
+              <select className="input w-full mt-1" value={form.business_type || ''} onChange={e => handleInputChange('business_type', e.target.value)}>
+                <option value="">Select Business Type</option>
+                {businessTypes.map(bt => (
+                  <option key={bt.id} value={bt.name}>{bt.name}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="text-sm font-medium">Contact Name</label>
@@ -275,7 +301,7 @@ function ProfileContent() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="text-sm font-medium">Country</label>
-              <select className="input w-full mt-1" value={form.country || ''} onChange={e => handleInputChange('country', e.target.value)}>
+              <select className="input w-full mt-1" value={form.country || ''} onChange={handleCountryChange}>
                 <option value="">Select Country</option>
                 {countries.map(c => (
                   <option key={c.id} value={c.name}>{c.flag} {c.name}</option>
@@ -284,7 +310,7 @@ function ProfileContent() {
             </div>
             <div>
               <label className="text-sm font-medium">Province / State</label>
-              <select className="input w-full mt-1" value={form.province || ''} onChange={e => handleInputChange('province', e.target.value)} disabled={!form.country}>
+              <select className="input w-full mt-1" value={form.province || ''} onChange={e => handleInputChange('province', e.target.value)} disabled={!selectedCountryId}>
                 <option value="">Select Province</option>
                 {provinces.map(p => (
                   <option key={p.id} value={p.name}>{p.name}</option>
