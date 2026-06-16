@@ -1,53 +1,34 @@
-'use client';
-
 export const dynamic = 'force-dynamic';
 
-import { useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 
-export default function MyBusinessProfile() {
-  const searchParams = useSearchParams();
-  const companyId = searchParams.get('companyId');
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [debug, setDebug] = useState('');
+export default async function MyBusinessProfile({ searchParams }: { searchParams: { companyId?: string } }) {
+  const rawId = searchParams.companyId;
+  const companyId = rawId ? Number(rawId) : null;
 
-  useEffect(() => {
-    const loadData = async () => {
-      setDebug(`companyId from URL: ${companyId}`);
+  let data: any = null;
+  let debug = `Raw companyId from URL: ${rawId || 'missing'}`;
 
-      let row = null;
+  if (companyId && !isNaN(companyId)) {
+    const { data: row, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', companyId)
+      .single();
 
-      if (companyId) {
-        const { data: r, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', Number(companyId))
-          .single();
+    if (error) {
+      console.error('Supabase error:', error);
+      debug += ` | Error: ${error.message}`;
+    } else {
+      data = row;
+    }
+  }
 
-        if (error) {
-          console.error('Supabase error:', error);
-          setDebug(prev => prev + ` | Supabase error: ${error.message}`);
-        } else {
-          row = r;
-        }
-      }
-
-      if (!row) {
-        const { data: r } = await supabase.from('profiles').select('*').limit(1).single();
-        row = r;
-        setDebug(prev => prev + ' | Using fallback');
-      }
-
-      setData(row || { legal_name: 'No data found' });
-      setLoading(false);
-    };
-
-    loadData();
-  }, [companyId]);
-
-  if (loading) return <div className="p-12">Loading company data...</div>;
+  if (!data) {
+    const { data: row } = await supabase.from('profiles').select('*').limit(1).single();
+    data = row || { legal_name: 'No data found' };
+    debug += ' | Using fallback (first record)';
+  }
 
   return (
     <div className="pl-0 pr-12 py-12 max-w-screen-2xl mx-auto">
@@ -72,7 +53,7 @@ export default function MyBusinessProfile() {
       </div>
 
       <button className="mt-8 bg-green-600 text-white px-10 py-3 rounded-2xl text-lg font-medium">
-        Get Verified - R69 with Paystack
+        Get Verified - R49 with Paystack
       </button>
     </div>
   );
