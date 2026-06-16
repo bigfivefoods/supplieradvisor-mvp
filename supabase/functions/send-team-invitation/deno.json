@@ -1,5 +1,5 @@
 {
   "imports": {
-    "@supabase/functions-js": "jsr:@supabase/functions-js@^2"
+    "resend": "npm:resend@3.2.0"
   }
 }
