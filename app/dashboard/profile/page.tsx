@@ -51,13 +51,13 @@ function ProfileContent() {
     setSaving(false);
   };
 
-  // Call VerifyNow via our secure API route
-  const callVerifyNow = async (regNumber: string) => {
+  // Call our secure API route for VerifyNow
+  const callVerifyNow = async (regNumber: string, reportType = "consumer_trace") => {
     const response = await fetch('/api/verify-now', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        reportType: "company_verification",
+        reportType,
         registrationNumber: regNumber,
         mode: "production"
       }),
@@ -69,7 +69,6 @@ function ProfileContent() {
       throw new Error(result.error || 'VerifyNow verification failed');
     }
 
-    // Store result in Supabase
     await supabase.from('profiles').update({
       verification_data: result,
       verification_status: 'verified',
@@ -79,7 +78,7 @@ function ProfileContent() {
     return result;
   };
 
-  // Paystack + VerifyNow
+  // Main button: Pay R69 + VerifyNow
   const handleGetVerified = () => {
     if (!companyId || !form.email) {
       toast.error('Missing company ID or email');
@@ -127,9 +126,9 @@ function ProfileContent() {
           }
 
           setTimeout(() => window.location.reload(), 1500);
-        } catch (err) {
+        } catch (err: any) {
           console.error(err);
-          toast.error('Payment succeeded but verification failed.');
+          toast.error(`Payment succeeded but verification failed: ${err.message}`);
         } finally {
           setVerifying(false);
         }
@@ -139,10 +138,10 @@ function ProfileContent() {
     handler.openIframe();
   };
 
-  // Test VerifyNow Only (No Payment)
+  // Test VerifyNow only (no payment)
   const handleTestVerifyNow = async () => {
     if (!form.registration_number) {
-      toast.error('No registration number found');
+      toast.error('No registration number to verify');
       return;
     }
 
@@ -186,10 +185,46 @@ function ProfileContent() {
 
       <div className="bg-white rounded-3xl p-8 space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* All input fields - same as before */}
-          <div><label className="text-sm font-medium">Legal Name</label>
-            <input className="input w-full mt-1" value={form.legal_name || ''} onChange={(e) => handleInputChange('legal_name', e.target.value)} /></div>
-          {/* Add other fields as needed */}
+          <div>
+            <label className="text-sm font-medium">Legal Name</label>
+            <input className="input w-full mt-1" value={form.legal_name || ''} onChange={(e) => handleInputChange('legal_name', e.target.value)} />
+          </div>
+          <div>
+            <label className="text-sm font-medium">Trading Name</label>
+            <input className="input w-full mt-1" value={form.trading_name || ''} onChange={(e) => handleInputChange('trading_name', e.target.value)} />
+          </div>
+          <div>
+            <label className="text-sm font-medium">Email</label>
+            <input className="input w-full mt-1" value={form.email || ''} onChange={(e) => handleInputChange('email', e.target.value)} />
+          </div>
+          <div>
+            <label className="text-sm font-medium">Registration Number</label>
+            <input className="input w-full mt-1" value={form.registration_number || ''} onChange={(e) => handleInputChange('registration_number', e.target.value)} />
+          </div>
+          <div>
+            <label className="text-sm font-medium">Street</label>
+            <input className="input w-full mt-1" value={form.street || ''} onChange={(e) => handleInputChange('street', e.target.value)} />
+          </div>
+          <div>
+            <label className="text-sm font-medium">City</label>
+            <input className="input w-full mt-1" value={form.city || ''} onChange={(e) => handleInputChange('city', e.target.value)} />
+          </div>
+          <div>
+            <label className="text-sm font-medium">Province</label>
+            <input className="input w-full mt-1" value={form.province || ''} onChange={(e) => handleInputChange('province', e.target.value)} />
+          </div>
+          <div>
+            <label className="text-sm font-medium">Business Type</label>
+            <input className="input w-full mt-1" value={form.business_type || ''} onChange={(e) => handleInputChange('business_type', e.target.value)} />
+          </div>
+          <div>
+            <label className="text-sm font-medium">Bank Name</label>
+            <input className="input w-full mt-1" value={form.bank_name || ''} onChange={(e) => handleInputChange('bank_name', e.target.value)} />
+          </div>
+          <div>
+            <label className="text-sm font-medium">Account Number</label>
+            <input className="input w-full mt-1" value={form.account_number || ''} onChange={(e) => handleInputChange('account_number', e.target.value)} />
+          </div>
         </div>
 
         <div className="flex flex-col sm:flex-row justify-end gap-4 pt-4">
