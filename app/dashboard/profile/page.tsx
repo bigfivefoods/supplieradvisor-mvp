@@ -44,7 +44,7 @@ function ProfileContent() {
       bank_name: form.bank_name,
       account_number: form.account_number,
       business_type: form.business_type,
-      director_id_number: form.director_id_number, // ← Added
+      director_id_number: form.director_id_number,
     }).eq('id', Number(companyId));
 
     if (error) toast.error('Failed to save changes');
@@ -60,7 +60,7 @@ function ProfileContent() {
       body: JSON.stringify({
         reportType: "consumer_trace",
         idNumber: idNumber,
-        mode: "production"
+        mode: "sandbox"           // ← Changed to sandbox for testing (0 credits)
       }),
     });
 
@@ -121,9 +121,9 @@ function ProfileContent() {
 
           const idToVerify = form.director_id_number || form.registration_number;
           if (idToVerify) {
-            toast.loading('Verifying with VerifyNow...', { id: 'verifynow' });
+            toast.loading('Verifying with VerifyNow (Sandbox)...', { id: 'verifynow' });
             await callVerifyNow(idToVerify);
-            toast.success('Verified with VerifyNow!', { id: 'verifynow' });
+            toast.success('Verified with VerifyNow (Sandbox)!', { id: 'verifynow' });
           } else {
             toast.success('Payment successful!');
           }
@@ -141,7 +141,7 @@ function ProfileContent() {
     handler.openIframe();
   };
 
-  // Test VerifyNow Only (No Payment)
+  // Test VerifyNow Only (Sandbox - No Credits Used)
   const handleTestVerifyNow = async () => {
     const idToVerify = form.director_id_number || form.registration_number;
     if (!idToVerify) {
@@ -150,11 +150,11 @@ function ProfileContent() {
     }
 
     setVerifying(true);
-    toast.loading('Testing VerifyNow...', { id: 'test-verifynow' });
+    toast.loading('Testing VerifyNow (Sandbox)...', { id: 'test-verifynow' });
 
     try {
       await callVerifyNow(idToVerify);
-      toast.success('VerifyNow test successful!', { id: 'test-verifynow' });
+      toast.success('VerifyNow test successful (Sandbox mode)!', { id: 'test-verifynow' });
       setTimeout(() => window.location.reload(), 1500);
     } catch (err: any) {
       console.error(err);
@@ -253,7 +253,7 @@ function ProfileContent() {
             disabled={verifying}
             className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-2xl font-semibold flex items-center gap-2 disabled:opacity-70"
           >
-            {verifying ? 'Processing...' : 'Test VerifyNow Only (No Payment)'}
+            {verifying ? 'Processing...' : 'Test VerifyNow Only (Sandbox - Free)'}
           </button>
         </div>
       </div>
