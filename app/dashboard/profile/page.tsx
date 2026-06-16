@@ -85,7 +85,7 @@ function ProfileContent() {
   };
   // ==================== END VERIFY NOW ====================
 
-  // ==================== IMPROVED PAYSTACK HANDLER ====================
+  // ==================== FIXED PAYSTACK HANDLER ====================
   const handleGetVerified = () => {
     if (!companyId || !form.email) {
       toast.error('Missing company ID or email');
@@ -94,16 +94,49 @@ function ProfileContent() {
 
     setVerifying(true);
 
-    // Wait up to 5 seconds for Paystack to load
     let attempts = 0;
     const maxAttempts = 50;
 
-    const checkPaystack = setInterval(() => {
+    const interval = setInterval(() => {
       const PaystackPop = (window as any).PaystackPop;
       attempts++;
 
       if (PaystackPop) {
-        clearInterval(checkPaystack);
+        clearInterval(interval);
+
+        // Define callbacks as regular functions (this fixes the error)
+        function onCloseCallback() {
+          setVerifying(false);
+          toast.error('Payment cancelled');
+        }
+
+        function paymentCallback(response: any) {
+          console.log('Paystack success:', response);
+
+          (async () => {
+            try {
+              await supabase.from('profiles').update({
+                verification_status: 'verified',
+                verified_at: new Date().toISOString(),
+              }).eq('id', Number(companyId));
+
+              if (form.registration_number) {
+                toast.loading('Verifying with VerifyNow...', { id: 'verifynow' });
+                await verifyWithVerifyNow(form.registration_number);
+                toast.success('Verified with VerifyNow!', { id: 'verifynow' });
+              } else {
+                toast.success('Payment successful!');
+              }
+
+              setTimeout(() => window.location.reload(), 1500);
+            } catch (err) {
+              console.error(err);
+              toast.error('Payment succeeded but verification failed.');
+            } finally {
+              setVerifying(false);
+            }
+          })();
+        }
 
         try {
           const handler = PaystackPop.setup({
@@ -116,45 +149,18 @@ function ProfileContent() {
               company_id: companyId,
               company_name: form.legal_name,
             },
-            onClose: function () {
-              setVerifying(false);
-              toast.error('Payment cancelled');
-            },
-            callback: async function (response: any) {
-              console.log('Paystack success:', response);
-
-              try {
-                await supabase.from('profiles').update({
-                  verification_status: 'verified',
-                  verified_at: new Date().toISOString(),
-                }).eq('id', Number(companyId));
-
-                if (form.registration_number) {
-                  toast.loading('Verifying with VerifyNow...', { id: 'verifynow' });
-                  await verifyWithVerifyNow(form.registration_number);
-                  toast.success('Verified with VerifyNow!', { id: 'verifynow' });
-                } else {
-                  toast.success('Payment successful!');
-                }
-
-                setTimeout(() => window.location.reload(), 1500);
-              } catch (err) {
-                console.error(err);
-                toast.error('Payment succeeded but verification failed.');
-              } finally {
-                setVerifying(false);
-              }
-            },
+            onClose: onCloseCallback,
+            callback: paymentCallback,
           });
 
           handler.openIframe();
         } catch (err: any) {
-          console.error('Paystack error:', err);
+          console.error('Paystack setup error:', err);
           toast.error(`Paystack Error: ${err.message}`);
           setVerifying(false);
         }
       } else if (attempts >= maxAttempts) {
-        clearInterval(checkPaystack);
+        clearInterval(interval);
         setVerifying(false);
         toast.error('Paystack failed to load. Please refresh the page.');
       }
