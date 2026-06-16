@@ -139,7 +139,6 @@ export default function ContainersPage() {
       toast.error('Failed to update status');
     } else {
       toast.success(`Container marked as ${newStatus}`);
-      // Optimistic UI update
       setContainers((prev) =>
         prev.map((c) =>
           c.id === container.id ? { ...c, status: newStatus } : c
@@ -397,6 +396,7 @@ export default function ContainersPage() {
             {filteredAndSortedContainers.length > 0 ? (
               filteredAndSortedContainers.map((container) => (
                 <tr key={container.id} className="border-t hover:bg-neutral-50">
+                  {/* 1. Image */}
                   <td className="px-6 py-4">
                     {container.image_url ? (
                       <img src={container.image_url} alt="" className="w-14 h-14 rounded-xl object-cover" />
@@ -404,18 +404,25 @@ export default function ContainersPage() {
                       <div className="w-14 h-14 bg-neutral-100 rounded-xl" />
                     )}
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="font-medium">{container.container_id}</div>
-                    <div className="text-sm text-neutral-600">{container.name}</div>
-                  </td>
+
+                  {/* 2. Container ID */}
+                  <td className="px-6 py-4 font-medium">{container.container_id}</td>
+
+                  {/* 3. Name */}
+                  <td className="px-6 py-4 text-sm text-neutral-700">{container.name}</td>
+
+                  {/* 4. Location */}
                   <td className="px-6 py-4 text-sm text-neutral-600">
-                    {[container.suburb, container.province].filter(Boolean).join(', ')}
+                    {[container.suburb, container.province].filter(Boolean).join(', ') || '—'}
                   </td>
+
+                  {/* 5. Current Lead */}
                   <td className="px-6 py-4 text-sm">
                     {container.current_lead_name || '—'}
                   </td>
+
+                  {/* 6. Status Toggle */}
                   <td className="px-6 py-4">
-                    {/* Status Toggle Switch */}
                     <label className="relative inline-flex items-center cursor-pointer">
                       <input 
                         type="checkbox" 
@@ -429,6 +436,8 @@ export default function ContainersPage() {
                       </span>
                     </label>
                   </td>
+
+                  {/* 7. Actions */}
                   <td className="px-6 py-4 text-right">
                     <button 
                       onClick={() => openEditModal(container)} 
