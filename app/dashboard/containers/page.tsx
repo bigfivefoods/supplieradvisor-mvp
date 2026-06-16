@@ -66,6 +66,11 @@ export default function ContainersPage() {
   const [editingContainer, setEditingContainer] = useState<Container | null>(null);
   const [uploading, setUploading] = useState(false);
 
+  // Sorting & Filtering States
+  const [sortField, setSortField] = useState<'container_id' | 'name' | 'status'>('container_id');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+
   const [form, setForm] = useState({
     container_id: '',
     name: '',
@@ -93,6 +98,34 @@ export default function ContainersPage() {
     start_date: '',
     end_date: '',
   });
+
+  // Filtered + Sorted Containers
+  const filteredAndSortedContainers = [...containers]
+    .filter((container) => {
+      if (statusFilter === 'all') return true;
+      return container.status === statusFilter;
+    })
+    .sort((a, b) => {
+      let valA = a[sortField] || '';
+      let valB = b[sortField] || '';
+
+      if (typeof valA === 'string') valA = valA.toLowerCase();
+      if (typeof valB === 'string') valB = valB.toLowerCase();
+
+      if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+      if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+  // Handle column sorting
+  const handleSort = (field: 'container_id' | 'name' | 'status') => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
 
   // Load all data
   useEffect(() => {
@@ -160,7 +193,6 @@ export default function ContainersPage() {
       current_lead_end_date: container.current_lead_end_date || '',
     });
 
-    // Load lead history
     const { data: history } = await supabase
       .from('container_lead_history')
       .select('*')
@@ -270,7 +302,6 @@ export default function ContainersPage() {
     } else {
       toast.success('Lead record added');
       setNewLead({ lead_name: '', cellphone: '', contract_url: '', start_date: '', end_date: '' });
-      // Refresh history
       const { data } = await supabase
         .from('container_lead_history')
         .select('*')
@@ -294,22 +325,56 @@ export default function ContainersPage() {
         </button>
       </div>
 
+      {/* Status Filter */}
+      <div className="flex items-center gap-3 mb-4">
+        <span className="text-sm font-medium text-neutral-600">Filter by Status:</span>
+        {(['all', 'active', 'inactive'] as const).map((status) => (
+          <button
+            key={status}
+            onClick={() => setStatusFilter(status)}
+            className={`px-4 py-1.5 rounded-2xl text-sm font-medium transition ${
+              statusFilter === status 
+                ? 'bg-[#00b4d8] text-white' 
+                : 'bg-neutral-100 hover:bg-neutral-200 text-neutral-700'
+            }`}
+          >
+            {status === 'all' ? 'All' : status.charAt(0).toUpperCase() + status.slice(1)}
+          </button>
+        ))}
+      </div>
+
       {/* Containers Table */}
       <div className="bg-white rounded-3xl border border-neutral-200 overflow-hidden">
         <table className="w-full">
           <thead className="bg-neutral-50">
             <tr>
               <th className="px-6 py-4 text-left font-semibold">Image</th>
-              <th className="px-6 py-4 text-left font-semibold">Container</th>
+              <th 
+                className="px-6 py-4 text-left font-semibold cursor-pointer hover:bg-neutral-100 select-none"
+                onClick={() => handleSort('container_id')}
+              >
+                Container ID {sortField === 'container_id' && (sortDirection === 'asc' ? '↑' : '↓')}
+              </th>
+              <th 
+                className="px-6 py-4 text-left font-semibold cursor-pointer hover:bg-neutral-100 select-none"
+                onClick={() => handleSort('name')}
+              >
+                Name {sortField === 'name' && (sortDirection === 'asc' ? '↑' : '↓')}
+              </th>
               <th className="px-6 py-4 text-left font-semibold">Location</th>
               <th className="px-6 py-4 text-left font-semibold">Current Lead</th>
-              <th className="px-6 py-4 text-left font-semibold">Status</th>
+              <th 
+                className="px-6 py-4 text-left font-semibold cursor-pointer hover:bg-neutral-100 select-none"
+                onClick={() => handleSort('status')}
+              >
+                Status {sortField === 'status' && (sortDirection === 'asc' ? '↑' : '↓')}
+              </th>
               <th className="px-6 py-4 text-right font-semibold">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {containers.length > 0 ? (
-              containers.map((container) => (
+            {filteredAndSortedContainers.length > 0 ? (
+              filteredAndSortedContainers.map((container) => (
                 <tr key={container.id} className="border-t hover:bg-neutral-50">
                   <td className="px-6 py-4">
                     {container.image_url ? (
@@ -329,7 +394,11 @@ export default function ContainersPage() {
                     {container.current_lead_name || '—'}
                   </td>
                   <td className="px-6 py-4">
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${container.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100'}`}>
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                      container.status === 'active' 
+                        ? 'bg-emerald-100 text-emerald-700' 
+                        : 'bg-gray-100 text-gray-600'
+                    }`}>
                       {container.status}
                     </span>
                   </td>
@@ -342,7 +411,7 @@ export default function ContainersPage() {
               ))
             ) : (
               <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-neutral-500">No containers found.</td>
+                <td colSpan={7} className="px-6 py-12 text-center text-neutral-500">No containers found.</td>
               </tr>
             )}
           </tbody>
@@ -480,7 +549,7 @@ export default function ContainersPage() {
               </div>
             </form>
 
-            {/* Lead History Section (only when editing) */}
+            {/* Lead History Section */}
             {editingContainer && (
               <div className="mt-10 border-t pt-8">
                 <div className="flex justify-between items-center mb-4">
