@@ -12,6 +12,7 @@ function ProfileContent() {
   const companyId = searchParams.get('companyId');
 
   const [form, setForm] = useState<any>({});
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [verifying, setVerifying] = useState(false);
@@ -25,14 +26,14 @@ function ProfileContent() {
 
   const [selectedCountryId, setSelectedCountryId] = useState<number | null>(null);
 
-  // Team Members
+  // New Team Member Form
   const [newTeamMember, setNewTeamMember] = useState({
     name: '',
     email: '',
     role: ''
   });
 
-  // Load company + lookup data
+  // Load company data + team members
   useEffect(() => {
     const loadData = async () => {
       if (!companyId) return;
@@ -40,6 +41,16 @@ function ProfileContent() {
       const { data: row } = await supabase.from('profiles').select('*').eq('id', Number(companyId)).single();
       if (row) setForm(row);
 
+      // Load team members for this company
+      const { data: members } = await supabase
+        .from('business_users')
+        .select('*')
+        .eq('profile_id', Number(companyId))
+        .order('created_at', { ascending: false });
+
+      if (members) setTeamMembers(members);
+
+      // Load lookup tables
       const [contRes, countryRes, indRes, btRes] = await Promise.all([
         supabase.from('continents').select('id, name').order('name'),
         supabase.from('countries').select('id, name, flag').order('name'),
@@ -95,15 +106,7 @@ function ProfileContent() {
     setSelectedCountryId(selected ? selected.id : null);
   };
 
-  const handleIndustryToggle = (industryName: string) => {
-    const current = form.industries || [];
-    const updated = current.includes(industryName)
-      ? current.filter((i: string) => i !== industryName)
-      : [...current, industryName];
-    setForm((prev: any) => ({ ...prev, industries: updated }));
-  };
-
-  // ==================== ADD TEAM MEMBER ====================
+  // ==================== ADD TEAM MEMBER + SEND EMAIL ====================
   const addTeamMember = async () => {
     if (!newTeamMember.name || !newTeamMember.email) {
       toast.error('Name and Email are required');
@@ -126,7 +129,7 @@ function ProfileContent() {
       return;
     }
 
-    // Send invitation email
+    // Send invitation email via Supabase Edge Function
     try {
       await supabase.functions.invoke('send-team-invitation', {
         body: {
@@ -139,16 +142,12 @@ function ProfileContent() {
       });
       toast.success(`✅ Invitation sent to ${newTeamMember.email}`);
     } catch (err) {
-      console.error("Email error:", err);
-      toast.success('Team member added (email failed to send)');
+      console.error("Email sending error:", err);
+      toast.success('Team member added (email may have failed to send)');
     }
 
-    // Refresh team members in form
-    setForm((prev: any) => ({
-      ...prev,
-      team_members: [...(prev.team_members || []), memberData]
-    }));
-
+    // Refresh team members list
+    setTeamMembers(prev => [memberData, ...prev]);
     setNewTeamMember({ name: '', email: '', role: '' });
   };
 
@@ -170,7 +169,6 @@ function ProfileContent() {
       city: form.city,
       street: form.street,
       postal_code: form.postal_code,
-      industry: form.industry,
       industries: form.industries || [],
       short_description: form.short_description,
       tax_number: form.tax_number,
@@ -354,7 +352,13 @@ function ProfileContent() {
                 <input
                   type="checkbox"
                   checked={(form.industries || []).includes(ind.name)}
-                  onChange={() => handleIndustryToggle(ind.name)}
+                  onChange={() => {
+                    const current = form.industries || [];
+                    const updated = current.includes(ind.name)
+                      ? current.filter((i: string) => i !== ind.name)
+                      : [...current, ind.name];
+                    setForm((prev: any) => ({ ...prev, industries: updated }));
+                  }}
                 />
                 {ind.name}
               </label>
@@ -367,21 +371,25 @@ function ProfileContent() {
           <h2 className="text-2xl font-bold mb-6">4. Team Members</h2>
 
           {/* Existing Team Members */}
-          {form.team_members && form.team_members.length > 0 && (
-            <div className="mb-8 space-y-3">
-              {form.team_members.map((member: any, index: number) => (
-                <div key={index} className="flex justify-between items-center bg-neutral-50 p-4 rounded-2xl">
-                  <div>
-                    <div className="font-medium">{member.name}</div>
-                    <div className="text-sm text-neutral-500">{member.email} • {member.role}</div>
+          <div className="mb-8">
+            {teamMembers.length > 0 ? (
+              <div className="space-y-3">
+                {teamMembers.map((member, index) => (
+                  <div key={index} className="flex justify-between items-center bg-neutral-50 p-5 rounded-2xl">
+                    <div>
+                      <div className="font-medium">{member.name}</div>
+                      <div className="text-sm text-neutral-500">{member.email} • {member.role}</div>
+                    </div>
+                    <div className="text-xs px-4 py-1 bg-emerald-100 text-emerald-700 rounded-3xl">
+                      {member.status || 'Active'}
+                    </div>
                   </div>
-                  <div className="text-xs px-3 py-1 bg-emerald-100 text-emerald-700 rounded-3xl">
-                    {member.status || 'Active'}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            ) : (
+              <p className="text-slate-500 mb-6">No team members added yet.</p>
+            )}
+          </div>
 
           {/* Add New Team Member */}
           <div className="bg-neutral-50 p-6 rounded-3xl">
@@ -408,7 +416,7 @@ function ProfileContent() {
               </div>
             </div>
             <button onClick={addTeamMember} className="btn-primary mt-6 w-full">
-              Add Team Member & Send Invitation
+              Add Team Member & Send Invitation Email
             </button>
           </div>
         </div>
