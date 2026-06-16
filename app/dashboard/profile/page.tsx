@@ -80,7 +80,7 @@ function ProfileContent() {
     return result;
   };
 
-  // ==================== ROBUST PAYSTACK HANDLER ====================
+  // ==================== FIXED PAYSTACK HANDLER ====================
   const handleGetVerified = () => {
     if (!companyId || !form.email) {
       toast.error('Missing company ID or email');
@@ -90,7 +90,7 @@ function ProfileContent() {
     setVerifying(true);
 
     let attempts = 0;
-    const maxAttempts = 50; // Wait up to 5 seconds
+    const maxAttempts = 50;
 
     const interval = setInterval(() => {
       const PaystackPop = (window as any).PaystackPop;
@@ -98,6 +98,41 @@ function ProfileContent() {
 
       if (PaystackPop) {
         clearInterval(interval);
+
+        // Define callbacks as regular named functions (fixes the error)
+        function onCloseCallback() {
+          setVerifying(false);
+          toast.error('Payment cancelled');
+        }
+
+        function paymentCallback(response: any) {
+          console.log('Paystack success:', response);
+
+          (async () => {
+            try {
+              await supabase.from('profiles').update({
+                verification_status: 'verified',
+                verified_at: new Date().toISOString(),
+              }).eq('id', Number(companyId));
+
+              const idToVerify = form.director_id_number || form.registration_number;
+              if (idToVerify) {
+                toast.loading('Verifying with VerifyNow...', { id: 'verifynow' });
+                await callVerifyNow(idToVerify);
+                toast.success('Payment & Verification successful!', { id: 'verifynow' });
+              } else {
+                toast.success('Payment successful!');
+              }
+
+              setTimeout(() => window.location.reload(), 1500);
+            } catch (err: any) {
+              console.error(err);
+              toast.error(`Verification failed: ${err.message}`);
+            } finally {
+              setVerifying(false);
+            }
+          })();
+        }
 
         try {
           const handler = PaystackPop.setup({
@@ -110,48 +145,20 @@ function ProfileContent() {
               company_id: companyId,
               company_name: form.legal_name,
             },
-            onClose: () => {
-              setVerifying(false);
-              toast.error('Payment cancelled');
-            },
-            callback: async function (response: any) {
-              console.log('Paystack success:', response);
-
-              try {
-                await supabase.from('profiles').update({
-                  verification_status: 'verified',
-                  verified_at: new Date().toISOString(),
-                }).eq('id', Number(companyId));
-
-                const idToVerify = form.director_id_number || form.registration_number;
-                if (idToVerify) {
-                  toast.loading('Verifying with VerifyNow...', { id: 'verifynow' });
-                  await callVerifyNow(idToVerify);
-                  toast.success('Payment & Verification successful!', { id: 'verifynow' });
-                } else {
-                  toast.success('Payment successful!');
-                }
-
-                setTimeout(() => window.location.reload(), 1500);
-              } catch (err: any) {
-                console.error(err);
-                toast.error(`Verification failed: ${err.message}`);
-              } finally {
-                setVerifying(false);
-              }
-            },
+            onClose: onCloseCallback,
+            callback: paymentCallback,
           });
 
           handler.openIframe();
         } catch (err: any) {
-          console.error('Paystack error:', err);
+          console.error('Paystack setup error:', err);
           toast.error(`Paystack Error: ${err.message}`);
           setVerifying(false);
         }
       } else if (attempts >= maxAttempts) {
         clearInterval(interval);
         setVerifying(false);
-        toast.error('Paystack failed to load. Please refresh the page and try again.');
+        toast.error('Paystack failed to load. Please refresh the page.');
       }
     }, 100);
   };
