@@ -18,16 +18,21 @@ function ProfileContent() {
 
   // Lookup data
   const [continents, setContinents] = useState<any[]>([]);
-  const [allCountries, setAllCountries] = useState<any[]>([]); // All countries
-  const [filteredCountries, setFilteredCountries] = useState<any[]>([]); // Filtered by continent
+  const [countries, setCountries] = useState<any[]>([]);
   const [provinces, setProvinces] = useState<any[]>([]);
   const [industries, setIndustries] = useState<any[]>([]);
   const [businessTypes, setBusinessTypes] = useState<any[]>([]);
 
-  const [selectedContinentId, setSelectedContinentId] = useState<number | null>(null);
   const [selectedCountryId, setSelectedCountryId] = useState<number | null>(null);
 
-  // Load all data
+  // Team Members
+  const [newTeamMember, setNewTeamMember] = useState({
+    name: '',
+    email: '',
+    role: ''
+  });
+
+  // Load company + lookup data
   useEffect(() => {
     const loadData = async () => {
       if (!companyId) return;
@@ -37,28 +42,23 @@ function ProfileContent() {
 
       const [contRes, countryRes, indRes, btRes] = await Promise.all([
         supabase.from('continents').select('id, name').order('name'),
-        supabase.from('countries').select('id, name, flag, continent_id').order('name'),
+        supabase.from('countries').select('id, name, flag').order('name'),
         supabase.from('industries').select('id, name, parent_id').eq('is_active', true).order('name'),
         supabase.from('business_types').select('id, name').order('name')
       ]);
 
       if (contRes.data) setContinents(contRes.data);
-      if (countryRes.data) {
-        setAllCountries(countryRes.data);
-        setFilteredCountries(countryRes.data);
-      }
+      if (countryRes.data) setCountries(countryRes.data);
       if (indRes.data) setIndustries(indRes.data);
       if (btRes.data) setBusinessTypes(btRes.data);
 
-      // Preload existing selections
-      if (row?.continent) {
-        const continentMatch = contRes.data?.find(c => c.name === row.continent);
-        if (continentMatch) setSelectedContinentId(continentMatch.id);
-      }
-
       if (row?.country) {
-        const countryMatch = countryRes.data?.find(c => c.name === row.country);
-        if (countryMatch) setSelectedCountryId(countryMatch.id);
+        const { data: countryData } = await supabase
+          .from('countries')
+          .select('id')
+          .eq('name', row.country)
+          .single();
+        if (countryData) setSelectedCountryId(countryData.id);
       }
 
       setLoading(false);
@@ -66,20 +66,6 @@ function ProfileContent() {
 
     loadData();
   }, [companyId]);
-
-  // Filter countries when continent changes
-  useEffect(() => {
-    if (!selectedContinentId) {
-      setFilteredCountries(allCountries);
-    } else {
-      const filtered = allCountries.filter(c => c.continent_id === selectedContinentId);
-      setFilteredCountries(filtered);
-    }
-    // Reset country and province when continent changes
-    setForm((prev: any) => ({ ...prev, country: '', province: '' }));
-    setSelectedCountryId(null);
-    setProvinces([]);
-  }, [selectedContinentId, allCountries]);
 
   // Load provinces when country changes
   useEffect(() => {
@@ -102,17 +88,9 @@ function ProfileContent() {
     setForm((prev: any) => ({ ...prev, [field]: value }));
   };
 
-  const handleContinentChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const continentName = e.target.value;
-    const selected = continents.find(c => c.name === continentName);
-    setForm((prev: any) => ({ ...prev, continent: continentName, country: '', province: '' }));
-    setSelectedContinentId(selected ? selected.id : null);
-    setSelectedCountryId(null);
-  };
-
   const handleCountryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const countryName = e.target.value;
-    const selected = filteredCountries.find(c => c.name === countryName);
+    const selected = countries.find(c => c.name === countryName);
     setForm((prev: any) => ({ ...prev, country: countryName, province: '' }));
     setSelectedCountryId(selected ? selected.id : null);
   };
@@ -123,6 +101,55 @@ function ProfileContent() {
       ? current.filter((i: string) => i !== industryName)
       : [...current, industryName];
     setForm((prev: any) => ({ ...prev, industries: updated }));
+  };
+
+  // ==================== ADD TEAM MEMBER ====================
+  const addTeamMember = async () => {
+    if (!newTeamMember.name || !newTeamMember.email) {
+      toast.error('Name and Email are required');
+      return;
+    }
+
+    const memberData = {
+      profile_id: Number(companyId),
+      name: newTeamMember.name,
+      email: newTeamMember.email,
+      contact_number: '',
+      role: newTeamMember.role || 'Other',
+      status: 'invited',
+      invited_at: new Date().toISOString()
+    };
+
+    const { error: insertError } = await supabase.from('business_users').insert(memberData);
+    if (insertError) {
+      toast.error('Failed to add team member');
+      return;
+    }
+
+    // Send invitation email
+    try {
+      await supabase.functions.invoke('send-team-invitation', {
+        body: {
+          to_email: newTeamMember.email,
+          to_name: newTeamMember.name,
+          company_name: form.trading_name || form.legal_name || 'Your Company',
+          role: newTeamMember.role || 'Team Member',
+          inviter_name: form.contact_name || 'The team'
+        }
+      });
+      toast.success(`✅ Invitation sent to ${newTeamMember.email}`);
+    } catch (err) {
+      console.error("Email error:", err);
+      toast.success('Team member added (email failed to send)');
+    }
+
+    // Refresh team members in form
+    setForm((prev: any) => ({
+      ...prev,
+      team_members: [...(prev.team_members || []), memberData]
+    }));
+
+    setNewTeamMember({ name: '', email: '', role: '' });
   };
 
   const saveProfile = async () => {
@@ -287,37 +314,28 @@ function ProfileContent() {
           </div>
         </div>
 
-        {/* 2. Location - Dynamic Cascading */}
+        {/* 2. Location */}
         <div>
           <h2 className="text-2xl font-bold mb-6">2. Location</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Continent */}
-            <div>
-              <label className="text-sm font-medium">Continent</label>
-              <select className="input w-full mt-1" value={form.continent || ''} onChange={handleContinentChange}>
+            <div><label className="text-sm font-medium">Continent</label>
+              <select className="input w-full mt-1" value={form.continent || ''} onChange={e => handleInputChange('continent', e.target.value)}>
                 <option value="">Select Continent</option>
                 {continents.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
               </select>
             </div>
-
-            {/* Country (filtered by continent) */}
-            <div>
-              <label className="text-sm font-medium">Country</label>
+            <div><label className="text-sm font-medium">Country</label>
               <select className="input w-full mt-1" value={form.country || ''} onChange={handleCountryChange}>
                 <option value="">Select Country</option>
-                {filteredCountries.map(c => <option key={c.id} value={c.name}>{c.flag} {c.name}</option>)}
+                {countries.map(c => <option key={c.id} value={c.name}>{c.flag} {c.name}</option>)}
               </select>
             </div>
-
-            {/* Province (filtered by country) */}
-            <div>
-              <label className="text-sm font-medium">Province / State</label>
+            <div><label className="text-sm font-medium">Province / State</label>
               <select className="input w-full mt-1" value={form.province || ''} onChange={e => handleInputChange('province', e.target.value)} disabled={!selectedCountryId}>
                 <option value="">Select Province</option>
                 {provinces.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
               </select>
             </div>
-
             <div><label className="text-sm font-medium">City</label>
               <input className="input w-full mt-1" value={form.city || ''} onChange={e => handleInputChange('city', e.target.value)} /></div>
             <div><label className="text-sm font-medium">Street Address</label>
@@ -329,7 +347,7 @@ function ProfileContent() {
 
         {/* 3. Industry */}
         <div>
-          <h2 className="text-2xl font-bold mb-6">3. Industry (Select multiple)</h2>
+          <h2 className="text-2xl font-bold mb-6">3. Industry</h2>
           <div className="mt-2 space-y-2 max-h-60 overflow-y-auto border p-4 rounded-2xl">
             {industries.filter(i => !i.parent_id).map(ind => (
               <label key={ind.id} className="flex items-center gap-2 cursor-pointer">
@@ -344,9 +362,60 @@ function ProfileContent() {
           </div>
         </div>
 
-        {/* 4. Financial & Banking */}
+        {/* 4. Team Members */}
         <div>
-          <h2 className="text-2xl font-bold mb-6">4. Financial & Banking</h2>
+          <h2 className="text-2xl font-bold mb-6">4. Team Members</h2>
+
+          {/* Existing Team Members */}
+          {form.team_members && form.team_members.length > 0 && (
+            <div className="mb-8 space-y-3">
+              {form.team_members.map((member: any, index: number) => (
+                <div key={index} className="flex justify-between items-center bg-neutral-50 p-4 rounded-2xl">
+                  <div>
+                    <div className="font-medium">{member.name}</div>
+                    <div className="text-sm text-neutral-500">{member.email} • {member.role}</div>
+                  </div>
+                  <div className="text-xs px-3 py-1 bg-emerald-100 text-emerald-700 rounded-3xl">
+                    {member.status || 'Active'}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Add New Team Member */}
+          <div className="bg-neutral-50 p-6 rounded-3xl">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="text-sm font-medium">Full Name</label>
+                <input type="text" className="input w-full mt-1" placeholder="John Doe" value={newTeamMember.name} onChange={e => setNewTeamMember({...newTeamMember, name: e.target.value})} />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Email Address</label>
+                <input type="email" className="input w-full mt-1" placeholder="john@company.com" value={newTeamMember.email} onChange={e => setNewTeamMember({...newTeamMember, email: e.target.value})} />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Position / Role</label>
+                <select className="input w-full mt-1" value={newTeamMember.role} onChange={e => setNewTeamMember({...newTeamMember, role: e.target.value})}>
+                  <option value="">Select Position</option>
+                  <option value="CEO">CEO / Managing Director</option>
+                  <option value="Director">Director</option>
+                  <option value="Manager">Manager</option>
+                  <option value="Operations">Operations Lead</option>
+                  <option value="Finance">Finance Lead</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+            </div>
+            <button onClick={addTeamMember} className="btn-primary mt-6 w-full">
+              Add Team Member & Send Invitation
+            </button>
+          </div>
+        </div>
+
+        {/* 5. Financial & Banking */}
+        <div>
+          <h2 className="text-2xl font-bold mb-6">5. Financial & Banking</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div><label className="text-sm font-medium">Tax Number</label>
               <input className="input w-full mt-1" value={form.tax_number || ''} onChange={e => handleInputChange('tax_number', e.target.value)} /></div>
@@ -365,9 +434,9 @@ function ProfileContent() {
           </div>
         </div>
 
-        {/* 5. Verification */}
+        {/* 6. Verification */}
         <div>
-          <h2 className="text-2xl font-bold mb-6">5. Verification</h2>
+          <h2 className="text-2xl font-bold mb-6">6. Verification</h2>
           <div>
             <label className="text-sm font-medium">Director ID Number (for VerifyNow)</label>
             <input className="input w-full mt-1" value={form.director_id_number || ''} onChange={e => handleInputChange('director_id_number', e.target.value)} placeholder="e.g. 8001015009087" />
@@ -376,6 +445,7 @@ function ProfileContent() {
 
       </div>
 
+      {/* Action Buttons */}
       <div className="flex flex-col sm:flex-row justify-end gap-4 mt-8">
         <button onClick={saveProfile} disabled={saving} className="btn-primary px-10 py-4">
           {saving ? 'Saving...' : 'Save All Changes'}
