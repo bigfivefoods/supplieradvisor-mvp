@@ -73,7 +73,7 @@ function ProfileContent() {
     setSaving(false);
   };
 
-  // Paystack + Verification flow
+  // ==================== FIXED PAYSTACK HANDLER ====================
   const handleGetVerified = () => {
     if (!companyId || !form.email) {
       toast.error('Missing company ID or email');
@@ -82,50 +82,73 @@ function ProfileContent() {
 
     setVerifying(true);
 
-    // @ts-ignore - Paystack is loaded globally
-    const handler = window.PaystackPop?.setup({
-      key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || 'pk_test_your_key_here',
-      email: form.email,
-      amount: 4900, // R49 in cents
-      currency: 'ZAR',
-      ref: `verify_${companyId}_${Date.now()}`,
-      metadata: {
-        company_id: companyId,
-        company_name: form.legal_name,
-      },
-      onClose: () => {
-        setVerifying(false);
-      },
-      callback: async function (response: any) {
-        // Payment successful
-        toast.success('Payment successful! Verifying company...');
+    let attempts = 0;
+    const maxAttempts = 50;
 
-        // Update Supabase
-        await supabase
-          .from('profiles')
-          .update({
-            verification_status: 'verified',
-            verified_at: new Date().toISOString(),
-          })
-          .eq('id', Number(companyId));
+    const interval = setInterval(() => {
+      const PaystackPop = (window as any).PaystackPop;
+      attempts++;
 
-        // Mint on-chain SBT (if function exists)
+      if (PaystackPop) {
+        clearInterval(interval);
+
         try {
-          await mintVerificationSBT(companyId, form.legal_name);
-        } catch (e) {
-          console.log('On-chain mint skipped or failed (non-critical)');
+          const handler = PaystackPop.setup({
+            key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || 'pk_test_your_key_here',
+            email: form.email,
+            amount: 4900,
+            currency: 'ZAR',
+            ref: `verify_${companyId}_${Date.now()}`,
+            metadata: {
+              company_id: companyId,
+              company_name: form.legal_name || 'Unknown',
+            },
+            onClose: function () {
+              setVerifying(false);
+              toast.error('Payment cancelled');
+            },
+            callback: async function (response: any) {
+              console.log('Paystack payment successful:', response);
+
+              try {
+                const { error } = await supabase
+                  .from('profiles')
+                  .update({
+                    verification_status: 'verified',
+                    verified_at: new Date().toISOString(),
+                  })
+                  .eq('id', Number(companyId));
+
+                if (error) throw error;
+
+                toast.success('🎉 Payment successful! Company is now verified.');
+
+                setTimeout(() => {
+                  window.location.reload();
+                }, 1200);
+              } catch (err: any) {
+                console.error('Supabase update error:', err);
+                toast.error('Payment succeeded but verification update failed.');
+              } finally {
+                setVerifying(false);
+              }
+            },
+          });
+
+          handler.openIframe();
+        } catch (err: any) {
+          console.error('Paystack error:', err);
+          toast.error('Could not open Paystack popup');
+          setVerifying(false);
         }
-
-        toast.success('🎉 Company verified successfully!');
+      } else if (attempts >= maxAttempts) {
+        clearInterval(interval);
         setVerifying(false);
-
-        // Refresh data
-        window.location.reload();
-      },
-    });
-
-    handler.openIframe();
+        toast.error('Paystack failed to load. Please refresh the page and try again.');
+      }
+    }, 100);
   };
+  // ==================== END OF FIXED PAYSTACK HANDLER ====================
 
   if (loading) return <div className="p-12">Loading company data...</div>;
 
