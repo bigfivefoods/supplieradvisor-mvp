@@ -5,13 +5,16 @@ import Image from 'next/image';
 import { ArrowRight, ShieldCheck, Truck, Users, Factory, Leaf, Zap, Globe, Building2, BookOpen, Users2, Award, Heart } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { useRouter } from 'next/navigation';
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 
 export default function LandingPage() {
   const { login, user, ready } = usePrivy();
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  // State for verified companies
+  const [verifiedCompanies, setVerifiedCompanies] = useState<any[]>([]);
 
   // AUTO REDIRECT TO PROFILE AFTER SUCCESSFUL LOGIN (for returning customers)
   useEffect(() => {
@@ -48,6 +51,24 @@ export default function LandingPage() {
 
     handleLoginRedirect();
   }, [ready, user, router]);
+
+  // Fetch verified companies for the new section
+  useEffect(() => {
+    const fetchVerifiedCompanies = async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, legal_name, trading_name, verification_status, verified_at, business_type')
+        .eq('verification_status', 'verified')
+        .order('verified_at', { ascending: false })
+        .limit(6);
+
+      if (!error && data) {
+        setVerifiedCompanies(data);
+      }
+    };
+
+    fetchVerifiedCompanies();
+  }, []);
 
   const scrollToSection = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
@@ -176,6 +197,74 @@ export default function LandingPage() {
           </div>
         </div>
       </div>
+
+      {/* ==================== NEW: VERIFIED COMPANIES SECTION ==================== */}
+      <div className="bg-white py-16 px-6 md:px-12 border-t border-slate-100">
+        <div className="max-w-screen-2xl mx-auto">
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center gap-2 bg-emerald-100 text-emerald-700 px-5 py-2 rounded-3xl mb-4 text-sm font-semibold">
+              <ShieldCheck size={18} /> TRUSTED &amp; VERIFIED
+            </div>
+            <h2 className="text-4xl md:text-5xl font-black tracking-[-2px] mb-4">Verified Companies</h2>
+            <p className="text-xl text-slate-600 max-w-2xl mx-auto">
+              Businesses that have completed full verification with Paystack + VerifyNow
+            </p>
+          </div>
+
+          {verifiedCompanies.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {verifiedCompanies.map((company) => (
+                <div key={company.id} className="border border-slate-200 rounded-3xl p-8 hover:shadow-lg transition-all bg-white">
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <h3 className="font-bold text-2xl">{company.legal_name}</h3>
+                      {company.trading_name && (
+                        <p className="text-slate-600">{company.trading_name}</p>
+                      )}
+                    </div>
+                    <span className="bg-emerald-100 text-emerald-700 px-4 py-1.5 rounded-2xl text-sm font-semibold whitespace-nowrap">
+                      ✅ Verified
+                    </span>
+                  </div>
+
+                  <div className="text-sm text-slate-600 mb-4">
+                    {company.business_type || 'Business'}
+                  </div>
+
+                  <p className="text-slate-700 line-clamp-3 mb-6 min-h-[60px]">
+                    {company.short_description || 
+                      "A verified business committed to transparency, ethical practices, and delivering quality across the supply chain."}
+                  </p>
+
+                  {company.verified_at && (
+                    <p className="text-xs text-emerald-600 font-medium">
+                      Verified on {new Date(company.verified_at).toLocaleDateString('en-ZA', { 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric' 
+                      })}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12 text-slate-500">
+              <p>Verified companies will appear here soon.</p>
+            </div>
+          )}
+
+          <div className="text-center mt-12">
+            <Link 
+              href="/dashboard/select-company" 
+              className="inline-flex items-center gap-2 text-[#00b4d8] font-semibold hover:underline"
+            >
+              View all verified companies <ArrowRight size={18} />
+            </Link>
+          </div>
+        </div>
+      </div>
+      {/* ==================== END VERIFIED COMPANIES SECTION ==================== */}
 
       {/* For Consumers */}
       <div id="for-consumers" className="py-12 sm:py-16 md:py-24 px-6 md:px-12 bg-white">
@@ -370,7 +459,7 @@ export default function LandingPage() {
           <div className="flex flex-col md:flex-row items-center justify-center gap-x-8 gap-y-2 text-xs">
             <a href="mailto:connect@supplieradvisor.com" className="hover:text-white transition-colors">connect@supplieradvisor.com</a>
             <a href="tel:+27825814215" className="hover:text-white transition-colors">+27 (0) 82 581 4215</a>
-            <span>21A Old Howick Road, Pietermaritzburg, KwaZulu-Natal, South Africa</span>
+            <span>South Africa</span>
           </div>
         </div>
       </footer>
