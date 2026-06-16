@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
-import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import toast from 'react-hot-toast';
 
@@ -15,7 +14,6 @@ type Business = {
 
 export default function SelectCompany() {
   const { user } = usePrivy();
-  const router = useRouter();
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -41,21 +39,21 @@ export default function SelectCompany() {
     setLoading(false);
   };
 
-  const handleSelect = (b: Business) => {
-    window.location.href = `/dashboard/profile?companyId=${b.id}`;
-  };
-
   return (
     <div className="p-8">
       <h1 className="text-3xl font-bold mb-6">Select Your Company (All loaded from Supabase)</h1>
 
       <div className="grid gap-4">
         {businesses.map(b => (
-          <div key={b.id} className="p-6 border rounded-xl cursor-pointer hover:bg-gray-50" onClick={() => handleSelect(b)}>
-            <h2 className="font-bold">{b.legal_name}</h2>
-            <p>{b.trading_name} - {b.business_type}</p>
+          <a 
+            key={b.id}
+            href={`/dashboard/profile?companyId=${b.id}`}
+            className="block p-6 border rounded-xl hover:bg-gray-50 no-underline"
+          >
+            <h2 className="font-bold text-xl">{b.legal_name}</h2>
+            <p className="text-neutral-600">{b.trading_name} - {b.business_type}</p>
             <button className="mt-3 bg-blue-600 text-white px-6 py-2 rounded">Select</button>
-          </div>
+          </a>
         ))}
       </div>
 
