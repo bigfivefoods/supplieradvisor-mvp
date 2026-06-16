@@ -6,11 +6,14 @@ import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import toast from 'react-hot-toast';
+import { usePrivy } from '@privy-io/react-auth';
 
 function ProfileContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const companyId = searchParams.get('companyId');
+  const { user } = usePrivy();
+  const cleanId = (user?.id || '').replace('privy:', '');
 
   const [form, setForm] = useState<any>({});
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
@@ -37,8 +40,6 @@ function ProfileContent() {
   // Redirect or show message if no companyId
   useEffect(() => {
     if (!companyId) {
-      // You can either redirect or show a message.
-      // For now, we'll show a message with a button (cleaner UX)
       setLoading(false);
     }
   }, [companyId]);
@@ -118,48 +119,73 @@ function ProfileContent() {
     setSelectedCountryId(selected ? selected.id : null);
   };
 
-  // ==================== ADD TEAM MEMBER + SEND EMAIL ====================
+  // ==================== ADD TEAM MEMBER + SEND EMAIL (UPDATED) ====================
   const addTeamMember = async () => {
     if (!newTeamMember.name || !newTeamMember.email) {
       toast.error('Name and Email are required');
       return;
     }
 
-    const memberData = {
-      profile_id: Number(companyId),
-      name: newTeamMember.name,
-      email: newTeamMember.email,
-      contact_number: '',
-      role: newTeamMember.role || 'Other',
-      status: 'invited',
-      invited_at: new Date().toISOString()
-    };
-
-    const { error: insertError } = await supabase.from('business_users').insert(memberData);
-    if (insertError) {
-      toast.error('Failed to add team member');
+    if (!companyId) {
+      toast.error('No company selected');
       return;
     }
 
-    // Send invitation email
     try {
+      // 1. Generate secure token
+      const token = crypto.randomUUID();
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
+
+      // 2. Create invitation record in Supabase
+      const { error: inviteError } = await supabase.from('invitations').insert({
+        token: token,
+        profile_id: Number(companyId),
+        invited_email: newTeamMember.email,
+        invited_by: cleanId,
+        role: newTeamMember.role || 'member',
+        status: 'pending',
+        expires_at: expiresAt.toISOString(),
+      });
+
+      if (inviteError) {
+        console.error('Invitation error:', inviteError);
+        toast.error('Failed to create invitation');
+        return;
+      }
+
+      // 3. Send invitation email with token
       await supabase.functions.invoke('send-team-invitation', {
         body: {
           to_email: newTeamMember.email,
           to_name: newTeamMember.name,
           company_name: form.trading_name || form.legal_name || 'Your Company',
           role: newTeamMember.role || 'Team Member',
-          inviter_name: form.contact_name || 'The team'
-        }
+          inviter_name: form.contact_name || 'The team',
+          token: token, // ← Pass the token
+        },
       });
-      toast.success(`✅ Invitation sent to ${newTeamMember.email}`);
-    } catch (err) {
-      console.error("Email sending error:", err);
-      toast.success('Team member added (email may have failed to send)');
-    }
 
-    setTeamMembers(prev => [memberData, ...prev]);
-    setNewTeamMember({ name: '', email: '', role: '' });
+      toast.success(`✅ Invitation sent to ${newTeamMember.email}`);
+
+      // Refresh local state
+      const memberData = {
+        profile_id: Number(companyId),
+        name: newTeamMember.name,
+        email: newTeamMember.email,
+        contact_number: '',
+        role: newTeamMember.role || 'Other',
+        status: 'invited',
+        invited_at: new Date().toISOString()
+      };
+
+      setTeamMembers(prev => [memberData, ...prev]);
+      setNewTeamMember({ name: '', email: '', role: '' });
+
+    } catch (err) {
+      console.error("Error adding team member:", err);
+      toast.error('Something went wrong while sending the invitation');
+    }
   };
 
   const saveProfile = async () => {
