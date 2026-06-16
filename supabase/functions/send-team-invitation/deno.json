@@ -1,5 +1,12 @@
 {
   "imports": {
-    "resend": "npm:resend@3.2.0"
+    "resend": "npm:resend@3.2.0",
+    "std/": "https://deno.land/std@0.177.0/"
+  },
+  "lint": {
+    "include": ["src/"],
+    "rules": {
+      "tags": ["recommended"]
+    }
   }
 }

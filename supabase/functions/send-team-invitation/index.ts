@@ -1,9 +1,8 @@
-import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { Resend } from "npm:resend@3.2.0";
+import { serve } from "std/http/server.ts";
+import { Resend } from "resend";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
-// You can change this via environment variable later if needed
 const FROM_EMAIL = Deno.env.get("FROM_EMAIL") || "SupplierAdvisor <noreply@supplieradvisor.com>";
 
 serve(async (req) => {
