@@ -52,7 +52,7 @@ function ProfileContent() {
     setSaving(false);
   };
 
-  // Call VerifyNow via our secure API route
+  // Call VerifyNow via our secure API route (PRODUCTION MODE)
   const callVerifyNow = async (idNumber: string) => {
     const response = await fetch('/api/verify-now', {
       method: 'POST',
@@ -60,7 +60,7 @@ function ProfileContent() {
       body: JSON.stringify({
         reportType: "consumer_trace",
         idNumber: idNumber,
-        mode: "sandbox"           // ← Changed to sandbox for testing (0 credits)
+        mode: "production"           // ← Real verification (uses credits)
       }),
     });
 
@@ -80,7 +80,7 @@ function ProfileContent() {
     return result;
   };
 
-  // Pay R69 + VerifyNow
+  // Pay R69 + Real VerifyNow
   const handleGetVerified = () => {
     if (!companyId || !form.email) {
       toast.error('Missing company ID or email');
@@ -121,9 +121,9 @@ function ProfileContent() {
 
           const idToVerify = form.director_id_number || form.registration_number;
           if (idToVerify) {
-            toast.loading('Verifying with VerifyNow (Sandbox)...', { id: 'verifynow' });
+            toast.loading('Verifying company with VerifyNow...', { id: 'verifynow' });
             await callVerifyNow(idToVerify);
-            toast.success('Verified with VerifyNow (Sandbox)!', { id: 'verifynow' });
+            toast.success('Payment & Verification successful!', { id: 'verifynow' });
           } else {
             toast.success('Payment successful!');
           }
@@ -139,29 +139,6 @@ function ProfileContent() {
     });
 
     handler.openIframe();
-  };
-
-  // Test VerifyNow Only (Sandbox - No Credits Used)
-  const handleTestVerifyNow = async () => {
-    const idToVerify = form.director_id_number || form.registration_number;
-    if (!idToVerify) {
-      toast.error('Please enter a Director ID Number or Registration Number');
-      return;
-    }
-
-    setVerifying(true);
-    toast.loading('Testing VerifyNow (Sandbox)...', { id: 'test-verifynow' });
-
-    try {
-      await callVerifyNow(idToVerify);
-      toast.success('VerifyNow test successful (Sandbox mode)!', { id: 'test-verifynow' });
-      setTimeout(() => window.location.reload(), 1500);
-    } catch (err: any) {
-      console.error(err);
-      toast.error(`VerifyNow failed: ${err.message}`, { id: 'test-verifynow' });
-    } finally {
-      setVerifying(false);
-    }
   };
 
   if (loading) return <div className="p-12">Loading company data...</div>;
@@ -246,14 +223,6 @@ function ProfileContent() {
             className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-2xl font-semibold flex items-center gap-2 disabled:opacity-70"
           >
             {verifying ? 'Processing...' : 'Get Verified - R69 with Paystack + VerifyNow'}
-          </button>
-
-          <button
-            onClick={handleTestVerifyNow}
-            disabled={verifying}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-2xl font-semibold flex items-center gap-2 disabled:opacity-70"
-          >
-            {verifying ? 'Processing...' : 'Test VerifyNow Only (Sandbox - Free)'}
           </button>
         </div>
       </div>
