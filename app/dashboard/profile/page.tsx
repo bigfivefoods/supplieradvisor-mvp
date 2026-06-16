@@ -24,36 +24,69 @@ function ProfileContent() {
 
   const [selectedCountryId, setSelectedCountryId] = useState<number | null>(null);
 
-  // Load all data
+  // ==================== LOAD DATA FROM SUPABASE ====================
   useEffect(() => {
     const loadData = async () => {
-      if (!companyId) return;
-
-      const { data: row } = await supabase.from('profiles').select('*').eq('id', Number(companyId)).single();
-      if (row) setForm(row);
-
-      const [contRes, countryRes, indRes, btRes] = await Promise.all([
-        supabase.from('continents').select('id, name').order('name'),
-        supabase.from('countries').select('id, name, flag').order('name'),
-        supabase.from('industries').select('id, name, parent_id').eq('is_active', true).order('name'),
-        supabase.from('business_types').select('id, name').order('name')
-      ]);
-
-      if (contRes.data) setContinents(contRes.data);
-      if (countryRes.data) setCountries(countryRes.data);
-      if (indRes.data) setIndustries(indRes.data);
-      if (btRes.data) setBusinessTypes(btRes.data);
-
-      if (row?.country) {
-        const { data: countryData } = await supabase
-          .from('countries')
-          .select('id')
-          .eq('name', row.country)
-          .single();
-        if (countryData) setSelectedCountryId(countryData.id);
+      if (!companyId) {
+        console.log("No companyId found in URL");
+        setLoading(false);
+        return;
       }
 
-      setLoading(false);
+      console.log("Loading data for companyId:", companyId);
+
+      try {
+        // Load company profile
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', Number(companyId))
+          .single();
+
+        if (profileError) {
+          console.error("Error loading profile:", profileError);
+        } else {
+          console.log("Profile data loaded:", profileData);
+          setForm(profileData);
+        }
+
+        // Load lookup tables
+        const [contRes, countryRes, indRes, btRes] = await Promise.all([
+          supabase.from('continents').select('id, name').order('name'),
+          supabase.from('countries').select('id, name, flag').order('name'),
+          supabase.from('industries').select('id, name, parent_id').eq('is_active', true).order('name'),
+          supabase.from('business_types').select('id, name').order('name')
+        ]);
+
+        console.log("Continents loaded:", contRes.data?.length || 0, "records");
+        console.log("Countries loaded:", countryRes.data?.length || 0, "records");
+        console.log("Industries loaded:", indRes.data?.length || 0, "records");
+        console.log("Business Types loaded:", btRes.data?.length || 0, "records");
+
+        if (contRes.data) setContinents(contRes.data);
+        if (countryRes.data) setCountries(countryRes.data);
+        if (indRes.data) setIndustries(indRes.data);
+        if (btRes.data) setBusinessTypes(btRes.data);
+
+        // Set selected country ID if profile has a country
+        if (profileData?.country) {
+          const { data: countryMatch } = await supabase
+            .from('countries')
+            .select('id')
+            .eq('name', profileData.country)
+            .single();
+
+          if (countryMatch) {
+            console.log("Pre-selected country ID:", countryMatch.id);
+            setSelectedCountryId(countryMatch.id);
+          }
+        }
+
+      } catch (err) {
+        console.error("Unexpected error loading data:", err);
+      } finally {
+        setLoading(false);
+      }
     };
 
     loadData();
@@ -66,13 +99,19 @@ function ProfileContent() {
         setProvinces([]);
         return;
       }
-      const { data } = await supabase
+
+      const { data, error } = await supabase
         .from('provinces')
         .select('id, name')
         .eq('country_id', selectedCountryId)
         .order('name');
+
+      if (error) console.error("Error loading provinces:", error);
+      console.log("Provinces loaded for country ID", selectedCountryId, ":", data?.length || 0);
+
       setProvinces(data || []);
     };
+
     loadProvinces();
   }, [selectedCountryId]);
 
@@ -83,6 +122,7 @@ function ProfileContent() {
   const handleCountryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const countryName = e.target.value;
     const selected = countries.find(c => c.name === countryName);
+
     setForm((prev: any) => ({ ...prev, country: countryName, province: '' }));
     setSelectedCountryId(selected ? selected.id : null);
   };
@@ -126,8 +166,12 @@ function ProfileContent() {
       director_id_number: form.director_id_number,
     }).eq('id', Number(companyId));
 
-    if (error) toast.error('Failed to save changes');
-    else toast.success('Profile saved successfully!');
+    if (error) {
+      console.error("Save error:", error);
+      toast.error('Failed to save changes');
+    } else {
+      toast.success('Profile saved successfully!');
+    }
     setSaving(false);
   };
 
