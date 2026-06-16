@@ -24,6 +24,7 @@ function ProfileContent() {
 
   const [selectedCountryId, setSelectedCountryId] = useState<number | null>(null);
 
+  // Load all data
   useEffect(() => {
     const loadData = async () => {
       if (!companyId) return;
@@ -58,6 +59,7 @@ function ProfileContent() {
     loadData();
   }, [companyId]);
 
+  // Load provinces when country changes
   useEffect(() => {
     const loadProvinces = async () => {
       if (!selectedCountryId) {
@@ -129,6 +131,7 @@ function ProfileContent() {
     setSaving(false);
   };
 
+  // ==================== PAYSTACK + VERIFYNOW ====================
   const callVerifyNow = async (idNumber: string) => {
     const response = await fetch('/api/verify-now', {
       method: 'POST',
@@ -173,7 +176,7 @@ function ProfileContent() {
           ref: `verify_${companyId}_${Date.now()}`,
           metadata: { company_id: companyId, company_name: form.legal_name },
           onClose: () => { setVerifying(false); toast.error('Payment cancelled'); },
-          callback: async (response: any) => {
+          callback: async () => {
             try {
               await supabase.from('profiles').update({
                 verification_status: 'verified',
@@ -265,12 +268,7 @@ function ProfileContent() {
               </select>
             </div>
             <div><label className="text-sm font-medium">Country</label>
-              <select className="input w-full mt-1" value={form.country || ''} onChange={e => {
-                const countryName = e.target.value;
-                const selected = countries.find(c => c.name === countryName);
-                setForm((prev: any) => ({ ...prev, country: countryName, province: '' }));
-                setSelectedCountryId(selected ? selected.id : null);
-              }}>
+              <select className="input w-full mt-1" value={form.country || ''} onChange={handleCountryChange}>
                 <option value="">Select Country</option>
                 {countries.map(c => <option key={c.id} value={c.name}>{c.flag} {c.name}</option>)}
               </select>
@@ -290,32 +288,20 @@ function ProfileContent() {
           </div>
         </div>
 
-        {/* 3. Industry & Description */}
+        {/* 3. Industry */}
         <div>
-          <h2 className="text-2xl font-bold mb-6">3. Industry & Description</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="text-sm font-medium">Industry (Select multiple)</label>
-              <div className="mt-2 space-y-2 max-h-60 overflow-y-auto border p-4 rounded-2xl">
-                {industries.filter(i => !i.parent_id).map(ind => (
-                  <label key={ind.id} className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={(form.industries || []).includes(ind.name)}
-                      onChange={() => handleIndustryToggle(ind.name)}
-                    />
-                    {ind.name}
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div className="md:col-span-2">
-              <label className="text-sm font-medium">Short Description (max 120 characters)</label>
-              <textarea className="input w-full mt-1 min-h-[90px]" value={form.short_description || ''} onChange={e => handleInputChange('short_description', e.target.value)} maxLength={120} />
-              <div className="text-xs text-neutral-500 text-right mt-1">
-                {form.short_description?.length || 0}/120
-              </div>
-            </div>
+          <h2 className="text-2xl font-bold mb-6">3. Industry (Select multiple)</h2>
+          <div className="mt-2 space-y-2 max-h-60 overflow-y-auto border p-4 rounded-2xl">
+            {industries.filter(i => !i.parent_id).map(ind => (
+              <label key={ind.id} className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={(form.industries || []).includes(ind.name)}
+                  onChange={() => handleIndustryToggle(ind.name)}
+                />
+                {ind.name}
+              </label>
+            ))}
           </div>
         </div>
 
