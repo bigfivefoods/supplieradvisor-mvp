@@ -1,35 +1,55 @@
 export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
+export const revalidate = 0;
 
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 
-export default async function MyBusinessProfile({ searchParams }: { searchParams: { companyId?: string } }) {
-  const rawId = searchParams.companyId;
-  const companyId = rawId ? Number(rawId) : null; // handles bigint/int ids safely
+export default function MyBusinessProfile() {
+  const searchParams = useSearchParams();
+  const companyId = searchParams.get('companyId');
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [debug, setDebug] = useState('');
 
-  let data: any = null;
-  let debugInfo = `Raw companyId from URL: ${rawId || 'missing'}`;
+  useEffect(() => {
+    const loadData = async () => {
+      setDebug(`companyId from URL: ${companyId}`);
 
-  if (companyId && !isNaN(companyId)) {
-    const { data: row, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', companyId)
-      .single();
+      let row = null;
 
-    if (error) {
-      console.error('Supabase error loading company:', error);
-      debugInfo += ` | Supabase error: ${error.message}`;
-    } else {
-      data = row;
-    }
-  }
+      if (companyId) {
+        const { data: r, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', Number(companyId))
+          .single();
 
-  // Fallback only if no valid ID or query failed
-  if (!data) {
-    const { data: row } = await supabase.from('profiles').select('*').limit(1).single();
-    data = row || { legal_name: 'No company data found' };
-    debugInfo += ' | Using fallback (first record)';
-  }
+        if (error) {
+          console.error('Supabase error:', error);
+          setDebug(prev => prev + ` | Supabase error: ${error.message}`);
+        } else {
+          row = r;
+        }
+      }
+
+      if (!row) {
+        const { data: r } = await supabase.from('profiles').select('*').limit(1).single();
+        row = r;
+        setDebug(prev => prev + ' | Using fallback');
+      }
+
+      setData(row || { legal_name: 'No data found' });
+      setLoading(false);
+    };
+
+    loadData();
+  }, [companyId]);
+
+  if (loading) return <div className="p-12">Loading company data...</div>;
 
   return (
     <div className="pl-0 pr-12 py-12 max-w-screen-2xl mx-auto">
@@ -38,7 +58,7 @@ export default async function MyBusinessProfile({ searchParams }: { searchParams
       </h1>
 
       <p className="text-xl text-neutral-600 mt-2">
-        Selected Company ID: {companyId || 'None'} • {debugInfo}
+        Selected Company ID: {companyId || 'None'} • {debug}
       </p>
 
       <div className="bg-white rounded-3xl p-8 mt-8 space-y-4">
@@ -53,11 +73,9 @@ export default async function MyBusinessProfile({ searchParams }: { searchParams
         <p><strong>Business Type:</strong> {data.business_type}</p>
       </div>
 
-      <div className="mt-8">
-        <button className="bg-green-600 text-white px-10 py-3 rounded-2xl text-lg font-medium">
-          Get Verified - R69 with Paystack
-        </button>
-      </div>
+      <button className="mt-8 bg-green-600 text-white px-10 py-3 rounded-2xl text-lg font-medium">
+        Get Verified - R49 with Paystack
+      </button>
     </div>
   );
 }
