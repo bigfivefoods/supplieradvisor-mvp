@@ -135,9 +135,9 @@ function ProfileContent() {
       // 1. Generate secure token
       const token = crypto.randomUUID();
       const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
+      expiresAt.setDate(expiresAt.getDate() + 7);
 
-      // 2. Create invitation record in Supabase
+      // 2. Create invitation record
       const { error: inviteError } = await supabase.from('invitations').insert({
         token: token,
         profile_id: Number(companyId),
@@ -154,7 +154,7 @@ function ProfileContent() {
         return;
       }
 
-      // 3. Send invitation email with token
+      // 3. Send invitation email
       await supabase.functions.invoke('send-team-invitation', {
         body: {
           to_email: newTeamMember.email,
@@ -162,13 +162,12 @@ function ProfileContent() {
           company_name: form.trading_name || form.legal_name || 'Your Company',
           role: newTeamMember.role || 'Team Member',
           inviter_name: form.contact_name || 'The team',
-          token: token, // ← Pass the token
+          token: token,
         },
       });
 
       toast.success(`✅ Invitation sent to ${newTeamMember.email}`);
 
-      // Refresh local state
       const memberData = {
         profile_id: Number(companyId),
         name: newTeamMember.name,
@@ -396,26 +395,45 @@ function ProfileContent() {
           </div>
         </div>
 
-        {/* 3. Industry */}
+        {/* 3. Industry - FIXED with Sub-Industries */}
         <div>
           <h2 className="text-2xl font-bold mb-6">3. Industry</h2>
-          <div className="mt-2 space-y-2 max-h-60 overflow-y-auto border p-4 rounded-2xl">
-            {industries.filter(i => !i.parent_id).map(ind => (
-              <label key={ind.id} className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={(form.industries || []).includes(ind.name)}
-                  onChange={() => {
-                    const current = form.industries || [];
-                    const updated = current.includes(ind.name)
-                      ? current.filter((i: string) => i !== ind.name)
-                      : [...current, ind.name];
-                    setForm((prev: any) => ({ ...prev, industries: updated }));
-                  }}
-                />
-                {ind.name}
-              </label>
-            ))}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {industries
+              .filter((ind: any) => !ind.parent_id) // Only parent industries
+              .map((parent: any) => {
+                const subIndustries = industries.filter(
+                  (sub: any) => sub.parent_id === parent.id
+                );
+
+                return (
+                  <div key={parent.id} className="border rounded-3xl p-6">
+                    <div className="font-semibold text-lg mb-4">{parent.name}</div>
+                    <div className="space-y-3">
+                      {subIndustries.length > 0 ? (
+                        subIndustries.map((sub: any) => (
+                          <label key={sub.id} className="flex items-center gap-3 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={(form.industries || []).includes(sub.name)}
+                              onChange={() => {
+                                const current = form.industries || [];
+                                const updated = current.includes(sub.name)
+                                  ? current.filter((i: string) => i !== sub.name)
+                                  : [...current, sub.name];
+                                setForm((prev: any) => ({ ...prev, industries: updated }));
+                              }}
+                            />
+                            <span className="text-sm">{sub.name}</span>
+                          </label>
+                        ))
+                      ) : (
+                        <p className="text-sm text-neutral-500 italic">No sub-industries yet</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
           </div>
         </div>
 
