@@ -16,41 +16,11 @@ export default function LandingPage() {
   // State for verified companies
   const [verifiedCompanies, setVerifiedCompanies] = useState<any[]>([]);
 
-  // AUTO REDIRECT TO PROFILE AFTER SUCCESSFUL LOGIN (for returning customers)
-  useEffect(() => {
-    if (ready && user) {
-      router.push('/dashboard/profile');
-    }
-  }, [ready, user, router]);
+  // REMOVED: Automatic redirect for logged-in users
+  // Users can now browse the homepage even when logged in.
 
-  // NEW: MULTI-COMPANY SELECTOR FOR RETURNING USERS
-  useEffect(() => {
-    if (!ready || !user) return;
-
-    const handleLoginRedirect = async () => {
-      const cleanId = user.id.replace('privy:', '');
-
-      const { data: profiles, error } = await supabase
-        .from('profiles')
-        .select('id, legal_name, trading_name, logo_url')
-        .eq('user_id', cleanId);
-
-      if (error) {
-        console.error('Profile check error:', error);
-        return;
-      }
-
-      if (!profiles || profiles.length === 0) {
-        router.push('/onboarding');                    // New user
-      } else if (profiles.length === 1) {
-        router.push('/dashboard');                     // Single company → direct to dashboard
-      } else {
-        router.push('/dashboard/select-company');      // Multiple companies → show selector
-      }
-    };
-
-    handleLoginRedirect();
-  }, [ready, user, router]);
+  // REMOVED: Multi-company auto-redirect logic for returning users
+  // They can now stay on the homepage and choose when to go to their dashboard.
 
   // Fetch verified companies for the new section
   useEffect(() => {
