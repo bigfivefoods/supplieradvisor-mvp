@@ -73,7 +73,7 @@ function ProfileContent() {
     setSaving(false);
   };
 
-  // ==================== FIXED PAYSTACK HANDLER ====================
+  // ==================== IMPROVED PAYSTACK HANDLER ====================
   const handleGetVerified = () => {
     if (!companyId || !form.email) {
       toast.error('Missing company ID or email');
@@ -94,7 +94,7 @@ function ProfileContent() {
 
         try {
           const handler = PaystackPop.setup({
-            key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || 'pk_test_your_key_here',
+            key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY!,
             email: form.email,
             amount: 4900,
             currency: 'ZAR',
@@ -108,7 +108,7 @@ function ProfileContent() {
               toast.error('Payment cancelled');
             },
             callback: async function (response: any) {
-              console.log('Paystack payment successful:', response);
+              console.log('Paystack success:', response);
 
               try {
                 const { error } = await supabase
@@ -121,14 +121,11 @@ function ProfileContent() {
 
                 if (error) throw error;
 
-                toast.success('🎉 Payment successful! Company is now verified.');
-
-                setTimeout(() => {
-                  window.location.reload();
-                }, 1200);
+                toast.success('🎉 Payment successful! Company verified.');
+                setTimeout(() => window.location.reload(), 1200);
               } catch (err: any) {
-                console.error('Supabase update error:', err);
-                toast.error('Payment succeeded but verification update failed.');
+                console.error(err);
+                toast.error('Payment succeeded but update failed.');
               } finally {
                 setVerifying(false);
               }
@@ -137,18 +134,18 @@ function ProfileContent() {
 
           handler.openIframe();
         } catch (err: any) {
-          console.error('Paystack error:', err);
-          toast.error('Could not open Paystack popup');
+          console.error('Paystack setup error:', err);
+          toast.error(`Paystack Error: ${err.message || 'Could not open popup'}`);
           setVerifying(false);
         }
       } else if (attempts >= maxAttempts) {
         clearInterval(interval);
         setVerifying(false);
-        toast.error('Paystack failed to load. Please refresh the page and try again.');
+        toast.error('Paystack failed to load. Please refresh and try again.');
       }
     }, 100);
   };
-  // ==================== END OF FIXED PAYSTACK HANDLER ====================
+  // ==================== END OF PAYSTACK HANDLER ====================
 
   if (loading) return <div className="p-12">Loading company data...</div>;
 
@@ -172,7 +169,6 @@ function ProfileContent() {
           </p>
         </div>
 
-        {/* Verification Badge */}
         <div className={`px-4 py-1.5 rounded-full text-sm font-semibold ${badgeColor}`}>
           {verificationStatus === 'verified' && '✅ Verified'}
           {verificationStatus === 'pending' && '⏳ Pending Verification'}
@@ -180,97 +176,52 @@ function ProfileContent() {
         </div>
       </div>
 
-      {/* Editable Form */}
       <div className="bg-white rounded-3xl p-8 space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <label className="text-sm font-medium">Legal Name</label>
-            <input
-              className="input w-full mt-1"
-              value={form.legal_name || ''}
-              onChange={(e) => handleInputChange('legal_name', e.target.value)}
-            />
+            <input className="input w-full mt-1" value={form.legal_name || ''} onChange={(e) => handleInputChange('legal_name', e.target.value)} />
           </div>
           <div>
             <label className="text-sm font-medium">Trading Name</label>
-            <input
-              className="input w-full mt-1"
-              value={form.trading_name || ''}
-              onChange={(e) => handleInputChange('trading_name', e.target.value)}
-            />
+            <input className="input w-full mt-1" value={form.trading_name || ''} onChange={(e) => handleInputChange('trading_name', e.target.value)} />
           </div>
           <div>
             <label className="text-sm font-medium">Email</label>
-            <input
-              className="input w-full mt-1"
-              value={form.email || ''}
-              onChange={(e) => handleInputChange('email', e.target.value)}
-            />
+            <input className="input w-full mt-1" value={form.email || ''} onChange={(e) => handleInputChange('email', e.target.value)} />
           </div>
           <div>
             <label className="text-sm font-medium">Registration Number</label>
-            <input
-              className="input w-full mt-1"
-              value={form.registration_number || ''}
-              onChange={(e) => handleInputChange('registration_number', e.target.value)}
-            />
+            <input className="input w-full mt-1" value={form.registration_number || ''} onChange={(e) => handleInputChange('registration_number', e.target.value)} />
           </div>
           <div>
             <label className="text-sm font-medium">Street</label>
-            <input
-              className="input w-full mt-1"
-              value={form.street || ''}
-              onChange={(e) => handleInputChange('street', e.target.value)}
-            />
+            <input className="input w-full mt-1" value={form.street || ''} onChange={(e) => handleInputChange('street', e.target.value)} />
           </div>
           <div>
             <label className="text-sm font-medium">City</label>
-            <input
-              className="input w-full mt-1"
-              value={form.city || ''}
-              onChange={(e) => handleInputChange('city', e.target.value)}
-            />
+            <input className="input w-full mt-1" value={form.city || ''} onChange={(e) => handleInputChange('city', e.target.value)} />
           </div>
           <div>
             <label className="text-sm font-medium">Province</label>
-            <input
-              className="input w-full mt-1"
-              value={form.province || ''}
-              onChange={(e) => handleInputChange('province', e.target.value)}
-            />
+            <input className="input w-full mt-1" value={form.province || ''} onChange={(e) => handleInputChange('province', e.target.value)} />
           </div>
           <div>
             <label className="text-sm font-medium">Business Type</label>
-            <input
-              className="input w-full mt-1"
-              value={form.business_type || ''}
-              onChange={(e) => handleInputChange('business_type', e.target.value)}
-            />
+            <input className="input w-full mt-1" value={form.business_type || ''} onChange={(e) => handleInputChange('business_type', e.target.value)} />
           </div>
           <div>
             <label className="text-sm font-medium">Bank Name</label>
-            <input
-              className="input w-full mt-1"
-              value={form.bank_name || ''}
-              onChange={(e) => handleInputChange('bank_name', e.target.value)}
-            />
+            <input className="input w-full mt-1" value={form.bank_name || ''} onChange={(e) => handleInputChange('bank_name', e.target.value)} />
           </div>
           <div>
             <label className="text-sm font-medium">Account Number</label>
-            <input
-              className="input w-full mt-1"
-              value={form.account_number || ''}
-              onChange={(e) => handleInputChange('account_number', e.target.value)}
-            />
+            <input className="input w-full mt-1" value={form.account_number || ''} onChange={(e) => handleInputChange('account_number', e.target.value)} />
           </div>
         </div>
 
         <div className="flex justify-end gap-4 pt-4">
-          <button
-            onClick={saveProfile}
-            disabled={saving}
-            className="btn-primary px-8 py-3"
-          >
+          <button onClick={saveProfile} disabled={saving} className="btn-primary px-8 py-3">
             {saving ? 'Saving...' : 'Save Changes'}
           </button>
 
