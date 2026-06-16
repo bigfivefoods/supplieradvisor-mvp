@@ -16,81 +16,70 @@ function ProfileContent() {
   const [saving, setSaving] = useState(false);
   const [verifying, setVerifying] = useState(false);
 
+  // Lookup data
   const [continents, setContinents] = useState<any[]>([]);
-  const [countries, setCountries] = useState<any[]>([]);
+  const [allCountries, setAllCountries] = useState<any[]>([]); // All countries
+  const [filteredCountries, setFilteredCountries] = useState<any[]>([]); // Filtered by continent
   const [provinces, setProvinces] = useState<any[]>([]);
   const [industries, setIndustries] = useState<any[]>([]);
   const [businessTypes, setBusinessTypes] = useState<any[]>([]);
 
+  const [selectedContinentId, setSelectedContinentId] = useState<number | null>(null);
   const [selectedCountryId, setSelectedCountryId] = useState<number | null>(null);
 
-  // ==================== LOAD DATA FROM SUPABASE ====================
+  // Load all data
   useEffect(() => {
     const loadData = async () => {
-      if (!companyId) {
-        console.log("No companyId found in URL");
-        setLoading(false);
-        return;
+      if (!companyId) return;
+
+      const { data: row } = await supabase.from('profiles').select('*').eq('id', Number(companyId)).single();
+      if (row) setForm(row);
+
+      const [contRes, countryRes, indRes, btRes] = await Promise.all([
+        supabase.from('continents').select('id, name').order('name'),
+        supabase.from('countries').select('id, name, flag, continent_id').order('name'),
+        supabase.from('industries').select('id, name, parent_id').eq('is_active', true).order('name'),
+        supabase.from('business_types').select('id, name').order('name')
+      ]);
+
+      if (contRes.data) setContinents(contRes.data);
+      if (countryRes.data) {
+        setAllCountries(countryRes.data);
+        setFilteredCountries(countryRes.data);
+      }
+      if (indRes.data) setIndustries(indRes.data);
+      if (btRes.data) setBusinessTypes(btRes.data);
+
+      // Preload existing selections
+      if (row?.continent) {
+        const continentMatch = contRes.data?.find(c => c.name === row.continent);
+        if (continentMatch) setSelectedContinentId(continentMatch.id);
       }
 
-      console.log("Loading data for companyId:", companyId);
-
-      try {
-        // Load company profile
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', Number(companyId))
-          .single();
-
-        if (profileError) {
-          console.error("Error loading profile:", profileError);
-        } else {
-          console.log("Profile data loaded:", profileData);
-          setForm(profileData);
-        }
-
-        // Load lookup tables
-        const [contRes, countryRes, indRes, btRes] = await Promise.all([
-          supabase.from('continents').select('id, name').order('name'),
-          supabase.from('countries').select('id, name, flag').order('name'),
-          supabase.from('industries').select('id, name, parent_id').eq('is_active', true).order('name'),
-          supabase.from('business_types').select('id, name').order('name')
-        ]);
-
-        console.log("Continents loaded:", contRes.data?.length || 0, "records");
-        console.log("Countries loaded:", countryRes.data?.length || 0, "records");
-        console.log("Industries loaded:", indRes.data?.length || 0, "records");
-        console.log("Business Types loaded:", btRes.data?.length || 0, "records");
-
-        if (contRes.data) setContinents(contRes.data);
-        if (countryRes.data) setCountries(countryRes.data);
-        if (indRes.data) setIndustries(indRes.data);
-        if (btRes.data) setBusinessTypes(btRes.data);
-
-        // Set selected country ID if profile has a country
-        if (profileData?.country) {
-          const { data: countryMatch } = await supabase
-            .from('countries')
-            .select('id')
-            .eq('name', profileData.country)
-            .single();
-
-          if (countryMatch) {
-            console.log("Pre-selected country ID:", countryMatch.id);
-            setSelectedCountryId(countryMatch.id);
-          }
-        }
-
-      } catch (err) {
-        console.error("Unexpected error loading data:", err);
-      } finally {
-        setLoading(false);
+      if (row?.country) {
+        const countryMatch = countryRes.data?.find(c => c.name === row.country);
+        if (countryMatch) setSelectedCountryId(countryMatch.id);
       }
+
+      setLoading(false);
     };
 
     loadData();
   }, [companyId]);
+
+  // Filter countries when continent changes
+  useEffect(() => {
+    if (!selectedContinentId) {
+      setFilteredCountries(allCountries);
+    } else {
+      const filtered = allCountries.filter(c => c.continent_id === selectedContinentId);
+      setFilteredCountries(filtered);
+    }
+    // Reset country and province when continent changes
+    setForm((prev: any) => ({ ...prev, country: '', province: '' }));
+    setSelectedCountryId(null);
+    setProvinces([]);
+  }, [selectedContinentId, allCountries]);
 
   // Load provinces when country changes
   useEffect(() => {
@@ -99,19 +88,13 @@ function ProfileContent() {
         setProvinces([]);
         return;
       }
-
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('provinces')
         .select('id, name')
         .eq('country_id', selectedCountryId)
         .order('name');
-
-      if (error) console.error("Error loading provinces:", error);
-      console.log("Provinces loaded for country ID", selectedCountryId, ":", data?.length || 0);
-
       setProvinces(data || []);
     };
-
     loadProvinces();
   }, [selectedCountryId]);
 
@@ -119,10 +102,17 @@ function ProfileContent() {
     setForm((prev: any) => ({ ...prev, [field]: value }));
   };
 
+  const handleContinentChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const continentName = e.target.value;
+    const selected = continents.find(c => c.name === continentName);
+    setForm((prev: any) => ({ ...prev, continent: continentName, country: '', province: '' }));
+    setSelectedContinentId(selected ? selected.id : null);
+    setSelectedCountryId(null);
+  };
+
   const handleCountryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const countryName = e.target.value;
-    const selected = countries.find(c => c.name === countryName);
-
+    const selected = filteredCountries.find(c => c.name === countryName);
     setForm((prev: any) => ({ ...prev, country: countryName, province: '' }));
     setSelectedCountryId(selected ? selected.id : null);
   };
@@ -166,12 +156,8 @@ function ProfileContent() {
       director_id_number: form.director_id_number,
     }).eq('id', Number(companyId));
 
-    if (error) {
-      console.error("Save error:", error);
-      toast.error('Failed to save changes');
-    } else {
-      toast.success('Profile saved successfully!');
-    }
+    if (error) toast.error('Failed to save changes');
+    else toast.success('Profile saved successfully!');
     setSaving(false);
   };
 
@@ -301,28 +287,37 @@ function ProfileContent() {
           </div>
         </div>
 
-        {/* 2. Location */}
+        {/* 2. Location - Dynamic Cascading */}
         <div>
           <h2 className="text-2xl font-bold mb-6">2. Location</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div><label className="text-sm font-medium">Continent</label>
-              <select className="input w-full mt-1" value={form.continent || ''} onChange={e => handleInputChange('continent', e.target.value)}>
+            {/* Continent */}
+            <div>
+              <label className="text-sm font-medium">Continent</label>
+              <select className="input w-full mt-1" value={form.continent || ''} onChange={handleContinentChange}>
                 <option value="">Select Continent</option>
                 {continents.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
               </select>
             </div>
-            <div><label className="text-sm font-medium">Country</label>
+
+            {/* Country (filtered by continent) */}
+            <div>
+              <label className="text-sm font-medium">Country</label>
               <select className="input w-full mt-1" value={form.country || ''} onChange={handleCountryChange}>
                 <option value="">Select Country</option>
-                {countries.map(c => <option key={c.id} value={c.name}>{c.flag} {c.name}</option>)}
+                {filteredCountries.map(c => <option key={c.id} value={c.name}>{c.flag} {c.name}</option>)}
               </select>
             </div>
-            <div><label className="text-sm font-medium">Province / State</label>
+
+            {/* Province (filtered by country) */}
+            <div>
+              <label className="text-sm font-medium">Province / State</label>
               <select className="input w-full mt-1" value={form.province || ''} onChange={e => handleInputChange('province', e.target.value)} disabled={!selectedCountryId}>
                 <option value="">Select Province</option>
                 {provinces.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
               </select>
             </div>
+
             <div><label className="text-sm font-medium">City</label>
               <input className="input w-full mt-1" value={form.city || ''} onChange={e => handleInputChange('city', e.target.value)} /></div>
             <div><label className="text-sm font-medium">Street Address</label>
