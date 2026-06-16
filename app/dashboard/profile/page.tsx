@@ -103,32 +103,34 @@ function ProfileContent() {
               company_id: companyId,
               company_name: form.legal_name || 'Unknown',
             },
-            onClose: function () {
+            onClose: function onCloseCallback() {
               setVerifying(false);
               toast.error('Payment cancelled');
             },
-            callback: async function (response: any) {
+            callback: function paymentCallback(response: any) {
               console.log('Paystack success:', response);
 
-              try {
-                const { error } = await supabase
-                  .from('profiles')
-                  .update({
-                    verification_status: 'verified',
-                    verified_at: new Date().toISOString(),
-                  })
-                  .eq('id', Number(companyId));
+              (async () => {
+                try {
+                  const { error } = await supabase
+                    .from('profiles')
+                    .update({
+                      verification_status: 'verified',
+                      verified_at: new Date().toISOString(),
+                    })
+                    .eq('id', Number(companyId));
 
-                if (error) throw error;
+                  if (error) throw error;
 
-                toast.success('🎉 Payment successful! Company verified.');
-                setTimeout(() => window.location.reload(), 1200);
-              } catch (err: any) {
-                console.error(err);
-                toast.error('Payment succeeded but update failed.');
-              } finally {
-                setVerifying(false);
-              }
+                  toast.success('🎉 Payment successful! Company verified.');
+                  setTimeout(() => window.location.reload(), 1200);
+                } catch (err: any) {
+                  console.error(err);
+                  toast.error('Payment succeeded but update failed.');
+                } finally {
+                  setVerifying(false);
+                }
+              })();
             },
           });
 
