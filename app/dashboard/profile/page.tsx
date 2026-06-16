@@ -16,46 +16,41 @@ function ProfileContent() {
   const [saving, setSaving] = useState(false);
   const [verifying, setVerifying] = useState(false);
 
-  // Lookup data from Supabase
-  const [industries, setIndustries] = useState<any[]>([]);
+  const [continents, setContinents] = useState<any[]>([]);
   const [countries, setCountries] = useState<any[]>([]);
   const [provinces, setProvinces] = useState<any[]>([]);
+  const [industries, setIndustries] = useState<any[]>([]);
   const [businessTypes, setBusinessTypes] = useState<any[]>([]);
 
-  // Selected country ID (for loading provinces)
   const [selectedCountryId, setSelectedCountryId] = useState<number | null>(null);
 
-  // Load company data + lookup tables
   useEffect(() => {
     const loadData = async () => {
       if (!companyId) return;
 
       const { data: row } = await supabase.from('profiles').select('*').eq('id', Number(companyId)).single();
-      if (row) {
-        setForm(row);
+      if (row) setForm(row);
 
-        // If country already exists, find its ID
-        if (row.country) {
-          const { data: countryData } = await supabase
-            .from('countries')
-            .select('id')
-            .eq('name', row.country)
-            .single();
-
-          if (countryData) setSelectedCountryId(countryData.id);
-        }
-      }
-
-      // Load lookup tables
-      const [indRes, countryRes, btRes] = await Promise.all([
-        supabase.from('industries').select('id, name, parent_id').eq('is_active', true).order('name'),
+      const [contRes, countryRes, indRes, btRes] = await Promise.all([
+        supabase.from('continents').select('id, name').order('name'),
         supabase.from('countries').select('id, name, flag').order('name'),
+        supabase.from('industries').select('id, name, parent_id').eq('is_active', true).order('name'),
         supabase.from('business_types').select('id, name').order('name')
       ]);
 
-      if (indRes.data) setIndustries(indRes.data);
+      if (contRes.data) setContinents(contRes.data);
       if (countryRes.data) setCountries(countryRes.data);
+      if (indRes.data) setIndustries(indRes.data);
       if (btRes.data) setBusinessTypes(btRes.data);
+
+      if (row?.country) {
+        const { data: countryData } = await supabase
+          .from('countries')
+          .select('id')
+          .eq('name', row.country)
+          .single();
+        if (countryData) setSelectedCountryId(countryData.id);
+      }
 
       setLoading(false);
     };
@@ -63,23 +58,19 @@ function ProfileContent() {
     loadData();
   }, [companyId]);
 
-  // Load provinces when selectedCountryId changes
   useEffect(() => {
     const loadProvinces = async () => {
       if (!selectedCountryId) {
         setProvinces([]);
         return;
       }
-
       const { data } = await supabase
         .from('provinces')
         .select('id, name')
         .eq('country_id', selectedCountryId)
         .order('name');
-
       setProvinces(data || []);
     };
-
     loadProvinces();
   }, [selectedCountryId]);
 
@@ -87,13 +78,19 @@ function ProfileContent() {
     setForm((prev: any) => ({ ...prev, [field]: value }));
   };
 
-  // Handle country change (store both name and ID)
   const handleCountryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const countryName = e.target.value;
-    const selectedCountry = countries.find(c => c.name === countryName);
-
+    const selected = countries.find(c => c.name === countryName);
     setForm((prev: any) => ({ ...prev, country: countryName, province: '' }));
-    setSelectedCountryId(selectedCountry ? selectedCountry.id : null);
+    setSelectedCountryId(selected ? selected.id : null);
+  };
+
+  const handleIndustryToggle = (industryName: string) => {
+    const current = form.industries || [];
+    const updated = current.includes(industryName)
+      ? current.filter((i: string) => i !== industryName)
+      : [...current, industryName];
+    setForm((prev: any) => ({ ...prev, industries: updated }));
   };
 
   const saveProfile = async () => {
@@ -108,17 +105,15 @@ function ProfileContent() {
       registration_number: form.registration_number,
       contact_number: form.contact_number,
       business_type: form.business_type,
-
       continent: form.continent,
       country: form.country,
       province: form.province,
       city: form.city,
       street: form.street,
       postal_code: form.postal_code,
-
       industry: form.industry,
+      industries: form.industries || [],
       short_description: form.short_description,
-
       tax_number: form.tax_number,
       vat_number: form.vat_number,
       bank_name: form.bank_name,
@@ -126,7 +121,6 @@ function ProfileContent() {
       account_number: form.account_number,
       iban: form.iban,
       swift: form.swift,
-
       director_id_number: form.director_id_number,
     }).eq('id', Number(companyId));
 
@@ -135,7 +129,6 @@ function ProfileContent() {
     setSaving(false);
   };
 
-  // ==================== PAYSTACK + VERIFYNOW ====================
   const callVerifyNow = async (idNumber: string) => {
     const response = await fetch('/api/verify-now', {
       method: 'POST',
@@ -146,7 +139,6 @@ function ProfileContent() {
         mode: "production"
       }),
     });
-
     const result = await response.json();
     if (!response.ok || result.error) throw new Error(result.error || 'VerifyNow failed');
 
@@ -155,7 +147,6 @@ function ProfileContent() {
       verification_status: 'verified',
       verified_at: new Date().toISOString(),
     }).eq('id', Number(companyId));
-
     return result;
   };
 
@@ -164,7 +155,6 @@ function ProfileContent() {
       toast.error('Missing company ID or email');
       return;
     }
-
     setVerifying(true);
 
     let attempts = 0;
@@ -173,17 +163,17 @@ function ProfileContent() {
     const interval = setInterval(() => {
       const PaystackPop = (window as any).PaystackPop;
       attempts++;
-
       if (PaystackPop) {
         clearInterval(interval);
-
-        function onCloseCallback() {
-          setVerifying(false);
-          toast.error('Payment cancelled');
-        }
-
-        function paymentCallback(response: any) {
-          (async () => {
+        const handler = PaystackPop.setup({
+          key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY!,
+          email: form.email,
+          amount: 6900,
+          currency: 'ZAR',
+          ref: `verify_${companyId}_${Date.now()}`,
+          metadata: { company_id: companyId, company_name: form.legal_name },
+          onClose: () => { setVerifying(false); toast.error('Payment cancelled'); },
+          callback: async (response: any) => {
             try {
               await supabase.from('profiles').update({
                 verification_status: 'verified',
@@ -204,29 +194,13 @@ function ProfileContent() {
             } finally {
               setVerifying(false);
             }
-          })();
-        }
-
-        try {
-          const handler = PaystackPop.setup({
-            key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY!,
-            email: form.email,
-            amount: 6900,
-            currency: 'ZAR',
-            ref: `verify_${companyId}_${Date.now()}`,
-            metadata: { company_id: companyId, company_name: form.legal_name },
-            onClose: onCloseCallback,
-            callback: paymentCallback,
-          });
-          handler.openIframe();
-        } catch (err: any) {
-          toast.error(`Paystack Error: ${err.message}`);
-          setVerifying(false);
-        }
+          },
+        });
+        handler.openIframe();
       } else if (attempts >= maxAttempts) {
         clearInterval(interval);
         setVerifying(false);
-        toast.error('Paystack failed to load. Please refresh the page.');
+        toast.error('Paystack failed to load. Please refresh.');
       }
     }, 100);
   };
@@ -259,39 +233,24 @@ function ProfileContent() {
         <div>
           <h2 className="text-2xl font-bold mb-6">1. Company Basics</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="text-sm font-medium">Legal Name</label>
-              <input className="input w-full mt-1" value={form.legal_name || ''} onChange={e => handleInputChange('legal_name', e.target.value)} />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Trading Name</label>
-              <input className="input w-full mt-1" value={form.trading_name || ''} onChange={e => handleInputChange('trading_name', e.target.value)} />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Business Type</label>
+            <div><label className="text-sm font-medium">Legal Name</label>
+              <input className="input w-full mt-1" value={form.legal_name || ''} onChange={e => handleInputChange('legal_name', e.target.value)} /></div>
+            <div><label className="text-sm font-medium">Trading Name</label>
+              <input className="input w-full mt-1" value={form.trading_name || ''} onChange={e => handleInputChange('trading_name', e.target.value)} /></div>
+            <div><label className="text-sm font-medium">Business Type</label>
               <select className="input w-full mt-1" value={form.business_type || ''} onChange={e => handleInputChange('business_type', e.target.value)}>
                 <option value="">Select Business Type</option>
-                {businessTypes.map(bt => (
-                  <option key={bt.id} value={bt.name}>{bt.name}</option>
-                ))}
+                {businessTypes.map(bt => <option key={bt.id} value={bt.name}>{bt.name}</option>)}
               </select>
             </div>
-            <div>
-              <label className="text-sm font-medium">Contact Name</label>
-              <input className="input w-full mt-1" value={form.contact_name || ''} onChange={e => handleInputChange('contact_name', e.target.value)} />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Contact Number</label>
-              <input className="input w-full mt-1" value={form.contact_number || ''} onChange={e => handleInputChange('contact_number', e.target.value)} />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Email Address</label>
-              <input className="input w-full mt-1" value={form.email || ''} onChange={e => handleInputChange('email', e.target.value)} />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Registration Number</label>
-              <input className="input w-full mt-1" value={form.registration_number || ''} onChange={e => handleInputChange('registration_number', e.target.value)} />
-            </div>
+            <div><label className="text-sm font-medium">Contact Name</label>
+              <input className="input w-full mt-1" value={form.contact_name || ''} onChange={e => handleInputChange('contact_name', e.target.value)} /></div>
+            <div><label className="text-sm font-medium">Contact Number</label>
+              <input className="input w-full mt-1" value={form.contact_number || ''} onChange={e => handleInputChange('contact_number', e.target.value)} /></div>
+            <div><label className="text-sm font-medium">Email Address</label>
+              <input className="input w-full mt-1" value={form.email || ''} onChange={e => handleInputChange('email', e.target.value)} /></div>
+            <div><label className="text-sm font-medium">Registration Number</label>
+              <input className="input w-full mt-1" value={form.registration_number || ''} onChange={e => handleInputChange('registration_number', e.target.value)} /></div>
           </div>
         </div>
 
@@ -299,36 +258,35 @@ function ProfileContent() {
         <div>
           <h2 className="text-2xl font-bold mb-6">2. Location</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="text-sm font-medium">Country</label>
-              <select className="input w-full mt-1" value={form.country || ''} onChange={handleCountryChange}>
-                <option value="">Select Country</option>
-                {countries.map(c => (
-                  <option key={c.id} value={c.name}>{c.flag} {c.name}</option>
-                ))}
+            <div><label className="text-sm font-medium">Continent</label>
+              <select className="input w-full mt-1" value={form.continent || ''} onChange={e => handleInputChange('continent', e.target.value)}>
+                <option value="">Select Continent</option>
+                {continents.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
               </select>
             </div>
-            <div>
-              <label className="text-sm font-medium">Province / State</label>
+            <div><label className="text-sm font-medium">Country</label>
+              <select className="input w-full mt-1" value={form.country || ''} onChange={e => {
+                const countryName = e.target.value;
+                const selected = countries.find(c => c.name === countryName);
+                setForm((prev: any) => ({ ...prev, country: countryName, province: '' }));
+                setSelectedCountryId(selected ? selected.id : null);
+              }}>
+                <option value="">Select Country</option>
+                {countries.map(c => <option key={c.id} value={c.name}>{c.flag} {c.name}</option>)}
+              </select>
+            </div>
+            <div><label className="text-sm font-medium">Province / State</label>
               <select className="input w-full mt-1" value={form.province || ''} onChange={e => handleInputChange('province', e.target.value)} disabled={!selectedCountryId}>
                 <option value="">Select Province</option>
-                {provinces.map(p => (
-                  <option key={p.id} value={p.name}>{p.name}</option>
-                ))}
+                {provinces.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
               </select>
             </div>
-            <div>
-              <label className="text-sm font-medium">City</label>
-              <input className="input w-full mt-1" value={form.city || ''} onChange={e => handleInputChange('city', e.target.value)} />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Street Address</label>
-              <input className="input w-full mt-1" value={form.street || ''} onChange={e => handleInputChange('street', e.target.value)} />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Postal Code</label>
-              <input className="input w-full mt-1" value={form.postal_code || ''} onChange={e => handleInputChange('postal_code', e.target.value)} />
-            </div>
+            <div><label className="text-sm font-medium">City</label>
+              <input className="input w-full mt-1" value={form.city || ''} onChange={e => handleInputChange('city', e.target.value)} /></div>
+            <div><label className="text-sm font-medium">Street Address</label>
+              <input className="input w-full mt-1" value={form.street || ''} onChange={e => handleInputChange('street', e.target.value)} /></div>
+            <div><label className="text-sm font-medium">Postal Code</label>
+              <input className="input w-full mt-1" value={form.postal_code || ''} onChange={e => handleInputChange('postal_code', e.target.value)} /></div>
           </div>
         </div>
 
@@ -337,13 +295,19 @@ function ProfileContent() {
           <h2 className="text-2xl font-bold mb-6">3. Industry & Description</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="text-sm font-medium">Industry</label>
-              <select className="input w-full mt-1" value={form.industry || ''} onChange={e => handleInputChange('industry', e.target.value)}>
-                <option value="">Select Industry</option>
+              <label className="text-sm font-medium">Industry (Select multiple)</label>
+              <div className="mt-2 space-y-2 max-h-60 overflow-y-auto border p-4 rounded-2xl">
                 {industries.filter(i => !i.parent_id).map(ind => (
-                  <option key={ind.id} value={ind.name}>{ind.name}</option>
+                  <label key={ind.id} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={(form.industries || []).includes(ind.name)}
+                      onChange={() => handleIndustryToggle(ind.name)}
+                    />
+                    {ind.name}
+                  </label>
                 ))}
-              </select>
+              </div>
             </div>
             <div className="md:col-span-2">
               <label className="text-sm font-medium">Short Description (max 120 characters)</label>
@@ -359,34 +323,20 @@ function ProfileContent() {
         <div>
           <h2 className="text-2xl font-bold mb-6">4. Financial & Banking</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="text-sm font-medium">Tax Number</label>
-              <input className="input w-full mt-1" value={form.tax_number || ''} onChange={e => handleInputChange('tax_number', e.target.value)} />
-            </div>
-            <div>
-              <label className="text-sm font-medium">VAT Number</label>
-              <input className="input w-full mt-1" value={form.vat_number || ''} onChange={e => handleInputChange('vat_number', e.target.value)} />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Bank Name</label>
-              <input className="input w-full mt-1" value={form.bank_name || ''} onChange={e => handleInputChange('bank_name', e.target.value)} />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Account Name</label>
-              <input className="input w-full mt-1" value={form.account_name || ''} onChange={e => handleInputChange('account_name', e.target.value)} />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Account Number</label>
-              <input className="input w-full mt-1" value={form.account_number || ''} onChange={e => handleInputChange('account_number', e.target.value)} />
-            </div>
-            <div>
-              <label className="text-sm font-medium">IBAN</label>
-              <input className="input w-full mt-1" value={form.iban || ''} onChange={e => handleInputChange('iban', e.target.value)} />
-            </div>
-            <div>
-              <label className="text-sm font-medium">SWIFT / BIC</label>
-              <input className="input w-full mt-1" value={form.swift || ''} onChange={e => handleInputChange('swift', e.target.value)} />
-            </div>
+            <div><label className="text-sm font-medium">Tax Number</label>
+              <input className="input w-full mt-1" value={form.tax_number || ''} onChange={e => handleInputChange('tax_number', e.target.value)} /></div>
+            <div><label className="text-sm font-medium">VAT Number</label>
+              <input className="input w-full mt-1" value={form.vat_number || ''} onChange={e => handleInputChange('vat_number', e.target.value)} /></div>
+            <div><label className="text-sm font-medium">Bank Name</label>
+              <input className="input w-full mt-1" value={form.bank_name || ''} onChange={e => handleInputChange('bank_name', e.target.value)} /></div>
+            <div><label className="text-sm font-medium">Account Name</label>
+              <input className="input w-full mt-1" value={form.account_name || ''} onChange={e => handleInputChange('account_name', e.target.value)} /></div>
+            <div><label className="text-sm font-medium">Account Number</label>
+              <input className="input w-full mt-1" value={form.account_number || ''} onChange={e => handleInputChange('account_number', e.target.value)} /></div>
+            <div><label className="text-sm font-medium">IBAN</label>
+              <input className="input w-full mt-1" value={form.iban || ''} onChange={e => handleInputChange('iban', e.target.value)} /></div>
+            <div><label className="text-sm font-medium">SWIFT / BIC</label>
+              <input className="input w-full mt-1" value={form.swift || ''} onChange={e => handleInputChange('swift', e.target.value)} /></div>
           </div>
         </div>
 
@@ -401,17 +351,11 @@ function ProfileContent() {
 
       </div>
 
-      {/* Action Buttons */}
       <div className="flex flex-col sm:flex-row justify-end gap-4 mt-8">
         <button onClick={saveProfile} disabled={saving} className="btn-primary px-10 py-4">
           {saving ? 'Saving...' : 'Save All Changes'}
         </button>
-
-        <button
-          onClick={handleGetVerified}
-          disabled={verifying}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white px-10 py-4 rounded-2xl font-semibold flex items-center gap-2 disabled:opacity-70"
-        >
+        <button onClick={handleGetVerified} disabled={verifying} className="bg-emerald-600 hover:bg-emerald-700 text-white px-10 py-4 rounded-2xl font-semibold">
           {verifying ? 'Processing...' : 'Get Verified - R69 with Paystack + VerifyNow'}
         </button>
       </div>
