@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { supabase } from '@/lib/supabase';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Send, Users } from 'lucide-react';
+import { ArrowLeft, Send, Users, CheckCircle, Clock } from 'lucide-react';
 import Link from 'next/link';
 
 type Business = {
@@ -16,12 +16,15 @@ type Business = {
   country: string | null;
 };
 
+type ConnectionStatus = 'connected' | 'request_sent' | 'request_received' | null;
+
 export default function BusinessDirectoryPage() {
   const { user } = usePrivy();
   const cleanId = (user?.id || '').replace('privy:', '');
 
   const [myProfileId, setMyProfileId] = useState<number | null>(null);
   const [businesses, setBusinesses] = useState<Business[]>([]);
+  const [connectionStatuses, setConnectionStatuses] = useState<Record<number, ConnectionStatus>>({});
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -44,62 +47,72 @@ export default function BusinessDirectoryPage() {
     getMyProfile();
   }, [cleanId]);
 
-  // Load all businesses
-  const loadBusinesses = async () => {
+  // Load businesses + connection statuses
+  const loadData = async () => {
+    if (!myProfileId) return;
+
     setLoading(true);
-    const { data, error } = await supabase
+
+    // Load all businesses
+    const { data: businessesData } = await supabase
       .from('profiles')
       .select('id, legal_name, trading_name, email, city, country')
       .eq('relationship_type', 'business')
       .order('created_at', { ascending: false });
 
-    if (error) {
-      toast.error('Failed to load businesses');
-    } else {
-      setBusinesses(data || []);
-    }
+    // Load all connections involving current user
+    const { data: connectionsData } = await supabase
+      .from('business_connections')
+      .select('requester_profile_id, requestee_profile_id, status')
+      .or(`requester_profile_id.eq.${myProfileId},requestee_profile_id.eq.${myProfileId}`);
+
+    // Build status map
+    const statusMap: Record<number, ConnectionStatus> = {};
+
+    connectionsData?.forEach((conn) => {
+      const otherId = conn.requester_profile_id === myProfileId 
+        ? conn.requestee_profile_id 
+        : conn.requester_profile_id;
+
+      if (conn.status === 'accepted') {
+        statusMap[otherId] = 'connected';
+      } else if (conn.status === 'pending') {
+        if (conn.requester_profile_id === myProfileId) {
+          statusMap[otherId] = 'request_sent';
+        } else {
+          statusMap[otherId] = 'request_received';
+        }
+      }
+    });
+
+    setBusinesses(businessesData || []);
+    setConnectionStatuses(statusMap);
     setLoading(false);
   };
 
   useEffect(() => {
-    loadBusinesses();
-  }, []);
+    if (myProfileId) loadData();
+  }, [myProfileId]);
 
-  // Filter businesses based on search
+  // Filter businesses
   const filteredBusinesses = businesses.filter(b =>
     b.legal_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (b.trading_name && b.trading_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
     b.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Open send request modal
   const openSendRequest = (business: Business) => {
     setSelectedBusiness(business);
     setRequestMessage('');
     setShowModal(true);
   };
 
-  // Send connection request
   const sendConnectionRequest = async () => {
     if (!myProfileId || !selectedBusiness) return;
 
     setSending(true);
 
     try {
-      // Check if connection already exists
-      const { data: existing } = await supabase
-        .from('business_connections')
-        .select('id, status')
-        .or(`and(requester_profile_id.eq.${myProfileId},requestee_profile_id.eq.${selectedBusiness.id}),and(requester_profile_id.eq.${selectedBusiness.id},requestee_profile_id.eq.${myProfileId})`)
-        .maybeSingle();
-
-      if (existing) {
-        toast.error(`Connection already exists (${existing.status})`);
-        setSending(false);
-        return;
-      }
-
-      // Create request
       const { error } = await supabase.from('business_connections').insert({
         requester_profile_id: myProfileId,
         requestee_profile_id: selectedBusiness.id,
@@ -114,11 +127,39 @@ export default function BusinessDirectoryPage() {
       setShowModal(false);
       setSelectedBusiness(null);
       setRequestMessage('');
+      loadData(); // Refresh statuses
     } catch (error: any) {
       toast.error(error.message || 'Failed to send request');
     } finally {
       setSending(false);
     }
+  };
+
+  const getStatusBadge = (businessId: number) => {
+    const status = connectionStatuses[businessId];
+
+    if (status === 'connected') {
+      return (
+        <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-medium">
+          <CheckCircle className="w-3.5 h-3.5" /> Connected
+        </div>
+      );
+    }
+    if (status === 'request_sent') {
+      return (
+        <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-medium">
+          <Clock className="w-3.5 h-3.5" /> Request Sent
+        </div>
+      );
+    }
+    if (status === 'request_received') {
+      return (
+        <div className="flex items-center gap-1.5 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+          <Clock className="w-3.5 h-3.5" /> Request Received
+        </div>
+      );
+    }
+    return null;
   };
 
   if (loading) {
@@ -137,7 +178,7 @@ export default function BusinessDirectoryPage() {
         </Link>
         <div>
           <h1 className="font-black text-4xl tracking-tight">Business Directory</h1>
-          <p className="text-neutral-600">Browse businesses and send connection requests</p>
+          <p className="text-neutral-600">Browse businesses and manage connections</p>
         </div>
       </div>
 
@@ -158,28 +199,44 @@ export default function BusinessDirectoryPage() {
           <div className="p-12 text-center text-neutral-500">No businesses found.</div>
         ) : (
           <div className="divide-y divide-neutral-100">
-            {filteredBusinesses.map((business) => (
-              <div key={business.id} className="p-6 flex items-center justify-between hover:bg-neutral-50">
-                <div>
-                  <div className="font-semibold text-lg">
-                    {business.trading_name || business.legal_name}
-                  </div>
-                  <div className="text-sm text-neutral-500">{business.email}</div>
-                  {(business.city || business.country) && (
-                    <div className="text-xs text-neutral-400 mt-1">
-                      {[business.city, business.country].filter(Boolean).join(', ')}
-                    </div>
-                  )}
-                </div>
+            {filteredBusinesses.map((business) => {
+              const status = connectionStatuses[business.id];
+              const canSendRequest = !status;
 
-                <button
-                  onClick={() => openSendRequest(business)}
-                  className="flex items-center gap-2 px-5 py-2 bg-[#00b4d8] text-white rounded-2xl text-sm font-medium hover:bg-[#0096b8]"
-                >
-                  <Send className="w-4 h-4" /> Send Connection Request
-                </button>
-              </div>
-            ))}
+              return (
+                <div key={business.id} className="p-6 flex items-center justify-between hover:bg-neutral-50">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3">
+                      <div className="font-semibold text-lg">
+                        {business.trading_name || business.legal_name}
+                      </div>
+                      {getStatusBadge(business.id)}
+                    </div>
+                    <div className="text-sm text-neutral-500 mt-0.5">{business.email}</div>
+                    {(business.city || business.country) && (
+                      <div className="text-xs text-neutral-400 mt-1">
+                        {[business.city, business.country].filter(Boolean).join(', ')}
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    {canSendRequest ? (
+                      <button
+                        onClick={() => openSendRequest(business)}
+                        className="flex items-center gap-2 px-5 py-2 bg-[#00b4d8] text-white rounded-2xl text-sm font-medium hover:bg-[#0096b8]"
+                      >
+                        <Send className="w-4 h-4" /> Send Connection Request
+                      </button>
+                    ) : status === 'connected' ? (
+                      <div className="text-emerald-600 text-sm font-medium px-4">Connected</div>
+                    ) : (
+                      <div className="text-amber-600 text-sm font-medium px-4">Pending</div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
