@@ -23,7 +23,6 @@ function ProfileContent() {
   const [saving, setSaving] = useState(false);
   const [verifying, setVerifying] = useState(false);
 
-  // Expandable sections state
   const [expanded, setExpanded] = useState({
     basics: true,
     location: true,
@@ -44,9 +43,6 @@ function ProfileContent() {
   const [businessTypes, setBusinessTypes] = useState<any[]>([]);
   const [selectedCountryId, setSelectedCountryId] = useState<number | null>(null);
 
-  // File handling (UI only for now)
-  const [selectedFiles, setSelectedFiles] = useState<Record<string, File | null>>({});
-
   const beeLevels = ['Level 1', 'Level 2', 'Level 3', 'Level 4', 'Level 5', 'Level 6', 'Level 7', 'Level 8', 'Non-compliant'];
 
   const commonCertificates = [
@@ -54,7 +50,7 @@ function ProfileContent() {
     'Halal', 'Kosher', 'Organic', 'Fairtrade', 'FSSC 22000'
   ];
 
-  // Save companyId to localStorage
+  // Save companyId
   useEffect(() => {
     if (urlCompanyId) {
       localStorage.setItem('selectedCompanyId', urlCompanyId);
@@ -62,13 +58,10 @@ function ProfileContent() {
     }
   }, [urlCompanyId]);
 
-  useEffect(() => {
-    if (!companyId) setLoading(false);
-  }, [companyId]);
-
+  // Load data
   useEffect(() => {
     const loadData = async () => {
-      if (!companyId) return;
+      if (!companyId) { setLoading(false); return; }
       setLoading(true);
 
       const { data: row } = await supabase.from('profiles').select('*').eq('id', Number(companyId)).single();
@@ -115,15 +108,74 @@ function ProfileContent() {
     setSelectedCountryId(selected ? selected.id : null);
   };
 
-  const handleFileSelect = (field: string, file: File | null) => {
-    setSelectedFiles(prev => ({ ...prev, [field]: file }));
-    if (file) {
-      toast.success(`${file.name} selected`);
-      // TODO: Upload to Supabase Storage and save URL
+  // === UNIVERSAL FILE UPLOAD TO SUPABASE STORAGE ===
+  const uploadFileToStorage = async (file: File, folder: string): Promise<string | null> => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Date.now()}.${fileExt}`;
+    const filePath = `${folder}/${fileName}`;
+
+    const { error } = await supabase.storage
+      .from('company-documents')
+      .upload(filePath, file);
+
+    if (error) {
+      toast.error(`Upload failed: ${error.message}`);
+      return null;
     }
+
+    const { data } = supabase.storage.from('company-documents').getPublicUrl(filePath);
+    return data.publicUrl;
   };
 
-  // Save Profile (updated with new fields)
+  // Handle document uploads (Banking, VAT, Export, Import, BEE)
+  const handleDocumentUpload = async (field: string, file: File) => {
+    if (!companyId) return;
+
+    const url = await uploadFileToStorage(file, `companies/${companyId}/documents`);
+    if (!url) return;
+
+    // Update form with the URL
+    setForm((prev: any) => ({
+      ...prev,
+      [field]: url,
+    }));
+
+    toast.success(`${file.name} uploaded successfully`);
+  };
+
+  // Handle ISO certificate checkbox + file
+  const handleISOCertificateChange = async (certName: string, file?: File) => {
+    const currentCerts = form.iso_certifications || [];
+    const existing = currentCerts.find((c: any) => c.name === certName);
+
+    let updatedCerts;
+
+    if (file) {
+      const url = await uploadFileToStorage(file, `companies/${companyId}/certificates`);
+      if (!url) return;
+
+      if (existing) {
+        updatedCerts = currentCerts.map((c: any) =>
+          c.name === certName ? { ...c, selected: true, file_url: url } : c
+        );
+      } else {
+        updatedCerts = [...currentCerts, { name: certName, selected: true, file_url: url }];
+      }
+      toast.success(`${certName} certificate uploaded`);
+    } else {
+      if (existing) {
+        updatedCerts = currentCerts.map((c: any) =>
+          c.name === certName ? { ...c, selected: !c.selected } : c
+        );
+      } else {
+        updatedCerts = [...currentCerts, { name: certName, selected: true, file_url: null }];
+      }
+    }
+
+    setForm((prev: any) => ({ ...prev, iso_certifications: updatedCerts }));
+  };
+
+  // Save Profile
   const saveProfile = async () => {
     if (!companyId) return;
     setSaving(true);
@@ -152,18 +204,27 @@ function ProfileContent() {
       iban: form.iban,
       swift: form.swift,
       director_id_number: form.director_id_number,
-      // New fields
       export_license_number: form.export_license_number,
       import_license_number: form.import_license_number,
       bee_level: form.bee_level,
+      bee_certificate_url: form.bee_certificate_url,
+      bank_confirmation_url: form.bank_confirmation_url,
+      vat_certificate_url: form.vat_certificate_url,
+      export_license_url: form.export_license_url,
+      import_license_url: form.import_license_url,
+      iso_certifications: form.iso_certifications || [],
     }).eq('id', Number(companyId));
 
-    if (error) toast.error('Failed to save changes');
-    else toast.success('Profile saved successfully!');
+    if (error) {
+      toast.error('Failed to save changes');
+      console.error(error);
+    } else {
+      toast.success('Profile saved successfully!');
+    }
     setSaving(false);
   };
 
-  // Keep your existing VerifyNow + Paystack logic
+  // VerifyNow + Paystack (kept from your original)
   const callVerifyNow = async (idNumber: string) => {
     const response = await fetch('/api/verify-now', {
       method: 'POST',
@@ -240,7 +301,7 @@ function ProfileContent() {
     return (
       <div className="p-12 max-w-md mx-auto text-center">
         <h2 className="text-2xl font-bold mb-4">No Company Selected</h2>
-        <p className="text-neutral-600 mb-6">Please select a company to view and edit its profile.</p>
+        <p className="text-neutral-600 mb-6">Please select a company.</p>
         <button onClick={() => router.push('/dashboard/select-company')} className="btn-primary px-8 py-3">
           Select Company
         </button>
@@ -314,7 +375,6 @@ function ProfileContent() {
           </button>
           {expanded.location && (
             <div className="px-8 pb-8 pt-2 grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Location fields - same as your original */}
               <div><label className="text-sm font-medium">Continent</label>
                 <select className="input w-full mt-1" value={form.continent || ''} onChange={e => handleInputChange('continent', e.target.value)}>
                   <option value="">Select Continent</option>{continents.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
@@ -373,7 +433,7 @@ function ProfileContent() {
           )}
         </div>
 
-        {/* 4. Financial & Banking (New Enhanced) */}
+        {/* 4. Financial & Banking */}
         <div className="bg-white rounded-3xl border border-neutral-200 overflow-hidden">
           <button onClick={() => toggleSection('financial')} className="w-full flex justify-between items-center px-8 py-5 text-left hover:bg-neutral-50">
             <div className="flex items-center gap-4">
@@ -385,41 +445,52 @@ function ProfileContent() {
           {expanded.financial && (
             <div className="px-8 pb-8 pt-2 space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div><label className="text-sm font-medium">Registration Number</label><input className="input w-full mt-1" value={form.registration_number || ''} onChange={e => handleInputChange('tax_number', e.target.value)} /></div>
-                <div><label className="text-sm font-medium">VAT Number</label><input className="input w-full mt-1" value={form.vat_number || ''} onChange={e => handleInputChange('vat_number', e.target.value)} /></div>
-                <div><label className="text-sm font-medium">Bank Name</label><input className="input w-full mt-1" value={form.bank_name || ''} onChange={e => handleInputChange('bank_name', e.target.value)} /></div>
-                <div><label className="text-sm font-medium">Account Name</label><input className="input w-full mt-1" value={form.account_name || ''} onChange={e => handleInputChange('account_name', e.target.value)} /></div>
-                <div><label className="text-sm font-medium">Account Number</label><input className="input w-full mt-1" value={form.account_number || ''} onChange={e => handleInputChange('account_number', e.target.value)} /></div>
-                <div><label className="text-sm font-medium">IBAN</label><input className="input w-full mt-1" value={form.iban || ''} onChange={e => handleInputChange('iban', e.target.value)} /></div>
-                <div><label className="text-sm font-medium">SWIFT / BIC</label><input className="input w-full mt-1" value={form.swift || ''} onChange={e => handleInputChange('swift', e.target.value)} /></div>
+                <div><label className="text-sm font-medium">Registration Number</label>
+                  <input className="input w-full mt-1" value={form.registration_number || ''} onChange={e => handleInputChange('registration_number', e.target.value)} /></div>
+                <div><label className="text-sm font-medium">VAT Number</label>
+                  <input className="input w-full mt-1" value={form.vat_number || ''} onChange={e => handleInputChange('vat_number', e.target.value)} /></div>
+                <div><label className="text-sm font-medium">Bank Name</label>
+                  <input className="input w-full mt-1" value={form.bank_name || ''} onChange={e => handleInputChange('bank_name', e.target.value)} /></div>
+                <div><label className="text-sm font-medium">Account Name</label>
+                  <input className="input w-full mt-1" value={form.account_name || ''} onChange={e => handleInputChange('account_name', e.target.value)} /></div>
+                <div><label className="text-sm font-medium">Account Number</label>
+                  <input className="input w-full mt-1" value={form.account_number || ''} onChange={e => handleInputChange('account_number', e.target.value)} /></div>
+                <div><label className="text-sm font-medium">IBAN</label>
+                  <input className="input w-full mt-1" value={form.iban || ''} onChange={e => handleInputChange('iban', e.target.value)} /></div>
+                <div><label className="text-sm font-medium">SWIFT / BIC</label>
+                  <input className="input w-full mt-1" value={form.swift || ''} onChange={e => handleInputChange('swift', e.target.value)} /></div>
               </div>
 
-              {/* File Uploads */}
+              {/* File Uploads - Fully Functional */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t">
                 <div>
                   <label className="text-sm font-medium">Banking Confirmation</label>
-                  <input type="file" className="input w-full mt-1" onChange={e => handleFileSelect('bank_confirmation', e.target.files?.[0] || null)} />
+                  <input type="file" className="input w-full mt-1" onChange={e => e.target.files?.[0] && handleDocumentUpload('bank_confirmation_url', e.target.files[0])} />
+                  {form.bank_confirmation_url && <p className="text-xs text-emerald-600 mt-1">✓ Uploaded</p>}
                 </div>
                 <div>
                   <label className="text-sm font-medium">VAT Certificate</label>
-                  <input type="file" className="input w-full mt-1" onChange={e => handleFileSelect('vat_certificate', e.target.files?.[0] || null)} />
+                  <input type="file" className="input w-full mt-1" onChange={e => e.target.files?.[0] && handleDocumentUpload('vat_certificate_url', e.target.files[0])} />
+                  {form.vat_certificate_url && <p className="text-xs text-emerald-600 mt-1">✓ Uploaded</p>}
                 </div>
                 <div>
                   <label className="text-sm font-medium">Export License Number</label>
                   <input className="input w-full mt-1" value={form.export_license_number || ''} onChange={e => handleInputChange('export_license_number', e.target.value)} />
-                  <input type="file" className="input w-full mt-2" onChange={e => handleFileSelect('export_license', e.target.files?.[0] || null)} />
+                  <input type="file" className="input w-full mt-2" onChange={e => e.target.files?.[0] && handleDocumentUpload('export_license_url', e.target.files[0])} />
+                  {form.export_license_url && <p className="text-xs text-emerald-600 mt-1">✓ Uploaded</p>}
                 </div>
                 <div>
                   <label className="text-sm font-medium">Import License Number</label>
                   <input className="input w-full mt-1" value={form.import_license_number || ''} onChange={e => handleInputChange('import_license_number', e.target.value)} />
-                  <input type="file" className="input w-full mt-2" onChange={e => handleFileSelect('import_license', e.target.files?.[0] || null)} />
+                  <input type="file" className="input w-full mt-2" onChange={e => e.target.files?.[0] && handleDocumentUpload('import_license_url', e.target.files[0])} />
+                  {form.import_license_url && <p className="text-xs text-emerald-600 mt-1">✓ Uploaded</p>}
                 </div>
               </div>
             </div>
           )}
         </div>
 
-        {/* 5. Certifications (New Section) */}
+        {/* 5. Certifications */}
         <div className="bg-white rounded-3xl border border-neutral-200 overflow-hidden">
           <button onClick={() => toggleSection('certifications')} className="w-full flex justify-between items-center px-8 py-5 text-left hover:bg-neutral-50">
             <div className="flex items-center gap-4">
@@ -443,33 +514,32 @@ function ProfileContent() {
                     </select>
                   </div>
                   <div className="md:col-span-2">
-                    <label className="text-sm font-medium">BEE Certificate Upload</label>
-                    <input type="file" className="input w-full mt-1" onChange={e => handleFileSelect('bee_certificate', e.target.files?.[0] || null)} />
+                    <label className="text-sm font-medium">BEE Certificate</label>
+                    <input type="file" className="input w-full mt-1" onChange={e => e.target.files?.[0] && handleDocumentUpload('bee_certificate_url', e.target.files[0])} />
+                    {form.bee_certificate_url && <p className="text-xs text-emerald-600 mt-1">✓ Uploaded</p>}
                   </div>
                 </div>
               </div>
 
-              {/* ISO & Common Certificates */}
+              {/* ISO & Common Certifications */}
               <div>
                 <h3 className="font-semibold text-lg mb-4">ISO & Common Certifications</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {commonCertificates.map(cert => (
-                    <div key={cert} className="flex items-center justify-between border rounded-2xl p-4">
-                      <div className="flex items-center gap-3">
-                        <input type="checkbox" />
-                        <span className="font-medium">{cert}</span>
-                      </div>
-                      <input type="file" className="text-sm" />
-                    </div>
-                  ))}
-                </div>
-              </div>
+                  {commonCertificates.map(cert => {
+                    const certData = (form.iso_certifications || []).find((c: any) => c.name === cert);
+                    const isSelected = certData?.selected || false;
 
-              {/* Other Certificates */}
-              <div>
-                <h3 className="font-semibold text-lg mb-4">Other Certificates</h3>
-                <button className="btn-primary mb-4">+ Add New Certificate</button>
-                <p className="text-sm text-neutral-500">You can add custom certificates (e.g. SANS, COID, etc.) with awarded and expiry dates.</p>
+                    return (
+                      <div key={cert} className="flex items-center justify-between border rounded-2xl p-4">
+                        <div className="flex items-center gap-3">
+                          <input type="checkbox" checked={isSelected} onChange={() => handleISOCertificateChange(cert)} />
+                          <span className="font-medium">{cert}</span>
+                        </div>
+                        <input type="file" className="text-sm" onChange={e => e.target.files?.[0] && handleISOCertificateChange(cert, e.target.files[0])} />
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           )}
