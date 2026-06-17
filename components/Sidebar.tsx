@@ -25,7 +25,6 @@ const modules = [
     ]
   },
 
-  // ✅ NEW: Network module for connections and business directory
   { 
     id: 'network', 
     name: 'Network', 
@@ -82,11 +81,13 @@ const modules = [
     { name: 'Reports', href: '/dashboard/accounting/reports' },
   ]},
 
+  // ✅ Updated: Leadership Development added under Intelligence
   { id: 'intelligence', name: 'Intelligence', icon: Brain, href: '/dashboard/intelligence', sub: [
     { name: 'Grok AI Assistant', href: '/dashboard/intelligence/grok' },
     { name: 'Analytics & BI', href: '/dashboard/intelligence/analytics' },
     { name: 'Sustainability', href: '/dashboard/intelligence/sustainability' },
     { name: 'Blockchain Explorer', href: '/dashboard/intelligence/blockchain' },
+    { name: 'Leadership Development', href: '/dashboard/ai-lab/leadership-development' },
   ]},
 ];
 
