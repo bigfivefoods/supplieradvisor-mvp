@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useTransition } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { supabase } from '@/lib/supabase';
+import { getMyProfileId } from '@/app/actions/get-my-profile';
 import toast from 'react-hot-toast';
 import { ArrowLeft, Send, Users, CheckCircle, Clock, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
@@ -29,43 +30,40 @@ export default function BusinessDirectoryPage() {
   const [loadingData, setLoadingData] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState('');
+  const [isPending, startTransition] = useTransition();
 
   const [showModal, setShowModal] = useState(false);
   const [selectedBusiness, setSelectedBusiness] = useState<Business | null>(null);
   const [requestMessage, setRequestMessage] = useState('');
   const [sending, setSending] = useState(false);
 
-  // Get current user's profile ID
+  // Get current user's profile ID via Server Action (uses service role)
   useEffect(() => {
-    const getMyProfile = async () => {
-      if (!cleanId || !ready) return;
+    const loadProfile = async () => {
+      if (!user?.id || !ready) return;
 
       setLoadingProfile(true);
       setError('');
 
       try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('user_id', cleanId)
-          .single();
-
-        if (error || !data) {
-          setError('Could not load your profile. Please try again.');
+        const profileId = await getMyProfileId(user.id);
+        
+        if (!profileId) {
+          setError('Could not find your profile. Please complete onboarding first.');
         } else {
-          setMyProfileId(data.id);
+          setMyProfileId(profileId);
         }
       } catch (err) {
-        setError('Failed to load profile.');
+        setError('Failed to load your profile.');
       } finally {
         setLoadingProfile(false);
       }
     };
 
-    getMyProfile();
-  }, [cleanId, ready]);
+    loadProfile();
+  }, [user?.id, ready]);
 
-  // Load businesses + connection statuses
+  // Load businesses + connection statuses (client-side is fine here)
   const loadData = async () => {
     if (!myProfileId) return;
 
@@ -73,7 +71,6 @@ export default function BusinessDirectoryPage() {
     setError('');
 
     try {
-      // Load businesses
       const { data: businessesData, error: bizError } = await supabase
         .from('profiles')
         .select('id, legal_name, trading_name, email, city, country')
@@ -82,13 +79,11 @@ export default function BusinessDirectoryPage() {
 
       if (bizError) throw bizError;
 
-      // Load connections
       const { data: connectionsData } = await supabase
         .from('business_connections')
         .select('requester_profile_id, requestee_profile_id, status')
         .or(`requester_profile_id.eq.${myProfileId},requestee_profile_id.eq.${myProfileId}`);
 
-      // Build status map
       const statusMap: Record<number, ConnectionStatus> = {};
       connectionsData?.forEach((conn) => {
         const otherId = conn.requester_profile_id === myProfileId 
@@ -118,6 +113,8 @@ export default function BusinessDirectoryPage() {
       loadData();
     }
   }, [myProfileId]);
+
+  // ... rest of the component (search, modal, send request, etc.) remains the same as before
 
   const filteredBusinesses = businesses.filter(b =>
     b.legal_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -172,9 +169,7 @@ export default function BusinessDirectoryPage() {
     return null;
   };
 
-  // ==================== RENDER ====================
-
-  if (loadingProfile) {
+  if (loadingProfile || isPending) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
         <div className="animate-spin h-8 w-8 border-b-2 border-[#00b4d8] rounded-full mb-4"></div>
@@ -196,6 +191,7 @@ export default function BusinessDirectoryPage() {
 
   return (
     <div className="max-w-6xl mx-auto px-6 py-10">
+      {/* Header + Search */}
       <div className="flex items-center gap-4 mb-8">
         <Link href="/dashboard/suppliers" className="text-neutral-500 hover:text-neutral-700">
           <ArrowLeft className="w-5 h-5" />

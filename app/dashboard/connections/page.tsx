@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useTransition } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { supabase } from '@/lib/supabase';
+import { getMyProfileId } from '@/app/actions/get-my-profile';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Check, X, Clock, Users, Send } from 'lucide-react';
+import { ArrowLeft, Check, X, Clock, Users, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 
 type Connection = {
@@ -23,8 +24,6 @@ type Tab = 'all' | 'sent' | 'received' | 'accepted';
 
 export default function ConnectionsPage() {
   const { user, ready } = usePrivy();
-  const cleanId = (user?.id || '').replace('privy:', '');
-
   const [myProfileId, setMyProfileId] = useState<number | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [connections, setConnections] = useState<Connection[]>([]);
@@ -32,26 +31,23 @@ export default function ConnectionsPage() {
   const [activeTab, setActiveTab] = useState<Tab>('all');
   const [error, setError] = useState('');
   const [processingId, setProcessingId] = useState<number | null>(null);
+  const [isPending, startTransition] = useTransition();
 
-  // Get current user's profile ID
+  // Get current user's profile ID via Server Action
   useEffect(() => {
-    const getMyProfile = async () => {
-      if (!cleanId || !ready) return;
+    const loadProfile = async () => {
+      if (!user?.id || !ready) return;
 
       setLoadingProfile(true);
       setError('');
 
       try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('user_id', cleanId)
-          .single();
+        const profileId = await getMyProfileId(user.id);
 
-        if (error || !data) {
-          setError('Could not load your profile.');
+        if (!profileId) {
+          setError('Could not find your profile. Please complete onboarding first.');
         } else {
-          setMyProfileId(data.id);
+          setMyProfileId(profileId);
         }
       } catch (err) {
         setError('Failed to load your profile.');
@@ -60,8 +56,8 @@ export default function ConnectionsPage() {
       }
     };
 
-    getMyProfile();
-  }, [cleanId, ready]);
+    loadProfile();
+  }, [user?.id, ready]);
 
   // Load connections
   const loadConnections = async () => {
@@ -103,7 +99,7 @@ export default function ConnectionsPage() {
     }
   }, [myProfileId]);
 
-  // Filter connections based on active tab
+  // Filter connections
   const filteredConnections = connections.filter((conn) => {
     if (activeTab === 'all') return true;
     if (activeTab === 'sent') return conn.requester_profile_id === myProfileId && conn.status === 'pending';
@@ -154,7 +150,7 @@ export default function ConnectionsPage() {
 
   // ==================== RENDER ====================
 
-  if (loadingProfile) {
+  if (loadingProfile || isPending) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
         <div className="animate-spin h-8 w-8 border-b-2 border-[#00b4d8] rounded-full mb-4"></div>
@@ -166,7 +162,7 @@ export default function ConnectionsPage() {
   if (error) {
     return (
       <div className="max-w-md mx-auto px-6 py-20 text-center">
-        <Users className="w-12 h-12 text-red-500 mx-auto mb-4" />
+        <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
         <h2 className="font-semibold text-xl mb-2">Something went wrong</h2>
         <p className="text-neutral-600 mb-6">{error}</p>
         <button onClick={() => window.location.reload()} className="btn-primary px-8">Try Again</button>
