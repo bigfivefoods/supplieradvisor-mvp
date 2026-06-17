@@ -3,16 +3,20 @@
 export const dynamic = 'force-dynamic';
 
 import { useEffect, useState, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import toast from 'react-hot-toast';
 import { usePrivy } from '@privy-io/react-auth';
 
 function TeamContent() {
   const searchParams = useSearchParams();
-  const companyId = searchParams.get('companyId');
+  const router = useRouter();
   const { user } = usePrivy();
   const cleanId = (user?.id || '').replace('privy:', '');
+
+  // Support both URL param and localStorage (common pattern)
+  const urlCompanyId = searchParams.get('companyId');
+  const [companyId, setCompanyId] = useState<string | null>(urlCompanyId || localStorage.getItem('selectedCompanyId'));
 
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [companyName, setCompanyName] = useState('');
@@ -25,11 +29,23 @@ function TeamContent() {
   });
 
   useEffect(() => {
+    // Save to localStorage if we got it from URL
+    if (urlCompanyId) {
+      localStorage.setItem('selectedCompanyId', urlCompanyId);
+      setCompanyId(urlCompanyId);
+    }
+  }, [urlCompanyId]);
+
+  useEffect(() => {
     const loadData = async () => {
-      if (!companyId) return;
+      if (!companyId) {
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
 
-      // Load company name for invitation email
+      // Load company name
       const { data: company } = await supabase
         .from('profiles')
         .select('trading_name, legal_name')
@@ -50,6 +66,7 @@ function TeamContent() {
       if (members) setTeamMembers(members);
       setLoading(false);
     };
+
     loadData();
   }, [companyId]);
 
@@ -108,8 +125,22 @@ function TeamContent() {
     }
   };
 
+  // No company selected screen
   if (!companyId) {
-    return <div className="p-12 text-center">No company selected. Please select a company first.</div>;
+    return (
+      <div className="p-12 max-w-md mx-auto text-center">
+        <h2 className="text-2xl font-bold mb-4">No Company Selected</h2>
+        <p className="text-neutral-600 mb-6">
+          Please select a company first to manage team members.
+        </p>
+        <button 
+          onClick={() => router.push('/dashboard/select-company')}
+          className="btn-primary px-8 py-3"
+        >
+          Select Company
+        </button>
+      </div>
+    );
   }
 
   if (loading) return <div className="p-12">Loading team...</div>;
@@ -144,7 +175,7 @@ function TeamContent() {
         )}
       </div>
 
-      {/* Add New Team Member */}
+      {/* Invite New Team Member */}
       <div className="bg-white rounded-3xl p-8 border border-neutral-200">
         <h2 className="text-2xl font-bold mb-6">Invite New Team Member</h2>
 

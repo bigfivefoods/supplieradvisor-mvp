@@ -11,9 +11,11 @@ import { usePrivy } from '@privy-io/react-auth';
 function ProfileContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const companyId = searchParams.get('companyId');
   const { user } = usePrivy();
   const cleanId = (user?.id || '').replace('privy:', '');
+
+  const urlCompanyId = searchParams.get('companyId');
+  const [companyId, setCompanyId] = useState<string | null>(urlCompanyId || localStorage.getItem('selectedCompanyId'));
 
   const [form, setForm] = useState<any>({});
   const [loading, setLoading] = useState(true);
@@ -27,6 +29,14 @@ function ProfileContent() {
   const [businessTypes, setBusinessTypes] = useState<any[]>([]);
 
   const [selectedCountryId, setSelectedCountryId] = useState<number | null>(null);
+
+  // Save companyId to localStorage when it comes from URL
+  useEffect(() => {
+    if (urlCompanyId) {
+      localStorage.setItem('selectedCompanyId', urlCompanyId);
+      setCompanyId(urlCompanyId);
+    }
+  }, [urlCompanyId]);
 
   useEffect(() => {
     if (!companyId) setLoading(false);
@@ -189,13 +199,19 @@ function ProfileContent() {
     }, 100);
   };
 
+  // Improved empty state
   if (!companyId) {
     return (
-      <div className="p-12 text-center">
+      <div className="p-12 max-w-md mx-auto text-center">
         <h2 className="text-2xl font-bold mb-4">No Company Selected</h2>
-        <p className="text-neutral-600 mb-6">Please select a company to view its profile.</p>
-        <button onClick={() => router.push('/dashboard/select-company')} className="btn-primary px-8 py-3">
-          Go to Select Company
+        <p className="text-neutral-600 mb-6">
+          Please select a company to view and edit its profile.
+        </p>
+        <button 
+          onClick={() => router.push('/dashboard/select-company')}
+          className="btn-primary px-8 py-3"
+        >
+          Select Company
         </button>
       </div>
     );
