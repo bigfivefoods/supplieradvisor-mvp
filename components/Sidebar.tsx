@@ -12,7 +12,6 @@ import {
 const modules = [
   { id: 'home', name: 'Dashboard', icon: Home, href: '/dashboard', sub: [] },
 
-  // ✅ UPDATED: My Business now correctly points to the new profile location
   { 
     id: 'my-business', 
     name: 'My Business', 
@@ -23,6 +22,19 @@ const modules = [
       { name: 'Team & Roles', href: '/dashboard/my-business/team' },
       { name: 'Projects', href: '/dashboard/business/projects' },
       { name: 'Settings', href: '/dashboard/business/settings' },
+    ]
+  },
+
+  // ✅ NEW: Network module for connections and business directory
+  { 
+    id: 'network', 
+    name: 'Network', 
+    icon: Users, 
+    href: '/dashboard/connections', 
+    sub: [
+      { name: 'Business Directory', href: '/dashboard/suppliers/directory' },
+      { name: 'Connections', href: '/dashboard/connections' },
+      { name: 'Invite Business', href: '/dashboard/invite-business' },
     ]
   },
 
