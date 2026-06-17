@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
-import { useRouter } from 'next/navigation';
-import { ArrowRight, ChevronDown, Upload, Plus, Users2, RotateCw } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { ArrowRight, ChevronDown, Plus, Users2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import toast from 'react-hot-toast';
 import Breadcrumb from '@/components/ui/Breadcrumb';
@@ -11,12 +11,14 @@ import Breadcrumb from '@/components/ui/Breadcrumb';
 export default function Onboarding() {
   const { user } = usePrivy();
   const router = useRouter();
-  const cleanId = (user?.id || '').replace('privy:', '');
+  const searchParams = useSearchParams();
 
-  const [step, setStep] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const cleanId = (user?.id || '').replace('privy:', '');
+  const inviteToken = searchParams.get('invite');
+
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [inviteData, setInviteData] = useState<any>(null);
 
   const [form, setForm] = useState({
     legal_name: '', trading_name: '', contact_name: '', email: '', registration_number: '', contact_number: '',
@@ -34,7 +36,6 @@ export default function Onboarding() {
     business_type: '',
     team_members: [] as any[],
     created_at: '',
-    on_chain_hash: '', sbt_token_id: null as string | null, verified_at: null as string | null
   });
 
   const [newProduct, setNewProduct] = useState({ description: '', sku: '', uom: '', sellPrice: '', leadTime: '', image_url: '' });
@@ -42,17 +43,10 @@ export default function Onboarding() {
   const [newCert, setNewCert] = useState({ name: '', body: '', awarded_date: '', expiry_date: '', never_expires: false, document_url: '' });
   const [newTeamMember, setNewTeamMember] = useState({ name: '', email: '', contact_number: '', role: '' });
 
-  const [openIndustries, setOpenIndustries] = useState<Record<string, boolean>>({});
   const [expanded, setExpanded] = useState<Record<string, boolean>>({
-    basics: true,
-    location: true,
-    industries: true,
-    financial: true,
-    products: true,
-    certifications: true
+    basics: true, location: true, industries: true, financial: true, products: true, certifications: true
   });
 
-  // Dynamic data from Supabase
   const [continents, setContinents] = useState<any[]>([]);
   const [allCountries, setAllCountries] = useState<any[]>([]);
   const [filteredCountries, setFilteredCountries] = useState<any[]>([]);
@@ -63,7 +57,32 @@ export default function Onboarding() {
   const [selectedContinentId, setSelectedContinentId] = useState<number | null>(null);
   const [selectedCountryId, setSelectedCountryId] = useState<number | null>(null);
 
-  // Load dynamic data from Supabase
+  // ==================== INVITE TOKEN HANDLING ====================
+  useEffect(() => {
+    const checkInviteToken = async () => {
+      if (!inviteToken) return;
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('invite_token', inviteToken)
+        .eq('supplier_status', 'pending')
+        .single();
+
+      if (error || !data) {
+        toast.error('Invalid or expired invitation link');
+        return;
+      }
+
+      setForm(prev => ({ ...prev, email: data.email || '' }));
+      setInviteData(data);
+      toast.success('Invitation detected. Welcome!');
+    };
+
+    checkInviteToken();
+  }, [inviteToken]);
+
+  // Load dynamic data
   useEffect(() => {
     const loadLookups = async () => {
       const [contRes, countryRes, indRes, btRes] = await Promise.all([
@@ -81,11 +100,10 @@ export default function Onboarding() {
       if (indRes.data) setIndustriesList(indRes.data);
       if (btRes.data) setBusinessTypesList(btRes.data);
     };
-
     loadLookups();
   }, []);
 
-  // Filter countries when continent changes
+  // Filter countries
   useEffect(() => {
     if (!selectedContinentId) {
       setFilteredCountries(allCountries);
@@ -97,24 +115,19 @@ export default function Onboarding() {
     setProvinces([]);
   }, [selectedContinentId, allCountries]);
 
-  // Load provinces when country changes
+  // Load provinces
   useEffect(() => {
     const loadProvinces = async () => {
       if (!selectedCountryId) {
         setProvinces([]);
         return;
       }
-      const { data } = await supabase
-        .from('provinces')
-        .select('id, name')
-        .eq('country_id', selectedCountryId)
-        .order('name');
+      const { data } = await supabase.from('provinces').select('id, name').eq('country_id', selectedCountryId).order('name');
       setProvinces(data || []);
     };
     loadProvinces();
   }, [selectedCountryId]);
 
-  const toggleIndustry = (name: string) => setOpenIndustries(prev => ({ ...prev, [name]: !prev[name] }));
   const toggleSection = (section: string) => {
     setExpanded(prev => ({ ...prev, [section]: !prev[section] }));
   };
@@ -130,19 +143,6 @@ export default function Onboarding() {
     setForm(p => ({ ...p, [field]: publicUrl }));
     setUploading(false);
     toast.success("✅ File uploaded");
-  };
-
-  const handleCertUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !cleanId) return toast.error("Please select a file");
-    setUploading(true);
-    const fileName = `${cleanId}-cert-${Date.now()}.${file.name.split('.').pop()}`;
-    const { error } = await supabase.storage.from('certificates').upload(fileName, file, { upsert: true });
-    if (error) return toast.error("Upload failed");
-    const { data: { publicUrl } } = supabase.storage.from('certificates').getPublicUrl(fileName);
-    setNewCert(p => ({ ...p, document_url: publicUrl }));
-    setUploading(false);
-    toast.success("✅ Certificate uploaded");
   };
 
   const addProduct = () => {
@@ -174,7 +174,6 @@ export default function Onboarding() {
       toast.error('Name and Email are required');
       return;
     }
-
     const memberData = {
       profile_id: cleanId,
       name: newTeamMember.name,
@@ -184,26 +183,19 @@ export default function Onboarding() {
       status: 'invited',
       invited_at: new Date().toISOString()
     };
+    const { error } = await supabase.from('business_users').insert(memberData);
+    if (error) return toast.error('Failed to save user');
 
-    const { error: insertError } = await supabase.from('business_users').insert(memberData);
-    if (insertError) {
-      toast.error('Failed to save user');
-      return;
-    }
-
-    setForm(p => ({
-      ...p,
-      team_members: [...(p.team_members || []), memberData]
-    }));
-
+    setForm(p => ({ ...p, team_members: [...(p.team_members || []), memberData] }));
     setNewTeamMember({ name: '', email: '', contact_number: '', role: '' });
     toast.success(`✅ Team member added`);
   };
 
+  // ==================== SAVE PROFILE ====================
   const saveProfile = async () => {
     setSaving(true);
     try {
-      const profileData = {
+      const profileData: any = {
         user_id: cleanId,
         legal_name: form.legal_name,
         trading_name: form.trading_name,
@@ -235,25 +227,33 @@ export default function Onboarding() {
         swift: form.swift,
         bank_confirmation_url: form.bank_confirmation_url,
         business_type: form.business_type,
-        created_at: form.created_at || new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
 
-      const { error: profileError } = await supabase.from('profiles').upsert(profileData);
-      if (profileError) throw profileError;
+      if (inviteToken && inviteData) {
+        profileData.relationship_type = 'supplier';
+        profileData.supplier_status = 'active';
+        profileData.invite_token = null;
+      } else {
+        profileData.created_at = form.created_at || new Date().toISOString();
+      }
 
-      // Critical: Create link in business_users
-      const { error: linkError } = await supabase
-        .from('business_users')
-        .upsert({
-          user_id: cleanId,
-          profile_id: cleanId,
-          role: 'owner',
-          status: 'active',
-          joined_at: new Date().toISOString()
-        }, { onConflict: 'user_id,profile_id' });
+      let error;
+      if (inviteToken && inviteData) {
+        ({ error } = await supabase.from('profiles').update(profileData).eq('invite_token', inviteToken));
+      } else {
+        ({ error } = await supabase.from('profiles').upsert(profileData));
+      }
 
-      if (linkError) console.error('business_users link error:', linkError);
+      if (error) throw error;
+
+      await supabase.from('business_users').upsert({
+        user_id: cleanId,
+        profile_id: cleanId,
+        role: 'owner',
+        status: 'active',
+        joined_at: new Date().toISOString()
+      }, { onConflict: 'user_id,profile_id' });
 
       if (form.products.length > 0) {
         await supabase.from('business_products').upsert(form.products.map(p => ({ profile_id: cleanId, ...p })));
@@ -265,10 +265,12 @@ export default function Onboarding() {
         await supabase.from('business_certifications').upsert(form.certifications.map(c => ({ profile_id: cleanId, ...c })));
       }
 
-      toast.success("🎉 Onboarding complete – Profile saved!");
+      toast.success(inviteToken 
+        ? "🎉 Welcome! Your supplier profile has been activated." 
+        : "🎉 Onboarding complete!");
+
       router.push('/dashboard/select-company');
     } catch (error: any) {
-      console.error("Save error:", error);
       toast.error(`Failed: ${error.message}`);
     } finally {
       setSaving(false);
@@ -281,14 +283,25 @@ export default function Onboarding() {
 
       <div className="flex items-end justify-between mb-8">
         <div>
-          <h1 className="font-black text-5xl tracking-tight text-[#00b4d8]">Verify Your Business</h1>
-          <p className="text-xl text-neutral-600">Complete your company profile</p>
+          <h1 className="font-black text-5xl tracking-tight text-[#00b4d8]">
+            {inviteData ? 'Complete Your Supplier Profile' : 'Verify Your Business'}
+          </h1>
+          <p className="text-xl text-neutral-600">
+            {inviteData ? 'You were invited to join SupplierAdvisor as a supplier.' : 'Complete your company profile'}
+          </p>
         </div>
       </div>
 
+      {/* Invite Banner */}
+      {inviteData && (
+        <div className="mb-8 p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-700">
+          Invited as a supplier via <strong>{inviteData.email}</strong>. Your email has been pre-filled.
+        </div>
+      )}
+
       <div className="space-y-8">
 
-        {/* 1. Company Details + Team Members */}
+        {/* 1. Company Details */}
         <div className="bg-white rounded-3xl shadow-sm border border-neutral-100 p-8">
           <div className="flex justify-between items-center mb-6 cursor-pointer" onClick={() => toggleSection('basics')}>
             <h2 className="text-2xl font-bold">1. Company Details</h2>
@@ -305,35 +318,29 @@ export default function Onboarding() {
                   <label className="block text-sm font-medium mb-2">Trading Name</label>
                   <input type="text" className="input w-full" value={form.trading_name} onChange={e => setForm(p => ({...p, trading_name: e.target.value}))} />
                 </div>
-
                 <div>
                   <label className="block text-sm font-medium mb-2">Business Type</label>
-                  <select className="input w-full" value={form.business_type || ''} onChange={e => setForm(p => ({ ...p, business_type: e.target.value }))}>
+                  <select className="input w-full" value={form.business_type} onChange={e => setForm(p => ({ ...p, business_type: e.target.value }))}>
                     <option value="">Select Business Type</option>
                     {businessTypesList.map((type: any) => <option key={type.id} value={type.name}>{type.name}</option>)}
                   </select>
                 </div>
-
                 <div>
                   <label className="block text-sm font-medium mb-2">Contact Name</label>
                   <input type="text" className="input w-full" value={form.contact_name} onChange={e => setForm(p => ({...p, contact_name: e.target.value}))} />
                 </div>
-
                 <div>
                   <label className="block text-sm font-medium mb-2">Contact Number</label>
                   <input type="tel" className="input w-full" value={form.contact_number || ''} onChange={e => setForm(p => ({...p, contact_number: e.target.value}))} />
                 </div>
-
                 <div>
                   <label className="block text-sm font-medium mb-2">Email Address</label>
-                  <input type="email" className="input w-full" value={form.email} onChange={e => setForm(p => ({...p, email: e.target.value}))} />
+                  <input type="email" className="input w-full" value={form.email} onChange={e => setForm(p => ({...p, email: e.target.value}))} disabled={!!inviteData} />
                 </div>
-
                 <div>
                   <label className="block text-sm font-medium mb-2">Company Registration Number</label>
                   <input type="text" className="input w-full" value={form.registration_number} onChange={e => setForm(p => ({...p, registration_number: e.target.value}))} />
                 </div>
-
                 <div>
                   <label className="block text-sm font-medium mb-3">Company Logo</label>
                   {form.logo_url && <img src={form.logo_url} alt="Logo" className="w-14 h-14 object-cover rounded-2xl border mb-3" />}
@@ -347,7 +354,6 @@ export default function Onboarding() {
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-xl font-semibold flex items-center gap-3"><Users2 size={24} /> Team Members</h3>
                 </div>
-
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6 bg-neutral-50 p-8 rounded-3xl">
                   <input type="text" className="input w-full" placeholder="Full Name" value={newTeamMember.name} onChange={e => setNewTeamMember({...newTeamMember, name: e.target.value})} />
                   <input type="email" className="input w-full" placeholder="Email" value={newTeamMember.email} onChange={e => setNewTeamMember({...newTeamMember, email: e.target.value})} />
@@ -368,7 +374,7 @@ export default function Onboarding() {
           )}
         </div>
 
-        {/* 2. LOCATION - Dynamic Cascading */}
+        {/* 2. Location */}
         <div className="bg-white rounded-3xl shadow-sm border border-neutral-100 p-8">
           <div className="flex justify-between items-center mb-6 cursor-pointer" onClick={() => toggleSection('location')}>
             <h2 className="text-2xl font-bold">2. Location</h2>
@@ -386,7 +392,6 @@ export default function Onboarding() {
                   <option value="">Select Continent</option>
                   {continents.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                 </select>
-
                 <select className="input w-full" value={form.country} onChange={(e) => {
                   const countryName = e.target.value;
                   const selected = filteredCountries.find(c => c.name === countryName);
@@ -396,13 +401,11 @@ export default function Onboarding() {
                   <option value="">Select Country</option>
                   {filteredCountries.map(c => <option key={c.id} value={c.name}>{c.flag} {c.name}</option>)}
                 </select>
-
                 <select className="input w-full" value={form.province} onChange={e => setForm(p => ({...p, province: e.target.value}))} disabled={!form.country}>
                   <option value="">Select Province / State</option>
                   {provinces.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
                 </select>
               </div>
-
               <div className="grid grid-cols-3 gap-6">
                 <input type="text" className="input w-full" placeholder="Street Address" value={form.street || ''} onChange={e => setForm(p => ({...p, street: e.target.value}))} />
                 <input type="text" className="input w-full" placeholder="City" value={form.city || ''} onChange={e => setForm(p => ({...p, city: e.target.value}))} />
@@ -429,9 +432,7 @@ export default function Onboarding() {
                         <input type="checkbox" checked={form.industries.includes(sub.name)} onChange={() => {
                           setForm(p => ({
                             ...p,
-                            industries: p.industries.includes(sub.name)
-                              ? p.industries.filter(i => i !== sub.name)
-                              : [...p.industries, sub.name]
+                            industries: p.industries.includes(sub.name) ? p.industries.filter(i => i !== sub.name) : [...p.industries, sub.name]
                           }));
                         }} />
                         {sub.name}
@@ -503,7 +504,7 @@ export default function Onboarding() {
 
       <div className="flex justify-end gap-4 mt-12">
         <button onClick={saveProfile} disabled={saving} className="btn-primary flex items-center gap-3 px-12 py-4">
-          {saving ? 'Saving...' : 'Submit & Go Live'} <ArrowRight />
+          {saving ? 'Saving...' : inviteData ? 'Activate Supplier Profile' : 'Submit & Go Live'} <ArrowRight />
         </button>
       </div>
     </div>

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { supabase } from '@/lib/supabase';
-import { Search, ChevronDown, Plus, UserPlus, MapPin, Award, Clock, RefreshCw, CheckCircle } from 'lucide-react';
+import { Search, ChevronDown, UserPlus, MapPin, Award } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 
@@ -21,7 +21,6 @@ export default function SuppliersSearch() {
   const [requestsLoading, setRequestsLoading] = useState(true);
 
   const [showFilters, setShowFilters] = useState(true);
-
   const [inviteEmail, setInviteEmail] = useState('');
 
   const [selectedContinent, setSelectedContinent] = useState('');
@@ -29,7 +28,7 @@ export default function SuppliersSearch() {
   const [selectedProvince, setSelectedProvince] = useState('');
   const [trustScoreMin, setTrustScoreMin] = useState(70);
 
-  // Load suppliers from profiles table (single source of truth)
+  // ==================== LOAD SUPPLIERS ====================
   const loadSuppliers = async () => {
     setLoading(true);
 
@@ -58,6 +57,7 @@ export default function SuppliersSearch() {
     setRequestsLoading(false);
   };
 
+  // ==================== CONNECTION REQUEST ====================
   const sendConnectionRequest = async (targetId: string, companyName: string) => {
     await supabase.from('business_connections').insert({
       requester_id: cleanId,
@@ -68,24 +68,31 @@ export default function SuppliersSearch() {
     loadConnectionRequests();
   };
 
-  // Invite supplier - creates a pending record in profiles
+  // ==================== INVITE SUPPLIER (via Resend API) ====================
   const inviteSupplier = async () => {
     if (!inviteEmail) return toast.error('Please enter an email address');
 
-    const { error } = await supabase.from('profiles').insert({
-      email: inviteEmail,
-      legal_name: 'Pending Supplier',
-      relationship_type: 'supplier',
-      supplier_status: 'pending',
-    });
+    try {
+      const response = await fetch('/api/invite-supplier', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: inviteEmail,
+          invitedBy: 'Admin',
+        }),
+      });
 
-    if (error) {
-      toast.error('Failed to send invitation');
-      console.error(error);
-    } else {
-      toast.success('Invitation sent. Supplier record created.');
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to send invitation');
+      }
+
+      toast.success('Invitation sent successfully!');
       setInviteEmail('');
-      loadSuppliers(); // refresh list
+      loadSuppliers(); // Refresh supplier list
+    } catch (error: any) {
+      toast.error(error.message || 'Something went wrong while sending the invitation');
     }
   };
 
@@ -94,7 +101,7 @@ export default function SuppliersSearch() {
     // TODO: Navigate to PO creation with prefilled supplier
   };
 
-  // Client-side search filter
+  // ==================== CLIENT-SIDE SEARCH ====================
   useEffect(() => {
     if (!searchTerm) {
       setFilteredSuppliers(suppliers);
@@ -226,7 +233,7 @@ export default function SuppliersSearch() {
           <div className="bg-white rounded-3xl p-6 border sticky top-8">
             <h3 className="font-bold text-lg mb-4">Invite New Supplier</h3>
             <p className="text-sm text-neutral-600 mb-4">
-              Send an invitation. A pending supplier record will be created.
+              Send an invitation. A pending supplier record will be created and an email will be sent.
             </p>
             
             <input 
