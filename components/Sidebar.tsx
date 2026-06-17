@@ -12,12 +12,19 @@ import {
 const modules = [
   { id: 'home', name: 'Dashboard', icon: Home, href: '/dashboard', sub: [] },
 
-  { id: 'business', name: 'My Business', icon: Building2, href: '/dashboard/business', sub: [
-    { name: 'Profile & Legal', href: '/dashboard/business/profile' },
-    { name: 'Team & Roles', href: '/dashboard/business/team' },
-    { name: 'Projects', href: '/dashboard/business/projects' },
-    { name: 'Settings', href: '/dashboard/business/settings' },
-  ]},
+  // ✅ UPDATED: My Business now correctly points to the new profile location
+  { 
+    id: 'my-business', 
+    name: 'My Business', 
+    icon: Building2, 
+    href: '/dashboard/my-business/profile', 
+    sub: [
+      { name: 'Profile & Legal', href: '/dashboard/my-business/profile' },
+      { name: 'Team & Roles', href: '/dashboard/business/team' },
+      { name: 'Projects', href: '/dashboard/business/projects' },
+      { name: 'Settings', href: '/dashboard/business/settings' },
+    ]
+  },
 
   { id: 'ecosystem', name: 'Ecosystem', icon: Users, href: '/dashboard/ecosystem', sub: [
     { name: 'Suppliers', href: '/dashboard/ecosystem/suppliers' },
