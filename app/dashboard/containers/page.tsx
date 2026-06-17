@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import toast from 'react-hot-toast';
-import { Plus, Edit2, Upload, UserPlus, Truck, Brain } from 'lucide-react';
+import { Plus, Edit2, Upload, UserPlus, Truck, Brain, ArrowDown, ArrowUp, List } from 'lucide-react';
 
 interface Container {
   id: number;
@@ -235,12 +235,22 @@ export default function ContainersPage() {
     }
   };
 
-  const sendToDistribution = (container: Container) => {
-    toast.success(`Container ${container.container_id} sent to Distribution • Grok optimised route`);
+  const recordReceiveStock = (container: Container) => {
+    toast.success(`Stock In (Receiving) recorded for ${container.container_id}`);
+  };
+
+  const recordSellStock = (container: Container) => {
+    toast.success(`Stock Out (Sales / Loyalty) recorded for ${container.container_id}`);
     window.location.href = '/dashboard/distribution';
   };
 
-  const askGrok = () => toast.success("Grok AI: All active containers analysed • Optimal distribution batch ready");
+  const recordStockCount = (container: Container) => {
+    toast.success(`Stock Count completed for ${container.container_id}`);
+  };
+
+  const askGrok = () => {
+    toast.success("Grok: Containers analysed. Recommended actions: Receive stock in Container 03, Sell 60 units from Container 01 to loyalty, Count stock in Container 07.");
+  };
 
   if (loading) return <div className="p-12">Loading containers...</div>;
 
@@ -249,14 +259,13 @@ export default function ContainersPage() {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-4xl font-black tracking-tight">Containers</h1>
-          <p className="text-neutral-600">Full ERP flow • One-click Distribution • Grok active</p>
+          <p className="text-neutral-600">Receive Stock • Sell Stock • Stock Count • Grok active</p>
         </div>
         <div className="flex gap-3">
           <button onClick={() => window.location.href = '/dashboard/supplychain'} className="px-5 py-2 border rounded-2xl">← Supply Chain</button>
           <button onClick={() => window.location.href = '/dashboard/manufacturing'} className="px-5 py-2 border rounded-2xl">Manufacturing →</button>
-          <button onClick={() => window.location.href = '/dashboard/distribution'} className="btn-primary flex items-center gap-2"><Truck size={20} /> Send to Distribution</button>
-          <button onClick={openCreateModal} className="btn-primary flex items-center gap-2"><Plus size={20} /> Add New Container</button>
           <button onClick={askGrok} className="bg-black text-white px-5 py-2 rounded-2xl flex items-center gap-2"><Brain size={20} /> Ask Grok</button>
+          <button onClick={openCreateModal} className="btn-primary flex items-center gap-2"><Plus size={20} /> Add New Container</button>
         </div>
       </div>
 
@@ -297,9 +306,11 @@ export default function ContainersPage() {
                     <span className="ml-3 text-sm font-medium text-neutral-600">{container.status}</span>
                   </label>
                 </td>
-                <td className="px-6 py-4 text-right flex gap-2 justify-end">
+                <td className="px-6 py-4 text-right flex gap-2 justify-end flex-wrap">
                   <button onClick={() => openEditModal(container)} className="p-2 hover:bg-neutral-100 rounded-xl"><Edit2 size={18} /></button>
-                  <button onClick={() => sendToDistribution(container)} className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-xl text-sm flex items-center gap-1"><Truck size={16} /> Distribute</button>
+                  <button onClick={() => recordReceiveStock(container)} className="px-3 py-1 bg-blue-100 text-blue-700 rounded-xl text-sm flex items-center gap-1"><ArrowDown size={16} /> Receive</button>
+                  <button onClick={() => recordSellStock(container)} className="px-3 py-1 bg-orange-100 text-orange-700 rounded-xl text-sm flex items-center gap-1"><ArrowUp size={16} /> Sell / Dispatch</button>
+                  <button onClick={() => recordStockCount(container)} className="px-3 py-1 bg-purple-100 text-purple-700 rounded-xl text-sm flex items-center gap-1"><List size={16} /> Count</button>
                 </td>
               </tr>
             )) : <tr><td colSpan={7} className="px-6 py-12 text-center text-neutral-500">No containers found.</td></tr>}
@@ -307,11 +318,10 @@ export default function ContainersPage() {
         </table>
       </div>
 
-      <div className="flex justify-end mt-4">
-        <button onClick={askGrok} className="bg-black text-white px-6 py-3 rounded-2xl flex items-center gap-2"><Brain size={20} /> Grok • Analyse containers for distribution</button>
-      </div>
+      <button onClick={askGrok} className="fixed bottom-8 right-8 bg-black text-white px-6 py-3 rounded-2xl flex items-center gap-2">
+        <Brain size={20} /> Ask Grok
+      </button>
 
-      {/* Main Container Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-3xl w-full max-w-3xl p-8 max-h-[90vh] overflow-y-auto">
@@ -320,14 +330,8 @@ export default function ContainersPage() {
               <div>
                 <h3 className="font-semibold text-lg mb-4">1. Container Details</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="text-sm font-medium">Container ID *</label>
-                    <input type="text" className="input w-full mt-1" value={form.container_id} onChange={e => setForm({ ...form, container_id: e.target.value })} required />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Container Name *</label>
-                    <input type="text" className="input w-full mt-1" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
-                  </div>
+                  <div><label className="text-sm font-medium">Container ID *</label><input type="text" className="input w-full mt-1" value={form.container_id} onChange={e => setForm({ ...form, container_id: e.target.value })} required /></div>
+                  <div><label className="text-sm font-medium">Container Name *</label><input type="text" className="input w-full mt-1" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required /></div>
                 </div>
                 <div className="mt-4">
                   <label className="text-sm font-medium">Linked Business *</label>
@@ -379,14 +383,8 @@ export default function ContainersPage() {
                   <input type="text" className="input w-full mt-1" value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} />
                 </div>
                 <div className="grid grid-cols-2 gap-6 mt-4">
-                  <div>
-                    <label className="text-sm font-medium">Latitude</label>
-                    <input type="text" className="input w-full mt-1" value={form.latitude} onChange={e => setForm({ ...form, latitude: e.target.value })} />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Longitude</label>
-                    <input type="text" className="input w-full mt-1" value={form.longitude} onChange={e => setForm({ ...form, longitude: e.target.value })} />
-                  </div>
+                  <div><label className="text-sm font-medium">Latitude</label><input type="text" className="input w-full mt-1" value={form.latitude} onChange={e => setForm({ ...form, latitude: e.target.value })} /></div>
+                  <div><label className="text-sm font-medium">Longitude</label><input type="text" className="input w-full mt-1" value={form.longitude} onChange={e => setForm({ ...form, longitude: e.target.value })} /></div>
                 </div>
               </div>
 
@@ -418,7 +416,7 @@ export default function ContainersPage() {
                   <h3 className="font-semibold text-lg">Lead History</h3>
                   <button onClick={() => setShowLeadModal(true)} className="flex items-center gap-2 text-sm text-[#00b4d8]"><UserPlus size={16} /> Add New Lead Record</button>
                 </div>
-                {leadHistory.length > 0 ? leadHistory.map(lead => (
+                {leadHistory.length > 0 ? leadHistory.map((lead) => (
                   <div key={lead.id} className="bg-neutral-50 p-4 rounded-2xl text-sm mb-3">
                     <div className="font-medium">{lead.lead_name}</div>
                     <div className="text-neutral-600">{lead.cellphone}</div>
