@@ -475,13 +475,13 @@ function ProfileContent() {
                 </div>
                 <div>
                   <label className="text-sm font-medium">Export License Number</label>
-                  <input className="input w-full mt-1" value={form.export_license_number || ''} onChange={e => handleInputChange('export_license_number', e.target.value)} />
+                  <input className="input w-full mt-1" value={form.export_license || ''} onChange={e => handleInputChange('export_license', e.target.value)} />
                   <input type="file" className="input w-full mt-2" onChange={e => e.target.files?.[0] && handleDocumentUpload('export_license_url', e.target.files[0])} />
                   {form.export_license_url && <p className="text-xs text-emerald-600 mt-1">✓ Uploaded</p>}
                 </div>
                 <div>
                   <label className="text-sm font-medium">Import License Number</label>
-                  <input className="input w-full mt-1" value={form.import_license_number || ''} onChange={e => handleInputChange('import_license_number', e.target.value)} />
+                  <input className="input w-full mt-1" value={form.import_license || ''} onChange={e => handleInputChange('import_license', e.target.value)} />
                   <input type="file" className="input w-full mt-2" onChange={e => e.target.files?.[0] && handleDocumentUpload('import_license_url', e.target.files[0])} />
                   {form.import_license_url && <p className="text-xs text-emerald-600 mt-1">✓ Uploaded</p>}
                 </div>
