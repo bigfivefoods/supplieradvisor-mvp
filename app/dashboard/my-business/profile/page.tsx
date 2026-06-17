@@ -385,7 +385,7 @@ function ProfileContent() {
           {expanded.financial && (
             <div className="px-8 pb-8 pt-2 space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div><label className="text-sm font-medium">Registration Number</label><input className="input w-full mt-1" value={form.tax_number || ''} onChange={e => handleInputChange('tax_number', e.target.value)} /></div>
+                <div><label className="text-sm font-medium">Registration Number</label><input className="input w-full mt-1" value={form.registration_number || ''} onChange={e => handleInputChange('tax_number', e.target.value)} /></div>
                 <div><label className="text-sm font-medium">VAT Number</label><input className="input w-full mt-1" value={form.vat_number || ''} onChange={e => handleInputChange('vat_number', e.target.value)} /></div>
                 <div><label className="text-sm font-medium">Bank Name</label><input className="input w-full mt-1" value={form.bank_name || ''} onChange={e => handleInputChange('bank_name', e.target.value)} /></div>
                 <div><label className="text-sm font-medium">Account Name</label><input className="input w-full mt-1" value={form.account_name || ''} onChange={e => handleInputChange('account_name', e.target.value)} /></div>
