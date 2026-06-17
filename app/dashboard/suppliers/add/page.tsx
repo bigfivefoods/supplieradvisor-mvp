@@ -1,205 +1,262 @@
 'use client';
 
 import { useState } from 'react';
+import Breadcrumb from '@/components/ui/Breadcrumb';
+import { ArrowLeft, UserPlus, CheckCircle, Plus } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { Resend } from 'resend';
 import toast from 'react-hot-toast';
-import { Upload, Save, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 
-export default function AddSupplier() {
+const resend = new Resend(process.env.NEXT_PUBLIC_RESEND_API_KEY);
+
+export default function AddSupplierPage() {
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [newSupplier, setNewSupplier] = useState<any>(null);
+
   const [form, setForm] = useState({
+    email: '',
     legal_name: '',
     trading_name: '',
-    contact_name: '',
-    contact_email: '',
-    contact_phone: '',
-    country: '',
-    province: '',
-    city: '',
-    registration_number: '',
-    bee_level: '',
-    short_description: '',
+    contact_person: '',
+    contact_number: '',
   });
 
-  const [beeCertificateUrl, setBeeCertificateUrl] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  const handleInputChange = (field: string, value: string) => {
+  const handleChange = (field: string, value: string) => {
     setForm(prev => ({ ...prev, [field]: value }));
   };
 
-  const uploadFileToStorage = async (file: File, folder: string): Promise<string | null> => {
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${Date.now()}.${fileExt}`;
-    const filePath = `${folder}/${fileName}`;
-
-    const { error } = await supabase.storage
-      .from('company-documents')
-      .upload(filePath, file);
-
-    if (error) {
-      toast.error(`Upload failed: ${error.message}`);
-      return null;
-    }
-
-    const { data } = supabase.storage.from('company-documents').getPublicUrl(filePath);
-    return data.publicUrl;
-  };
-
-  const handleBeeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const url = await uploadFileToStorage(file, 'suppliers/bee-certificates');
-    if (url) {
-      setBeeCertificateUrl(url);
-      toast.success('BEE Certificate uploaded');
-    }
-  };
+  const generateInviteToken = () => crypto.randomUUID();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!form.legal_name || !form.contact_email) {
-      toast.error('Legal Name and Contact Email are required');
+    if (!form.email || !form.legal_name || !form.contact_person) {
+      toast.error('Email, Legal Name, and Contact Person are required');
       return;
     }
 
-    setSaving(true);
+    setLoading(true);
 
-    const { error } = await supabase.from('profiles').insert({
-      ...form,
-      relationship_type: 'supplier',
-      supplier_status: 'pending',
-      bee_certificate_url: beeCertificateUrl || null,
-      created_at: new Date().toISOString(),
-    });
+    try {
+      const inviteToken = generateInviteToken();
 
-    if (error) {
-      toast.error('Failed to add supplier');
-      console.error(error);
-    } else {
-      toast.success('Supplier added successfully!');
-      // Reset form
-      setForm({
-        legal_name: '', trading_name: '', contact_name: '', contact_email: '',
-        contact_phone: '', country: '', province: '', city: '',
-        registration_number: '', bee_level: '', short_description: '',
+      // Create supplier record
+      const { data, error } = await supabase
+        .from('profiles')
+        .insert({
+          email: form.email.toLowerCase().trim(),
+          legal_name: form.legal_name.trim(),
+          trading_name: form.trading_name.trim() || null,
+          contact_name: form.contact_person.trim(),
+          contact_number: form.contact_number.trim() || null,
+          relationship_type: 'supplier',
+          supplier_status: 'pending',
+          invite_token: inviteToken,
+          created_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Send invite email automatically
+      await resend.emails.send({
+        from: 'SupplierAdvisor <onboarding@supplieradvisor.co.za>',
+        to: form.email,
+        subject: `You've been invited to join SupplierAdvisor`,
+        html: `
+          <div style="font-family: system-ui, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+            <h1 style="color: #00b4d8; font-size: 28px; margin-bottom: 8px;">You've been invited to join SupplierAdvisor</h1>
+            
+            <p style="font-size: 17px; color: #333;">Hello ${form.contact_person},</p>
+            
+            <p style="margin: 24px 0; color: #444; line-height: 1.6;">
+              <strong>${form.legal_name}</strong> has invited you to join <strong>SupplierAdvisor</strong> as a supplier.
+            </p>
+
+            <p style="margin-bottom: 32px; color: #444;">
+              Please complete your short profile to get started. It only takes a couple of minutes.
+            </p>
+
+            <a href="https://supplieradvisor.co.za/supplier/complete-profile?invite=${inviteToken}" 
+               style="background: #00b4d8; color: white; padding: 14px 36px; border-radius: 9999px; text-decoration: none; font-weight: 600; display: inline-block;">
+              Complete Your Profile →
+            </a>
+
+            <p style="margin-top: 48px; font-size: 13px; color: #888;">
+              This invitation link will expire in 30 days.
+            </p>
+          </div>
+        `,
       });
-      setBeeCertificateUrl('');
+
+      setNewSupplier(data);
+      setSuccess(true);
+      toast.success('Supplier added and invite sent!');
+
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.message || 'Failed to add supplier');
+    } finally {
+      setLoading(false);
     }
-    setSaving(false);
+  };
+
+  const resetForm = () => {
+    setForm({
+      email: '',
+      legal_name: '',
+      trading_name: '',
+      contact_person: '',
+      contact_number: '',
+    });
+    setSuccess(false);
+    setNewSupplier(null);
   };
 
   return (
-    <div className="p-8 max-w-3xl mx-auto">
-      <div className="mb-8 flex items-center gap-4">
-        <Link href="/dashboard/suppliers" className="text-[#00b4d8] hover:underline flex items-center gap-2">
-          <ArrowLeft size={18} /> Back to Suppliers
-        </Link>
-      </div>
+    <div className="pl-0 pr-4 md:pr-12 py-8 md:py-12 max-w-3xl mx-auto">
+      <Breadcrumb />
 
-      <div className="mb-8">
-        <h1 className="text-4xl font-black tracking-tight">Add New Supplier</h1>
-        <p className="text-neutral-600 mt-2">Quick onboarding. The supplier can complete their full profile later.</p>
-      </div>
-
-      <form onSubmit={handleSubmit} className="space-y-8">
-        {/* Basic Information */}
-        <div className="bg-white rounded-3xl border border-neutral-200 p-8">
-          <h2 className="text-xl font-bold mb-6">1. Basic Information</h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {!success ? (
+        <>
+          {/* Header */}
+          <div className="flex items-center gap-4 mb-8">
+            <Link href="/dashboard/suppliers" className="text-neutral-500 hover:text-neutral-700">
+              <ArrowLeft className="w-5 h-5" />
+            </Link>
             <div>
-              <label className="text-sm font-medium">Legal Name *</label>
-              <input className="input w-full mt-1" value={form.legal_name} onChange={e => handleInputChange('legal_name', e.target.value)} required />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Trading Name</label>
-              <input className="input w-full mt-1" value={form.trading_name} onChange={e => handleInputChange('trading_name', e.target.value)} />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Registration Number</label>
-              <input className="input w-full mt-1" value={form.registration_number} onChange={e => handleInputChange('registration_number', e.target.value)} />
-            </div>
-            <div>
-              <label className="text-sm font-medium">BEE Level</label>
-              <select className="input w-full mt-1" value={form.bee_level} onChange={e => handleInputChange('bee_level', e.target.value)}>
-                <option value="">Select BEE Level</option>
-                <option value="Level 1">Level 1</option>
-                <option value="Level 2">Level 2</option>
-                <option value="Level 3">Level 3</option>
-                <option value="Level 4">Level 4</option>
-                <option value="Level 5">Level 5</option>
-                <option value="Non-compliant">Non-compliant</option>
-              </select>
+              <h1 className="font-black text-4xl tracking-[-1.5px]">Add New Supplier</h1>
+              <p className="text-neutral-600 mt-1">Quickly add a supplier and send them an invite</p>
             </div>
           </div>
-        </div>
 
-        {/* Contact Information */}
-        <div className="bg-white rounded-3xl border border-neutral-200 p-8">
-          <h2 className="text-xl font-bold mb-6">2. Contact Information</h2>
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="bg-white rounded-3xl border border-neutral-200 p-8 md:p-10 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Email */}
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium mb-2">Email Address *</label>
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => handleChange('email', e.target.value)}
+                  className="input w-full"
+                  placeholder="supplier@company.com"
+                  required
+                />
+              </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="text-sm font-medium">Contact Person</label>
-              <input className="input w-full mt-1" value={form.contact_name} onChange={e => handleInputChange('contact_name', e.target.value)} />
+              {/* Legal Name */}
+              <div>
+                <label className="block text-sm font-medium mb-2">Legal / Registered Name *</label>
+                <input
+                  type="text"
+                  value={form.legal_name}
+                  onChange={(e) => handleChange('legal_name', e.target.value)}
+                  className="input w-full"
+                  placeholder="ABC Trading (Pty) Ltd"
+                  required
+                />
+              </div>
+
+              {/* Trading Name */}
+              <div>
+                <label className="block text-sm font-medium mb-2">Trading Name</label>
+                <input
+                  type="text"
+                  value={form.trading_name}
+                  onChange={(e) => handleChange('trading_name', e.target.value)}
+                  className="input w-full"
+                  placeholder="ABC Foods"
+                />
+              </div>
+
+              {/* Contact Person */}
+              <div>
+                <label className="block text-sm font-medium mb-2">Contact Person *</label>
+                <input
+                  type="text"
+                  value={form.contact_person}
+                  onChange={(e) => handleChange('contact_person', e.target.value)}
+                  className="input w-full"
+                  placeholder="John Doe"
+                  required
+                />
+              </div>
+
+              {/* Contact Number */}
+              <div>
+                <label className="block text-sm font-medium mb-2">Contact Number</label>
+                <input
+                  type="tel"
+                  value={form.contact_number}
+                  onChange={(e) => handleChange('contact_number', e.target.value)}
+                  className="input w-full"
+                  placeholder="+27 82 123 4567"
+                />
+              </div>
             </div>
-            <div>
-              <label className="text-sm font-medium">Email Address *</label>
-              <input type="email" className="input w-full mt-1" value={form.contact_email} onChange={e => handleInputChange('contact_email', e.target.value)} required />
+
+            <div className="pt-6">
+              <button
+                type="submit"
+                disabled={loading}
+                className="btn-primary w-full flex items-center justify-center gap-3 py-4 text-lg disabled:opacity-70"
+              >
+                {loading ? 'Adding Supplier & Sending Invite...' : (
+                  <>
+                    <UserPlus className="w-5 h-5" />
+                    Add Supplier & Send Invite
+                  </>
+                )}
+              </button>
+              <p className="text-center text-xs text-neutral-500 mt-3">
+                An invitation email will be sent automatically to the supplier.
+              </p>
             </div>
-            <div>
-              <label className="text-sm font-medium">Phone Number</label>
-              <input className="input w-full mt-1" value={form.contact_phone} onChange={e => handleInputChange('contact_phone', e.target.value)} />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Country</label>
-              <input className="input w-full mt-1" value={form.country} onChange={e => handleInputChange('country', e.target.value)} />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Province / State</label>
-              <input className="input w-full mt-1" value={form.province} onChange={e => handleInputChange('province', e.target.value)} />
-            </div>
-            <div>
-              <label className="text-sm font-medium">City</label>
-              <input className="input w-full mt-1" value={form.city} onChange={e => handleInputChange('city', e.target.value)} />
-            </div>
+          </form>
+        </>
+      ) : (
+        /* Success State */
+        <div className="max-w-lg mx-auto text-center py-16">
+          <div className="mx-auto w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mb-6">
+            <CheckCircle className="w-10 h-10 text-emerald-600" />
+          </div>
+
+          <h1 className="font-black text-4xl tracking-tight">Supplier Added Successfully</h1>
+          <p className="text-xl text-neutral-600 mt-3">
+            {newSupplier?.legal_name} has been added.<br />
+            An invite has been sent to <strong>{newSupplier?.email}</strong>.
+          </p>
+
+          <div className="mt-10 space-y-4">
+            <Link
+              href={`/dashboard/purchase-orders/new?supplier=${newSupplier?.id}`}
+              className="btn-primary w-full flex items-center justify-center gap-3 py-4 text-lg"
+            >
+              Create Purchase Order with this Supplier
+            </Link>
+
+            <button
+              onClick={resetForm}
+              className="w-full flex items-center justify-center gap-3 py-4 text-lg border border-neutral-300 rounded-3xl hover:bg-neutral-50 transition-colors"
+            >
+              <Plus className="w-5 h-5" />
+              Add Another Supplier
+            </button>
+
+            <Link
+              href="/dashboard/suppliers"
+              className="block text-sm text-neutral-500 hover:text-neutral-700 mt-4"
+            >
+              ← Back to Suppliers List
+            </Link>
           </div>
         </div>
-
-        {/* BEE Certificate */}
-        <div className="bg-white rounded-3xl border border-neutral-200 p-8">
-          <h2 className="text-xl font-bold mb-4">3. BEE Certificate (Optional)</h2>
-          <label className="cursor-pointer inline-flex items-center gap-2 px-5 py-3 bg-neutral-100 hover:bg-neutral-200 rounded-2xl text-sm font-medium">
-            <Upload className="w-4 h-4" />
-            Upload BEE Certificate
-            <input type="file" className="hidden" accept=".pdf,.jpg,.png" onChange={handleBeeUpload} />
-          </label>
-          {beeCertificateUrl && <span className="ml-4 text-sm text-emerald-600">✓ Uploaded</span>}
-        </div>
-
-        {/* What they supply */}
-        <div className="bg-white rounded-3xl border border-neutral-200 p-8">
-          <h2 className="text-xl font-bold mb-4">4. What does this supplier offer? (Optional)</h2>
-          <textarea
-            className="input w-full h-24"
-            placeholder="e.g. Maize, Soya, Packaging, Logistics services..."
-            value={form.short_description}
-            onChange={e => handleInputChange('short_description', e.target.value)}
-          />
-        </div>
-
-        <button 
-          type="submit" 
-          disabled={saving} 
-          className="w-full flex items-center justify-center gap-3 bg-[#00b4d8] hover:bg-[#0096b8] text-white py-4 rounded-3xl font-semibold text-lg disabled:opacity-70"
-        >
-          <Save className="w-5 h-5" />
-          {saving ? 'Adding Supplier...' : 'Add Supplier'}
-        </button>
-      </form>
+      )}
     </div>
   );
 }
