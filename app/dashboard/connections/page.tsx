@@ -4,309 +4,279 @@ import { useState, useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { supabase } from '@/lib/supabase';
 import toast from 'react-hot-toast';
-import { Users, Clock, CheckCircle, XCircle, Send, Plus } from 'lucide-react';
+import { ArrowLeft, Check, X, Clock, Users, Send } from 'lucide-react';
 import Link from 'next/link';
 
 type Connection = {
   id: number;
   requester_profile_id: number;
   requestee_profile_id: number;
-  status: string;
+  status: 'pending' | 'accepted' | 'declined';
   message: string | null;
   requested_at: string;
-  approved_at: string | null;
-  requester?: any;
-  requestee?: any;
+  responded_at: string | null;
+  requester: { id: number; trading_name: string | null; legal_name: string; email: string } | null;
+  requestee: { id: number; trading_name: string | null; legal_name: string; email: string } | null;
 };
 
+type Tab = 'all' | 'sent' | 'received' | 'accepted';
+
 export default function ConnectionsPage() {
-  const { user } = usePrivy();
+  const { user, ready } = usePrivy();
   const cleanId = (user?.id || '').replace('privy:', '');
 
   const [myProfileId, setMyProfileId] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<'network' | 'sent' | 'received'>('network');
-
-  const [network, setNetwork] = useState<Connection[]>([]);
-  const [sentRequests, setSentRequests] = useState<Connection[]>([]);
-  const [receivedRequests, setReceivedRequests] = useState<Connection[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  // Send Request Form State
-  const [showSendForm, setShowSendForm] = useState(false);
-  const [targetEmail, setTargetEmail] = useState('');
-  const [requestMessage, setRequestMessage] = useState('');
-  const [sending, setSending] = useState(false);
+  const [loadingProfile, setLoadingProfile] = useState(true);
+  const [connections, setConnections] = useState<Connection[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<Tab>('all');
+  const [error, setError] = useState('');
+  const [processingId, setProcessingId] = useState<number | null>(null);
 
   // Get current user's profile ID
   useEffect(() => {
     const getMyProfile = async () => {
-      if (!cleanId) return;
-      const { data } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('user_id', cleanId)
-        .single();
-      if (data) setMyProfileId(data.id);
-    };
-    getMyProfile();
-  }, [cleanId]);
+      if (!cleanId || !ready) return;
 
+      setLoadingProfile(true);
+      setError('');
+
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('user_id', cleanId)
+          .single();
+
+        if (error || !data) {
+          setError('Could not load your profile.');
+        } else {
+          setMyProfileId(data.id);
+        }
+      } catch (err) {
+        setError('Failed to load your profile.');
+      } finally {
+        setLoadingProfile(false);
+      }
+    };
+
+    getMyProfile();
+  }, [cleanId, ready]);
+
+  // Load connections
   const loadConnections = async () => {
     if (!myProfileId) return;
+
     setLoading(true);
+    setError('');
 
-    const { data: networkData } = await supabase
-      .from('business_connections')
-      .select(`*, requester:profiles!business_connections_requester_profile_id_fkey(id, legal_name, trading_name, email), requestee:profiles!business_connections_requestee_profile_id_fkey(id, legal_name, trading_name, email)`)
-      .or(`requester_profile_id.eq.${myProfileId},requestee_profile_id.eq.${myProfileId}`)
-      .eq('status', 'accepted');
+    try {
+      const { data, error } = await supabase
+        .from('business_connections')
+        .select(`
+          id,
+          requester_profile_id,
+          requestee_profile_id,
+          status,
+          message,
+          requested_at,
+          responded_at,
+          requester:profiles!business_connections_requester_profile_id_fkey (id, trading_name, legal_name, email),
+          requestee:profiles!business_connections_requestee_profile_id_fkey (id, trading_name, legal_name, email)
+        `)
+        .or(`requester_profile_id.eq.${myProfileId},requestee_profile_id.eq.${myProfileId}`)
+        .order('requested_at', { ascending: false });
 
-    const { data: sentData } = await supabase
-      .from('business_connections')
-      .select(`*, requestee:profiles!business_connections_requestee_profile_id_fkey(id, legal_name, trading_name, email)`)
-      .eq('requester_profile_id', myProfileId)
-      .eq('status', 'pending');
+      if (error) throw error;
 
-    const { data: receivedData } = await supabase
-      .from('business_connections')
-      .select(`*, requester:profiles!business_connections_requester_profile_id_fkey(id, legal_name, trading_name, email)`)
-      .eq('requestee_profile_id', myProfileId)
-      .eq('status', 'pending');
-
-    setNetwork(networkData || []);
-    setSentRequests(sentData || []);
-    setReceivedRequests(receivedData || []);
-    setLoading(false);
+      setConnections(data as any || []);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load connections');
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
-    if (myProfileId) loadConnections();
+    if (myProfileId) {
+      loadConnections();
+    }
   }, [myProfileId]);
 
-  // ==================== SEND CONNECTION REQUEST ====================
-  const sendConnectionRequest = async () => {
-    if (!myProfileId || !targetEmail) return;
+  // Filter connections based on active tab
+  const filteredConnections = connections.filter((conn) => {
+    if (activeTab === 'all') return true;
+    if (activeTab === 'sent') return conn.requester_profile_id === myProfileId && conn.status === 'pending';
+    if (activeTab === 'received') return conn.requestee_profile_id === myProfileId && conn.status === 'pending';
+    if (activeTab === 'accepted') return conn.status === 'accepted';
+    return true;
+  });
 
-    setSending(true);
-
-    try {
-      // Find the target business by email
-      const { data: targetProfile, error: findError } = await supabase
-        .from('profiles')
-        .select('id, legal_name, trading_name')
-        .eq('email', targetEmail.toLowerCase().trim())
-        .single();
-
-      if (findError || !targetProfile) {
-        toast.error('No business found with that email');
-        setSending(false);
-        return;
-      }
-
-      if (targetProfile.id === myProfileId) {
-        toast.error("You can't send a request to yourself");
-        setSending(false);
-        return;
-      }
-
-      // Check if a connection already exists
-      const { data: existing } = await supabase
-        .from('business_connections')
-        .select('id, status')
-        .or(`and(requester_profile_id.eq.${myProfileId},requestee_profile_id.eq.${targetProfile.id}),and(requester_profile_id.eq.${targetProfile.id},requestee_profile_id.eq.${myProfileId})`)
-        .maybeSingle();
-
-      if (existing) {
-        toast.error(`Connection already exists (${existing.status})`);
-        setSending(false);
-        return;
-      }
-
-      // Create the connection request
-      const { error: insertError } = await supabase.from('business_connections').insert({
-        requester_profile_id: myProfileId,
-        requestee_profile_id: targetProfile.id,
-        status: 'pending',
-        message: requestMessage || null,
-        requested_at: new Date().toISOString(),
-      });
-
-      if (insertError) throw insertError;
-
-      toast.success(`Connection request sent to ${targetProfile.trading_name || targetProfile.legal_name}`);
-      setShowSendForm(false);
-      setTargetEmail('');
-      setRequestMessage('');
-      loadConnections();
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to send request');
-    } finally {
-      setSending(false);
-    }
-  };
-
+  // Accept connection request
   const acceptRequest = async (connectionId: number) => {
-    const { error } = await supabase
-      .from('business_connections')
-      .update({ status: 'accepted', approved_at: new Date().toISOString() })
-      .eq('id', connectionId);
+    setProcessingId(connectionId);
+    try {
+      const { error } = await supabase
+        .from('business_connections')
+        .update({ status: 'accepted', responded_at: new Date().toISOString() })
+        .eq('id', connectionId);
 
-    if (error) toast.error('Failed to accept');
-    else {
+      if (error) throw error;
+
       toast.success('Connection accepted');
       loadConnections();
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to accept request');
+    } finally {
+      setProcessingId(null);
     }
   };
 
+  // Decline connection request
   const declineRequest = async (connectionId: number) => {
-    const { error } = await supabase
-      .from('business_connections')
-      .update({ status: 'declined' })
-      .eq('id', connectionId);
+    setProcessingId(connectionId);
+    try {
+      const { error } = await supabase
+        .from('business_connections')
+        .update({ status: 'declined', responded_at: new Date().toISOString() })
+        .eq('id', connectionId);
 
-    if (error) toast.error('Failed to decline');
-    else {
+      if (error) throw error;
+
       toast.success('Request declined');
       loadConnections();
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to decline request');
+    } finally {
+      setProcessingId(null);
     }
   };
 
-  if (loading) {
-    return <div className="flex justify-center py-20"><div className="animate-spin h-8 w-8 border-b-2 border-[#00b4d8] rounded-full"></div></div>;
+  // ==================== RENDER ====================
+
+  if (loadingProfile) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh]">
+        <div className="animate-spin h-8 w-8 border-b-2 border-[#00b4d8] rounded-full mb-4"></div>
+        <p className="text-neutral-500">Loading your profile...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-md mx-auto px-6 py-20 text-center">
+        <Users className="w-12 h-12 text-red-500 mx-auto mb-4" />
+        <h2 className="font-semibold text-xl mb-2">Something went wrong</h2>
+        <p className="text-neutral-600 mb-6">{error}</p>
+        <button onClick={() => window.location.reload()} className="btn-primary px-8">Try Again</button>
+      </div>
+    );
   }
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-10">
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center gap-4 mb-8">
+        <Link href="/dashboard/suppliers" className="text-neutral-500 hover:text-neutral-700">
+          <ArrowLeft className="w-5 h-5" />
+        </Link>
         <div>
           <h1 className="font-black text-4xl tracking-tight">Connections</h1>
-          <p className="text-neutral-600 mt-1">Manage your business relationships</p>
+          <p className="text-neutral-600">Manage your business network</p>
         </div>
-        <button
-          onClick={() => setShowSendForm(true)}
-          className="btn-primary flex items-center gap-2 px-6 py-3"
-        >
-          <Plus className="w-4 h-4" /> Send Connection Request
-        </button>
       </div>
-
-      {/* Send Request Modal / Form */}
-      {showSendForm && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-3xl p-8 w-full max-w-md">
-            <h2 className="font-semibold text-2xl mb-6">Send Connection Request</h2>
-
-            <div className="space-y-5">
-              <div>
-                <label className="text-sm font-medium">Business Email</label>
-                <input
-                  type="email"
-                  className="input w-full mt-1"
-                  placeholder="hello@company.com"
-                  value={targetEmail}
-                  onChange={(e) => setTargetEmail(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label className="text-sm font-medium">Message (Optional)</label>
-                <textarea
-                  className="input w-full h-24 mt-1"
-                  placeholder="Hi, I'd like to connect with you on SupplierAdvisor..."
-                  value={requestMessage}
-                  onChange={(e) => setRequestMessage(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-3 mt-8">
-              <button
-                onClick={() => {
-                  setShowSendForm(false);
-                  setTargetEmail('');
-                  setRequestMessage('');
-                }}
-                className="flex-1 py-3 border border-neutral-300 rounded-2xl font-medium"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={sendConnectionRequest}
-                disabled={sending || !targetEmail}
-                className="flex-1 btn-primary py-3 disabled:opacity-60"
-              >
-                {sending ? 'Sending...' : 'Send Request'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Tabs */}
-      <div className="flex border-b border-neutral-200 mb-8">
-        <button onClick={() => setActiveTab('network')} className={`px-6 py-3 font-medium flex items-center gap-2 ${activeTab === 'network' ? 'border-b-2 border-[#00b4d8] text-[#00b4d8]' : 'text-neutral-600'}`}>
-          <Users className="w-4 h-4" /> My Network ({network.length})
-        </button>
-        <button onClick={() => setActiveTab('sent')} className={`px-6 py-3 font-medium flex items-center gap-2 ${activeTab === 'sent' ? 'border-b-2 border-[#00b4d8] text-[#00b4d8]' : 'text-neutral-600'}`}>
-          <Clock className="w-4 h-4" /> Requests Sent ({sentRequests.length})
-        </button>
-        <button onClick={() => setActiveTab('received')} className={`px-6 py-3 font-medium flex items-center gap-2 ${activeTab === 'received' ? 'border-b-2 border-[#00b4d8] text-[#00b4d8]' : 'text-neutral-600'}`}>
-          <Clock className="w-4 h-4" /> Requests Received ({receivedRequests.length})
-        </button>
+      <div className="flex gap-2 mb-6 border-b border-neutral-200 pb-1">
+        {[
+          { key: 'all', label: 'All' },
+          { key: 'sent', label: 'Sent' },
+          { key: 'received', label: 'Received' },
+          { key: 'accepted', label: 'Connected' },
+        ].map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key as Tab)}
+            className={`px-6 py-2 rounded-2xl text-sm font-medium transition-all ${
+              activeTab === tab.key
+                ? 'bg-[#00b4d8] text-white'
+                : 'text-neutral-600 hover:bg-neutral-100'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
-      {/* Content Sections */}
-      {activeTab === 'network' && (
+      {/* Content */}
+      {loading ? (
+        <div className="flex justify-center py-20">
+          <div className="animate-spin h-8 w-8 border-b-2 border-[#00b4d8] rounded-full"></div>
+        </div>
+      ) : filteredConnections.length === 0 ? (
+        <div className="text-center py-16 bg-white border border-neutral-200 rounded-3xl">
+          <Users className="w-12 h-12 text-neutral-300 mx-auto mb-4" />
+          <p className="text-neutral-500">No connections found in this category.</p>
+        </div>
+      ) : (
         <div className="space-y-4">
-          {network.length === 0 ? <p className="text-neutral-500">No connections yet.</p> : network.map((conn) => {
-            const other = conn.requester_profile_id === myProfileId ? conn.requestee : conn.requester;
+          {filteredConnections.map((conn) => {
+            const isSentByMe = conn.requester_profile_id === myProfileId;
+            const otherParty = isSentByMe ? conn.requestee : conn.requester;
+            const otherName = otherParty?.trading_name || otherParty?.legal_name || 'Unknown Business';
+
             return (
-              <div key={conn.id} className="bg-white border border-neutral-200 rounded-3xl p-6 flex justify-between items-center">
+              <div key={conn.id} className="bg-white border border-neutral-200 rounded-3xl p-6 flex items-center justify-between">
                 <div>
-                  <div className="font-semibold text-lg">{other?.trading_name || other?.legal_name}</div>
-                  <div className="text-sm text-neutral-500">{other?.email}</div>
+                  <div className="font-semibold text-lg">{otherName}</div>
+                  <div className="text-sm text-neutral-500">{otherParty?.email}</div>
+                  {conn.message && (
+                    <div className="mt-2 text-sm italic text-neutral-600">“{conn.message}”</div>
+                  )}
+                  <div className="text-xs text-neutral-400 mt-1">
+                    {new Date(conn.requested_at).toLocaleDateString()}
+                  </div>
                 </div>
-                <div className="text-emerald-600 flex items-center gap-2 text-sm font-medium">
-                  <CheckCircle className="w-5 h-5" /> Connected
+
+                <div className="flex items-center gap-3">
+                  {conn.status === 'pending' && !isSentByMe && (
+                    <>
+                      <button
+                        onClick={() => acceptRequest(conn.id)}
+                        disabled={processingId === conn.id}
+                        className="flex items-center gap-2 px-5 py-2 bg-emerald-600 text-white rounded-2xl text-sm font-medium hover:bg-emerald-700 disabled:opacity-60"
+                      >
+                        <Check className="w-4 h-4" /> Accept
+                      </button>
+                      <button
+                        onClick={() => declineRequest(conn.id)}
+                        disabled={processingId === conn.id}
+                        className="flex items-center gap-2 px-5 py-2 bg-red-500 text-white rounded-2xl text-sm font-medium hover:bg-red-600 disabled:opacity-60"
+                      >
+                        <X className="w-4 h-4" /> Decline
+                      </button>
+                    </>
+                  )}
+
+                  {conn.status === 'pending' && isSentByMe && (
+                    <div className="flex items-center gap-2 text-amber-600 text-sm font-medium px-4">
+                      <Clock className="w-4 h-4" /> Pending
+                    </div>
+                  )}
+
+                  {conn.status === 'accepted' && (
+                    <div className="flex items-center gap-2 text-emerald-600 text-sm font-medium px-4">
+                      <Check className="w-4 h-4" /> Connected
+                    </div>
+                  )}
+
+                  {conn.status === 'declined' && (
+                    <div className="text-sm text-neutral-500 px-4">Declined</div>
+                  )}
                 </div>
               </div>
             );
           })}
-        </div>
-      )}
-
-      {activeTab === 'sent' && (
-        <div className="space-y-4">
-          {sentRequests.length === 0 ? <p className="text-neutral-500">No pending requests sent.</p> : sentRequests.map((req) => (
-            <div key={req.id} className="bg-white border border-neutral-200 rounded-3xl p-6">
-              <div className="flex justify-between">
-                <div>
-                  <div className="font-semibold">{req.requestee?.trading_name || req.requestee?.legal_name}</div>
-                  <div className="text-sm text-neutral-500">{req.requestee?.email}</div>
-                  {req.message && <p className="mt-2 text-sm italic">"{req.message}"</p>}
-                </div>
-                <div className="text-amber-600 flex items-center gap-2 text-sm"><Clock className="w-4 h-4" /> Pending</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {activeTab === 'received' && (
-        <div className="space-y-4">
-          {receivedRequests.length === 0 ? <p className="text-neutral-500">No pending requests received.</p> : receivedRequests.map((req) => (
-            <div key={req.id} className="bg-white border border-neutral-200 rounded-3xl p-6">
-              <div>
-                <div className="font-semibold">{req.requester?.trading_name || req.requester?.legal_name}</div>
-                <div className="text-sm text-neutral-500">{req.requester?.email}</div>
-                {req.message && <p className="mt-2 text-sm italic">"{req.message}"</p>}
-              </div>
-              <div className="flex gap-3 mt-4">
-                <button onClick={() => acceptRequest(req.id)} className="flex items-center gap-2 px-6 py-2 bg-emerald-600 text-white rounded-2xl text-sm font-medium">Accept</button>
-                <button onClick={() => declineRequest(req.id)} className="flex items-center gap-2 px-6 py-2 border border-neutral-300 rounded-2xl text-sm font-medium">Decline</button>
-              </div>
-            </div>
-          ))}
         </div>
       )}
     </div>
