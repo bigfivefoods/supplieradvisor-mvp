@@ -16,12 +16,10 @@ function ProfileContent() {
   const cleanId = (user?.id || '').replace('privy:', '');
 
   const [form, setForm] = useState<any>({});
-  const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [verifying, setVerifying] = useState(false);
 
-  // Lookup data
   const [continents, setContinents] = useState<any[]>([]);
   const [countries, setCountries] = useState<any[]>([]);
   const [provinces, setProvinces] = useState<any[]>([]);
@@ -30,40 +28,18 @@ function ProfileContent() {
 
   const [selectedCountryId, setSelectedCountryId] = useState<number | null>(null);
 
-  // New Team Member Form
-  const [newTeamMember, setNewTeamMember] = useState({
-    name: '',
-    email: '',
-    role: ''
-  });
-
-  // Redirect or show message if no companyId
   useEffect(() => {
-    if (!companyId) {
-      setLoading(false);
-    }
+    if (!companyId) setLoading(false);
   }, [companyId]);
 
-  // Load company data + team members
   useEffect(() => {
     const loadData = async () => {
       if (!companyId) return;
-
       setLoading(true);
 
       const { data: row } = await supabase.from('profiles').select('*').eq('id', Number(companyId)).single();
       if (row) setForm(row);
 
-      // Load team members
-      const { data: members } = await supabase
-        .from('business_users')
-        .select('*')
-        .eq('profile_id', Number(companyId))
-        .order('created_at', { ascending: false });
-
-      if (members) setTeamMembers(members);
-
-      // Load lookup tables
       const [contRes, countryRes, indRes, btRes] = await Promise.all([
         supabase.from('continents').select('id, name').order('name'),
         supabase.from('countries').select('id, name, flag').order('name'),
@@ -77,32 +53,19 @@ function ProfileContent() {
       if (btRes.data) setBusinessTypes(btRes.data);
 
       if (row?.country) {
-        const { data: countryData } = await supabase
-          .from('countries')
-          .select('id')
-          .eq('name', row.country)
-          .single();
+        const { data: countryData } = await supabase.from('countries').select('id').eq('name', row.country).single();
         if (countryData) setSelectedCountryId(countryData.id);
       }
 
       setLoading(false);
     };
-
     loadData();
   }, [companyId]);
 
-  // Load provinces when country changes
   useEffect(() => {
     const loadProvinces = async () => {
-      if (!selectedCountryId) {
-        setProvinces([]);
-        return;
-      }
-      const { data } = await supabase
-        .from('provinces')
-        .select('id, name')
-        .eq('country_id', selectedCountryId)
-        .order('name');
+      if (!selectedCountryId) { setProvinces([]); return; }
+      const { data } = await supabase.from('provinces').select('id, name').eq('country_id', selectedCountryId).order('name');
       setProvinces(data || []);
     };
     loadProvinces();
@@ -117,74 +80,6 @@ function ProfileContent() {
     const selected = countries.find(c => c.name === countryName);
     setForm((prev: any) => ({ ...prev, country: countryName, province: '' }));
     setSelectedCountryId(selected ? selected.id : null);
-  };
-
-  // ==================== ADD TEAM MEMBER + SEND EMAIL (UPDATED) ====================
-  const addTeamMember = async () => {
-    if (!newTeamMember.name || !newTeamMember.email) {
-      toast.error('Name and Email are required');
-      return;
-    }
-
-    if (!companyId) {
-      toast.error('No company selected');
-      return;
-    }
-
-    try {
-      // 1. Generate secure token
-      const token = crypto.randomUUID();
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 7);
-
-      // 2. Create invitation record
-      const { error: inviteError } = await supabase.from('invitations').insert({
-        token: token,
-        profile_id: Number(companyId),
-        invited_email: newTeamMember.email,
-        invited_by: cleanId,
-        role: newTeamMember.role || 'member',
-        status: 'pending',
-        expires_at: expiresAt.toISOString(),
-      });
-
-      if (inviteError) {
-        console.error('Invitation error:', inviteError);
-        toast.error('Failed to create invitation');
-        return;
-      }
-
-      // 3. Send invitation email
-      await supabase.functions.invoke('send-team-invitation', {
-        body: {
-          to_email: newTeamMember.email,
-          to_name: newTeamMember.name,
-          company_name: form.trading_name || form.legal_name || 'Your Company',
-          role: newTeamMember.role || 'Team Member',
-          inviter_name: form.contact_name || 'The team',
-          token: token,
-        },
-      });
-
-      toast.success(`✅ Invitation sent to ${newTeamMember.email}`);
-
-      const memberData = {
-        profile_id: Number(companyId),
-        name: newTeamMember.name,
-        email: newTeamMember.email,
-        contact_number: '',
-        role: newTeamMember.role || 'Other',
-        status: 'invited',
-        invited_at: new Date().toISOString()
-      };
-
-      setTeamMembers(prev => [memberData, ...prev]);
-      setNewTeamMember({ name: '', email: '', role: '' });
-
-    } catch (err) {
-      console.error("Error adding team member:", err);
-      toast.error('Something went wrong while sending the invitation');
-    }
   };
 
   const saveProfile = async () => {
@@ -222,16 +117,11 @@ function ProfileContent() {
     setSaving(false);
   };
 
-  // ==================== PAYSTACK + VERIFYNOW ====================
   const callVerifyNow = async (idNumber: string) => {
     const response = await fetch('/api/verify-now', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        reportType: "consumer_trace",
-        idNumber: idNumber,
-        mode: "production"
-      }),
+      body: JSON.stringify({ reportType: "consumer_trace", idNumber, mode: "production" }),
     });
     const result = await response.json();
     if (!response.ok || result.error) throw new Error(result.error || 'VerifyNow failed');
@@ -299,16 +189,12 @@ function ProfileContent() {
     }, 100);
   };
 
-  // Show message if no companyId
   if (!companyId) {
     return (
       <div className="p-12 text-center">
         <h2 className="text-2xl font-bold mb-4">No Company Selected</h2>
         <p className="text-neutral-600 mb-6">Please select a company to view its profile.</p>
-        <button 
-          onClick={() => router.push('/dashboard/select-company')}
-          className="btn-primary px-8 py-3"
-        >
+        <button onClick={() => router.push('/dashboard/select-company')} className="btn-primary px-8 py-3">
           Go to Select Company
         </button>
       </div>
@@ -324,11 +210,11 @@ function ProfileContent() {
     'bg-gray-100 text-gray-600';
 
   return (
-    <div className="pl-0 pr-12 py-12 max-w-screen-2xl mx-auto">
+    <div className="p-8 max-w-screen-2xl mx-auto">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="font-black text-5xl tracking-tight text-[#00b4d8]">{form.legal_name}</h1>
-          <p className="text-xl text-neutral-600 mt-1">Company Profile</p>
+          <h1 className="font-black text-5xl tracking-tight">{form.legal_name}</h1>
+          <p className="text-xl text-neutral-600 mt-1">Profile & Legal Information</p>
         </div>
         <div className={`px-5 py-2 rounded-3xl text-sm font-semibold ${badgeColor}`}>
           {verificationStatus === 'verified' && '✅ Verified'}
@@ -337,7 +223,7 @@ function ProfileContent() {
         </div>
       </div>
 
-      <div className="bg-white rounded-3xl p-8 space-y-10">
+      <div className="bg-white rounded-3xl p-8 space-y-12">
 
         {/* 1. Company Basics */}
         <div>
@@ -395,98 +281,34 @@ function ProfileContent() {
           </div>
         </div>
 
-        {/* 3. Industry - FIXED with Sub-Industries */}
+        {/* 3. Industry */}
         <div>
           <h2 className="text-2xl font-bold mb-6">3. Industry</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {industries
-              .filter((ind: any) => !ind.parent_id) // Only parent industries
-              .map((parent: any) => {
-                const subIndustries = industries.filter(
-                  (sub: any) => sub.parent_id === parent.id
-                );
-
-                return (
-                  <div key={parent.id} className="border rounded-3xl p-6">
-                    <div className="font-semibold text-lg mb-4">{parent.name}</div>
-                    <div className="space-y-3">
-                      {subIndustries.length > 0 ? (
-                        subIndustries.map((sub: any) => (
-                          <label key={sub.id} className="flex items-center gap-3 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={(form.industries || []).includes(sub.name)}
-                              onChange={() => {
-                                const current = form.industries || [];
-                                const updated = current.includes(sub.name)
-                                  ? current.filter((i: string) => i !== sub.name)
-                                  : [...current, sub.name];
-                                setForm((prev: any) => ({ ...prev, industries: updated }));
-                              }}
-                            />
-                            <span className="text-sm">{sub.name}</span>
-                          </label>
-                        ))
-                      ) : (
-                        <p className="text-sm text-neutral-500 italic">No sub-industries yet</p>
-                      )}
-                    </div>
+            {industries.filter((ind: any) => !ind.parent_id).map((parent: any) => {
+              const subIndustries = industries.filter((sub: any) => sub.parent_id === parent.id);
+              return (
+                <div key={parent.id} className="border rounded-3xl p-6">
+                  <div className="font-semibold text-lg mb-4">{parent.name}</div>
+                  <div className="space-y-3">
+                    {subIndustries.length > 0 ? subIndustries.map((sub: any) => (
+                      <label key={sub.id} className="flex items-center gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={(form.industries || []).includes(sub.name)}
+                          onChange={() => {
+                            const current = form.industries || [];
+                            const updated = current.includes(sub.name) ? current.filter((i: string) => i !== sub.name) : [...current, sub.name];
+                            setForm((prev: any) => ({ ...prev, industries: updated }));
+                          }}
+                        />
+                        <span className="text-sm">{sub.name}</span>
+                      </label>
+                    )) : <p className="text-sm text-neutral-500 italic">No sub-industries yet</p>}
                   </div>
-                );
-              })}
-          </div>
-        </div>
-
-        {/* 4. Team Members */}
-        <div>
-          <h2 className="text-2xl font-bold mb-6">4. Team Members</h2>
-
-          <div className="mb-8">
-            {teamMembers.length > 0 ? (
-              <div className="space-y-3">
-                {teamMembers.map((member, index) => (
-                  <div key={index} className="flex justify-between items-center bg-neutral-50 p-5 rounded-2xl">
-                    <div>
-                      <div className="font-medium">{member.name}</div>
-                      <div className="text-sm text-neutral-500">{member.email} • {member.role}</div>
-                    </div>
-                    <div className="text-xs px-4 py-1 bg-emerald-100 text-emerald-700 rounded-3xl">
-                      {member.status || 'Active'}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-slate-500 mb-6">No team members added yet.</p>
-            )}
-          </div>
-
-          <div className="bg-neutral-50 p-6 rounded-3xl">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="text-sm font-medium">Full Name</label>
-                <input type="text" className="input w-full mt-1" placeholder="John Doe" value={newTeamMember.name} onChange={e => setNewTeamMember({...newTeamMember, name: e.target.value})} />
-              </div>
-              <div>
-                <label className="text-sm font-medium">Email Address</label>
-                <input type="email" className="input w-full mt-1" placeholder="john@company.com" value={newTeamMember.email} onChange={e => setNewTeamMember({...newTeamMember, email: e.target.value})} />
-              </div>
-              <div>
-                <label className="text-sm font-medium">Position / Role</label>
-                <select className="input w-full mt-1" value={newTeamMember.role} onChange={e => setNewTeamMember({...newTeamMember, role: e.target.value})}>
-                  <option value="">Select Position</option>
-                  <option value="CEO">CEO / Managing Director</option>
-                  <option value="Director">Director</option>
-                  <option value="Manager">Manager</option>
-                  <option value="Operations">Operations Lead</option>
-                  <option value="Finance">Finance Lead</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-            </div>
-            <button onClick={addTeamMember} className="btn-primary mt-6 w-full">
-              Add Team Member & Send Invitation Email
-            </button>
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -494,20 +316,13 @@ function ProfileContent() {
         <div>
           <h2 className="text-2xl font-bold mb-6">5. Financial & Banking</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div><label className="text-sm font-medium">Tax Number</label>
-              <input className="input w-full mt-1" value={form.tax_number || ''} onChange={e => handleInputChange('tax_number', e.target.value)} /></div>
-            <div><label className="text-sm font-medium">VAT Number</label>
-              <input className="input w-full mt-1" value={form.vat_number || ''} onChange={e => handleInputChange('vat_number', e.target.value)} /></div>
-            <div><label className="text-sm font-medium">Bank Name</label>
-              <input className="input w-full mt-1" value={form.bank_name || ''} onChange={e => handleInputChange('bank_name', e.target.value)} /></div>
-            <div><label className="text-sm font-medium">Account Name</label>
-              <input className="input w-full mt-1" value={form.account_name || ''} onChange={e => handleInputChange('account_name', e.target.value)} /></div>
-            <div><label className="text-sm font-medium">Account Number</label>
-              <input className="input w-full mt-1" value={form.account_number || ''} onChange={e => handleInputChange('account_number', e.target.value)} /></div>
-            <div><label className="text-sm font-medium">IBAN</label>
-              <input className="input w-full mt-1" value={form.iban || ''} onChange={e => handleInputChange('iban', e.target.value)} /></div>
-            <div><label className="text-sm font-medium">SWIFT / BIC</label>
-              <input className="input w-full mt-1" value={form.swift || ''} onChange={e => handleInputChange('swift', e.target.value)} /></div>
+            <div><label className="text-sm font-medium">Tax Number</label><input className="input w-full mt-1" value={form.tax_number || ''} onChange={e => handleInputChange('tax_number', e.target.value)} /></div>
+            <div><label className="text-sm font-medium">VAT Number</label><input className="input w-full mt-1" value={form.vat_number || ''} onChange={e => handleInputChange('vat_number', e.target.value)} /></div>
+            <div><label className="text-sm font-medium">Bank Name</label><input className="input w-full mt-1" value={form.bank_name || ''} onChange={e => handleInputChange('bank_name', e.target.value)} /></div>
+            <div><label className="text-sm font-medium">Account Name</label><input className="input w-full mt-1" value={form.account_name || ''} onChange={e => handleInputChange('account_name', e.target.value)} /></div>
+            <div><label className="text-sm font-medium">Account Number</label><input className="input w-full mt-1" value={form.account_number || ''} onChange={e => handleInputChange('account_number', e.target.value)} /></div>
+            <div><label className="text-sm font-medium">IBAN</label><input className="input w-full mt-1" value={form.iban || ''} onChange={e => handleInputChange('iban', e.target.value)} /></div>
+            <div><label className="text-sm font-medium">SWIFT / BIC</label><input className="input w-full mt-1" value={form.swift || ''} onChange={e => handleInputChange('swift', e.target.value)} /></div>
           </div>
         </div>
 
@@ -522,7 +337,6 @@ function ProfileContent() {
 
       </div>
 
-      {/* Action Buttons */}
       <div className="flex flex-col sm:flex-row justify-end gap-4 mt-8">
         <button onClick={saveProfile} disabled={saving} className="btn-primary px-10 py-4">
           {saving ? 'Saving...' : 'Save All Changes'}

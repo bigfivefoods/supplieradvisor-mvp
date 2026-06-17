@@ -20,7 +20,7 @@ const modules = [
     href: '/dashboard/my-business/profile', 
     sub: [
       { name: 'Profile & Legal', href: '/dashboard/my-business/profile' },
-      { name: 'Team & Roles', href: '/dashboard/business/team' },
+      { name: 'Team & Roles', href: '/dashboard/my-business/team' },
       { name: 'Projects', href: '/dashboard/business/projects' },
       { name: 'Settings', href: '/dashboard/business/settings' },
     ]
