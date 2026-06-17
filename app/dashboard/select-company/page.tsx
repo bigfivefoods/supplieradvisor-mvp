@@ -44,7 +44,11 @@ export default function SelectCompany() {
   };
 
   const handleSelect = (b: Business) => {
-    router.push(`/dashboard/profile?companyId=${b.id}`);
+    // Save to localStorage so Profile & Team pages work smoothly
+    localStorage.setItem('selectedCompanyId', b.id);
+
+    // ✅ Correct new path
+    router.push(`/dashboard/my-business/profile?companyId=${b.id}`);
   };
 
   return (
