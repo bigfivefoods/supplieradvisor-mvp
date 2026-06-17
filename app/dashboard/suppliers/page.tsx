@@ -2,15 +2,28 @@
 
 import Link from 'next/link';
 import { Search, Plus, FileText, TrendingUp, Award, AlertTriangle } from 'lucide-react';
-import Breadcrumb from '../../../components/ui/Breadcrumb';   // ← Correct relative path
+import Breadcrumb from '../../../components/ui/Breadcrumb';
 
 export default function SuppliersPage() {
   return (
     <div className="pl-0">
       <Breadcrumb />
 
-      <h1 className="text-6xl font-black tracking-tighter text-[#00b4d8]">Suppliers</h1>
-      <p className="text-2xl text-slate-600 mb-12">Manage verified suppliers • Connect • Raise POs • Track OTIFEF</p>
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-6xl font-black tracking-tighter text-[#00b4d8]">Suppliers</h1>
+          <p className="text-2xl text-slate-600">Manage verified suppliers • Connect • Raise POs • Track OTIFEF</p>
+        </div>
+
+        {/* NEW: Add Supplier Button */}
+        <Link 
+          href="/dashboard/suppliers/add" 
+          className="flex items-center gap-3 bg-[#00b4d8] hover:bg-[#0096b8] text-white px-6 py-3 rounded-2xl font-semibold transition-all"
+        >
+          <Plus size={20} />
+          Add Supplier
+        </Link>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         <Link href="/dashboard/suppliers/search" className="card hover:shadow-xl transition-all group">
