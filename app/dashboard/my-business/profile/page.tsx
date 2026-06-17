@@ -7,7 +7,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import toast from 'react-hot-toast';
 import { usePrivy } from '@privy-io/react-auth';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, Upload, FileText, ExternalLink } from 'lucide-react';
 
 function ProfileContent() {
   const searchParams = useSearchParams();
@@ -50,6 +50,9 @@ function ProfileContent() {
     'Halal', 'Kosher', 'Organic', 'Fairtrade', 'FSSC 22000'
   ];
 
+  // Certificates state (loaded from DB + new uploads)
+  const [uploadedCertificates, setUploadedCertificates] = useState<any[]>([]);
+
   // Save companyId
   useEffect(() => {
     if (urlCompanyId) {
@@ -58,14 +61,20 @@ function ProfileContent() {
     }
   }, [urlCompanyId]);
 
-  // Load data
+  // Load data (including previously uploaded certificates)
   useEffect(() => {
     const loadData = async () => {
       if (!companyId) { setLoading(false); return; }
       setLoading(true);
 
       const { data: row } = await supabase.from('profiles').select('*').eq('id', Number(companyId)).single();
-      if (row) setForm(row);
+      if (row) {
+        setForm(row);
+        // Load previously uploaded certificates from database
+        if (row.uploaded_certificates && Array.isArray(row.uploaded_certificates)) {
+          setUploadedCertificates(row.uploaded_certificates);
+        }
+      }
 
       const [contRes, countryRes, indRes, btRes] = await Promise.all([
         supabase.from('continents').select('id, name').order('name'),
@@ -108,23 +117,30 @@ function ProfileContent() {
     setSelectedCountryId(selected ? selected.id : null);
   };
 
-  // === UNIVERSAL FILE UPLOAD TO SUPABASE STORAGE ===
+  // === FILE UPLOAD TO SUPABASE STORAGE ===
   const uploadFileToStorage = async (file: File, folder: string): Promise<string | null> => {
     const fileExt = file.name.split('.').pop();
     const fileName = `${Date.now()}.${fileExt}`;
     const filePath = `${folder}/${fileName}`;
 
-    const { error } = await supabase.storage
+    const { data, error } = await supabase.storage
       .from('company-documents')
-      .upload(filePath, file);
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: false
+      });
 
     if (error) {
+      console.error('Storage upload error:', error);
       toast.error(`Upload failed: ${error.message}`);
       return null;
     }
 
-    const { data } = supabase.storage.from('company-documents').getPublicUrl(filePath);
-    return data.publicUrl;
+    const { data: urlData } = supabase.storage
+      .from('company-documents')
+      .getPublicUrl(filePath);
+
+    return urlData.publicUrl;
   };
 
   // Handle document uploads (Banking, VAT, Export, Import, BEE)
@@ -134,12 +150,26 @@ function ProfileContent() {
     const url = await uploadFileToStorage(file, `companies/${companyId}/documents`);
     if (!url) return;
 
-    // Update form with the URL
-    setForm((prev: any) => ({
-      ...prev,
-      [field]: url,
-    }));
+    setForm((prev: any) => ({ ...prev, [field]: url }));
+    toast.success(`${file.name} uploaded successfully`);
+  };
 
+  // Handle general certificate upload + update state
+  const handleGeneralCertificateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !companyId) return;
+
+    const url = await uploadFileToStorage(file, `companies/${companyId}/certificates`);
+    if (!url) return;
+
+    const newCert = {
+      id: Date.now(),
+      name: file.name,
+      url: url,
+      uploadedAt: new Date().toISOString()
+    };
+
+    setUploadedCertificates(prev => [...prev, newCert]);
     toast.success(`${file.name} uploaded successfully`);
   };
 
@@ -175,7 +205,7 @@ function ProfileContent() {
     setForm((prev: any) => ({ ...prev, iso_certifications: updatedCerts }));
   };
 
-  // Save Profile
+  // Save Profile (now also saves uploaded certificates)
   const saveProfile = async () => {
     if (!companyId) return;
     setSaving(true);
@@ -213,6 +243,7 @@ function ProfileContent() {
       export_license_url: form.export_license_url,
       import_license_url: form.import_license_url,
       iso_certifications: form.iso_certifications || [],
+      uploaded_certificates: uploadedCertificates, // ← NEW: Save certificates
     }).eq('id', Number(companyId));
 
     if (error) {
@@ -224,7 +255,7 @@ function ProfileContent() {
     setSaving(false);
   };
 
-  // VerifyNow + Paystack (kept from your original)
+  // VerifyNow + Paystack
   const callVerifyNow = async (idNumber: string) => {
     const response = await fetch('/api/verify-now', {
       method: 'POST',
@@ -461,7 +492,7 @@ function ProfileContent() {
                   <input className="input w-full mt-1" value={form.swift || ''} onChange={e => handleInputChange('swift', e.target.value)} /></div>
               </div>
 
-              {/* File Uploads - Fully Functional */}
+              {/* File Uploads */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t">
                 <div>
                   <label className="text-sm font-medium">Banking Confirmation</label>
@@ -490,7 +521,7 @@ function ProfileContent() {
           )}
         </div>
 
-        {/* 5. Certifications */}
+        {/* 5. Certifications & Compliance */}
         <div className="bg-white rounded-3xl border border-neutral-200 overflow-hidden">
           <button onClick={() => toggleSection('certifications')} className="w-full flex justify-between items-center px-8 py-5 text-left hover:bg-neutral-50">
             <div className="flex items-center gap-4">
@@ -541,6 +572,54 @@ function ProfileContent() {
                   })}
                 </div>
               </div>
+
+              {/* Uploaded Certificates - Now loads from DB */}
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold text-lg">Uploaded Certificates</h3>
+                  <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+                    <Upload className="w-4 h-4" />
+                    Upload Certificate
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept=".pdf,.jpg,.jpeg,.png"
+                      onChange={handleGeneralCertificateUpload}
+                    />
+                  </label>
+                </div>
+
+                {uploadedCertificates.length > 0 ? (
+                  <div className="space-y-3">
+                    {uploadedCertificates.map((cert, index) => (
+                      <div key={index} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
+                        <div className="flex items-center gap-3">
+                          <FileText className="w-5 h-5 text-gray-500" />
+                          <div>
+                            <p className="font-medium text-gray-900">{cert.name}</p>
+                            <p className="text-xs text-gray-500">
+                              Uploaded {new Date(cert.uploadedAt).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+                        <a
+                          href={cert.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+                        >
+                          View <ExternalLink className="w-4 h-4" />
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500 text-sm border border-dashed rounded-2xl">
+                    No certificates uploaded yet. Click "Upload Certificate" above.
+                  </div>
+                )}
+              </div>
+
             </div>
           )}
         </div>
