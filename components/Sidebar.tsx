@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { 
   Home, Building2, Users, Truck, Factory, Package, 
-  ShoppingCart, Calculator, Brain, BarChart3, ChevronDown 
+  ShoppingCart, Calculator, Brain, ChevronDown 
 } from 'lucide-react';
 
 const modules = [
@@ -32,10 +32,46 @@ const modules = [
     href: '/dashboard/connections', 
     sub: [
       { name: 'Business Directory', href: '/dashboard/suppliers/directory' },
-      { name: 'Suppliers', href: '/dashboard/suppliers' },
-      { name: 'Customers', href: '/dashboard/customers' },
       { name: 'Connections', href: '/dashboard/connections' },
       { name: 'Invite Business', href: '/dashboard/invite-business' },
+    ]
+  },
+
+  // Suppliers (top level)
+  { 
+    id: 'suppliers', 
+    name: 'Suppliers', 
+    icon: Truck, 
+    href: '/dashboard/suppliers', 
+    sub: [
+      { name: 'Raise PO', href: '/dashboard/suppliers/raise-po' },
+      { name: 'OTIFEF Metrics', href: '/dashboard/suppliers/otifef-metrics' },
+      { name: 'Supplier Profiles', href: '/dashboard/suppliers' },
+    ]
+  },
+
+  // Customers (top level)
+  { 
+    id: 'customers', 
+    name: 'Customers', 
+    icon: Users, 
+    href: '/dashboard/customers', 
+    sub: [
+      { name: 'Raise Invoice', href: '/dashboard/customers/raise-invoice' },
+      { name: 'Financial Metrics', href: '/dashboard/customers/financial-metrics' },
+      { name: 'Customer Profiles', href: '/dashboard/customers' },
+    ]
+  },
+
+  // ✅ NEW: Containers as top-level module
+  { 
+    id: 'containers', 
+    name: 'Containers', 
+    icon: Package, 
+    href: '/dashboard/containers', 
+    sub: [
+      { name: 'Manage Containers', href: '/dashboard/containers' },
+      { name: 'Container Metrics', href: '/dashboard/containers/metrics' },
     ]
   },
 
@@ -60,7 +96,6 @@ const modules = [
   ]},
 
   { id: 'distribution', name: 'Distribution', icon: Truck, href: '/dashboard/distribution', sub: [
-    { name: 'Containers', href: '/dashboard/containers' },
     { name: 'Logistics', href: '/dashboard/distribution/logistics' },
     { name: 'Micro-Franchise', href: '/dashboard/distribution/franchise' },
   ]},
@@ -77,7 +112,6 @@ const modules = [
     { name: 'Reports', href: '/dashboard/accounting/reports' },
   ]},
 
-  // ✅ Updated: Leadership Development added under Intelligence
   { id: 'intelligence', name: 'Intelligence', icon: Brain, href: '/dashboard/intelligence', sub: [
     { name: 'Grok AI Assistant', href: '/dashboard/intelligence/grok' },
     { name: 'Analytics & BI', href: '/dashboard/intelligence/analytics' },
