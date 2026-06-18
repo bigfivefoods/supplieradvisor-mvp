@@ -32,16 +32,12 @@ const modules = [
     href: '/dashboard/connections', 
     sub: [
       { name: 'Business Directory', href: '/dashboard/suppliers/directory' },
+      { name: 'Suppliers', href: '/dashboard/suppliers' },
+      { name: 'Customers', href: '/dashboard/customers' },
       { name: 'Connections', href: '/dashboard/connections' },
       { name: 'Invite Business', href: '/dashboard/invite-business' },
     ]
   },
-
-  { id: 'ecosystem', name: 'Ecosystem', icon: Users, href: '/dashboard/ecosystem', sub: [
-    { name: 'Suppliers', href: '/dashboard/ecosystem/suppliers' },
-    { name: 'Customers', href: '/dashboard/ecosystem/customers' },
-    { name: 'Partners', href: '/dashboard/ecosystem/partners' },
-  ]},
 
   { id: 'supplychain', name: 'Supply Chain', icon: Truck, href: '/dashboard/supplychain', sub: [
     { name: 'Procurement & POs', href: '/dashboard/supplychain/procurement' },
