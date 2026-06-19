@@ -2,43 +2,64 @@
 
 import ModuleHub from '@/components/ModuleHub';
 import HubCard from '@/components/HubCard';
-import { Package, BarChart3, Plus, Truck } from 'lucide-react';
+import { 
+  Package, 
+  Plus, 
+  BarChart3, 
+  Users, 
+  FileText, 
+  Settings 
+} from 'lucide-react';
 
 export default function ContainersHub() {
   return (
     <ModuleHub
       title="Containers"
-      description="Manage your container fleet, track shipments, and monitor performance metrics."
+      description="Manage your retail outlets (containers), appoint and track independent contractors, monitor performance, inventory, sales, and payouts."
       backHref="/dashboard"
     >
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         
         <HubCard
-          title="Manage Containers"
-          description="View, add, and manage all your containers in one place."
-          href="/dashboard/containers"
+          title="All Containers"
+          description="View, search, and manage all your retail containers and their status."
+          href="/dashboard/containers/list"
           icon={Package}
         />
 
         <HubCard
-          title="Container Metrics"
-          description="Track OTIF, utilization, turnaround time, and other key metrics."
+          title="Add New Container"
+          description="Onboard a new container and appoint an independent contractor."
+          href="/dashboard/containers/add"
+          icon={Plus}
+        />
+
+        <HubCard
+          title="Performance Metrics"
+          description="Aggregate view of container performance, top performers, and issues."
           href="/dashboard/containers/metrics"
           icon={BarChart3}
         />
 
         <HubCard
-          title="Add New Container"
-          description="Register a new container into your fleet."
-          href="/dashboard/containers/new"
-          icon={Plus}
+          title="Contractors"
+          description="Manage all independent contractors running your containers."
+          href="/dashboard/containers/contractors"
+          icon={Users}
         />
 
         <HubCard
-          title="Logistics & Shipments"
-          description="View active shipments and container movements."
-          href="/dashboard/distribution/logistics"
-          icon={Truck}
+          title="Reports"
+          description="Generate performance, payout, inventory, and compliance reports."
+          href="/dashboard/containers/reports"
+          icon={FileText}
+        />
+
+        <HubCard
+          title="Settings"
+          description="Configure container types, commission structures, and defaults."
+          href="/dashboard/containers/settings"
+          icon={Settings}
         />
 
       </div>
