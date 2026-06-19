@@ -1,87 +1,92 @@
 'use client';
 
-import Link from 'next/link';
-import { Search, Plus, FileText, TrendingUp, Award, Users } from 'lucide-react';
-import Breadcrumb from '../../../components/ui/Breadcrumb';
+import ModuleHub from '@/components/ModuleHub';
+import HubCard from '@/components/HubCard';
+import { 
+  Building2, 
+  Plus, 
+  Users, 
+  FileText, 
+  File, 
+  Globe, 
+  AlertTriangle, 
+  Link as LinkIcon, 
+  Search 
+} from 'lucide-react';
 
-export default function SuppliersPage() {
+export default function SuppliersHub() {
   return (
-    <div className="pl-0">
-      <Breadcrumb />
-
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-6xl font-black tracking-tighter text-[#00b4d8]">Suppliers</h1>
-          <p className="text-2xl text-slate-600">Manage verified suppliers • Connect • Raise POs • Track OTIFEF</p>
-        </div>
-
-        <Link 
-          href="/dashboard/invite-business" 
-          className="flex items-center gap-3 bg-[#00b4d8] hover:bg-[#0096b8] text-white px-6 py-3 rounded-2xl font-semibold transition-all"
-        >
-          <Plus size={20} />
-          Invite Business
-        </Link>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+    <ModuleHub
+      title="Suppliers"
+      description="Manage your supplier ecosystem — directory, onboarding, contracts, purchase orders, and risk monitoring."
+      backHref="/dashboard"
+    >
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         
-        {/* Business Directory - NEW */}
-        <Link href="/dashboard/suppliers/directory" className="card hover:shadow-xl transition-all group">
-          <div className="flex items-center gap-4 mb-6">
-            <Users size={36} className="text-[#00b4d8]" />
-            <h3 className="text-3xl font-bold">Business Directory</h3>
-          </div>
-          <p className="text-slate-600">Browse all businesses and send connection requests</p>
-          <div className="mt-8 text-[#00b4d8] font-medium flex items-center gap-2 group-hover:gap-3 transition-all">
-            Open Directory →
-          </div>
-        </Link>
+        <HubCard
+          title="Supplier Directory"
+          description="Browse and search all suppliers in your network."
+          href="/dashboard/suppliers/directory"
+          icon={Building2}
+        />
 
-        <Link href="/dashboard/suppliers/search" className="card hover:shadow-xl transition-all group">
-          <div className="flex items-center gap-4 mb-6">
-            <Search size={36} className="text-[#00b4d8]" />
-            <h3 className="text-3xl font-bold">Search Suppliers</h3>
-          </div>
-          <p className="text-slate-600">Deep search by name, region, industry, certifications and trust score</p>
-          <div className="mt-8 text-[#00b4d8] font-medium flex items-center gap-2 group-hover:gap-3 transition-all">
-            Open Search →
-          </div>
-        </Link>
+        <HubCard
+          title="Add New Supplier"
+          description="Onboard a new supplier into the system."
+          href="/dashboard/suppliers/add"
+          icon={Plus}
+        />
 
-        <Link href="/dashboard/connections" className="card hover:shadow-xl transition-all group">
-          <div className="flex items-center gap-4 mb-6">
-            <Users size={36} className="text-[#00b4d8]" />
-            <h3 className="text-3xl font-bold">Connections</h3>
-          </div>
-          <p className="text-slate-600">Send connection requests • Accept requests • Manage your network</p>
-          <div className="mt-8 text-[#00b4d8] font-medium flex items-center gap-2 group-hover:gap-3 transition-all">
-            Manage Connections →
-          </div>
-        </Link>
+        <HubCard
+          title="Profiles & My Suppliers"
+          description="View and manage your active supplier profiles."
+          href="/dashboard/suppliers/profiles"
+          icon={Users}
+        />
 
-        <Link href="/dashboard/procurement/po" className="card hover:shadow-xl transition-all group">
-          <div className="flex items-center gap-4 mb-6">
-            <FileText size={36} className="text-[#00b4d8]" />
-            <h3 className="text-3xl font-bold">Raise PO</h3>
-          </div>
-          <p className="text-slate-600">Create purchase orders with auto-filled metadata</p>
-          <div className="mt-8 text-[#00b4d8] font-medium flex items-center gap-2 group-hover:gap-3 transition-all">
-            Raise New PO →
-          </div>
-        </Link>
+        <HubCard
+          title="Purchase Orders"
+          description="Create, track, and manage purchase orders."
+          href="/dashboard/suppliers/po"
+          icon={FileText}
+        />
 
-        <Link href="/otifef" className="card hover:shadow-xl transition-all group">
-          <div className="flex items-center gap-4 mb-6">
-            <TrendingUp size={36} className="text-[#00b4d8]" />
-            <h3 className="text-3xl font-bold">OTIFEF Metrics</h3>
-          </div>
-          <p className="text-slate-600">On-Time • In-Full • Error-Free performance tracking</p>
-          <div className="mt-8 text-[#00b4d8] font-medium flex items-center gap-2 group-hover:gap-3 transition-all">
-            View OTIFEF Dashboard →
-          </div>
-        </Link>
+        <HubCard
+          title="Contracts"
+          description="View and manage supplier contracts and agreements."
+          href="/dashboard/suppliers/contracts"
+          icon={File}
+        />
+
+        <HubCard
+          title="Supplier Portal"
+          description="Access the self-service portal for suppliers."
+          href="/dashboard/suppliers/portal"
+          icon={Globe}
+        />
+
+        <HubCard
+          title="Risk Alerts"
+          description="Monitor supplier risk, compliance, and alerts."
+          href="/dashboard/suppliers/risk-alerts"
+          icon={AlertTriangle}
+        />
+
+        <HubCard
+          title="Connect & Onboarding"
+          description="Manage supplier connection and onboarding flows."
+          href="/dashboard/suppliers/connect"
+          icon={LinkIcon}
+        />
+
+        <HubCard
+          title="Search Suppliers"
+          description="Advanced search across all supplier data."
+          href="/dashboard/suppliers/search"
+          icon={Search}
+        />
+
       </div>
-    </div>
+    </ModuleHub>
   );
 }
