@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { 
   Home, Building2, Users, Truck, Factory, Package, 
-  Calculator, Brain, ChevronDown, Menu, X 
+  Calculator, Brain, ChevronDown 
 } from 'lucide-react';
 
 const modules = [
@@ -16,7 +16,7 @@ const modules = [
     id: 'my-business', 
     name: 'My Business', 
     icon: Building2, 
-    href: '/dashboard/my-business',                    // ← Updated to hub
+    href: '/dashboard/my-business',
     sub: [
       { name: 'Company Profile', href: '/dashboard/my-business/profile' },
       { name: 'Team & Roles', href: '/dashboard/my-business/team' },
@@ -31,7 +31,7 @@ const modules = [
     id: 'network', 
     name: 'Network', 
     icon: Users, 
-    href: '/dashboard/network', 
+    href: '/dashboard/network',
     sub: [
       { name: 'Business Directory', href: '/dashboard/suppliers/directory' },
       { name: 'Connections', href: '/dashboard/connections' },
@@ -43,7 +43,7 @@ const modules = [
     id: 'suppliers', 
     name: 'Suppliers', 
     icon: Truck, 
-    href: '/dashboard/suppliers', 
+    href: '/dashboard/suppliers',
     sub: [
       { name: 'Supplier Directory', href: '/dashboard/suppliers/directory' },
       { name: 'Add New Supplier', href: '/dashboard/suppliers/add' },
@@ -59,7 +59,7 @@ const modules = [
     id: 'customers', 
     name: 'Customers', 
     icon: Users, 
-    href: '/dashboard/customers', 
+    href: '/dashboard/customers',
     sub: [
       { name: 'Profiles', href: '/dashboard/customers/profiles' },
       { name: 'Onboard Customer', href: '/dashboard/customers/onboard' },
@@ -75,7 +75,7 @@ const modules = [
     id: 'containers', 
     name: 'Containers', 
     icon: Package, 
-    href: '/dashboard/containers', 
+    href: '/dashboard/containers',
     sub: [
       { name: 'Overview', href: '/dashboard/containers' },
       { name: 'Manage Containers', href: '/dashboard/containers/list' },
@@ -91,7 +91,7 @@ const modules = [
     id: 'inventory', 
     name: 'Inventory', 
     icon: Package, 
-    href: '/dashboard/inventory', 
+    href: '/dashboard/inventory',
     sub: [
       { name: 'Raw Materials', href: '/dashboard/inventory/raw-materials' },
       { name: 'Finished Goods', href: '/dashboard/inventory/finished-goods' },
@@ -106,7 +106,7 @@ const modules = [
     id: 'operations', 
     name: 'Operations', 
     icon: Truck, 
-    href: '/dashboard/operations', 
+    href: '/dashboard/operations',
     sub: [
       { name: 'Supplier Orders', href: '/dashboard/operations/supplier-orders' },
       { name: 'Inbound', href: '/dashboard/operations/inbound' },
@@ -120,7 +120,7 @@ const modules = [
     id: 'manufacturing', 
     name: 'Manufacturing', 
     icon: Factory, 
-    href: '/dashboard/manufacturing', 
+    href: '/dashboard/manufacturing',
     sub: [
       { name: 'Production Orders', href: '/dashboard/manufacturing/production-orders' },
       { name: 'Bills of Materials', href: '/dashboard/manufacturing/bills-of-materials' },
@@ -133,7 +133,7 @@ const modules = [
     id: 'distribution', 
     name: 'Distribution', 
     icon: Truck, 
-    href: '/dashboard/distribution', 
+    href: '/dashboard/distribution',
     sub: [
       { name: 'Carriers', href: '/dashboard/distribution/carriers' },
       { name: 'Fleet & Drivers', href: '/dashboard/distribution/fleet-drivers' },
@@ -148,7 +148,7 @@ const modules = [
     id: 'accounting', 
     name: 'Accounting', 
     icon: Calculator, 
-    href: '/dashboard/accounting', 
+    href: '/dashboard/accounting',
     sub: [
       { name: 'Chart of Accounts', href: '/dashboard/accounting/chart-of-accounts' },
       { name: 'Legal Entities', href: '/dashboard/accounting/entities' },
@@ -168,7 +168,7 @@ const modules = [
     id: 'intelligence', 
     name: 'Intelligence', 
     icon: Brain, 
-    href: '/dashboard/intelligence', 
+    href: '/dashboard/intelligence',
     sub: [
       { name: 'Pulse Dashboard', href: '/dashboard/intelligence/pulse-dashboard' },
       { name: 'Neural Insights', href: '/dashboard/intelligence/neural-insights' },
@@ -183,175 +183,88 @@ const modules = [
 export default function Sidebar() {
   const pathname = usePathname();
   const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({});
-  const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   const toggleModule = (id: string) => {
     setExpandedModules(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const closeMobileMenu = () => setIsMobileOpen(false);
-
   return (
-    <>
-      {/* Mobile Top Bar */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-white border-b border-neutral-200 px-4 py-3 flex items-center justify-between">
+    <div className="flex flex-col h-full bg-white">
+      {/* Header */}
+      <div className="p-6 border-b border-neutral-100">
         <div className="flex items-center gap-3">
-          <Image src="/sa-logo.png" alt="SupplierAdvisor" width={32} height={32} className="rounded-lg" />
-          <span className="font-black text-xl tracking-[-0.5px]">SupplierAdvisor</span>
-        </div>
-        <button 
-          onClick={() => setIsMobileOpen(!isMobileOpen)}
-          className="p-2 rounded-xl hover:bg-neutral-100"
-        >
-          {isMobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-        </button>
-      </div>
-
-      {/* Sidebar - Desktop */}
-      <div className="hidden lg:flex w-72 min-h-screen bg-white flex-col border-r border-neutral-200 overflow-hidden">
-        {/* Desktop Header */}
-        <div className="p-6 border-b border-neutral-100">
-          <div className="flex items-center gap-3">
-            <Image src="/sa-logo.png" alt="SupplierAdvisor" width={40} height={40} className="rounded-xl" priority />
-            <div className="font-black text-2xl tracking-[-1px] leading-none">SupplierAdvisor® ERP</div>
+          <Image 
+            src="/sa-logo.png" 
+            alt="SupplierAdvisor" 
+            width={40} 
+            height={40} 
+            className="rounded-xl" 
+            priority 
+          />
+          <div className="font-black text-2xl tracking-[-1px] leading-none">
+            SupplierAdvisor® ERP
           </div>
         </div>
+      </div>
 
-        <nav className="flex-1 p-4 overflow-y-auto">
-          {modules.map((mod) => {
-            const isActive = pathname?.startsWith(mod.href) || false;
-            const isExpanded = expandedModules[mod.id] ?? false;
-            const Icon = mod.icon;
+      {/* Navigation */}
+      <nav className="flex-1 p-4 overflow-y-auto">
+        {modules.map((mod) => {
+          const Icon = mod.icon;
+          const isActive = pathname?.startsWith(mod.href);
+          const isExpanded = expandedModules[mod.id] ?? false;
 
-            return (
-              <div key={mod.id} className="mb-1">
-                <div 
-                  className={`flex items-center justify-between px-6 py-4 rounded-3xl transition-all cursor-pointer ${
-                    isActive ? 'bg-[#00b4d8] text-white' : 'hover:bg-neutral-100'
-                  }`}
-                  onClick={() => mod.sub.length > 0 && toggleModule(mod.id)}
-                >
-                  <Link href={mod.href} className="flex items-center gap-3 flex-1" onClick={closeMobileMenu}>
-                    <Icon className="w-5 h-5" />
-                    <span className="font-semibold">{mod.name}</span>
-                  </Link>
+          return (
+            <div key={mod.id} className="mb-1">
+              <div 
+                onClick={() => mod.sub.length > 0 && toggleModule(mod.id)}
+                className={`flex items-center justify-between px-5 py-3.5 rounded-3xl cursor-pointer transition-all ${
+                  isActive ? 'bg-[#00b4d8] text-white' : 'hover:bg-neutral-100'
+                }`}
+              >
+                <Link href={mod.href} className="flex items-center gap-3 flex-1">
+                  <Icon className="w-5 h-5" />
+                  <span className="font-semibold">{mod.name}</span>
+                </Link>
 
-                  {mod.sub.length > 0 && (
-                    <button className="text-neutral-400">
-                      <ChevronDown className={`w-5 h-5 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
-                    </button>
-                  )}
-                </div>
-
-                {mod.sub.length > 0 && isExpanded && (
-                  <div className="ml-8 mt-1 space-y-0.5">
-                    {mod.sub.map((sub, i) => (
-                      <Link
-                        key={i}
-                        href={sub.href}
-                        className={`block px-6 py-3 rounded-3xl text-sm transition-all ${
-                          pathname === sub.href ? 'text-[#00b4d8] bg-blue-50 font-medium' : 'text-slate-600 hover:text-slate-900'
-                        }`}
-                        onClick={closeMobileMenu}
-                      >
-                        {sub.name}
-                      </Link>
-                    ))}
-                  </div>
+                {mod.sub.length > 0 && (
+                  <ChevronDown 
+                    className={`w-5 h-5 transition-transform ${isExpanded ? 'rotate-180' : ''}`} 
+                  />
                 )}
               </div>
-            );
-          })}
-        </nav>
 
-        {/* Grok Button */}
-        <div className="p-4 border-t">
-          <button className="w-full bg-black text-white py-3 rounded-2xl flex items-center justify-center gap-2 font-medium hover:bg-neutral-800 transition-colors">
-            <Brain className="w-5 h-5" />
-            Ask Grok AI Assistant
-          </button>
-          <p className="text-xs text-center text-neutral-500 mt-2">Internal AI • Context Aware</p>
-        </div>
-      </div>
-
-      {/* Mobile Drawer */}
-      {isMobileOpen && (
-        <div className="lg:hidden fixed inset-0 z-50 flex">
-          {/* Backdrop */}
-          <div 
-            className="absolute inset-0 bg-black/40" 
-            onClick={closeMobileMenu}
-          />
-          
-          {/* Drawer */}
-          <div className="relative w-80 max-w-[85%] bg-white h-full overflow-y-auto shadow-xl">
-            {/* Mobile Header inside drawer */}
-            <div className="p-6 border-b border-neutral-100 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Image src="/sa-logo.png" alt="SupplierAdvisor" width={36} height={36} className="rounded-xl" />
-                <div className="font-black text-xl tracking-[-0.5px]">SupplierAdvisor® ERP</div>
-              </div>
-              <button onClick={closeMobileMenu} className="p-2">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            <nav className="p-4">
-              {modules.map((mod) => {
-                const isActive = pathname?.startsWith(mod.href) || false;
-                const isExpanded = expandedModules[mod.id] ?? false;
-                const Icon = mod.icon;
-
-                return (
-                  <div key={mod.id} className="mb-1">
-                    <div 
-                      className={`flex items-center justify-between px-5 py-4 rounded-3xl transition-all cursor-pointer ${
-                        isActive ? 'bg-[#00b4d8] text-white' : 'hover:bg-neutral-100'
+              {/* Submenu */}
+              {mod.sub.length > 0 && isExpanded && (
+                <div className="ml-7 mt-1 space-y-0.5">
+                  {mod.sub.map((sub, index) => (
+                    <Link
+                      key={index}
+                      href={sub.href}
+                      className={`block px-5 py-2.5 rounded-3xl text-sm transition-all ${
+                        pathname === sub.href 
+                          ? 'text-[#00b4d8] bg-blue-50 font-medium' 
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-neutral-50'
                       }`}
-                      onClick={() => mod.sub.length > 0 && toggleModule(mod.id)}
                     >
-                      <Link href={mod.href} className="flex items-center gap-3 flex-1" onClick={closeMobileMenu}>
-                        <Icon className="w-5 h-5" />
-                        <span className="font-semibold">{mod.name}</span>
-                      </Link>
-
-                      {mod.sub.length > 0 && (
-                        <button className="text-neutral-400">
-                          <ChevronDown className={`w-5 h-5 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
-                        </button>
-                      )}
-                    </div>
-
-                    {mod.sub.length > 0 && isExpanded && (
-                      <div className="ml-6 mt-1 space-y-0.5">
-                        {mod.sub.map((sub, i) => (
-                          <Link
-                            key={i}
-                            href={sub.href}
-                            className={`block px-5 py-3 rounded-3xl text-sm transition-all ${
-                              pathname === sub.href ? 'text-[#00b4d8] bg-blue-50 font-medium' : 'text-slate-600 hover:text-slate-900'
-                            }`}
-                            onClick={closeMobileMenu}
-                          >
-                            {sub.name}
-                          </Link>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </nav>
-
-            <div className="p-4 border-t mt-auto">
-              <button className="w-full bg-black text-white py-3 rounded-2xl flex items-center justify-center gap-2 font-medium hover:bg-neutral-800 transition-colors">
-                <Brain className="w-5 h-5" />
-                Ask Grok AI Assistant
-              </button>
+                      {sub.name}
+                    </Link>
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
-        </div>
-      )}
-    </>
+          );
+        })}
+      </nav>
+
+      {/* Bottom Button */}
+      <div className="p-4 border-t">
+        <button className="w-full bg-black text-white py-3 rounded-2xl flex items-center justify-center gap-2 font-medium hover:bg-neutral-800 transition-colors">
+          <Brain className="w-5 h-5" />
+          Ask Grok AI Assistant
+        </button>
+        <p className="text-xs text-center text-neutral-500 mt-2">Internal AI • Context Aware</p>
+      </div>
+    </div>
   );
 }
