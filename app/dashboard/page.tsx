@@ -1,266 +1,278 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { supabase } from '@/lib/supabase';
 import { 
-  TrendingUp, Users, Truck, DollarSign, Package, ShieldCheck,
-  ArrowUpRight, Clock, Plus, UserPlus, BarChart3
+  TrendingUp, Users, Truck, Package, AlertTriangle, 
+  ArrowRight, Plus, Target 
 } from 'lucide-react';
 
+interface CompanyData {
+  id: number;
+  trading_name: string;
+  legal_name: string | null;
+  industry: string | null;
+}
+
 export default function DashboardHome() {
+  const [company, setCompany] = useState<CompanyData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadCompanyData = async () => {
+      const companyId = localStorage.getItem('selectedCompanyId');
+      
+      if (!companyId) {
+        setLoading(false);
+        return;
+      }
+
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, trading_name, legal_name, industry')
+        .eq('id', Number(companyId))
+        .single();
+
+      if (data) {
+        setCompany(data);
+      }
+      setLoading(false);
+    };
+
+    loadCompanyData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="p-12 flex items-center justify-center min-h-[60vh]">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-[#00b4d8] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-neutral-500">Loading your dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!company) {
+    return (
+      <div className="p-12 max-w-md mx-auto text-center">
+        <h2 className="text-2xl font-bold mb-4">No Company Selected</h2>
+        <p className="text-neutral-600 mb-6">Please select a company to view your dashboard.</p>
+        <Link href="/dashboard/select-company" className="btn-primary px-8 py-3 inline-block">
+          Select Company
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <div className="px-4 md:px-8 lg:pr-12 py-8 lg:py-12 max-w-screen-2xl mx-auto">
       
-      {/* HEADER */}
-      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-10">
-        <div>
-          <h1 className="font-black text-4xl md:text-5xl lg:text-6xl tracking-[-2.5px] text-[#00b4d8]">
-            Supply Chain Pulse
-          </h1>
-          <p className="text-lg md:text-xl text-neutral-600 mt-2">
-            Real-time overview of your operations
-          </p>
+      {/* Header */}
+      <div className="mb-10">
+        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+          <div>
+            <p className="text-sm text-neutral-500 mb-1">Good evening</p>
+            <h1 className="font-black text-5xl md:text-6xl tracking-[-2.5px]">
+              {company.trading_name}
+            </h1>
+            <p className="text-xl text-neutral-600 mt-2">
+              {company.industry || 'Your business command center'}
+            </p>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            <Link 
+              href="/dashboard/my-business" 
+              className="btn-secondary px-6 py-3 flex items-center gap-2"
+            >
+              Manage Business <ArrowRight className="w-4 h-4" />
+            </Link>
+            <Link 
+              href="/dashboard/suppliers/add" 
+              className="btn-primary px-6 py-3 flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" /> Add Supplier
+            </Link>
+          </div>
         </div>
+      </div>
+
+      {/* KPI Cards - Premium Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
+        <div className="bg-white rounded-3xl border border-neutral-200 p-6 hover:shadow-lg transition-all">
+          <div className="flex items-center justify-between mb-4">
+            <div className="p-3 bg-emerald-100 rounded-2xl">
+              <TrendingUp className="w-6 h-6 text-emerald-600" />
+            </div>
+            <span className="text-xs font-medium px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full">+12%</span>
+          </div>
+          <div className="text-4xl font-black tracking-tighter mb-1">R 4.2M</div>
+          <div className="text-sm text-neutral-600">Monthly Revenue</div>
+          <div className="text-xs text-neutral-400 mt-4">vs last month</div>
+        </div>
+
+        <div className="bg-white rounded-3xl border border-neutral-200 p-6 hover:shadow-lg transition-all">
+          <div className="flex items-center justify-between mb-4">
+            <div className="p-3 bg-blue-100 rounded-2xl">
+              <Users className="w-6 h-6 text-blue-600" />
+            </div>
+            <span className="text-xs font-medium px-3 py-1 bg-blue-100 text-blue-700 rounded-full">+8</span>
+          </div>
+          <div className="text-4xl font-black tracking-tighter mb-1">147</div>
+          <div className="text-sm text-neutral-600">Active Suppliers</div>
+          <div className="text-xs text-neutral-400 mt-4">12 new this month</div>
+        </div>
+
+        <div className="bg-white rounded-3xl border border-neutral-200 p-6 hover:shadow-lg transition-all">
+          <div className="flex items-center justify-between mb-4">
+            <div className="p-3 bg-amber-100 rounded-2xl">
+              <Package className="w-6 h-6 text-amber-600" />
+            </div>
+            <span className="text-xs font-medium px-3 py-1 bg-amber-100 text-amber-700 rounded-full">94</span>
+          </div>
+          <div className="text-4xl font-black tracking-tighter mb-1">312</div>
+          <div className="text-sm text-neutral-600">Open Orders</div>
+          <div className="text-xs text-neutral-400 mt-4">23 due this week</div>
+        </div>
+
+        <div className="bg-white rounded-3xl border border-neutral-200 p-6 hover:shadow-lg transition-all">
+          <div className="flex items-center justify-between mb-4">
+            <div className="p-3 bg-purple-100 rounded-2xl">
+              <Target className="w-6 h-6 text-purple-600" />
+            </div>
+            <span className="text-xs font-medium px-3 py-1 bg-purple-100 text-purple-700 rounded-full">On Track</span>
+          </div>
+          <div className="text-4xl font-black tracking-tighter mb-1">87%</div>
+          <div className="text-sm text-neutral-600">Target Achievement</div>
+          <div className="text-xs text-neutral-400 mt-4">Q2 2026</div>
+        </div>
+      </div>
+
+      {/* Quick Actions + Business Health */}
+      <div className="grid lg:grid-cols-3 gap-6 mb-10">
         
-        <div className="flex items-center gap-3 text-sm">
-          <div className="flex items-center gap-2 bg-emerald-100 text-emerald-700 px-4 py-2 rounded-3xl font-medium">
-            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-            All systems operational
-          </div>
-          <div className="text-neutral-500 flex items-center gap-2">
-            <Clock className="w-4 h-4" />
-            Cape Town • Just now
-          </div>
-        </div>
-      </div>
-
-      {/* KEY METRICS */}
-      <div className="mb-12">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="font-semibold text-xl tracking-tight">Key Metrics</h2>
-          <Link href="/dashboard/reports" className="text-sm text-[#00b4d8] hover:underline flex items-center gap-1">
-            View detailed reports <ArrowUpRight className="w-4 h-4" />
-          </Link>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Revenue */}
-          <div className="bg-white rounded-3xl p-6 md:p-7 border border-neutral-200 hover:border-neutral-300 transition-all group">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm font-medium text-neutral-500">Total Revenue</p>
-                <p className="font-black text-4xl md:text-5xl tracking-[-1.5px] mt-3">R1.24M</p>
-              </div>
-              <div className="p-3 bg-emerald-100 rounded-2xl group-hover:bg-emerald-200 transition-colors">
-                <TrendingUp className="w-6 h-6 text-emerald-600" />
-              </div>
-            </div>
-            <div className="mt-6 flex items-center gap-2 text-sm">
-              <span className="text-emerald-600 font-medium">+12.4%</span>
-              <span className="text-neutral-500">from last month</span>
-            </div>
-          </div>
-
-          {/* OTIF */}
-          <div className="bg-white rounded-3xl p-6 md:p-7 border border-neutral-200 hover:border-neutral-300 transition-all group">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm font-medium text-neutral-500">OTIF Performance</p>
-                <p className="font-black text-4xl md:text-5xl tracking-[-1.5px] mt-3">98.4%</p>
-              </div>
-              <div className="p-3 bg-blue-100 rounded-2xl group-hover:bg-blue-200 transition-colors">
-                <Truck className="w-6 h-6 text-blue-600" />
-              </div>
-            </div>
-            <div className="mt-6 flex items-center gap-2 text-sm">
-              <span className="text-emerald-600 font-medium">+3.2%</span>
-              <span className="text-neutral-500">from last month</span>
-            </div>
-          </div>
-
-          {/* Active Suppliers */}
-          <div className="bg-white rounded-3xl p-6 md:p-7 border border-neutral-200 hover:border-neutral-300 transition-all group">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm font-medium text-neutral-500">Active Suppliers</p>
-                <p className="font-black text-4xl md:text-5xl tracking-[-1.5px] mt-3">247</p>
-              </div>
-              <div className="p-3 bg-amber-100 rounded-2xl group-hover:bg-amber-200 transition-colors">
-                <Users className="w-6 h-6 text-amber-600" />
-              </div>
-            </div>
-            <div className="mt-6 flex items-center gap-2 text-sm">
-              <span className="text-emerald-600 font-medium">+18</span>
-              <span className="text-neutral-500">new this week</span>
-            </div>
-          </div>
-
-          {/* Gross Profit */}
-          <div className="bg-white rounded-3xl p-6 md:p-7 border border-neutral-200 hover:border-neutral-300 transition-all group">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm font-medium text-neutral-500">Gross Profit</p>
-                <p className="font-black text-4xl md:text-5xl tracking-[-1.5px] mt-3">R428k</p>
-              </div>
-              <div className="p-3 bg-emerald-100 rounded-2xl group-hover:bg-emerald-200 transition-colors">
-                <DollarSign className="w-6 h-6 text-emerald-600" />
-              </div>
-            </div>
-            <div className="mt-6 flex items-center gap-2 text-sm">
-              <span className="text-emerald-600 font-medium">+9.1%</span>
-              <span className="text-neutral-500">from last month</span>
-            </div>
+        {/* Quick Actions */}
+        <div className="lg:col-span-1 bg-white rounded-3xl border border-neutral-200 p-8">
+          <h3 className="font-bold text-xl mb-6 tracking-tight">Quick Actions</h3>
+          <div className="space-y-3">
+            {[
+              { label: 'Add New Supplier', href: '/dashboard/suppliers/add', icon: Truck },
+              { label: 'Create Purchase Order', href: '/dashboard/suppliers/po', icon: Package },
+              { label: 'View Team', href: '/dashboard/my-business/team', icon: Users },
+              { label: 'Upload Document', href: '/dashboard/my-business/documents', icon: Package },
+            ].map((action, index) => {
+              const Icon = action.icon;
+              return (
+                <Link 
+                  key={index}
+                  href={action.href}
+                  className="flex items-center justify-between px-5 py-4 rounded-2xl hover:bg-neutral-50 border border-transparent hover:border-neutral-200 transition-all group"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="p-2.5 bg-neutral-100 rounded-2xl group-hover:bg-white transition-colors">
+                      <Icon className="w-5 h-5 text-neutral-700" />
+                    </div>
+                    <span className="font-medium">{action.label}</span>
+                  </div>
+                  <ArrowRight className="w-4 h-4 text-neutral-400 group-hover:text-neutral-700 transition-colors" />
+                </Link>
+              );
+            })}
           </div>
         </div>
-      </div>
 
-      {/* CUSTOMER INSIGHTS */}
-      <div className="mb-12">
-        <h2 className="font-semibold text-xl tracking-tight mb-6">Customer Insights</h2>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-white rounded-3xl p-7 md:p-8 border border-neutral-200">
-            <p className="text-sm font-medium text-neutral-500">Active Customers</p>
-            <p className="font-black text-4xl md:text-5xl lg:text-6xl tracking-[-2px] mt-4">184</p>
-            <p className="text-emerald-600 text-sm mt-3">+22 new this month</p>
+        {/* Business Pulse / Health */}
+        <div className="lg:col-span-2 bg-white rounded-3xl border border-neutral-200 p-8">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="font-bold text-xl tracking-tight">Business Pulse</h3>
+            <Link href="/dashboard/intelligence" className="text-sm text-[#00b4d8] hover:underline flex items-center gap-1">
+              View full intelligence <ArrowRight className="w-4 h-4" />
+            </Link>
           </div>
 
-          <div className="bg-white rounded-3xl p-7 md:p-8 border border-neutral-200">
-            <p className="text-sm font-medium text-neutral-500">Average Order Value</p>
-            <p className="font-black text-4xl md:text-5xl lg:text-6xl tracking-[-2px] mt-4">R6,840</p>
-            <p className="text-emerald-600 text-sm mt-3">+8% from last month</p>
-          </div>
-
-          <div className="bg-white rounded-3xl p-7 md:p-8 border border-neutral-200">
-            <p className="text-sm font-medium text-neutral-500">Customer Retention</p>
-            <p className="font-black text-4xl md:text-5xl lg:text-6xl tracking-[-2px] mt-4">94%</p>
-            <p className="text-emerald-600 text-sm mt-3">Strong loyalty</p>
-          </div>
-        </div>
-      </div>
-
-      {/* SUPPLY CHAIN OVERVIEW */}
-      <div className="mb-12">
-        <h2 className="font-semibold text-xl tracking-tight mb-6">Supply Chain Overview</h2>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* OTIF Performance */}
-          <div className="bg-white rounded-3xl p-7 md:p-8 border border-neutral-200">
-            <div className="flex justify-between items-start mb-6">
-              <div>
-                <p className="font-medium">On-Time In-Full Delivery</p>
-                <p className="font-black text-4xl md:text-5xl tracking-[-1.5px] mt-3">98.4%</p>
+          <div className="grid md:grid-cols-3 gap-6">
+            <div>
+              <div className="text-sm text-neutral-500 mb-2">Supplier Health</div>
+              <div className="text-3xl font-black tracking-tighter mb-1">92</div>
+              <div className="text-emerald-600 text-sm font-medium">Excellent</div>
+              <div className="h-2 bg-emerald-100 rounded-full mt-3">
+                <div className="h-2 w-[92%] bg-emerald-500 rounded-full" />
               </div>
-              <ShieldCheck className="w-8 h-8 text-emerald-600" />
             </div>
-            
-            <div className="h-3 bg-neutral-100 rounded-full overflow-hidden">
-              <div className="h-3 bg-[#00b4d8] rounded-full transition-all" style={{ width: '98.4%' }} />
+            <div>
+              <div className="text-sm text-neutral-500 mb-2">Order Fulfillment</div>
+              <div className="text-3xl font-black tracking-tighter mb-1">78</div>
+              <div className="text-amber-600 text-sm font-medium">Good</div>
+              <div className="h-2 bg-amber-100 rounded-full mt-3">
+                <div className="h-2 w-[78%] bg-amber-500 rounded-full" />
+              </div>
             </div>
-            <p className="text-xs text-neutral-500 mt-3">Target: 95% • Currently exceeding target</p>
-          </div>
-
-          {/* Live Shipments */}
-          <div className="bg-white rounded-3xl p-7 md:p-8 border border-neutral-200">
-            <div className="flex justify-between items-start mb-6">
-              <div>
-                <p className="font-medium">Live Shipments</p>
-                <p className="font-black text-4xl md:text-5xl tracking-[-1.5px] mt-3">42</p>
-              </div>
-              <Package className="w-8 h-8 text-blue-600" />
-            </div>
-
-            <div className="grid grid-cols-3 gap-3 mt-4">
-              <div className="bg-emerald-50 rounded-2xl p-4 text-center">
-                <div className="text-2xl font-semibold text-emerald-700">12</div>
-                <div className="text-xs text-emerald-600 mt-1">By Sea</div>
-              </div>
-              <div className="bg-amber-50 rounded-2xl p-4 text-center">
-                <div className="text-2xl font-semibold text-amber-700">18</div>
-                <div className="text-xs text-amber-600 mt-1">By Road</div>
-              </div>
-              <div className="bg-blue-50 rounded-2xl p-4 text-center">
-                <div className="text-2xl font-semibold text-blue-700">12</div>
-                <div className="text-xs text-blue-600 mt-1">By Air</div>
+            <div>
+              <div className="text-sm text-neutral-500 mb-2">Risk Score</div>
+              <div className="text-3xl font-black tracking-tighter mb-1">Low</div>
+              <div className="text-emerald-600 text-sm font-medium">Stable</div>
+              <div className="h-2 bg-emerald-100 rounded-full mt-3">
+                <div className="h-2 w-[25%] bg-emerald-500 rounded-full" />
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* QUICK ACTIONS */}
-      <div>
-        <h2 className="font-semibold text-xl tracking-tight mb-6">Quick Actions</h2>
+      {/* Recent Activity + Alerts */}
+      <div className="grid lg:grid-cols-2 gap-6">
+        
+        {/* Recent Activity */}
+        <div className="bg-white rounded-3xl border border-neutral-200 p-8">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="font-bold text-xl tracking-tight">Recent Activity</h3>
+            <Link href="/dashboard/intelligence/pulse-dashboard" className="text-sm text-[#00b4d8]">View all</Link>
+          </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Create Purchase Order */}
-          <Link 
-            href="/dashboard/purchase-orders/new" 
-            className="group bg-white border border-neutral-200 hover:border-[#00b4d8] rounded-3xl p-6 flex flex-col justify-between transition-all hover:shadow-md active:scale-[0.985]"
-          >
-            <div className="flex items-center justify-between">
-              <div className="p-3 bg-[#00b4d8]/10 rounded-2xl group-hover:bg-[#00b4d8]/20 transition-colors">
-                <Plus className="w-6 h-6 text-[#00b4d8]" />
+          <div className="space-y-5 text-sm">
+            {[1,2,3,4].map((i) => (
+              <div key={i} className="flex gap-4 pb-5 border-b last:border-none last:pb-0">
+                <div className="w-9 h-9 rounded-2xl bg-neutral-100 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium">New supplier onboarded</div>
+                  <div className="text-neutral-500 text-xs mt-0.5">Fresh Produce SA • 2 hours ago</div>
+                </div>
               </div>
-              <ArrowUpRight className="w-5 h-5 text-neutral-400 group-hover:text-[#00b4d8] transition-colors" />
-            </div>
-            <div className="mt-8">
-              <p className="font-semibold text-lg">Create Purchase Order</p>
-              <p className="text-sm text-neutral-500 mt-1">Raise a new PO with a supplier</p>
-            </div>
-          </Link>
+            ))}
+          </div>
+        </div>
 
-          {/* Invite Supplier */}
-          <Link 
-            href="/dashboard/suppliers/add" 
-            className="group bg-white border border-neutral-200 hover:border-[#00b4d8] rounded-3xl p-6 flex flex-col justify-between transition-all hover:shadow-md active:scale-[0.985]"
-          >
-            <div className="flex items-center justify-between">
-              <div className="p-3 bg-amber-100 rounded-2xl group-hover:bg-amber-200 transition-colors">
-                <UserPlus className="w-6 h-6 text-amber-600" />
-              </div>
-              <ArrowUpRight className="w-5 h-5 text-neutral-400 group-hover:text-amber-600 transition-colors" />
-            </div>
-            <div className="mt-8">
-              <p className="font-semibold text-lg">Invite Supplier</p>
-              <p className="text-sm text-neutral-500 mt-1">Add a new supplier to the network</p>
-            </div>
-          </Link>
+        {/* Alerts & Notifications */}
+        <div className="bg-white rounded-3xl border border-neutral-200 p-8">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="font-bold text-xl tracking-tight flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-500" /> Alerts &amp; Attention
+            </h3>
+            <Link href="/dashboard/suppliers/risk-alerts" className="text-sm text-[#00b4d8]">Manage</Link>
+          </div>
 
-          {/* View Reports */}
-          <Link 
-            href="/dashboard/reports" 
-            className="group bg-white border border-neutral-200 hover:border-[#00b4d8] rounded-3xl p-6 flex flex-col justify-between transition-all hover:shadow-md active:scale-[0.985]"
-          >
-            <div className="flex items-center justify-between">
-              <div className="p-3 bg-blue-100 rounded-2xl group-hover:bg-blue-200 transition-colors">
-                <BarChart3 className="w-6 h-6 text-blue-600" />
+          <div className="space-y-4">
+            <div className="flex gap-4 p-4 bg-amber-50 rounded-2xl border border-amber-100">
+              <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+              <div>
+                <div className="font-medium text-sm">3 suppliers have pending compliance documents</div>
+                <div className="text-xs text-amber-700 mt-1">Action required within 5 days</div>
               </div>
-              <ArrowUpRight className="w-5 h-5 text-neutral-400 group-hover:text-blue-600 transition-colors" />
             </div>
-            <div className="mt-8">
-              <p className="font-semibold text-lg">View Reports</p>
-              <p className="text-sm text-neutral-500 mt-1">Analytics and performance insights</p>
-            </div>
-          </Link>
 
-          {/* Manage Suppliers */}
-          <Link 
-            href="/dashboard/suppliers" 
-            className="group bg-white border border-neutral-200 hover:border-[#00b4d8] rounded-3xl p-6 flex flex-col justify-between transition-all hover:shadow-md active:scale-[0.985]"
-          >
-            <div className="flex items-center justify-between">
-              <div className="p-3 bg-neutral-100 rounded-2xl group-hover:bg-neutral-200 transition-colors">
-                <Users className="w-6 h-6 text-neutral-600" />
+            <div className="flex gap-4 p-4 bg-red-50 rounded-2xl border border-red-100">
+              <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+              <div>
+                <div className="font-medium text-sm">2 purchase orders are overdue</div>
+                <div className="text-xs text-red-700 mt-1">Review and follow up</div>
               </div>
-              <ArrowUpRight className="w-5 h-5 text-neutral-400 group-hover:text-neutral-600 transition-colors" />
             </div>
-            <div className="mt-8">
-              <p className="font-semibold text-lg">Manage Suppliers</p>
-              <p className="text-sm text-neutral-500 mt-1">View and manage your supplier network</p>
-            </div>
-          </Link>
+          </div>
         </div>
       </div>
+
     </div>
   );
 }
