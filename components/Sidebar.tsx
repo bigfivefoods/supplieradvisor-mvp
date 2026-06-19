@@ -114,18 +114,35 @@ const modules = [
     ]
   },
 
-  { id: 'manufacturing', name: 'Manufacturing', icon: Factory, href: '/dashboard/manufacturing', sub: [
-    { name: 'Recipes & Formulations', href: '/dashboard/manufacturing/recipes' },
-    { name: 'Work Orders & Routing', href: '/dashboard/manufacturing/work-orders' },
-    { name: 'Capacity Planning', href: '/dashboard/manufacturing/capacity' },
-    { name: 'Costing & Yield', href: '/dashboard/manufacturing/costing' },
-    { name: 'Quality Control', href: '/dashboard/manufacturing/quality' },
-  ]},
+  // ✅ Manufacturing - Updated to match actual folders
+  { 
+    id: 'manufacturing', 
+    name: 'Manufacturing', 
+    icon: Factory, 
+    href: '/dashboard/manufacturing', 
+    sub: [
+      { name: 'Production Orders', href: '/dashboard/manufacturing/production-orders' },
+      { name: 'Bills of Materials', href: '/dashboard/manufacturing/bills-of-materials' },
+      { name: 'Master Production Schedules', href: '/dashboard/manufacturing/master-production-schedules' },
+      { name: 'MRP', href: '/dashboard/manufacturing/mrp' },
+    ]
+  },
 
-  { id: 'distribution', name: 'Distribution', icon: Truck, href: '/dashboard/distribution', sub: [
-    { name: 'Logistics', href: '/dashboard/distribution/logistics' },
-    { name: 'Micro-Franchise', href: '/dashboard/distribution/franchise' },
-  ]},
+  // ✅ Distribution - Updated to match actual folders
+  { 
+    id: 'distribution', 
+    name: 'Distribution', 
+    icon: Truck, 
+    href: '/dashboard/distribution', 
+    sub: [
+      { name: 'Carriers', href: '/dashboard/distribution/carriers' },
+      { name: 'Fleet & Drivers', href: '/dashboard/distribution/fleet-drivers' },
+      { name: 'Inbound Logistics', href: '/dashboard/distribution/inbound' },
+      { name: 'Outbound Logistics', href: '/dashboard/distribution/outbound' },
+      { name: 'Tracking & Visibility', href: '/dashboard/distribution/tracking' },
+      { name: 'Incoterms', href: '/dashboard/distribution/incoterms' },
+    ]
+  },
 
   { id: 'accounting', name: 'Accounting', icon: Calculator, href: '/dashboard/accounting', sub: [
     { name: 'Invoices & POs', href: '/dashboard/accounting/invoices' },
