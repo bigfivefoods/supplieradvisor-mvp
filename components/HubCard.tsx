@@ -1,3 +1,5 @@
+'use client';
+
 import Link from 'next/link';
 import { LucideIcon } from 'lucide-react';
 
@@ -19,17 +21,17 @@ export default function HubCard({
   return (
     <Link 
       href={href}
-      className="group block bg-white border border-neutral-200 rounded-3xl p-8 hover:border-[#00b4d8] hover:shadow-lg transition-all"
+      className="group block bg-white border border-neutral-200 rounded-3xl p-6 md:p-7 hover:border-[#00b4d8] hover:shadow-md transition-all active:scale-[0.985]"
     >
       <div className="flex items-start gap-4">
         {Icon && (
-          <div className="p-3 bg-neutral-100 rounded-2xl group-hover:bg-[#00b4d8] group-hover:text-white transition-colors">
+          <div className="flex-shrink-0 p-3 bg-neutral-100 rounded-2xl group-hover:bg-[#00b4d8] group-hover:text-white transition-colors">
             <Icon className="w-6 h-6" />
           </div>
         )}
         
-        <div className="flex-1">
-          <div className="flex items-center gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-3 flex-wrap">
             <h3 className="font-semibold text-xl tracking-tight group-hover:text-[#00b4d8] transition-colors">
               {title}
             </h3>

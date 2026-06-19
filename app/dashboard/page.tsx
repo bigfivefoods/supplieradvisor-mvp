@@ -1,42 +1,24 @@
 'use client';
 
-import { useState } from 'react';
-import Breadcrumb from '@/components/ui/Breadcrumb';
-import { 
-  TrendingUp, 
-  Users, 
-  Truck, 
-  DollarSign, 
-  Package, 
-  ShieldCheck,
-  ArrowUpRight,
-  Clock,
-  Plus,
-  UserPlus,
-  BarChart3,
-  FileText
-} from 'lucide-react';
 import Link from 'next/link';
+import { 
+  TrendingUp, Users, Truck, DollarSign, Package, ShieldCheck,
+  ArrowUpRight, Clock, Plus, UserPlus, BarChart3
+} from 'lucide-react';
 
 export default function DashboardHome() {
-  const [expanded, setExpanded] = useState({
-    kpis: true,
-    customers: true,
-    suppliers: true,
-    supplyChain: true,
-  });
-
   return (
-    <div className="pl-0 pr-4 md:pr-12 py-8 md:py-12 max-w-screen-2xl mx-auto">
-      <Breadcrumb />
-
+    <div className="px-4 md:px-8 lg:pr-12 py-8 lg:py-12 max-w-screen-2xl mx-auto">
+      
       {/* HEADER */}
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-10">
         <div>
-          <h1 className="font-black text-5xl md:text-6xl tracking-[-2.5px] text-[#00b4d8]">
+          <h1 className="font-black text-4xl md:text-5xl lg:text-6xl tracking-[-2.5px] text-[#00b4d8]">
             Supply Chain Pulse
           </h1>
-          <p className="text-xl text-neutral-600 mt-2">Real-time overview of your operations</p>
+          <p className="text-lg md:text-xl text-neutral-600 mt-2">
+            Real-time overview of your operations
+          </p>
         </div>
         
         <div className="flex items-center gap-3 text-sm">
@@ -55,18 +37,18 @@ export default function DashboardHome() {
       <div className="mb-12">
         <div className="flex items-center justify-between mb-6">
           <h2 className="font-semibold text-xl tracking-tight">Key Metrics</h2>
-          <button className="text-sm text-[#00b4d8] hover:underline flex items-center gap-1">
+          <Link href="/dashboard/reports" className="text-sm text-[#00b4d8] hover:underline flex items-center gap-1">
             View detailed reports <ArrowUpRight className="w-4 h-4" />
-          </button>
+          </Link>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Revenue */}
-          <div className="bg-white rounded-3xl p-7 shadow-sm border border-neutral-100 hover:border-neutral-200 transition-all group">
+          <div className="bg-white rounded-3xl p-6 md:p-7 border border-neutral-200 hover:border-neutral-300 transition-all group">
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-sm font-medium text-neutral-500">Total Revenue</p>
-                <p className="font-black text-5xl tracking-[-1.5px] mt-3">R1.24M</p>
+                <p className="font-black text-4xl md:text-5xl tracking-[-1.5px] mt-3">R1.24M</p>
               </div>
               <div className="p-3 bg-emerald-100 rounded-2xl group-hover:bg-emerald-200 transition-colors">
                 <TrendingUp className="w-6 h-6 text-emerald-600" />
@@ -79,11 +61,11 @@ export default function DashboardHome() {
           </div>
 
           {/* OTIF */}
-          <div className="bg-white rounded-3xl p-7 shadow-sm border border-neutral-100 hover:border-neutral-200 transition-all group">
+          <div className="bg-white rounded-3xl p-6 md:p-7 border border-neutral-200 hover:border-neutral-300 transition-all group">
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-sm font-medium text-neutral-500">OTIF Performance</p>
-                <p className="font-black text-5xl tracking-[-1.5px] mt-3">98.4%</p>
+                <p className="font-black text-4xl md:text-5xl tracking-[-1.5px] mt-3">98.4%</p>
               </div>
               <div className="p-3 bg-blue-100 rounded-2xl group-hover:bg-blue-200 transition-colors">
                 <Truck className="w-6 h-6 text-blue-600" />
@@ -96,11 +78,11 @@ export default function DashboardHome() {
           </div>
 
           {/* Active Suppliers */}
-          <div className="bg-white rounded-3xl p-7 shadow-sm border border-neutral-100 hover:border-neutral-200 transition-all group">
+          <div className="bg-white rounded-3xl p-6 md:p-7 border border-neutral-200 hover:border-neutral-300 transition-all group">
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-sm font-medium text-neutral-500">Active Suppliers</p>
-                <p className="font-black text-5xl tracking-[-1.5px] mt-3">247</p>
+                <p className="font-black text-4xl md:text-5xl tracking-[-1.5px] mt-3">247</p>
               </div>
               <div className="p-3 bg-amber-100 rounded-2xl group-hover:bg-amber-200 transition-colors">
                 <Users className="w-6 h-6 text-amber-600" />
@@ -113,11 +95,11 @@ export default function DashboardHome() {
           </div>
 
           {/* Gross Profit */}
-          <div className="bg-white rounded-3xl p-7 shadow-sm border border-neutral-100 hover:border-neutral-200 transition-all group">
+          <div className="bg-white rounded-3xl p-6 md:p-7 border border-neutral-200 hover:border-neutral-300 transition-all group">
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-sm font-medium text-neutral-500">Gross Profit</p>
-                <p className="font-black text-5xl tracking-[-1.5px] mt-3">R428k</p>
+                <p className="font-black text-4xl md:text-5xl tracking-[-1.5px] mt-3">R428k</p>
               </div>
               <div className="p-3 bg-emerald-100 rounded-2xl group-hover:bg-emerald-200 transition-colors">
                 <DollarSign className="w-6 h-6 text-emerald-600" />
@@ -133,26 +115,24 @@ export default function DashboardHome() {
 
       {/* CUSTOMER INSIGHTS */}
       <div className="mb-12">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="font-semibold text-xl tracking-tight">Customer Insights</h2>
-        </div>
+        <h2 className="font-semibold text-xl tracking-tight mb-6">Customer Insights</h2>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-white rounded-3xl p-8 border border-neutral-100">
+          <div className="bg-white rounded-3xl p-7 md:p-8 border border-neutral-200">
             <p className="text-sm font-medium text-neutral-500">Active Customers</p>
-            <p className="font-black text-6xl tracking-[-2px] mt-4">184</p>
+            <p className="font-black text-4xl md:text-5xl lg:text-6xl tracking-[-2px] mt-4">184</p>
             <p className="text-emerald-600 text-sm mt-3">+22 new this month</p>
           </div>
 
-          <div className="bg-white rounded-3xl p-8 border border-neutral-100">
+          <div className="bg-white rounded-3xl p-7 md:p-8 border border-neutral-200">
             <p className="text-sm font-medium text-neutral-500">Average Order Value</p>
-            <p className="font-black text-6xl tracking-[-2px] mt-4">R6,840</p>
+            <p className="font-black text-4xl md:text-5xl lg:text-6xl tracking-[-2px] mt-4">R6,840</p>
             <p className="text-emerald-600 text-sm mt-3">+8% from last month</p>
           </div>
 
-          <div className="bg-white rounded-3xl p-8 border border-neutral-100">
+          <div className="bg-white rounded-3xl p-7 md:p-8 border border-neutral-200">
             <p className="text-sm font-medium text-neutral-500">Customer Retention</p>
-            <p className="font-black text-6xl tracking-[-2px] mt-4">94%</p>
+            <p className="font-black text-4xl md:text-5xl lg:text-6xl tracking-[-2px] mt-4">94%</p>
             <p className="text-emerald-600 text-sm mt-3">Strong loyalty</p>
           </div>
         </div>
@@ -160,17 +140,15 @@ export default function DashboardHome() {
 
       {/* SUPPLY CHAIN OVERVIEW */}
       <div className="mb-12">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="font-semibold text-xl tracking-tight">Supply Chain Overview</h2>
-        </div>
+        <h2 className="font-semibold text-xl tracking-tight mb-6">Supply Chain Overview</h2>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* OTIF Performance */}
-          <div className="bg-white rounded-3xl p-8 border border-neutral-100">
+          <div className="bg-white rounded-3xl p-7 md:p-8 border border-neutral-200">
             <div className="flex justify-between items-start mb-6">
               <div>
                 <p className="font-medium">On-Time In-Full Delivery</p>
-                <p className="font-black text-5xl tracking-[-1.5px] mt-3">98.4%</p>
+                <p className="font-black text-4xl md:text-5xl tracking-[-1.5px] mt-3">98.4%</p>
               </div>
               <ShieldCheck className="w-8 h-8 text-emerald-600" />
             </div>
@@ -182,11 +160,11 @@ export default function DashboardHome() {
           </div>
 
           {/* Live Shipments */}
-          <div className="bg-white rounded-3xl p-8 border border-neutral-100">
+          <div className="bg-white rounded-3xl p-7 md:p-8 border border-neutral-200">
             <div className="flex justify-between items-start mb-6">
               <div>
                 <p className="font-medium">Live Shipments</p>
-                <p className="font-black text-5xl tracking-[-1.5px] mt-3">42</p>
+                <p className="font-black text-4xl md:text-5xl tracking-[-1.5px] mt-3">42</p>
               </div>
               <Package className="w-8 h-8 text-blue-600" />
             </div>
@@ -211,15 +189,13 @@ export default function DashboardHome() {
 
       {/* QUICK ACTIONS */}
       <div>
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="font-semibold text-xl tracking-tight">Quick Actions</h2>
-        </div>
+        <h2 className="font-semibold text-xl tracking-tight mb-6">Quick Actions</h2>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Create Purchase Order */}
           <Link 
             href="/dashboard/purchase-orders/new" 
-            className="group bg-white border border-neutral-200 hover:border-[#00b4d8] rounded-3xl p-6 flex flex-col justify-between transition-all hover:shadow-md"
+            className="group bg-white border border-neutral-200 hover:border-[#00b4d8] rounded-3xl p-6 flex flex-col justify-between transition-all hover:shadow-md active:scale-[0.985]"
           >
             <div className="flex items-center justify-between">
               <div className="p-3 bg-[#00b4d8]/10 rounded-2xl group-hover:bg-[#00b4d8]/20 transition-colors">
@@ -235,8 +211,8 @@ export default function DashboardHome() {
 
           {/* Invite Supplier */}
           <Link 
-            href="/suppliers/add" 
-            className="group bg-white border border-neutral-200 hover:border-[#00b4d8] rounded-3xl p-6 flex flex-col justify-between transition-all hover:shadow-md"
+            href="/dashboard/suppliers/add" 
+            className="group bg-white border border-neutral-200 hover:border-[#00b4d8] rounded-3xl p-6 flex flex-col justify-between transition-all hover:shadow-md active:scale-[0.985]"
           >
             <div className="flex items-center justify-between">
               <div className="p-3 bg-amber-100 rounded-2xl group-hover:bg-amber-200 transition-colors">
@@ -253,7 +229,7 @@ export default function DashboardHome() {
           {/* View Reports */}
           <Link 
             href="/dashboard/reports" 
-            className="group bg-white border border-neutral-200 hover:border-[#00b4d8] rounded-3xl p-6 flex flex-col justify-between transition-all hover:shadow-md"
+            className="group bg-white border border-neutral-200 hover:border-[#00b4d8] rounded-3xl p-6 flex flex-col justify-between transition-all hover:shadow-md active:scale-[0.985]"
           >
             <div className="flex items-center justify-between">
               <div className="p-3 bg-blue-100 rounded-2xl group-hover:bg-blue-200 transition-colors">
@@ -267,10 +243,10 @@ export default function DashboardHome() {
             </div>
           </Link>
 
-          {/* View Suppliers */}
+          {/* Manage Suppliers */}
           <Link 
             href="/dashboard/suppliers" 
-            className="group bg-white border border-neutral-200 hover:border-[#00b4d8] rounded-3xl p-6 flex flex-col justify-between transition-all hover:shadow-md"
+            className="group bg-white border border-neutral-200 hover:border-[#00b4d8] rounded-3xl p-6 flex flex-col justify-between transition-all hover:shadow-md active:scale-[0.985]"
           >
             <div className="flex items-center justify-between">
               <div className="p-3 bg-neutral-100 rounded-2xl group-hover:bg-neutral-200 transition-colors">
