@@ -71,15 +71,20 @@ const modules = [
     ]
   },
 
-  // Containers
+  // ✅ CONTAINERS - Full updated structure
   { 
     id: 'containers', 
     name: 'Containers', 
     icon: Package, 
     href: '/dashboard/containers', 
     sub: [
-      { name: 'Manage Containers', href: '/dashboard/containers' },
-      { name: 'Container Metrics', href: '/dashboard/containers/metrics' },
+      { name: 'Overview', href: '/dashboard/containers' },
+      { name: 'Manage Containers', href: '/dashboard/containers/list' },
+      { name: 'Add New Container', href: '/dashboard/containers/add' },
+      { name: 'Contractors', href: '/dashboard/containers/contractors' },
+      { name: 'Metrics', href: '/dashboard/containers/metrics' },
+      { name: 'Reports', href: '/dashboard/containers/reports' },
+      { name: 'Settings', href: '/dashboard/containers/settings' },
     ]
   },
 
@@ -144,7 +149,7 @@ const modules = [
     ]
   },
 
-  // ✅ Accounting - Updated with full structure
+  // Accounting
   { 
     id: 'accounting', 
     name: 'Accounting', 
@@ -165,7 +170,7 @@ const modules = [
     ]
   },
 
-  // ✅ Intelligence - Updated with actual folders
+  // Intelligence
   { 
     id: 'intelligence', 
     name: 'Intelligence', 
