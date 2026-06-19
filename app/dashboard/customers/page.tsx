@@ -1,40 +1,84 @@
 'use client';
 
-import Link from 'next/link';
-import Breadcrumb from '@/components/ui/Breadcrumb';
-import { Users, Search, Plus, Gift, FileText, Heart, BarChart3, Quote } from 'lucide-react';
+import ModuleHub from '@/components/ModuleHub';
+import HubCard from '@/components/HubCard';
+import { 
+  Users, 
+  UserPlus, 
+  ShoppingCart, 
+  FileText, 
+  AlertTriangle, 
+  Award, 
+  Globe, 
+  Search 
+} from 'lucide-react';
 
 export default function CustomersHub() {
-  const nodes = [
-    { name: 'Search Customers', href: '/dashboard/customers/search', icon: Search },
-    { name: 'Customer Profiles', href: '/dashboard/customers/profiles', icon: Users },
-    { name: 'Onboard New Customer', href: '/dashboard/customers/onboard', icon: Plus },
-    { name: 'Orders & Quotes', href: '/dashboard/customers/orders', icon: FileText },
-    { name: 'Loyalty & Rewards', href: '/dashboard/customers/loyalty', icon: Gift },
-    { name: 'Claims & Support', href: '/dashboard/customers/claims', icon: Heart },
-    { name: 'Customer Portal', href: '/dashboard/customers/portal', icon: BarChart3 },
-    { name: 'Quotes', href: '/dashboard/customers/quotes', icon: Quote },
-  ];
-
   return (
-    <div className="pl-0 min-h-screen bg-[#f8fafc]">
-      <div className="py-12">
-        <Breadcrumb />
-        <h1 className="text-6xl font-black tracking-[-3px] text-[#00b4d8] mb-12">Customers</h1>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {nodes.map((node, i) => (
-            <Link key={i} href={node.href} className="card group hover:border-[#00b4d8] transition-all">
-              <div className="flex items-center gap-6 p-8">
-                <node.icon size={48} className="text-[#00b4d8]" />
-                <div>
-                  <h3 className="text-3xl font-bold">{node.name}</h3>
-                  <p className="text-slate-600 mt-2">Click to open module →</p>
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
+    <ModuleHub
+      title="Customers"
+      description="Manage your customer base — profiles, onboarding, orders, quotes, claims, and loyalty."
+      backHref="/dashboard"
+    >
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        
+        <HubCard
+          title="Customer Profiles"
+          description="View and manage all customer profiles and details."
+          href="/dashboard/customers/profiles"
+          icon={Users}
+        />
+
+        <HubCard
+          title="Onboard New Customer"
+          description="Add and onboard new customers into the system."
+          href="/dashboard/customers/onboard"
+          icon={UserPlus}
+        />
+
+        <HubCard
+          title="Orders"
+          description="Track and manage customer orders."
+          href="/dashboard/customers/orders"
+          icon={ShoppingCart}
+        />
+
+        <HubCard
+          title="Quotes"
+          description="Create and manage customer quotes."
+          href="/dashboard/customers/quotes"
+          icon={FileText}
+        />
+
+        <HubCard
+          title="Claims"
+          description="Handle customer claims and complaints."
+          href="/dashboard/customers/claims"
+          icon={AlertTriangle}
+        />
+
+        <HubCard
+          title="Loyalty Program"
+          description="Manage customer loyalty points and rewards."
+          href="/dashboard/customers/loyalty"
+          icon={Award}
+        />
+
+        <HubCard
+          title="Customer Portal"
+          description="Access the self-service customer portal."
+          href="/dashboard/customers/portal"
+          icon={Globe}
+        />
+
+        <HubCard
+          title="Search Customers"
+          description="Advanced search across all customer data."
+          href="/dashboard/customers/search"
+          icon={Search}
+        />
+
       </div>
-    </div>
+    </ModuleHub>
   );
 }
