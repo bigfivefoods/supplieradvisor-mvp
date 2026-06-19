@@ -29,7 +29,7 @@ const modules = [
     id: 'network', 
     name: 'Network', 
     icon: Users, 
-    href: '/dashboard/connections', 
+    href: '/dashboard/network', 
     sub: [
       { name: 'Business Directory', href: '/dashboard/suppliers/directory' },
       { name: 'Connections', href: '/dashboard/connections' },
@@ -37,33 +37,41 @@ const modules = [
     ]
   },
 
-  // Suppliers (top level)
+  // ✅ Suppliers - Correct sub-pages
   { 
     id: 'suppliers', 
     name: 'Suppliers', 
     icon: Truck, 
     href: '/dashboard/suppliers', 
     sub: [
-      { name: 'Raise PO', href: '/dashboard/suppliers/raise-po' },
-      { name: 'OTIFEF Metrics', href: '/dashboard/suppliers/otifef-metrics' },
-      { name: 'Supplier Profiles', href: '/dashboard/suppliers' },
+      { name: 'Supplier Directory', href: '/dashboard/suppliers/directory' },
+      { name: 'Add New Supplier', href: '/dashboard/suppliers/add' },
+      { name: 'Profiles', href: '/dashboard/suppliers/profiles' },
+      { name: 'Purchase Orders', href: '/dashboard/suppliers/po' },
+      { name: 'Contracts', href: '/dashboard/suppliers/contracts' },
+      { name: 'Risk Alerts', href: '/dashboard/suppliers/risk-alerts' },
+      { name: 'Portal', href: '/dashboard/suppliers/portal' },
     ]
   },
 
-  // Customers (top level)
+  // ✅ Customers - Correct sub-pages
   { 
     id: 'customers', 
     name: 'Customers', 
     icon: Users, 
     href: '/dashboard/customers', 
     sub: [
-      { name: 'Raise Invoice', href: '/dashboard/customers/raise-invoice' },
-      { name: 'Financial Metrics', href: '/dashboard/customers/financial-metrics' },
-      { name: 'Customer Profiles', href: '/dashboard/customers' },
+      { name: 'Profiles', href: '/dashboard/customers/profiles' },
+      { name: 'Onboard Customer', href: '/dashboard/customers/onboard' },
+      { name: 'Orders', href: '/dashboard/customers/orders' },
+      { name: 'Quotes', href: '/dashboard/customers/quotes' },
+      { name: 'Claims', href: '/dashboard/customers/claims' },
+      { name: 'Loyalty', href: '/dashboard/customers/loyalty' },
+      { name: 'Portal', href: '/dashboard/customers/portal' },
     ]
   },
 
-  // Containers (top level)
+  // Containers
   { 
     id: 'containers', 
     name: 'Containers', 
@@ -75,24 +83,36 @@ const modules = [
     ]
   },
 
-  // ✅ Inventory (renamed from Warehouse)
+  // Inventory
   { 
     id: 'inventory', 
     name: 'Inventory', 
     icon: Package, 
     href: '/dashboard/inventory', 
     sub: [
-      { name: 'Stock Management', href: '/dashboard/inventory/stock' },
-      { name: 'Receipts & Issues', href: '/dashboard/inventory/receipts' },
-      { name: 'Stock Take', href: '/dashboard/inventory/counts' },
+      { name: 'Raw Materials', href: '/dashboard/inventory/raw-materials' },
+      { name: 'Finished Goods', href: '/dashboard/inventory/finished-goods' },
+      { name: 'Warehouses', href: '/dashboard/inventory/warehouses' },
+      { name: 'Stock Take', href: '/dashboard/inventory/stock-take' },
+      { name: 'Cycle Counts', href: '/dashboard/inventory/cycle-counts' },
+      { name: 'Transfers', href: '/dashboard/inventory/stock-transfers' },
     ]
   },
 
-  { id: 'supplychain', name: 'Supply Chain', icon: Truck, href: '/dashboard/supplychain', sub: [
-    { name: 'Procurement & POs', href: '/dashboard/supplychain/procurement' },
-    { name: 'Bill of Materials', href: '/dashboard/supplychain/bom' },
-    { name: 'Traceability', href: '/dashboard/supplychain/traceability' },
-  ]},
+  // Operations
+  { 
+    id: 'operations', 
+    name: 'Operations', 
+    icon: Truck, 
+    href: '/dashboard/operations', 
+    sub: [
+      { name: 'Supplier Orders', href: '/dashboard/operations/supplier-orders' },
+      { name: 'Inbound', href: '/dashboard/operations/inbound' },
+      { name: 'Production', href: '/dashboard/operations/production' },
+      { name: 'Outbound', href: '/dashboard/operations/outbound' },
+      { name: 'Customer Orders', href: '/dashboard/operations/customer-orders' },
+    ]
+  },
 
   { id: 'manufacturing', name: 'Manufacturing', icon: Factory, href: '/dashboard/manufacturing', sub: [
     { name: 'Recipes & Formulations', href: '/dashboard/manufacturing/recipes' },
@@ -105,11 +125,6 @@ const modules = [
   { id: 'distribution', name: 'Distribution', icon: Truck, href: '/dashboard/distribution', sub: [
     { name: 'Logistics', href: '/dashboard/distribution/logistics' },
     { name: 'Micro-Franchise', href: '/dashboard/distribution/franchise' },
-  ]},
-
-  { id: 'commercial', name: 'Commercial', icon: ShoppingCart, href: '/dashboard/commercial', sub: [
-    { name: 'Sales & CRM', href: '/dashboard/commercial/sales' },
-    { name: 'Orders', href: '/dashboard/commercial/orders' },
   ]},
 
   { id: 'accounting', name: 'Accounting', icon: Calculator, href: '/dashboard/accounting', sub: [
