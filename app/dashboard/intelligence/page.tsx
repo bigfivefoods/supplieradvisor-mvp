@@ -1,12 +1,68 @@
-export default function IntelligencePage() {
+'use client';
+
+import ModuleHub from '@/components/ModuleHub';
+import HubCard from '@/components/HubCard';
+import { 
+  Activity, 
+  Brain, 
+  TrendingUp, 
+  FlaskConical, 
+  Target, 
+  Users 
+} from 'lucide-react';
+
+export default function IntelligenceHub() {
   return (
-    <div className="p-8">
-      <h1 className="text-3xl font-black">Intelligence • Grok AI Hub</h1>
-      <p className="text-xl">Your internal AI brain for the entire ERP</p>
-      <div className="mt-8 space-x-4">
-        <button className="px-6 py-3 bg-black text-white rounded-2xl">“Grok, forecast stock for all containers next month”</button>
-        <button className="px-6 py-3 border rounded-2xl">“Grok, analyse this PO risk”</button>
+    <ModuleHub
+      title="Intelligence"
+      description="Advanced AI-powered insights, predictive forecasting, simulation, custom scorecards, and leadership development tools."
+      backHref="/dashboard"
+    >
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        
+        <HubCard
+          title="Pulse Dashboard"
+          description="Real-time operational, financial, and impact pulse across the business."
+          href="/dashboard/intelligence/pulse-dashboard"
+          icon={Activity}
+        />
+
+        <HubCard
+          title="Neural Insights"
+          description="AI-driven insights and pattern recognition across operations and impact data."
+          href="/dashboard/intelligence/neural-insights"
+          icon={Brain}
+        />
+
+        <HubCard
+          title="Predictive Forecasts"
+          description="Demand forecasting, revenue projections, and scenario-based predictions."
+          href="/dashboard/intelligence/predictive-forecasts"
+          icon={TrendingUp}
+        />
+
+        <HubCard
+          title="Simulation Lab"
+          description="Run what-if scenarios, stress tests, and strategic simulations."
+          href="/dashboard/intelligence/simulation-lab"
+          icon={FlaskConical}
+        />
+
+        <HubCard
+          title="Custom Scorecards"
+          description="Build and track custom KPIs, impact metrics, and performance scorecards."
+          href="/dashboard/intelligence/custom-scorecards"
+          icon={Target}
+        />
+
+        <HubCard
+          title="Leadership Development"
+          description="Super-Cube leadership tools, assessments, and development journeys."
+          href="/dashboard/intelligence/leadership-development"
+          icon={Users}
+        />
+
       </div>
-    </div>
+    </ModuleHub>
   );
 }
