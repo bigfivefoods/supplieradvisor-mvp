@@ -63,7 +63,7 @@ const modules = [
     ]
   },
 
-  // ✅ NEW: Containers as top-level module
+  // Containers (top level)
   { 
     id: 'containers', 
     name: 'Containers', 
@@ -72,6 +72,19 @@ const modules = [
     sub: [
       { name: 'Manage Containers', href: '/dashboard/containers' },
       { name: 'Container Metrics', href: '/dashboard/containers/metrics' },
+    ]
+  },
+
+  // ✅ Inventory (renamed from Warehouse)
+  { 
+    id: 'inventory', 
+    name: 'Inventory', 
+    icon: Package, 
+    href: '/dashboard/inventory', 
+    sub: [
+      { name: 'Stock Management', href: '/dashboard/inventory/stock' },
+      { name: 'Receipts & Issues', href: '/dashboard/inventory/receipts' },
+      { name: 'Stock Take', href: '/dashboard/inventory/counts' },
     ]
   },
 
@@ -87,12 +100,6 @@ const modules = [
     { name: 'Capacity Planning', href: '/dashboard/manufacturing/capacity' },
     { name: 'Costing & Yield', href: '/dashboard/manufacturing/costing' },
     { name: 'Quality Control', href: '/dashboard/manufacturing/quality' },
-  ]},
-
-  { id: 'inventory', name: 'Warehouse', icon: Package, href: '/dashboard/inventory', sub: [
-    { name: 'Stock Management', href: '/dashboard/inventory/stock' },
-    { name: 'Receipts & Issues', href: '/dashboard/inventory/receipts' },
-    { name: 'Stock Take', href: '/dashboard/inventory/counts' },
   ]},
 
   { id: 'distribution', name: 'Distribution', icon: Truck, href: '/dashboard/distribution', sub: [
