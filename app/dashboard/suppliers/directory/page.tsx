@@ -1,284 +1,241 @@
 'use client';
 
-import { useState, useEffect, useTransition } from 'react';
-import { usePrivy } from '@privy-io/react-auth';
-import { supabase } from '@/lib/supabase';
-import { getMyProfileId } from '@/app/actions/get-my-profile';
-import toast from 'react-hot-toast';
-import { ArrowLeft, Send, Users, CheckCircle, Clock, AlertCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { supabase } from '@/lib/supabase';
+import { 
+  Search, Plus, Filter, ArrowRight, Users 
+} from 'lucide-react';
 
-type Business = {
+interface Supplier {
   id: number;
-  legal_name: string;
-  trading_name: string | null;
-  email: string;
-  city: string | null;
-  country: string | null;
-};
+  trading_name: string;
+  legal_name?: string;
+  category?: string;
+  status: string;
+  risk_level?: string;
+  last_order_date?: string;
+  created_at: string;
+}
 
-type ConnectionStatus = 'connected' | 'request_sent' | 'request_received' | null;
-
-export default function BusinessDirectoryPage() {
-  const { user, ready } = usePrivy();
-  const cleanId = (user?.id || '').replace('privy:', '');
-
-  const [myProfileId, setMyProfileId] = useState<number | null>(null);
-  const [loadingProfile, setLoadingProfile] = useState(true);
-  const [businesses, setBusinesses] = useState<Business[]>([]);
-  const [connectionStatuses, setConnectionStatuses] = useState<Record<number, ConnectionStatus>>({});
-  const [loadingData, setLoadingData] = useState(false);
+export default function SupplierDirectory() {
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [filteredSuppliers, setFilteredSuppliers] = useState<Supplier[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [error, setError] = useState('');
-  const [isPending, startTransition] = useTransition();
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [riskFilter, setRiskFilter] = useState('all');
 
-  const [showModal, setShowModal] = useState(false);
-  const [selectedBusiness, setSelectedBusiness] = useState<Business | null>(null);
-  const [requestMessage, setRequestMessage] = useState('');
-  const [sending, setSending] = useState(false);
-
-  // Get current user's profile ID via Server Action (uses service role)
   useEffect(() => {
-    const loadProfile = async () => {
-      if (!user?.id || !ready) return;
-
-      setLoadingProfile(true);
-      setError('');
-
-      try {
-        const profileId = await getMyProfileId(user.id);
-        
-        if (!profileId) {
-          setError('Could not find your profile. Please complete onboarding first.');
-        } else {
-          setMyProfileId(profileId);
-        }
-      } catch (err) {
-        setError('Failed to load your profile.');
-      } finally {
-        setLoadingProfile(false);
-      }
-    };
-
-    loadProfile();
-  }, [user?.id, ready]);
-
-  // Load businesses + connection statuses (client-side is fine here)
-  const loadData = async () => {
-    if (!myProfileId) return;
-
-    setLoadingData(true);
-    setError('');
-
-    try {
-      const { data: businessesData, error: bizError } = await supabase
+    const loadSuppliers = async () => {
+      // TODO: Replace 'profiles' with your actual 'suppliers' table when ready
+      const { data, error } = await supabase
         .from('profiles')
-        .select('id, legal_name, trading_name, email, city, country')
-        .eq('relationship_type', 'business')
+        .select('id, trading_name, legal_name, category, status, risk_level, last_order_date, created_at')
         .order('created_at', { ascending: false });
 
-      if (bizError) throw bizError;
+      if (data) {
+        setSuppliers(data as Supplier[]);
+        setFilteredSuppliers(data as Supplier[]);
+      }
+      setLoading(false);
+    };
 
-      const { data: connectionsData } = await supabase
-        .from('business_connections')
-        .select('requester_profile_id, requestee_profile_id, status')
-        .or(`requester_profile_id.eq.${myProfileId},requestee_profile_id.eq.${myProfileId}`);
+    loadSuppliers();
+  }, []);
 
-      const statusMap: Record<number, ConnectionStatus> = {};
-      connectionsData?.forEach((conn) => {
-        const otherId = conn.requester_profile_id === myProfileId 
-          ? conn.requestee_profile_id 
-          : conn.requester_profile_id;
-
-        if (conn.status === 'accepted') {
-          statusMap[otherId] = 'connected';
-        } else if (conn.status === 'pending') {
-          statusMap[otherId] = conn.requester_profile_id === myProfileId 
-            ? 'request_sent' 
-            : 'request_received';
-        }
-      });
-
-      setBusinesses(businessesData || []);
-      setConnectionStatuses(statusMap);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load businesses');
-    } finally {
-      setLoadingData(false);
-    }
-  };
-
+  // Filter + Search Logic
   useEffect(() => {
-    if (myProfileId) {
-      loadData();
+    let result = [...suppliers];
+
+    // Search
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      result = result.filter(s =>
+        s.trading_name.toLowerCase().includes(term) ||
+        (s.legal_name && s.legal_name.toLowerCase().includes(term))
+      );
     }
-  }, [myProfileId]);
 
-  // ... rest of the component (search, modal, send request, etc.) remains the same as before
+    // Status Filter
+    if (statusFilter !== 'all') {
+      result = result.filter(s => s.status === statusFilter);
+    }
 
-  const filteredBusinesses = businesses.filter(b =>
-    b.legal_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (b.trading_name && b.trading_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    b.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+    // Risk Filter
+    if (riskFilter !== 'all') {
+      result = result.filter(s => s.risk_level === riskFilter);
+    }
 
-  const openSendRequest = (business: Business) => {
-    setSelectedBusiness(business);
-    setRequestMessage('');
-    setShowModal(true);
-  };
+    setFilteredSuppliers(result);
+  }, [searchTerm, statusFilter, riskFilter, suppliers]);
 
-  const sendConnectionRequest = async () => {
-    if (!myProfileId || !selectedBusiness) return;
-
-    setSending(true);
-    try {
-      const { error } = await supabase.from('business_connections').insert({
-        requester_profile_id: myProfileId,
-        requestee_profile_id: selectedBusiness.id,
-        status: 'pending',
-        message: requestMessage || null,
-        requested_at: new Date().toISOString(),
-      });
-
-      if (error) throw error;
-
-      toast.success(`Request sent to ${selectedBusiness.trading_name || selectedBusiness.legal_name}`);
-      setShowModal(false);
-      setSelectedBusiness(null);
-      setRequestMessage('');
-      loadData();
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to send request');
-    } finally {
-      setSending(false);
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'active': return 'bg-emerald-100 text-emerald-700';
+      case 'pending': return 'bg-amber-100 text-amber-700';
+      case 'inactive': return 'bg-neutral-100 text-neutral-600';
+      default: return 'bg-neutral-100 text-neutral-600';
     }
   };
 
-  const getStatusBadge = (businessId: number) => {
-    const status = connectionStatuses[businessId];
-    if (status === 'connected') {
-      return <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-medium"><CheckCircle className="w-3.5 h-3.5" /> Connected</div>;
+  const getRiskColor = (risk?: string) => {
+    switch (risk) {
+      case 'low': return 'bg-emerald-100 text-emerald-700';
+      case 'medium': return 'bg-amber-100 text-amber-700';
+      case 'high': return 'bg-red-100 text-red-700';
+      default: return 'bg-neutral-100 text-neutral-600';
     }
-    if (status === 'request_sent') {
-      return <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-medium"><Clock className="w-3.5 h-3.5" /> Request Sent</div>;
-    }
-    if (status === 'request_received') {
-      return <div className="flex items-center gap-1.5 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium"><Clock className="w-3.5 h-3.5" /> Request Received</div>;
-    }
-    return null;
   };
-
-  if (loadingProfile || isPending) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh]">
-        <div className="animate-spin h-8 w-8 border-b-2 border-[#00b4d8] rounded-full mb-4"></div>
-        <p className="text-neutral-500">Loading your profile...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="max-w-md mx-auto px-6 py-20 text-center">
-        <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-        <h2 className="font-semibold text-xl mb-2">Something went wrong</h2>
-        <p className="text-neutral-600 mb-6">{error}</p>
-        <button onClick={() => window.location.reload()} className="btn-primary px-8">Try Again</button>
-      </div>
-    );
-  }
 
   return (
-    <div className="max-w-6xl mx-auto px-6 py-10">
-      {/* Header + Search */}
-      <div className="flex items-center gap-4 mb-8">
-        <Link href="/dashboard/suppliers" className="text-neutral-500 hover:text-neutral-700">
-          <ArrowLeft className="w-5 h-5" />
-        </Link>
+    <div className="px-4 md:px-8 lg:pr-12 py-8 lg:py-12 max-w-screen-2xl mx-auto">
+      
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
         <div>
-          <h1 className="font-black text-4xl tracking-tight">Business Directory</h1>
-          <p className="text-neutral-600">Browse businesses and manage connections</p>
+          <p className="text-sm text-neutral-500">Suppliers</p>
+          <h1 className="font-black text-5xl tracking-[-2.5px]">Directory</h1>
         </div>
+        <Link 
+          href="/dashboard/suppliers/add" 
+          className="btn-primary px-6 py-3 flex items-center gap-2 w-fit"
+        >
+          <Plus className="w-4 h-4" /> Add New Supplier
+        </Link>
       </div>
 
-      <div className="mb-6">
-        <input
-          type="text"
-          placeholder="Search by name or email..."
-          className="input w-full max-w-md"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
-      </div>
+      {/* Search + Filters */}
+      <div className="bg-white rounded-3xl border border-neutral-200 p-6 mb-6">
+        <div className="flex flex-col lg:flex-row gap-4">
+          {/* Search */}
+          <div className="flex-1 relative">
+            <Search className="absolute left-4 top-3.5 w-5 h-5 text-neutral-400" />
+            <input
+              type="text"
+              placeholder="Search suppliers by name..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-12 pr-4 py-3 bg-neutral-50 border border-neutral-200 rounded-2xl focus:outline-none focus:border-[#00b4d8]"
+            />
+          </div>
 
-      {loadingData ? (
-        <div className="flex justify-center py-20">
-          <div className="animate-spin h-8 w-8 border-b-2 border-[#00b4d8] rounded-full"></div>
-        </div>
-      ) : (
-        <div className="bg-white border border-neutral-200 rounded-3xl overflow-hidden">
-          {filteredBusinesses.length === 0 ? (
-            <div className="p-12 text-center text-neutral-500">No businesses found.</div>
-          ) : (
-            <div className="divide-y divide-neutral-100">
-              {filteredBusinesses.map((business) => {
-                const status = connectionStatuses[business.id];
-                const canSendRequest = !status;
+          {/* Filters */}
+          <div className="flex gap-3">
+            <select 
+              value={statusFilter} 
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-2xl text-sm focus:outline-none focus:border-[#00b4d8]"
+            >
+              <option value="all">All Status</option>
+              <option value="active">Active</option>
+              <option value="pending">Pending</option>
+              <option value="inactive">Inactive</option>
+            </select>
 
-                return (
-                  <div key={business.id} className="p-6 flex items-center justify-between hover:bg-neutral-50">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3">
-                        <div className="font-semibold text-lg">{business.trading_name || business.legal_name}</div>
-                        {getStatusBadge(business.id)}
-                      </div>
-                      <div className="text-sm text-neutral-500 mt-0.5">{business.email}</div>
-                      {(business.city || business.country) && (
-                        <div className="text-xs text-neutral-400 mt-1">
-                          {[business.city, business.country].filter(Boolean).join(', ')}
-                        </div>
-                      )}
-                    </div>
-
-                    <div>
-                      {canSendRequest ? (
-                        <button onClick={() => openSendRequest(business)} className="flex items-center gap-2 px-5 py-2 bg-[#00b4d8] text-white rounded-2xl text-sm font-medium hover:bg-[#0096b8]">
-                          <Send className="w-4 h-4" /> Send Connection Request
-                        </button>
-                      ) : status === 'connected' ? (
-                        <div className="text-emerald-600 text-sm font-medium px-4">Connected</div>
-                      ) : (
-                        <div className="text-amber-600 text-sm font-medium px-4">Pending</div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Send Request Modal */}
-      {showModal && selectedBusiness && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-3xl p-8 w-full max-w-md">
-            <h2 className="font-semibold text-2xl mb-2">Send Connection Request</h2>
-            <p className="text-neutral-600 mb-6">to <span className="font-medium">{selectedBusiness.trading_name || selectedBusiness.legal_name}</span></p>
-
-            <div>
-              <label className="text-sm font-medium">Message (Optional)</label>
-              <textarea className="input w-full h-28 mt-1" placeholder="Hi, I'd like to connect..." value={requestMessage} onChange={(e) => setRequestMessage(e.target.value)} />
-            </div>
-
-            <div className="flex gap-3 mt-8">
-              <button onClick={() => { setShowModal(false); setSelectedBusiness(null); }} className="flex-1 py-3 border border-neutral-300 rounded-2xl font-medium">Cancel</button>
-              <button onClick={sendConnectionRequest} disabled={sending} className="flex-1 btn-primary py-3 disabled:opacity-60">{sending ? 'Sending...' : 'Send Request'}</button>
-            </div>
+            <select 
+              value={riskFilter} 
+              onChange={(e) => setRiskFilter(e.target.value)}
+              className="px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-2xl text-sm focus:outline-none focus:border-[#00b4d8]"
+            >
+              <option value="all">All Risk Levels</option>
+              <option value="low">Low Risk</option>
+              <option value="medium">Medium Risk</option>
+              <option value="high">High Risk</option>
+            </select>
           </div>
         </div>
-      )}
+      </div>
+
+      {/* Results Count */}
+      <div className="flex items-center justify-between mb-4 px-1">
+        <p className="text-sm text-neutral-600">
+          Showing <span className="font-semibold">{filteredSuppliers.length}</span> suppliers
+        </p>
+        <Link href="/dashboard/suppliers" className="text-sm text-[#00b4d8] hover:underline flex items-center gap-1">
+          Back to Suppliers Hub <ArrowRight className="w-4 h-4" />
+        </Link>
+      </div>
+
+      {/* Supplier Table */}
+      <div className="bg-white rounded-3xl border border-neutral-200 overflow-hidden">
+        {loading ? (
+          <div className="p-12 text-center text-neutral-500">Loading suppliers...</div>
+        ) : filteredSuppliers.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-neutral-200 bg-neutral-50">
+                  <th className="text-left px-8 py-4 text-sm font-semibold text-neutral-600">Supplier</th>
+                  <th className="text-left px-6 py-4 text-sm font-semibold text-neutral-600">Category</th>
+                  <th className="text-left px-6 py-4 text-sm font-semibold text-neutral-600">Status</th>
+                  <th className="text-left px-6 py-4 text-sm font-semibold text-neutral-600">Risk Level</th>
+                  <th className="text-left px-6 py-4 text-sm font-semibold text-neutral-600">Last Order</th>
+                  <th className="text-right px-8 py-4 text-sm font-semibold text-neutral-600">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-100">
+                {filteredSuppliers.map((supplier) => (
+                  <tr key={supplier.id} className="hover:bg-neutral-50 transition-colors">
+                    <td className="px-8 py-5">
+                      <div>
+                        <div className="font-semibold text-lg tracking-tight">{supplier.trading_name}</div>
+                        {supplier.legal_name && (
+                          <div className="text-sm text-neutral-500">{supplier.legal_name}</div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-5 text-sm text-neutral-600">
+                      {supplier.category || '—'}
+                    </td>
+                    <td className="px-6 py-5">
+                      <span className={`inline-block px-4 py-1 text-xs font-medium rounded-full ${getStatusColor(supplier.status)}`}>
+                        {supplier.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-5">
+                      <span className={`inline-block px-4 py-1 text-xs font-medium rounded-full ${getRiskColor(supplier.risk_level)}`}>
+                        {supplier.risk_level || 'Unknown'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-5 text-sm text-neutral-600">
+                      {supplier.last_order_date 
+                        ? new Date(supplier.last_order_date).toLocaleDateString() 
+                        : '—'}
+                    </td>
+                    <td className="px-8 py-5 text-right">
+                      <div className="flex items-center justify-end gap-3">
+                        <Link 
+                          href={`/dashboard/suppliers/profiles?id=${supplier.id}`}
+                          className="text-sm font-medium text-[#00b4d8] hover:underline"
+                        >
+                          View Profile
+                        </Link>
+                        <Link 
+                          href={`/dashboard/suppliers/edit?id=${supplier.id}`}
+                          className="text-sm font-medium text-neutral-600 hover:text-neutral-900"
+                        >
+                          Edit
+                        </Link>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="p-16 text-center">
+            <Users className="w-12 h-12 mx-auto text-neutral-300 mb-4" />
+            <h3 className="font-semibold text-xl mb-2">No suppliers found</h3>
+            <p className="text-neutral-600 mb-6">Try adjusting your search or filters.</p>
+            <Link href="/dashboard/suppliers/add" className="btn-primary px-6 py-2 inline-block">
+              Add your first supplier
+            </Link>
+          </div>
+        )}
+      </div>
+
     </div>
   );
 }
