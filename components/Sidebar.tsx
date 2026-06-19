@@ -37,7 +37,7 @@ const modules = [
     ]
   },
 
-  // ✅ Suppliers - Correct sub-pages
+  // Suppliers
   { 
     id: 'suppliers', 
     name: 'Suppliers', 
@@ -54,7 +54,7 @@ const modules = [
     ]
   },
 
-  // ✅ Customers - Correct sub-pages
+  // Customers
   { 
     id: 'customers', 
     name: 'Customers', 
@@ -114,7 +114,7 @@ const modules = [
     ]
   },
 
-  // ✅ Manufacturing - Updated to match actual folders
+  // Manufacturing
   { 
     id: 'manufacturing', 
     name: 'Manufacturing', 
@@ -128,7 +128,7 @@ const modules = [
     ]
   },
 
-  // ✅ Distribution - Updated to match actual folders
+  // Distribution
   { 
     id: 'distribution', 
     name: 'Distribution', 
@@ -144,20 +144,42 @@ const modules = [
     ]
   },
 
-  { id: 'accounting', name: 'Accounting', icon: Calculator, href: '/dashboard/accounting', sub: [
-    { name: 'Invoices & POs', href: '/dashboard/accounting/invoices' },
-    { name: 'Ledger & Bank', href: '/dashboard/accounting/ledger' },
-    { name: 'Tax & Compliance', href: '/dashboard/accounting/tax' },
-    { name: 'Reports', href: '/dashboard/accounting/reports' },
-  ]},
+  // ✅ Accounting - Updated with full structure
+  { 
+    id: 'accounting', 
+    name: 'Accounting', 
+    icon: Calculator, 
+    href: '/dashboard/accounting', 
+    sub: [
+      { name: 'Chart of Accounts', href: '/dashboard/accounting/chart-of-accounts' },
+      { name: 'Legal Entities', href: '/dashboard/accounting/entities' },
+      { name: 'Journal Entries', href: '/dashboard/accounting/journal-entries' },
+      { name: 'Accounts Payable', href: '/dashboard/accounting/accounts-payable' },
+      { name: 'Accounts Receivable', href: '/dashboard/accounting/accounts-receivable' },
+      { name: 'Bank & Reconciliation', href: '/dashboard/accounting/bank-reconciliation' },
+      { name: 'Payments', href: '/dashboard/accounting/payments' },
+      { name: 'Reports & Analytics', href: '/dashboard/accounting/reports' },
+      { name: 'Tax & Compliance', href: '/dashboard/accounting/tax' },
+      { name: 'Fixed Assets', href: '/dashboard/accounting/fixed-assets' },
+      { name: 'Settings', href: '/dashboard/accounting/settings' },
+    ]
+  },
 
-  { id: 'intelligence', name: 'Intelligence', icon: Brain, href: '/dashboard/intelligence', sub: [
-    { name: 'Grok AI Assistant', href: '/dashboard/intelligence/grok' },
-    { name: 'Analytics & BI', href: '/dashboard/intelligence/analytics' },
-    { name: 'Sustainability', href: '/dashboard/intelligence/sustainability' },
-    { name: 'Blockchain Explorer', href: '/dashboard/intelligence/blockchain' },
-    { name: 'Leadership Development', href: '/dashboard/ai-lab/leadership-development' },
-  ]},
+  // ✅ Intelligence - Updated with actual folders
+  { 
+    id: 'intelligence', 
+    name: 'Intelligence', 
+    icon: Brain, 
+    href: '/dashboard/intelligence', 
+    sub: [
+      { name: 'Pulse Dashboard', href: '/dashboard/intelligence/pulse-dashboard' },
+      { name: 'Neural Insights', href: '/dashboard/intelligence/neural-insights' },
+      { name: 'Predictive Forecasts', href: '/dashboard/intelligence/predictive-forecasts' },
+      { name: 'Simulation Lab', href: '/dashboard/intelligence/simulation-lab' },
+      { name: 'Custom Scorecards', href: '/dashboard/intelligence/custom-scorecards' },
+      { name: 'Leadership Development', href: '/dashboard/intelligence/leadership-development' },
+    ]
+  },
 ];
 
 export default function Sidebar() {
