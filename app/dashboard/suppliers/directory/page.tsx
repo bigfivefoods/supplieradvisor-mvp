@@ -3,9 +3,11 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import { 
-  Search, Plus, Filter, ArrowRight, Users 
-} from 'lucide-react';
+import { useReadContract } from 'wagmi';
+import { SupplierRegistryABI } from '@/lib/contracts/SupplierRegistryABI';
+import { Search, Plus, Users, CheckCircle, XCircle } from 'lucide-react';
+
+const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_SUPPLIER_REGISTRY_ADDRESS as `0x${string}`;
 
 interface Supplier {
   id: number;
@@ -16,6 +18,7 @@ interface Supplier {
   risk_level?: string;
   last_order_date?: string;
   created_at: string;
+  wallet_address?: string; // ← Add this column in Supabase later
 }
 
 export default function SupplierDirectory() {
@@ -28,10 +31,9 @@ export default function SupplierDirectory() {
 
   useEffect(() => {
     const loadSuppliers = async () => {
-      // TODO: Replace 'profiles' with your actual 'suppliers' table when ready
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, trading_name, legal_name, category, status, risk_level, last_order_date, created_at')
+        .select('id, trading_name, legal_name, category, status, risk_level, last_order_date, created_at, wallet_address')
         .order('created_at', { ascending: false });
 
       if (data) {
@@ -48,7 +50,6 @@ export default function SupplierDirectory() {
   useEffect(() => {
     let result = [...suppliers];
 
-    // Search
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       result = result.filter(s =>
@@ -57,12 +58,10 @@ export default function SupplierDirectory() {
       );
     }
 
-    // Status Filter
     if (statusFilter !== 'all') {
       result = result.filter(s => s.status === statusFilter);
     }
 
-    // Risk Filter
     if (riskFilter !== 'all') {
       result = result.filter(s => s.risk_level === riskFilter);
     }
@@ -97,10 +96,7 @@ export default function SupplierDirectory() {
           <p className="text-sm text-neutral-500">Suppliers</p>
           <h1 className="font-black text-5xl tracking-[-2.5px]">Directory</h1>
         </div>
-        <Link 
-          href="/dashboard/suppliers/add" 
-          className="btn-primary px-6 py-3 flex items-center gap-2 w-fit"
-        >
+        <Link href="/dashboard/suppliers/add" className="btn-primary px-6 py-3 flex items-center gap-2 w-fit">
           <Plus className="w-4 h-4" /> Add New Supplier
         </Link>
       </div>
@@ -108,7 +104,6 @@ export default function SupplierDirectory() {
       {/* Search + Filters */}
       <div className="bg-white rounded-3xl border border-neutral-200 p-6 mb-6">
         <div className="flex flex-col lg:flex-row gap-4">
-          {/* Search */}
           <div className="flex-1 relative">
             <Search className="absolute left-4 top-3.5 w-5 h-5 text-neutral-400" />
             <input
@@ -120,24 +115,17 @@ export default function SupplierDirectory() {
             />
           </div>
 
-          {/* Filters */}
           <div className="flex gap-3">
-            <select 
-              value={statusFilter} 
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-2xl text-sm focus:outline-none focus:border-[#00b4d8]"
-            >
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-2xl text-sm focus:outline-none focus:border-[#00b4d8]">
               <option value="all">All Status</option>
               <option value="active">Active</option>
               <option value="pending">Pending</option>
               <option value="inactive">Inactive</option>
             </select>
 
-            <select 
-              value={riskFilter} 
-              onChange={(e) => setRiskFilter(e.target.value)}
-              className="px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-2xl text-sm focus:outline-none focus:border-[#00b4d8]"
-            >
+            <select value={riskFilter} onChange={(e) => setRiskFilter(e.target.value)}
+              className="px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-2xl text-sm focus:outline-none focus:border-[#00b4d8]">
               <option value="all">All Risk Levels</option>
               <option value="low">Low Risk</option>
               <option value="medium">Medium Risk</option>
@@ -152,9 +140,6 @@ export default function SupplierDirectory() {
         <p className="text-sm text-neutral-600">
           Showing <span className="font-semibold">{filteredSuppliers.length}</span> suppliers
         </p>
-        <Link href="/dashboard/suppliers" className="text-sm text-[#00b4d8] hover:underline flex items-center gap-1">
-          Back to Suppliers Hub <ArrowRight className="w-4 h-4" />
-        </Link>
       </div>
 
       {/* Supplier Table */}
@@ -168,6 +153,7 @@ export default function SupplierDirectory() {
                 <tr className="border-b border-neutral-200 bg-neutral-50">
                   <th className="text-left px-8 py-4 text-sm font-semibold text-neutral-600">Supplier</th>
                   <th className="text-left px-6 py-4 text-sm font-semibold text-neutral-600">Category</th>
+                  <th className="text-left px-6 py-4 text-sm font-semibold text-neutral-600">Onchain Status</th>
                   <th className="text-left px-6 py-4 text-sm font-semibold text-neutral-600">Status</th>
                   <th className="text-left px-6 py-4 text-sm font-semibold text-neutral-600">Risk Level</th>
                   <th className="text-left px-6 py-4 text-sm font-semibold text-neutral-600">Last Order</th>
@@ -176,50 +162,7 @@ export default function SupplierDirectory() {
               </thead>
               <tbody className="divide-y divide-neutral-100">
                 {filteredSuppliers.map((supplier) => (
-                  <tr key={supplier.id} className="hover:bg-neutral-50 transition-colors">
-                    <td className="px-8 py-5">
-                      <div>
-                        <div className="font-semibold text-lg tracking-tight">{supplier.trading_name}</div>
-                        {supplier.legal_name && (
-                          <div className="text-sm text-neutral-500">{supplier.legal_name}</div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-5 text-sm text-neutral-600">
-                      {supplier.category || '—'}
-                    </td>
-                    <td className="px-6 py-5">
-                      <span className={`inline-block px-4 py-1 text-xs font-medium rounded-full ${getStatusColor(supplier.status)}`}>
-                        {supplier.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-5">
-                      <span className={`inline-block px-4 py-1 text-xs font-medium rounded-full ${getRiskColor(supplier.risk_level)}`}>
-                        {supplier.risk_level || 'Unknown'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-5 text-sm text-neutral-600">
-                      {supplier.last_order_date 
-                        ? new Date(supplier.last_order_date).toLocaleDateString() 
-                        : '—'}
-                    </td>
-                    <td className="px-8 py-5 text-right">
-                      <div className="flex items-center justify-end gap-3">
-                        <Link 
-                          href={`/dashboard/suppliers/profiles?id=${supplier.id}`}
-                          className="text-sm font-medium text-[#00b4d8] hover:underline"
-                        >
-                          View Profile
-                        </Link>
-                        <Link 
-                          href={`/dashboard/suppliers/edit?id=${supplier.id}`}
-                          className="text-sm font-medium text-neutral-600 hover:text-neutral-900"
-                        >
-                          Edit
-                        </Link>
-                      </div>
-                    </td>
-                  </tr>
+                  <SupplierRow key={supplier.id} supplier={supplier} />
                 ))}
               </tbody>
             </table>
@@ -235,7 +178,92 @@ export default function SupplierDirectory() {
           </div>
         )}
       </div>
-
     </div>
   );
+}
+
+// Separate row component so we can use wagmi hooks
+function SupplierRow({ supplier }: { supplier: Supplier }) {
+  const { data: isVerified, isLoading: checkingOnchain } = useReadContract({
+    address: CONTRACT_ADDRESS,
+    abi: SupplierRegistryABI,
+    functionName: 'isVerified',
+    args: supplier.wallet_address ? [supplier.wallet_address as `0x${string}`] : undefined,
+    query: { enabled: !!supplier.wallet_address },
+  });
+
+  return (
+    <tr className="hover:bg-neutral-50 transition-colors">
+      <td className="px-8 py-5">
+        <div>
+          <div className="font-semibold text-lg tracking-tight">{supplier.trading_name}</div>
+          {supplier.legal_name && <div className="text-sm text-neutral-500">{supplier.legal_name}</div>}
+        </div>
+      </td>
+
+      <td className="px-6 py-5 text-sm text-neutral-600">{supplier.category || '—'}</td>
+
+      {/* NEW: Onchain Verification Column */}
+      <td className="px-6 py-5">
+        {!supplier.wallet_address ? (
+          <span className="text-xs text-neutral-400">No wallet linked</span>
+        ) : checkingOnchain ? (
+          <span className="text-xs text-neutral-400">Checking...</span>
+        ) : isVerified ? (
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-medium">
+            <CheckCircle className="w-3.5 h-3.5" /> Verified Onchain
+          </div>
+        ) : (
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-medium">
+            <XCircle className="w-3.5 h-3.5" /> Not verified
+          </div>
+        )}
+      </td>
+
+      <td className="px-6 py-5">
+        <span className={`inline-block px-4 py-1 text-xs font-medium rounded-full ${getStatusColor(supplier.status)}`}>
+          {supplier.status}
+        </span>
+      </td>
+
+      <td className="px-6 py-5">
+        <span className={`inline-block px-4 py-1 text-xs font-medium rounded-full ${getRiskColor(supplier.risk_level)}`}>
+          {supplier.risk_level || 'Unknown'}
+        </span>
+      </td>
+
+      <td className="px-6 py-5 text-sm text-neutral-600">
+        {supplier.last_order_date ? new Date(supplier.last_order_date).toLocaleDateString() : '—'}
+      </td>
+
+      <td className="px-8 py-5 text-right">
+        <div className="flex items-center justify-end gap-3">
+          <Link href={`/dashboard/suppliers/profiles?id=${supplier.id}`} className="text-sm font-medium text-[#00b4d8] hover:underline">
+            View Profile
+          </Link>
+          <Link href={`/dashboard/suppliers/edit?id=${supplier.id}`} className="text-sm font-medium text-neutral-600 hover:text-neutral-900">
+            Edit
+          </Link>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+function getStatusColor(status: string) {
+  switch (status) {
+    case 'active': return 'bg-emerald-100 text-emerald-700';
+    case 'pending': return 'bg-amber-100 text-amber-700';
+    case 'inactive': return 'bg-neutral-100 text-neutral-600';
+    default: return 'bg-neutral-100 text-neutral-600';
+  }
+}
+
+function getRiskColor(risk?: string) {
+  switch (risk) {
+    case 'low': return 'bg-emerald-100 text-emerald-700';
+    case 'medium': return 'bg-amber-100 text-amber-700';
+    case 'high': return 'bg-red-100 text-red-700';
+    default: return 'bg-neutral-100 text-neutral-600';
+  }
 }
