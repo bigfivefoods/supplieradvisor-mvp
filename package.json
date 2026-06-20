@@ -9,14 +9,16 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@rainbow-me/rainbowkit": "^2.2.11",
     "@supabase/supabase-js": "^2.100.0",
-    "@tanstack/react-query": "^5.90.21",
+    "@tanstack/react-query": "^5.101.0",
     "autoprefixer": "^10.4.20",
     "chart.js": "^4.5.1",
     "framer-motion": "^11.18.2",
     "lucide-react": "^1.6.0",
     "next": "^16.1.6",
     "postcss": "^8.4.47",
+    "rainbowkit": "^0.0.1",
     "react": "^18.3.1",
     "react-chartjs-2": "^5.3.1",
     "react-dom": "^18.3.1",
@@ -30,7 +32,7 @@
   "devDependencies": {
     "@privy-io/react-auth": "^3.18.0",
     "@types/next": "^8.0.7",
-    "@types/node": "^20",
+    "@types/node": "^20.19.43",
     "@types/react": "^18.3.28",
     "@types/react-dom": "^18.3.7",
     "typescript": "^5"
