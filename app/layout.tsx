@@ -13,7 +13,7 @@ import { base, baseSepolia } from 'wagmi/chains';
 
 const config = getDefaultConfig({
   appName: "SupplierAdvisor — Onchain Trust Layer for African Food Security",
-  projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID!, // Get free at walletconnect.com/cloud
+  projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID!,
   chains: [baseSepolia, base],
   ssr: true,
 });
@@ -25,21 +25,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <head>
         <link rel="icon" href="/sa-logo.png" type="image/png" />
-        
         {/* Paystack Inline Script - Kept for payments */}
         <script src="https://js.paystack.co/v1/inline.js" async />
       </head>
       <body className="antialiased">
         <PrivyProvider
           appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID!}
-          config={{ 
-            loginMethods: ['email', 'wallet', 'google', 'apple'], 
+          config={{
+            loginMethods: ['email', 'wallet', 'google', 'apple'],
             appearance: { theme: 'light' },
-            embeddedWallets: { 
-              solana: { enabled: false },
-              ethereum: { 
-                createOnLogin: 'users-without-wallets' 
-              }
+            embeddedWallets: {
+              ethereum: {
+                createOnLogin: 'users-without-wallets', // Creates embedded wallet automatically
+              },
             },
           }}
         >
