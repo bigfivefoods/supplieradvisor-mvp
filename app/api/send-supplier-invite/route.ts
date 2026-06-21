@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
       trading_name,
       contact_name,
       contact_email,
-      invitedBy = 'Big Five Foods',           // ← Better default
+      invitedBy = 'Big Five Foods',
       category,
       contact_phone,
       website,
@@ -47,6 +47,7 @@ export async function POST(request: NextRequest) {
         supplier_status: 'invited',
         invite_token: inviteToken,
         invited_by: invitedBy,
+        invited_at: new Date().toISOString(),           // ← Added
         created_at: new Date().toISOString(),
       })
       .select()
@@ -63,7 +64,7 @@ export async function POST(request: NextRequest) {
     const inviteLink = `https://supplieradvisor-mvp.vercel.app/onboarding?invite=${inviteToken}`;
 
     const { error: emailError } = await resend.emails.send({
-      from: 'Big Five Foods <onboarding@resend.dev>',   // ← Cleaner from name
+      from: 'Big Five Foods <onboarding@resend.dev>',
       to: contact_email,
       subject: `${invitedBy} has invited you to join SupplierAdvisor`,
       html: `
