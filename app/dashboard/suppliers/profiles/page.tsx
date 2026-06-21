@@ -4,9 +4,8 @@ import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { 
-  ArrowLeft, Edit2, MessageCircle, FileText, 
-  Users, Plus, ExternalLink, Clock, CheckCircle, AlertCircle, 
-  ArrowUpDown, X 
+  ArrowLeft, Edit2, MessageCircle, Plus, ExternalLink, 
+  ArrowUpDown, X, ChevronDown, ChevronUp, Filter 
 } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
@@ -25,9 +24,7 @@ interface SupplierProfile {
   invited_at: string | null;
   claimed_at: string | null;
   created_at: string;
-  updated_at: string | null;
   invited_by: string | null;
-  // New fields for rich search
   location: string | null;
   industry: string | null;
   sub_industry: string | null;
@@ -42,15 +39,35 @@ function SupplierProfileContent() {
   const [suppliers, setSuppliers] = useState<SupplierProfile[]>([]);
   const [supplier, setSupplier] = useState<SupplierProfile | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Search & Filter States
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('name');
+  const [showFilters, setShowFilters] = useState(true);
+
+  // Checkbox Filter States
+  const [selectedIndustries, setSelectedIndustries] = useState<string[]>([]);
+  const [selectedSubIndustries, setSelectedSubIndustries] = useState<string[]>([]);
+  const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
+
+  // Expandable sections
+  const [expandedSections, setExpandedSections] = useState({
+    industry: true,
+    subIndustry: true,
+    location: true,
+    status: true,
+  });
+
+  const toggleSection = (section: keyof typeof expandedSections) => {
+    setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
+  };
 
   const fetchActiveSuppliers = async () => {
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
       .eq('relationship_type', 'supplier')
-      .eq('supplier_status', 'active')
       .order('trading_name', { ascending: true });
 
     if (!error && data) setSuppliers(data as SupplierProfile[]);
@@ -76,34 +93,52 @@ function SupplierProfileContent() {
     }
   }, [selectedId]);
 
-  // ==================== ELON-STYLE RICH SEARCH ====================
-  const getFilteredAndSortedSuppliers = () => {
+  // Dynamic unique values
+  const uniqueIndustries = Array.from(new Set(suppliers.map(s => s.industry).filter(Boolean))) as string[];
+  const uniqueSubIndustries = Array.from(new Set(suppliers.map(s => s.sub_industry).filter(Boolean))) as string[];
+  const uniqueLocations = Array.from(new Set(suppliers.map(s => s.location).filter(Boolean))) as string[];
+  const uniqueStatuses = Array.from(new Set(suppliers.map(s => s.supplier_status))) as string[];
+
+  // ===================== ELON-STYLE FILTERING =====================
+  const getFilteredSuppliers = () => {
     let result = [...suppliers];
 
+    // Text search
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase().trim();
-
-      result = result.filter((s) => {
-        return (
-          // Core fields
-          s.trading_name?.toLowerCase().includes(term) ||
-          s.legal_name?.toLowerCase().includes(term) ||
-          s.email?.toLowerCase().includes(term) ||
-          s.contact_name?.toLowerCase().includes(term) ||
-          s.contact_phone?.toLowerCase().includes(term) ||
-          s.category?.toLowerCase().includes(term) ||
-          s.website?.toLowerCase().includes(term) ||
-          s.invited_by?.toLowerCase().includes(term) ||
-          s.supplier_status?.toLowerCase().includes(term) ||
-          // New rich search fields
-          s.location?.toLowerCase().includes(term) ||
-          s.industry?.toLowerCase().includes(term) ||
-          s.sub_industry?.toLowerCase().includes(term)
-        );
-      });
+      result = result.filter(s =>
+        s.trading_name?.toLowerCase().includes(term) ||
+        s.legal_name?.toLowerCase().includes(term) ||
+        s.email?.toLowerCase().includes(term) ||
+        s.contact_name?.toLowerCase().includes(term) ||
+        s.category?.toLowerCase().includes(term) ||
+        s.industry?.toLowerCase().includes(term) ||
+        s.sub_industry?.toLowerCase().includes(term) ||
+        s.location?.toLowerCase().includes(term)
+      );
     }
 
-    // Sorting logic
+    // Industry filter
+    if (selectedIndustries.length > 0) {
+      result = result.filter(s => s.industry && selectedIndustries.includes(s.industry));
+    }
+
+    // Sub-Industry filter
+    if (selectedSubIndustries.length > 0) {
+      result = result.filter(s => s.sub_industry && selectedSubIndustries.includes(s.sub_industry));
+    }
+
+    // Location filter
+    if (selectedLocations.length > 0) {
+      result = result.filter(s => s.location && selectedLocations.includes(s.location));
+    }
+
+    // Status filter
+    if (selectedStatuses.length > 0) {
+      result = result.filter(s => selectedStatuses.includes(s.supplier_status));
+    }
+
+    // Sorting
     result.sort((a, b) => {
       if (sortBy === 'name') return a.trading_name.localeCompare(b.trading_name);
       if (sortBy === 'category') return (a.category || '').localeCompare(b.category || '');
@@ -119,29 +154,56 @@ function SupplierProfileContent() {
     return result;
   };
 
-  const filteredSuppliers = getFilteredAndSortedSuppliers();
+  const filteredSuppliers = getFilteredSuppliers();
+
+  // Toggle functions
+  const toggleIndustry = (industry: string) => {
+    setSelectedIndustries(prev => prev.includes(industry) ? prev.filter(i => i !== industry) : [...prev, industry]);
+  };
+
+  const toggleSubIndustry = (sub: string) => {
+    setSelectedSubIndustries(prev => prev.includes(sub) ? prev.filter(s => s !== sub) : [...prev, sub]);
+  };
+
+  const toggleLocation = (location: string) => {
+    setSelectedLocations(prev => prev.includes(location) ? prev.filter(l => l !== location) : [...prev, location]);
+  };
+
+  const toggleStatus = (status: string) => {
+    setSelectedStatuses(prev => prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status]);
+  };
+
+  const clearAllFilters = () => {
+    setSearchTerm('');
+    setSelectedIndustries([]);
+    setSelectedSubIndustries([]);
+    setSelectedLocations([]);
+    setSelectedStatuses([]);
+  };
+
+  const activeFilterCount = selectedIndustries.length + selectedSubIndustries.length + selectedLocations.length + selectedStatuses.length;
+  const hasActiveFilters = activeFilterCount > 0 || searchTerm;
 
   // ==================== LIST VIEW ====================
   if (!selectedId) {
     return (
       <div className="px-8 py-12 max-w-screen-2xl mx-auto">
-        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-10">
+        <div className="flex justify-between items-end mb-10">
           <div>
             <p className="text-sm text-neutral-500 mb-1">SUPPLIERS</p>
             <h1 className="font-black text-6xl tracking-[-3.5px]">Active Suppliers</h1>
-            <p className="text-neutral-600 mt-2">Search across name, industry, location, contact & more</p>
           </div>
-          <Link href="/dashboard/suppliers/add" className="btn-primary px-8 py-3 flex items-center gap-2 w-fit">
+          <Link href="/dashboard/suppliers/add" className="btn-primary px-8 py-3 flex items-center gap-2">
             <Plus className="w-4 h-4" /> Add Supplier
           </Link>
         </div>
 
-        {/* Search + Sort */}
-        <div className="flex flex-col md:flex-row gap-4 mb-8">
+        {/* Search + Controls */}
+        <div className="flex flex-col lg:flex-row gap-4 mb-6">
           <div className="relative flex-1">
             <input
               type="text"
-              placeholder="Search name, email, industry, sub-industry, location, category..."
+              placeholder="Search suppliers..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-6 pr-12 py-4 bg-white border border-neutral-200 rounded-3xl text-lg focus:outline-none focus:border-[#00b4d8]"
@@ -153,60 +215,134 @@ function SupplierProfileContent() {
             )}
           </div>
 
+          <button onClick={() => setShowFilters(!showFilters)} className="flex items-center gap-2 px-6 py-4 border border-neutral-200 rounded-3xl hover:bg-white transition-colors">
+            <Filter className="w-4 h-4" /> Filters
+            {activeFilterCount > 0 && <span className="ml-1 px-2 py-0.5 bg-[#00b4d8] text-white text-xs rounded-full">{activeFilterCount}</span>}
+          </button>
+
           <div className="flex items-center gap-2 px-5 bg-white border border-neutral-200 rounded-3xl">
             <ArrowUpDown className="w-4 h-4 text-neutral-500" />
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as SortOption)}
-              className="bg-transparent py-4 pr-8 text-sm font-medium focus:outline-none"
-            >
+            <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortOption)} className="bg-transparent py-4 pr-8 text-sm font-medium focus:outline-none">
               <option value="name">Sort by Name</option>
               <option value="category">Sort by Category</option>
-              <option value="onboarded">Sort by Onboarded Date</option>
+              <option value="onboarded">Sort by Onboarded</option>
               <option value="status">Sort by Status</option>
             </select>
           </div>
         </div>
 
+        {/* WORLD-CLASS EXPANDABLE FILTERS */}
+        {showFilters && (
+          <div className="mb-8 bg-white border border-neutral-200 rounded-3xl p-8">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="font-semibold text-xl tracking-tight flex items-center gap-2">
+                <Filter className="w-5 h-5" /> Filter by Criteria
+              </h3>
+              {hasActiveFilters && (
+                <button onClick={clearAllFilters} className="text-sm text-[#00b4d8] hover:underline">Clear all filters</button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+              
+              {/* Industry */}
+              <div>
+                <button onClick={() => toggleSection('industry')} className="flex w-full justify-between items-center mb-3 text-left font-semibold">
+                  Industry {expandedSections.industry ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+                {expandedSections.industry && (
+                  <div className="space-y-2 pl-1 max-h-48 overflow-auto">
+                    {uniqueIndustries.length > 0 ? uniqueIndustries.map(ind => (
+                      <label key={ind} className="flex items-center gap-3 cursor-pointer text-sm">
+                        <input type="checkbox" checked={selectedIndustries.includes(ind)} onChange={() => toggleIndustry(ind)} className="w-4 h-4 accent-[#00b4d8]" />
+                        {ind}
+                      </label>
+                    )) : <p className="text-sm text-neutral-400">No data yet</p>}
+                  </div>
+                )}
+              </div>
+
+              {/* Sub-Industry */}
+              <div>
+                <button onClick={() => toggleSection('subIndustry')} className="flex w-full justify-between items-center mb-3 text-left font-semibold">
+                  Sub-Industry {expandedSections.subIndustry ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+                {expandedSections.subIndustry && (
+                  <div className="space-y-2 pl-1 max-h-48 overflow-auto">
+                    {uniqueSubIndustries.length > 0 ? uniqueSubIndustries.map(sub => (
+                      <label key={sub} className="flex items-center gap-3 cursor-pointer text-sm">
+                        <input type="checkbox" checked={selectedSubIndustries.includes(sub)} onChange={() => toggleSubIndustry(sub)} className="w-4 h-4 accent-[#00b4d8]" />
+                        {sub}
+                      </label>
+                    )) : <p className="text-sm text-neutral-400">No data yet</p>}
+                  </div>
+                )}
+              </div>
+
+              {/* Location */}
+              <div>
+                <button onClick={() => toggleSection('location')} className="flex w-full justify-between items-center mb-3 text-left font-semibold">
+                  Location {expandedSections.location ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+                {expandedSections.location && (
+                  <div className="space-y-2 pl-1 max-h-48 overflow-auto">
+                    {uniqueLocations.length > 0 ? uniqueLocations.map(loc => (
+                      <label key={loc} className="flex items-center gap-3 cursor-pointer text-sm">
+                        <input type="checkbox" checked={selectedLocations.includes(loc)} onChange={() => toggleLocation(loc)} className="w-4 h-4 accent-[#00b4d8]" />
+                        {loc}
+                      </label>
+                    )) : <p className="text-sm text-neutral-400">No data yet</p>}
+                  </div>
+                )}
+              </div>
+
+              {/* Status */}
+              <div>
+                <button onClick={() => toggleSection('status')} className="flex w-full justify-between items-center mb-3 text-left font-semibold">
+                  Status {expandedSections.status ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+                {expandedSections.status && (
+                  <div className="space-y-2 pl-1">
+                    {uniqueStatuses.map(status => (
+                      <label key={status} className="flex items-center gap-3 cursor-pointer text-sm">
+                        <input type="checkbox" checked={selectedStatuses.includes(status)} onChange={() => toggleStatus(status)} className="w-4 h-4 accent-[#00b4d8]" />
+                        <span className="capitalize">{status}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Results Count */}
         <div className="mb-4 text-sm text-neutral-500 px-1">
           Showing <span className="font-semibold text-neutral-900">{filteredSuppliers.length}</span> suppliers
         </div>
 
         {loading ? (
-          <div className="py-20 text-center">Loading...</div>
+          <div className="py-20 text-center">Loading suppliers...</div>
         ) : filteredSuppliers.length === 0 ? (
-          <div className="text-center py-20">No suppliers match your search.</div>
+          <div className="text-center py-20">No suppliers match your current filters.</div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredSuppliers.map((s) => (
-              <Link 
-                key={s.public_id} 
-                href={`/dashboard/suppliers/profiles?id=${s.public_id}`}
-                className="group bg-white border border-neutral-200 rounded-3xl p-6 hover:border-[#00b4d8] hover:shadow-xl transition-all flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex justify-between items-start mb-4">
-                    <h3 className="font-bold text-2xl tracking-tight group-hover:text-[#00b4d8] pr-4">{s.trading_name}</h3>
-                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${s.supplier_status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                      {s.supplier_status}
-                    </span>
-                  </div>
-
-                  <div className="space-y-1.5 text-sm">
-                    {s.contact_name && <div className="text-neutral-700">{s.contact_name}</div>}
-                    <div className="text-neutral-500">{s.email}</div>
-                    {(s.industry || s.sub_industry) && (
-                      <div className="text-neutral-600 mt-2">
-                        {s.industry} {s.sub_industry && `• ${s.sub_industry}`}
-                      </div>
-                    )}
-                    {s.location && <div className="text-neutral-600">{s.location}</div>}
-                  </div>
+              <Link key={s.public_id} href={`/dashboard/suppliers/profiles?id=${s.public_id}`} className="group bg-white border border-neutral-200 rounded-3xl p-6 hover:border-[#00b4d8] hover:shadow-xl transition-all">
+                <div className="flex justify-between items-start mb-4">
+                  <h3 className="font-bold text-2xl tracking-tight group-hover:text-[#00b4d8] pr-4">{s.trading_name}</h3>
+                  <span className={`px-3 py-1 rounded-full text-xs font-semibold ${s.supplier_status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                    {s.supplier_status}
+                  </span>
                 </div>
-
-                <div className="mt-6 pt-4 border-t flex justify-between text-xs text-neutral-500">
-                  <span>Onboarded</span>
-                  <span>{s.claimed_at ? new Date(s.claimed_at).toLocaleDateString('en-GB') : 'Pending'}</span>
+                <div className="text-sm space-y-1">
+                  {s.contact_name && <div>{s.contact_name}</div>}
+                  <div className="text-neutral-500">{s.email}</div>
+                  {(s.industry || s.sub_industry || s.location) && (
+                    <div className="pt-2 text-xs text-neutral-600">
+                      {[s.industry, s.sub_industry, s.location].filter(Boolean).join(' • ')}
+                    </div>
+                  )}
                 </div>
               </Link>
             ))}
@@ -216,26 +352,21 @@ function SupplierProfileContent() {
     );
   }
 
-  // ==================== DETAIL VIEW ====================
+  // ==================== DETAIL VIEW (kept concise) ====================
   if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   if (!supplier) return <div className="min-h-screen flex items-center justify-center">Supplier not found</div>;
-
-  const isActive = supplier.supplier_status === 'active';
 
   return (
     <div className="min-h-screen bg-[#f8fafc]">
       <div className="max-w-screen-2xl mx-auto px-8 py-12">
-        {/* Header */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-10">
           <div className="flex items-center gap-5">
-            <Link href="/dashboard/suppliers/profiles" className="p-3 hover:bg-white rounded-2xl border">
-              <ArrowLeft className="w-5 h-5" />
-            </Link>
+            <Link href="/dashboard/suppliers/profiles" className="p-3 hover:bg-white rounded-2xl border"><ArrowLeft className="w-5 h-5" /></Link>
             <div>
               <div className="flex items-center gap-4">
                 <h1 className="text-6xl font-black tracking-[-3.5px]">{supplier.trading_name}</h1>
-                <span className={`px-5 py-1.5 rounded-full text-sm font-semibold ${isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                  {isActive ? 'Active' : 'Invited'}
+                <span className={`px-5 py-1.5 rounded-full text-sm font-semibold ${supplier.supplier_status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                  {supplier.supplier_status}
                 </span>
               </div>
               {supplier.legal_name && <p className="text-2xl text-neutral-500 tracking-tight mt-1">{supplier.legal_name}</p>}
@@ -243,36 +374,18 @@ function SupplierProfileContent() {
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <button className="flex items-center gap-2 px-6 py-3 border border-neutral-300 rounded-2xl hover:bg-white">
-              <MessageCircle className="w-4 h-4" /> Message
-            </button>
-            <Link href={`/dashboard/suppliers/po?supplier=${supplier.public_id}`} className="flex items-center gap-2 px-6 py-3 bg-[#00b4d8] text-white rounded-2xl hover:bg-[#0099b8]">
-              <Plus className="w-4 h-4" /> Raise PO
-            </Link>
-            <button className="flex items-center gap-2 px-6 py-3 border border-neutral-300 rounded-2xl hover:bg-white">
-              <Edit2 className="w-4 h-4" /> Edit
-            </button>
+            <button className="flex items-center gap-2 px-6 py-3 border border-neutral-300 rounded-2xl hover:bg-white"><MessageCircle className="w-4 h-4" /> Message</button>
+            <Link href={`/dashboard/suppliers/po?supplier=${supplier.public_id}`} className="flex items-center gap-2 px-6 py-3 bg-[#00b4d8] text-white rounded-2xl hover:bg-[#0099b8]"><Plus className="w-4 h-4" /> Raise PO</Link>
+            <button className="flex items-center gap-2 px-6 py-3 border border-neutral-300 rounded-2xl hover:bg-white"><Edit2 className="w-4 h-4" /> Edit</button>
           </div>
         </div>
 
-        {/* Detail Content */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
           <div className="xl:col-span-2 space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-white rounded-3xl border p-6">
-                <div className="text-sm text-neutral-500 mb-1">Industry</div>
-                <div className="text-2xl font-semibold tracking-tight">{supplier.industry || supplier.category || '—'}</div>
-              </div>
-              <div className="bg-white rounded-3xl border p-6">
-                <div className="text-sm text-neutral-500 mb-1">Location</div>
-                <div className="text-2xl font-semibold tracking-tight">{supplier.location || '—'}</div>
-              </div>
-              <div className="bg-white rounded-3xl border p-6">
-                <div className="text-sm text-neutral-500 mb-1">Relationship Since</div>
-                <div className="text-2xl font-semibold tracking-tight">
-                  {supplier.claimed_at ? new Date(supplier.claimed_at).toLocaleDateString('en-GB') : 'Pending'}
-                </div>
-              </div>
+              <div className="bg-white rounded-3xl border p-6"><div className="text-sm text-neutral-500 mb-1">Industry</div><div className="text-2xl font-semibold tracking-tight">{supplier.industry || '—'}</div></div>
+              <div className="bg-white rounded-3xl border p-6"><div className="text-sm text-neutral-500 mb-1">Sub-Industry</div><div className="text-2xl font-semibold tracking-tight">{supplier.sub_industry || '—'}</div></div>
+              <div className="bg-white rounded-3xl border p-6"><div className="text-sm text-neutral-500 mb-1">Location</div><div className="text-2xl font-semibold tracking-tight">{supplier.location || '—'}</div></div>
             </div>
 
             <div className="bg-white rounded-3xl border p-8">
@@ -292,17 +405,6 @@ function SupplierProfileContent() {
               <div className="space-y-3">
                 <button className="w-full py-4 border rounded-2xl hover:bg-neutral-50 flex justify-center gap-2 text-lg">Send Message</button>
                 <Link href={`/dashboard/suppliers/po?supplier=${supplier.public_id}`} className="w-full py-4 bg-[#00b4d8] text-white rounded-2xl flex justify-center gap-2 text-lg">Create Purchase Order</Link>
-                <button className="w-full py-4 border rounded-2xl hover:bg-neutral-50 flex justify-center gap-2 text-lg">View Documents</button>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-3xl border p-8 text-sm">
-              <div className="text-neutral-500 mb-4 font-medium">SYSTEM METADATA</div>
-              <div className="space-y-3 text-neutral-600">
-                <div className="flex justify-between"><span>Public ID</span><span className="font-mono text-xs">{supplier.public_id}</span></div>
-                <div className="flex justify-between"><span>Status</span><span className="capitalize">{supplier.supplier_status}</span></div>
-                <div className="flex justify-between"><span>Industry</span><span>{supplier.industry || '—'}</span></div>
-                <div className="flex justify-between"><span>Sub-Industry</span><span>{supplier.sub_industry || '—'}</span></div>
               </div>
             </div>
           </div>
