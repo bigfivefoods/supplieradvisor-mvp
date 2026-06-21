@@ -39,20 +39,21 @@ const modules = [
     ]
   },
 
-  { 
-    id: 'suppliers', 
-    name: 'Suppliers', 
-    icon: Truck, 
-    href: '/dashboard/suppliers',
-    sub: [
-      { name: 'Supplier Directory', href: '/dashboard/suppliers/directory' },
-      { name: 'Add New Supplier', href: '/dashboard/suppliers/add' },
-      { name: 'Profiles', href: '/dashboard/suppliers/profiles' },
-      { name: 'Purchase Orders', href: '/dashboard/suppliers/po' },
-      { name: 'Contracts', href: '/dashboard/suppliers/contracts' },
-      { name: 'Risk Alerts', href: '/dashboard/suppliers/risk-alerts' },
-      { name: 'Portal', href: '/dashboard/suppliers/portal' },
-    ]
+  {  
+  id: 'suppliers', 
+  name: 'Suppliers', 
+  icon: Truck, 
+  href: '/dashboard/suppliers',
+  sub: [
+    { name: 'Supplier Directory', href: '/dashboard/suppliers/directory' },
+    { name: 'Sent Invitations', href: '/dashboard/suppliers/invites' },
+    { name: 'Profiles', href: '/dashboard/suppliers/profiles' },
+    { name: 'Add New Supplier', href: '/dashboard/suppliers/add' },
+    { name: 'Purchase Orders', href: '/dashboard/suppliers/po' },
+    { name: 'Contracts', href: '/dashboard/suppliers/contracts' },
+    { name: 'Risk Alerts', href: '/dashboard/suppliers/risk-alerts' },
+    { name: 'Portal', href: '/dashboard/suppliers/portal' },
+  ]
   },
 
   { 
