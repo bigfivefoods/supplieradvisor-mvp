@@ -5,14 +5,16 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { 
   Truck, Plus, Users, FileText, AlertTriangle, 
-  ArrowRight, TrendingUp, Package 
+  ArrowRight, Package 
 } from 'lucide-react';
 
 interface Supplier {
-  id: number;
+  id: string;
   trading_name: string;
-  status: string;
+  supplier_status: string;
   created_at: string;
+  invited_at: string | null;
+  claimed_at: string | null;
 }
 
 export default function SuppliersHub() {
@@ -21,25 +23,34 @@ export default function SuppliersHub() {
   const [stats, setStats] = useState({
     total: 0,
     active: 0,
-    pending: 0,
-    risk: 0,
+    invited: 0,
   });
 
   useEffect(() => {
     const loadSuppliers = async () => {
-      // TODO: Replace with real supplier table when created
-      const { data } = await supabase
-        .from('profiles') // Temporary - replace with 'suppliers' table later
-        .select('id, trading_name, status, created_at')
-        .limit(6);
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, trading_name, supplier_status, created_at, invited_at, claimed_at')
+        .eq('relationship_type', 'supplier')
+        .order('created_at', { ascending: false })
+        .limit(8);
+
+      if (error) {
+        console.error('Error loading suppliers:', error);
+        setLoading(false);
+        return;
+      }
 
       if (data) {
         setSuppliers(data as Supplier[]);
+
+        const activeCount = data.filter(s => s.supplier_status === 'active').length;
+        const invitedCount = data.filter(s => s.supplier_status === 'invited').length;
+
         setStats({
           total: data.length,
-          active: data.filter(s => s.status === 'active').length || 124,
-          pending: 18,
-          risk: 7,
+          active: activeCount,
+          invited: invitedCount,
         });
       }
       setLoading(false);
@@ -88,7 +99,7 @@ export default function SuppliersHub() {
             </div>
             <div>
               <div className="text-4xl font-black tracking-tighter">{stats.active}</div>
-              <div className="text-sm text-neutral-600">Active</div>
+              <div className="text-sm text-neutral-600">Active Suppliers</div>
             </div>
           </div>
         </div>
@@ -99,8 +110,8 @@ export default function SuppliersHub() {
               <Package className="w-6 h-6 text-amber-600" />
             </div>
             <div>
-              <div className="text-4xl font-black tracking-tighter">{stats.pending}</div>
-              <div className="text-sm text-neutral-600">Pending Onboarding</div>
+              <div className="text-4xl font-black tracking-tighter">{stats.invited}</div>
+              <div className="text-sm text-neutral-600">Pending Acceptance</div>
             </div>
           </div>
         </div>
@@ -111,7 +122,7 @@ export default function SuppliersHub() {
               <AlertTriangle className="w-6 h-6 text-red-600" />
             </div>
             <div>
-              <div className="text-4xl font-black tracking-tighter">{stats.risk}</div>
+              <div className="text-4xl font-black tracking-tighter">0</div>
               <div className="text-sm text-neutral-600">High Risk</div>
             </div>
           </div>
@@ -124,42 +135,12 @@ export default function SuppliersHub() {
         
         <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {[
-            { 
-              title: "Supplier Directory", 
-              desc: "Browse and search all suppliers", 
-              href: "/dashboard/suppliers/directory", 
-              icon: Users 
-            },
-            { 
-              title: "Add New Supplier", 
-              desc: "Onboard a new supplier", 
-              href: "/dashboard/suppliers/add", 
-              icon: Plus 
-            },
-            { 
-              title: "Purchase Orders", 
-              desc: "Manage POs and deliveries", 
-              href: "/dashboard/suppliers/po", 
-              icon: Package 
-            },
-            { 
-              title: "Contracts", 
-              desc: "View and manage agreements", 
-              href: "/dashboard/suppliers/contracts", 
-              icon: FileText 
-            },
-            { 
-              title: "Risk Alerts", 
-              desc: "Monitor supplier risks", 
-              href: "/dashboard/suppliers/risk-alerts", 
-              icon: AlertTriangle 
-            },
-            { 
-              title: "Supplier Portal", 
-              desc: "Self-service for suppliers", 
-              href: "/dashboard/suppliers/portal", 
-              icon: Truck 
-            },
+            { title: "Supplier Directory", desc: "Browse and search all suppliers", href: "/dashboard/suppliers/directory", icon: Users },
+            { title: "Sent Invitations", desc: "Track invites you've sent", href: "/dashboard/suppliers/invites", icon: Package },
+            { title: "Add New Supplier", desc: "Onboard a new supplier", href: "/dashboard/suppliers/add", icon: Plus },
+            { title: "Purchase Orders", desc: "Manage POs and deliveries", href: "/dashboard/suppliers/po", icon: Package },
+            { title: "Contracts", desc: "View and manage agreements", href: "/dashboard/suppliers/contracts", icon: FileText },
+            { title: "Risk Alerts", desc: "Monitor supplier risks", href: "/dashboard/suppliers/risk-alerts", icon: AlertTriangle },
           ].map((item, index) => {
             const Icon = item.icon;
             return (
@@ -182,12 +163,12 @@ export default function SuppliersHub() {
         </div>
       </div>
 
-      {/* Recent Suppliers */}
+      {/* Recently Added / Invited Suppliers */}
       <div className="bg-white rounded-3xl border border-neutral-200 p-8">
         <div className="flex items-center justify-between mb-6">
           <h3 className="font-bold text-xl tracking-tight">Recently Added Suppliers</h3>
-          <Link href="/dashboard/suppliers/directory" className="text-sm text-[#00b4d8] flex items-center gap-1">
-            View all <ArrowRight className="w-4 h-4" />
+          <Link href="/dashboard/suppliers/invites" className="text-sm text-[#00b4d8] flex items-center gap-1">
+            View all invites <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
 
@@ -195,9 +176,9 @@ export default function SuppliersHub() {
           <div className="py-12 text-center text-neutral-500">Loading suppliers...</div>
         ) : suppliers.length > 0 ? (
           <div className="divide-y">
-            {suppliers.map((supplier, index) => (
+            {suppliers.map((supplier) => (
               <Link 
-                key={index}
+                key={supplier.id}
                 href={`/dashboard/suppliers/profiles?id=${supplier.id}`}
                 className="flex items-center justify-between py-5 px-2 hover:bg-neutral-50 rounded-2xl transition-colors group"
               >
@@ -206,16 +187,19 @@ export default function SuppliersHub() {
                     {supplier.trading_name}
                   </div>
                   <div className="text-sm text-neutral-500">
-                    Added {new Date(supplier.created_at).toLocaleDateString()}
+                    {supplier.claimed_at 
+                      ? `Claimed ${new Date(supplier.claimed_at).toLocaleDateString()}`
+                      : `Invited ${new Date(supplier.invited_at || supplier.created_at).toLocaleDateString()}`
+                    }
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className={`text-xs px-4 py-1.5 rounded-full font-medium ${
-                    supplier.status === 'active' 
+                    supplier.supplier_status === 'active' 
                       ? 'bg-emerald-100 text-emerald-700' 
-                      : 'bg-neutral-100 text-neutral-600'
+                      : 'bg-amber-100 text-amber-700'
                   }`}>
-                    {supplier.status || 'Active'}
+                    {supplier.supplier_status === 'active' ? 'Active' : 'Invited'}
                   </span>
                   <ArrowRight className="w-4 h-4 text-neutral-300 group-hover:text-[#00b4d8]" />
                 </div>
