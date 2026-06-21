@@ -34,14 +34,14 @@ export default function AddNewSupplier() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // Existing email invitation flow (unchanged)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
 
     try {
-      const invitedBy = localStorage.getItem('selectedCompanyName') || 'Your Business';
+      // ✅ Improved: Professional default instead of "Your Business"
+      const invitedBy = localStorage.getItem('selectedCompanyName') || 'Big Five Foods';
 
       const response = await fetch('/api/send-supplier-invite', {
         method: 'POST',
@@ -69,7 +69,7 @@ export default function AddNewSupplier() {
     }
   };
 
-  // NEW: Onchain registration
+  // Onchain registration (unchanged)
   const handleRegisterOnchain = async () => {
     if (!connectedWallet) {
       alert("Please connect your wallet first (top right)");
@@ -112,7 +112,7 @@ export default function AddNewSupplier() {
           We've sent an invitation to <span className="font-semibold">{formData.contact_email}</span>.
         </p>
         <p className="text-neutral-600 mb-10">
-          {formData.trading_name} will receive a professional email from <strong>{localStorage.getItem('selectedCompanyName') || 'your business'}</strong>.
+          {formData.trading_name} will receive a professional email from <strong>Big Five Foods</strong>.
         </p>
 
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -214,7 +214,7 @@ export default function AddNewSupplier() {
 
         {error && <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-2xl text-sm">{error}</div>}
 
-        {/* Submit Button - Email Invitation */}
+        {/* Submit Button */}
         <div className="flex justify-end pt-4">
           <button type="submit" disabled={loading || !formData.trading_name || !formData.contact_email}
             className="btn-primary px-10 py-4 text-base disabled:opacity-60 flex items-center gap-2">
@@ -223,7 +223,7 @@ export default function AddNewSupplier() {
         </div>
       </form>
 
-      {/* NEW: Onchain Registration Section */}
+      {/* Onchain Registration Section */}
       <div className="mt-12 bg-white rounded-3xl border border-neutral-200 p-8">
         <div className="flex items-center gap-3 mb-4">
           <div className="p-2 bg-emerald-100 rounded-xl">

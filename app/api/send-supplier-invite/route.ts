@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
       trading_name,
       contact_name,
       contact_email,
-      invitedBy = 'SupplierAdvisor Team',
+      invitedBy = 'Big Five Foods',           // ← Better default
       category,
       contact_phone,
       website,
@@ -33,7 +33,6 @@ export async function POST(request: NextRequest) {
 
     const inviteToken = randomUUID();
 
-    // Insert supplier
     const { data: newSupplier, error: insertError } = await supabaseAdmin
       .from('profiles')
       .insert({
@@ -63,9 +62,8 @@ export async function POST(request: NextRequest) {
 
     const inviteLink = `https://supplieradvisor-mvp.vercel.app/onboarding?invite=${inviteToken}`;
 
-    // Send email
     const { error: emailError } = await resend.emails.send({
-      from: 'SupplierAdvisor <onboarding@resend.dev>',   // ← Safe test address
+      from: 'Big Five Foods <onboarding@resend.dev>',   // ← Cleaner from name
       to: contact_email,
       subject: `${invitedBy} has invited you to join SupplierAdvisor`,
       html: `
@@ -76,7 +74,7 @@ export async function POST(request: NextRequest) {
           </div>
           <div style="padding: 40px 40px 20px;">
             <h2 style="color: #111827; font-size: 22px; margin: 0 0 16px;">You've been invited to join SupplierAdvisor</h2>
-            <p style="color: #374151; font-size: 16px; line-height: 1.7; margin: 0 0 20px;">
+            <p style="color: #374151; font-size: 16px; line-height: 1.7; margin: 0 0 24px;">
               Hello${contact_name ? ` ${contact_name}` : ''},<br><br>
               <strong>${invitedBy}</strong> has invited <strong>${trading_name}</strong> to join SupplierAdvisor as a verified supplier.
             </p>
