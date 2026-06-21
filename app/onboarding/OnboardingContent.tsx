@@ -57,7 +57,7 @@ export default function OnboardingContent() {
   const [selectedContinentId, setSelectedContinentId] = useState<number | null>(null);
   const [selectedCountryId, setSelectedCountryId] = useState<number | null>(null);
 
-  // ==================== INVITE TOKEN HANDLING ====================
+  // ==================== INVITE TOKEN HANDLING (FIXED) ====================
   useEffect(() => {
     const checkInviteToken = async () => {
       if (!inviteToken) return;
@@ -66,7 +66,7 @@ export default function OnboardingContent() {
         .from('profiles')
         .select('*')
         .eq('invite_token', inviteToken)
-        .eq('supplier_status', 'pending')
+        .eq('supplier_status', 'invited')           // ← FIXED: was 'pending'
         .single();
 
       if (error || !data) {
@@ -74,7 +74,16 @@ export default function OnboardingContent() {
         return;
       }
 
-      setForm(prev => ({ ...prev, email: data.email || '' }));
+      // Pre-fill form with data from the invitation
+      setForm(prev => ({
+        ...prev,
+        email: data.email || '',
+        trading_name: data.trading_name || '',
+        legal_name: data.legal_name || data.trading_name || '',
+        contact_name: data.contact_name || '',
+        contact_number: data.contact_phone || '',
+      }));
+
       setInviteData(data);
       toast.success('Invitation detected. Welcome!');
     };
@@ -191,7 +200,7 @@ export default function OnboardingContent() {
     toast.success(`✅ Team member added`);
   };
 
-  // ==================== SAVE PROFILE ====================
+  // ==================== SAVE PROFILE (IMPROVED FOR INVITES) ====================
   const saveProfile = async () => {
     setSaving(true);
     try {
@@ -230,23 +239,28 @@ export default function OnboardingContent() {
         updated_at: new Date().toISOString()
       };
 
+      // Handle invite flow
       if (inviteToken && inviteData) {
         profileData.relationship_type = 'supplier';
         profileData.supplier_status = 'active';
         profileData.invite_token = null;
+        profileData.claimed_at = new Date().toISOString();
       } else {
         profileData.created_at = form.created_at || new Date().toISOString();
       }
 
       let error;
       if (inviteToken && inviteData) {
+        // Update existing invited record
         ({ error } = await supabase.from('profiles').update(profileData).eq('invite_token', inviteToken));
       } else {
+        // Normal onboarding
         ({ error } = await supabase.from('profiles').upsert(profileData));
       }
 
       if (error) throw error;
 
+      // Create business_users record
       await supabase.from('business_users').upsert({
         user_id: cleanId,
         profile_id: cleanId,
@@ -255,6 +269,7 @@ export default function OnboardingContent() {
         joined_at: new Date().toISOString()
       }, { onConflict: 'user_id,profile_id' });
 
+      // Save products, services, certifications if any
       if (form.products.length > 0) {
         await supabase.from('business_products').upsert(form.products.map(p => ({ profile_id: cleanId, ...p })));
       }
@@ -309,7 +324,7 @@ export default function OnboardingContent() {
           </div>
           {expanded.basics && (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="grid md:grid-cols-2 gap-8">
                 <div>
                   <label className="block text-sm font-medium mb-2">Legal Name</label>
                   <input type="text" className="input w-full" value={form.legal_name} onChange={e => setForm(p => ({...p, legal_name: e.target.value}))} />
