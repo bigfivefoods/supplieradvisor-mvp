@@ -10,7 +10,8 @@ import { Search, Plus, Users, RefreshCw, ArrowRight } from 'lucide-react';
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_SUPPLIER_REGISTRY_ADDRESS as `0x${string}`;
 
 interface Supplier {
-  id: string;
+  id: number;
+  public_id: string;                    // ← New UUID field
   trading_name: string;
   email: string;
   contact_name: string | null;
@@ -33,7 +34,7 @@ export default function SupplierDirectory() {
     setLoading(true);
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, trading_name, email, contact_name, category, supplier_status, invited_at, claimed_at, created_at, wallet_address')
+      .select('id, public_id, trading_name, email, contact_name, category, supplier_status, invited_at, claimed_at, created_at, wallet_address')
       .eq('relationship_type', 'supplier')
       .order('trading_name', { ascending: true });
 
@@ -164,7 +165,7 @@ export default function SupplierDirectory() {
               </thead>
               <tbody className="divide-y divide-neutral-100">
                 {filteredSuppliers.map((supplier) => (
-                  <SupplierRow key={supplier.id} supplier={supplier} />
+                  <SupplierRow key={supplier.public_id} supplier={supplier} />
                 ))}
               </tbody>
             </table>
@@ -184,6 +185,16 @@ function SupplierRow({ supplier }: { supplier: Supplier }) {
     args: supplier.wallet_address ? [supplier.wallet_address as `0x${string}`] : undefined,
     query: { enabled: !!supplier.wallet_address },
   });
+
+  // Safe date formatter
+  const formatDate = (dateString: string | null | undefined) => {
+    if (!dateString) return '—';
+    try {
+      return new Date(dateString).toLocaleDateString('en-GB');
+    } catch {
+      return '—';
+    }
+  };
 
   return (
     <tr className="hover:bg-neutral-50 transition-colors group">
@@ -213,16 +224,13 @@ function SupplierRow({ supplier }: { supplier: Supplier }) {
       </td>
 
       <td className="px-6 py-6 text-sm text-neutral-500">
-        {supplier.claimed_at 
-          ? new Date(supplier.claimed_at).toLocaleDateString('en-GB')
-          : new Date(supplier.invited_at || supplier.created_at).toLocaleDateString('en-GB')
-        }
+        {formatDate(supplier.claimed_at || supplier.invited_at || supplier.created_at)}
       </td>
 
       <td className="px-8 py-6 text-right">
         <div className="flex items-center justify-end gap-4">
           <Link 
-            href={`/dashboard/suppliers/profiles?id=${supplier.id}`} 
+            href={`/dashboard/suppliers/profiles?id=${supplier.public_id}`} 
             className="inline-flex items-center gap-1.5 text-sm font-medium text-[#00b4d8] hover:underline"
           >
             View <ArrowRight className="w-4 h-4" />

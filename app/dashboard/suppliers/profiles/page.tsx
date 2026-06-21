@@ -11,7 +11,8 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
 interface SupplierProfile {
-  id: string;
+  id: number;                    // Internal bigint ID
+  public_id: string;             // New UUID for public use
   trading_name: string;
   legal_name: string | null;
   email: string;
@@ -46,11 +47,11 @@ function SupplierProfileContent() {
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', id)
+        .eq('public_id', id)           // ← Now querying by public_id (UUID)
         .single();
 
       if (error || !data) {
-        setError('Supplier not found');
+        setError('Supplier not found or you do not have access.');
       } else {
         setSupplier(data as SupplierProfile);
       }
@@ -59,6 +60,21 @@ function SupplierProfileContent() {
 
     fetchSupplier();
   }, [id]);
+
+  // Safe date formatter
+  const formatDate = (dateString: string | null | undefined) => {
+    if (!dateString) return '—';
+    try {
+      return new Date(dateString).toLocaleDateString('en-GB', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      });
+    } catch {
+      return '—';
+    }
+  };
 
   if (loading) {
     return (
@@ -83,9 +99,7 @@ function SupplierProfileContent() {
     );
   }
 
-  const statusColor = supplier.supplier_status === 'active' 
-    ? 'bg-emerald-100 text-emerald-700' 
-    : 'bg-amber-100 text-amber-700';
+  const isActive = supplier.supplier_status === 'active';
 
   return (
     <div className="min-h-screen bg-[#f8fafc]">
@@ -103,8 +117,8 @@ function SupplierProfileContent() {
             <div>
               <div className="flex items-center gap-4">
                 <h1 className="text-6xl font-black tracking-[-3.5px]">{supplier.trading_name}</h1>
-                <span className={`px-5 py-1.5 rounded-full text-sm font-semibold ${statusColor}`}>
-                  {supplier.supplier_status === 'active' ? 'Active' : 'Invited'}
+                <span className={`px-5 py-1.5 rounded-full text-sm font-semibold ${isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                  {isActive ? 'Active' : 'Invited'}
                 </span>
               </div>
               {supplier.legal_name && supplier.legal_name !== supplier.trading_name && (
@@ -133,13 +147,13 @@ function SupplierProfileContent() {
               <div className="bg-white rounded-3xl border border-neutral-200 p-6">
                 <div className="text-sm text-neutral-500 mb-2">Onboarding Status</div>
                 <div className="flex items-center gap-2">
-                  {supplier.supplier_status === 'active' ? (
+                  {isActive ? (
                     <CheckCircle className="w-6 h-6 text-emerald-600" />
                   ) : (
                     <Clock className="w-6 h-6 text-amber-600" />
                   )}
                   <span className="text-2xl font-semibold tracking-tight">
-                    {supplier.supplier_status === 'active' ? 'Complete' : 'Pending'}
+                    {isActive ? 'Complete' : 'Pending'}
                   </span>
                 </div>
               </div>
@@ -210,11 +224,7 @@ function SupplierProfileContent() {
                     <div className="w-3 h-3 mt-2 rounded-full bg-amber-500 flex-shrink-0" />
                     <div>
                       <div className="font-semibold">Invitation Sent</div>
-                      <div className="text-sm text-neutral-500">
-                        {new Date(supplier.invited_at).toLocaleDateString('en-GB', { 
-                          weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' 
-                        })}
-                      </div>
+                      <div className="text-sm text-neutral-500">{formatDate(supplier.invited_at)}</div>
                     </div>
                   </div>
                 )}
@@ -224,11 +234,7 @@ function SupplierProfileContent() {
                     <div className="w-3 h-3 mt-2 rounded-full bg-emerald-600 flex-shrink-0" />
                     <div>
                       <div className="font-semibold">Profile Claimed & Activated</div>
-                      <div className="text-sm text-neutral-500">
-                        {new Date(supplier.claimed_at).toLocaleDateString('en-GB', { 
-                          weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' 
-                        })}
-                      </div>
+                      <div className="text-sm text-neutral-500">{formatDate(supplier.claimed_at)}</div>
                     </div>
                   </div>
                 )}
@@ -237,11 +243,7 @@ function SupplierProfileContent() {
                   <div className="w-3 h-3 mt-2 rounded-full bg-neutral-400 flex-shrink-0" />
                   <div>
                     <div className="font-semibold">Record Created</div>
-                    <div className="text-sm text-neutral-500">
-                      {new Date(supplier.created_at).toLocaleDateString('en-GB', { 
-                        weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' 
-                      })}
-                    </div>
+                    <div className="text-sm text-neutral-500">{formatDate(supplier.created_at)}</div>
                   </div>
                 </div>
               </div>
@@ -265,12 +267,15 @@ function SupplierProfileContent() {
               </div>
             </div>
 
+            {/* System Metadata - Now using public_id */}
             <div className="bg-white rounded-3xl border border-neutral-200 p-8 text-sm">
               <div className="text-neutral-500 mb-4 font-medium">SYSTEM METADATA</div>
               <div className="space-y-4 text-neutral-600">
                 <div className="flex justify-between">
                   <span>Supplier ID</span>
-                  <span className="font-mono text-xs">{supplier.id.slice(0, 8)}...</span>
+                  <span className="font-mono text-xs">
+                    {supplier.public_id?.slice(0, 8)}...
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span>Status</span>
@@ -278,7 +283,7 @@ function SupplierProfileContent() {
                 </div>
                 <div className="flex justify-between">
                   <span>Last Updated</span>
-                  <span>{supplier.updated_at ? new Date(supplier.updated_at).toLocaleDateString() : '—'}</span>
+                  <span>{supplier.updated_at ? formatDate(supplier.updated_at) : '—'}</span>
                 </div>
               </div>
             </div>
