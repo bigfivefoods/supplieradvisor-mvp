@@ -241,9 +241,10 @@ export default function OnboardingContent() {
 
       // Handle invite flow
       if (inviteToken && inviteData) {
-        profileData.relationship_type = 'supplier';
-        profileData.supplier_status = 'active';
-        profileData.invite_token = null;
+          profileData.relationship_type = 'supplier';
+          profileData.supplier_status = 'active';
+          profileData.invite_token = null;
+          profileData.claimed_at = new Date().toISOString();
       } else {
         profileData.created_at = form.created_at || new Date().toISOString();
       }
