@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { 
@@ -8,6 +8,7 @@ import {
   Calendar, Clock, CheckCircle, AlertCircle 
 } from 'lucide-react';
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 
 interface SupplierProfile {
   id: string;
@@ -26,7 +27,7 @@ interface SupplierProfile {
   invited_by: string | null;
 }
 
-export default function SupplierProfilePage() {
+function SupplierProfileContent() {
   const searchParams = useSearchParams();
   const id = searchParams.get('id');
   
@@ -37,7 +38,7 @@ export default function SupplierProfilePage() {
   useEffect(() => {
     const fetchSupplier = async () => {
       if (!id) {
-        setError('No supplier ID provided');
+        setError('No supplier selected. Please choose a supplier from the directory.');
         setLoading(false);
         return;
       }
@@ -48,9 +49,8 @@ export default function SupplierProfilePage() {
         .eq('id', id)
         .single();
 
-      if (error) {
+      if (error || !data) {
         setError('Supplier not found');
-        console.error(error);
       } else {
         setSupplier(data as SupplierProfile);
       }
@@ -73,10 +73,10 @@ export default function SupplierProfilePage() {
       <div className="min-h-screen bg-[#f8fafc] p-8">
         <div className="max-w-4xl mx-auto text-center py-20">
           <AlertCircle className="w-16 h-16 mx-auto text-red-500 mb-6" />
-          <h1 className="text-4xl font-black tracking-[-2px] mb-4">Supplier Not Found</h1>
+          <h1 className="text-4xl font-black tracking-[-2px] mb-4">Supplier Profile</h1>
           <p className="text-xl text-neutral-600 mb-8">{error}</p>
-          <Link href="/dashboard/suppliers" className="btn-primary px-8 py-3 inline-flex items-center gap-2">
-            <ArrowLeft className="w-4 h-4" /> Back to Suppliers
+          <Link href="/dashboard/suppliers/directory" className="btn-primary px-8 py-3 inline-flex items-center gap-2">
+            <ArrowLeft className="w-4 h-4" /> Go to Supplier Directory
           </Link>
         </div>
       </div>
@@ -95,7 +95,7 @@ export default function SupplierProfilePage() {
         <div className="flex items-center justify-between mb-10">
           <div className="flex items-center gap-4">
             <Link 
-              href="/dashboard/suppliers" 
+              href="/dashboard/suppliers/directory" 
               className="p-3 hover:bg-white rounded-2xl transition-colors border border-transparent hover:border-neutral-200"
             >
               <ArrowLeft className="w-5 h-5" />
@@ -125,7 +125,7 @@ export default function SupplierProfilePage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
-          {/* Left Column - Key Info */}
+          {/* Left Column */}
           <div className="lg:col-span-2 space-y-8">
             
             {/* Overview Cards */}
@@ -154,11 +154,7 @@ export default function SupplierProfilePage() {
               <div className="bg-white rounded-3xl border border-neutral-200 p-6">
                 <div className="text-sm text-neutral-500 mb-2">Website</div>
                 {supplier.website ? (
-                  <a 
-                    href={supplier.website} 
-                    target="_blank" 
-                    className="text-[#00b4d8] hover:underline text-xl font-medium break-all"
-                  >
+                  <a href={supplier.website} target="_blank" className="text-[#00b4d8] hover:underline text-xl font-medium break-all">
                     {supplier.website.replace(/^https?:\/\//, '')}
                   </a>
                 ) : (
@@ -252,9 +248,8 @@ export default function SupplierProfilePage() {
             </div>
           </div>
 
-          {/* Right Sidebar - Actions & Meta */}
+          {/* Right Sidebar */}
           <div className="space-y-6">
-            
             <div className="bg-white rounded-3xl border border-neutral-200 p-8">
               <h4 className="font-bold text-xl tracking-tight mb-6">Quick Actions</h4>
               <div className="space-y-3">
@@ -287,11 +282,22 @@ export default function SupplierProfilePage() {
                 </div>
               </div>
             </div>
-
           </div>
         </div>
-
       </div>
     </div>
+  );
+}
+
+// Main export wrapped in Suspense
+export default function SupplierProfilePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#00b4d8]"></div>
+      </div>
+    }>
+      <SupplierProfileContent />
+    </Suspense>
   );
 }
