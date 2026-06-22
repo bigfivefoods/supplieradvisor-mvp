@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
       .insert({
         profile_id: String(companyId),
         name: name || null,
-        email: email.toLowerCase(),           // ← FIX: required column
+        email: email.toLowerCase(),
         invited_email: email.toLowerCase(),
         role: role || 'member',
         status: 'invited',
@@ -45,7 +45,8 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
-    const inviteLink = `https://supplieradvisor-mvp.vercel.app/onboarding?invite=${token}`;
+    // ✅ Updated link to the new dedicated team invitation page
+    const inviteLink = `https://supplieradvisor-mvp.vercel.app/onboarding/team?invite=${token}`;
 
     await resend.emails.send({
       from: 'Big Five Foods <onboarding@resend.dev>',
