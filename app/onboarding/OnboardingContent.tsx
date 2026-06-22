@@ -25,7 +25,6 @@ export default function OnboardingContent() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Form state for claim flow
   const [formData, setFormData] = useState({
     contact_name: '',
     contact_phone: '',
@@ -33,7 +32,7 @@ export default function OnboardingContent() {
     confirmPassword: '',
   });
 
-  // ==================== INVITE TOKEN VALIDATION ====================
+  // Validate invite token
   useEffect(() => {
     const validateInvite = async () => {
       if (!inviteToken) {
@@ -43,7 +42,7 @@ export default function OnboardingContent() {
 
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, trading_name, legal_name, email, contact_name, contact_phone, supplier_status')
+        .select('id, trading_name, legal_name, email, contact_name, contact_phone')
         .eq('invite_token', inviteToken)
         .eq('supplier_status', 'invited')
         .single();
@@ -71,7 +70,7 @@ export default function OnboardingContent() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  // ==================== CLAIM + CREATE PASSWORD ====================
+  // ==================== CLAIM + AUTO LOGIN ====================
   const handleClaimProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -96,16 +95,14 @@ export default function OnboardingContent() {
         email: invitedProfile.email,
         password: formData.password,
         options: {
-          data: {
-            trading_name: invitedProfile.trading_name,
-          },
+          data: { trading_name: invitedProfile.trading_name },
         },
       });
 
       if (authError) throw authError;
 
-      // 2. Update the invited profile to active + claimed
-      const { error: updateError } = await supabase
+      // 2. Update profile to active
+      await supabase
         .from('profiles')
         .update({
           supplier_status: 'active',
@@ -116,9 +113,7 @@ export default function OnboardingContent() {
         })
         .eq('invite_token', inviteToken);
 
-      if (updateError) throw updateError;
-
-      // 3. Create business_users ownership record (if needed)
+      // 3. Create business_users ownership record
       if (authData.user?.id) {
         await supabase.from('business_users').insert({
           user_id: authData.user.id,
@@ -127,15 +122,23 @@ export default function OnboardingContent() {
           status: 'active',
           joined_at: new Date().toISOString(),
         });
+
+        // 4. Automatically sign them in
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: invitedProfile.email,
+          password: formData.password,
+        });
+
+        if (signInError) throw signInError;
       }
 
       setMode('success');
       toast.success('Profile claimed successfully!');
 
-      // Redirect to login after short delay
+      // Redirect to dashboard
       setTimeout(() => {
-        router.push('/login?claimed=true');
-      }, 2000);
+        router.push('/dashboard/select-company');
+      }, 1200);
 
     } catch (err: any) {
       console.error(err);
@@ -145,7 +148,7 @@ export default function OnboardingContent() {
     }
   };
 
-  // ==================== RENDER STATES ====================
+  // ==================== RENDER ====================
 
   if (mode === 'loading') {
     return (
@@ -161,10 +164,7 @@ export default function OnboardingContent() {
         <div className="max-w-md text-center">
           <CheckCircle className="w-16 h-16 mx-auto text-emerald-500 mb-6" />
           <h1 className="text-4xl font-black tracking-[-2px] mb-4">Welcome to SupplierAdvisor!</h1>
-          <p className="text-xl text-neutral-600 mb-8">
-            Your supplier profile has been activated. You can now log in with your email and password.
-          </p>
-          <p className="text-sm text-neutral-500">Redirecting to login...</p>
+          <p className="text-xl text-neutral-600">Your profile has been activated. Redirecting to your dashboard...</p>
         </div>
       </div>
     );
@@ -182,7 +182,7 @@ export default function OnboardingContent() {
     );
   }
 
-  // ==================== CLAIM MODE (Invite Flow) ====================
+  // CLAIM MODE
   if (mode === 'claim' && invitedProfile) {
     return (
       <div className="min-h-screen bg-[#f8fafc] py-12 px-6">
@@ -193,7 +193,6 @@ export default function OnboardingContent() {
           </div>
 
           <div className="bg-white rounded-3xl border border-neutral-200 p-10">
-            {/* Company Header */}
             <div className="mb-8 pb-8 border-b">
               <div className="text-sm text-neutral-500 mb-1">You are claiming</div>
               <div className="text-4xl font-black tracking-[-2px]">{invitedProfile.trading_name}</div>
@@ -212,7 +211,6 @@ export default function OnboardingContent() {
                     value={formData.contact_name}
                     onChange={handleInputChange}
                     className="w-full px-6 py-4 bg-white border border-neutral-200 rounded-2xl text-lg focus:outline-none focus:border-[#00b4d8]"
-                    placeholder="John Doe"
                   />
                 </div>
                 <div>
@@ -223,25 +221,17 @@ export default function OnboardingContent() {
                     value={formData.contact_phone}
                     onChange={handleInputChange}
                     className="w-full px-6 py-4 bg-white border border-neutral-200 rounded-2xl text-lg focus:outline-none focus:border-[#00b4d8]"
-                    placeholder="+27 XX XXX XXXX"
                   />
                 </div>
               </div>
 
-              {/* Password Section */}
               <div className="pt-6 border-t">
-                <h3 className="font-semibold text-xl tracking-tight mb-6">Create Your Login Credentials</h3>
+                <h3 className="font-semibold text-xl tracking-tight mb-6">Create Your Login</h3>
 
                 <div className="space-y-6">
                   <div>
                     <label className="block text-sm font-medium text-neutral-700 mb-2">Email Address</label>
-                    <input
-                      type="email"
-                      value={invitedProfile.email}
-                      disabled
-                      className="w-full px-6 py-4 bg-neutral-100 border border-neutral-200 rounded-2xl text-lg text-neutral-500"
-                    />
-                    <p className="text-xs text-neutral-500 mt-1.5">This email will be used to log in</p>
+                    <input type="email" value={invitedProfile.email} disabled className="w-full px-6 py-4 bg-neutral-100 border border-neutral-200 rounded-2xl text-lg text-neutral-500" />
                   </div>
 
                   <div>
@@ -251,10 +241,9 @@ export default function OnboardingContent() {
                       name="password"
                       value={formData.password}
                       onChange={handleInputChange}
-                      required
-                      minLength={8}
+                      required minLength={8}
                       className="w-full px-6 py-4 bg-white border border-neutral-200 rounded-2xl text-lg focus:outline-none focus:border-[#00b4d8]"
-                      placeholder="Create a secure password"
+                      placeholder="Create a secure password (min 8 characters)"
                     />
                   </div>
 
@@ -285,17 +274,11 @@ export default function OnboardingContent() {
                 className="w-full py-4 bg-[#00b4d8] hover:bg-[#0099b8] disabled:bg-neutral-400 text-white text-lg font-semibold rounded-2xl transition-colors flex items-center justify-center gap-2"
               >
                 {saving ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" /> Claiming Profile...
-                  </>
+                  <> <Loader2 className="w-5 h-5 animate-spin" /> Creating Account... </>
                 ) : (
                   'Claim Profile & Create Account'
                 )}
               </button>
-
-              <p className="text-center text-xs text-neutral-500">
-                By claiming this profile, you agree to SupplierAdvisor’s Terms of Service and Privacy Policy.
-              </p>
             </form>
           </div>
         </div>
@@ -303,13 +286,12 @@ export default function OnboardingContent() {
     );
   }
 
-  // ==================== NORMAL ONBOARDING MODE (Fallback) ====================
+  // Normal onboarding fallback
   return (
     <div className="min-h-screen bg-[#f8fafc] py-12 px-6">
       <div className="max-w-2xl mx-auto text-center">
         <h1 className="text-5xl font-black tracking-[-3px] mb-4">Complete Your Business Profile</h1>
-        <p className="text-xl text-neutral-600 mb-8">This is the normal onboarding flow.</p>
-        <p className="text-neutral-500">You can build out the full rich onboarding form here later.</p>
+        <p className="text-xl text-neutral-600">Normal onboarding flow (can be expanded later).</p>
       </div>
     </div>
   );
