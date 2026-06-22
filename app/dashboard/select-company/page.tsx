@@ -29,25 +29,18 @@ export default function SelectCompanyPage() {
         const userIds: string[] = [];
         let userEmail: string | null = null;
 
-        // 1. Get Privy user ID + email
+        // 1. Get Privy user ID
         if (privyUser?.id) {
           const cleanPrivyId = privyUser.id.replace('privy:', '');
-          userIds.push(cleanPrivyId);
+          userIds.push(privyUser.id); // Use full ID with did: prefix
           userEmail = privyUser.email ? String(privyUser.email) : null;
-        }
-
-        // 2. Get Supabase Auth user ID + email
-        const { data: { user: supabaseUser } } = await supabase.auth.getUser();
-        if (supabaseUser?.id) {
-          userIds.push(supabaseUser.id);
-          if (!userEmail) userEmail = supabaseUser.email || null;
         }
 
         let allCompanies: Company[] = [];
 
-        // 3. Fetch via business_users (proper links)
+        // 2. Fetch via business_users (main path)
         if (userIds.length > 0) {
-          const { data: businessUsers } = await supabase
+          const { data: businessUsers, error } = await supabase
             .from('business_users')
             .select(`
               role,
@@ -58,8 +51,12 @@ export default function SelectCompanyPage() {
                 supplier_status
               )
             `)
-            .in('user_id', userIds)
+            .eq('user_id', userIds[0]) // Use .eq instead of .in() to avoid 400 error
             .eq('status', 'active');
+
+          if (error) {
+            console.error('business_users query error:', error);
+          }
 
           if (businessUsers) {
             const linked = businessUsers
@@ -69,19 +66,21 @@ export default function SelectCompanyPage() {
                 trading_name: bu.profiles.trading_name,
                 legal_name: bu.profiles.legal_name,
                 supplier_status: bu.profiles.supplier_status,
-                role: bu.role,
+                role: bu.role || 'owner',
                 source: 'linked' as const,
               }));
             allCompanies = [...linked];
           }
         }
 
-        // 4. Fallback: Case-insensitive email match
+        // 3. Fallback: Email match (case-insensitive)
         if (userEmail) {
-          const { data: emailMatches } = await supabase
+          const { data: emailMatches, error: emailError } = await supabase
             .from('profiles')
             .select('id, trading_name, legal_name, supplier_status')
-            .ilike('email', userEmail);   // ← Case-insensitive match
+            .ilike('email', userEmail);
+
+          if (emailError) console.error('Email fallback error:', emailError);
 
           if (emailMatches) {
             const emailCompanies = emailMatches.map((profile: any) => ({
@@ -101,6 +100,7 @@ export default function SelectCompanyPage() {
           }
         }
 
+        console.log('Final companies loaded:', allCompanies);
         setCompanies(allCompanies);
       } catch (error) {
         console.error('Error loading companies:', error);
