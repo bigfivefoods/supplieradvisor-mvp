@@ -23,12 +23,12 @@ export async function POST(request: NextRequest) {
 
     const token = randomUUID();
 
-    // Insert into business_users
     const { error: insertError } = await supabaseAdmin
       .from('business_users')
       .insert({
         profile_id: String(companyId),
-        name: name || null,                    // ← FIX: allow null for invitations
+        name: name || null,
+        email: email.toLowerCase(),           // ← FIX: required column
         invited_email: email.toLowerCase(),
         role: role || 'member',
         status: 'invited',
@@ -47,8 +47,7 @@ export async function POST(request: NextRequest) {
 
     const inviteLink = `https://supplieradvisor-mvp.vercel.app/onboarding?invite=${token}`;
 
-    // Send invitation email
-    const { error: emailError } = await resend.emails.send({
+    await resend.emails.send({
       from: 'Big Five Foods <onboarding@resend.dev>',
       to: email,
       subject: `You've been invited to join ${companyName} on SupplierAdvisor`,
@@ -65,11 +64,6 @@ export async function POST(request: NextRequest) {
         </div>
       `,
     });
-
-    if (emailError) {
-      console.error('Email error:', emailError);
-      // Invitation record was created successfully, so we still return success
-    }
 
     return NextResponse.json({ 
       success: true, 
