@@ -28,9 +28,13 @@ interface SupplierProfile {
   location: string | null;
   industry: string | null;
   sub_industry: string | null;
+  continent: string | null;
+  country: string | null;
+  province: string | null;
+  certifications: string[] | null;
 }
 
-type SortOption = 'name' | 'category' | 'onboarded' | 'status';
+type SortOption = 'name' | 'industry' | 'onboarded' | 'status';
 
 function SupplierProfileContent() {
   const searchParams = useSearchParams();
@@ -48,21 +52,23 @@ function SupplierProfileContent() {
   // Checkbox Filter States
   const [selectedIndustries, setSelectedIndustries] = useState<string[]>([]);
   const [selectedSubIndustries, setSelectedSubIndustries] = useState<string[]>([]);
-  const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
-  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
+  const [selectedCountries, setSelectedCountries] = useState<string[]>([]);
+  const [selectedProvinces, setSelectedProvinces] = useState<string[]>([]);
+  const [selectedCertifications, setSelectedCertifications] = useState<string[]>([]);
 
   // Expandable sections
   const [expandedSections, setExpandedSections] = useState({
     industry: true,
     subIndustry: true,
     location: true,
-    status: true,
+    certifications: true,
   });
 
   const toggleSection = (section: keyof typeof expandedSections) => {
     setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
   };
 
+  // Fetch suppliers
   const fetchActiveSuppliers = async () => {
     const { data, error } = await supabase
       .from('profiles')
@@ -93,13 +99,14 @@ function SupplierProfileContent() {
     }
   }, [selectedId]);
 
-  // Dynamic unique values
+  // ===================== DYNAMIC FILTER OPTIONS =====================
   const uniqueIndustries = Array.from(new Set(suppliers.map(s => s.industry).filter(Boolean))) as string[];
   const uniqueSubIndustries = Array.from(new Set(suppliers.map(s => s.sub_industry).filter(Boolean))) as string[];
-  const uniqueLocations = Array.from(new Set(suppliers.map(s => s.location).filter(Boolean))) as string[];
-  const uniqueStatuses = Array.from(new Set(suppliers.map(s => s.supplier_status))) as string[];
+  const uniqueCountries = Array.from(new Set(suppliers.map(s => s.country).filter(Boolean))) as string[];
+  const uniqueProvinces = Array.from(new Set(suppliers.map(s => s.province).filter(Boolean))) as string[];
+  const uniqueCertifications = Array.from(new Set(suppliers.flatMap(s => s.certifications || []))) as string[];
 
-  // ===================== ELON-STYLE FILTERING =====================
+  // ===================== FILTERING LOGIC =====================
   const getFilteredSuppliers = () => {
     let result = [...suppliers];
 
@@ -110,38 +117,44 @@ function SupplierProfileContent() {
         s.trading_name?.toLowerCase().includes(term) ||
         s.legal_name?.toLowerCase().includes(term) ||
         s.email?.toLowerCase().includes(term) ||
-        s.contact_name?.toLowerCase().includes(term) ||
-        s.category?.toLowerCase().includes(term) ||
         s.industry?.toLowerCase().includes(term) ||
         s.sub_industry?.toLowerCase().includes(term) ||
-        s.location?.toLowerCase().includes(term)
+        s.country?.toLowerCase().includes(term) ||
+        s.province?.toLowerCase().includes(term)
       );
     }
 
-    // Industry filter
+    // Industry
     if (selectedIndustries.length > 0) {
       result = result.filter(s => s.industry && selectedIndustries.includes(s.industry));
     }
 
-    // Sub-Industry filter
+    // Sub-Industry
     if (selectedSubIndustries.length > 0) {
       result = result.filter(s => s.sub_industry && selectedSubIndustries.includes(s.sub_industry));
     }
 
-    // Location filter
-    if (selectedLocations.length > 0) {
-      result = result.filter(s => s.location && selectedLocations.includes(s.location));
+    // Country
+    if (selectedCountries.length > 0) {
+      result = result.filter(s => s.country && selectedCountries.includes(s.country));
     }
 
-    // Status filter
-    if (selectedStatuses.length > 0) {
-      result = result.filter(s => selectedStatuses.includes(s.supplier_status));
+    // Province
+    if (selectedProvinces.length > 0) {
+      result = result.filter(s => s.province && selectedProvinces.includes(s.province));
+    }
+
+    // Certifications (must have ALL selected certs)
+    if (selectedCertifications.length > 0) {
+      result = result.filter(s =>
+        s.certifications && selectedCertifications.every(cert => s.certifications!.includes(cert))
+      );
     }
 
     // Sorting
     result.sort((a, b) => {
       if (sortBy === 'name') return a.trading_name.localeCompare(b.trading_name);
-      if (sortBy === 'category') return (a.category || '').localeCompare(b.category || '');
+      if (sortBy === 'industry') return (a.industry || '').localeCompare(b.industry || '');
       if (sortBy === 'onboarded') {
         const dateA = a.claimed_at || a.created_at;
         const dateB = b.claimed_at || b.created_at;
@@ -165,24 +178,35 @@ function SupplierProfileContent() {
     setSelectedSubIndustries(prev => prev.includes(sub) ? prev.filter(s => s !== sub) : [...prev, sub]);
   };
 
-  const toggleLocation = (location: string) => {
-    setSelectedLocations(prev => prev.includes(location) ? prev.filter(l => l !== location) : [...prev, location]);
+  const toggleCountry = (country: string) => {
+    setSelectedCountries(prev => prev.includes(country) ? prev.filter(c => c !== country) : [...prev, country]);
   };
 
-  const toggleStatus = (status: string) => {
-    setSelectedStatuses(prev => prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status]);
+  const toggleProvince = (province: string) => {
+    setSelectedProvinces(prev => prev.includes(province) ? prev.filter(p => p !== province) : [...prev, province]);
+  };
+
+  const toggleCertification = (cert: string) => {
+    setSelectedCertifications(prev =>
+      prev.includes(cert) ? prev.filter(c => c !== cert) : [...prev, cert]
+    );
   };
 
   const clearAllFilters = () => {
     setSearchTerm('');
     setSelectedIndustries([]);
     setSelectedSubIndustries([]);
-    setSelectedLocations([]);
-    setSelectedStatuses([]);
+    setSelectedCountries([]);
+    setSelectedProvinces([]);
+    setSelectedCertifications([]);
   };
 
-  const activeFilterCount = selectedIndustries.length + selectedSubIndustries.length + selectedLocations.length + selectedStatuses.length;
-  const hasActiveFilters = activeFilterCount > 0 || searchTerm;
+  const activeFilterCount =
+    selectedIndustries.length +
+    selectedSubIndustries.length +
+    selectedCountries.length +
+    selectedProvinces.length +
+    selectedCertifications.length;
 
   // ==================== LIST VIEW ====================
   if (!selectedId) {
@@ -191,19 +215,19 @@ function SupplierProfileContent() {
         <div className="flex justify-between items-end mb-10">
           <div>
             <p className="text-sm text-neutral-500 mb-1">SUPPLIERS</p>
-            <h1 className="font-black text-6xl tracking-[-3.5px]">Active Suppliers</h1>
+            <h1 className="font-black text-6xl tracking-[-3.5px]">Supplier Profiles</h1>
           </div>
           <Link href="/dashboard/suppliers/add" className="btn-primary px-8 py-3 flex items-center gap-2">
-            <Plus className="w-4 h-4" /> Add Supplier
+            <Plus className="w-4 h-4" /> Add New Supplier
           </Link>
         </div>
 
-        {/* Search + Controls */}
+        {/* Search Bar + Filter Toggle */}
         <div className="flex flex-col lg:flex-row gap-4 mb-6">
           <div className="relative flex-1">
             <input
               type="text"
-              placeholder="Search suppliers..."
+              placeholder="Search by company name, industry, location..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-6 pr-12 py-4 bg-white border border-neutral-200 rounded-3xl text-lg focus:outline-none focus:border-[#00b4d8]"
@@ -215,31 +239,40 @@ function SupplierProfileContent() {
             )}
           </div>
 
-          <button onClick={() => setShowFilters(!showFilters)} className="flex items-center gap-2 px-6 py-4 border border-neutral-200 rounded-3xl hover:bg-white transition-colors">
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className="flex items-center gap-2 px-6 py-4 border border-neutral-200 rounded-3xl hover:bg-white transition-colors"
+          >
             <Filter className="w-4 h-4" /> Filters
-            {activeFilterCount > 0 && <span className="ml-1 px-2 py-0.5 bg-[#00b4d8] text-white text-xs rounded-full">{activeFilterCount}</span>}
+            {activeFilterCount > 0 && (
+              <span className="ml-1 px-2 py-0.5 bg-[#00b4d8] text-white text-xs rounded-full">
+                {activeFilterCount}
+              </span>
+            )}
           </button>
 
           <div className="flex items-center gap-2 px-5 bg-white border border-neutral-200 rounded-3xl">
             <ArrowUpDown className="w-4 h-4 text-neutral-500" />
             <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortOption)} className="bg-transparent py-4 pr-8 text-sm font-medium focus:outline-none">
               <option value="name">Sort by Name</option>
-              <option value="category">Sort by Category</option>
-              <option value="onboarded">Sort by Onboarded</option>
+              <option value="industry">Sort by Industry</option>
+              <option value="onboarded">Sort by Recently Onboarded</option>
               <option value="status">Sort by Status</option>
             </select>
           </div>
         </div>
 
-        {/* WORLD-CLASS EXPANDABLE FILTERS */}
+        {/* EXPANDABLE CHECKBOX FILTERS */}
         {showFilters && (
           <div className="mb-8 bg-white border border-neutral-200 rounded-3xl p-8">
             <div className="flex justify-between items-center mb-6">
               <h3 className="font-semibold text-xl tracking-tight flex items-center gap-2">
-                <Filter className="w-5 h-5" /> Filter by Criteria
+                <Filter className="w-5 h-5" /> Filter Suppliers
               </h3>
-              {hasActiveFilters && (
-                <button onClick={clearAllFilters} className="text-sm text-[#00b4d8] hover:underline">Clear all filters</button>
+              {activeFilterCount > 0 && (
+                <button onClick={clearAllFilters} className="text-sm text-[#00b4d8] hover:underline">
+                  Clear all filters
+                </button>
               )}
             </div>
 
@@ -251,13 +284,13 @@ function SupplierProfileContent() {
                   Industry {expandedSections.industry ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                 </button>
                 {expandedSections.industry && (
-                  <div className="space-y-2 pl-1 max-h-48 overflow-auto">
+                  <div className="space-y-2 pl-1 max-h-52 overflow-auto">
                     {uniqueIndustries.length > 0 ? uniqueIndustries.map(ind => (
                       <label key={ind} className="flex items-center gap-3 cursor-pointer text-sm">
                         <input type="checkbox" checked={selectedIndustries.includes(ind)} onChange={() => toggleIndustry(ind)} className="w-4 h-4 accent-[#00b4d8]" />
                         {ind}
                       </label>
-                    )) : <p className="text-sm text-neutral-400">No data yet</p>}
+                    )) : <p className="text-sm text-neutral-400">No industry data yet</p>}
                   </div>
                 )}
               </div>
@@ -268,13 +301,13 @@ function SupplierProfileContent() {
                   Sub-Industry {expandedSections.subIndustry ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                 </button>
                 {expandedSections.subIndustry && (
-                  <div className="space-y-2 pl-1 max-h-48 overflow-auto">
+                  <div className="space-y-2 pl-1 max-h-52 overflow-auto">
                     {uniqueSubIndustries.length > 0 ? uniqueSubIndustries.map(sub => (
                       <label key={sub} className="flex items-center gap-3 cursor-pointer text-sm">
                         <input type="checkbox" checked={selectedSubIndustries.includes(sub)} onChange={() => toggleSubIndustry(sub)} className="w-4 h-4 accent-[#00b4d8]" />
                         {sub}
                       </label>
-                    )) : <p className="text-sm text-neutral-400">No data yet</p>}
+                    )) : <p className="text-sm text-neutral-400">No sub-industry data yet</p>}
                   </div>
                 )}
               </div>
@@ -285,30 +318,49 @@ function SupplierProfileContent() {
                   Location {expandedSections.location ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                 </button>
                 {expandedSections.location && (
-                  <div className="space-y-2 pl-1 max-h-48 overflow-auto">
-                    {uniqueLocations.length > 0 ? uniqueLocations.map(loc => (
-                      <label key={loc} className="flex items-center gap-3 cursor-pointer text-sm">
-                        <input type="checkbox" checked={selectedLocations.includes(loc)} onChange={() => toggleLocation(loc)} className="w-4 h-4 accent-[#00b4d8]" />
-                        {loc}
-                      </label>
-                    )) : <p className="text-sm text-neutral-400">No data yet</p>}
+                  <div className="space-y-4 pl-1">
+                    {/* Country */}
+                    <div>
+                      <div className="text-xs font-medium text-neutral-500 mb-1.5">Country</div>
+                      <div className="space-y-1.5 max-h-40 overflow-auto">
+                        {uniqueCountries.length > 0 ? uniqueCountries.map(country => (
+                          <label key={country} className="flex items-center gap-3 cursor-pointer text-sm">
+                            <input type="checkbox" checked={selectedCountries.includes(country)} onChange={() => toggleCountry(country)} className="w-4 h-4 accent-[#00b4d8]" />
+                            {country}
+                          </label>
+                        )) : <p className="text-xs text-neutral-400">No country data yet</p>}
+                      </div>
+                    </div>
+
+                    {/* Province */}
+                    <div>
+                      <div className="text-xs font-medium text-neutral-500 mb-1.5">Province / State</div>
+                      <div className="space-y-1.5 max-h-40 overflow-auto">
+                        {uniqueProvinces.length > 0 ? uniqueProvinces.map(prov => (
+                          <label key={prov} className="flex items-center gap-3 cursor-pointer text-sm">
+                            <input type="checkbox" checked={selectedProvinces.includes(prov)} onChange={() => toggleProvince(prov)} className="w-4 h-4 accent-[#00b4d8]" />
+                            {prov}
+                          </label>
+                        )) : <p className="text-xs text-neutral-400">No province data yet</p>}
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
 
-              {/* Status */}
+              {/* Certifications */}
               <div>
-                <button onClick={() => toggleSection('status')} className="flex w-full justify-between items-center mb-3 text-left font-semibold">
-                  Status {expandedSections.status ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                <button onClick={() => toggleSection('certifications')} className="flex w-full justify-between items-center mb-3 text-left font-semibold">
+                  Certifications {expandedSections.certifications ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                 </button>
-                {expandedSections.status && (
-                  <div className="space-y-2 pl-1">
-                    {uniqueStatuses.map(status => (
-                      <label key={status} className="flex items-center gap-3 cursor-pointer text-sm">
-                        <input type="checkbox" checked={selectedStatuses.includes(status)} onChange={() => toggleStatus(status)} className="w-4 h-4 accent-[#00b4d8]" />
-                        <span className="capitalize">{status}</span>
+                {expandedSections.certifications && (
+                  <div className="flex flex-wrap gap-2">
+                    {uniqueCertifications.length > 0 ? uniqueCertifications.map(cert => (
+                      <label key={cert} className="flex items-center gap-2 px-4 py-2 bg-neutral-100 hover:bg-neutral-200 rounded-2xl cursor-pointer text-sm transition-colors">
+                        <input type="checkbox" checked={selectedCertifications.includes(cert)} onChange={() => toggleCertification(cert)} className="w-4 h-4 accent-[#00b4d8]" />
+                        {cert}
                       </label>
-                    ))}
+                    )) : <p className="text-sm text-neutral-400">No certification data yet</p>}
                   </div>
                 )}
               </div>
@@ -328,7 +380,11 @@ function SupplierProfileContent() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredSuppliers.map((s) => (
-              <Link key={s.public_id} href={`/dashboard/suppliers/profiles?id=${s.public_id}`} className="group bg-white border border-neutral-200 rounded-3xl p-6 hover:border-[#00b4d8] hover:shadow-xl transition-all">
+              <Link 
+                key={s.public_id} 
+                href={`/dashboard/suppliers/profiles?id=${s.public_id}`} 
+                className="group bg-white border border-neutral-200 rounded-3xl p-6 hover:border-[#00b4d8] hover:shadow-xl transition-all"
+              >
                 <div className="flex justify-between items-start mb-4">
                   <h3 className="font-bold text-2xl tracking-tight group-hover:text-[#00b4d8] pr-4">{s.trading_name}</h3>
                   <span className={`px-3 py-1 rounded-full text-xs font-semibold ${s.supplier_status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
@@ -338,9 +394,16 @@ function SupplierProfileContent() {
                 <div className="text-sm space-y-1">
                   {s.contact_name && <div>{s.contact_name}</div>}
                   <div className="text-neutral-500">{s.email}</div>
-                  {(s.industry || s.sub_industry || s.location) && (
+                  {(s.industry || s.country || s.province) && (
                     <div className="pt-2 text-xs text-neutral-600">
-                      {[s.industry, s.sub_industry, s.location].filter(Boolean).join(' • ')}
+                      {[s.industry, s.country, s.province].filter(Boolean).join(' • ')}
+                    </div>
+                  )}
+                  {s.certifications && s.certifications.length > 0 && (
+                    <div className="pt-1 flex flex-wrap gap-1">
+                      {s.certifications.slice(0, 3).map((cert, i) => (
+                        <span key={i} className="text-[10px] px-2 py-0.5 bg-neutral-100 rounded-full">{cert}</span>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -352,7 +415,7 @@ function SupplierProfileContent() {
     );
   }
 
-  // ==================== DETAIL VIEW (kept concise) ====================
+  // ==================== DETAIL VIEW ====================
   if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   if (!supplier) return <div className="min-h-screen flex items-center justify-center">Supplier not found</div>;
 
@@ -382,23 +445,47 @@ function SupplierProfileContent() {
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
           <div className="xl:col-span-2 space-y-8">
+            {/* Metadata Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-white rounded-3xl border p-6"><div className="text-sm text-neutral-500 mb-1">Industry</div><div className="text-2xl font-semibold tracking-tight">{supplier.industry || '—'}</div></div>
-              <div className="bg-white rounded-3xl border p-6"><div className="text-sm text-neutral-500 mb-1">Sub-Industry</div><div className="text-2xl font-semibold tracking-tight">{supplier.sub_industry || '—'}</div></div>
-              <div className="bg-white rounded-3xl border p-6"><div className="text-sm text-neutral-500 mb-1">Location</div><div className="text-2xl font-semibold tracking-tight">{supplier.location || '—'}</div></div>
+              <div className="bg-white rounded-3xl border p-6">
+                <div className="text-sm text-neutral-500 mb-1">Industry</div>
+                <div className="text-2xl font-semibold tracking-tight">{supplier.industry || '—'}</div>
+              </div>
+              <div className="bg-white rounded-3xl border p-6">
+                <div className="text-sm text-neutral-500 mb-1">Sub-Industry</div>
+                <div className="text-2xl font-semibold tracking-tight">{supplier.sub_industry || '—'}</div>
+              </div>
+              <div className="bg-white rounded-3xl border p-6">
+                <div className="text-sm text-neutral-500 mb-1">Location</div>
+                <div className="text-2xl font-semibold tracking-tight">{supplier.location || supplier.country || '—'}</div>
+              </div>
             </div>
 
+            {/* Contact Information */}
             <div className="bg-white rounded-3xl border p-8">
               <h3 className="font-bold text-2xl tracking-tight mb-6">Contact Information</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6 text-lg">
                 <div><span className="text-neutral-500 text-sm block">Primary Contact</span>{supplier.contact_name || '—'}</div>
                 <div><span className="text-neutral-500 text-sm block">Email</span><a href={`mailto:${supplier.email}`} className="text-[#00b4d8] hover:underline">{supplier.email}</a></div>
                 <div><span className="text-neutral-500 text-sm block">Phone</span>{supplier.contact_phone || '—'}</div>
-                <div><span className="text-neutral-500 text-sm block">Location</span>{supplier.location || '—'}</div>
+                <div><span className="text-neutral-500 text-sm block">Location</span>{supplier.location || supplier.country || '—'}</div>
               </div>
             </div>
+
+            {/* Certifications */}
+            {supplier.certifications && supplier.certifications.length > 0 && (
+              <div className="bg-white rounded-3xl border p-8">
+                <h3 className="font-bold text-2xl tracking-tight mb-4">Certifications</h3>
+                <div className="flex flex-wrap gap-2">
+                  {supplier.certifications.map((cert, index) => (
+                    <span key={index} className="px-4 py-2 bg-neutral-100 rounded-2xl text-sm">{cert}</span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
+          {/* Quick Actions Sidebar */}
           <div className="space-y-6">
             <div className="bg-white rounded-3xl border p-8">
               <h4 className="font-bold text-xl tracking-tight mb-6">Quick Actions</h4>
