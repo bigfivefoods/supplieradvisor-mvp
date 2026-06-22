@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { CheckCircle, Loader2, AlertCircle, Users } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-export default function TeamOnboarding() {
+function TeamOnboardingContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const inviteToken = searchParams.get('invite');
@@ -254,5 +254,18 @@ export default function TeamOnboarding() {
         </p>
       </div>
     </div>
+  );
+}
+
+// ✅ This wrapper fixes the prerender error
+export default function TeamOnboarding() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]">
+        <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
+      </div>
+    }>
+      <TeamOnboardingContent />
+    </Suspense>
   );
 }
