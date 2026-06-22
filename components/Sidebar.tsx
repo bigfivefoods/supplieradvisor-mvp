@@ -46,10 +46,9 @@ const modules = [
     icon: Truck, 
     href: '/dashboard/suppliers',
     sub: [
-      { name: 'Supplier Directory', href: '/dashboard/suppliers/directory' },
+      { name: 'Supplier Profiles', href: '/dashboard/suppliers/profiles' },
       { name: 'Add New Supplier', href: '/dashboard/suppliers/add' },
       { name: 'Sent Supplier Invitations', href: '/dashboard/suppliers/invites' },
-      { name: 'Supplier Profiles', href: '/dashboard/suppliers/profiles' },
       { name: 'Purchase Orders', href: '/dashboard/suppliers/po' },
       { name: 'Supplier Contracts', href: '/dashboard/suppliers/contracts' },
       { name: 'Supplier RIAD Log', href: '/dashboard/suppliers/riad-log' },
@@ -63,10 +62,9 @@ const modules = [
     icon: Users, 
     href: '/dashboard/customers',
     sub: [
-      { name: 'Customer Directory', href: '/dashboard/customers/directory' },
+      { name: 'Customer Profiles', href: '/dashboard/customers/profiles' },
       { name: 'Add New Customer', href: '/dashboard/customers/onboard' },
       { name: 'Sent Customer Invitations', href: '/dashboard/customers/invites' },
-      { name: 'Customer Profiles', href: '/dashboard/customers/profiles' },
       { name: 'Sales Orders', href: '/dashboard/customers/orders' },
       { name: 'Customer Contracts', href: '/dashboard/customers/contracts' },
       { name: 'Customer Loyalty Program', href: '/dashboard/customers/loyalty' },
