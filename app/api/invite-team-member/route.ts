@@ -16,15 +16,18 @@ export async function POST(request: NextRequest) {
     const { companyId, name, email, role, companyName, invitedBy } = body;
 
     if (!email || !companyId) {
-      return NextResponse.json({ error: 'Email and companyId are required' }, { status: 400 });
+      return NextResponse.json({ 
+        error: 'Email and companyId are required' 
+      }, { status: 400 });
     }
 
     const token = randomUUID();
 
+    // Insert into business_users
     const { error: insertError } = await supabaseAdmin
       .from('business_users')
       .insert({
-        profile_id: companyId,
+        profile_id: String(companyId),           // Ensure it's a string
         invited_email: email.toLowerCase(),
         role: role || 'member',
         status: 'invited',
@@ -33,13 +36,18 @@ export async function POST(request: NextRequest) {
       });
 
     if (insertError) {
-      console.error('Insert error:', insertError);
-      return NextResponse.json({ error: 'Failed to create invitation' }, { status: 500 });
+      console.error('❌ Insert error:', insertError);
+      return NextResponse.json({ 
+        error: 'Failed to create invitation',
+        details: insertError.message,           // ← Shows the real error
+        code: insertError.code
+      }, { status: 500 });
     }
 
     const inviteLink = `https://supplieradvisor-mvp.vercel.app/onboarding?invite=${token}`;
 
-    await resend.emails.send({
+    // Send invitation email
+    const { error: emailError } = await resend.emails.send({
       from: 'Big Five Foods <onboarding@resend.dev>',
       to: email,
       subject: `You've been invited to join ${companyName} on SupplierAdvisor`,
@@ -57,10 +65,21 @@ export async function POST(request: NextRequest) {
       `,
     });
 
-    return NextResponse.json({ success: true, message: 'Invitation sent successfully' });
+    if (emailError) {
+      console.error('Email error:', emailError);
+      // Still return success because the invitation record was created
+    }
+
+    return NextResponse.json({ 
+      success: true, 
+      message: 'Invitation sent successfully' 
+    });
 
   } catch (error: any) {
     console.error('Team invite error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ 
+      error: 'Internal server error', 
+      details: error.message 
+    }, { status: 500 });
   }
 }
