@@ -27,7 +27,8 @@ export async function POST(request: NextRequest) {
     const { error: insertError } = await supabaseAdmin
       .from('business_users')
       .insert({
-        profile_id: String(companyId),           // Ensure it's a string
+        profile_id: String(companyId),
+        name: name || null,                    // ← FIX: allow null for invitations
         invited_email: email.toLowerCase(),
         role: role || 'member',
         status: 'invited',
@@ -39,7 +40,7 @@ export async function POST(request: NextRequest) {
       console.error('❌ Insert error:', insertError);
       return NextResponse.json({ 
         error: 'Failed to create invitation',
-        details: insertError.message,           // ← Shows the real error
+        details: insertError.message,
         code: insertError.code
       }, { status: 500 });
     }
@@ -67,7 +68,7 @@ export async function POST(request: NextRequest) {
 
     if (emailError) {
       console.error('Email error:', emailError);
-      // Still return success because the invitation record was created
+      // Invitation record was created successfully, so we still return success
     }
 
     return NextResponse.json({ 
