@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { ArrowRight, CheckCircle, Loader2, AlertCircle } from 'lucide-react';
+import { CheckCircle, Loader2, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface InvitedProfile {
@@ -32,7 +32,7 @@ export default function OnboardingContent() {
     confirmPassword: '',
   });
 
-  // Validate invite token
+  // ==================== VALIDATE INVITE TOKEN ====================
   useEffect(() => {
     const validateInvite = async () => {
       if (!inviteToken) {
@@ -70,7 +70,7 @@ export default function OnboardingContent() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  // ==================== CLAIM + AUTO LOGIN ====================
+  // ==================== CLAIM + CREATE ACCOUNT (NO LOGIN REQUIRED) ====================
   const handleClaimProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -81,7 +81,6 @@ export default function OnboardingContent() {
       setError('Passwords do not match.');
       return;
     }
-
     if (formData.password.length < 8) {
       setError('Password must be at least 8 characters long.');
       return;
@@ -90,7 +89,7 @@ export default function OnboardingContent() {
     setSaving(true);
 
     try {
-      // 1. Create Supabase Auth user
+      // 1. Create new Supabase Auth user (this is the main intended path)
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: invitedProfile.email,
         password: formData.password,
@@ -101,8 +100,8 @@ export default function OnboardingContent() {
 
       if (authError) throw authError;
 
-      // 2. Update profile to active
-      await supabase
+      // 2. Update the invited profile to active
+      const { error: updateError } = await supabase
         .from('profiles')
         .update({
           supplier_status: 'active',
@@ -113,42 +112,50 @@ export default function OnboardingContent() {
         })
         .eq('invite_token', inviteToken);
 
-      // 3. Create business_users ownership record
+      if (updateError) throw updateError;
+
+      // 3. Create ownership record in business_users (with better error handling)
       if (authData.user?.id) {
-        await supabase.from('business_users').insert({
-          user_id: authData.user.id,
-          profile_id: invitedProfile.id,
-          role: 'owner',
-          status: 'active',
-          joined_at: new Date().toISOString(),
-        });
+        const { error: ownershipError } = await supabase
+          .from('business_users')
+          .insert({
+            user_id: authData.user.id,
+            profile_id: invitedProfile.id,
+            role: 'owner',
+            status: 'active',
+            joined_at: new Date().toISOString(),
+          });
 
-        // 4. Automatically sign them in
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: invitedProfile.email,
-          password: formData.password,
-        });
-
-        if (signInError) throw signInError;
+        if (ownershipError) {
+          console.error('Failed to create business_users record:', ownershipError);
+          // Continue anyway - the profile is claimed. Ownership can be fixed manually if needed.
+        }
       }
+
+      // 4. Automatically sign them in
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: invitedProfile.email,
+        password: formData.password,
+      });
+
+      if (signInError) throw signInError;
 
       setMode('success');
       toast.success('Profile claimed successfully!');
 
-      // Redirect to dashboard
       setTimeout(() => {
         router.push('/dashboard/select-company');
       }, 1200);
 
     } catch (err: any) {
-      console.error(err);
+      console.error('Claim error:', err);
       setError(err.message || 'Something went wrong. Please try again.');
     } finally {
       setSaving(false);
     }
   };
 
-  // ==================== RENDER ====================
+  // ==================== RENDER STATES ====================
 
   if (mode === 'loading') {
     return (
@@ -164,7 +171,7 @@ export default function OnboardingContent() {
         <div className="max-w-md text-center">
           <CheckCircle className="w-16 h-16 mx-auto text-emerald-500 mb-6" />
           <h1 className="text-4xl font-black tracking-[-2px] mb-4">Welcome to SupplierAdvisor!</h1>
-          <p className="text-xl text-neutral-600">Your profile has been activated. Redirecting to your dashboard...</p>
+          <p className="text-xl text-neutral-600">Your supplier profile has been activated. Redirecting...</p>
         </div>
       </div>
     );
@@ -182,7 +189,7 @@ export default function OnboardingContent() {
     );
   }
 
-  // CLAIM MODE
+  // ==================== CLAIM MODE ====================
   if (mode === 'claim' && invitedProfile) {
     return (
       <div className="min-h-screen bg-[#f8fafc] py-12 px-6">
@@ -226,12 +233,13 @@ export default function OnboardingContent() {
               </div>
 
               <div className="pt-6 border-t">
-                <h3 className="font-semibold text-xl tracking-tight mb-6">Create Your Login</h3>
+                <h3 className="font-semibold text-xl tracking-tight mb-6">Create Your Login Credentials</h3>
 
                 <div className="space-y-6">
                   <div>
                     <label className="block text-sm font-medium text-neutral-700 mb-2">Email Address</label>
                     <input type="email" value={invitedProfile.email} disabled className="w-full px-6 py-4 bg-neutral-100 border border-neutral-200 rounded-2xl text-lg text-neutral-500" />
+                    <p className="text-xs text-neutral-500 mt-1.5">This will be your login email</p>
                   </div>
 
                   <div>
@@ -243,7 +251,7 @@ export default function OnboardingContent() {
                       onChange={handleInputChange}
                       required minLength={8}
                       className="w-full px-6 py-4 bg-white border border-neutral-200 rounded-2xl text-lg focus:outline-none focus:border-[#00b4d8]"
-                      placeholder="Create a secure password (min 8 characters)"
+                      placeholder="Create a secure password"
                     />
                   </div>
 
@@ -274,7 +282,7 @@ export default function OnboardingContent() {
                 className="w-full py-4 bg-[#00b4d8] hover:bg-[#0099b8] disabled:bg-neutral-400 text-white text-lg font-semibold rounded-2xl transition-colors flex items-center justify-center gap-2"
               >
                 {saving ? (
-                  <> <Loader2 className="w-5 h-5 animate-spin" /> Creating Account... </>
+                  <> <Loader2 className="w-5 h-5 animate-spin" /> Claiming Profile... </>
                 ) : (
                   'Claim Profile & Create Account'
                 )}
@@ -291,7 +299,7 @@ export default function OnboardingContent() {
     <div className="min-h-screen bg-[#f8fafc] py-12 px-6">
       <div className="max-w-2xl mx-auto text-center">
         <h1 className="text-5xl font-black tracking-[-3px] mb-4">Complete Your Business Profile</h1>
-        <p className="text-xl text-neutral-600">Normal onboarding flow (can be expanded later).</p>
+        <p className="text-xl text-neutral-600">This is the standard onboarding flow.</p>
       </div>
     </div>
   );
