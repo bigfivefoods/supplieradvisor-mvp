@@ -36,7 +36,7 @@ export default function SelectCompanyPage() {
           userEmail = privyUser.email ? String(privyUser.email) : null;
         }
 
-        // 2. Get Supabase Auth user ID + email (from claim flow login)
+        // 2. Get Supabase Auth user ID + email
         const { data: { user: supabaseUser } } = await supabase.auth.getUser();
         if (supabaseUser?.id) {
           userIds.push(supabaseUser.id);
@@ -45,7 +45,7 @@ export default function SelectCompanyPage() {
 
         let allCompanies: Company[] = [];
 
-        // 3. Fetch companies via business_users (properly linked)
+        // 3. Fetch via business_users (proper links)
         if (userIds.length > 0) {
           const { data: businessUsers } = await supabase
             .from('business_users')
@@ -62,7 +62,7 @@ export default function SelectCompanyPage() {
             .eq('status', 'active');
 
           if (businessUsers) {
-            const linkedCompanies = businessUsers
+            const linked = businessUsers
               .filter((bu: any) => bu.profiles)
               .map((bu: any) => ({
                 id: bu.profiles.id,
@@ -72,16 +72,16 @@ export default function SelectCompanyPage() {
                 role: bu.role,
                 source: 'linked' as const,
               }));
-            allCompanies = [...linkedCompanies];
+            allCompanies = [...linked];
           }
         }
 
-        // 4. Fallback: Also fetch companies by email match
+        // 4. Fallback: Case-insensitive email match
         if (userEmail) {
           const { data: emailMatches } = await supabase
             .from('profiles')
             .select('id, trading_name, legal_name, supplier_status')
-            .eq('email', userEmail);
+            .ilike('email', userEmail);   // ← Case-insensitive match
 
           if (emailMatches) {
             const emailCompanies = emailMatches.map((profile: any) => ({
@@ -93,7 +93,6 @@ export default function SelectCompanyPage() {
               source: 'email_match' as const,
             }));
 
-            // Avoid duplicates
             emailCompanies.forEach((ec) => {
               if (!allCompanies.some((c) => c.id === ec.id)) {
                 allCompanies.push(ec);
