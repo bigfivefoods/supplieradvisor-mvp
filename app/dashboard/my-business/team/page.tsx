@@ -71,7 +71,7 @@ function TeamContent() {
     loadData();
   }, [companyId]);
 
-  // Invite new team member
+  // Invite new team member (with better error handling)
   const addTeamMember = async () => {
     if (!newTeamMember.email || !companyId) {
       toast.error('Email and company are required');
@@ -96,11 +96,17 @@ function TeamContent() {
 
       const result = await response.json();
 
-      if (!response.ok) throw new Error(result.error || 'Failed to send invitation');
+      if (!response.ok) {
+        // Show the real error from the server
+        const errorMessage = result.details || result.error || 'Failed to create invitation';
+        console.error('Server error details:', result);
+        toast.error(errorMessage);
+        return;
+      }
 
       toast.success(`✅ Invitation sent to ${newTeamMember.email}`);
 
-      // Refresh list
+      // Refresh the team list
       const { data: members } = await supabase
         .from('business_users')
         .select('*')
@@ -109,6 +115,7 @@ function TeamContent() {
 
       if (members) setTeamMembers(members);
       setNewTeamMember({ name: '', email: '', role: '' });
+
     } catch (err: any) {
       console.error('Invite error:', err);
       toast.error(err.message || 'Failed to send invitation');
