@@ -39,36 +39,38 @@ const modules = [
     ]
   },
 
+  // ==================== SUPPLIERS ====================
   {  
-  id: 'suppliers', 
-  name: 'Suppliers', 
-  icon: Truck, 
-  href: '/dashboard/suppliers',
-  sub: [
-    { name: 'Supplier Directory', href: '/dashboard/suppliers/directory' },
-    { name: 'Sent Invitations', href: '/dashboard/suppliers/invites' },
-    { name: 'Profiles', href: '/dashboard/suppliers/profiles' },
-    { name: 'Add New Supplier', href: '/dashboard/suppliers/add' },
-    { name: 'Purchase Orders', href: '/dashboard/suppliers/po' },
-    { name: 'Contracts', href: '/dashboard/suppliers/contracts' },
-    { name: 'Risk Alerts', href: '/dashboard/suppliers/risk-alerts' },
-    { name: 'Portal', href: '/dashboard/suppliers/portal' },
-  ]
+    id: 'suppliers', 
+    name: 'Suppliers', 
+    icon: Truck, 
+    href: '/dashboard/suppliers',
+    sub: [
+      { name: 'Supplier Directory', href: '/dashboard/suppliers/directory' },
+      { name: 'Add New Supplier', href: '/dashboard/suppliers/add' },
+      { name: 'Sent Supplier Invitations', href: '/dashboard/suppliers/invites' },
+      { name: 'Supplier Profiles', href: '/dashboard/suppliers/profiles' },
+      { name: 'Purchase Orders', href: '/dashboard/suppliers/po' },
+      { name: 'Supplier Contracts', href: '/dashboard/suppliers/contracts' },
+      { name: 'Supplier RIAD Log', href: '/dashboard/suppliers/riad-log' },
+    ]
   },
 
+  // ==================== CUSTOMERS ====================
   { 
     id: 'customers', 
     name: 'Customers', 
     icon: Users, 
     href: '/dashboard/customers',
     sub: [
-      { name: 'Profiles', href: '/dashboard/customers/profiles' },
-      { name: 'Onboard Customer', href: '/dashboard/customers/onboard' },
-      { name: 'Orders', href: '/dashboard/customers/orders' },
-      { name: 'Quotes', href: '/dashboard/customers/quotes' },
-      { name: 'Claims', href: '/dashboard/customers/claims' },
-      { name: 'Loyalty', href: '/dashboard/customers/loyalty' },
-      { name: 'Portal', href: '/dashboard/customers/portal' },
+      { name: 'Customer Directory', href: '/dashboard/customers/directory' },
+      { name: 'Add New Customer', href: '/dashboard/customers/onboard' },
+      { name: 'Sent Customer Invitations', href: '/dashboard/customers/invites' },
+      { name: 'Customer Profiles', href: '/dashboard/customers/profiles' },
+      { name: 'Sales Orders', href: '/dashboard/customers/orders' },
+      { name: 'Customer Contracts', href: '/dashboard/customers/contracts' },
+      { name: 'Customer Loyalty Program', href: '/dashboard/customers/loyalty' },
+      { name: 'Customer RIAD Log', href: '/dashboard/customers/riad-log' },
     ]
   },
 
