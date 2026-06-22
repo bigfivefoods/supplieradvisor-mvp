@@ -217,21 +217,30 @@ export default function Sidebar() {
 
           return (
             <div key={mod.id} className="mb-1">
-              <div 
-                onClick={() => mod.sub.length > 0 && toggleModule(mod.id)}
-                className={`flex items-center justify-between px-5 py-3.5 rounded-3xl cursor-pointer transition-all ${
-                  isActive ? 'bg-[#00b4d8] text-white' : 'hover:bg-neutral-100'
-                }`}
-              >
+              <div className={`flex items-center justify-between px-5 py-3.5 rounded-3xl transition-all ${
+                isActive ? 'bg-[#00b4d8] text-white' : 'hover:bg-neutral-100'
+              }`}>
+                
+                {/* Main Link (navigates) */}
                 <Link href={mod.href} className="flex items-center gap-3 flex-1">
                   <Icon className="w-5 h-5" />
                   <span className="font-semibold">{mod.name}</span>
                 </Link>
 
+                {/* Chevron - only for toggling submenu on mobile + desktop */}
                 {mod.sub.length > 0 && (
-                  <ChevronDown 
-                    className={`w-5 h-5 transition-transform ${isExpanded ? 'rotate-180' : ''}`} 
-                  />
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      toggleModule(mod.id);
+                    }}
+                    className="p-2 -mr-2 rounded-xl hover:bg-white/20 transition-colors"
+                  >
+                    <ChevronDown 
+                      className={`w-5 h-5 transition-transform ${isExpanded ? 'rotate-180' : ''}`} 
+                    />
+                  </button>
                 )}
               </div>
 

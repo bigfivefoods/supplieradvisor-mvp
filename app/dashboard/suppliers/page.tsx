@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { 
   Truck, Plus, Users, FileText, AlertTriangle, 
-  ArrowRight, Package 
+  ArrowRight, Package, Award 
 } from 'lucide-react';
 
 interface Supplier {
@@ -59,13 +59,53 @@ export default function SuppliersHub() {
     loadSuppliers();
   }, []);
 
+  // Updated Quick Navigation Cards
+  const quickLinks = [
+    { 
+      title: "Supplier Profiles", 
+      desc: "Browse and manage all supplier profiles with rich filters", 
+      href: "/dashboard/suppliers/profiles", 
+      icon: Users 
+    },
+    { 
+      title: "Add New Supplier", 
+      desc: "Onboard a new supplier into the system", 
+      href: "/dashboard/suppliers/add", 
+      icon: Plus 
+    },
+    { 
+      title: "Sent Supplier Invitations", 
+      desc: "Track pending and sent supplier invitations", 
+      href: "/dashboard/suppliers/invites", 
+      icon: Package 
+    },
+    { 
+      title: "Purchase Orders", 
+      desc: "Create and manage supplier purchase orders", 
+      href: "/dashboard/suppliers/po", 
+      icon: FileText 
+    },
+    { 
+      title: "Supplier Contracts", 
+      desc: "View and manage supplier contracts and agreements", 
+      href: "/dashboard/suppliers/contracts", 
+      icon: Award 
+    },
+    { 
+      title: "Supplier RIAD Log", 
+      desc: "Returns, Issues, Adjustments & Disputes", 
+      href: "/dashboard/suppliers/riad-log", 
+      icon: AlertTriangle 
+    },
+  ];
+
   return (
     <div className="px-4 md:px-8 lg:pr-12 py-8 lg:py-12 max-w-screen-2xl mx-auto">
       
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-10">
         <div>
-          <p className="text-sm text-neutral-500 mb-1">Supply Chain</p>
+          <p className="text-sm text-neutral-500 mb-1">SUPPLIERS</p>
           <h1 className="font-black text-5xl md:text-6xl tracking-[-2.5px]">Suppliers</h1>
           <p className="text-xl text-neutral-600 mt-2">Manage your supplier ecosystem</p>
         </div>
@@ -122,26 +162,19 @@ export default function SuppliersHub() {
               <AlertTriangle className="w-6 h-6 text-red-600" />
             </div>
             <div>
-              <div className="text-4xl font-black tracking-tighter">0</div>
-              <div className="text-sm text-neutral-600">High Risk</div>
+              <div className="text-4xl font-black tracking-tighter">14</div>
+              <div className="text-sm text-neutral-600">Open RIADs</div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Quick Navigation Cards */}
+      {/* Quick Navigation Cards - Updated */}
       <div className="mb-10">
         <h3 className="font-bold text-xl tracking-tight mb-6">Supplier Management</h3>
         
         <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {[
-            { title: "Supplier Directory", desc: "Browse and search all suppliers", href: "/dashboard/suppliers/directory", icon: Users },
-            { title: "Sent Invitations", desc: "Track invites you've sent", href: "/dashboard/suppliers/invites", icon: Package },
-            { title: "Add New Supplier", desc: "Onboard a new supplier", href: "/dashboard/suppliers/add", icon: Plus },
-            { title: "Purchase Orders", desc: "Manage POs and deliveries", href: "/dashboard/suppliers/po", icon: Package },
-            { title: "Contracts", desc: "View and manage agreements", href: "/dashboard/suppliers/contracts", icon: FileText },
-            { title: "Risk Alerts", desc: "Monitor supplier risks", href: "/dashboard/suppliers/risk-alerts", icon: AlertTriangle },
-          ].map((item, index) => {
+          {quickLinks.map((item, index) => {
             const Icon = item.icon;
             return (
               <Link 
@@ -163,12 +196,12 @@ export default function SuppliersHub() {
         </div>
       </div>
 
-      {/* Recently Added / Invited Suppliers */}
+      {/* Recently Added Suppliers */}
       <div className="bg-white rounded-3xl border border-neutral-200 p-8">
         <div className="flex items-center justify-between mb-6">
           <h3 className="font-bold text-xl tracking-tight">Recently Added Suppliers</h3>
-          <Link href="/dashboard/suppliers/invites" className="text-sm text-[#00b4d8] flex items-center gap-1">
-            View all invites <ArrowRight className="w-4 h-4" />
+          <Link href="/dashboard/suppliers/profiles" className="text-sm text-[#00b4d8] flex items-center gap-1">
+            View all suppliers <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
 
