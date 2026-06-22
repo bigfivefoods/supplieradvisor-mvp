@@ -13,7 +13,6 @@ function TeamContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { user } = usePrivy();
-  const cleanId = (user?.id || '').replace('privy:', '');
 
   const urlCompanyId = searchParams.get('companyId');
   const [companyId, setCompanyId] = useState<string | null>(
@@ -49,7 +48,6 @@ function TeamContent() {
 
       setLoading(true);
 
-      // Load company name
       const { data: company } = await supabase
         .from('profiles')
         .select('trading_name, legal_name')
@@ -60,7 +58,6 @@ function TeamContent() {
         setCompanyName(company.trading_name || company.legal_name || 'Your Company');
       }
 
-      // Load team members
       const { data: members } = await supabase
         .from('business_users')
         .select('*')
@@ -76,68 +73,67 @@ function TeamContent() {
 
   // Invite new team member
   const addTeamMember = async () => {
-    if (!newTeamMember.name || !newTeamMember.email) {
-      toast.error('Name and Email are required');
-      return;
-    }
-    if (!companyId) {
-      toast.error('No company selected');
+    if (!newTeamMember.email || !companyId) {
+      toast.error('Email and company are required');
       return;
     }
 
     setInviting(true);
 
     try {
-      const token = crypto.randomUUID();
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 7);
-
-      // Create invitation record
-      await supabase.from('invitations').insert({
-        token,
-        profile_id: Number(companyId),
-        invited_email: newTeamMember.email,
-        invited_by: cleanId,
-        role: newTeamMember.role || 'member',
-        status: 'pending',
-        expires_at: expiresAt.toISOString(),
+      const response = await fetch('/api/invite-team-member', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId: Number(companyId),
+          name: newTeamMember.name,
+          email: newTeamMember.email,
+          role: newTeamMember.role || 'member',
+          companyName: companyName,
+          invitedBy: user?.id,
+        }),
       });
 
-      // Send invitation email via Edge Function
-      await supabase.functions.invoke('send-team-invitation', {
-        body: {
-          to_email: newTeamMember.email,
-          to_name: newTeamMember.name,
-          company_name: companyName,
-          role: newTeamMember.role || 'Team Member',
-          inviter_name: 'The team',
-          token,
-        },
-      });
+      const result = await response.json();
+
+      if (!response.ok) throw new Error(result.error || 'Failed to send invitation');
 
       toast.success(`✅ Invitation sent to ${newTeamMember.email}`);
 
-      // Optimistically update UI
-      const memberData = {
-        profile_id: Number(companyId),
-        name: newTeamMember.name,
-        email: newTeamMember.email,
-        role: newTeamMember.role || 'Other',
-        status: 'invited',
-        invited_at: new Date().toISOString()
-      };
+      // Refresh list
+      const { data: members } = await supabase
+        .from('business_users')
+        .select('*')
+        .eq('profile_id', Number(companyId))
+        .order('created_at', { ascending: false });
 
-      setTeamMembers(prev => [memberData, ...prev]);
+      if (members) setTeamMembers(members);
       setNewTeamMember({ name: '', email: '', role: '' });
-    } catch (err) {
-      console.error(err);
-      toast.error('Failed to send invitation');
+    } catch (err: any) {
+      console.error('Invite error:', err);
+      toast.error(err.message || 'Failed to send invitation');
     } finally {
       setInviting(false);
     }
   };
 
-  // No company selected
+  // Status badge helper
+  const getStatusBadge = (status: string) => {
+    const isPending = status === 'invited' || status === 'pending';
+
+    return (
+      <div
+        className={`text-xs px-4 py-1.5 rounded-3xl font-medium self-start md:self-auto ${
+          isPending 
+            ? 'bg-yellow-100 text-yellow-700' 
+            : 'bg-emerald-100 text-emerald-700'
+        }`}
+      >
+        {isPending ? 'Pending' : 'Active'}
+      </div>
+    );
+  };
+
   if (!companyId) {
     return (
       <div className="px-4 md:px-8 lg:pr-12 py-12 max-w-md mx-auto text-center">
@@ -179,22 +175,32 @@ function TeamContent() {
 
         {teamMembers.length > 0 ? (
           <div className="space-y-3">
-            {teamMembers.map((member, index) => (
-              <div 
-                key={index} 
-                className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-neutral-50 p-5 rounded-2xl"
-              >
-                <div>
-                  <div className="font-semibold text-lg">{member.name}</div>
-                  <div className="text-sm text-neutral-500 mt-0.5">
-                    {member.email} • {member.role}
+            {teamMembers.map((member, index) => {
+              const isPending = member.status === 'invited' || member.status === 'pending';
+
+              return (
+                <div 
+                  key={index} 
+                  className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-neutral-50 p-5 rounded-2xl"
+                >
+                  <div>
+                    <div className="font-semibold text-lg">
+                      {member.invited_email || member.email || 'Team Member'}
+                    </div>
+                    <div className="text-sm text-neutral-500 mt-0.5">
+                      {member.invited_email || member.email} • {member.role || 'member'}
+                    </div>
+                    {isPending && member.created_at && (
+                      <div className="text-xs text-neutral-400 mt-1">
+                        Invited {new Date(member.created_at).toLocaleDateString()}
+                      </div>
+                    )}
                   </div>
+
+                  {getStatusBadge(member.status)}
                 </div>
-                <div className="text-xs px-4 py-1.5 bg-emerald-100 text-emerald-700 rounded-3xl font-medium self-start md:self-auto">
-                  {member.status || 'Active'}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="text-center py-8 text-neutral-500">
