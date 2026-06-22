@@ -12,6 +12,7 @@ interface Company {
   legal_name: string | null;
   supplier_status: string;
   role: string;
+  source: 'linked' | 'email_match';
 }
 
 export default function SelectCompanyPage() {
@@ -26,57 +27,82 @@ export default function SelectCompanyPage() {
 
       try {
         const userIds: string[] = [];
+        let userEmail: string | null = null;
 
-        // 1. Get Privy user ID (if logged in via Privy)
+        // 1. Get Privy user ID + email
         if (privyUser?.id) {
           const cleanPrivyId = privyUser.id.replace('privy:', '');
           userIds.push(cleanPrivyId);
+          userEmail = privyUser.email ? String(privyUser.email) : null;
         }
 
-        // 2. Get Supabase Auth user ID (if logged in via Supabase - e.g. after claiming)
+        // 2. Get Supabase Auth user ID + email (from claim flow login)
         const { data: { user: supabaseUser } } = await supabase.auth.getUser();
         if (supabaseUser?.id) {
           userIds.push(supabaseUser.id);
+          if (!userEmail) userEmail = supabaseUser.email || null;
         }
 
-        if (userIds.length === 0) {
-          setLoading(false);
-          return;
+        let allCompanies: Company[] = [];
+
+        // 3. Fetch companies via business_users (properly linked)
+        if (userIds.length > 0) {
+          const { data: businessUsers } = await supabase
+            .from('business_users')
+            .select(`
+              role,
+              profiles (
+                id,
+                trading_name,
+                legal_name,
+                supplier_status
+              )
+            `)
+            .in('user_id', userIds)
+            .eq('status', 'active');
+
+          if (businessUsers) {
+            const linkedCompanies = businessUsers
+              .filter((bu: any) => bu.profiles)
+              .map((bu: any) => ({
+                id: bu.profiles.id,
+                trading_name: bu.profiles.trading_name,
+                legal_name: bu.profiles.legal_name,
+                supplier_status: bu.profiles.supplier_status,
+                role: bu.role,
+                source: 'linked' as const,
+              }));
+            allCompanies = [...linkedCompanies];
+          }
         }
 
-        // 3. Fetch all companies linked to any of these user IDs
-        const { data: businessUsers, error } = await supabase
-          .from('business_users')
-          .select(`
-            role,
-            profiles (
-              id,
-              trading_name,
-              legal_name,
-              supplier_status
-            )
-          `)
-          .in('user_id', userIds)
-          .eq('status', 'active');
+        // 4. Fallback: Also fetch companies by email match
+        if (userEmail) {
+          const { data: emailMatches } = await supabase
+            .from('profiles')
+            .select('id, trading_name, legal_name, supplier_status')
+            .eq('email', userEmail);
 
-        if (error) {
-          console.error('Error fetching companies:', error);
-          setLoading(false);
-          return;
+          if (emailMatches) {
+            const emailCompanies = emailMatches.map((profile: any) => ({
+              id: profile.id,
+              trading_name: profile.trading_name,
+              legal_name: profile.legal_name,
+              supplier_status: profile.supplier_status,
+              role: 'owner',
+              source: 'email_match' as const,
+            }));
+
+            // Avoid duplicates
+            emailCompanies.forEach((ec) => {
+              if (!allCompanies.some((c) => c.id === ec.id)) {
+                allCompanies.push(ec);
+              }
+            });
+          }
         }
 
-        // 4. Format the results
-        const formattedCompanies: Company[] = (businessUsers || [])
-          .filter((bu: any) => bu.profiles)
-          .map((bu: any) => ({
-            id: bu.profiles.id,
-            trading_name: bu.profiles.trading_name,
-            legal_name: bu.profiles.legal_name,
-            supplier_status: bu.profiles.supplier_status,
-            role: bu.role,
-          }));
-
-        setCompanies(formattedCompanies);
+        setCompanies(allCompanies);
       } catch (error) {
         console.error('Error loading companies:', error);
       } finally {
@@ -88,7 +114,6 @@ export default function SelectCompanyPage() {
   }, [privyUser, ready]);
 
   const handleSelectCompany = (companyId: string) => {
-    // You can store the selected company in localStorage or context if needed
     localStorage.setItem('selectedCompanyId', companyId);
     router.push('/dashboard');
   };
@@ -152,7 +177,9 @@ export default function SelectCompanyPage() {
                 )}
 
                 <div className="flex items-center justify-between mt-8 pt-6 border-t">
-                  <span className="text-sm text-neutral-500">View Dashboard</span>
+                  <span className="text-sm text-neutral-500">
+                    {company.source === 'email_match' ? 'Email match' : 'View Dashboard'}
+                  </span>
                   <ArrowRight className="w-5 h-5 text-[#00b4d8] group-hover:translate-x-1 transition-transform" />
                 </div>
               </div>
