@@ -145,7 +145,7 @@ export default function PurchaseOrdersPage() {
 
       writeContract({
         address: PO_ESCROW_ADDRESS,
-        abi: POEscrowV2ABI.abi,
+        abi: POEscrowV2ABI.abi as any,
         functionName: 'createPO',
         args: [
           supplierWallet as `0x${string}`,
@@ -169,7 +169,7 @@ export default function PurchaseOrdersPage() {
     }
   };
 
-  // ==================== AUTO-SAVE ONCHAIN PO ID ====================
+  // ==================== AUTO-SAVE ONCHAIN PO ID (FIXED) ====================
   useEffect(() => {
     const linkOnchainPoId = async () => {
       if (!isConfirmed || !txHash || !publicClient) return;
@@ -178,7 +178,7 @@ export default function PurchaseOrdersPage() {
         const receipt = await publicClient.getTransactionReceipt({ hash: txHash });
 
         const parsedLogs = parseEventLogs({
-          abi: POEscrowV2ABI.abi,
+          abi: POEscrowV2ABI.abi as any,
           eventName: 'POCreated',
           logs: receipt.logs,
         });
@@ -186,13 +186,17 @@ export default function PurchaseOrdersPage() {
         const pendingSupabaseId = (window as any).__pendingSupabasePoId;
 
         if (parsedLogs.length > 0 && pendingSupabaseId) {
-          const poId = Number(parsedLogs[0].args.poId);
+          // Safe access to args (fixes TypeScript error)
+          const eventArgs = (parsedLogs[0] as any).args;
+          const poId = Number(eventArgs?.poId ?? eventArgs?.[0]);
 
-          await supabase.from('purchase_orders').update({ onchain_po_id: poId }).eq('id', pendingSupabaseId);
-          fetchPurchaseOrders();
-          delete (window as any).__pendingSupabasePoId;
+          if (poId) {
+            await supabase.from('purchase_orders').update({ onchain_po_id: poId }).eq('id', pendingSupabaseId);
+            fetchPurchaseOrders();
+            delete (window as any).__pendingSupabasePoId;
 
-          alert(`✅ Onchain PO #${poId} created and linked successfully!`);
+            alert(`✅ Onchain PO #${poId} created and linked successfully!`);
+          }
         }
       } catch (error) {
         console.error('Failed to link onchain PO ID:', error);
@@ -216,7 +220,7 @@ export default function PurchaseOrdersPage() {
 
       writeContract({
         address: PO_ESCROW_ADDRESS,
-        abi: POEscrowV2ABI.abi,
+        abi: POEscrowV2ABI.abi as any,
         functionName: 'fundPO',
         args: [BigInt(onchainPoId)],
         value: parseEther(amountInEth),
