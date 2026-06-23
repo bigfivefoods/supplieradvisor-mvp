@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { supabase } from '@/lib/supabase';
-import { Users, Building2, Send, CheckCircle } from 'lucide-react';
+import { Users, Building2, Send, CheckCircle, Search } from 'lucide-react';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 
 interface Membership {
@@ -32,57 +32,78 @@ export default function NetworkPage() {
 
   const [connections, setConnections] = useState<Connection[]>([]);
   const [targetProfileId, setTargetProfileId] = useState('');
+  const [targetCompanyName, setTargetCompanyName] = useState('');
+  const [lookingUp, setLookingUp] = useState(false);
 
-  // Load active companies (simple & reliable)
+  // Load companies with proper name fallback
   const loadMemberships = async () => {
     if (!user?.id) return;
 
-    try {
-      // Step 1: Get business_users
-      const { data: businessUsers, error } = await supabase
-        .from('business_users')
-        .select('profile_id, role')
-        .eq('user_id', user.id)
-        .eq('status', 'active');
+    const { data: businessUsers } = await supabase
+      .from('business_users')
+      .select('profile_id, role')
+      .eq('user_id', user.id)
+      .eq('status', 'active');
 
-      if (error || !businessUsers || businessUsers.length === 0) {
-        console.log('No active companies found or error:', error);
-        setMemberships([]);
-        return;
-      }
-
-      // Step 2: Get profile names
-      const profileIds = businessUsers.map((b: any) => b.profile_id);
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, trading_name, legal_name')
-        .in('id', profileIds);
-
-      // Merge
-      const formatted: Membership[] = businessUsers.map((bu: any) => {
-        const profile = profiles?.find((p: any) => p.id === bu.profile_id);
-        return {
-          profile_id: bu.profile_id,
-          role: bu.role,
-          trading_name: profile?.trading_name || profile?.legal_name || `Company ${bu.profile_id}`
-        };
-      });
-
-      setMemberships(formatted);
-
-      // Auto-select first company
-      const first = formatted[0];
-      setCurrentProfileId(first.profile_id);
-      setCurrentProfileName(first.trading_name);
-
-    } catch (err) {
-      console.error('Failed to load companies:', err);
+    if (!businessUsers || businessUsers.length === 0) {
+      setMemberships([]);
+      return;
     }
+
+    const profileIds = businessUsers.map((b: any) => b.profile_id);
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, trading_name, legal_name')
+      .in('id', profileIds);
+
+    const formatted: Membership[] = businessUsers.map((bu: any) => {
+      const profile = profiles?.find((p: any) => p.id === bu.profile_id);
+      const name = profile?.trading_name || profile?.legal_name || `Company ${bu.profile_id}`;
+      return {
+        profile_id: bu.profile_id,
+        role: bu.role,
+        trading_name: name
+      };
+    });
+
+    setMemberships(formatted);
+
+    const first = formatted[0];
+    setCurrentProfileId(first.profile_id);
+    setCurrentProfileName(first.trading_name);
   };
 
   useEffect(() => {
     loadMemberships();
   }, [user?.id]);
+
+  // Lookup target company name when user types ID
+  const lookupTargetCompany = async (id: string) => {
+    if (!id) {
+      setTargetCompanyName('');
+      return;
+    }
+
+    setLookingUp(true);
+    const { data } = await supabase
+      .from('profiles')
+      .select('trading_name, legal_name')
+      .eq('id', parseInt(id))
+      .single();
+
+    if (data) {
+      const name = data.trading_name || data.legal_name || `Company ${id}`;
+      setTargetCompanyName(name);
+    } else {
+      setTargetCompanyName('Company not found');
+    }
+    setLookingUp(false);
+  };
+
+  const handleTargetIdChange = (value: string) => {
+    setTargetProfileId(value);
+    lookupTargetCompany(value);
+  };
 
   const switchCompany = (m: Membership) => {
     setCurrentProfileId(m.profile_id);
@@ -108,13 +129,13 @@ export default function NetworkPage() {
 
   const handleSendConnection = async () => {
     if (!currentProfileId || !targetProfileId) {
-      alert('Please enter Target Profile ID');
+      alert('Please enter a Target Profile ID');
       return;
     }
 
     setLoading(true);
     try {
-      const sigMessage = `SupplierAdvisor Connection Request\nFrom: ${currentProfileName}\nTo: Profile ${targetProfileId}`;
+      const sigMessage = `SupplierAdvisor Connection Request\nFrom: ${currentProfileName} (ID: ${currentProfileId})\nTo: ${targetCompanyName} (ID: ${targetProfileId})`;
       const signature = await signMessage({ message: sigMessage });
 
       const { error } = await supabase.from('business_connections').insert({
@@ -126,8 +147,9 @@ export default function NetworkPage() {
 
       if (error) throw error;
 
-      alert('✅ Connection request sent!');
+      alert('✅ Connection request sent with onchain signature!');
       setTargetProfileId('');
+      setTargetCompanyName('');
       fetchConnections();
     } catch (err: any) {
       alert('Error: ' + err.message);
@@ -147,26 +169,19 @@ export default function NetworkPage() {
             <p className="text-xl text-neutral-600 mt-1">Onchain Business Connections</p>
           </div>
 
-          {/* Company Switcher */}
           {memberships.length > 1 && (
             <div className="relative">
-              <button
-                onClick={() => setShowSwitcher(!showSwitcher)}
-                className="flex items-center gap-3 bg-white border border-neutral-200 rounded-2xl px-4 py-2 hover:border-neutral-300"
-              >
+              <button onClick={() => setShowSwitcher(!showSwitcher)} className="flex items-center gap-3 bg-white border border-neutral-200 rounded-2xl px-4 py-2 hover:border-neutral-300">
                 <Building2 className="w-4 h-4 text-[#00b4d8]" />
                 <span className="font-semibold text-sm">{currentProfileName}</span>
               </button>
 
               {showSwitcher && (
-                <div className="absolute right-0 mt-2 w-72 bg-white border border-neutral-200 rounded-2xl shadow-xl z-50 py-2">
+                <div className="absolute right-0 mt-2 w-80 bg-white border border-neutral-200 rounded-2xl shadow-xl z-50 py-2">
                   {memberships.map((m) => (
-                    <button
-                      key={m.profile_id}
-                      onClick={() => switchCompany(m)}
-                      className={`w-full text-left px-4 py-3 hover:bg-neutral-50 ${m.profile_id === currentProfileId ? 'bg-[#00b4d8]/5' : ''}`}
-                    >
-                      {m.trading_name} <span className="text-xs text-neutral-500">({m.role})</span>
+                    <button key={m.profile_id} onClick={() => switchCompany(m)} className={`w-full text-left px-4 py-3 hover:bg-neutral-50 flex justify-between ${m.profile_id === currentProfileId ? 'bg-[#00b4d8]/5' : ''}`}>
+                      <span>{m.trading_name}</span>
+                      <span className="text-xs text-neutral-500">{m.role}</span>
                     </button>
                   ))}
                 </div>
@@ -175,20 +190,14 @@ export default function NetworkPage() {
           )}
         </div>
 
-        {/* No Active Company */}
-        {memberships.length === 0 && (
+        {memberships.length === 0 ? (
           <div className="bg-white rounded-3xl border border-neutral-200 p-12 text-center max-w-md mx-auto">
             <Building2 className="w-12 h-12 mx-auto text-neutral-400 mb-4" />
             <h2 className="text-2xl font-bold mb-2">No Active Company</h2>
             <p className="text-neutral-600 mb-6">You need to be part of an active company to use the Network.</p>
-            <a href="/dashboard/select-company" className="inline-block px-8 py-3 bg-[#00b4d8] text-white rounded-2xl font-semibold">
-              Go to Company Selector
-            </a>
+            <a href="/dashboard/select-company" className="inline-block px-8 py-3 bg-[#00b4d8] text-white rounded-2xl font-semibold">Go to Company Selector</a>
           </div>
-        )}
-
-        {/* Main Content */}
-        {memberships.length > 0 && currentProfileId && (
+        ) : (
           <>
             {/* Send Connection Request */}
             <div className="bg-white rounded-3xl border border-neutral-200 p-10 mb-10">
@@ -205,19 +214,31 @@ export default function NetworkPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium mb-2">Target Company Profile ID</label>
-                  <input
-                    type="number"
-                    value={targetProfileId}
-                    onChange={(e) => setTargetProfileId(e.target.value)}
-                    className="w-full px-6 py-4 border border-neutral-200 rounded-2xl text-lg focus:border-[#00b4d8]"
-                    placeholder="e.g. 102"
-                  />
+                  <div className="relative">
+                    <input
+                      type="number"
+                      value={targetProfileId}
+                      onChange={(e) => handleTargetIdChange(e.target.value)}
+                      className="w-full px-6 py-4 border border-neutral-200 rounded-2xl text-lg focus:border-[#00b4d8]"
+                      placeholder="e.g. 102"
+                    />
+                    {lookingUp && <Search className="absolute right-4 top-4 w-5 h-5 text-neutral-400 animate-pulse" />}
+                  </div>
+                  {targetCompanyName && (
+                    <div className="mt-2 text-sm text-neutral-600">
+                      {targetCompanyName === 'Company not found' ? (
+                        <span className="text-red-500">{targetCompanyName}</span>
+                      ) : (
+                        <span>→ {targetCompanyName}</span>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
               <button
                 onClick={handleSendConnection}
-                disabled={loading || !targetProfileId}
+                disabled={loading || !targetProfileId || targetCompanyName === 'Company not found'}
                 className="mt-8 w-full py-4 bg-[#00b4d8] text-white text-lg font-semibold rounded-2xl flex items-center justify-center gap-3 disabled:bg-neutral-300"
               >
                 {loading ? 'Signing onchain...' : <><Send className="w-5 h-5" /> Send Onchain Connection Request</>}
@@ -232,7 +253,7 @@ export default function NetworkPage() {
               </div>
 
               {connections.length === 0 ? (
-                <div className="text-center py-12 text-neutral-500">No connections yet.</div>
+                <div className="text-center py-12 text-neutral-500">No connections yet. Send your first request above.</div>
               ) : (
                 <div className="space-y-4">
                   {connections.map((conn) => (

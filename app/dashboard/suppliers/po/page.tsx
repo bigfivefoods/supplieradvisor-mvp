@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { supabase } from '@/lib/supabase';
-import { Plus, Trash2, Building2, CheckCircle, DollarSign, FileText } from 'lucide-react';
+import { Plus, Trash2, Building2, CheckCircle, DollarSign, FileText, Search } from 'lucide-react';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 
 interface LineItem {
@@ -26,7 +26,15 @@ interface PurchaseOrder {
 
 interface Membership {
   profile_id: number;
-  profile: { trading_name: string; legal_name: string | null };
+  trading_name: string;
+}
+
+interface SupplierProfile {
+  id: number;
+  trading_name: string | null;
+  legal_name: string | null;
+  registration_number?: string | null;
+  vat_number?: string | null;
 }
 
 export default function PurchaseOrdersPage() {
@@ -39,7 +47,10 @@ export default function PurchaseOrdersPage() {
   const [currentProfileName, setCurrentProfileName] = useState('');
   const [showSwitcher, setShowSwitcher] = useState(false);
 
+  // Form state
   const [supplierId, setSupplierId] = useState('');
+  const [supplierProfile, setSupplierProfile] = useState<SupplierProfile | null>(null);
+  const [lookingUpSupplier, setLookingUpSupplier] = useState(false);
   const [description, setDescription] = useState('');
   const [lineItems, setLineItems] = useState<LineItem[]>([
     { description: '', quantity: 1, unit_price: 0 }
@@ -47,53 +58,80 @@ export default function PurchaseOrdersPage() {
 
   const totalAmount = lineItems.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
 
+  // Load buyer's companies
   const loadMemberships = async () => {
     if (!user?.id) return;
 
-    const { data } = await supabase
+    const { data: businessUsers } = await supabase
       .from('business_users')
-      .select(`profile_id, profiles:profile_id (trading_name, legal_name)`)
+      .select('profile_id')
       .eq('user_id', user.id)
       .eq('status', 'active');
 
-    if (!data || data.length === 0) return;
+    if (!businessUsers || businessUsers.length === 0) return;
 
-    const formatted = data.map((m: any) => ({
-      profile_id: m.profile_id,
-      profile: Array.isArray(m.profiles) ? m.profiles[0] : m.profiles,
-    }));
+    const profileIds = businessUsers.map((b: any) => b.profile_id);
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, trading_name, legal_name')
+      .in('id', profileIds);
+
+    const formatted: Membership[] = businessUsers.map((bu: any) => {
+      const profile = profiles?.find((p: any) => p.id === bu.profile_id);
+      return {
+        profile_id: bu.profile_id,
+        trading_name: profile?.trading_name || profile?.legal_name || `Company ${bu.profile_id}`
+      };
+    });
 
     setMemberships(formatted);
 
-    const storageKey = `supplieradvisor_last_company_${user.id}`;
-    const savedId = localStorage.getItem(storageKey);
-    const savedProfileId = savedId ? parseInt(savedId) : null;
-
-    const defaultMembership = savedProfileId && formatted.some(m => m.profile_id === savedProfileId)
-      ? formatted.find(m => m.profile_id === savedProfileId)!
-      : formatted[0];
-
-    setCurrentProfileId(defaultMembership.profile_id);
-    setCurrentProfileName(
-      defaultMembership.profile?.trading_name || 
-      defaultMembership.profile?.legal_name || 
-      `Company ${defaultMembership.profile_id}`
-    );
+    const first = formatted[0];
+    setCurrentProfileId(first.profile_id);
+    setCurrentProfileName(first.trading_name);
   };
 
   useEffect(() => {
     loadMemberships();
   }, [user?.id]);
 
-  const switchCompany = (membership: Membership) => {
-    setCurrentProfileId(membership.profile_id);
-    setCurrentProfileName(
-      membership.profile?.trading_name || 
-      membership.profile?.legal_name || 
-      `Company ${membership.profile_id}`
-    );
+  // Lookup supplier details when ID is entered
+  const lookupSupplier = async (id: string) => {
+    if (!id) {
+      setSupplierProfile(null);
+      return;
+    }
+
+    setLookingUpSupplier(true);
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, trading_name, legal_name')
+      .eq('id', parseInt(id))
+      .single();
+
+    if (data) {
+      setSupplierProfile({
+        id: data.id,
+        trading_name: data.trading_name,
+        legal_name: data.legal_name,
+        registration_number: null, // Add these fields to profiles table later
+        vat_number: null,
+      });
+    } else {
+      setSupplierProfile(null);
+    }
+    setLookingUpSupplier(false);
+  };
+
+  const handleSupplierIdChange = (value: string) => {
+    setSupplierId(value);
+    lookupSupplier(value);
+  };
+
+  const switchCompany = (m: Membership) => {
+    setCurrentProfileId(m.profile_id);
+    setCurrentProfileName(m.trading_name);
     setShowSwitcher(false);
-    if (user?.id) localStorage.setItem(`supplieradvisor_last_company_${user.id}`, membership.profile_id.toString());
   };
 
   const fetchPurchaseOrders = async () => {
@@ -119,11 +157,14 @@ export default function PurchaseOrdersPage() {
   };
 
   const handleRaisePO = async () => {
-    if (!currentProfileId || !supplierId) return alert('Please select a supplier');
+    if (!currentProfileId || !supplierId) {
+      alert('Please select a supplier');
+      return;
+    }
 
     setLoading(true);
     try {
-      const sigMessage = `SUPPLIERADVISOR PURCHASE ORDER\nBuyer: ${currentProfileName}\nSupplier ID: ${supplierId}\nTotal: R${totalAmount}`;
+      const sigMessage = `SUPPLIERADVISOR PURCHASE ORDER\nBuyer: ${currentProfileName}\nSupplier: ${supplierProfile?.trading_name || supplierId}\nTotal: R${totalAmount}`;
       const signature = await signMessage({ message: sigMessage });
 
       const { error } = await supabase.from('purchase_orders').insert({
@@ -137,8 +178,12 @@ export default function PurchaseOrdersPage() {
       });
 
       if (error) throw error;
+
       alert('✅ Purchase Order raised with onchain signature');
-      setSupplierId(''); setDescription(''); setLineItems([{ description: '', quantity: 1, unit_price: 0 }]);
+      setSupplierId('');
+      setSupplierProfile(null);
+      setDescription('');
+      setLineItems([{ description: '', quantity: 1, unit_price: 0 }]);
       fetchPurchaseOrders();
     } catch (err: any) {
       alert('Error: ' + err.message);
@@ -168,6 +213,7 @@ export default function PurchaseOrdersPage() {
     <div className="pl-0 min-h-screen bg-[#f8fafc]">
       <div className="py-12 px-8 max-w-6xl mx-auto">
         <Breadcrumb />
+
         <div className="flex items-center justify-between mb-10">
           <div>
             <h1 className="text-6xl font-black tracking-[-3px] text-[#00b4d8]">Purchase Orders</h1>
@@ -183,7 +229,7 @@ export default function PurchaseOrdersPage() {
               <div className="absolute right-0 mt-2 w-72 bg-white border border-neutral-200 rounded-2xl shadow-xl z-50 py-2">
                 {memberships.map((m) => (
                   <button key={m.profile_id} onClick={() => switchCompany(m)} className={`w-full text-left px-4 py-3 hover:bg-neutral-50 ${m.profile_id === currentProfileId ? 'bg-[#00b4d8]/5' : ''}`}>
-                    {m.profile?.trading_name || m.profile?.legal_name || `Company ${m.profile_id}`}
+                    {m.trading_name}
                   </button>
                 ))}
               </div>
@@ -191,31 +237,56 @@ export default function PurchaseOrdersPage() {
           </div>
         </div>
 
-        {/* Raise PO Form */}
+        {/* Raise New PO */}
         <div className="bg-white rounded-3xl border border-neutral-200 p-10 mb-10">
           <h2 className="text-3xl font-bold mb-8 flex items-center gap-3"><Plus className="w-7 h-7 text-[#00b4d8]" /> Raise New Purchase Order</h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            <div>
-              <label className="block text-sm font-medium mb-2">Supplier Profile ID</label>
-              <input type="number" value={supplierId} onChange={(e) => setSupplierId(e.target.value)} className="w-full px-6 py-4 border border-neutral-200 rounded-2xl text-lg focus:border-[#00b4d8]" placeholder="e.g. 42" />
+          {/* Supplier Selection */}
+          <div className="mb-8">
+            <label className="block text-sm font-medium mb-2">Supplier Profile ID</label>
+            <div className="relative">
+              <input
+                type="number"
+                value={supplierId}
+                onChange={(e) => handleSupplierIdChange(e.target.value)}
+                className="w-full px-6 py-4 border border-neutral-200 rounded-2xl text-lg focus:border-[#00b4d8]"
+                placeholder="e.g. 102"
+              />
+              {lookingUpSupplier && <Search className="absolute right-4 top-4 w-5 h-5 text-neutral-400 animate-pulse" />}
             </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">Notes</label>
-              <input value={description} onChange={(e) => setDescription(e.target.value)} className="w-full px-6 py-4 border border-neutral-200 rounded-2xl text-lg focus:border-[#00b4d8]" placeholder="Optional notes..." />
-            </div>
+
+            {/* Supplier Details Card */}
+            {supplierProfile && (
+              <div className="mt-4 p-6 bg-neutral-50 rounded-2xl border border-neutral-200">
+                <div className="font-semibold text-lg mb-3">Supplier Details</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2 text-sm">
+                  <div><span className="text-neutral-500">Trading Name:</span> {supplierProfile.trading_name || '—'}</div>
+                  <div><span className="text-neutral-500">Legal Name:</span> {supplierProfile.legal_name || '—'}</div>
+                  <div><span className="text-neutral-500">Registration Number:</span> {supplierProfile.registration_number || '—'}</div>
+                  <div><span className="text-neutral-500">VAT Number:</span> {supplierProfile.vat_number || '—'}</div>
+                </div>
+                <p className="text-xs text-neutral-500 mt-3">These details are pulled directly from the supplier’s profile.</p>
+              </div>
+            )}
           </div>
 
+          <div className="mb-6">
+            <label className="block text-sm font-medium mb-2">Notes (Optional)</label>
+            <input value={description} onChange={(e) => setDescription(e.target.value)} className="w-full px-6 py-4 border border-neutral-200 rounded-2xl text-lg focus:border-[#00b4d8]" placeholder="Delivery instructions, payment terms..." />
+          </div>
+
+          {/* Line Items */}
           <div className="mb-6">
             <div className="flex justify-between items-center mb-4">
               <div className="font-semibold">Line Items</div>
               <button onClick={addLineItem} className="text-[#00b4d8] text-sm flex items-center gap-1 hover:underline"><Plus className="w-4 h-4" /> Add Item</button>
             </div>
+
             {lineItems.map((item, index) => (
               <div key={index} className="grid grid-cols-12 gap-4 mb-3 items-center">
                 <input className="col-span-6 px-4 py-3 border border-neutral-200 rounded-2xl" placeholder="Item description" value={item.description} onChange={(e) => updateLineItem(index, 'description', e.target.value)} />
                 <input type="number" className="col-span-2 px-4 py-3 border border-neutral-200 rounded-2xl" placeholder="Qty" value={item.quantity} onChange={(e) => updateLineItem(index, 'quantity', parseInt(e.target.value) || 0)} />
-                <input type="number" className="col-span-3 px-4 py-3 border border-neutral-200 rounded-2xl" placeholder="Unit Price" value={item.unit_price} onChange={(e) => updateLineItem(index, 'unit_price', parseFloat(e.target.value) || 0)} />
+                <input type="number" className="col-span-3 px-4 py-3 border border-neutral-200 rounded-2xl" placeholder="Unit Price (R)" value={item.unit_price} onChange={(e) => updateLineItem(index, 'unit_price', parseFloat(e.target.value) || 0)} />
                 <button onClick={() => removeLineItem(index)} className="col-span-1 text-red-500 hover:text-red-600"><Trash2 className="w-5 h-5" /></button>
               </div>
             ))}
@@ -224,14 +295,15 @@ export default function PurchaseOrdersPage() {
           <div className="flex justify-between items-center border-t pt-6">
             <div className="text-2xl font-bold">Total: <span className="text-[#00b4d8]">R{totalAmount.toLocaleString()}</span></div>
             <button onClick={handleRaisePO} disabled={loading || !supplierId} className="px-10 py-4 bg-[#00b4d8] text-white font-semibold rounded-2xl disabled:bg-neutral-300 flex items-center gap-2">
-              <FileText className="w-5 h-5" /> {loading ? 'Signing...' : 'Raise PO + Onchain Signature'}
+              <FileText className="w-5 h-5" /> {loading ? 'Signing onchain...' : 'Raise PO + Onchain Signature'}
             </button>
           </div>
         </div>
 
-        {/* PO List */}
+        {/* Existing POs */}
         <div className="bg-white rounded-3xl border border-neutral-200 p-10">
           <h2 className="text-3xl font-bold mb-8">Your Purchase Orders</h2>
+
           {purchaseOrders.length === 0 ? (
             <div className="text-center py-12 text-neutral-500">No purchase orders yet.</div>
           ) : (
@@ -248,6 +320,7 @@ export default function PurchaseOrdersPage() {
                       <div className="text-sm mt-1 capitalize">{po.status}</div>
                     </div>
                   </div>
+
                   <div className="flex gap-3 mt-6">
                     {po.status === 'sent' && (
                       <>
