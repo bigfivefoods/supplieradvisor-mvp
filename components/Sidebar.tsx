@@ -27,15 +27,15 @@ const modules = [
     ]
   },
 
+  // ==================== NETWORK (Updated) ====================
   { 
     id: 'network', 
     name: 'Network', 
     icon: Users, 
     href: '/dashboard/network',
     sub: [
-      { name: 'Business Directory', href: '/dashboard/suppliers/directory' },
-      { name: 'Connections', href: '/dashboard/connections' },
-      { name: 'Invite Business', href: '/dashboard/invite-business' },
+      { name: 'My Connections', href: '/dashboard/network' },
+      { name: 'Invite Company', href: '/dashboard/invite-business' },
     ]
   },
 
@@ -203,7 +203,7 @@ export default function Sidebar() {
             priority 
           />
           <div className="font-black text-2xl tracking-[-1px] leading-none">
-            SupplierAdvisor® ERP
+            SupplierAdvisor®
           </div>
         </div>
       </div>
@@ -227,7 +227,7 @@ export default function Sidebar() {
                   <span className="font-semibold">{mod.name}</span>
                 </Link>
 
-                {/* Chevron - only for toggling submenu on mobile + desktop */}
+                {/* Chevron - only for toggling submenu */}
                 {mod.sub.length > 0 && (
                   <button
                     onClick={(e) => {
