@@ -3,94 +3,103 @@
 import { useState, useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { supabase } from '@/lib/supabase';
-import { 
-  Plus, Trash2, Building2, CheckCircle, Clock, XCircle, 
-  DollarSign, FileText 
-} from 'lucide-react';
+import { Users, Building2, Send, CheckCircle, Clock } from 'lucide-react';
 import Breadcrumb from '@/components/ui/Breadcrumb';
-
-interface LineItem {
-  description: string;
-  quantity: number;
-  unit_price: number;
-}
-
-interface PurchaseOrder {
-  id: number;
-  buyer_profile_id: number;
-  supplier_id: number;
-  total_amount: number;
-  status: string;
-  description: string | null;
-  items: LineItem[] | null;
-  onchain_tx: string | null;
-  created_at: string;
-}
 
 interface Membership {
   profile_id: number;
-  profile: { trading_name: string; legal_name: string | null };
+  role: string;
+  profile: {
+    trading_name: string | null;
+    legal_name: string | null;
+  };
 }
 
-export default function PurchaseOrdersPage() {
+interface Connection {
+  id: number;
+  requester_profile_id: number;
+  target_profile_id: number;
+  status: string;
+  created_at: string;
+  onchain_tx: string | null;
+  requester_profile?: { trading_name: string | null; legal_name: string | null };
+  target_profile?: { trading_name: string | null; legal_name: string | null };
+}
+
+export default function NetworkPage() {
   const { user, signMessage } = usePrivy();
 
   const [loading, setLoading] = useState(false);
-  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
   const [memberships, setMemberships] = useState<Membership[]>([]);
   const [currentProfileId, setCurrentProfileId] = useState<number | null>(null);
   const [currentProfileName, setCurrentProfileName] = useState('');
   const [showSwitcher, setShowSwitcher] = useState(false);
 
-  // Form state
-  const [supplierId, setSupplierId] = useState('');
-  const [description, setDescription] = useState('');
-  const [lineItems, setLineItems] = useState<LineItem[]>([
-    { description: '', quantity: 1, unit_price: 0 }
-  ]);
+  const [connections, setConnections] = useState<Connection[]>([]);
+  const [targetProfileId, setTargetProfileId] = useState('');
+  const [message, setMessage] = useState('');
 
-  // Calculate total from line items
-  const totalAmount = lineItems.reduce(
-    (sum, item) => sum + (item.quantity * item.unit_price), 0
-  );
-
-  // Load companies + current profile
+  // ==================== IMPROVED COMPANY LOADING ====================
   const loadMemberships = async () => {
     if (!user?.id) return;
 
-    const { data } = await supabase
-      .from('business_users')
-      .select(`
-        profile_id,
-        profiles:profile_id (trading_name, legal_name)
-      `)
-      .eq('user_id', user.id)
-      .eq('status', 'active');
+    try {
+      // Step 1: Get active business_users (no complex join)
+      const { data: businessUsers, error } = await supabase
+        .from('business_users')
+        .select('profile_id, role, status')
+        .eq('user_id', user.id)
+        .eq('status', 'active');
 
-    if (!data || data.length === 0) return;
+      if (error) {
+        console.error('Error loading business_users:', error);
+        return;
+      }
 
-    const formatted = data.map((m: any) => ({
-      profile_id: m.profile_id,
-      profile: Array.isArray(m.profiles) ? m.profiles[0] : m.profiles,
-    }));
+      if (!businessUsers || businessUsers.length === 0) {
+        setMemberships([]);
+        return;
+      }
 
-    setMemberships(formatted);
+      // Step 2: Get profile names separately (safer)
+      const profileIds = businessUsers.map((b: any) => b.profile_id);
 
-    // Restore from localStorage or default to first
-    const storageKey = `supplieradvisor_last_company_${user.id}`;
-    const savedId = localStorage.getItem(storageKey);
-    const savedProfileId = savedId ? parseInt(savedId) : null;
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('id, trading_name, legal_name')
+        .in('id', profileIds);
 
-    const defaultMembership = savedProfileId && formatted.some(m => m.profile_id === savedProfileId)
-      ? formatted.find(m => m.profile_id === savedProfileId)!
-      : formatted[0];
+      // Merge data
+      const formatted = businessUsers.map((bu: any) => {
+        const profile = profilesData?.find((p: any) => p.id === bu.profile_id);
+        return {
+          profile_id: bu.profile_id,
+          role: bu.role,
+          profile: profile || { trading_name: `Company ${bu.profile_id}`, legal_name: null }
+        };
+      });
 
-    setCurrentProfileId(defaultMembership.profile_id);
-    setCurrentProfileName(
-      defaultMembership.profile?.trading_name || 
-      defaultMembership.profile?.legal_name || 
-      `Profile ${defaultMembership.profile_id}`
-    );
+      setMemberships(formatted);
+
+      // Restore last selected company
+      const storageKey = `supplieradvisor_last_company_${user.id}`;
+      const savedId = localStorage.getItem(storageKey);
+      const savedProfileId = savedId ? parseInt(savedId) : null;
+
+      const defaultMembership = savedProfileId && formatted.some((m: any) => m.profile_id === savedProfileId)
+        ? formatted.find((m: any) => m.profile_id === savedProfileId)!
+        : formatted[0];
+
+      setCurrentProfileId(defaultMembership.profile_id);
+      setCurrentProfileName(
+        defaultMembership.profile?.trading_name || 
+        defaultMembership.profile?.legal_name || 
+        `Company ${defaultMembership.profile_id}`
+      );
+
+    } catch (err) {
+      console.error('Failed to load memberships:', err);
+    }
   };
 
   useEffect(() => {
@@ -102,7 +111,7 @@ export default function PurchaseOrdersPage() {
     setCurrentProfileName(
       membership.profile?.trading_name || 
       membership.profile?.legal_name || 
-      `Profile ${membership.profile_id}`
+      `Company ${membership.profile_id}`
     );
     setShowSwitcher(false);
 
@@ -111,101 +120,57 @@ export default function PurchaseOrdersPage() {
     }
   };
 
-  // Fetch POs for current company
-  const fetchPurchaseOrders = async () => {
+  // Fetch connections for current company
+  const fetchConnections = async () => {
     if (!currentProfileId) return;
 
     const { data } = await supabase
-      .from('purchase_orders')
-      .select('*')
-      .eq('buyer_profile_id', currentProfileId)
+      .from('business_connections')
+      .select(`
+        *,
+        requester_profile:requester_profile_id (trading_name, legal_name),
+        target_profile:target_profile_id (trading_name, legal_name)
+      `)
+      .or(`requester_profile_id.eq.${currentProfileId},target_profile_id.eq.${currentProfileId}`)
       .order('created_at', { ascending: false });
 
-    if (data) setPurchaseOrders(data);
+    if (data) setConnections(data as any);
   };
 
   useEffect(() => {
-    if (currentProfileId) fetchPurchaseOrders();
+    if (currentProfileId) {
+      fetchConnections();
+    }
   }, [currentProfileId]);
 
-  // Add / Remove line items
-  const addLineItem = () => {
-    setLineItems([...lineItems, { description: '', quantity: 1, unit_price: 0 }]);
-  };
-
-  const removeLineItem = (index: number) => {
-    if (lineItems.length === 1) return;
-    setLineItems(lineItems.filter((_, i) => i !== index));
-  };
-
-  const updateLineItem = (index: number, field: keyof LineItem, value: string | number) => {
-    const updated = [...lineItems];
-    updated[index] = { ...updated[index], [field]: value };
-    setLineItems(updated);
-  };
-
-  // Raise PO with onchain signature
-  const handleRaisePO = async () => {
-    if (!currentProfileId || !supplierId || lineItems.length === 0) {
-      alert('Please select a supplier and add at least one line item');
+  // Send onchain connection request
+  const handleSendConnection = async () => {
+    if (!currentProfileId || !targetProfileId) {
+      alert('Please select your company and enter a target Profile ID');
       return;
     }
 
     setLoading(true);
     try {
-      const sigMessage = `SUPPLIERADVISOR PURCHASE ORDER\nBuyer: ${currentProfileName}\nSupplier ID: ${supplierId}\nTotal: R${totalAmount}\nItems: ${lineItems.length} line items\nTime: ${new Date().toISOString()}`;
+      const sigMessage = `SupplierAdvisor Connection Request\nFrom: ${currentProfileName} (ID: ${currentProfileId})\nTo: Profile ${targetProfileId}\nTime: ${new Date().toISOString()}`;
 
       const signature = await signMessage({ message: sigMessage });
 
-      const { error } = await supabase.from('purchase_orders').insert({
-        buyer_profile_id: currentProfileId,
-        supplier_id: parseInt(supplierId),
-        total_amount: totalAmount,
-        description: description || null,
-        items: lineItems,
-        status: 'sent',
+      const { error } = await supabase.from('business_connections').insert({
+        requester_profile_id: currentProfileId,
+        target_profile_id: parseInt(targetProfileId),
+        status: 'pending',
         onchain_tx: signature,
       });
 
       if (error) throw error;
 
-      alert('✅ Purchase Order raised with onchain signature');
-      setSupplierId('');
-      setDescription('');
-      setLineItems([{ description: '', quantity: 1, unit_price: 0 }]);
-      fetchPurchaseOrders();
+      alert('✅ Connection request sent with onchain signature!');
+      setTargetProfileId('');
+      setMessage('');
+      fetchConnections();
     } catch (err: any) {
-      alert('Error: ' + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Update PO status (with optional onchain signature)
-  const updateStatus = async (poId: number, newStatus: string, requireSignature = false) => {
-    setLoading(true);
-    try {
-      let onchainTx = null;
-
-      if (requireSignature) {
-        const po = purchaseOrders.find(p => p.id === poId);
-        const sigMessage = `SUPPLIERADVISOR PO STATUS UPDATE\nPO #${poId} → ${newStatus.toUpperCase()}\nTime: ${new Date().toISOString()}`;
-        onchainTx = await signMessage({ message: sigMessage });
-      }
-
-      const { error } = await supabase
-        .from('purchase_orders')
-        .update({ 
-          status: newStatus,
-          ...(onchainTx && { onchain_tx: onchainTx })
-        })
-        .eq('id', poId);
-
-      if (error) throw error;
-
-      fetchPurchaseOrders();
-    } catch (err: any) {
-      alert('Error updating status: ' + err.message);
+      alert('Error sending request: ' + err.message);
     } finally {
       setLoading(false);
     }
@@ -213,13 +178,13 @@ export default function PurchaseOrdersPage() {
 
   return (
     <div className="pl-0 min-h-screen bg-[#f8fafc]">
-      <div className="py-12 px-8 max-w-6xl mx-auto">
+      <div className="py-12 px-8 max-w-5xl mx-auto">
         <Breadcrumb />
 
         <div className="flex items-center justify-between mb-10">
           <div>
-            <h1 className="text-6xl font-black tracking-[-3px] text-[#00b4d8]">Purchase Orders</h1>
-            <p className="text-xl text-neutral-600 mt-1">Onchain • Verifiable • Instant</p>
+            <h1 className="text-6xl font-black tracking-[-3px] text-[#00b4d8]">Network</h1>
+            <p className="text-xl text-neutral-600 mt-1">Onchain Business Connections</p>
           </div>
 
           {/* Company Switcher */}
@@ -232,15 +197,16 @@ export default function PurchaseOrdersPage() {
               <span className="font-semibold text-sm">{currentProfileName}</span>
             </button>
 
-            {showSwitcher && (
-              <div className="absolute right-0 mt-2 w-72 bg-white border border-neutral-200 rounded-2xl shadow-xl z-50 py-2">
+            {showSwitcher && memberships.length > 0 && (
+              <div className="absolute right-0 mt-2 w-80 bg-white border border-neutral-200 rounded-2xl shadow-xl z-50 py-2">
                 {memberships.map((m) => (
                   <button
                     key={m.profile_id}
                     onClick={() => switchCompany(m)}
-                    className={`w-full text-left px-4 py-3 hover:bg-neutral-50 ${m.profile_id === currentProfileId ? 'bg-[#00b4d8]/5' : ''}`}
+                    className={`w-full text-left px-4 py-3 hover:bg-neutral-50 flex justify-between ${m.profile_id === currentProfileId ? 'bg-[#00b4d8]/5' : ''}`}
                   >
-                    {m.profile?.trading_name || m.profile?.legal_name || `Profile ${m.profile_id}`}
+                    <span>{m.profile?.trading_name || m.profile?.legal_name || `Company ${m.profile_id}`}</span>
+                    <span className="text-xs text-neutral-500">{m.role}</span>
                   </button>
                 ))}
               </div>
@@ -248,137 +214,125 @@ export default function PurchaseOrdersPage() {
           </div>
         </div>
 
-        {/* RAISE NEW PO */}
-        <div className="bg-white rounded-3xl border border-neutral-200 p-10 mb-10">
-          <h2 className="text-3xl font-bold mb-8 flex items-center gap-3">
-            <Plus className="w-7 h-7 text-[#00b4d8]" /> Raise New Purchase Order
-          </h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            <div>
-              <label className="block text-sm font-medium mb-2">Supplier Profile ID</label>
-              <input
-                type="number"
-                value={supplierId}
-                onChange={(e) => setSupplierId(e.target.value)}
-                className="w-full px-6 py-4 border border-neutral-200 rounded-2xl text-lg focus:border-[#00b4d8]"
-                placeholder="e.g. 42"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">Notes / Description</label>
-              <input
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                className="w-full px-6 py-4 border border-neutral-200 rounded-2xl text-lg focus:border-[#00b4d8]"
-                placeholder="Optional notes..."
-              />
-            </div>
+        {/* No Active Company Guard */}
+        {memberships.length === 0 && (
+          <div className="bg-white rounded-3xl border border-neutral-200 p-12 text-center max-w-md mx-auto">
+            <Building2 className="w-12 h-12 mx-auto text-neutral-400 mb-4" />
+            <h2 className="text-2xl font-bold mb-2">No Active Company</h2>
+            <p className="text-neutral-600 mb-6">
+              You need to be part of an active company to use the Network.
+            </p>
+            <a href="/dashboard/select-company" className="inline-block px-8 py-3 bg-[#00b4d8] text-white rounded-2xl font-semibold">
+              Go to Company Selector
+            </a>
           </div>
+        )}
 
-          {/* LINE ITEMS */}
-          <div className="mb-6">
-            <div className="flex justify-between items-center mb-4">
-              <div className="font-semibold">Line Items</div>
-              <button onClick={addLineItem} className="text-[#00b4d8] text-sm flex items-center gap-1 hover:underline">
-                <Plus className="w-4 h-4" /> Add Item
+        {/* Main Content */}
+        {memberships.length > 0 && currentProfileId && (
+          <>
+            {/* Send Connection Request */}
+            <div className="bg-white rounded-3xl border border-neutral-200 p-10 mb-10">
+              <div className="flex items-center gap-3 mb-8">
+                <div className="p-3 bg-[#00b4d8]/10 rounded-2xl">
+                  <Send className="w-6 h-6 text-[#00b4d8]" />
+                </div>
+                <div>
+                  <h2 className="text-3xl font-bold">Send Connection Request</h2>
+                  <p className="text-neutral-600">Signed onchain • Verifiable</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">Target Company Profile ID</label>
+                  <input
+                    type="number"
+                    value={targetProfileId}
+                    onChange={(e) => setTargetProfileId(e.target.value)}
+                    className="w-full px-6 py-4 border border-neutral-200 rounded-2xl text-lg focus:border-[#00b4d8] outline-none"
+                    placeholder="e.g. 102"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">Message (Optional)</label>
+                  <input
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    className="w-full px-6 py-4 border border-neutral-200 rounded-2xl text-lg focus:border-[#00b4d8] outline-none"
+                    placeholder="Would love to connect..."
+                  />
+                </div>
+              </div>
+
+              <button
+                onClick={handleSendConnection}
+                disabled={loading || !targetProfileId}
+                className="mt-8 w-full py-4 bg-[#00b4d8] hover:bg-[#0099b8] disabled:bg-neutral-300 text-white text-lg font-semibold rounded-2xl flex items-center justify-center gap-3 transition-colors"
+              >
+                {loading ? 'Signing onchain...' : (
+                  <>
+                    <Send className="w-5 h-5" />
+                    Send Onchain Connection Request
+                  </>
+                )}
               </button>
             </div>
 
-            {lineItems.map((item, index) => (
-              <div key={index} className="grid grid-cols-12 gap-4 mb-3 items-center">
-                <input
-                  className="col-span-6 px-4 py-3 border border-neutral-200 rounded-2xl"
-                  placeholder="Item description"
-                  value={item.description}
-                  onChange={(e) => updateLineItem(index, 'description', e.target.value)}
-                />
-                <input
-                  type="number"
-                  className="col-span-2 px-4 py-3 border border-neutral-200 rounded-2xl"
-                  placeholder="Qty"
-                  value={item.quantity}
-                  onChange={(e) => updateLineItem(index, 'quantity', parseInt(e.target.value) || 0)}
-                />
-                <input
-                  type="number"
-                  className="col-span-3 px-4 py-3 border border-neutral-200 rounded-2xl"
-                  placeholder="Unit Price"
-                  value={item.unit_price}
-                  onChange={(e) => updateLineItem(index, 'unit_price', parseFloat(e.target.value) || 0)}
-                />
-                <button onClick={() => removeLineItem(index)} className="col-span-1 text-red-500 hover:text-red-600">
-                  <Trash2 className="w-5 h-5" />
-                </button>
+            {/* My Connections */}
+            <div className="bg-white rounded-3xl border border-neutral-200 p-10">
+              <div className="flex items-center justify-between mb-8">
+                <h2 className="text-3xl font-bold">My Connections</h2>
+                <button onClick={fetchConnections} className="text-[#00b4d8] text-sm hover:underline">Refresh</button>
               </div>
-            ))}
-          </div>
 
-          <div className="flex justify-between items-center border-t pt-6">
-            <div className="text-2xl font-bold">
-              Total: <span className="text-[#00b4d8]">R{totalAmount.toLocaleString()}</span>
-            </div>
-            <button
-              onClick={handleRaisePO}
-              disabled={loading || !supplierId}
-              className="px-10 py-4 bg-[#00b4d8] text-white font-semibold rounded-2xl disabled:bg-neutral-300 flex items-center gap-2"
-            >
-              <FileText className="w-5 h-5" />
-              {loading ? 'Signing onchain...' : 'Raise PO + Onchain Signature'}
-            </button>
-          </div>
-        </div>
-
-        {/* LIST OF PURCHASE ORDERS */}
-        <div className="bg-white rounded-3xl border border-neutral-200 p-10">
-          <h2 className="text-3xl font-bold mb-8">Your Purchase Orders</h2>
-
-          {purchaseOrders.length === 0 ? (
-            <div className="text-center py-12 text-neutral-500">No purchase orders yet.</div>
-          ) : (
-            <div className="space-y-4">
-              {purchaseOrders.map((po) => (
-                <div key={po.id} className="border border-neutral-200 rounded-2xl p-6">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <div className="font-semibold text-xl">PO #{po.id} • Supplier {po.supplier_id}</div>
-                      <div className="text-neutral-600 mt-1">{po.description}</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-3xl font-bold text-[#00b4d8]">R{po.total_amount.toLocaleString()}</div>
-                      <div className="text-sm mt-1 capitalize flex items-center justify-end gap-1">
-                        {po.status === 'paid' && <CheckCircle className="w-4 h-4 text-emerald-600" />}
-                        {po.status === 'accepted' && <CheckCircle className="w-4 h-4 text-blue-600" />}
-                        {po.status === 'sent' && <Clock className="w-4 h-4 text-amber-600" />}
-                        {po.status}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Status Actions */}
-                  <div className="flex gap-3 mt-6">
-                    {po.status === 'sent' && (
-                      <>
-                        <button onClick={() => updateStatus(po.id, 'accepted', true)} className="px-5 py-2 bg-blue-600 text-white rounded-2xl text-sm font-medium">Accept</button>
-                        <button onClick={() => updateStatus(po.id, 'rejected')} className="px-5 py-2 bg-red-600 text-white rounded-2xl text-sm font-medium">Reject</button>
-                      </>
-                    )}
-                    {po.status === 'accepted' && (
-                      <button onClick={() => updateStatus(po.id, 'paid', true)} className="px-5 py-2 bg-emerald-600 text-white rounded-2xl text-sm font-medium flex items-center gap-2">
-                        <DollarSign className="w-4 h-4" /> Mark as Paid
-                      </button>
-                    )}
-                    {po.onchain_tx && (
-                      <span className="px-4 py-2 text-xs bg-emerald-100 text-emerald-700 rounded-2xl flex items-center gap-1">
-                        <CheckCircle className="w-3.5 h-3.5" /> Onchain verified
-                      </span>
-                    )}
-                  </div>
+              {connections.length === 0 ? (
+                <div className="text-center py-12 text-neutral-500">
+                  No connections yet. Send your first request above.
                 </div>
-              ))}
+              ) : (
+                <div className="space-y-4">
+                  {connections.map((conn) => {
+                    const isOutgoing = conn.requester_profile_id === currentProfileId;
+                    const otherProfile = isOutgoing ? conn.target_profile : conn.requester_profile;
+                    const otherName = otherProfile?.trading_name || otherProfile?.legal_name || `Profile ${isOutgoing ? conn.target_profile_id : conn.requester_profile_id}`;
+
+                    return (
+                      <div key={conn.id} className="border border-neutral-200 rounded-2xl p-6 flex justify-between items-center">
+                        <div className="flex items-center gap-4">
+                          <div className="p-3 bg-neutral-100 rounded-2xl">
+                            <Users className="w-6 h-6 text-neutral-600" />
+                          </div>
+                          <div>
+                            <div className="font-semibold text-lg">{otherName}</div>
+                            <div className="text-sm text-neutral-500">
+                              {isOutgoing ? 'Outgoing request' : 'Incoming request'} • {new Date(conn.created_at).toLocaleDateString()}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          {conn.onchain_tx && (
+                            <span className="flex items-center gap-1 text-xs px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full">
+                              <CheckCircle className="w-3.5 h-3.5" /> Onchain
+                            </span>
+                          )}
+                          <span className={`px-4 py-1.5 rounded-2xl text-sm font-medium capitalize ${
+                            conn.status === 'accepted' ? 'bg-emerald-100 text-emerald-700' :
+                            conn.status === 'pending' ? 'bg-amber-100 text-amber-700' :
+                            'bg-neutral-100 text-neutral-600'
+                          }`}>
+                            {conn.status}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </>
+        )}
       </div>
     </div>
   );
