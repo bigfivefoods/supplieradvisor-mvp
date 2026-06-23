@@ -2,7 +2,9 @@
 
 import { PrivyProvider } from '@privy-io/react-auth';
 import "./globals.css";
-import { Toaster } from "react-hot-toast";
+
+// ✅ Replaced react-hot-toast with Sonner
+import { Toaster } from 'sonner';
 
 // Onchain providers
 import { WagmiProvider } from 'wagmi';
@@ -36,7 +38,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             appearance: { theme: 'light' },
             embeddedWallets: {
               ethereum: {
-                createOnLogin: 'users-without-wallets', // Creates embedded wallet automatically
+                createOnLogin: 'users-without-wallets',
               },
             },
           }}
@@ -45,7 +47,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <QueryClientProvider client={queryClient}>
               <RainbowKitProvider>
                 {children}
-                <Toaster position="top-center" />
+
+                {/* ✅ Sonner Toaster - Much better than react-hot-toast */}
+                <Toaster 
+                  position="top-center" 
+                  richColors 
+                  closeButton 
+                  expand={true}
+                />
               </RainbowKitProvider>
             </QueryClientProvider>
           </WagmiProvider>
