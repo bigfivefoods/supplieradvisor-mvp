@@ -1,9 +1,9 @@
 // app/dashboard/network/page.tsx
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
-import { createClient } from '@supabase/supabase-js';
+import { fetchUserCompanies } from './actions';
 
 interface Company {
   id: number;
@@ -26,61 +26,30 @@ interface Company {
 
 export default function NetworkPage() {
   const { user, ready } = usePrivy();
-
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
     if (!ready || !user?.id) return;
 
-    const fetchCompanies = async () => {
+    startTransition(async () => {
       setLoading(true);
       setError(null);
 
-      const { data, error } = await supabase
-        .from('business_users')
-        .select(`
-          id,
-          role,
-          status,
-          joined_at,
-          profiles:profile_id (
-            id,
-            trading_name,
-            legal_name,
-            registration_number,
-            vat_number,
-            tax_number,
-            city,
-            country,
-            verification_status,
-            logo_url
-          )
-        `)
-        .eq('user_id', user.id)
-        .eq('status', 'active')
-        .order('joined_at', { ascending: false });
+      const result = await fetchUserCompanies(user.id);
 
-      if (error) {
-        console.error('Error fetching companies:', error);
-        setError(error.message);
+      if (result.error) {
+        setError(result.error);
       } else {
-        // Type assertion fixes Supabase join typing issue
-        setCompanies((data as unknown as Company[]) || []);
+        setCompanies(result.companies || []);
       }
       setLoading(false);
-    };
-
-    fetchCompanies();
+    });
   }, [user?.id, ready]);
 
-  if (!ready || loading) {
+  if (!ready || loading || isPending) {
     return (
       <div className="p-8">
         <div className="animate-pulse text-gray-500">Loading your network...</div>
@@ -105,35 +74,22 @@ export default function NetworkPage() {
 
       {companies.length === 0 ? (
         <div className="bg-yellow-50 border border-yellow-200 p-8 rounded-2xl">
-          <p className="font-medium mb-2">No active companies found for your account.</p>
-          <p className="text-sm text-gray-600 mb-1">Your Privy User ID:</p>
-          <code className="text-xs bg-yellow-100 px-2 py-1 rounded break-all">{user?.id}</code>
-          <p className="text-xs text-gray-500 mt-4">
-            If you expect to see companies here, check that you have active memberships in the `business_users` table.
-          </p>
+          <p className="font-medium mb-2">No active companies found.</p>
+          <p className="text-sm text-gray-600">Privy ID: {user?.id}</p>
         </div>
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {companies.map((company) => {
             const p = company.profiles;
             return (
-              <div
-                key={company.id}
-                className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-md transition-all"
-              >
+              <div key={company.id} className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-md transition-all">
                 <div className="flex justify-between items-start mb-5">
                   <div>
                     <h3 className="text-xl font-semibold tracking-tight">{p?.trading_name}</h3>
-                    {p?.legal_name && (
-                      <p className="text-sm text-gray-500 mt-0.5">{p.legal_name}</p>
-                    )}
+                    {p?.legal_name && <p className="text-sm text-gray-500 mt-0.5">{p.legal_name}</p>}
                   </div>
                   {p?.logo_url && (
-                    <img
-                      src={p.logo_url}
-                      alt=""
-                      className="w-14 h-14 rounded-xl object-contain border p-1"
-                    />
+                    <img src={p.logo_url} alt="" className="w-14 h-14 rounded-xl object-contain border p-1" />
                   )}
                 </div>
 
