@@ -1,0 +1,9 @@
+{
+  "network": "sepolia",
+  "contract": "POEscrowV2",
+  "address": "0x1a0a30b07ad50b5373a088d5c81dbbf3e644a06f",
+  "txHash": "0x05ef26e0b9df59b0a385e071e6a68538f88c4c93ffee0fcf1f13d5c9ced3a563",
+  "blockNumber": "11125422",
+  "deployer": "0xA0DE8885b68DDBd27B2b6c3632258d156E5E3929",
+  "deployedAt": "2026-06-23T21:20:00.962Z"
+}
