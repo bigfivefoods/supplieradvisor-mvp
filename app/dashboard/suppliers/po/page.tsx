@@ -7,7 +7,7 @@ import { useAccount, useWriteContract, useWaitForTransactionReceipt, usePublicCl
 import { Plus, Trash2, Building2, CheckCircle, DollarSign, FileText, Search, Wallet } from 'lucide-react';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 import { parseEther, parseEventLogs } from 'viem';
-import POEscrowV2ABI from '@/lib/contracts/abi/POEscrowV2.json';
+import POEscrowV2ABI from '../../../../../src/lib/contracts/abi/POEscrowV2.json';
 
 const PO_ESCROW_ADDRESS = '0x1a0a30b07ad50b5373a088d5c81dbbf3e644a06f' as const;
 
