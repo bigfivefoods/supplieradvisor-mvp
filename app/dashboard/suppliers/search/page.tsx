@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { supabase } from '@/lib/supabase';
 import { Search, ChevronDown, UserPlus, MapPin, Award } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 
 export default function SuppliersSearch() {

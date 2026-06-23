@@ -4,7 +4,7 @@ import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { usePrivy } from '@privy-io/react-auth';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 
 function InviteContent() {
   const searchParams = useSearchParams();

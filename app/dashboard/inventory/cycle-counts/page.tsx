@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 import { Plus, CheckCircle, Clock, TrendingUp } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 
 interface CycleCount {
   id: number;
@@ -198,7 +198,8 @@ export default function CycleCounts() {
                   className="input w-full"
                   value={form.scheduledDate}
                   onChange={(e) => setForm({ ...form, scheduledDate: e.target.value })}
-                />
+                >
+              </input>
               </div>
 
               <div>
@@ -209,7 +210,8 @@ export default function CycleCounts() {
                   placeholder="Staff name"
                   value={form.performedBy}
                   onChange={(e) => setForm({ ...form, performedBy: e.target.value })}
-                />
+                >
+              </input>
               </div>
             </div>
 

@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 import { usePrivy } from '@privy-io/react-auth';
 import { 
   ChevronDown, ChevronUp, Upload, FileText, ExternalLink 
@@ -160,7 +160,9 @@ function ProfileContent() {
       .upload(filePath, file, { cacheControl: '3600', upsert: false });
 
     if (error) {
-      toast.error(`Upload failed: ${error.message}`);
+      toast.error('Upload failed', {
+        description: error.message,
+      });
       return null;
     }
 

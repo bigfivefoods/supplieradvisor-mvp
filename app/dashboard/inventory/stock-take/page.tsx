@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { toast } from 'sonner'
 
 export default function StockTake() {
   const [selectedLocationId, setSelectedLocationId] = useState('')
@@ -106,14 +107,19 @@ export default function StockTake() {
   }
 
   const saveStockTake = () => {
-    alert(`✅ Stock Take Saved for ${currentLocation?.name}!\n\nItems counted: ${stockTakeItems.length}`)
+    toast.success('Stock Take saved successfully', {
+      description: `${currentLocation?.name} • ${stockTakeItems.length} items counted`,
+    })
   }
 
   const cancelStockTake = () => {
     if (!confirm('Cancel this stock take? All progress will be lost.')) return
+    
     setSelectedLocationId('')
     setCurrentLocation(null)
     setStockTakeItems([])
+    
+    toast.error('Stock take cancelled')
   }
 
   const viewHistory = (history: any) => {

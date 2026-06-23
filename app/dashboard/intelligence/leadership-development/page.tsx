@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 import { ChevronRight, ChevronDown } from 'lucide-react';
-import toast from 'react-hot-toast';
 
 export default function LeadershipDevelopment() {
   const [step, setStep] = useState<'intro' | 'assessment' | 'results'>('intro');

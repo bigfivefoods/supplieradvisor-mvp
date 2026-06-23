@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 import { Search, Plus, FileText, Truck, QrCode, Edit, Trash2 } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 
 interface FinishedGood {
   id: number;

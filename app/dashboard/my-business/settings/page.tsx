@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 import { 
   Settings as SettingsIcon, Bell, Users, 
   Trash2, AlertTriangle, Save 
@@ -107,7 +107,9 @@ export default function BusinessSettings() {
 
       toast.success('Settings saved successfully');
     } catch (error: any) {
-      toast.error('Failed to save settings: ' + error.message);
+      toast.error('Failed to save settings', {
+        description: error.message,
+      });
     } finally {
       setSaving(false);
     }

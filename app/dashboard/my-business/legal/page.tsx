@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 import { 
   ShieldCheck, FileText, Award, UserCheck, 
   Upload, ExternalLink, Download 
@@ -88,7 +88,9 @@ export default function LegalAndCompliance() {
       .upload(filePath, file);
 
     if (error) {
-      toast.error('Upload failed: ' + error.message);
+      toast.error('Upload failed', {
+        description: error.message,
+      });
       return null;
     }
 

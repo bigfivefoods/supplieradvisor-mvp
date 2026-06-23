@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 import { Plus, ArrowRight, CheckCircle, Clock, Truck } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 
 interface Transfer {
   id: number;

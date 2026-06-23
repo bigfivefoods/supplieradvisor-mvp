@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { supabase } from '@/lib/supabase';
 import { Star, Gift, Trophy, ArrowRight } from 'lucide-react';
-import toast from 'react-hot-toast';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 
 export default function ConsumerLoyalty() {

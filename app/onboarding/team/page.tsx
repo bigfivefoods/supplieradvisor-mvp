@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { CheckCircle, Loader2, AlertCircle, Users } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 
 function TeamOnboardingContent() {
   const router = useRouter();
@@ -240,11 +240,11 @@ function TeamOnboardingContent() {
               disabled={saving}
               className="w-full py-4 bg-[#00b4d8] hover:bg-[#0099b8] disabled:bg-neutral-400 text-white text-lg font-semibold rounded-2xl transition-colors flex items-center justify-center gap-2 mt-4"
             >
-              {saving ? (
-                <> <Loader2 className="w-5 h-5 animate-spin" /> Creating Account... </>
-              ) : (
-                'Accept Invitation & Create Account'
-              )}
+                {saving ? (
+                  <> <Loader2 className="w-5 h-5 animate-spin" /> Creating Account... </>
+                ) : (
+                  'Accept Invitation & Create Account'
+                )}
             </button>
           </form>
         </div>

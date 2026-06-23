@@ -4,7 +4,7 @@ import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { Loader2 } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 
 function LoginForm() {
   const router = useRouter();

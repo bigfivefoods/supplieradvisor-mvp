@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Plus, Check, X, Users } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 
 export default function ConnectPage() {
   const [businesses, setBusinesses] = useState<any[]>([]);

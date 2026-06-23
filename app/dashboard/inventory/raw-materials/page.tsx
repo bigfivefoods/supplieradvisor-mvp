@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 import { Search, Plus, ShoppingCart, Truck, QrCode, Edit, Trash2, ChevronDown } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 
 interface RawMaterial {
   id: number;

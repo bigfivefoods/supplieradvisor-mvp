@@ -7,7 +7,7 @@ import {
   Search, ChevronDown, UserPlus, Award, Brain, MapPin, 
   CheckCircle, X, Filter 
 } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 
 interface Supplier {
   id: number;
@@ -281,7 +281,7 @@ export default function SuppliersSearch() {
           <div className="relative mb-6">
             <Search className="absolute left-5 top-4 text-neutral-400" size={22} />
             <input
-              type="text"
+              type="text" 
               placeholder="Search by company name, industry, location, or certification..."
               className="input w-full pl-14 text-lg py-4"
               value={searchTerm}

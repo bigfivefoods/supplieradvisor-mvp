@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 import { 
   Plus, Target, Clock, CheckCircle, Pause, 
   TrendingUp, Users 
@@ -109,7 +109,9 @@ export default function Projects() {
 
       toast.success('Project created successfully');
     } catch (error: any) {
-      toast.error('Failed to create project: ' + error.message);
+      toast.error('Failed to create project', {
+        description: error.message,
+      });
     }
   };
 

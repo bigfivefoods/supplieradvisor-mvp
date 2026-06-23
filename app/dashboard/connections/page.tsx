@@ -4,7 +4,7 @@ import { useState, useEffect, useTransition } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { supabase } from '@/lib/supabase';
 import { getMyProfileId } from '@/app/actions/get-my-profile';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 import { ArrowLeft, Check, X, Clock, Users, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 

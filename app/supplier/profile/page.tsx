@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { supabase } from '@/lib/supabase';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 import { Save, ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 

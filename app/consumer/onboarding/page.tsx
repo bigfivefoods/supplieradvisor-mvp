@@ -5,7 +5,7 @@ import { usePrivy } from '@privy-io/react-auth';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, Upload } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 
 export default function ConsumerOnboarding() {

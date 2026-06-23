@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 import { 
   FileText, Upload, Download, Trash2, Search, 
   FolderOpen, File 
@@ -105,7 +105,9 @@ export default function Documents() {
       setDocuments(prev => [newDoc, ...prev]);
       toast.success('Document uploaded successfully');
     } catch (error: any) {
-      toast.error('Upload failed: ' + error.message);
+      toast.error('Upload failed', {
+        description: error.message,
+      });
     } finally {
       setUploading(false);
       e.target.value = ''; // reset input

@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 import { usePrivy } from '@privy-io/react-auth';
 import { Users, UserPlus, Mail } from 'lucide-react';
 
@@ -100,11 +100,13 @@ function TeamContent() {
         // Show the real error from the server
         const errorMessage = result.details || result.error || 'Failed to create invitation';
         console.error('Server error details:', result);
-        toast.error(errorMessage);
+        toast.error('Failed to send invitation', {
+          description: errorMessage,
+        });
         return;
       }
 
-      toast.success(`✅ Invitation sent to ${newTeamMember.email}`);
+      toast.success(`Invitation sent to ${newTeamMember.email}`);
 
       // Refresh the team list
       const { data: members } = await supabase
@@ -118,7 +120,9 @@ function TeamContent() {
 
     } catch (err: any) {
       console.error('Invite error:', err);
-      toast.error(err.message || 'Failed to send invitation');
+      toast.error('Failed to send invitation', {
+        description: err.message,
+      });
     } finally {
       setInviting(false);
     }
