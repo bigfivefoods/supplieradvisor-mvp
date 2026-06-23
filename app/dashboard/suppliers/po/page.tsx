@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client';
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, usePublicClient } from 'wagmi';
 import { Plus, Trash2, Building2, CheckCircle, DollarSign, FileText, Search, Wallet } from 'lucide-react';
 import Breadcrumb from '@/components/ui/Breadcrumb';
@@ -45,6 +45,7 @@ export default function PurchaseOrdersPage() {
   const { user, signMessage } = usePrivy();
   const { address: connectedWallet } = useAccount();
   const publicClient = usePublicClient();
+  const supabase = createClient();
 
   const [loading, setLoading] = useState(false);
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
