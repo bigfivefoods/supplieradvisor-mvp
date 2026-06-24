@@ -27,7 +27,7 @@ const modules = [
     ]
   },
 
-  // ==================== NETWORK (Updated) ====================
+  // ==================== NETWORK ====================
   { 
     id: 'network', 
     name: 'Network', 
@@ -39,7 +39,7 @@ const modules = [
     ]
   },
 
-  // ==================== SUPPLIERS ====================
+  // ==================== SUPPLIERS (Updated) ====================
   {  
     id: 'suppliers', 
     name: 'Suppliers', 
@@ -47,6 +47,7 @@ const modules = [
     href: '/dashboard/suppliers',
     sub: [
       { name: 'Supplier Profiles', href: '/dashboard/suppliers/profiles' },
+      { name: 'Supplier Performance', href: '/dashboard/suppliers/performance' },   // ← NEW
       { name: 'Add New Supplier', href: '/dashboard/suppliers/add' },
       { name: 'Sent Supplier Invitations', href: '/dashboard/suppliers/invites' },
       { name: 'Purchase Orders', href: '/dashboard/suppliers/po' },
