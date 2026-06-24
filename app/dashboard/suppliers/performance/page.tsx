@@ -3,9 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/utils/supabase/client';
-import { 
-  Award, Calendar, ArrowLeft, TrendingUp, Clock, Package, ShieldCheck 
-} from 'lucide-react';
+import { Award, ArrowLeft, TrendingUp, Clock, Package, ShieldCheck, Calendar } from 'lucide-react';
 
 const supabase = createClient();
 
@@ -21,19 +19,13 @@ interface SupplierMetric {
 }
 
 export default function SupplierPerformanceMetrics() {
-  // Date Range State
   const [fromDate, setFromDate] = useState('2025-06-01');
   const [toDate, setToDate] = useState('2026-06-24');
   const [activePreset, setActivePreset] = useState<'30d' | '90d' | '6m' | '12m' | 'all' | 'custom'>('12m');
 
   const [metrics, setMetrics] = useState<SupplierMetric[]>([]);
   const [summary, setSummary] = useState({
-    overall: 0,
-    onTime: 0,
-    inFull: 0,
-    errorFree: 0,
-    totalPOs: 0,
-    supplierCount: 0,
+    overall: 0, onTime: 0, inFull: 0, errorFree: 0, totalPOs: 0, supplierCount: 0
   });
   const [loading, setLoading] = useState(true);
 
@@ -48,17 +40,14 @@ export default function SupplierPerformanceMetrics() {
     if (preset === '12m') from.setFullYear(today.getFullYear() - 1);
     if (preset === 'all') from = new Date('2024-01-01');
 
-    const fromStr = from.toISOString().split('T')[0];
-    const toStr = today.toISOString().split('T')[0];
-
-    setFromDate(fromStr);
-    setToDate(toStr);
+    setFromDate(from.toISOString().split('T')[0]);
+    setToDate(today.toISOString().split('T')[0]);
     setActivePreset(preset);
   };
 
-  // Fetch Live OTIFEF Data from Supabase
+  // Fetch OTIFEF Data
   useEffect(() => {
-    const fetchOTIFEFData = async () => {
+    const fetchData = async () => {
       setLoading(true);
 
       const { data: pos, error } = await supabase
@@ -71,39 +60,29 @@ export default function SupplierPerformanceMetrics() {
           order_quantity,
           delivered_quantity,
           damaged_quantity,
-          profiles!supplier_id (
-            id,
-            trading_name
-          )
+          profiles!supplier_id (trading_name)
         `)
         .gte('actual_delivery_date', fromDate)
         .lte('actual_delivery_date', toDate)
         .not('actual_delivery_date', 'is', null);
 
-      if (error) {
-        console.error('Error fetching purchase orders:', error);
-        setLoading(false);
-        return;
-      }
-
-      if (!pos || pos.length === 0) {
+      if (error || !pos || pos.length === 0) {
         setMetrics([]);
         setSummary({ overall: 0, onTime: 0, inFull: 0, errorFree: 0, totalPOs: 0, supplierCount: 0 });
         setLoading(false);
         return;
       }
 
-      // Group and calculate per supplier
       const supplierMap = new Map<number, any>();
 
       pos.forEach((po: any) => {
-        const supplierId = po.supplier_id;
-        const supplierName = po.profiles?.trading_name || 'Unknown Supplier';
+        const sid = po.supplier_id;
+        const sname = po.profiles?.trading_name || 'Unknown Supplier';
 
-        if (!supplierMap.has(supplierId)) {
-          supplierMap.set(supplierId, {
-            id: supplierId,
-            name: supplierName,
+        if (!supplierMap.has(sid)) {
+          supplierMap.set(sid, {
+            id: sid,
+            name: sname,
             total_pos: 0,
             on_time_count: 0,
             ot_days_sum: 0,
@@ -113,24 +92,19 @@ export default function SupplierPerformanceMetrics() {
           });
         }
 
-        const s = supplierMap.get(supplierId);
+        const s = supplierMap.get(sid);
         s.total_pos += 1;
+        if (po.actual_delivery_date <= po.promised_date) s.on_time_count += 1;
 
-        // On Time
-        if (po.actual_delivery_date <= po.promised_date) {
-          s.on_time_count += 1;
-        }
         const daysDiff = (new Date(po.promised_date).getTime() - new Date(po.actual_delivery_date).getTime()) / (1000 * 3600 * 24);
         s.ot_days_sum += daysDiff;
 
-        // In Full & Error Free
         s.total_ordered += po.order_quantity || 0;
         s.total_delivered += po.delivered_quantity || 0;
         s.total_damaged += po.damaged_quantity || 0;
       });
 
-      // Convert to final metrics
-      const calculatedMetrics: SupplierMetric[] = Array.from(supplierMap.values()).map((s) => {
+      const calculatedMetrics: SupplierMetric[] = Array.from(supplierMap.values()).map((s: any) => {
         const ot_percent = s.total_pos > 0 ? (s.on_time_count / s.total_pos) * 100 : 0;
         const ot_days = s.total_pos > 0 ? s.ot_days_sum / s.total_pos : 0;
         const if_percent = s.total_ordered > 0 ? (s.total_delivered / s.total_ordered) * 100 : 0;
@@ -149,7 +123,6 @@ export default function SupplierPerformanceMetrics() {
         };
       });
 
-      // Calculate summary
       const totalPOs = calculatedMetrics.reduce((sum, m) => sum + m.total_pos, 0);
       const avgOverall = calculatedMetrics.length > 0 
         ? calculatedMetrics.reduce((sum, m) => sum + m.overall, 0) / calculatedMetrics.length : 0;
@@ -167,7 +140,7 @@ export default function SupplierPerformanceMetrics() {
       setLoading(false);
     };
 
-    fetchOTIFEFData();
+    fetchData();
   }, [fromDate, toDate]);
 
   const getPerformanceColor = (value: number) => {
@@ -185,7 +158,7 @@ export default function SupplierPerformanceMetrics() {
           <ArrowLeft className="w-4 h-4" /> Back to Suppliers
         </Link>
         
-        <div className="flex items-center gap-3 mb-3">
+        <div className="flex items-center gap-3 mb-2">
           <div className="p-2.5 bg-emerald-100 rounded-2xl">
             <Award className="w-7 h-7 text-emerald-600" />
           </div>
@@ -194,27 +167,28 @@ export default function SupplierPerformanceMetrics() {
         <p className="text-xl text-neutral-600">OTIFEF Analysis • Live from Supabase</p>
       </div>
 
-      {/* Date Range Selector */}
-      <div className="bg-white rounded-3xl border border-neutral-200 p-6 mb-10">
-        <div className="flex flex-col lg:flex-row lg:items-end gap-6">
+      {/* === CLEAN COMPACT DATE RANGE === */}
+      <div className="bg-white rounded-3xl border border-neutral-200 p-5 mb-10">
+        <div className="flex flex-col lg:flex-row lg:items-center gap-5">
+          
           {/* Quick Presets */}
-          <div>
-            <div className="text-xs font-semibold tracking-widest text-neutral-500 mb-2 px-1">QUICK RANGES</div>
-            <div className="flex flex-wrap gap-2">
+          <div className="flex-shrink-0">
+            <div className="text-[10px] font-semibold tracking-[1px] text-neutral-500 mb-1.5 px-1">QUICK RANGES</div>
+            <div className="flex flex-wrap gap-1.5">
               {[
-                { label: '30 Days', value: '30d' as const },
-                { label: '90 Days', value: '90d' as const },
-                { label: '6 Months', value: '6m' as const },
-                { label: '12 Months', value: '12m' as const },
-                { label: 'All Time', value: 'all' as const },
+                { label: '30d', value: '30d' as const },
+                { label: '90d', value: '90d' as const },
+                { label: '6m', value: '6m' as const },
+                { label: '12m', value: '12m' as const },
+                { label: 'All', value: 'all' as const },
               ].map((preset) => (
                 <button
                   key={preset.value}
                   onClick={() => applyPreset(preset.value)}
-                  className={`px-5 py-2 rounded-2xl text-sm font-medium transition-all border ${
-                    activePreset === preset.value
-                      ? 'bg-neutral-900 text-white border-neutral-900'
-                      : 'bg-white hover:bg-neutral-50 border-neutral-200 text-neutral-700'
+                  className={`px-4 py-1.5 text-sm rounded-2xl font-medium transition-all border ${
+                    activePreset === preset.value 
+                      ? 'bg-neutral-900 text-white border-neutral-900' 
+                      : 'bg-white hover:bg-neutral-50 border-neutral-200'
                   }`}
                 >
                   {preset.label}
@@ -225,10 +199,9 @@ export default function SupplierPerformanceMetrics() {
 
           {/* Custom Date Inputs */}
           <div className="flex-1">
-            <div className="text-xs font-semibold tracking-widest text-neutral-500 mb-2 px-1">CUSTOM RANGE</div>
-            <div className="flex items-center gap-4">
+            <div className="text-[10px] font-semibold tracking-[1px] text-neutral-500 mb-1.5 px-1">CUSTOM RANGE</div>
+            <div className="flex items-center gap-3">
               <div className="flex-1">
-                <label className="text-xs text-neutral-500 block mb-1.5">From</label>
                 <div className="relative">
                   <input
                     type="date"
@@ -237,13 +210,15 @@ export default function SupplierPerformanceMetrics() {
                       setFromDate(e.target.value);
                       setActivePreset('custom');
                     }}
-                    className="w-full border border-neutral-200 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-neutral-400 bg-white"
+                    className="w-full border border-neutral-200 rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:border-neutral-400"
                   />
-                  <Calendar className="absolute right-4 top-3.5 w-4 h-4 text-neutral-400 pointer-events-none" />
+                  <Calendar className="absolute right-4 top-3 w-4 h-4 text-neutral-400 pointer-events-none" />
                 </div>
               </div>
+
+              <div className="text-neutral-400 text-sm pt-2">→</div>
+
               <div className="flex-1">
-                <label className="text-xs text-neutral-500 block mb-1.5">To</label>
                 <div className="relative">
                   <input
                     type="date"
@@ -252,22 +227,22 @@ export default function SupplierPerformanceMetrics() {
                       setToDate(e.target.value);
                       setActivePreset('custom');
                     }}
-                    className="w-full border border-neutral-200 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-neutral-400 bg-white"
+                    className="w-full border border-neutral-200 rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:border-neutral-400"
                   />
-                  <Calendar className="absolute right-4 top-3.5 w-4 h-4 text-neutral-400 pointer-events-none" />
+                  <Calendar className="absolute right-4 top-3 w-4 h-4 text-neutral-400 pointer-events-none" />
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="text-sm text-neutral-500 lg:pb-3">
-            Showing data from <span className="font-medium text-neutral-700">{fromDate}</span> to <span className="font-medium text-neutral-700">{toDate}</span>
+          <div className="text-xs text-neutral-500 lg:pt-6 whitespace-nowrap">
+            {fromDate} → {toDate}
           </div>
         </div>
       </div>
 
       {loading ? (
-        <div className="text-center py-20 text-neutral-500">Loading live OTIFEF data from Supabase...</div>
+        <div className="text-center py-20 text-neutral-500">Loading live OTIFEF data...</div>
       ) : (
         <>
           {/* Summary Cards */}
@@ -321,7 +296,9 @@ export default function SupplierPerformanceMetrics() {
           <div className="bg-white rounded-3xl border border-neutral-200 overflow-hidden">
             <div className="px-8 pt-8 pb-6 border-b">
               <h2 className="font-bold text-3xl tracking-tight">Top Performing Suppliers</h2>
-              <p className="text-neutral-600 mt-1">Ranked by Overall OTIFEF Score • {summary.supplierCount} suppliers in period</p>
+              <p className="text-neutral-600 mt-1">
+                Ranked by Overall OTIFEF Score • {summary.supplierCount} suppliers in period
+              </p>
             </div>
 
             {metrics.length > 0 ? (
@@ -380,7 +357,7 @@ export default function SupplierPerformanceMetrics() {
           </div>
 
           <p className="text-center text-xs text-neutral-400 mt-8">
-            OTIFEF Score = On Time % × In Full % × Error Free % • Data updates in real-time
+            OTIFEF Score = On Time % × In Full % × Error Free % • Data updates in real-time from Supabase
           </p>
         </>
       )}
