@@ -152,8 +152,8 @@ export default function SupplierRIADLog() {
   };
 
   const handleSubmit = async () => {
-    if (!form.title || !form.stakeholder_id) {
-      alert('Please enter a Title and select a Stakeholder');
+    if (!form.title) {
+      alert('Please enter a Title');
       return;
     }
 
@@ -166,7 +166,7 @@ export default function SupplierRIADLog() {
 
     const payload: any = {
       stakeholder_type: form.stakeholder_type,
-      stakeholder_id: parseInt(form.stakeholder_id),
+      stakeholder_id: form.stakeholder_id ? parseInt(form.stakeholder_id) : null,
       owner_id: form.owner_id ? parseInt(form.owner_id) : null,
       riad_type: activeTab,
       title: form.title,
@@ -278,7 +278,7 @@ export default function SupplierRIADLog() {
               {riadLogs.map((log) => (
                 <tr key={log.id} className="hover:bg-neutral-50">
                   <td className="px-8 py-5">
-                    <div className="font-medium text-sm">{log.stakeholder?.trading_name || 'Unknown'}</div>
+                    <div className="font-medium text-sm">{log.stakeholder?.trading_name || 'Unassigned'}</div>
                     <div className="text-xs text-neutral-500 capitalize">{log.stakeholder_type}</div>
                   </td>
                   <td className="px-8 py-5">
@@ -324,7 +324,7 @@ export default function SupplierRIADLog() {
                 <input type="text" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="w-full border border-neutral-200 rounded-2xl px-4 py-3 text-sm" placeholder="Short title" />
               </div>
 
-              {/* Stakeholder Type + Stakeholder */}
+              {/* Stakeholder Type + Stakeholder (Optional) */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-medium block mb-1.5">Stakeholder Type</label>
@@ -335,12 +335,14 @@ export default function SupplierRIADLog() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs font-medium block mb-1.5">Stakeholder</label>
+                  <label className="text-xs font-medium block mb-1.5">
+                    Stakeholder <span className="text-neutral-400">(Optional)</span>
+                  </label>
                   {loadingStakeholders ? (
                     <div className="text-sm py-2 text-neutral-500">Loading...</div>
                   ) : (
                     <select value={form.stakeholder_id} onChange={(e) => setForm({ ...form, stakeholder_id: e.target.value })} className="w-full border border-neutral-200 rounded-2xl px-4 py-3 text-sm">
-                      <option value="">Select...</option>
+                      <option value="">None / Not linked yet</option>
                       {stakeholders.map((s) => <option key={s.id} value={s.id}>{s.trading_name}</option>)}
                     </select>
                   )}
@@ -417,7 +419,7 @@ export default function SupplierRIADLog() {
                 </div>
               )}
 
-              {/* Status + Logged Date + Closed Date (Fixed sizing) */}
+              {/* Status + Logged Date + Closed Date */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="text-xs font-medium block mb-1.5">Status</label>
