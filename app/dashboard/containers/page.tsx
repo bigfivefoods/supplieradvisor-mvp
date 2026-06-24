@@ -7,8 +7,8 @@ import {
   Plus, 
   BarChart3, 
   Users, 
-  FileText, 
-  Settings 
+  Edit3,
+  GraduationCap 
 } from 'lucide-react';
 
 export default function ContainersHub() {
@@ -20,6 +20,7 @@ export default function ContainersHub() {
     >
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         
+        {/* All Containers */}
         <HubCard
           title="All Containers"
           description="View, search, and manage all your retail containers and their status."
@@ -27,6 +28,15 @@ export default function ContainersHub() {
           icon={Package}
         />
 
+        {/* Manage Containers */}
+        <HubCard
+          title="Manage Containers"
+          description="Create, edit, assign contractors, update status, upload photos, and manage full container records."
+          href="/dashboard/containers/manage"
+          icon={Edit3}
+        />
+
+        {/* Add New Container */}
         <HubCard
           title="Add New Container"
           description="Onboard a new container and appoint an independent contractor."
@@ -34,13 +44,7 @@ export default function ContainersHub() {
           icon={Plus}
         />
 
-        <HubCard
-          title="Performance Metrics"
-          description="Aggregate view of container performance, top performers, and issues."
-          href="/dashboard/containers/metrics"
-          icon={BarChart3}
-        />
-
+        {/* Contractors */}
         <HubCard
           title="Contractors"
           description="Manage all independent contractors running your containers."
@@ -48,18 +52,20 @@ export default function ContainersHub() {
           icon={Users}
         />
 
+        {/* Training Hub */}
         <HubCard
-          title="Reports"
-          description="Generate performance, payout, inventory, and compliance reports."
-          href="/dashboard/containers/reports"
-          icon={FileText}
+          title="Training Hub"
+          description="Access training materials, track contractor onboarding, completion status, and certifications."
+          href="/dashboard/containers/training"
+          icon={GraduationCap}
         />
 
+        {/* Performance Metrics */}
         <HubCard
-          title="Settings"
-          description="Configure container types, commission structures, and defaults."
-          href="/dashboard/containers/settings"
-          icon={Settings}
+          title="Performance Metrics"
+          description="Aggregate view of container performance, top performers, and issues."
+          href="/dashboard/containers/metrics"
+          icon={BarChart3}
         />
 
       </div>
