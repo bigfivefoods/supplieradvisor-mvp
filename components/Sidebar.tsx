@@ -23,6 +23,7 @@ const modules = [
       { name: 'Projects', href: '/dashboard/my-business/projects' },
       { name: 'Legal & Compliance', href: '/dashboard/my-business/legal' },
       { name: 'Documents', href: '/dashboard/my-business/documents' },
+      { name: 'My Business RIAD Log', href: '/dashboard/my-business/riad-log' },
       { name: 'Settings', href: '/dashboard/my-business/settings' },
     ]
   },
@@ -39,7 +40,7 @@ const modules = [
     ]
   },
 
-  // ==================== SUPPLIERS (Updated) ====================
+  // ==================== SUPPLIERS ====================
   {  
     id: 'suppliers', 
     name: 'Suppliers', 
@@ -47,7 +48,7 @@ const modules = [
     href: '/dashboard/suppliers',
     sub: [
       { name: 'Supplier Profiles', href: '/dashboard/suppliers/profiles' },
-      { name: 'Supplier Performance', href: '/dashboard/suppliers/performance' },   // ← NEW
+      { name: 'Supplier Performance', href: '/dashboard/suppliers/performance' },
       { name: 'Add New Supplier', href: '/dashboard/suppliers/add' },
       { name: 'Sent Supplier Invitations', href: '/dashboard/suppliers/invites' },
       { name: 'Purchase Orders', href: '/dashboard/suppliers/po' },
@@ -73,6 +74,7 @@ const modules = [
     ]
   },
 
+  // ==================== CONTAINERS (Updated) ====================
   { 
     id: 'containers', 
     name: 'Containers', 
@@ -85,6 +87,7 @@ const modules = [
       { name: 'Contractors', href: '/dashboard/containers/contractors' },
       { name: 'Metrics', href: '/dashboard/containers/metrics' },
       { name: 'Reports', href: '/dashboard/containers/reports' },
+      { name: 'Container RIAD Log', href: '/dashboard/containers/riad-log' },   // ← NEW
       { name: 'Settings', href: '/dashboard/containers/settings' },
     ]
   },
@@ -222,13 +225,11 @@ export default function Sidebar() {
                 isActive ? 'bg-[#00b4d8] text-white' : 'hover:bg-neutral-100'
               }`}>
                 
-                {/* Main Link (navigates) */}
                 <Link href={mod.href} className="flex items-center gap-3 flex-1">
                   <Icon className="w-5 h-5" />
                   <span className="font-semibold">{mod.name}</span>
                 </Link>
 
-                {/* Chevron - only for toggling submenu */}
                 {mod.sub.length > 0 && (
                   <button
                     onClick={(e) => {
@@ -245,7 +246,6 @@ export default function Sidebar() {
                 )}
               </div>
 
-              {/* Submenu */}
               {mod.sub.length > 0 && isExpanded && (
                 <div className="ml-7 mt-1 space-y-0.5">
                   {mod.sub.map((sub, index) => (
