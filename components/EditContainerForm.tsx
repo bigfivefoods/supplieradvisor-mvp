@@ -8,7 +8,7 @@ import { createClient } from '@/utils/supabase/client';
 const LocationMap = dynamic(() => import('@/components/LocationMap'), { ssr: false });
 const supabase = createClient();
 
-interface Container {
+export interface Container {
   id: number;
   container_code: string;
   name: string;
@@ -36,6 +36,7 @@ interface EditContainerFormProps {
 }
 
 const continents = ['Africa', 'Asia', 'Europe', 'North America', 'South America', 'Oceania'];
+
 const countriesByContinent: Record<string, string[]> = {
   Africa: ['South Africa', 'Nigeria', 'Kenya', 'Ghana', 'Egypt', 'Morocco', 'Namibia', 'Botswana', 'Zimbabwe', 'Zambia'],
   Asia: ['India', 'China', 'Japan', 'Singapore', 'UAE'],
@@ -68,7 +69,9 @@ export default function EditContainerForm({ container, onClose, onSuccess }: Edi
     notes: container.notes || '',
   });
 
-  const [tags, setTags] = useState<string[]>(container.tags ? container.tags.split(',') : []);
+  const [tags, setTags] = useState<string[]>(
+    container.tags ? container.tags.split(',').filter(Boolean) : []
+  );
   const [tagInput, setTagInput] = useState('');
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(container.photo_url);
@@ -83,14 +86,14 @@ export default function EditContainerForm({ container, onClose, onSuccess }: Edi
   const availableCountries = countriesByContinent[form.continent] || [];
   const availableProvinces = ['Gauteng', 'Western Cape', 'KwaZulu-Natal', 'Eastern Cape', 'Free State', 'Mpumalanga', 'Limpopo', 'North West', 'Northern Cape'];
 
-  // Set initial continent based on country
+  // Auto-detect continent from existing country
   useEffect(() => {
     if (container.country) {
-      const foundContinent = Object.keys(countriesByContinent).find(continent =>
-        countriesByContinent[continent].includes(container.country!)
+      const foundContinent = Object.keys(countriesByContinent).find((c) =>
+        countriesByContinent[c].includes(container.country!)
       );
       if (foundContinent) {
-        setForm(prev => ({ ...prev, continent: foundContinent }));
+        setForm((prev) => ({ ...prev, continent: foundContinent }));
       }
     }
   }, [container.country]);
@@ -106,7 +109,7 @@ export default function EditContainerForm({ container, onClose, onSuccess }: Edi
 
   const handleMapClick = (lat: number, lng: number) => {
     setSelectedPosition([lat, lng]);
-    setForm(prev => ({ ...prev, latitude: lat, longitude: lng }));
+    setForm((prev) => ({ ...prev, latitude: lat, longitude: lng }));
   };
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -136,7 +139,7 @@ export default function EditContainerForm({ container, onClose, onSuccess }: Edi
   };
 
   const removeTag = (tagToRemove: string) => {
-    setTags(tags.filter(tag => tag !== tagToRemove));
+    setTags(tags.filter((tag) => tag !== tagToRemove));
   };
 
   const handleTagKeyDown = (e: React.KeyboardEvent) => {
@@ -174,7 +177,7 @@ export default function EditContainerForm({ container, onClose, onSuccess }: Edi
       photoUrl = data.publicUrl;
     }
 
-    // Update record
+    // Update in Supabase
     const { error } = await supabase
       .from('containers')
       .update({
@@ -201,8 +204,8 @@ export default function EditContainerForm({ container, onClose, onSuccess }: Edi
     setLoading(false);
 
     if (error) {
+      console.error('Update error:', error);
       setErrors({ submit: 'Failed to update container.' });
-      console.error(error);
     } else {
       setShowSuccess(true);
       setTimeout(() => {
@@ -228,7 +231,7 @@ export default function EditContainerForm({ container, onClose, onSuccess }: Edi
         <div className="flex justify-between items-center px-8 py-6 border-b flex-shrink-0">
           <div>
             <h2 className="text-3xl font-black tracking-[-1.5px]">Edit Container</h2>
-            <p className="text-slate-500 mt-1">Update container details</p>
+            <p className="text-slate-500 mt-1">Update container details and location</p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full">
             <X className="w-5 h-5" />
@@ -238,7 +241,7 @@ export default function EditContainerForm({ container, onClose, onSuccess }: Edi
         <div className="flex-1 overflow-y-auto p-8">
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
             
-            {/* Form Section */}
+            {/* Left Column - Form */}
             <div className="lg:col-span-3 space-y-8">
               
               {/* Basic Information */}
@@ -250,22 +253,22 @@ export default function EditContainerForm({ container, onClose, onSuccess }: Edi
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-semibold tracking-widest text-slate-500 block mb-1.5">CONTAINER CODE</label>
-                    <input type="text" value={form.container_code} onChange={e => setForm({ ...form, container_code: e.target.value })} className="input" />
+                    <input type="text" value={form.container_code} onChange={(e) => setForm({ ...form, container_code: e.target.value })} className="input" />
                   </div>
                   <div>
                     <label className="text-xs font-semibold tracking-widest text-slate-500 block mb-1.5">NAME</label>
-                    <input type="text" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="input" />
+                    <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input" />
                   </div>
                   <div>
                     <label className="text-xs font-semibold tracking-widest text-slate-500 block mb-1.5">TYPE</label>
-                    <select value={form.type} onChange={e => setForm({ ...form, type: e.target.value })} className="input">
-                      {typeOptions.map(t => <option key={t} value={t}>{t}</option>)}
+                    <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} className="input">
+                      {typeOptions.map((t) => <option key={t} value={t}>{t}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="text-xs font-semibold tracking-widest text-slate-500 block mb-1.5">STATUS</label>
-                    <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} className="input">
-                      {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
+                    <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="input">
+                      {statusOptions.map((s) => <option key={s} value={s}>{s}</option>)}
                     </select>
                   </div>
                 </div>
@@ -280,37 +283,37 @@ export default function EditContainerForm({ container, onClose, onSuccess }: Edi
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                   <div>
                     <label className="text-xs font-semibold tracking-widest text-slate-500 block mb-1.5">CONTINENT</label>
-                    <select value={form.continent} onChange={e => setForm({ ...form, continent: e.target.value })} className="input">
-                      {continents.map(c => <option key={c} value={c}>{c}</option>)}
+                    <select value={form.continent} onChange={(e) => setForm({ ...form, continent: e.target.value })} className="input">
+                      {continents.map((c) => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="text-xs font-semibold tracking-widest text-slate-500 block mb-1.5">COUNTRY</label>
-                    <select value={form.country} onChange={e => setForm({ ...form, country: e.target.value })} className="input">
-                      {availableCountries.map(c => <option key={c} value={c}>{c}</option>)}
+                    <select value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value })} className="input">
+                      {availableCountries.map((c) => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="text-xs font-semibold tracking-widest text-slate-500 block mb-1.5">PROVINCE</label>
-                    <select value={form.province} onChange={e => setForm({ ...form, province: e.target.value })} className="input">
+                    <select value={form.province} onChange={(e) => setForm({ ...form, province: e.target.value })} className="input">
                       <option value="">Select Province</option>
-                      {availableProvinces.map(p => <option key={p} value={p}>{p}</option>)}
+                      {availableProvinces.map((p) => <option key={p} value={p}>{p}</option>)}
                     </select>
                   </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-semibold tracking-widest text-slate-500 block mb-1.5">CITY</label>
-                    <input type="text" value={form.city} onChange={e => setForm({ ...form, city: e.target.value })} className="input" />
+                    <input type="text" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} className="input" />
                   </div>
                   <div>
                     <label className="text-xs font-semibold tracking-widest text-slate-500 block mb-1.5">ADDRESS</label>
-                    <input type="text" value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} className="input" />
+                    <input type="text" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} className="input" />
                   </div>
                 </div>
               </div>
 
-              {/* Photo */}
+              {/* Photo Upload */}
               <div>
                 <div className="flex items-center gap-2 mb-4">
                   <ImageIcon className="w-5 h-5 text-slate-600" />
@@ -324,7 +327,7 @@ export default function EditContainerForm({ container, onClose, onSuccess }: Edi
                     </button>
                   </div>
                 ) : (
-                  <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-slate-300 rounded-3xl cursor-pointer hover:border-slate-400">
+                  <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-slate-300 rounded-3xl cursor-pointer hover:border-slate-400 transition-colors">
                     <div className="flex flex-col items-center justify-center pt-5 pb-6">
                       <ImageIcon className="w-10 h-10 text-slate-400 mb-3" />
                       <p className="text-sm text-slate-500">Click to upload new photo</p>
@@ -334,7 +337,7 @@ export default function EditContainerForm({ container, onClose, onSuccess }: Edi
                 )}
               </div>
 
-              {/* Contractor */}
+              {/* Contractor Assignment */}
               <div>
                 <div className="flex items-center gap-2 mb-4">
                   <User className="w-5 h-5 text-slate-600" />
@@ -342,9 +345,9 @@ export default function EditContainerForm({ container, onClose, onSuccess }: Edi
                 </div>
                 <input
                   type="text"
-                  placeholder="Contractor name"
+                  placeholder="Contractor name or ID"
                   value={form.assigned_contractor}
-                  onChange={e => setForm({ ...form, assigned_contractor: e.target.value })}
+                  onChange={(e) => setForm({ ...form, assigned_contractor: e.target.value })}
                   className="input"
                 />
               </div>
@@ -355,7 +358,7 @@ export default function EditContainerForm({ container, onClose, onSuccess }: Edi
                   <Tag className="w-5 h-5 text-slate-600" />
                   <h3 className="font-semibold text-lg">Tags</h3>
                 </div>
-                <div className="flex flex-wrap gap-2 mb-3">
+                <div className="flex flex-wrap gap-2 mb-3 min-h-[32px]">
                   {tags.map((tag, index) => (
                     <div key={index} className="flex items-center bg-slate-100 text-slate-700 px-3 py-1 rounded-2xl text-sm">
                       {tag}
@@ -366,9 +369,9 @@ export default function EditContainerForm({ container, onClose, onSuccess }: Edi
                 <div className="flex gap-2">
                   <input
                     type="text"
-                    placeholder="Add tag"
+                    placeholder="Add tag and press Enter"
                     value={tagInput}
-                    onChange={e => setTagInput(e.target.value)}
+                    onChange={(e) => setTagInput(e.target.value)}
                     onKeyDown={handleTagKeyDown}
                     className="input flex-1"
                   />
@@ -385,15 +388,15 @@ export default function EditContainerForm({ container, onClose, onSuccess }: Edi
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label className="text-xs font-semibold tracking-widest text-slate-500 block mb-1.5">PURCHASE DATE</label>
-                    <input type="date" value={form.purchase_date} onChange={e => setForm({ ...form, purchase_date: e.target.value })} className="input" />
+                    <input type="date" value={form.purchase_date} onChange={(e) => setForm({ ...form, purchase_date: e.target.value })} className="input" />
                   </div>
                   <div>
                     <label className="text-xs font-semibold tracking-widest text-slate-500 block mb-1.5">DEPLOYED DATE</label>
-                    <input type="date" value={form.deployed_date} onChange={e => setForm({ ...form, deployed_date: e.target.value })} className="input" />
+                    <input type="date" value={form.deployed_date} onChange={(e) => setForm({ ...form, deployed_date: e.target.value })} className="input" />
                   </div>
                   <div>
                     <label className="text-xs font-semibold tracking-widest text-slate-500 block mb-1.5">COST (ZAR)</label>
-                    <input type="number" value={form.cost} onChange={e => setForm({ ...form, cost: e.target.value })} className="input" />
+                    <input type="number" value={form.cost} onChange={(e) => setForm({ ...form, cost: e.target.value })} className="input" />
                   </div>
                 </div>
               </div>
@@ -404,40 +407,43 @@ export default function EditContainerForm({ container, onClose, onSuccess }: Edi
                   <FileText className="w-5 h-5 text-slate-600" />
                   <h3 className="font-semibold text-lg">Notes</h3>
                 </div>
-                <textarea 
-                  value={form.notes} 
-                  onChange={e => setForm({ ...form, notes: e.target.value })} 
-                  className="input min-h-[120px] resize-y" 
+                <textarea
+                  value={form.notes}
+                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                  className="input min-h-[120px] resize-y"
+                  placeholder="Additional notes..."
                 />
               </div>
             </div>
 
-            {/* Map */}
+            {/* Right Column - Map */}
             <div className="lg:col-span-2">
               <div className="sticky top-0">
                 <div className="flex justify-between items-center mb-3">
                   <span className="text-sm font-medium flex items-center gap-2">
-                    <MapPin className="w-4 h-4" /> Update Location
+                    <MapPin className="w-4 h-4" /> Update Location on Map
                   </span>
                   <div className="flex bg-slate-100 rounded-2xl p-1">
-                    <button onClick={() => setMapLayer('street')} className={`px-4 py-1.5 rounded-xl text-sm ${mapLayer === 'street' ? 'bg-white shadow' : ''}`}>
+                    <button onClick={() => setMapLayer('street')} className={`px-4 py-1.5 rounded-xl text-sm transition-all ${mapLayer === 'street' ? 'bg-white shadow' : ''}`}>
                       Street
                     </button>
-                    <button onClick={() => setMapLayer('satellite')} className={`px-4 py-1.5 rounded-xl text-sm ${mapLayer === 'satellite' ? 'bg-white shadow' : ''}`}>
+                    <button onClick={() => setMapLayer('satellite')} className={`px-4 py-1.5 rounded-xl text-sm transition-all ${mapLayer === 'satellite' ? 'bg-white shadow' : ''}`}>
                       Satellite
                     </button>
                   </div>
                 </div>
+
                 <div className="rounded-3xl overflow-hidden border border-slate-200 h-[420px]">
-                  <LocationMap 
-                    onMapClick={handleMapClick} 
-                    selectedPosition={selectedPosition} 
-                    layer={mapLayer} 
+                  <LocationMap
+                    onMapClick={handleMapClick}
+                    selectedPosition={selectedPosition}
+                    layer={mapLayer}
                   />
                 </div>
+
                 {form.latitude && form.longitude && (
                   <div className="mt-3 text-xs text-slate-500 font-mono">
-                    Lat: {form.latitude.toFixed(6)} | Lng: {form.longitude.toFixed(6)}
+                    Lat: {form.latitude.toFixed(6)} &nbsp;|&nbsp; Lng: {form.longitude.toFixed(6)}
                   </div>
                 )}
               </div>
@@ -450,12 +456,12 @@ export default function EditContainerForm({ container, onClose, onSuccess }: Edi
           <button onClick={onClose} className="px-8 py-3 rounded-3xl border border-slate-300 hover:bg-slate-100">
             Cancel
           </button>
-          <button 
-            onClick={handleSubmit} 
+          <button
+            onClick={handleSubmit}
             disabled={loading}
             className="btn-primary px-10 disabled:opacity-70"
           >
-            {loading ? 'Updating...' : 'Update Container'}
+            {loading ? 'Updating Container...' : 'Update Container'}
           </button>
         </div>
 
