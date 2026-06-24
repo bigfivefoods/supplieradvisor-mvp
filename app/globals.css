@@ -1,7 +1,18 @@
+/* ============================================
+   LEAFLET MAP STYLES (Added for Container Map)
+   ============================================ */
+@import "leaflet/dist/leaflet.css";
+
+/* ============================================
+   TAILWIND
+   ============================================ */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================
+   BASE STYLES
+   ============================================ */
 @layer base {
   html, body, #__next {
     background: #f8fafc;
@@ -14,6 +25,9 @@
   }
 }
 
+/* ============================================
+   COMPONENT STYLES
+   ============================================ */
 @layer components {
   .card {
     @apply bg-white border border-slate-200 rounded-3xl shadow-sm p-8 text-slate-900;
@@ -28,7 +42,7 @@
     @apply w-full p-5 rounded-3xl border border-slate-200 focus:border-[#00b4d8] focus:outline-none text-lg transition-all;
   }
 
-  /* BREADCRUMBS — MAXIMUM OVERRIDE (kept exactly as you had it) */
+  /* BREADCRUMBS — MAXIMUM OVERRIDE */
   .breadcrumb,
   .breadcrumb a,
   .breadcrumb span,
@@ -41,4 +55,29 @@
   .breadcrumb a:hover * {
     color: #0f172a !important;
   }
+}
+
+/* ============================================
+   LEAFLET MAP OVERRIDES (Tesla-style clean look)
+   ============================================ */
+.leaflet-container {
+  background: #f1f5f9;
+  border-radius: 24px;
+  z-index: 1;
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 16px;
+  box-shadow: 0 10px 30px -10px rgb(0 0 0 / 0.15);
+  border: 1px solid #e2e8f0;
+}
+
+.leaflet-popup-tip {
+  background: white;
+  border: 1px solid #e2e8f0;
+}
+
+/* Make map markers cleaner */
+.leaflet-marker-icon {
+  filter: drop-shadow(0 4px 6px rgb(0 0 0 / 0.15));
 }
