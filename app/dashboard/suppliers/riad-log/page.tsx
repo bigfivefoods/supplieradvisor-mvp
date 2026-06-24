@@ -60,7 +60,7 @@ export default function SupplierRIADLog() {
 
   const rpn = form.severity * form.likelihood * form.time_horizon;
 
-  // Fetch stakeholders
+  // Fetch stakeholders based on type
   const fetchStakeholders = async (type: StakeholderType) => {
     setLoadingStakeholders(true);
     let query = supabase.from('profiles').select('id, trading_name').order('trading_name');
@@ -159,7 +159,6 @@ export default function SupplierRIADLog() {
 
     let imageUrl = form.image_url;
 
-    // Upload image if selected
     if (selectedFile) {
       const uploadedUrl = await uploadImage();
       if (uploadedUrl) imageUrl = uploadedUrl;
@@ -248,8 +247,11 @@ export default function SupplierRIADLog() {
         ].map((tab) => {
           const Icon = tab.icon;
           return (
-            <button key={tab.key} onClick={() => setActiveTab(tab.key as RIADType)}
-              className={`flex items-center gap-2 px-6 py-4 font-medium border-b-2 transition-all ${activeTab === tab.key ? 'border-neutral-900 text-neutral-900' : 'border-transparent text-neutral-500'}`}>
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key as RIADType)}
+              className={`flex items-center gap-2 px-6 py-4 font-medium border-b-2 transition-all ${activeTab === tab.key ? 'border-neutral-900 text-neutral-900' : 'border-transparent text-neutral-500'}`}
+            >
               <Icon className="w-4 h-4" /> {tab.label}
             </button>
           );
@@ -309,7 +311,7 @@ export default function SupplierRIADLog() {
         )}
       </div>
 
-      {/* Modal with Image Upload */}
+      {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-3xl w-full max-w-lg p-8 max-h-[90vh] overflow-y-auto">
@@ -319,14 +321,14 @@ export default function SupplierRIADLog() {
               {/* Title */}
               <div>
                 <label className="text-xs font-medium block mb-1.5">Title</label>
-                <input type="text" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="w-full border rounded-2xl px-4 py-3 text-sm" placeholder="Short title" />
+                <input type="text" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="w-full border border-neutral-200 rounded-2xl px-4 py-3 text-sm" placeholder="Short title" />
               </div>
 
-              {/* Stakeholder + Owner */}
+              {/* Stakeholder Type + Stakeholder */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-medium block mb-1.5">Stakeholder Type</label>
-                  <select value={form.stakeholder_type} onChange={(e) => setForm({ ...form, stakeholder_type: e.target.value as StakeholderType })} className="w-full border rounded-2xl px-4 py-3 text-sm">
+                  <select value={form.stakeholder_type} onChange={(e) => setForm({ ...form, stakeholder_type: e.target.value as StakeholderType })} className="w-full border border-neutral-200 rounded-2xl px-4 py-3 text-sm">
                     <option value="supplier">Supplier</option>
                     <option value="customer">Customer</option>
                     <option value="internal">Internal</option>
@@ -334,16 +336,21 @@ export default function SupplierRIADLog() {
                 </div>
                 <div>
                   <label className="text-xs font-medium block mb-1.5">Stakeholder</label>
-                  <select value={form.stakeholder_id} onChange={(e) => setForm({ ...form, stakeholder_id: e.target.value })} className="w-full border rounded-2xl px-4 py-3 text-sm">
-                    <option value="">Select...</option>
-                    {stakeholders.map((s) => <option key={s.id} value={s.id}>{s.trading_name}</option>)}
-                  </select>
+                  {loadingStakeholders ? (
+                    <div className="text-sm py-2 text-neutral-500">Loading...</div>
+                  ) : (
+                    <select value={form.stakeholder_id} onChange={(e) => setForm({ ...form, stakeholder_id: e.target.value })} className="w-full border border-neutral-200 rounded-2xl px-4 py-3 text-sm">
+                      <option value="">Select...</option>
+                      {stakeholders.map((s) => <option key={s.id} value={s.id}>{s.trading_name}</option>)}
+                    </select>
+                  )}
                 </div>
               </div>
 
+              {/* Owner */}
               <div>
                 <label className="text-xs font-medium block mb-1.5">Owner (Team Member)</label>
-                <select value={form.owner_id} onChange={(e) => setForm({ ...form, owner_id: e.target.value })} className="w-full border rounded-2xl px-4 py-3 text-sm">
+                <select value={form.owner_id} onChange={(e) => setForm({ ...form, owner_id: e.target.value })} className="w-full border border-neutral-200 rounded-2xl px-4 py-3 text-sm">
                   <option value="">Unassigned</option>
                   {owners.map((o) => <option key={o.id} value={o.id}>{o.trading_name}</option>)}
                 </select>
@@ -352,7 +359,7 @@ export default function SupplierRIADLog() {
               {/* Description */}
               <div>
                 <label className="text-xs font-medium block mb-1.5">Description</label>
-                <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="w-full border rounded-2xl px-4 py-3 text-sm h-20" />
+                <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="w-full border border-neutral-200 rounded-2xl px-4 py-3 text-sm h-20" />
               </div>
 
               {/* Image Upload */}
@@ -374,49 +381,65 @@ export default function SupplierRIADLog() {
                 )}
               </div>
 
-              {/* Risk Fields */}
+              {/* Risk Scoring Fields */}
               {activeTab === 'risk' && (
                 <div className="grid grid-cols-3 gap-4">
                   <div>
                     <label className="text-xs font-medium block mb-1.5">Severity</label>
-                    <select value={form.severity} onChange={(e) => setForm({ ...form, severity: parseInt(e.target.value) })} className="w-full border rounded-2xl px-3 py-2.5 text-sm">
-                      <option value={1}>1 - Very Low</option><option value={2}>2 - Low</option><option value={3}>3 - Medium</option><option value={4}>4 - High</option><option value={5}>5 - Very High</option>
+                    <select value={form.severity} onChange={(e) => setForm({ ...form, severity: parseInt(e.target.value) })} className="w-full border border-neutral-200 rounded-2xl px-3 py-2.5 text-sm">
+                      <option value={1}>1 - Very Low</option>
+                      <option value={2}>2 - Low</option>
+                      <option value={3}>3 - Medium</option>
+                      <option value={4}>4 - High</option>
+                      <option value={5}>5 - Very High</option>
                     </select>
                   </div>
                   <div>
                     <label className="text-xs font-medium block mb-1.5">Likelihood</label>
-                    <select value={form.likelihood} onChange={(e) => setForm({ ...form, likelihood: parseInt(e.target.value) })} className="w-full border rounded-2xl px-3 py-2.5 text-sm">
-                      <option value={1}>1 - Very Unlikely</option><option value={2}>2 - Unlikely</option><option value={3}>3 - Possible</option><option value={4}>4 - Likely</option><option value={5}>5 - Almost Certain</option>
+                    <select value={form.likelihood} onChange={(e) => setForm({ ...form, likelihood: parseInt(e.target.value) })} className="w-full border border-neutral-200 rounded-2xl px-3 py-2.5 text-sm">
+                      <option value={1}>1 - Very Unlikely</option>
+                      <option value={2}>2 - Unlikely</option>
+                      <option value={3}>3 - Possible</option>
+                      <option value={4}>4 - Likely</option>
+                      <option value={5}>5 - Almost Certain</option>
                     </select>
                   </div>
                   <div>
                     <label className="text-xs font-medium block mb-1.5">Time Horizon</label>
-                    <select value={form.time_horizon} onChange={(e) => setForm({ ...form, time_horizon: parseInt(e.target.value) })} className="w-full border rounded-2xl px-3 py-2.5 text-sm">
-                      <option value={1}>1 - Immediate</option><option value={2}>2 - Very Soon</option><option value={3}>3 - Within Months</option><option value={4}>4 - Within a Year</option><option value={5}>5 - Long Term</option>
+                    <select value={form.time_horizon} onChange={(e) => setForm({ ...form, time_horizon: parseInt(e.target.value) })} className="w-full border border-neutral-200 rounded-2xl px-3 py-2.5 text-sm">
+                      <option value={1}>1 - Immediate</option>
+                      <option value={2}>2 - Very Soon</option>
+                      <option value={3}>3 - Within Months</option>
+                      <option value={4}>4 - Within a Year</option>
+                      <option value={5}>5 - Long Term</option>
                     </select>
                   </div>
                 </div>
               )}
 
-              {/* Status + Dates */}
+              {/* Status + Logged Date + Closed Date (Fixed sizing) */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="text-xs font-medium block mb-1.5">Status</label>
-                  <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="w-full border rounded-2xl px-4 py-3 text-sm">
-                    <option value="active">Active</option><option value="in_progress">In Progress</option><option value="resolved">Resolved</option><option value="closed">Closed</option><option value="on_hold">On Hold</option>
+                  <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="w-full border border-neutral-200 rounded-2xl px-4 py-2.5 text-sm">
+                    <option value="active">Active</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="resolved">Resolved</option>
+                    <option value="closed">Closed</option>
+                    <option value="on_hold">On Hold</option>
                   </select>
                 </div>
                 <div>
                   <label className="text-xs font-medium block mb-1.5">Logged Date</label>
-                  <input type="date" value={form.logged_date} onChange={(e) => setForm({ ...form, logged_date: e.target.value })} className="w-full border rounded-2xl px-4 py-3 text-sm" />
+                  <input type="date" value={form.logged_date} onChange={(e) => setForm({ ...form, logged_date: e.target.value })} className="w-full border border-neutral-200 rounded-2xl px-4 py-2.5 text-sm" />
                 </div>
                 <div>
                   <label className="text-xs font-medium block mb-1.5">Closed Date</label>
-                  <input type="date" value={form.closed_date} onChange={(e) => setForm({ ...form, closed_date: e.target.value })} className="w-full border rounded-2xl px-4 py-3 text-sm" />
+                  <input type="date" value={form.closed_date} onChange={(e) => setForm({ ...form, closed_date: e.target.value })} className="w-full border border-neutral-200 rounded-2xl px-4 py-2.5 text-sm" />
                 </div>
               </div>
 
-              {/* RPN */}
+              {/* RPN Display */}
               {activeTab === 'risk' && (
                 <div className="bg-neutral-900 text-white rounded-2xl p-4 flex justify-between items-center">
                   <div>
@@ -431,7 +454,7 @@ export default function SupplierRIADLog() {
             </div>
 
             <div className="flex gap-3 mt-8">
-              <button onClick={() => { setShowModal(false); resetForm(); }} className="flex-1 py-3 rounded-2xl border">Cancel</button>
+              <button onClick={() => { setShowModal(false); resetForm(); }} className="flex-1 py-3 rounded-2xl border border-neutral-200">Cancel</button>
               <button onClick={handleSubmit} disabled={uploadingImage} className="flex-1 py-3 rounded-2xl bg-neutral-900 text-white font-medium disabled:opacity-50">
                 {uploadingImage ? 'Uploading image...' : `Log ${activeTab}`}
               </button>
