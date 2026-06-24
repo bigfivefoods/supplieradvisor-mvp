@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/utils/supabase/client';
-import { AlertTriangle, Plus, ArrowLeft, Target, CheckCircle, Clock, Users, Upload, X } from 'lucide-react';
+import { AlertTriangle, Plus, ArrowLeft, Target, CheckCircle, Users, Upload, X } from 'lucide-react';
 
 const supabase = createClient();
 
@@ -38,7 +38,6 @@ export default function SupplierRIADLog() {
   const [owners, setOwners] = useState<Profile[]>([]);
   const [loadingStakeholders, setLoadingStakeholders] = useState(false);
 
-  // Image upload state
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -60,7 +59,6 @@ export default function SupplierRIADLog() {
 
   const rpn = form.severity * form.likelihood * form.time_horizon;
 
-  // Fetch stakeholders based on type
   const fetchStakeholders = async (type: StakeholderType) => {
     setLoadingStakeholders(true);
     let query = supabase.from('profiles').select('id, trading_name').order('trading_name');
@@ -83,11 +81,7 @@ export default function SupplierRIADLog() {
     setLoading(true);
     const { data, error } = await supabase
       .from('riad_logs')
-      .select(`
-        *,
-        stakeholder:profiles!stakeholder_id (trading_name),
-        owner:profiles!owner_id (trading_name)
-      `)
+      .select(`*, stakeholder:profiles!stakeholder_id (trading_name), owner:profiles!owner_id (trading_name)`)
       .eq('riad_type', type)
       .order('created_at', { ascending: false });
 
@@ -105,16 +99,13 @@ export default function SupplierRIADLog() {
     setForm(prev => ({ ...prev, stakeholder_id: '' }));
   }, [form.stakeholder_type]);
 
-  // Handle image selection
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     if (!file.type.startsWith('image/')) {
       alert('Please select an image file');
       return;
     }
-
     setSelectedFile(file);
     const reader = new FileReader();
     reader.onloadend = () => setImagePreview(reader.result as string);
@@ -127,25 +118,19 @@ export default function SupplierRIADLog() {
     setForm(prev => ({ ...prev, image_url: '' }));
   };
 
-  // Upload image to Supabase Storage
   const uploadImage = async (): Promise<string | null> => {
     if (!selectedFile) return null;
-
     setUploadingImage(true);
     const fileExt = selectedFile.name.split('.').pop();
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
     const filePath = `riad-images/${fileName}`;
 
-    const { error } = await supabase.storage
-      .from('riad_images')
-      .upload(filePath, selectedFile);
-
+    const { error } = await supabase.storage.from('riad_images').upload(filePath, selectedFile);
     if (error) {
       alert('Image upload failed: ' + error.message);
       setUploadingImage(false);
       return null;
     }
-
     const { data } = supabase.storage.from('riad_images').getPublicUrl(filePath);
     setUploadingImage(false);
     return data.publicUrl;
@@ -158,7 +143,6 @@ export default function SupplierRIADLog() {
     }
 
     let imageUrl = form.image_url;
-
     if (selectedFile) {
       const uploadedUrl = await uploadImage();
       if (uploadedUrl) imageUrl = uploadedUrl;
@@ -185,7 +169,6 @@ export default function SupplierRIADLog() {
     }
 
     const { error } = await supabase.from('riad_logs').insert(payload);
-
     if (error) {
       alert('Error: ' + error.message);
     } else {
@@ -221,6 +204,13 @@ export default function SupplierRIADLog() {
     return 'bg-emerald-500 text-white';
   };
 
+  const getRPNLabel = (value: number) => {
+    if (value >= 75) return 'Critical';
+    if (value >= 50) return 'High';
+    if (value >= 25) return 'Medium';
+    return 'Low';
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-6 py-10">
       {/* Header */}
@@ -247,11 +237,8 @@ export default function SupplierRIADLog() {
         ].map((tab) => {
           const Icon = tab.icon;
           return (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key as RIADType)}
-              className={`flex items-center gap-2 px-6 py-4 font-medium border-b-2 transition-all ${activeTab === tab.key ? 'border-neutral-900 text-neutral-900' : 'border-transparent text-neutral-500'}`}
-            >
+            <button key={tab.key} onClick={() => setActiveTab(tab.key as RIADType)}
+              className={`flex items-center gap-2 px-6 py-4 font-medium border-b-2 transition-all ${activeTab === tab.key ? 'border-neutral-900 text-neutral-900' : 'border-transparent text-neutral-500'}`}>
               <Icon className="w-4 h-4" /> {tab.label}
             </button>
           );
@@ -324,7 +311,7 @@ export default function SupplierRIADLog() {
                 <input type="text" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="w-full border border-neutral-200 rounded-2xl px-4 py-3 text-sm" placeholder="Short title" />
               </div>
 
-              {/* Stakeholder Type + Stakeholder (Optional) */}
+              {/* Stakeholder Type + Stakeholder */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-medium block mb-1.5">Stakeholder Type</label>
@@ -335,12 +322,8 @@ export default function SupplierRIADLog() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs font-medium block mb-1.5">
-                    Stakeholder <span className="text-neutral-400">(Optional)</span>
-                  </label>
-                  {loadingStakeholders ? (
-                    <div className="text-sm py-2 text-neutral-500">Loading...</div>
-                  ) : (
+                  <label className="text-xs font-medium block mb-1.5">Stakeholder <span className="text-neutral-400">(Optional)</span></label>
+                  {loadingStakeholders ? <div className="text-sm py-2 text-neutral-500">Loading...</div> : (
                     <select value={form.stakeholder_id} onChange={(e) => setForm({ ...form, stakeholder_id: e.target.value })} className="w-full border border-neutral-200 rounded-2xl px-4 py-3 text-sm">
                       <option value="">None / Not linked yet</option>
                       {stakeholders.map((s) => <option key={s.id} value={s.id}>{s.trading_name}</option>)}
@@ -376,80 +359,62 @@ export default function SupplierRIADLog() {
                 ) : (
                   <div className="relative">
                     <img src={imagePreview} alt="Preview" className="w-full h-48 object-cover rounded-2xl border" />
-                    <button onClick={removeSelectedImage} className="absolute top-3 right-3 bg-white rounded-full p-1 shadow">
-                      <X className="w-4 h-4" />
-                    </button>
+                    <button onClick={removeSelectedImage} className="absolute top-3 right-3 bg-white rounded-full p-1 shadow"><X className="w-4 h-4" /></button>
                   </div>
                 )}
               </div>
 
-              {/* Risk Scoring Fields */}
+              {/* Risk Fields */}
               {activeTab === 'risk' && (
                 <div className="grid grid-cols-3 gap-4">
                   <div>
                     <label className="text-xs font-medium block mb-1.5">Severity</label>
                     <select value={form.severity} onChange={(e) => setForm({ ...form, severity: parseInt(e.target.value) })} className="w-full border border-neutral-200 rounded-2xl px-3 py-2.5 text-sm">
-                      <option value={1}>1 - Very Low</option>
-                      <option value={2}>2 - Low</option>
-                      <option value={3}>3 - Medium</option>
-                      <option value={4}>4 - High</option>
-                      <option value={5}>5 - Very High</option>
+                      <option value={1}>1 - Very Low</option><option value={2}>2 - Low</option><option value={3}>3 - Medium</option><option value={4}>4 - High</option><option value={5}>5 - Very High</option>
                     </select>
                   </div>
                   <div>
                     <label className="text-xs font-medium block mb-1.5">Likelihood</label>
                     <select value={form.likelihood} onChange={(e) => setForm({ ...form, likelihood: parseInt(e.target.value) })} className="w-full border border-neutral-200 rounded-2xl px-3 py-2.5 text-sm">
-                      <option value={1}>1 - Very Unlikely</option>
-                      <option value={2}>2 - Unlikely</option>
-                      <option value={3}>3 - Possible</option>
-                      <option value={4}>4 - Likely</option>
-                      <option value={5}>5 - Almost Certain</option>
+                      <option value={1}>1 - Very Unlikely</option><option value={2}>2 - Unlikely</option><option value={3}>3 - Possible</option><option value={4}>4 - Likely</option><option value={5}>5 - Almost Certain</option>
                     </select>
                   </div>
                   <div>
                     <label className="text-xs font-medium block mb-1.5">Time Horizon</label>
                     <select value={form.time_horizon} onChange={(e) => setForm({ ...form, time_horizon: parseInt(e.target.value) })} className="w-full border border-neutral-200 rounded-2xl px-3 py-2.5 text-sm">
-                      <option value={1}>1 - Immediate</option>
-                      <option value={2}>2 - Very Soon</option>
-                      <option value={3}>3 - Within Months</option>
-                      <option value={4}>4 - Within a Year</option>
-                      <option value={5}>5 - Long Term</option>
+                      <option value={1}>1 - Immediate</option><option value={2}>2 - Very Soon</option><option value={3}>3 - Within Months</option><option value={4}>4 - Within a Year</option><option value={5}>5 - Long Term</option>
                     </select>
                   </div>
                 </div>
               )}
 
-              {/* Status + Logged Date + Closed Date */}
+              {/* Status + Logged Date + Closed Date (Now same size as Status) */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="text-xs font-medium block mb-1.5">Status</label>
-                  <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="w-full border border-neutral-200 rounded-2xl px-4 py-2.5 text-sm">
-                    <option value="active">Active</option>
-                    <option value="in_progress">In Progress</option>
-                    <option value="resolved">Resolved</option>
-                    <option value="closed">Closed</option>
-                    <option value="on_hold">On Hold</option>
+                  <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="w-full border border-neutral-200 rounded-2xl px-4 py-2 text-sm">
+                    <option value="active">Active</option><option value="in_progress">In Progress</option><option value="resolved">Resolved</option><option value="closed">Closed</option><option value="on_hold">On Hold</option>
                   </select>
                 </div>
                 <div>
                   <label className="text-xs font-medium block mb-1.5">Logged Date</label>
-                  <input type="date" value={form.logged_date} onChange={(e) => setForm({ ...form, logged_date: e.target.value })} className="w-full border border-neutral-200 rounded-2xl px-4 py-2.5 text-sm" />
+                  <input type="date" value={form.logged_date} onChange={(e) => setForm({ ...form, logged_date: e.target.value })} className="w-full border border-neutral-200 rounded-2xl px-4 py-2 text-sm" />
                 </div>
                 <div>
                   <label className="text-xs font-medium block mb-1.5">Closed Date</label>
-                  <input type="date" value={form.closed_date} onChange={(e) => setForm({ ...form, closed_date: e.target.value })} className="w-full border border-neutral-200 rounded-2xl px-4 py-2.5 text-sm" />
+                  <input type="date" value={form.closed_date} onChange={(e) => setForm({ ...form, closed_date: e.target.value })} className="w-full border border-neutral-200 rounded-2xl px-4 py-2 text-sm" />
                 </div>
               </div>
 
-              {/* RPN Display */}
+              {/* RPN Display with Bigger Coloured Box */}
               {activeTab === 'risk' && (
                 <div className="bg-neutral-900 text-white rounded-2xl p-4 flex justify-between items-center">
                   <div>
                     <div className="text-xs text-neutral-400">RPN</div>
                     <div className="text-5xl font-black tracking-tighter">{rpn}</div>
                   </div>
-                  <div className={`px-5 py-2 rounded-2xl text-sm font-bold ${getRPNColor(rpn)}`}>
-                    {rpn >= 75 ? 'Critical' : rpn >= 50 ? 'High' : rpn >= 25 ? 'Medium' : 'Low'}
+                  <div className={`px-7 py-2.5 rounded-2xl text-base font-bold ${getRPNColor(rpn)}`}>
+                    {getRPNLabel(rpn)}
                   </div>
                 </div>
               )}
