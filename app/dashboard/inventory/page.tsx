@@ -8,7 +8,8 @@ import {
   ArrowLeftRight, 
   RefreshCw, 
   ClipboardCheck, 
-  Warehouse 
+  Warehouse,
+  ShoppingBag          // ← New icon for Products
 } from 'lucide-react';
 
 export default function InventoryHub() {
@@ -20,6 +21,13 @@ export default function InventoryHub() {
     >
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         
+        <HubCard
+          title="Products"
+          description="Manage your full product master data, categories, and specifications."
+          href="/dashboard/inventory/products"
+          icon={ShoppingBag}
+        />
+
         <HubCard
           title="Raw Materials"
           description="View and manage all raw material stock levels."
