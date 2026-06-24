@@ -75,13 +75,24 @@ export default function CustomerRIADLog() {
 
   const fetchLogs = async (type: RIADType) => {
     setLoading(true);
+
     const { data, error } = await supabase
       .from('riad_logs')
-      .select(`*, stakeholder:profiles!stakeholder_id (trading_name), owner:profiles!owner_id (trading_name)`)
+      .select(`
+        *,
+        stakeholder:profiles!stakeholder_id? (trading_name),
+        owner:profiles!owner_id? (trading_name)
+      `)
       .eq('riad_type', type)
       .order('created_at', { ascending: false });
 
-    if (!error) setRiadLogs(data as RIADLog[] || []);
+    if (error) {
+      console.error('Error fetching RIAD logs:', error);
+      alert('Error loading data: ' + error.message);
+    } else {
+      setRiadLogs((data as unknown as RIADLog[]) || []);
+    }
+
     setLoading(false);
   };
 
@@ -212,7 +223,6 @@ export default function CustomerRIADLog() {
         </button>
       </div>
 
-      {/* Tabs */}
       <div className="flex border-b mb-8">
         {[
           { key: 'risk', label: 'Risks', icon: Target },
@@ -230,7 +240,6 @@ export default function CustomerRIADLog() {
         })}
       </div>
 
-      {/* Table */}
       <div className="bg-white rounded-3xl border border-neutral-200 overflow-hidden">
         {loading ? (
           <div className="p-12 text-center text-neutral-500">Loading...</div>
@@ -279,11 +288,17 @@ export default function CustomerRIADLog() {
             </tbody>
           </table>
         ) : (
-          <div className="p-16 text-center text-neutral-500">No {activeTab}s logged yet.</div>
+          <div className="p-16 text-center text-neutral-500">
+            No {activeTab}s logged yet.
+            <div className="mt-4">
+              <button onClick={() => setShowModal(true)} className="btn-primary px-6 py-2 text-sm">
+                Log your first {activeTab}
+              </button>
+            </div>
+          </div>
         )}
       </div>
 
-      {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-3xl w-full max-w-lg p-8 max-h-[90vh] overflow-y-auto">

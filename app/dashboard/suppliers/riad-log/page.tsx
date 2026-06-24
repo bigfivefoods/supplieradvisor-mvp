@@ -62,11 +62,7 @@ export default function SupplierRIADLog() {
   const fetchStakeholders = async (type: StakeholderType) => {
     setLoadingStakeholders(true);
     let query = supabase.from('profiles').select('id, trading_name').order('trading_name');
-
     if (type === 'supplier') query = query.eq('relationship_type', 'supplier');
-    if (type === 'customer') query = query.eq('relationship_type', 'customer');
-    if (type === 'internal') query = query.eq('relationship_type', 'internal');
-
     const { data } = await query;
     setStakeholders(data || []);
     setLoadingStakeholders(false);
@@ -79,13 +75,24 @@ export default function SupplierRIADLog() {
 
   const fetchLogs = async (type: RIADType) => {
     setLoading(true);
+
     const { data, error } = await supabase
       .from('riad_logs')
-      .select(`*, stakeholder:profiles!stakeholder_id (trading_name), owner:profiles!owner_id (trading_name)`)
+      .select(`
+        *,
+        stakeholder:profiles!stakeholder_id? (trading_name),
+        owner:profiles!owner_id? (trading_name)
+      `)
       .eq('riad_type', type)
       .order('created_at', { ascending: false });
 
-    if (!error) setRiadLogs(data as RIADLog[] || []);
+    if (error) {
+      console.error('Error fetching RIAD logs:', error);
+      alert('Error loading data: ' + error.message);
+    } else {
+      setRiadLogs((data as unknown as RIADLog[]) || []);
+    }
+
     setLoading(false);
   };
 
@@ -102,10 +109,7 @@ export default function SupplierRIADLog() {
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      alert('Please select an image file');
-      return;
-    }
+    if (!file.type.startsWith('image/')) { alert('Please select an image file'); return; }
     setSelectedFile(file);
     const reader = new FileReader();
     reader.onloadend = () => setImagePreview(reader.result as string);
@@ -126,21 +130,14 @@ export default function SupplierRIADLog() {
     const filePath = `riad-images/${fileName}`;
 
     const { error } = await supabase.storage.from('riad_images').upload(filePath, selectedFile);
-    if (error) {
-      alert('Image upload failed: ' + error.message);
-      setUploadingImage(false);
-      return null;
-    }
+    if (error) { alert('Image upload failed'); setUploadingImage(false); return null; }
     const { data } = supabase.storage.from('riad_images').getPublicUrl(filePath);
     setUploadingImage(false);
     return data.publicUrl;
   };
 
   const handleSubmit = async () => {
-    if (!form.title) {
-      alert('Please enter a Title');
-      return;
-    }
+    if (!form.title) { alert('Please enter a Title'); return; }
 
     let imageUrl = form.image_url;
     if (selectedFile) {
@@ -213,21 +210,19 @@ export default function SupplierRIADLog() {
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-10">
-      {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
           <Link href="/dashboard/suppliers" className="flex items-center gap-2 text-sm text-neutral-500 mb-3">
             <ArrowLeft className="w-4 h-4" /> Back to Suppliers
           </Link>
           <h1 className="font-black text-5xl tracking-[-2px]">Supplier RIAD Register</h1>
-          <p className="text-xl text-neutral-600">Risks • Issues • Actions • Decisions</p>
+          <p className="text-xl text-neutral-600">Supplier Risks • Issues • Actions • Decisions</p>
         </div>
         <button onClick={() => setShowModal(true)} className="btn-primary px-6 py-3 flex items-center gap-2">
           <Plus className="w-4 h-4" /> Log New {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
         </button>
       </div>
 
-      {/* Tabs */}
       <div className="flex border-b mb-8">
         {[
           { key: 'risk', label: 'Risks', icon: Target },
@@ -245,7 +240,6 @@ export default function SupplierRIADLog() {
         })}
       </div>
 
-      {/* Table */}
       <div className="bg-white rounded-3xl border border-neutral-200 overflow-hidden">
         {loading ? (
           <div className="p-12 text-center text-neutral-500">Loading...</div>
@@ -294,24 +288,28 @@ export default function SupplierRIADLog() {
             </tbody>
           </table>
         ) : (
-          <div className="p-16 text-center text-neutral-500">No {activeTab}s logged yet.</div>
+          <div className="p-16 text-center text-neutral-500">
+            No {activeTab}s logged yet.
+            <div className="mt-4">
+              <button onClick={() => setShowModal(true)} className="btn-primary px-6 py-2 text-sm">
+                Log your first {activeTab}
+              </button>
+            </div>
+          </div>
         )}
       </div>
 
-      {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-3xl w-full max-w-lg p-8 max-h-[90vh] overflow-y-auto">
             <h2 className="font-bold text-2xl tracking-tight mb-6">Log New {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}</h2>
 
             <div className="space-y-5">
-              {/* Title */}
               <div>
                 <label className="text-xs font-medium block mb-1.5">Title</label>
                 <input type="text" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="w-full border border-neutral-200 rounded-2xl px-4 py-3 text-sm" placeholder="Short title" />
               </div>
 
-              {/* Stakeholder Type + Stakeholder */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-medium block mb-1.5">Stakeholder Type</label>
@@ -332,7 +330,6 @@ export default function SupplierRIADLog() {
                 </div>
               </div>
 
-              {/* Owner */}
               <div>
                 <label className="text-xs font-medium block mb-1.5">Owner (Team Member)</label>
                 <select value={form.owner_id} onChange={(e) => setForm({ ...form, owner_id: e.target.value })} className="w-full border border-neutral-200 rounded-2xl px-4 py-3 text-sm">
@@ -341,13 +338,11 @@ export default function SupplierRIADLog() {
                 </select>
               </div>
 
-              {/* Description */}
               <div>
                 <label className="text-xs font-medium block mb-1.5">Description</label>
                 <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="w-full border border-neutral-200 rounded-2xl px-4 py-3 text-sm h-20" />
               </div>
 
-              {/* Image Upload */}
               <div>
                 <label className="text-xs font-medium block mb-1.5">Attach Image (Optional)</label>
                 {!imagePreview ? (
@@ -364,7 +359,6 @@ export default function SupplierRIADLog() {
                 )}
               </div>
 
-              {/* Risk Fields */}
               {activeTab === 'risk' && (
                 <div className="grid grid-cols-3 gap-4">
                   <div>
@@ -388,7 +382,6 @@ export default function SupplierRIADLog() {
                 </div>
               )}
 
-              {/* Status + Logged Date + Closed Date (Now same size as Status) */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="text-xs font-medium block mb-1.5">Status</label>
@@ -406,7 +399,6 @@ export default function SupplierRIADLog() {
                 </div>
               </div>
 
-              {/* RPN Display with Bigger Coloured Box */}
               {activeTab === 'risk' && (
                 <div className="bg-neutral-900 text-white rounded-2xl p-4 flex justify-between items-center">
                   <div>
