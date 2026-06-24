@@ -10,7 +10,6 @@ export const SupplierRegistryABI = parseAbi([
   'function submitVerification(bytes32 verificationHash) external',
   
   // Read functions
-  'function getSupplier(address wallet) external view returns (tuple(address wallet, string tradingName, string legalName, string category, bytes32 verificationHash, uint8 status, uint256 reputationScore, uint256 registeredAt, uint256 lastUpdated, bool exists))',
   'function isVerified(address wallet) external view returns (bool)',
   'function getReputation(address wallet) external view returns (uint256)',
   
