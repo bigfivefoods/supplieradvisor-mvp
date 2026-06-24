@@ -37,8 +37,6 @@
     "node_modules",
     ".next",
     "supabase",
-    "**/hardhat.config.ts",
-    "**/hardhat.config.js",
-    "contracts/contracts/hardhat.config.ts"
+    "contracts"
   ]
 }
