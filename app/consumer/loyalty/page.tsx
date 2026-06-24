@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client';
 import { Star, Gift, Trophy, ArrowRight } from 'lucide-react';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 
 export default function ConsumerLoyalty() {
+  const supabase = createClient();
   const { user } = usePrivy();
   const cleanId = (user?.id || '').replace('privy:', '');
 
@@ -26,7 +27,7 @@ export default function ConsumerLoyalty() {
       }
     };
     loadLoyalty();
-  }, [cleanId]);
+  }, [cleanId, supabase]);
 
   return (
     <div className="pl-0 pr-12 py-12 bg-[#f8fafc]">

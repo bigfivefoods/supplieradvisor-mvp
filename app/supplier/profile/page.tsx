@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client';
 import { toast } from 'sonner';
 import { Save, ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import Link from 'next/link';
@@ -36,6 +36,9 @@ export default function SupplierProfilePage() {
   const [services, setServices] = useState<string[]>([]);
   const [newProduct, setNewProduct] = useState({ description: '', sku: '', uom: '', sell_price: '', lead_time_days: '' });
   const [newService, setNewService] = useState('');
+
+  // Create Supabase client (modern pattern)
+  const supabase = createClient();
 
   // Load profile + products + services
   useEffect(() => {
@@ -74,7 +77,7 @@ export default function SupplierProfilePage() {
     };
 
     loadData();
-  }, [cleanId]);
+  }, [cleanId, supabase]);
 
   const handleChange = (field: string, value: string) => {
     setForm(prev => ({ ...prev, [field]: value }));

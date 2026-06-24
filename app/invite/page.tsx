@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
 
@@ -10,6 +10,7 @@ function InviteContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { user, login, ready } = usePrivy();
+  const supabase = createClient();
 
   const token = searchParams.get('token');
 
@@ -55,7 +56,7 @@ function InviteContent() {
     };
 
     fetchInvitation();
-  }, [token]);
+  }, [token, supabase]);
 
   // Accept invitation after login
   const acceptInvitation = async () => {

@@ -1,12 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client';
 import { toast } from 'sonner';
 import { ArrowLeft, Send } from 'lucide-react';
 import Link from 'next/link';
 
 export default function InviteBusinessPage() {
+  const supabase = createClient();
+
   const [email, setEmail] = useState('');
   const [businessName, setBusinessName] = useState('');
   const [loading, setLoading] = useState(false);

@@ -2,7 +2,7 @@
 
 import { useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client';
 import { toast } from 'sonner';
 import { CheckCircle } from 'lucide-react';
 
@@ -20,6 +20,9 @@ function CompleteProfileContent() {
     city: '',
     short_description: '',
   });
+
+  // Create Supabase client (modern pattern)
+  const supabase = createClient();
 
   const handleChange = (field: string, value: string) => {
     setForm(prev => ({ ...prev, [field]: value }));

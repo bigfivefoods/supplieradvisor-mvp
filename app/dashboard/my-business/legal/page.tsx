@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client';
 import { toast } from 'sonner';
 import { 
   ShieldCheck, FileText, Award, UserCheck, 
@@ -19,6 +19,8 @@ interface LegalDocuments {
 }
 
 export default function LegalAndCompliance() {
+  const supabase = createClient();
+
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -73,7 +75,7 @@ export default function LegalAndCompliance() {
     };
 
     loadData();
-  }, []);
+  }, [supabase]);
 
   // Upload file to Supabase Storage
   const uploadFile = async (file: File, folder: string): Promise<string | null> => {

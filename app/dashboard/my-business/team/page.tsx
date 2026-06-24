@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 
 import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client';
 import { toast } from 'sonner';
 import { usePrivy } from '@privy-io/react-auth';
 import { Users, UserPlus, Mail } from 'lucide-react';
@@ -29,6 +29,9 @@ function TeamContent() {
     email: '',
     role: ''
   });
+
+  // Create Supabase client (modern pattern)
+  const supabase = createClient();
 
   // Save companyId to localStorage
   useEffect(() => {
@@ -69,7 +72,7 @@ function TeamContent() {
     };
 
     loadData();
-  }, [companyId]);
+  }, [companyId, supabase]);
 
   // Invite new team member (with better error handling)
   const addTeamMember = async () => {

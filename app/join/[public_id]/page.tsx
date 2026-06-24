@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client';
 import { CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 
 interface SupplierProfile {
@@ -17,6 +17,7 @@ interface SupplierProfile {
 }
 
 export default function JoinSupplierPage() {
+  const supabase = createClient();
   const params = useParams();
   const router = useRouter();
   const publicId = params.public_id as string;
@@ -63,7 +64,7 @@ export default function JoinSupplierPage() {
     };
 
     fetchSupplier();
-  }, [publicId]);
+  }, [publicId, supabase]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useTransition } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client';
 import { getMyProfileId } from '@/app/actions/get-my-profile';
 import { toast } from 'sonner';
 import { ArrowLeft, Check, X, Clock, Users, AlertCircle } from 'lucide-react';
@@ -23,6 +23,7 @@ type Connection = {
 type Tab = 'all' | 'sent' | 'received' | 'accepted';
 
 export default function ConnectionsPage() {
+  const supabase = createClient();
   const { user, ready } = usePrivy();
   const [myProfileId, setMyProfileId] = useState<number | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
@@ -97,7 +98,7 @@ export default function ConnectionsPage() {
     if (myProfileId) {
       loadConnections();
     }
-  }, [myProfileId]);
+  }, [myProfileId, supabase]);
 
   // Filter connections
   const filteredConnections = connections.filter((conn) => {

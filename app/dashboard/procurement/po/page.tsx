@@ -1,12 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client';
 import { ShieldCheck, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import Breadcrumb from '@/components/ui/Breadcrumb';   // ← Clean @/ alias
 
 export default function RaisePO() {
+  const supabase = createClient();
+
   const [connectedSuppliers, setConnectedSuppliers] = useState<any[]>([]);
   const [selectedSupplier, setSelectedSupplier] = useState<any>(null);
   const [poForm, setPoForm] = useState({
@@ -26,7 +28,7 @@ export default function RaisePO() {
       setConnectedSuppliers(data || []);
     };
     loadSuppliers();
-  }, []);
+  }, [supabase]);
 
   const handleCreatePO = async () => {
     if (!selectedSupplier) {

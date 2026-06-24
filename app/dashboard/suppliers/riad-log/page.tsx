@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client';
 import { 
   Plus, Search, Filter, X, Calendar, AlertTriangle, 
   CheckCircle, Clock, ArrowUpDown 
@@ -23,6 +23,8 @@ interface RIADLog {
 }
 
 export default function SupplierRIADLog() {
+  const supabase = createClient();
+
   const [logs, setLogs] = useState<RIADLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -54,7 +56,7 @@ export default function SupplierRIADLog() {
 
   useEffect(() => {
     fetchRIADLogs();
-  }, []);
+  }, [supabase]);
 
   // Filtered + Searched Logs
   const filteredLogs = logs.filter(log => {

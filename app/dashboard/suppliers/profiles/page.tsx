@@ -2,7 +2,7 @@
 
 import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client';
 import { 
   ArrowLeft, Edit2, MessageCircle, Plus, ExternalLink, 
   ArrowUpDown, X, ChevronDown, ChevronUp, Filter 
@@ -38,6 +38,7 @@ type SortOption = 'name' | 'industry' | 'onboarded' | 'status';
 
 function SupplierProfileContent() {
   const searchParams = useSearchParams();
+  const supabase = createClient();
   const selectedId = searchParams.get('id');
 
   const [suppliers, setSuppliers] = useState<SupplierProfile[]>([]);
@@ -97,7 +98,7 @@ function SupplierProfileContent() {
     } else {
       fetchActiveSuppliers();
     }
-  }, [selectedId]);
+  }, [selectedId, supabase]);
 
   // ===================== DYNAMIC FILTER OPTIONS =====================
   const uniqueIndustries = Array.from(new Set(suppliers.map(s => s.industry).filter(Boolean))) as string[];

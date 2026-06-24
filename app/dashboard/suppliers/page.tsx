@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client';
 import { 
   Truck, Plus, Users, FileText, AlertTriangle, 
   ArrowRight, Package, Award 
@@ -25,6 +25,9 @@ export default function SuppliersHub() {
     active: 0,
     invited: 0,
   });
+
+  // Create Supabase client (modern pattern)
+  const supabase = createClient();
 
   useEffect(() => {
     const loadSuppliers = async () => {
@@ -57,7 +60,7 @@ export default function SuppliersHub() {
     };
 
     loadSuppliers();
-  }, []);
+  }, [supabase]);
 
   // Updated Quick Navigation Cards
   const quickLinks = [

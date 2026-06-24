@@ -6,7 +6,7 @@ import { ArrowRight, ShieldCheck, Truck, Users, Factory, Leaf, Zap, Globe, Build
 import { usePrivy } from '@privy-io/react-auth';
 import { useRouter } from 'next/navigation';
 import { useRef, useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client';
 
 export default function LandingPage() {
   const { login, user, ready } = usePrivy();
@@ -15,6 +15,9 @@ export default function LandingPage() {
 
   // State for verified companies
   const [verifiedCompanies, setVerifiedCompanies] = useState<any[]>([]);
+
+  // Create Supabase client (modern pattern)
+  const supabase = createClient();
 
   // Fetch verified companies for the new section
   useEffect(() => {
@@ -32,7 +35,7 @@ export default function LandingPage() {
     };
 
     fetchVerifiedCompanies();
-  }, []);
+  }, [supabase]);
 
   const scrollToSection = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });

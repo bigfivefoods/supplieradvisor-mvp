@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client';
 import { CheckCircle, Loader2, AlertCircle, Users } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -22,6 +22,9 @@ function TeamOnboardingContent() {
   });
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
+
+  // Create Supabase client (modern pattern)
+  const supabase = createClient();
 
   // Validate invite token
   useEffect(() => {
@@ -51,7 +54,7 @@ function TeamOnboardingContent() {
     };
 
     validateToken();
-  }, [inviteToken]);
+  }, [inviteToken, supabase]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;

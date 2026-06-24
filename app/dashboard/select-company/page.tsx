@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client';
 import { Building2, ArrowRight } from 'lucide-react';
 
 interface Company {
@@ -19,6 +19,9 @@ export default function SelectCompanyPage() {
   const router = useRouter();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Create Supabase client (modern pattern)
+  const supabase = createClient();
 
   useEffect(() => {
     const loadCompanies = async () => {
@@ -79,7 +82,7 @@ export default function SelectCompanyPage() {
     };
 
     loadCompanies();
-  }, [privyUser, ready]);
+  }, [privyUser, ready, supabase]);
 
   const handleSelectCompany = (companyId: string) => {
     localStorage.setItem('selectedCompanyId', companyId);

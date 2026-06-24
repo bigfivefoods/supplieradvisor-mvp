@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 
 import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client';
 import { toast } from 'sonner';
 import { usePrivy } from '@privy-io/react-auth';
 import { 
@@ -64,6 +64,9 @@ function ProfileContent() {
     'Halal', 'Kosher', 'Organic', 'Fairtrade', 'FSSC 22000'
   ];
 
+  // Create Supabase client (modern pattern)
+  const supabase = createClient();
+
   // Save companyId
   useEffect(() => {
     if (urlCompanyId) {
@@ -119,7 +122,7 @@ function ProfileContent() {
     };
 
     loadData();
-  }, [companyId]);
+  }, [companyId, supabase]);
 
   // Load provinces
   useEffect(() => {
@@ -136,7 +139,7 @@ function ProfileContent() {
       setProvinces(data || []);
     };
     loadProvinces();
-  }, [selectedCountryId]);
+  }, [selectedCountryId, supabase]);
 
   const handleInputChange = (field: string, value: string) => {
     setForm((prev: any) => ({ ...prev, [field]: value }));

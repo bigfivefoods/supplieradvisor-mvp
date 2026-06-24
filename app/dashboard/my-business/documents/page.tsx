@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client';
 import { toast } from 'sonner';
 import { 
   FileText, Upload, Download, Trash2, Search, 
@@ -39,6 +39,9 @@ export default function Documents() {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedFileCategory, setSelectedFileCategory] = useState('Other');
 
+  // Create Supabase client (modern pattern)
+  const supabase = createClient();
+
   // Load company ID and documents
   useEffect(() => {
     const loadData = async () => {
@@ -63,7 +66,7 @@ export default function Documents() {
     };
 
     loadData();
-  }, []);
+  }, [supabase]);
 
   // Upload document
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {

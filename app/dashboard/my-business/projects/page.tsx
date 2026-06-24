@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client';
 import { toast } from 'sonner';
 import { 
   Plus, Target, Clock, CheckCircle, Pause, 
@@ -36,6 +36,8 @@ const statusIcons = {
 };
 
 export default function Projects() {
+  const supabase = createClient();
+
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,7 +74,7 @@ export default function Projects() {
     };
 
     loadData();
-  }, []);
+  }, [supabase]);
 
   // Add new project
   const addProject = async () => {

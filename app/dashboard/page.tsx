@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client';
 import { 
   TrendingUp, Users, Truck, Package, AlertTriangle, 
   ArrowRight, Plus, Target 
@@ -18,6 +18,9 @@ interface CompanyData {
 export default function DashboardHome() {
   const [company, setCompany] = useState<CompanyData | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Create Supabase client (modern pattern)
+  const supabase = createClient();
 
   useEffect(() => {
     const loadCompanyData = async () => {
@@ -41,7 +44,7 @@ export default function DashboardHome() {
     };
 
     loadCompanyData();
-  }, []);
+  }, [supabase]);
 
   if (loading) {
     return (

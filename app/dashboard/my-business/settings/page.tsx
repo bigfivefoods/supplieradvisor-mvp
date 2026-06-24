@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client';
 import { toast } from 'sonner';
 import { 
   Settings as SettingsIcon, Bell, Users, 
@@ -31,6 +31,9 @@ export default function BusinessSettings() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  // Create Supabase client (modern pattern)
+  const supabase = createClient();
 
   // Load settings from Supabase
   useEffect(() => {
@@ -66,7 +69,7 @@ export default function BusinessSettings() {
     };
 
     loadSettings();
-  }, []);
+  }, [supabase]);
 
   const handleToggle = (key: keyof CompanySettings) => {
     setSettings(prev => ({

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client';
 import { useReadContract } from 'wagmi';
 import { SupplierRegistryABI } from '@/lib/contracts/SupplierRegistryABI';
 import { Search, Plus, Users, RefreshCw, ArrowRight } from 'lucide-react';
@@ -11,7 +11,7 @@ const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_SUPPLIER_REGISTRY_ADDRESS as `0
 
 interface Supplier {
   id: number;
-  public_id: string;                    // ← New UUID field
+  public_id: string;
   trading_name: string;
   email: string;
   contact_name: string | null;
@@ -29,6 +29,9 @@ export default function SupplierDirectory() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'invited'>('all');
+
+  // Create Supabase client (modern pattern)
+  const supabase = createClient();
 
   const fetchSuppliers = async () => {
     setLoading(true);
@@ -49,7 +52,7 @@ export default function SupplierDirectory() {
 
   useEffect(() => {
     fetchSuppliers();
-  }, []);
+  }, [supabase]);
 
   // Search + Filter
   useEffect(() => {

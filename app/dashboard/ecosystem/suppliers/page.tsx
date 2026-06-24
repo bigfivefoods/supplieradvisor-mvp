@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client';
 import { 
   Search, ChevronDown, UserPlus, Award, Brain, MapPin, 
   CheckCircle, X, Filter 
@@ -29,6 +29,7 @@ interface Supplier {
 }
 
 export default function SuppliersSearch() {
+  const supabase = createClient();
   const { user } = usePrivy();
   const cleanId = (user?.id || '').replace('privy:', '');
 
@@ -172,7 +173,7 @@ export default function SuppliersSearch() {
 
   useEffect(() => {
     loadSuppliers();
-  }, []);
+  }, [supabase]);
 
   return (
     <div className="p-8 max-w-screen-2xl mx-auto">

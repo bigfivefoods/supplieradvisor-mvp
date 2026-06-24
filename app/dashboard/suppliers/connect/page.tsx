@@ -1,11 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client';
 import { Plus, Check, X, Users } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function ConnectPage() {
+  const supabase = createClient();
+
   const [businesses, setBusinesses] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
@@ -21,7 +23,7 @@ export default function ConnectPage() {
       setBusinesses(data || []);
     };
     loadBusinesses();
-  }, []);
+  }, [supabase]);
 
   // Load my connections
   useEffect(() => {
@@ -40,7 +42,7 @@ export default function ConnectPage() {
       setApprovedConnections(approved || []);
     };
     loadConnections();
-  }, []);
+  }, [supabase]);
 
   const sendConnectionRequest = async (targetProfileId: number, targetName: string) => {
     const { error } = await supabase.from('business_connections').insert({

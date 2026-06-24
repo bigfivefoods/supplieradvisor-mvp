@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client';
 import { Copy, RefreshCw, Eye, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -18,6 +18,8 @@ interface InvitedSupplier {
 }
 
 export default function SentInvitationsPage() {
+  const supabase = createClient();
+
   const [invites, setInvites] = useState<InvitedSupplier[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -41,7 +43,7 @@ export default function SentInvitationsPage() {
 
   useEffect(() => {
     fetchInvites();
-  }, []);
+  }, [supabase]);
 
   const copyInviteLink = (token: string | null) => {
     if (!token) return;

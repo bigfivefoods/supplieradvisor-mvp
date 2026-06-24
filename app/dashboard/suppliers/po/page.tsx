@@ -121,7 +121,7 @@ export default function PurchaseOrdersPage() {
       else setSupplierResults([]);
     }, 300);
     return () => clearTimeout(delayDebounce);
-  }, [supplierSearch, filters]);
+  }, [supplierSearch, filters, supabase]);
 
   // ==================== LOAD MEMBERSHIPS ====================
   const loadMemberships = async () => {
@@ -140,7 +140,7 @@ export default function PurchaseOrdersPage() {
     setCurrentProfileName(first.trading_name);
   };
 
-  useEffect(() => { loadMemberships(); }, [user?.id]);
+  useEffect(() => { loadMemberships(); }, [user?.id, supabase]);
 
   // ==================== SUPPLIER SEARCH ====================
   const searchSuppliers = async (query: string) => {
@@ -188,7 +188,7 @@ export default function PurchaseOrdersPage() {
     if (data) setPurchaseOrders(data);
   };
 
-  useEffect(() => { if (currentProfileId) fetchPurchaseOrders(); }, [currentProfileId]);
+  useEffect(() => { if (currentProfileId) fetchPurchaseOrders(); }, [currentProfileId, supabase]);
 
   // ==================== PRODUCT SEARCH ====================
   const searchProducts = async (query: string) => {
@@ -426,7 +426,7 @@ export default function PurchaseOrdersPage() {
       }
     };
     linkOnchainPoId();
-  }, [isConfirmed, txHash, publicClient]);
+  }, [isConfirmed, txHash, publicClient, supabase]);
 
   return (
     <div className="pl-0 min-h-screen bg-[#f8fafc]">

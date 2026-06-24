@@ -4,11 +4,12 @@ import { useState } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, Upload } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client';
 import { toast } from 'sonner';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 
 export default function ConsumerOnboarding() {
+  const supabase = createClient();
   const { user } = usePrivy();
   const router = useRouter();
   const cleanId = (user?.id || '').replace('privy:', '');

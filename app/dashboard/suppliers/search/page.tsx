@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client';
 import { Search, ChevronDown, UserPlus, MapPin, Award } from 'lucide-react';
 import { toast } from 'sonner';
 import Breadcrumb from '@/components/ui/Breadcrumb';
@@ -27,6 +27,9 @@ export default function SuppliersSearch() {
   const [selectedCountry, setSelectedCountry] = useState('');
   const [selectedProvince, setSelectedProvince] = useState('');
   const [trustScoreMin, setTrustScoreMin] = useState(70);
+
+  // Create Supabase client (modern pattern)
+  const supabase = createClient();
 
   // ==================== LOAD SUPPLIERS ====================
   const loadSuppliers = async () => {
@@ -121,7 +124,7 @@ export default function SuppliersSearch() {
   useEffect(() => {
     loadSuppliers();
     loadConnectionRequests();
-  }, []);
+  }, [supabase, cleanId]);
 
   return (
     <div className="pl-0 pr-12 py-12 bg-neutral-50">
