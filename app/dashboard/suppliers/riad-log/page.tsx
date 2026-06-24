@@ -73,6 +73,7 @@ export default function SupplierRIADLog() {
     setOwners(data || []);
   };
 
+  // ✅ Fixed version - removed the "?" that was causing the parse error
   const fetchLogs = async (type: RIADType) => {
     setLoading(true);
 
@@ -80,8 +81,8 @@ export default function SupplierRIADLog() {
       .from('riad_logs')
       .select(`
         *,
-        stakeholder:profiles!stakeholder_id? (trading_name),
-        owner:profiles!owner_id? (trading_name)
+        stakeholder:profiles!stakeholder_id (trading_name),
+        owner:profiles!owner_id (trading_name)
       `)
       .eq('riad_type', type)
       .order('created_at', { ascending: false });
@@ -223,6 +224,7 @@ export default function SupplierRIADLog() {
         </button>
       </div>
 
+      {/* Tabs */}
       <div className="flex border-b mb-8">
         {[
           { key: 'risk', label: 'Risks', icon: Target },
@@ -240,6 +242,7 @@ export default function SupplierRIADLog() {
         })}
       </div>
 
+      {/* Table */}
       <div className="bg-white rounded-3xl border border-neutral-200 overflow-hidden">
         {loading ? (
           <div className="p-12 text-center text-neutral-500">Loading...</div>
@@ -299,6 +302,7 @@ export default function SupplierRIADLog() {
         )}
       </div>
 
+      {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-3xl w-full max-w-lg p-8 max-h-[90vh] overflow-y-auto">

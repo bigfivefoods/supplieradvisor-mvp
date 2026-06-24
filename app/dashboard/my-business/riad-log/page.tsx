@@ -80,8 +80,8 @@ export default function MyBusinessRIADLog() {
       .from('riad_logs')
       .select(`
         *,
-        stakeholder:profiles!stakeholder_id? (trading_name),
-        owner:profiles!owner_id? (trading_name)
+        stakeholder:profiles!stakeholder_id (trading_name),
+        owner:profiles!owner_id (trading_name)
       `)
       .eq('riad_type', type)
       .order('created_at', { ascending: false });
