@@ -147,17 +147,18 @@ export default function ManageContainersPage() {
       {/* Add Container Modal */}
       {showAddModal && (
         <AddContainerForm
-                  onClose={() => setShowAddModal(false)}
-                  onSuccess={() => {
-                      setShowAddModal(false);
-                      fetchContainers();
-                  } } container={undefined}        />
+          onClose={() => setShowAddModal(false)}
+          onSuccess={() => {
+            setShowAddModal(false);
+            fetchContainers();
+          }}
+        />
       )}
 
       {/* Edit Container Modal */}
       {editingContainer && (
         <EditContainerForm
-          container={editingContainer}
+          container={editingContainer!}
           onClose={() => setEditingContainer(null)}
           onSuccess={() => {
             setEditingContainer(null);
