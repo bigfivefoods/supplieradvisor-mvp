@@ -52,7 +52,6 @@ export default function ManageContainersPage() {
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
-      {/* Header */}
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-4xl font-black tracking-[-2px]">Manage Containers</h1>
@@ -66,7 +65,6 @@ export default function ManageContainersPage() {
         </button>
       </div>
 
-      {/* Search */}
       <input
         type="text"
         placeholder="Search containers..."
@@ -75,7 +73,6 @@ export default function ManageContainersPage() {
         className="w-full max-w-md px-5 py-3 rounded-3xl border border-slate-200 mb-6 focus:outline-none focus:ring-2 focus:ring-black"
       />
 
-      {/* Table */}
       <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden">
         <table className="w-full">
           <thead className="bg-slate-50 border-b">
@@ -144,7 +141,6 @@ export default function ManageContainersPage() {
         </table>
       </div>
 
-      {/* Add Container Modal */}
       {showAddModal && (
         <AddContainerForm
           onClose={() => setShowAddModal(false)}
@@ -155,7 +151,6 @@ export default function ManageContainersPage() {
         />
       )}
 
-      {/* Edit Container Modal */}
       {editingContainer && (
         <EditContainerForm
           container={editingContainer!}
