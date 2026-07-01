@@ -57,7 +57,7 @@ const modules = [
     ]
   },
 
-  // ==================== CUSTOMERS ====================
+  // ==================== CUSTOMERS (UPDATED) ====================
   { 
     id: 'customers', 
     name: 'Customers', 
@@ -66,6 +66,7 @@ const modules = [
     sub: [
       { name: 'Customer Profiles', href: '/dashboard/customers/profiles' },
       { name: 'Add New Customer', href: '/dashboard/customers/onboard' },
+      { name: 'Leads & Opportunities', href: '/dashboard/customers/leads' },   // ← NEW
       { name: 'Sent Customer Invitations', href: '/dashboard/customers/invites' },
       { name: 'Sales Orders', href: '/dashboard/customers/orders' },
       { name: 'Customer Contracts', href: '/dashboard/customers/contracts' },
@@ -74,7 +75,7 @@ const modules = [
     ]
   },
 
-  // ==================== CONTAINERS (Updated) ====================
+  // ==================== CONTAINERS ====================
   { 
     id: 'containers', 
     name: 'Containers', 

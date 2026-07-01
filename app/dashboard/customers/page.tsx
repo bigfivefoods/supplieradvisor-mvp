@@ -10,18 +10,27 @@ import {
   AlertTriangle, 
   Award, 
   Globe, 
-  Search 
+  Search,
+  Target   // ← new import for Leads
 } from 'lucide-react';
 
 export default function CustomersHub() {
   return (
     <ModuleHub
       title="Customers"
-      description="Manage your customer base — profiles, onboarding, orders, quotes, claims, and loyalty."
+      description="Manage your customer base — profiles, onboarding, orders, quotes, claims, loyalty, and the full sales pipeline."
       backHref="/dashboard"
     >
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         
+        {/* NEW LEADS CARD - placed prominently */}
+        <HubCard
+          title="Leads & Opportunities"
+          description="Track prospects, opportunities, estimated value, and conversion pipeline."
+          href="/dashboard/customers/leads"
+          icon={Target}
+        />
+
         <HubCard
           title="Customer Profiles"
           description="View and manage all customer profiles and details."
