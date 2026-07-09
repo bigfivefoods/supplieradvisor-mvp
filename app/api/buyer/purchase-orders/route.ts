@@ -255,7 +255,8 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const current = String(po.status || '');
+    const statusAsLoaded = String(po.status ?? '');
+    const current = statusAsLoaded.toLowerCase();
     if (!(BUYER_PO_CANCEL_STATUSES as readonly string[]).includes(current)) {
       return NextResponse.json(
         {
@@ -272,26 +273,38 @@ export async function PATCH(request: NextRequest) {
       closed_at: now,
     };
 
+    // Optimistic concurrency: only cancel if status is still the loaded value
     let { data, error } = await supabase
       .from('purchase_orders')
       .update(updates)
       .eq('id', id)
+      .eq('status', statusAsLoaded)
       .select('*')
-      .single();
+      .maybeSingle();
 
     if (error && /column|schema cache|does not exist/i.test(error.message)) {
       const retry = await supabase
         .from('purchase_orders')
         .update({ status: 'cancelled', updated_at: now })
         .eq('id', id)
+        .eq('status', statusAsLoaded)
         .select('*')
-        .single();
+        .maybeSingle();
       data = retry.data;
       error = retry.error;
     }
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    if (!data) {
+      return NextResponse.json(
+        {
+          error:
+            'Purchase order status changed concurrently. Refresh and try again.',
+        },
+        { status: 409 }
+      );
     }
 
     return NextResponse.json({ success: true, purchaseOrder: data });

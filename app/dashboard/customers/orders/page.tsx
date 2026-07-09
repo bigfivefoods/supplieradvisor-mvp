@@ -119,7 +119,11 @@ function InboundPosList() {
   const [buyerNames, setBuyerNames] = useState<Record<number, string>>({});
 
   const load = useCallback(async () => {
-    if (!privyUserId) return;
+    if (!privyUserId) {
+      setLoading(false);
+      setPos([]);
+      return;
+    }
     setLoading(true);
     try {
       const params = new URLSearchParams({

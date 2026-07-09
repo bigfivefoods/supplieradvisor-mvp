@@ -112,7 +112,8 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const current = String(po.status || '');
+    const statusAsLoaded = String(po.status ?? '');
+    const current = statusAsLoaded.toLowerCase();
     if (!isSellerTransitionAllowed(current, nextStatus)) {
       return NextResponse.json(
         {
@@ -138,26 +139,38 @@ export async function PATCH(request: NextRequest) {
       updates.approved_by = member.userId;
     }
 
+    // Optimistic concurrency: only transition if status is still the loaded value
     let { data, error } = await supabase
       .from('purchase_orders')
       .update(updates)
       .eq('id', id)
+      .eq('status', statusAsLoaded)
       .select('*')
-      .single();
+      .maybeSingle();
 
     if (error && /column|schema cache|does not exist/i.test(error.message)) {
       const retry = await supabase
         .from('purchase_orders')
         .update({ status: nextStatus, updated_at: now })
         .eq('id', id)
+        .eq('status', statusAsLoaded)
         .select('*')
-        .single();
+        .maybeSingle();
       data = retry.data;
       error = retry.error;
     }
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    if (!data) {
+      return NextResponse.json(
+        {
+          error:
+            'Purchase order status changed concurrently. Refresh and try again.',
+        },
+        { status: 409 }
+      );
     }
 
     await logActivity({

@@ -306,24 +306,28 @@ export default function BuyerPurchaseOrdersPage() {
                       const name = s.trading_name || s.legal_name || `Supplier ${s.supplierProfileId}`;
                       const selected = selectedSupplierId === s.supplierProfileId;
                       return (
-                        <button
+                        <div
                           key={s.connectionId}
-                          type="button"
-                          disabled={s.suspended}
-                          onClick={() => setSelectedSupplierId(s.supplierProfileId)}
                           className={`w-full text-left px-4 py-3 rounded-2xl border transition-all flex items-center justify-between ${
                             selected
                               ? 'border-[#00b4d8] bg-[#00b4d8]/5'
                               : s.suspended
-                                ? 'border-neutral-100 bg-neutral-50 opacity-60 cursor-not-allowed'
+                                ? 'border-neutral-100 bg-neutral-50 opacity-60'
                                 : 'border-neutral-200 hover:border-neutral-300'
                           }`}
                         >
-                          <div>
+                          <button
+                            type="button"
+                            disabled={s.suspended}
+                            onClick={() => setSelectedSupplierId(s.supplierProfileId)}
+                            className={`flex-1 text-left min-w-0 ${
+                              s.suspended ? 'cursor-not-allowed' : ''
+                            }`}
+                          >
                             <div className="font-medium">{name}</div>
                             <div className="text-xs text-neutral-500">ID {s.supplierProfileId}</div>
-                          </div>
-                          <div className="flex items-center gap-2">
+                          </button>
+                          <div className="flex items-center gap-2 shrink-0">
                             {s.suspended && (
                               <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
                                 Suspended
@@ -332,17 +336,15 @@ export default function BuyerPurchaseOrdersPage() {
                             {selected && (
                               <button
                                 type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedSupplierId(null);
-                                }}
-                                className="text-neutral-400 hover:text-red-500"
+                                aria-label="Clear selected supplier"
+                                onClick={() => setSelectedSupplierId(null)}
+                                className="text-neutral-400 hover:text-red-500 p-1"
                               >
                                 <X className="w-4 h-4" />
                               </button>
                             )}
                           </div>
-                        </button>
+                        </div>
                       );
                     })}
                   </div>
