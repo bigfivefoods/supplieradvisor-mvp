@@ -42,7 +42,8 @@ export async function GET(request: NextRequest) {
     }
     if (containerId && Number.isFinite(containerId)) q = q.eq('container_id', containerId);
     if (type && type !== 'all') q = q.eq('riad_type', type);
-    if (status && status !== 'all') q = q.eq('status', status);
+    // status filter applied after fetch for open/closed buckets (legacy "active" etc.)
+    const statusFilter = status && status !== 'all' ? status : null;
 
     const { data, error } = await q.limit(500);
 
@@ -71,25 +72,63 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const enriched = items.map((i) => ({
+    let enriched = items.map((i) => ({
       ...i,
       container_name: i.container_id ? nameMap[i.container_id]?.name : null,
       container_code: i.container_id ? nameMap[i.container_id]?.container_code : null,
     }));
 
-    const open = enriched.filter((i) =>
-      ['open', 'active', 'in_progress', 'on_hold', 'mitigated'].includes(
-        String(i.status || '').toLowerCase()
-      )
+    const norm = (s?: string | null) => String(s || 'open').toLowerCase();
+    const isOpenLike = (s?: string | null) =>
+      ['open', 'active', 'in_progress', 'on_hold', 'mitigated'].includes(norm(s));
+    const isClosedLike = (s?: string | null) =>
+      ['closed', 'resolved'].includes(norm(s));
+
+    // Full counts before status filter (so chips stay accurate)
+    const allForSummary = enriched;
+    const byStatus: Record<string, number> = {};
+    for (const i of allForSummary) {
+      const s = norm(i.status);
+      byStatus[s] = (byStatus[s] || 0) + 1;
+    }
+    const open = allForSummary.filter((i) => isOpenLike(i.status)).length;
+    const closed = allForSummary.filter((i) => isClosedLike(i.status)).length;
+    const inProgress = allForSummary.filter((i) => norm(i.status) === 'in_progress').length;
+    const onHold = allForSummary.filter((i) => norm(i.status) === 'on_hold').length;
+    const critical = allForSummary.filter(
+      (i) =>
+        isOpenLike(i.status) &&
+        (i.priority === 'critical' || (i.rpn != null && Number(i.rpn) >= 75))
     ).length;
-    const critical = enriched.filter(
-      (i) => i.priority === 'critical' || (i.rpn != null && Number(i.rpn) >= 75)
-    ).length;
+
+    if (statusFilter) {
+      if (statusFilter === 'open' || statusFilter === 'open_bucket') {
+        enriched = enriched.filter((i) => isOpenLike(i.status));
+      } else if (statusFilter === 'closed' || statusFilter === 'closed_bucket') {
+        enriched = enriched.filter((i) => isClosedLike(i.status));
+      } else if (statusFilter === 'critical') {
+        enriched = enriched.filter(
+          (i) =>
+            isOpenLike(i.status) &&
+            (i.priority === 'critical' || (i.rpn != null && Number(i.rpn) >= 75))
+        );
+      } else {
+        enriched = enriched.filter((i) => norm(i.status) === statusFilter.toLowerCase());
+      }
+    }
 
     return NextResponse.json({
       success: true,
       items: enriched,
-      summary: { total: enriched.length, open, critical },
+      summary: {
+        total: allForSummary.length,
+        open,
+        closed,
+        inProgress,
+        onHold,
+        critical,
+        byStatus,
+      },
     });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Error' }, { status: 500 });

@@ -75,13 +75,22 @@ export default function ContainerRiadRegister({
 }: Props) {
   const [tab, setTab] = useState<RiadType | 'all'>('all');
   const [items, setItems] = useState<RiadRecord[]>([]);
-  const [summary, setSummary] = useState({ total: 0, open: 0, critical: 0 });
+  const [summary, setSummary] = useState({
+    total: 0,
+    open: 0,
+    closed: 0,
+    inProgress: 0,
+    onHold: 0,
+    critical: 0,
+    byStatus: {} as Record<string, number>,
+  });
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [detail, setDetail] = useState<RiadRecord | null>(null);
   const [q, setQ] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  /** all | open | closed | in_progress | on_hold | critical | specific status */
+  const [statusFilter, setStatusFilter] = useState('open');
   const [containerFilter, setContainerFilter] = useState(
     fixedContainerId ? String(fixedContainerId) : 'all'
   );
@@ -113,7 +122,17 @@ export default function ContainerRiadRegister({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to load');
       setItems(data.items || []);
-      setSummary(data.summary || { total: 0, open: 0, critical: 0 });
+      setSummary(
+        data.summary || {
+          total: 0,
+          open: 0,
+          closed: 0,
+          inProgress: 0,
+          onHold: 0,
+          critical: 0,
+          byStatus: {},
+        }
+      );
       if (data.warning) toast.message(data.warning, { description: data.hint });
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Load failed');
@@ -315,22 +334,91 @@ export default function ContainerRiadRegister({
     }
   };
 
+  const statusChips: Array<{
+    key: string;
+    label: string;
+    count: number;
+    activeClass: string;
+    idleClass: string;
+  }> = [
+    {
+      key: 'all',
+      label: 'All',
+      count: summary.total,
+      activeClass: 'bg-slate-900 text-white border-slate-900',
+      idleClass: 'bg-white text-slate-700 border-neutral-200 hover:border-neutral-300',
+    },
+    {
+      key: 'open',
+      label: 'Open',
+      count: summary.open,
+      activeClass: 'bg-sky-600 text-white border-sky-600',
+      idleClass: 'bg-sky-50 text-sky-900 border-sky-100 hover:border-sky-300',
+    },
+    {
+      key: 'in_progress',
+      label: 'In progress',
+      count: summary.inProgress,
+      activeClass: 'bg-indigo-600 text-white border-indigo-600',
+      idleClass: 'bg-indigo-50 text-indigo-900 border-indigo-100 hover:border-indigo-300',
+    },
+    {
+      key: 'on_hold',
+      label: 'On hold',
+      count: summary.onHold,
+      activeClass: 'bg-amber-500 text-white border-amber-500',
+      idleClass: 'bg-amber-50 text-amber-900 border-amber-100 hover:border-amber-300',
+    },
+    {
+      key: 'closed',
+      label: 'Closed',
+      count: summary.closed,
+      activeClass: 'bg-emerald-600 text-white border-emerald-600',
+      idleClass: 'bg-emerald-50 text-emerald-900 border-emerald-100 hover:border-emerald-300',
+    },
+    {
+      key: 'critical',
+      label: 'Critical open',
+      count: summary.critical,
+      activeClass: 'bg-red-600 text-white border-red-600',
+      idleClass: 'bg-red-50 text-red-900 border-red-100 hover:border-red-300',
+    },
+  ];
+
+  const filterLabel =
+    statusFilter === 'all'
+      ? 'all items'
+      : statusFilter === 'open'
+        ? 'open items'
+        : statusFilter === 'closed'
+          ? 'closed items'
+          : statusFilter === 'critical'
+            ? 'critical open items'
+            : statusFilter.replace('_', ' ');
+
   return (
     <div className={compact ? '' : 'px-2 md:px-4 max-w-screen-2xl mx-auto'}>
-      {/* KPI strip */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
-        <div className="rounded-2xl border bg-white px-4 py-3">
-          <div className="text-xs text-neutral-500">Total</div>
-          <div className="text-2xl font-black text-slate-900">{summary.total}</div>
-        </div>
-        <div className="rounded-2xl border bg-sky-50 border-sky-100 px-4 py-3">
-          <div className="text-xs text-sky-700">Open / active</div>
-          <div className="text-2xl font-black text-sky-900">{summary.open}</div>
-        </div>
-        <div className="rounded-2xl border bg-red-50 border-red-100 px-4 py-3">
-          <div className="text-xs text-red-700">Critical</div>
-          <div className="text-2xl font-black text-red-900">{summary.critical}</div>
-        </div>
+      {/* Status overview — click to filter */}
+      <div className="mb-2 text-xs font-medium text-neutral-500 uppercase tracking-wide">
+        Status overview · click to filter
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3 mb-6">
+        {statusChips.map((chip) => {
+          const active = statusFilter === chip.key;
+          return (
+            <button
+              key={chip.key}
+              type="button"
+              onClick={() => setStatusFilter(chip.key)}
+              className={`rounded-2xl border px-3 py-3 text-left transition-all ${
+                active ? chip.activeClass + ' shadow-md ring-2 ring-offset-1 ring-current/20' : chip.idleClass
+              }`}
+            >
+              <div className={`text-[11px] font-medium opacity-90`}>{chip.label}</div>
+              <div className="text-2xl font-black tracking-tight mt-0.5">{chip.count}</div>
+            </button>
+          );
+        })}
       </div>
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
@@ -342,7 +430,7 @@ export default function ContainerRiadRegister({
               tab === 'all' ? 'bg-white shadow text-slate-900' : 'text-neutral-600'
             }`}
           >
-            All
+            All types
           </button>
           {RIAD_TYPES.map((t) => {
             const Icon = typeIcon(t.key);
@@ -366,7 +454,7 @@ export default function ContainerRiadRegister({
         </button>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-3 mb-4">
+      <div className="flex flex-col sm:flex-row gap-3 mb-2">
         <div className="relative flex-1">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
           <input
@@ -376,17 +464,20 @@ export default function ContainerRiadRegister({
             onChange={(e) => setQ(e.target.value)}
           />
         </div>
-        <div className="flex gap-2 items-center">
+        <div className="flex gap-2 items-center flex-wrap">
           <Filter className="w-4 h-4 text-neutral-400" />
           <select
-            className="input !py-2.5 !text-sm !w-auto min-w-[140px]"
+            className="input !py-2.5 !text-sm !w-auto min-w-[150px]"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
           >
             <option value="all">All statuses</option>
+            <option value="open">Open (bucket)</option>
+            <option value="closed">Closed (bucket)</option>
+            <option value="critical">Critical open</option>
             {RIAD_STATUSES.map((s) => (
               <option key={s.value} value={s.value}>
-                {s.label}
+                {s.label} only
               </option>
             ))}
           </select>
@@ -406,6 +497,17 @@ export default function ContainerRiadRegister({
           )}
         </div>
       </div>
+      <p className="text-xs text-neutral-500 mb-4">
+        Showing <strong className="text-slate-700">{filtered.length}</strong> {filterLabel}
+        {summary.total > 0 ? (
+          <>
+            {' '}
+            · <span className="text-sky-700 font-medium">{summary.open} open</span>
+            {' · '}
+            <span className="text-emerald-700 font-medium">{summary.closed} closed</span>
+          </>
+        ) : null}
+      </p>
 
       <div className="bg-white border border-neutral-200 rounded-3xl overflow-hidden">
         {loading ? (
