@@ -27,6 +27,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <PrivyProvider
       appId={privyAppId}
       config={{
+        // Email first — most reliable on mobile browsers (no popup blockers)
         loginMethods: ['email', 'google', 'apple', 'wallet'],
         appearance: {
           theme: 'light',
@@ -34,6 +35,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           logo: '/sa-logo.png',
           showWalletLoginFirst: false,
         },
+        // Improve session restore across mobile Safari / in-app browsers
         embeddedWallets: {
           ethereum: {
             createOnLogin: 'users-without-wallets',

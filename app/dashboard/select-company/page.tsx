@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePrivy } from '@privy-io/react-auth';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/utils/supabase/client';
-import { Building2, ArrowRight, Plus, LogOut } from 'lucide-react';
-import { getCanonicalUserId, userIdMatchVariants } from '@/lib/auth/identity';
+import { Building2, ArrowRight, Plus, LogOut, RefreshCw, Loader2 } from 'lucide-react';
+import { extractEmailFromPrivyUser, getCanonicalUserId } from '@/lib/auth/identity';
+import { toast } from 'sonner';
 
 interface Company {
   id: string;
@@ -18,123 +18,131 @@ interface Company {
 }
 
 export default function SelectCompanyPage() {
-  const { user: privyUser, ready, logout, authenticated } = usePrivy();
+  const { user: privyUser, ready, logout, authenticated, login } = usePrivy();
   const router = useRouter();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [sessionEmail, setSessionEmail] = useState<string | null>(null);
 
-  const supabase = createClient();
+  const loadCompanies = useCallback(async () => {
+    if (!ready) return;
 
-  useEffect(() => {
-    const loadCompanies = async () => {
-      if (!ready) return;
+    if (!authenticated || !privyUser?.id) {
+      setCompanies([]);
+      setLoading(false);
+      return;
+    }
 
-      if (!authenticated || !privyUser?.id) {
-        setLoading(false);
+    setLoading(true);
+    setError(null);
+
+    const userId = getCanonicalUserId(privyUser.id);
+    const email = extractEmailFromPrivyUser(privyUser);
+    setSessionEmail(email);
+
+    if (!userId) {
+      setCompanies([]);
+      setLoading(false);
+      setError('Could not read your secure session. Please sign in again.');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/me/companies', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ privyUserId: userId, email }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        console.error('companies API error:', data);
+        setError(data.error || 'Could not load your companies.');
+        setCompanies([]);
         return;
       }
 
-      try {
-        setError(null);
+      setCompanies(data.companies || []);
+    } catch (err) {
+      console.error('Error loading companies:', err);
+      setError('Network error while loading companies. Check your connection and try again.');
+      setCompanies([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [ready, authenticated, privyUser]);
 
-        const userId = getCanonicalUserId(privyUser.id);
-        if (!userId) {
-          setCompanies([]);
-          setLoading(false);
-          return;
-        }
+  // Wait for Privy to fully restore the session (important on mobile Safari)
+  useEffect(() => {
+    if (!ready) {
+      setLoading(true);
+      return;
+    }
+    // Small delay helps mobile browsers finish session hydration after redirect
+    const t = setTimeout(() => {
+      void loadCompanies();
+    }, authenticated ? 150 : 0);
+    return () => clearTimeout(t);
+  }, [ready, authenticated, privyUser?.id, loadCompanies]);
 
-        // Match canonical Privy id + legacy stripped formats
-        const variants = userIdMatchVariants(userId);
-        const { data: businessUsers, error: buError } = await supabase
-          .from('business_users')
-          .select('role, profile_id, status, user_id')
-          .in('user_id', variants)
-          .eq('status', 'active');
+  // Unauthenticated: send to login with return URL (do not show empty companies)
+  useEffect(() => {
+    if (!ready) return;
+    if (!authenticated) {
+      router.replace('/login?next=' + encodeURIComponent('/dashboard/select-company'));
+    }
+  }, [ready, authenticated, router]);
 
-        if (buError) {
-          console.error('Error loading business_users:', buError);
-          setError('Could not load your company memberships.');
-          setLoading(false);
-          return;
-        }
-
-        if (!businessUsers || businessUsers.length === 0) {
-          setCompanies([]);
-          setLoading(false);
-          return;
-        }
-
-        const profileIds = businessUsers.map((bu: { profile_id: string | number }) => bu.profile_id);
-
-        const { data: profiles, error: profilesError } = await supabase
-          .from('profiles')
-          .select('id, trading_name, legal_name, supplier_status, verification_status')
-          .in('id', profileIds);
-
-        if (profilesError) {
-          console.error('Error loading profiles:', profilesError);
-          setError('Could not load company profiles.');
-        }
-
-        const companiesList: Company[] = (profiles || []).map((profile: {
-          id: string | number;
-          trading_name: string;
-          legal_name?: string | null;
-          supplier_status: string | null;
-          verification_status?: string | null;
-        }) => {
-          const bu = businessUsers.find(
-            (b: { profile_id: string | number; role: string }) =>
-              String(b.profile_id) === String(profile.id)
-          );
-          return {
-            id: String(profile.id),
-            trading_name: profile.trading_name,
-            legal_name: profile.legal_name,
-            supplier_status: profile.supplier_status,
-            verification_status: profile.verification_status,
-            role: bu?.role || 'member',
-          };
-        });
-
-        setCompanies(companiesList);
-      } catch (err) {
-        console.error('Error loading companies:', err);
-        setError('Something went wrong while loading companies.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadCompanies();
-  }, [privyUser, ready, authenticated, supabase]);
-
-  const handleSelectCompany = (companyId: string) => {
-    localStorage.setItem('selectedCompanyId', companyId);
+  const handleSelectCompany = (companyId: string, tradingName?: string) => {
+    try {
+      localStorage.setItem('selectedCompanyId', companyId);
+      if (tradingName) localStorage.setItem('selectedCompanyName', tradingName);
+    } catch {
+      // private mode / blocked storage — still navigate
+    }
     router.push('/dashboard');
   };
 
-  if (loading || !ready) {
+  const handleSignIn = () => {
+    login();
+  };
+
+  // Loading / session restore
+  if (!ready || (authenticated && loading)) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]">
+      <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] px-6">
         <div className="text-center">
-          <div className="w-8 h-8 border-4 border-[#00b4d8] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-neutral-600">Loading your companies…</p>
+          <div className="w-10 h-10 border-4 border-[#00b4d8] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-neutral-600 font-medium">Loading your companies…</p>
+          <p className="text-sm text-neutral-400 mt-2">Restoring your secure session</p>
         </div>
       </div>
     );
   }
 
+  // Not signed in (brief state while redirecting, with clear CTA)
   if (!authenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] px-6">
-        <div className="text-center max-w-md">
+        <div className="text-center max-w-md w-full bg-white border border-neutral-200 rounded-3xl p-8 shadow-sm">
           <h1 className="text-3xl font-black tracking-[-1.5px] text-[#00b4d8] mb-3">Sign in required</h1>
-          <p className="text-neutral-600 mb-8">Log in to choose a company workspace.</p>
-          <Link href="/login" className="btn-primary inline-flex items-center gap-2">
-            Go to Login <ArrowRight className="w-4 h-4" />
+          <p className="text-neutral-600 mb-8">
+            Log in with your email, Google, or Apple to see the companies linked to your profile.
+          </p>
+          <button
+            type="button"
+            onClick={handleSignIn}
+            className="btn-primary w-full py-4 text-lg mb-3"
+          >
+            Continue securely
+          </button>
+          <Link
+            href="/login?next=/dashboard/select-company"
+            className="block text-sm text-[#00b4d8] font-medium hover:underline"
+          >
+            Open login page
           </Link>
         </div>
       </div>
@@ -142,53 +150,105 @@ export default function SelectCompanyPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] py-12 px-6">
+    <div className="min-h-screen bg-[#f8fafc] py-10 sm:py-12 px-4 sm:px-6">
       <div className="max-w-5xl mx-auto">
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-12">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8 sm:mb-12">
           <div className="text-center sm:text-left">
-            <h1 className="text-4xl md:text-5xl font-black tracking-[-2.5px] text-[#00b4d8] mb-3">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-[-2px] text-[#00b4d8] mb-2 sm:mb-3">
               Select a Company
             </h1>
-            <p className="text-lg md:text-xl text-neutral-600">
+            <p className="text-base sm:text-xl text-neutral-600">
               Choose which company profile you would like to manage
             </p>
+            {sessionEmail && (
+              <p className="text-sm text-neutral-500 mt-2">
+                Signed in as <span className="font-medium text-slate-700">{sessionEmail}</span>
+              </p>
+            )}
           </div>
-          <button
-            type="button"
-            onClick={() => logout()}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl border border-neutral-200 text-sm font-medium text-neutral-600 hover:bg-white transition-colors self-center sm:self-start"
-          >
-            <LogOut className="w-4 h-4" />
-            Sign out
-          </button>
+          <div className="flex items-center justify-center sm:justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setLoading(true);
+                void loadCompanies().then(() => toast.success('Companies refreshed'));
+              }}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl border border-neutral-200 text-sm font-medium text-neutral-600 hover:bg-white transition-colors"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Refresh
+            </button>
+            <button
+              type="button"
+              onClick={() => logout()}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl border border-neutral-200 text-sm font-medium text-neutral-600 hover:bg-white transition-colors"
+            >
+              <LogOut className="w-4 h-4" />
+              Sign out
+            </button>
+          </div>
         </div>
 
         {error && (
-          <div className="mb-8 p-4 bg-red-50 border border-red-100 rounded-2xl text-red-700 text-sm">
-            {error}
+          <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-2xl text-red-700 text-sm">
+            <p className="mb-3">{error}</p>
+            <button
+              type="button"
+              onClick={() => void loadCompanies()}
+              className="font-semibold underline"
+            >
+              Try again
+            </button>
           </div>
         )}
 
         {companies.length === 0 ? (
-          <div className="text-center py-16 bg-white rounded-3xl border border-neutral-200">
-            <Building2 className="w-16 h-16 mx-auto text-neutral-300 mb-6" />
-            <h3 className="text-2xl font-semibold mb-2 text-slate-900">No companies found</h3>
-            <p className="text-neutral-600 mb-8 max-w-md mx-auto">
-              You do not have any companies linked to your account yet. Register a business to get started.
+          <div className="text-center py-12 sm:py-16 bg-white rounded-3xl border border-neutral-200 px-6">
+            <Building2 className="w-14 h-14 sm:w-16 sm:h-16 mx-auto text-neutral-300 mb-6" />
+            <h3 className="text-xl sm:text-2xl font-semibold mb-2 text-slate-900">No companies found</h3>
+            <p className="text-neutral-600 mb-4 max-w-md mx-auto text-sm sm:text-base">
+              We couldn&apos;t find active company memberships for this login
+              {sessionEmail ? (
+                <>
+                  {' '}
+                  (<span className="font-medium">{sessionEmail}</span>)
+                </>
+              ) : null}
+              . Use the same email as on your other devices, or register a business.
             </p>
-            <Link href="/onboarding?type=business" className="btn-primary inline-flex items-center gap-2">
-              <Plus className="w-4 h-4" /> Register a Business
-            </Link>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center mt-6">
+              <button
+                type="button"
+                onClick={() => {
+                  logout();
+                  setTimeout(() => login(), 400);
+                }}
+                className="btn-secondary py-3 px-6"
+              >
+                Sign in with a different account
+              </button>
+              <Link href="/onboarding?type=business" className="btn-primary py-3 px-6 inline-flex items-center justify-center gap-2">
+                <Plus className="w-4 h-4" /> Register a Business
+              </Link>
+            </div>
+            <button
+              type="button"
+              onClick={() => void loadCompanies()}
+              className="mt-6 text-sm text-[#00b4d8] font-medium inline-flex items-center gap-2"
+            >
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              Refresh list
+            </button>
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
               {companies.map((company) => (
                 <button
                   key={company.id}
                   type="button"
-                  onClick={() => handleSelectCompany(company.id)}
-                  className="group text-left bg-white border border-neutral-200 rounded-3xl p-8 cursor-pointer hover:border-[#00b4d8] hover:shadow-xl transition-all active:scale-[0.985]"
+                  onClick={() => handleSelectCompany(company.id, company.trading_name)}
+                  className="group text-left bg-white border border-neutral-200 rounded-3xl p-6 sm:p-8 cursor-pointer hover:border-[#00b4d8] hover:shadow-xl transition-all active:scale-[0.985] touch-manipulation"
                 >
                   <div className="flex justify-between items-start mb-6">
                     <div className="w-14 h-14 bg-[#00b4d8]/10 rounded-2xl flex items-center justify-center group-hover:bg-[#00b4d8]/15 transition-colors">
@@ -206,7 +266,7 @@ export default function SelectCompanyPage() {
                     </div>
                   </div>
 
-                  <h3 className="text-2xl font-bold tracking-[-1px] mb-1 text-slate-900 group-hover:text-[#00b4d8] transition-colors">
+                  <h3 className="text-xl sm:text-2xl font-bold tracking-[-1px] mb-1 text-slate-900 group-hover:text-[#00b4d8] transition-colors">
                     {company.trading_name || 'Untitled company'}
                   </h3>
                   {company.legal_name && company.legal_name !== company.trading_name && (

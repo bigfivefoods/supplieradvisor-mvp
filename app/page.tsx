@@ -9,7 +9,7 @@ import { useRef, useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
 
 export default function LandingPage() {
-  const { login, user, ready } = usePrivy();
+  const { user, ready } = usePrivy();
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -79,13 +79,13 @@ export default function LandingPage() {
             
             <button
               onClick={() => {
-                if (user) {
+                if (ready && user) {
                   router.push('/dashboard/select-company');
                 } else {
-                  router.push('/login');
+                  router.push('/login?next=/dashboard/select-company');
                 }
               }}
-              className="px-6 md:px-8 py-3.5 border border-[#00b4d8] text-[#00b4d8] hover:bg-[#00b4d8]/5 rounded-3xl font-semibold transition-all flex items-center gap-2 whitespace-nowrap"
+              className="px-6 md:px-8 py-3.5 border border-[#00b4d8] text-[#00b4d8] hover:bg-[#00b4d8]/5 rounded-3xl font-semibold transition-all flex items-center gap-2 whitespace-nowrap touch-manipulation"
             >
               Log in
             </button>
@@ -419,7 +419,10 @@ export default function LandingPage() {
         <div className="max-w-3xl mx-auto">
           <h2 className="text-4xl md:text-5xl font-black tracking-[-2px] mb-6">The future of supply chains is here.</h2>
           <p className="text-xl md:text-2xl mb-12">Join the movement that makes transparency the standard and ethics the competitive advantage.</p>
-          <button onClick={login} className="px-12 md:px-16 py-6 md:py-7 bg-[#00b4d8] hover:bg-[#0099b8] text-white rounded-3xl text-xl md:text-2xl font-semibold inline-flex items-center gap-4">
+          <button
+            onClick={() => router.push('/onboarding')}
+            className="px-12 md:px-16 py-6 md:py-7 bg-[#00b4d8] hover:bg-[#0099b8] text-white rounded-3xl text-xl md:text-2xl font-semibold inline-flex items-center gap-4 touch-manipulation"
+          >
             Get started in under 5 minutes <ArrowRight size={28} />
           </button>
         </div>
