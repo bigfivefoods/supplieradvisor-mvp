@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { 
   Home, Building2, Users, Truck, Factory, Package, 
-  Calculator, Brain, ChevronDown, ArrowLeftRight
+  Calculator, Brain, ChevronDown, ArrowLeftRight, ShoppingBag
 } from 'lucide-react';
 
 const modules = [
@@ -37,6 +37,20 @@ const modules = [
     sub: [
       { name: 'My Connections', href: '/dashboard/network' },
       { name: 'Invite Company', href: '/dashboard/invite-business' },
+    ]
+  },
+
+  // ==================== BUYER WORKSPACE ====================
+  {
+    id: 'buyer',
+    name: 'Buyer workspace',
+    icon: ShoppingBag,
+    href: '/dashboard/buyer',
+    sub: [
+      { name: 'Hub', href: '/dashboard/buyer' },
+      { name: 'Suppliers', href: '/dashboard/buyer/suppliers' },
+      { name: 'Purchase orders', href: '/dashboard/buyer/pos' },
+      { name: 'Documents', href: '/dashboard/buyer/documents' },
     ]
   },
 
@@ -76,7 +90,7 @@ const modules = [
       { name: 'Claims', href: '/dashboard/customers/claims' },
       { name: 'Contracts', href: '/dashboard/customers/contracts' },
       { name: 'Customer RIAD', href: '/dashboard/customers/riad-log' },
-      { name: 'Portal', href: '/dashboard/customers/portal' },
+      { name: 'Ops board', href: '/dashboard/customers/portal' },
     ]
   },
 
