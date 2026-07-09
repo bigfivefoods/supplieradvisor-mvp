@@ -117,8 +117,15 @@ export default function InventoryHub() {
             href: '/dashboard/inventory/products',
             icon: ShoppingBag,
             title: 'Products & QR',
-            desc: 'SKU master, public QR passport, on-chain identity hash',
+            desc: 'SKU master, public QR passport, on-chain mint/anchor',
             badge: 'Core',
+          },
+          {
+            href: '/dashboard/inventory/scan',
+            icon: QrCode,
+            title: 'Scan receive',
+            desc: 'Camera QR/GS1 → stock + lot/serial pedigree',
+            badge: 'Scan',
           },
           {
             href: '/dashboard/inventory/stock',
@@ -128,27 +135,36 @@ export default function InventoryHub() {
             badge: 'Live',
           },
           {
+            href: '/dashboard/inventory/lots',
+            icon: Package,
+            title: 'Lots & serials',
+            desc: 'Expiry pedigree and serial number tracking',
+            badge: 'Pedigree',
+          },
+          {
+            href: '/dashboard/inventory/sync',
+            icon: ArrowLeftRight,
+            title: 'Warehouse ↔ container',
+            desc: 'Auto-sync outlet stock with central warehouse',
+            badge: 'Sync',
+          },
+          {
+            href: '/dashboard/inventory/edi',
+            icon: Link2,
+            title: 'GS1 & EDI',
+            desc: 'GTIN parse + 846/INVRPT inventory advice export',
+            badge: 'B2B',
+          },
+          {
             href: '/dashboard/inventory/warehouses',
             icon: Warehouse,
             title: 'Warehouses',
             desc: 'Multi-location network including container outlets',
           },
           {
-            href: '/dashboard/inventory/raw-materials',
-            icon: Package,
-            title: 'Raw materials',
-            desc: 'Inbound ingredients and production inputs',
-          },
-          {
-            href: '/dashboard/inventory/finished-goods',
-            icon: Box,
-            title: 'Finished goods',
-            desc: 'Sellable catalogue and availability',
-          },
-          {
             href: '/dashboard/inventory/stock-transfers',
             icon: ArrowLeftRight,
-            title: 'Transfers',
+            title: 'Internal transfers',
             desc: 'Move stock between warehouses with hash ledger',
           },
           {
@@ -164,10 +180,16 @@ export default function InventoryHub() {
             desc: 'Full physical inventory reconciliation',
           },
           {
-            href: '/dashboard/containers/manage',
-            icon: QrCode,
-            title: 'Container stock',
-            desc: 'Outlet inventory, contractor receive & counts',
+            href: '/dashboard/inventory/raw-materials',
+            icon: Package,
+            title: 'Raw materials',
+            desc: 'Inbound ingredients and production inputs',
+          },
+          {
+            href: '/dashboard/inventory/finished-goods',
+            icon: Box,
+            title: 'Finished goods',
+            desc: 'Sellable catalogue and availability',
           },
         ].map((card) => (
           <Link

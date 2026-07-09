@@ -101,7 +101,11 @@ const modules = [
     sub: [
       { name: 'Command Center', href: '/dashboard/inventory' },
       { name: 'Products & QR', href: '/dashboard/inventory/products' },
+      { name: 'Scan Receive', href: '/dashboard/inventory/scan' },
       { name: 'Stock Levels', href: '/dashboard/inventory/stock' },
+      { name: 'Lots & Serials', href: '/dashboard/inventory/lots' },
+      { name: 'Warehouse ↔ Container', href: '/dashboard/inventory/sync' },
+      { name: 'GS1 & EDI', href: '/dashboard/inventory/edi' },
       { name: 'Raw Materials', href: '/dashboard/inventory/raw-materials' },
       { name: 'Finished Goods', href: '/dashboard/inventory/finished-goods' },
       { name: 'Warehouses', href: '/dashboard/inventory/warehouses' },

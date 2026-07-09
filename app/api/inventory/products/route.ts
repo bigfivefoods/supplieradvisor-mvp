@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { hashProductIdentity } from '@/lib/inventory/hash';
 import { productQrPayload } from '@/lib/inventory/types';
+import { toGtin14, isValidGtin } from '@/lib/inventory/gs1';
 
 export async function GET(request: NextRequest) {
   try {
@@ -86,11 +87,19 @@ export async function POST(request: NextRequest) {
       uom: body.uom,
     });
 
+    const gtinRaw = body.gtin || body.barcode || null;
+    const gtin14 = gtinRaw ? toGtin14(String(gtinRaw)) : null;
+    if (gtinRaw && !isValidGtin(String(gtinRaw))) {
+      // soft warning — still store for operational use
+    }
+
     const payload = {
       profile_id: companyId,
       name: String(body.name).trim(),
       sku: body.sku || null,
-      barcode: body.barcode || null,
+      barcode: body.barcode || gtinRaw || null,
+      gtin: gtinRaw,
+      gtin14,
       public_id: publicId,
       category: body.category || null,
       product_type: body.product_type || 'finished_good',

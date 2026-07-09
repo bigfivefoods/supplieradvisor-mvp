@@ -23,6 +23,7 @@ const emptyForm = {
   name: '',
   sku: '',
   barcode: '',
+  gtin: '',
   category: '',
   product_type: 'finished_good',
   uom: 'unit',
@@ -77,7 +78,8 @@ export default function ProductsPage() {
           companyId,
           name: form.name,
           sku: form.sku || undefined,
-          barcode: form.barcode || undefined,
+          barcode: form.barcode || form.gtin || undefined,
+          gtin: form.gtin || undefined,
           category: form.category || undefined,
           product_type: form.product_type,
           uom: form.uom,
@@ -112,17 +114,22 @@ export default function ProductsPage() {
   };
 
   const anchor = async (p: ProductRecord) => {
-    const res = await fetch('/api/inventory/products', {
-      method: 'PATCH',
+    toast.loading('Anchoring on-chain…', { id: `anchor-${p.id}` });
+    const res = await fetch('/api/inventory/products/anchor', {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: p.id, anchor: true }),
+      body: JSON.stringify({ productId: p.id }),
     });
     const data = await res.json();
     if (!res.ok) {
-      toast.error(data.error || 'Failed');
+      toast.error(data.error || 'Failed', { id: `anchor-${p.id}` });
       return;
     }
-    toast.success('Marked as anchored (ready for chain write)');
+    const mode = data.chain?.mode === 'onchain' ? 'minted on-chain' : 'anchored (sim)';
+    toast.success(`${mode} · ${String(data.chain?.txHash || '').slice(0, 14)}…`, {
+      id: `anchor-${p.id}`,
+      description: data.chain?.note,
+    });
     void load();
   };
 
@@ -291,11 +298,12 @@ export default function ProductsPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-medium">Barcode</label>
+                    <label className="text-xs font-medium">GTIN / EAN / UPC (GS1)</label>
                     <input
                       className="input mt-1 w-full !p-3 !text-sm font-mono"
-                      value={form.barcode}
-                      onChange={(e) => setForm({ ...form, barcode: e.target.value })}
+                      value={form.gtin}
+                      onChange={(e) => setForm({ ...form, gtin: e.target.value, barcode: e.target.value })}
+                      placeholder="8–14 digits"
                     />
                   </div>
                 </div>
