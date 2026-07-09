@@ -169,6 +169,10 @@ SELECT public.sa_add_column('supplier_invitations', 'invited_by', 'text');
 SELECT public.sa_add_column('supplier_invitations', 'invited_by_user_id', 'text');
 SELECT public.sa_add_column('supplier_invitations', 'expires_at', 'timestamptz');
 SELECT public.sa_add_column('supplier_invitations', 'accepted_at', 'timestamptz');
+-- If the table pre-existed without timestamps, CREATE IF NOT EXISTS skips them —
+-- always ensure created_at / updated_at for rate limits + list ordering.
+SELECT public.sa_add_column('supplier_invitations', 'created_at', 'timestamptz', 'now()');
+SELECT public.sa_add_column('supplier_invitations', 'updated_at', 'timestamptz', 'now()');
 
 DO $$
 BEGIN
