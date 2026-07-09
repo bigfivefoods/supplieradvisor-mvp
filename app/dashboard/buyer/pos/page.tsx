@@ -94,8 +94,14 @@ export default function BuyerPurchaseOrdersPage() {
   const escrowEnabled = isCustomerPoEscrowEnabled();
   const { address: connectedWallet } = useAccount();
   const publicClient = usePublicClient();
-  const { writeContract, data: txHash, isPending: isContractPending, reset: resetWrite } =
-    useWriteContract();
+  const {
+    writeContract,
+    data: txHash,
+    isPending: isContractPending,
+    error: writeError,
+    isError: isWriteError,
+    reset: resetWrite,
+  } = useWriteContract();
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
     hash: txHash,
   });
@@ -111,6 +117,8 @@ export default function BuyerPurchaseOrdersPage() {
     kind: EscrowLinkKind;
   } | null>(null);
   const autoLinkDoneForHashRef = useRef<string | null>(null);
+  /** Avoid re-toasting the same writeContract error */
+  const writeErrorToastedRef = useRef<string | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -221,6 +229,27 @@ export default function BuyerPurchaseOrdersPage() {
       setSupplierWallet(selectedSupplier.wallet_address);
     }
   }, [selectedSupplier?.supplierProfileId, selectedSupplier?.wallet_address]);
+
+  // Surface async wallet reject / writeContract failures (try/catch around writeContract is sync-only)
+  useEffect(() => {
+    if (!isWriteError || !writeError) return;
+    const msg = writeError.message || 'Wallet transaction failed or was rejected';
+    if (writeErrorToastedRef.current === msg) return;
+    writeErrorToastedRef.current = msg;
+
+    const pending = pendingSubmitRef.current;
+    pendingSubmitRef.current = null;
+    autoLinkDoneForHashRef.current = null;
+
+    const kindLabel = pending?.kind === 'fund' ? 'fundPO' : 'createPO';
+    const poHint = pending?.supabasePoId
+      ? ` Off-chain PO #${pending.supabasePoId} is unchanged` +
+        (pending.kind === 'create'
+          ? ' — use Create on-chain escrow when ready.'
+          : '.')
+      : '';
+    toast.error(`${kindLabel} failed: ${msg}.${poHint}`);
+  }, [isWriteError, writeError]);
 
   /**
    * Parse receipt + POST trust-then-audit persist.
@@ -365,28 +394,33 @@ export default function BuyerPurchaseOrdersPage() {
     const metadataURI = `https://supplieradvisor.app/po/${supabasePoId}`;
     setLinkError(null);
     autoLinkDoneForHashRef.current = null;
+    writeErrorToastedRef.current = null;
     pendingSubmitRef.current = {
       supabasePoId,
       supplierWallet: wallet,
       onchainPoId: null,
       kind: 'create',
     };
-    try {
-      writeContract({
+    writeContract(
+      {
         address: PO_ESCROW_ADDRESS,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         abi: POEscrowV2ABI.abi as any,
         functionName: 'createPO',
         args: [wallet as `0x${string}`, parseEther(eth), metadataURI],
-      });
-    } catch (e: unknown) {
-      pendingSubmitRef.current = null;
-      toast.error(
-        e instanceof Error
-          ? e.message
-          : `Wallet rejected createPO. Off-chain PO #${supabasePoId} remains — use Create on-chain escrow when ready.`
-      );
-    }
+      },
+      {
+        onError: (err) => {
+          pendingSubmitRef.current = null;
+          autoLinkDoneForHashRef.current = null;
+          const msg = err?.message || 'Wallet rejected createPO';
+          writeErrorToastedRef.current = msg;
+          toast.error(
+            `createPO failed: ${msg}. Off-chain PO #${supabasePoId} remains — use Create on-chain escrow when ready.`
+          );
+        },
+      }
+    );
   };
 
   const handleRaisePO = async () => {
@@ -511,28 +545,35 @@ export default function BuyerPurchaseOrdersPage() {
     const eth = amountInEth(amount);
     setLinkError(null);
     autoLinkDoneForHashRef.current = null;
+    writeErrorToastedRef.current = null;
     pendingSubmitRef.current = {
       supabasePoId: po.id,
       supplierWallet: po.supplier_wallet || null,
       onchainPoId: onchainId,
       kind: 'fund',
     };
-    try {
-      writeContract({
+    writeContract(
+      {
         address: PO_ESCROW_ADDRESS,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         abi: POEscrowV2ABI.abi as any,
         functionName: 'fundPO',
         args: [BigInt(String(onchainId))],
         value: parseEther(eth),
-      });
-      toast.message(
-        `Funding on-chain PO #${onchainId} with ${eth} ETH (demo rate R${ETH_RATE_ZAR}/ETH)…`
-      );
-    } catch (e: unknown) {
-      pendingSubmitRef.current = null;
-      toast.error(e instanceof Error ? e.message : 'Wallet rejected fundPO');
-    }
+      },
+      {
+        onError: (err) => {
+          pendingSubmitRef.current = null;
+          autoLinkDoneForHashRef.current = null;
+          const msg = err?.message || 'Wallet rejected fundPO';
+          writeErrorToastedRef.current = msg;
+          toast.error(`fundPO failed: ${msg}. Off-chain PO #${po.id} is unchanged.`);
+        },
+      }
+    );
+    toast.message(
+      `Funding on-chain PO #${onchainId} with ${eth} ETH (demo rate R${ETH_RATE_ZAR}/ETH)…`
+    );
   };
 
   const handleCancel = async (poId: number) => {
@@ -955,6 +996,7 @@ export default function BuyerPurchaseOrdersPage() {
                         {escrowEnabled && (
                           <div className="flex flex-wrap gap-2">
                             {isOnchain &&
+                              po.status !== 'funded' &&
                               po.status !== 'paid' &&
                               po.status !== 'completed' &&
                               po.status !== 'cancelled' && (
