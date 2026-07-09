@@ -96,12 +96,12 @@ const modules = [
     href: '/dashboard/containers',
     sub: [
       { name: 'Overview', href: '/dashboard/containers' },
-      { name: 'Manage Containers', href: '/dashboard/containers/manage' },
+      { name: 'Manage containers', href: '/dashboard/containers/manage' },
       { name: 'Map', href: '/dashboard/containers/map' },
-      { name: 'Add Container', href: '/dashboard/containers/add' },
+      { name: 'Add container', href: '/dashboard/containers/add' },
       { name: 'Contractors', href: '/dashboard/containers/contractors' },
-      { name: 'Training Hub', href: '/dashboard/containers/training' },
-      { name: 'Container RIAD Log', href: '/dashboard/containers/riad-log' },
+      { name: 'Training hub', href: '/dashboard/containers/training' },
+      { name: 'Container RIAD', href: '/dashboard/containers/riad-log' },
       { name: 'Metrics', href: '/dashboard/containers/metrics' },
     ]
   },

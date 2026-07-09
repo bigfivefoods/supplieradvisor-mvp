@@ -145,7 +145,7 @@ export function RelationshipHeader({
   title: string;
   /** Optional second word; rendered in brand cyan when title is dark, or reverse */
   titleAccent?: string;
-  description?: string;
+  description?: React.ReactNode;
   action?: React.ReactNode;
   backHref?: string;
   backLabel?: string;

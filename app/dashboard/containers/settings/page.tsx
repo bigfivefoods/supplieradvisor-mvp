@@ -1,46 +1,69 @@
 'use client';
 
-import Breadcrumb from '@/components/ui/Breadcrumb';
+import {
+  CompanyRequired,
+  ContainersHeader,
+  ContainersPage,
+} from '@/components/containers/ContainersShell';
+import { Panel } from '@/components/relationship/RelationshipChrome';
 
 export default function ContainersSettings() {
   return (
-    <div className="pl-0 pr-12 py-12 max-w-screen-2xl mx-auto">
-      <Breadcrumb />
-      
-      <div className="mb-8">
-        <h1 className="text-6xl font-black tracking-[-3px] text-[#00b4d8] mb-2">Container Settings</h1>
-        <p className="text-xl text-neutral-600">Configure defaults, commission structures, and container types</p>
-      </div>
+    <CompanyRequired>
+      <ContainersPage>
+        <ContainersHeader
+          title="Container"
+          titleAccent="settings"
+          description="Defaults, commission structures, and container types for the network."
+        />
 
-      <div className="max-w-3xl space-y-8">
-        
-        <div className="bg-white rounded-3xl p-8 border">
-          <h3 className="font-bold text-xl mb-6">Default Commission Rate</h3>
-          <div className="flex items-center gap-4">
-            <input type="number" defaultValue="15" className="w-24 px-4 py-3 rounded-2xl border text-center text-xl font-semibold" />
-            <span className="text-xl text-neutral-600">%</span>
-          </div>
-          <p className="text-sm text-neutral-500 mt-2">This will be the default commission rate when creating new contracts.</p>
-        </div>
-
-        <div className="bg-white rounded-3xl p-8 border">
-          <h3 className="font-bold text-xl mb-6">Container Types</h3>
-          <div className="space-y-3">
-            {["Standard (6m)", "Large (12m)", "Custom / Modified"].map((type, i) => (
-              <div key={i} className="flex items-center justify-between px-4 py-3 bg-neutral-50 rounded-2xl">
-                <span>{type}</span>
-                <button className="text-sm text-red-600 hover:underline">Remove</button>
+        <div className="max-w-3xl space-y-4">
+          <Panel title="Default commission rate">
+            <div className="p-5">
+              <div className="flex items-center gap-3">
+                <input
+                  type="number"
+                  defaultValue={15}
+                  className="input !w-24 !p-3 !text-center !text-lg font-semibold"
+                />
+                <span className="text-neutral-600 font-medium">%</span>
               </div>
-            ))}
-            <button className="text-sm text-[#00b4d8] font-medium mt-2">+ Add New Container Type</button>
-          </div>
-        </div>
+              <p className="text-xs text-neutral-500 mt-2">
+                Default commission when creating new contractor contracts.
+              </p>
+            </div>
+          </Panel>
 
-        <div className="bg-white rounded-3xl p-8 border">
-          <h3 className="font-bold text-xl mb-4">Other Settings</h3>
-          <p className="text-neutral-500">Additional configuration options (auto code generation, notification rules, payout schedules, etc.) will be added here.</p>
+          <Panel title="Container types">
+            <div className="p-5 space-y-2">
+              {['Standard (6m)', 'Large (12m)', 'Custom / Modified'].map((type) => (
+                <div
+                  key={type}
+                  className="flex items-center justify-between px-4 py-3 bg-neutral-50 rounded-2xl border border-neutral-100"
+                >
+                  <span className="text-sm font-medium text-slate-800">{type}</span>
+                  <button type="button" className="text-xs text-red-600 hover:underline cursor-pointer">
+                    Remove
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                className="text-sm font-semibold text-[#00b4d8] mt-2 cursor-pointer"
+              >
+                + Add container type
+              </button>
+            </div>
+          </Panel>
+
+          <Panel title="Other settings">
+            <div className="p-5 text-sm text-neutral-500 leading-relaxed">
+              Auto code generation, notification rules, and payout schedules will land here next —
+              same light product language as My Business settings.
+            </div>
+          </Panel>
         </div>
-      </div>
-    </div>
+      </ContainersPage>
+    </CompanyRequired>
   );
 }
