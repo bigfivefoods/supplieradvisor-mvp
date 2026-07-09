@@ -407,7 +407,7 @@ export default function PurchaseOrdersPage() {
         const receipt = await publicClient.getTransactionReceipt({ hash: txHash });
         const parsedLogs = parseEventLogs({
           abi: POEscrowV2ABI.abi as any,
-          eventName: 'POCreated',
+          eventName: 'PO_Created',
           logs: receipt.logs,
         });
         const pendingSupabaseId = (window as any).__pendingSupabasePoId;

@@ -126,7 +126,7 @@ Use service role to confirm:
 - `purchase_orders.seller_customer_id`, `purchase_orders.source` (customer portal bridge)
 - `purchase_orders.onchain_tx`, `purchase_orders.onchain_po_id`, `purchase_orders.supplier_wallet` (optional escrow)
 
-**Buyer PO escrow (PR 9):** When `CUSTOMER_PO_ESCROW_ENABLED` / `NEXT_PUBLIC_CUSTOMER_PO_ESCROW_ENABLED` is true (default **false**), buyers may client-sign `POEscrowV2.createPO` / `fundPO` and persist refs via `POST /api/buyer/purchase-orders/[id]/onchain`. **Trust-then-audit:** the server does not verify the tx receipt or parse `POCreated` logs before writing `onchain_tx` / `onchain_po_id`. Never use `POEscrowService` (server private key) for the buyer path.
+**Buyer PO escrow (PR 9):** When `CUSTOMER_PO_ESCROW_ENABLED` **and** `NEXT_PUBLIC_CUSTOMER_PO_ESCROW_ENABLED` are true (default **false**; set both or UI/API split), buyers may client-sign `POEscrowV2.createPO` / `fundPO` and persist refs via `POST /api/buyer/purchase-orders/[id]/onchain`. Client parses event **`PO_Created`** from ABI [`src/lib/contracts/abi/POEscrowV2.json`](src/lib/contracts/abi/POEscrowV2.json) (3-arg `createPO`; address `CONTRACTS.POEscrowV2` in `src/lib/contracts/config.ts`). **Trust-then-audit:** the server does not verify the tx receipt or parse logs before writing `onchain_tx` / `onchain_po_id` (shape checks only). Create tx hash is kept on fund (`kind: fund` does not clobber `onchain_tx`). Never use `POEscrowService` (server private key) for the buyer path.
 - `containers.profile_id`, `containers.assigned_contractor`
 - `business_connections.responded_at`
 - Tables exist: `warehouses`, `customers`, `sales_orders`, `invoices`, `employees`, `activity_log`, `requisitions`, `supplier_scorecards`, `stock_levels`, `shipments`
@@ -148,8 +148,8 @@ node scripts/apply-schema.mjs
 | `NEXT_PUBLIC_SUPABASE_URL` | Client + server |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Client |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server only (invite APIs, schema apply, privileged writes) |
-| `CUSTOMER_PO_ESCROW_ENABLED` | Server: buyer onchain API (default false) |
-| `NEXT_PUBLIC_CUSTOMER_PO_ESCROW_ENABLED` | Client: buyer PO UI escrow path (default false) |
+| `CUSTOMER_PO_ESCROW_ENABLED` | Server: buyer onchain API (default false). Set with NEXT_PUBLIC_ together. |
+| `NEXT_PUBLIC_CUSTOMER_PO_ESCROW_ENABLED` | Client: buyer PO UI escrow path (default false; required for UI) |
 
 Optional for remote `psql` / CLI apply (not required for the app runtime):
 
