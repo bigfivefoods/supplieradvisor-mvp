@@ -162,8 +162,8 @@ function ScanInner() {
   return (
     <div className="px-2 md:px-4 max-w-3xl mx-auto pb-12">
       <InventoryHeader
-        title="Scan receive"
-        description="QR / GS1 barcode → resolve product → stock_levels or container_inventory with lot/serial pedigree."
+        title="Receive"
+        description="Step 4 — scan QR / GS1 barcode to put stock on hand (warehouse or container) with lot/serial pedigree."
       />
 
       <div className="grid sm:grid-cols-3 gap-3 mb-4">

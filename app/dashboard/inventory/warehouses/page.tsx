@@ -221,8 +221,8 @@ function WarehousesInner() {
   return (
     <div className="px-2 md:px-4 max-w-screen-2xl mx-auto pb-12">
       <InventoryHeader
-        title="Locations & warehouses"
-        description="Your DCs, supplier plants, and customer sites — one network for stock, counts, and transfers."
+        title="Locations"
+        description="Step 2 — your DCs, supplier plants, and customer sites. One network for stock, counts, and transfers."
         action={
           <div className="flex flex-wrap gap-2">
             <Link

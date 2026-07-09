@@ -1,18 +1,8 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { Loader2 } from 'lucide-react';
+import { LegacyRedirect } from '@/components/inventory/InventoryShell';
 
-/** Alias — warehousing is served by live warehouses page */
+/** Consolidated into Locations (warehouses) */
 export default function WarehousingRedirect() {
-  const router = useRouter();
-  useEffect(() => {
-    router.replace('/dashboard/inventory/warehouses');
-  }, [router]);
-  return (
-    <div className="flex justify-center py-20">
-      <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
-    </div>
-  );
+  return <LegacyRedirect to="/dashboard/inventory/warehouses" />;
 }

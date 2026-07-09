@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import {
   Loader2,
   ArrowLeftRight,
@@ -11,9 +12,11 @@ import {
   XCircle,
   ChevronRight,
   ClipboardList,
+  Container,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
+import type { ContainerRecord } from '@/lib/containers/types';
 import {
   ownerTypeLabel,
   transferStatusClass,
@@ -34,19 +37,43 @@ const emptyLine = (): LineDraft => ({ product_id: '', qty_requested: '1', lot_nu
 export default function StockTransfersPage() {
   return (
     <CompanyRequired>
-      <TransfersInner />
+      <Suspense
+        fallback={
+          <div className="flex justify-center py-20">
+            <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
+          </div>
+        }
+      >
+        <TransfersInner />
+      </Suspense>
     </CompanyRequired>
   );
 }
 
 function TransfersInner() {
   const companyId = getSelectedCompanyId()!;
+  const searchParams = useSearchParams();
+  const [mainTab, setMainTab] = useState<'locations' | 'container'>(
+    searchParams.get('tab') === 'container' ? 'container' : 'locations'
+  );
   const [products, setProducts] = useState<ProductRecord[]>([]);
   const [warehouses, setWarehouses] = useState<WarehouseRecord[]>([]);
   const [transfers, setTransfers] = useState<StockTransferOrder[]>([]);
   const [filter, setFilter] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<number | null>(null);
+
+  // Container sync (was /sync)
+  const [containers, setContainers] = useState<ContainerRecord[]>([]);
+  const [ctrTransfers, setCtrTransfers] = useState<Array<Record<string, unknown>>>([]);
+  const [direction, setDirection] = useState<'warehouse_to_container' | 'container_to_warehouse'>(
+    'warehouse_to_container'
+  );
+  const [containerId, setContainerId] = useState('');
+  const [ctrProductId, setCtrProductId] = useState('');
+  const [ctrQty, setCtrQty] = useState('1');
+  const [ctrLot, setCtrLot] = useState('');
+  const [ctrSaving, setCtrSaving] = useState(false);
 
   // Create form
   const [showCreate, setShowCreate] = useState(false);
@@ -71,15 +98,20 @@ function TransfersInner() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [p, w, t] = await Promise.all([
+      const [p, w, t, c, st] = await Promise.all([
         fetch(`/api/inventory/products?companyId=${companyId}`).then((r) => r.json()),
         fetch(`/api/inventory/warehouses?companyId=${companyId}`).then((r) => r.json()),
         fetch(`/api/inventory/transfers?companyId=${companyId}`).then((r) => r.json()),
+        fetch(`/api/containers?companyId=${companyId}`).then((r) => r.json()),
+        fetch(`/api/inventory/sync-transfer?companyId=${companyId}`).then((r) => r.json()),
       ]);
       setProducts(p.products || []);
       setWarehouses(w.warehouses || []);
       setTransfers(t.transfers || []);
+      setContainers(c.containers || []);
+      setCtrTransfers(st.transfers || []);
       if (t.warning) toast.message(t.warning, { description: t.hint });
+      if (st.warning) toast.message(st.warning, { description: st.hint });
     } finally {
       setLoading(false);
     }
@@ -88,6 +120,41 @@ function TransfersInner() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (searchParams.get('tab') === 'container') setMainTab('container');
+    else if (searchParams.get('tab') === 'locations') setMainTab('locations');
+  }, [searchParams]);
+
+  const submitContainerSync = async () => {
+    if (!containerId || !ctrProductId) {
+      toast.error('Container and product required');
+      return;
+    }
+    setCtrSaving(true);
+    try {
+      const res = await fetch('/api/inventory/sync-transfer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          direction,
+          containerId: Number(containerId),
+          productId: Number(ctrProductId),
+          quantity: Number(ctrQty),
+          lot_number: ctrLot || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Sync failed');
+      toast.success(`Container sync complete · ${String(data.onchain_hash || '').slice(0, 12)}…`);
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setCtrSaving(false);
+    }
+  };
 
   const filtered = useMemo(() => {
     if (filter === 'all') return transfers;
@@ -231,27 +298,165 @@ function TransfersInner() {
   return (
     <div className="px-2 md:px-4 max-w-screen-2xl mx-auto pb-12">
       <InventoryHeader
-        title="Stock transfers"
-        description="World-class inter-location process: draft → ship (leave source) → receive (arrive destination). Works across your, supplier, and customer sites."
+        title="Transfers"
+        description="One place for all stock movement between locations and containers. Location transfers use draft → ship → receive; container sync moves stock to/from outlets."
         action={
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href="/dashboard/inventory/warehouses"
-              className="btn-secondary !py-2.5 !px-4 text-sm"
-            >
-              Locations
-            </Link>
-            <button
-              type="button"
-              onClick={() => setShowCreate((v) => !v)}
-              className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center gap-1.5"
-            >
-              <Plus className="w-4 h-4" /> New transfer
-            </button>
-          </div>
+          mainTab === 'locations' ? (
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href="/dashboard/inventory/warehouses"
+                className="btn-secondary !py-2.5 !px-4 text-sm"
+              >
+                Locations
+              </Link>
+              <button
+                type="button"
+                onClick={() => setShowCreate((v) => !v)}
+                className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center gap-1.5"
+              >
+                <Plus className="w-4 h-4" /> New transfer
+              </button>
+            </div>
+          ) : undefined
         }
       />
 
+      <div className="flex rounded-2xl border bg-white p-1 gap-1 mb-6 w-fit">
+        <button
+          type="button"
+          onClick={() => setMainTab('locations')}
+          className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold ${
+            mainTab === 'locations' ? 'bg-[#00b4d8] text-white' : 'text-neutral-600'
+          }`}
+        >
+          <ArrowLeftRight className="w-3.5 h-3.5" /> Location transfers
+        </button>
+        <button
+          type="button"
+          onClick={() => setMainTab('container')}
+          className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold ${
+            mainTab === 'container' ? 'bg-[#00b4d8] text-white' : 'text-neutral-600'
+          }`}
+        >
+          <Container className="w-3.5 h-3.5" /> Warehouse ↔ container
+        </button>
+      </div>
+
+      {mainTab === 'container' && (
+        <div className="space-y-6">
+          <div className="bg-white border rounded-3xl p-6 space-y-4 max-w-xl">
+            <h2 className="font-bold text-sm">Container outlet sync</h2>
+            <p className="text-xs text-neutral-500">
+              Move stock between central warehouse balances and retail containers. Same ledger —
+              formerly a separate “Warehouse ↔ container” page.
+            </p>
+            <div className="flex gap-2">
+              {(
+                [
+                  ['warehouse_to_container', 'Warehouse → Container'],
+                  ['container_to_warehouse', 'Container → Warehouse'],
+                ] as const
+              ).map(([v, label]) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setDirection(v)}
+                  className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold border ${
+                    direction === v
+                      ? 'border-[#00b4d8] bg-[#00b4d8]/10 text-[#0077b6]'
+                      : 'border-neutral-200'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <select
+              className="input w-full !p-3 !text-sm"
+              value={containerId}
+              onChange={(e) => setContainerId(e.target.value)}
+            >
+              <option value="">Container *</option>
+              {containers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} ({c.container_code})
+                </option>
+              ))}
+            </select>
+            <select
+              className="input w-full !p-3 !text-sm"
+              value={ctrProductId}
+              onChange={(e) => setCtrProductId(e.target.value)}
+            >
+              <option value="">Product *</option>
+              {products.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} {p.sku ? `(${p.sku})` : ''}
+                </option>
+              ))}
+            </select>
+            <div className="grid grid-cols-2 gap-3">
+              <input
+                type="number"
+                className="input !p-3 !text-sm"
+                placeholder="Qty"
+                value={ctrQty}
+                onChange={(e) => setCtrQty(e.target.value)}
+              />
+              <input
+                className="input !p-3 !text-sm font-mono"
+                placeholder="Lot (optional)"
+                value={ctrLot}
+                onChange={(e) => setCtrLot(e.target.value)}
+              />
+            </div>
+            <button
+              type="button"
+              disabled={ctrSaving}
+              onClick={() => void submitContainerSync()}
+              className="btn-primary w-full !py-3"
+            >
+              {ctrSaving ? (
+                <Loader2 className="w-4 h-4 animate-spin mx-auto" />
+              ) : (
+                <>
+                  <ArrowLeftRight className="w-4 h-4" /> Execute sync
+                </>
+              )}
+            </button>
+          </div>
+          <div className="bg-white border rounded-3xl overflow-hidden">
+            <div className="px-5 py-3 border-b font-semibold text-sm">Container sync history</div>
+            {loading ? (
+              <div className="p-10 flex justify-center">
+                <Loader2 className="w-6 h-6 animate-spin text-[#00b4d8]" />
+              </div>
+            ) : ctrTransfers.length === 0 ? (
+              <div className="p-10 text-center text-neutral-500 text-sm">No container transfers yet</div>
+            ) : (
+              <ul className="divide-y">
+                {ctrTransfers.map((t) => (
+                  <li key={String(t.id)} className="px-5 py-3 text-sm flex justify-between gap-3">
+                    <div>
+                      <div className="font-semibold">
+                        {String(t.product_name || t.product_id)} × {String(t.quantity)}
+                      </div>
+                      <div className="text-xs text-neutral-500">
+                        {String(t.from_type)} {String(t.from_id ?? '—')} → {String(t.to_type)}{' '}
+                        {String(t.to_id ?? '—')}
+                      </div>
+                    </div>
+                    <span className="text-xs capitalize text-neutral-500">{String(t.status)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
+
+      {mainTab === 'locations' && (
+        <>
       {/* Process strip */}
       <div className="mb-6 grid grid-cols-3 gap-2 text-center">
         {[
@@ -721,6 +926,8 @@ function TransfersInner() {
           </ul>
         )}
       </div>
+        </>
+      )}
     </div>
   );
 }

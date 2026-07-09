@@ -1,9 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
-  ArrowLeft,
   Loader2,
   Plus,
   QrCode,
@@ -37,6 +37,7 @@ import {
   uploadProductImage,
   uploadProductSpecSheet,
 } from '@/lib/inventory/uploadProductAssets';
+import { InventoryProcessNav } from '@/components/inventory/InventoryShell';
 
 type CategoryRow = {
   id: number;
@@ -65,8 +66,34 @@ const defaultPrices = (): PriceFormRow[] => [
   { currency: 'ZAR', cost_price: '', sell_price: '' },
 ];
 
+const PRODUCT_TYPE_TABS = [
+  { value: 'all', label: 'All' },
+  { value: 'raw_material', label: 'Raw materials' },
+  { value: 'finished_good', label: 'Finished goods' },
+  { value: 'consumable', label: 'Consumables' },
+  { value: 'kit', label: 'Kits' },
+] as const;
+
 export default function ProductsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex justify-center py-20">
+          <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
+        </div>
+      }
+    >
+      <ProductsInner />
+    </Suspense>
+  );
+}
+
+function ProductsInner() {
   const companyId = getSelectedCompanyId();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const typeFromUrl = searchParams.get('type') || 'all';
+  const [typeFilter, setTypeFilter] = useState(typeFromUrl);
   const [products, setProducts] = useState<ProductRecord[]>([]);
   const [categories, setCategories] = useState<CategoryRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -98,6 +125,10 @@ export default function ProductsPage() {
     }
   }, [companyId]);
 
+  useEffect(() => {
+    setTypeFilter(typeFromUrl);
+  }, [typeFromUrl]);
+
   const load = useCallback(async () => {
     if (!companyId) {
       setLoading(false);
@@ -106,12 +137,13 @@ export default function ProductsPage() {
     setLoading(true);
     const params = new URLSearchParams({ companyId: String(companyId) });
     if (q) params.set('q', q);
+    if (typeFilter && typeFilter !== 'all') params.set('type', typeFilter);
     const res = await fetch(`/api/inventory/products?${params}`);
     const data = await res.json();
     setProducts(data.products || []);
     if (data.warning) toast.message(data.warning, { description: data.hint });
     setLoading(false);
-  }, [companyId, q]);
+  }, [companyId, q, typeFilter]);
 
   useEffect(() => {
     const t = setTimeout(() => void load(), 200);
@@ -121,6 +153,15 @@ export default function ProductsPage() {
   useEffect(() => {
     void loadCategories();
   }, [loadCategories]);
+
+  const setType = (value: string) => {
+    setTypeFilter(value);
+    const params = new URLSearchParams(searchParams.toString());
+    if (value === 'all') params.delete('type');
+    else params.set('type', value);
+    const qs = params.toString();
+    router.replace(qs ? `/dashboard/inventory/products?${qs}` : '/dashboard/inventory/products');
+  };
 
   const addCategory = async () => {
     if (!companyId) return;
@@ -193,8 +234,13 @@ export default function ProductsPage() {
     setNewCategoryName('');
   };
 
-  const openCreate = () => {
+  const openCreate = (preferType?: string) => {
     resetCreateForm();
+    setForm({
+      ...emptyForm,
+      product_type:
+        preferType && preferType !== 'all' ? preferType : emptyForm.product_type,
+    });
     setShowModal(true);
   };
 
@@ -372,24 +418,44 @@ export default function ProductsPage() {
 
   return (
     <div className="px-2 md:px-4 max-w-screen-2xl mx-auto pb-12">
-      <Link
-        href="/dashboard/inventory"
-        className="inline-flex items-center gap-2 text-sm text-neutral-500 mb-4"
-      >
-        <ArrowLeft className="w-4 h-4" /> Inventory
-      </Link>
+      <InventoryProcessNav />
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-6">
         <div>
+          <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-1">
+            Step 1 · Master data
+          </p>
           <h1 className="text-3xl sm:text-4xl font-black tracking-[-2px] text-[#00b4d8]">
             Products
           </h1>
           <p className="text-neutral-600 mt-1">
-            Master data with QR product passports and on-chain identity hashes.
+            Raw materials, finished goods, and more — one catalogue with QR passports. (Former
+            separate raw/FG pages redirect here.)
           </p>
         </div>
-        <button type="button" onClick={openCreate} className="btn-primary !py-3 !px-5">
+        <button
+          type="button"
+          onClick={() => openCreate(typeFilter)}
+          className="btn-primary !py-3 !px-5"
+        >
           <Plus className="w-4 h-4" /> Add product
         </button>
+      </div>
+
+      <div className="flex flex-wrap gap-2 mb-4">
+        {PRODUCT_TYPE_TABS.map((t) => (
+          <button
+            key={t.value}
+            type="button"
+            onClick={() => setType(t.value)}
+            className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${
+              typeFilter === t.value
+                ? 'border-[#00b4d8] bg-[#00b4d8]/10 text-[#0077b6]'
+                : 'border-neutral-200 text-neutral-600'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
 
       <div className="relative mb-4 max-w-md">
@@ -411,7 +477,11 @@ export default function ProductsPage() {
           <div className="p-16 text-center">
             <Package className="w-10 h-10 text-neutral-300 mx-auto mb-3" />
             <p className="text-neutral-600 mb-4">No products yet.</p>
-            <button type="button" onClick={openCreate} className="btn-primary !py-2.5 !px-5 text-sm">
+            <button
+              type="button"
+              onClick={() => openCreate(typeFilter)}
+              className="btn-primary !py-2.5 !px-5 text-sm"
+            >
               Create first product
             </button>
           </div>
