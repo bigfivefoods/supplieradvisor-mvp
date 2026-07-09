@@ -115,31 +115,23 @@ export async function PATCH(request: NextRequest) {
     const supabase = getSupabaseServer();
     const contractId = Number(body.id);
 
-    // Share toggle: shared_with_buyer + buyer_profile_id / shared_at
-    // New share blocked while suspended; unshare remains allowed.
-    if (body.shared_with_buyer !== undefined) {
+    // Share-related: shared_with_buyer toggle and/or customer reassignment while shared.
+    // New share + reassignment while shared → membership + suspend check + rebind buyer_profile_id.
+    // Unshare always allowed; clears buyer_profile_id + shared_at.
+    const changingShare = body.shared_with_buyer !== undefined;
+    const changingCustomer = body.customer_id !== undefined;
+
+    if (changingShare || changingCustomer) {
       const companyId = Number(body.companyId);
-      if (!Number.isFinite(companyId)) {
-        return NextResponse.json(
-          { error: 'companyId required when updating shared_with_buyer' },
-          { status: 400 }
-        );
-      }
 
-      const member = await assertCompanyMember(body.privyUserId, companyId);
-      if (!member.ok) {
-        return NextResponse.json({ error: member.error }, { status: member.status });
-      }
-
-      const share = body.shared_with_buyer === true || body.shared_with_buyer === 'true';
-
-      const { data: existing, error: loadErr } = await supabase
+      let existingQ = supabase
         .from('customer_contracts')
         .select('id, profile_id, customer_id, shared_with_buyer, buyer_profile_id')
-        .eq('id', contractId)
-        .eq('profile_id', companyId)
-        .maybeSingle();
-
+        .eq('id', contractId);
+      if (Number.isFinite(companyId) && companyId > 0) {
+        existingQ = existingQ.eq('profile_id', companyId);
+      }
+      const { data: existing, error: loadErr } = await existingQ.maybeSingle();
       if (loadErr) {
         return NextResponse.json({ error: loadErr.message }, { status: 500 });
       }
@@ -147,18 +139,40 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: 'Contract not found for this company' }, { status: 404 });
       }
 
-      if (share) {
-        const customerId = Number(
-          body.customer_id !== undefined ? body.customer_id : existing.customer_id
-        );
-        if (!Number.isFinite(customerId) || customerId <= 0) {
+      const wasShared = existing.shared_with_buyer === true;
+      const nextShared = changingShare
+        ? body.shared_with_buyer === true || body.shared_with_buyer === 'true'
+        : wasShared;
+      const nextCustomerId = Number(
+        body.customer_id !== undefined ? body.customer_id : existing.customer_id
+      );
+      const customerChanged =
+        changingCustomer &&
+        Number(body.customer_id || 0) !== Number(existing.customer_id || 0);
+
+      // Share=true path, re-assert shared, or reassignment while remaining shared
+      const becomingOrStayingSharedWithChange =
+        nextShared && ((changingShare && nextShared) || (wasShared && customerChanged));
+
+      if (becomingOrStayingSharedWithChange) {
+        if (!Number.isFinite(companyId) || companyId <= 0) {
+          return NextResponse.json(
+            { error: 'companyId required when sharing or reassigning a shared contract' },
+            { status: 400 }
+          );
+        }
+        const member = await assertCompanyMember(body.privyUserId, companyId);
+        if (!member.ok) {
+          return NextResponse.json({ error: member.error }, { status: member.status });
+        }
+        if (!Number.isFinite(nextCustomerId) || nextCustomerId <= 0) {
           return NextResponse.json(
             { error: 'Assign a customer before sharing this contract with the buyer' },
             { status: 400 }
           );
         }
 
-        const notSuspended = await assertSellerCustomerNotSuspended(companyId, customerId);
+        const notSuspended = await assertSellerCustomerNotSuspended(companyId, nextCustomerId);
         if (!notSuspended.ok) {
           return NextResponse.json(
             { error: notSuspended.error },
@@ -169,25 +183,29 @@ export async function PATCH(request: NextRequest) {
         const { data: customer } = await supabase
           .from('customers')
           .select('id, linked_profile_id')
-          .eq('id', customerId)
+          .eq('id', nextCustomerId)
           .eq('profile_id', companyId)
           .maybeSingle();
 
+        // Server-resolved buyer only — never trust client buyer_profile_id
         updates.shared_with_buyer = true;
         updates.shared_at = new Date().toISOString();
         updates.buyer_profile_id =
-          customer?.linked_profile_id != null
-            ? Number(customer.linked_profile_id)
-            : body.buyer_profile_id != null
-              ? Number(body.buyer_profile_id)
-              : null;
+          customer?.linked_profile_id != null ? Number(customer.linked_profile_id) : null;
         if (body.customer_id === undefined) {
-          updates.customer_id = customerId;
+          updates.customer_id = nextCustomerId;
         }
-      } else {
+      } else if (changingShare && !nextShared) {
         // Unshare allowed while suspended — tighten access
+        if (Number.isFinite(companyId) && companyId > 0) {
+          const member = await assertCompanyMember(body.privyUserId, companyId);
+          if (!member.ok) {
+            return NextResponse.json({ error: member.error }, { status: member.status });
+          }
+        }
         updates.shared_with_buyer = false;
         updates.shared_at = null;
+        updates.buyer_profile_id = null;
       }
     }
 

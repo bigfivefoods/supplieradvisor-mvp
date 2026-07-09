@@ -53,7 +53,6 @@ async function loadSupplierContexts(
   | { ok: false; error: string; status: number }
 > {
   const supabase = getSupabaseServer();
-  const suppliers: SupplierCtx[] = [];
 
   if (supplierFilter != null) {
     const conn = await assertCustomerConnection(buyerCompanyId, supplierFilter, {
@@ -69,15 +68,19 @@ async function loadSupplierContexts(
       .eq('profile_id', supplierFilter)
       .eq('linked_profile_id', buyerCompanyId);
 
-    suppliers.push({
-      supplierProfileId: supplierFilter,
-      connectionId: conn.connection.id,
-      connectionSuspended: conn.connection.suspended,
-      customerIds: (customers || [])
-        .map((c: { id: number }) => Number(c.id))
-        .filter((id: number) => id > 0),
-    });
-    return { ok: true, suppliers };
+    return {
+      ok: true,
+      suppliers: [
+        {
+          supplierProfileId: supplierFilter,
+          connectionId: conn.connection.id,
+          connectionSuspended: conn.connection.suspended,
+          customerIds: (customers || [])
+            .map((c: { id: number }) => Number(c.id))
+            .filter((id: number) => id > 0),
+        },
+      ],
+    };
   }
 
   // All accepted customer-type edges where buyer is requestee (includes suspended)
@@ -93,6 +96,12 @@ async function loadSupplierContexts(
     return { ok: false, error: 'Failed to load supplier connections', status: 500 };
   }
 
+  const base: Array<{
+    supplierProfileId: number;
+    connectionId: number;
+    connectionSuspended: boolean;
+  }> = [];
+
   for (const row of connections || []) {
     const supplierProfileId = Number(row.requester_profile_id);
     if (!Number.isFinite(supplierProfileId) || supplierProfileId <= 0) continue;
@@ -103,21 +112,44 @@ async function loadSupplierContexts(
         : {};
     const suspended = meta.suspended === true || meta.suspended === 'true';
 
-    const { data: customers } = await supabase
-      .from('customers')
-      .select('id')
-      .eq('profile_id', supplierProfileId)
-      .eq('linked_profile_id', buyerCompanyId);
-
-    suppliers.push({
+    base.push({
       supplierProfileId,
       connectionId: Number(row.id),
       connectionSuspended: suspended,
-      customerIds: (customers || [])
-        .map((c: { id: number }) => Number(c.id))
-        .filter((id: number) => id > 0),
     });
   }
+
+  if (base.length === 0) {
+    return { ok: true, suppliers: [] };
+  }
+
+  // Batch CRM customer rows for all suppliers (linked to this buyer)
+  const supplierIds = base.map((b) => b.supplierProfileId);
+  const { data: allCustomers, error: custErr } = await supabase
+    .from('customers')
+    .select('id, profile_id')
+    .eq('linked_profile_id', buyerCompanyId)
+    .in('profile_id', supplierIds);
+
+  if (custErr) {
+    console.error('buyer/documents batch customers error:', custErr);
+    return { ok: false, error: 'Failed to load linked customers', status: 500 };
+  }
+
+  const customerIdsBySupplier = new Map<number, number[]>();
+  for (const c of allCustomers || []) {
+    const pid = Number((c as { profile_id: number }).profile_id);
+    const id = Number((c as { id: number }).id);
+    if (!Number.isFinite(pid) || !Number.isFinite(id) || id <= 0) continue;
+    const list = customerIdsBySupplier.get(pid) || [];
+    list.push(id);
+    customerIdsBySupplier.set(pid, list);
+  }
+
+  const suppliers: SupplierCtx[] = base.map((b) => ({
+    ...b,
+    customerIds: customerIdsBySupplier.get(b.supplierProfileId) || [],
+  }));
 
   return { ok: true, suppliers };
 }
@@ -193,6 +225,20 @@ async function fetchSharedContracts(
   }));
 }
 
+async function fetchAllForSupplier(
+  ctx: SupplierCtx,
+  typesToFetch: DocType[],
+  buyerCompanyId: number
+): Promise<Record<string, unknown>[]> {
+  const tasks = typesToFetch.map((t) =>
+    t === 'contract'
+      ? fetchSharedContracts(ctx, buyerCompanyId)
+      : fetchSharedDocs(t, ctx)
+  );
+  const chunks = await Promise.all(tasks);
+  return chunks.flat();
+}
+
 export async function GET(request: NextRequest) {
   try {
     const sp = request.nextUrl.searchParams;
@@ -232,20 +278,13 @@ export async function GET(request: NextRequest) {
     }
 
     const typesToFetch: DocType[] = type === 'all' ? DOC_TYPES : [type];
-    const documents: Record<string, unknown>[] = [];
-    let anySuspended = false;
+    const anySuspended = suppliers.some((s) => s.connectionSuspended);
 
-    for (const ctx of suppliers) {
-      if (ctx.connectionSuspended) anySuspended = true;
-
-      for (const t of typesToFetch) {
-        if (t === 'contract') {
-          documents.push(...(await fetchSharedContracts(ctx, buyerCompanyId)));
-        } else {
-          documents.push(...(await fetchSharedDocs(t, ctx)));
-        }
-      }
-    }
+    // Parallel per-supplier type fetches
+    const perSupplier = await Promise.all(
+      suppliers.map((ctx) => fetchAllForSupplier(ctx, typesToFetch, buyerCompanyId))
+    );
+    const documents = perSupplier.flat();
 
     documents.sort((a, b) => {
       const ta = String(a.updated_at || a.created_at || '');
