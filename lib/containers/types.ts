@@ -45,6 +45,27 @@ export type ContractorRecord = {
   contract_version?: string | null;
   invited_at?: string | null;
   invite_token?: string | null;
+  /** VerifyNow + ID document */
+  id_document_url?: string | null;
+  id_document_name?: string | null;
+  id_document_uploaded_at?: string | null;
+  verification_status?:
+    | 'unverified'
+    | 'pending'
+    | 'verified'
+    | 'failed'
+    | 'mismatch'
+    | string
+    | null;
+  verified_at?: string | null;
+  verification_provider?: string | null;
+  verification_reference?: string | null;
+  verification_data?: Record<string, unknown> | null;
+  verified_first_names?: string | null;
+  verified_last_name?: string | null;
+  verified_dob?: string | null;
+  consent_identity_check?: boolean | null;
+  consent_identity_at?: string | null;
   created_at?: string;
   updated_at?: string;
 };
