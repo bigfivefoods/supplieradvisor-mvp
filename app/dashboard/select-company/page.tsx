@@ -6,6 +6,7 @@ import { usePrivy } from '@privy-io/react-auth';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 import { Building2, ArrowRight, Plus, LogOut } from 'lucide-react';
+import { getCanonicalUserId, userIdMatchVariants } from '@/lib/auth/identity';
 
 interface Company {
   id: string;
@@ -37,11 +38,19 @@ export default function SelectCompanyPage() {
       try {
         setError(null);
 
-        // All active memberships for this user (not only owners)
+        const userId = getCanonicalUserId(privyUser.id);
+        if (!userId) {
+          setCompanies([]);
+          setLoading(false);
+          return;
+        }
+
+        // Match canonical Privy id + legacy stripped formats
+        const variants = userIdMatchVariants(userId);
         const { data: businessUsers, error: buError } = await supabase
           .from('business_users')
-          .select('role, profile_id, status')
-          .eq('user_id', privyUser.id)
+          .select('role, profile_id, status, user_id')
+          .in('user_id', variants)
           .eq('status', 'active');
 
         if (buError) {

@@ -41,7 +41,8 @@ export default function AddNewSupplier() {
 
     try {
       // ✅ Improved: Professional default instead of "Your Business"
-      const invitedBy = localStorage.getItem('selectedCompanyName') || 'Big Five Foods';
+      const invitedBy = localStorage.getItem('selectedCompanyName') || 'A SupplierAdvisor partner';
+      const inviterProfileId = localStorage.getItem('selectedCompanyId');
 
       const response = await fetch('/api/send-supplier-invite', {
         method: 'POST',
@@ -54,6 +55,7 @@ export default function AddNewSupplier() {
           category: formData.category,
           contact_phone: formData.contact_phone,
           website: formData.website,
+          inviterProfileId,
         }),
       });
 
@@ -112,7 +114,7 @@ export default function AddNewSupplier() {
           We've sent an invitation to <span className="font-semibold">{formData.contact_email}</span>.
         </p>
         <p className="text-neutral-600 mb-10">
-          {formData.trading_name} will receive a professional email from <strong>Big Five Foods</strong>.
+          {formData.trading_name} will receive a professional email with a secure claim link.
         </p>
 
         <div className="flex flex-col sm:flex-row gap-4 justify-center">

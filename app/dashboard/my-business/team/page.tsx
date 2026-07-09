@@ -94,6 +94,10 @@ function TeamContent() {
           role: newTeamMember.role || 'member',
           companyName: companyName,
           invitedBy: user?.id,
+          inviterName:
+            user?.email?.address ||
+            (user as { google?: { name?: string } })?.google?.name ||
+            'Your teammate',
         }),
       });
 
@@ -260,13 +264,12 @@ function TeamContent() {
               value={newTeamMember.role} 
               onChange={e => setNewTeamMember({ ...newTeamMember, role: e.target.value })}
             >
-              <option value="">Select Position</option>
-              <option value="CEO">CEO / Managing Director</option>
-              <option value="Director">Director</option>
-              <option value="Manager">Manager</option>
-              <option value="Operations">Operations Lead</option>
-              <option value="Finance">Finance Lead</option>
-              <option value="Other">Other</option>
+              <option value="member">Team member</option>
+              <option value="admin">Admin</option>
+              <option value="manager">Manager</option>
+              <option value="operations">Operations</option>
+              <option value="finance">Finance</option>
+              <option value="viewer">Viewer</option>
             </select>
           </div>
         </div>

@@ -47,7 +47,8 @@ export default function SentInvitationsPage() {
 
   const copyInviteLink = (token: string | null) => {
     if (!token) return;
-    const link = `https://supplieradvisor-mvp.vercel.app/onboarding?invite=${token}`;
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const link = `${origin}/onboarding?invite=${token}`;
     navigator.clipboard.writeText(link);
     toast.success('Invite link copied to clipboard');
   };
