@@ -159,14 +159,16 @@ export default function InventoryHub() {
           {
             href: '/dashboard/inventory/warehouses',
             icon: Warehouse,
-            title: 'Warehouses',
-            desc: 'Multi-location network including container outlets',
+            title: 'Locations & warehouses',
+            desc: 'Your DCs, supplier plants, and customer sites',
+            badge: 'Network',
           },
           {
             href: '/dashboard/inventory/stock-transfers',
             icon: ArrowLeftRight,
-            title: 'Internal transfers',
-            desc: 'Move stock between warehouses with hash ledger',
+            title: 'Ship & receive transfers',
+            desc: 'Draft → ship → receive across any location',
+            badge: 'Process',
           },
           {
             href: '/dashboard/inventory/cycle-counts',

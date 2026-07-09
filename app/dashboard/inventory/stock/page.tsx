@@ -7,7 +7,7 @@ import { getSelectedCompanyId } from '@/lib/containers/company';
 import type { ProductRecord, StockLevelRecord } from '@/lib/inventory/types';
 import { CompanyRequired, InventoryHeader } from '@/components/inventory/InventoryShell';
 
-type Wh = { id: number; name: string };
+type Wh = { id: number; name: string; owner_type?: string | null; partner_name?: string | null };
 
 export default function StockLevelsPage() {
   return (
@@ -107,6 +107,8 @@ function StockInner() {
           {warehouses.map((w) => (
             <option key={w.id} value={w.id}>
               {w.name}
+              {w.owner_type && w.owner_type !== 'own' ? ` (${w.owner_type})` : ''}
+              {w.partner_name ? ` · ${w.partner_name}` : ''}
             </option>
           ))}
         </select>

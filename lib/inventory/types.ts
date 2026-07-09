@@ -45,19 +45,136 @@ export type ProductRecord = {
   qty_on_hand?: number;
 };
 
+/** Who owns / controls the location in our network */
+export type WarehouseOwnerType = 'own' | 'supplier' | 'customer';
+
 export type WarehouseRecord = {
   id: number;
   profile_id?: number | null;
   name: string;
   code?: string | null;
+  /** warehouse | store | container | virtual | supplier_dc | customer_site | 3pl */
   warehouse_type?: string | null;
+  /** own | supplier | customer */
+  owner_type?: WarehouseOwnerType | string | null;
+  partner_name?: string | null;
+  partner_ref?: string | null;
+  contact_name?: string | null;
+  contact_email?: string | null;
+  contact_phone?: string | null;
+  notes?: string | null;
+  allow_stock?: boolean | null;
+  postal_code?: string | null;
+  region?: string | null;
   status?: string | null;
   address?: string | null;
   city?: string | null;
   country?: string | null;
   container_id?: number | null;
   is_default?: boolean | null;
+  stock_lines?: number;
+  units_on_hand?: number;
 };
+
+/** draft → shipped / in_transit → partially_received → received | cancelled */
+export type TransferOrderStatus =
+  | 'draft'
+  | 'shipped'
+  | 'in_transit'
+  | 'partially_received'
+  | 'received'
+  | 'cancelled';
+
+export type StockTransferLine = {
+  id?: number;
+  transfer_id?: number;
+  product_id: number;
+  product_name?: string | null;
+  sku?: string | null;
+  uom?: string | null;
+  qty_requested: number;
+  qty_shipped?: number;
+  qty_received?: number;
+  lot_number?: string | null;
+  notes?: string | null;
+};
+
+export type StockTransferOrder = {
+  id: number;
+  profile_id?: number | null;
+  transfer_number?: string | null;
+  status: TransferOrderStatus | string;
+  from_warehouse_id?: number | null;
+  to_warehouse_id?: number | null;
+  from_warehouse_name?: string | null;
+  to_warehouse_name?: string | null;
+  expected_ship_date?: string | null;
+  expected_receive_date?: string | null;
+  shipped_at?: string | null;
+  received_at?: string | null;
+  cancelled_at?: string | null;
+  carrier?: string | null;
+  tracking_ref?: string | null;
+  ship_notes?: string | null;
+  receive_notes?: string | null;
+  notes?: string | null;
+  onchain_hash?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  lines?: StockTransferLine[];
+};
+
+export const WAREHOUSE_OWNER_TYPES: {
+  value: WarehouseOwnerType;
+  label: string;
+  description: string;
+}[] = [
+  { value: 'own', label: 'My warehouse', description: 'Your own facility or DC' },
+  { value: 'supplier', label: 'Supplier location', description: 'Supplier DC / plant for inbound stock' },
+  { value: 'customer', label: 'Customer location', description: 'Customer site / consignment stock' },
+];
+
+export const WAREHOUSE_TYPES: { value: string; label: string; owners?: WarehouseOwnerType[] }[] = [
+  { value: 'warehouse', label: 'Warehouse / DC' },
+  { value: 'store', label: 'Store / retail' },
+  { value: 'supplier_dc', label: 'Supplier DC / plant', owners: ['supplier'] },
+  { value: 'customer_site', label: 'Customer site', owners: ['customer'] },
+  { value: '3pl', label: '3PL / bonded' },
+  { value: 'virtual', label: 'Virtual / transit' },
+  { value: 'container', label: 'Container outlet' },
+];
+
+export function transferStatusClass(s?: string | null) {
+  switch ((s || '').toLowerCase()) {
+    case 'received':
+      return 'bg-emerald-100 text-emerald-800';
+    case 'shipped':
+    case 'in_transit':
+      return 'bg-sky-100 text-sky-800';
+    case 'partially_received':
+      return 'bg-amber-100 text-amber-900';
+    case 'cancelled':
+      return 'bg-neutral-200 text-neutral-600';
+    default:
+      return 'bg-violet-100 text-violet-800';
+  }
+}
+
+export function ownerTypeClass(s?: string | null) {
+  switch ((s || 'own').toLowerCase()) {
+    case 'supplier':
+      return 'bg-orange-100 text-orange-800';
+    case 'customer':
+      return 'bg-indigo-100 text-indigo-800';
+    default:
+      return 'bg-emerald-100 text-emerald-800';
+  }
+}
+
+export function ownerTypeLabel(s?: string | null) {
+  const t = WAREHOUSE_OWNER_TYPES.find((o) => o.value === (s || 'own'));
+  return t?.label || 'My warehouse';
+}
 
 export type StockLevelRecord = {
   id: number;
