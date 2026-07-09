@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/customers/invites/expire",
-      "schedule": "0 * * * *"
+      "schedule": "0 0 * * *"
     }
   ]
 }
