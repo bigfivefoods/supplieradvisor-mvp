@@ -131,8 +131,8 @@ export default function InventoryHub() {
           {
             href: '/dashboard/inventory/stock',
             icon: TrendingUp,
-            title: 'Stock levels',
-            desc: 'Live on-hand, reserved, reorder points by warehouse',
+            title: 'Live stock',
+            desc: 'Network totals, by product, by location, containers & transit',
             badge: 'Live',
           },
           {
