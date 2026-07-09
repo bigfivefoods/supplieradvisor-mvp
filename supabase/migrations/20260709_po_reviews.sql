@@ -90,7 +90,8 @@ CREATE TABLE IF NOT EXISTS public.po_reviews (
   title text,
   body text,
   dimensions jsonb DEFAULT '{}'::jsonb,
-  status text NOT NULL DEFAULT 'published', -- published | hidden
+  status text NOT NULL DEFAULT 'published'
+    CHECK (status IN ('published', 'hidden')),
   metadata jsonb DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
@@ -135,7 +136,7 @@ BEGIN
   END IF;
 END $$;
 
--- Rating check (idempotent)
+-- Rating check (idempotent; CREATE TABLE may already attach inline CHECK)
 DO $$
 BEGIN
   IF EXISTS (
@@ -155,6 +156,27 @@ BEGIN
   END IF;
 END $$;
 
+-- Status domain: published | hidden only (idempotent)
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'po_reviews'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'po_reviews_status_check'
+      AND conrelid = 'public.po_reviews'::regclass
+  ) THEN
+    BEGIN
+      ALTER TABLE public.po_reviews
+        ADD CONSTRAINT po_reviews_status_check
+        CHECK (status IN ('published', 'hidden'));
+    EXCEPTION WHEN others THEN
+      RAISE NOTICE 'po_reviews_status_check skip: %', SQLERRM;
+    END;
+  END IF;
+END $$;
+
 -- Indexes
 SELECT public.sa_create_index('idx_po_reviews_po', 'po_reviews', 'purchase_order_id');
 SELECT public.sa_create_index('idx_po_reviews_reviewer', 'po_reviews', 'reviewer_profile_id');
@@ -162,7 +184,7 @@ SELECT public.sa_create_index('idx_po_reviews_reviewee', 'po_reviews', 'reviewee
 SELECT public.sa_create_index('idx_po_reviews_status', 'po_reviews', 'status');
 SELECT public.sa_create_index('idx_po_reviews_created', 'po_reviews', 'created_at');
 
--- Optional FK to purchase_orders (SET NULL soft)
+-- Optional FK to purchase_orders (ON DELETE CASCADE — reviews go with the PO)
 DO $$
 BEGIN
   IF EXISTS (

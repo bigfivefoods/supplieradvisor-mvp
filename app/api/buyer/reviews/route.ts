@@ -127,7 +127,8 @@ export async function POST(request: NextRequest) {
     if (!Number.isFinite(purchaseOrderId) || purchaseOrderId <= 0) {
       return NextResponse.json({ error: 'purchaseOrderId is required' }, { status: 400 });
     }
-    if (!Number.isFinite(rating) || rating < 1 || rating > 5) {
+    // Integer only — reject fractions like 3.7 (message matches contract)
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
       return NextResponse.json(
         { error: 'rating must be an integer from 1 to 5' },
         { status: 400 }
