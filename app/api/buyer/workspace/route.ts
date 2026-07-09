@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
       .map((r) => Number(r.requester_profile_id))
       .filter((id) => Number.isFinite(id) && id > 0);
 
-    const [{ data: profiles }, { data: customers }] = await Promise.all([
+    const [profilesResult, customersResult] = await Promise.all([
       supabase
         .from('profiles')
         .select(
@@ -99,6 +99,24 @@ export async function GET(request: NextRequest) {
         .order('id', { ascending: true }),
     ]);
 
+    if (profilesResult.error) {
+      console.error('buyer/workspace profiles error:', profilesResult.error);
+      return NextResponse.json(
+        { error: 'Failed to load supplier profiles' },
+        { status: 500 }
+      );
+    }
+    if (customersResult.error) {
+      console.error('buyer/workspace customers error:', customersResult.error);
+      return NextResponse.json(
+        { error: 'Failed to load linked customers' },
+        { status: 500 }
+      );
+    }
+
+    const profiles = profilesResult.data || [];
+    const customers = customersResult.data || [];
+
     const profileById = new Map<
       number,
       {
@@ -110,7 +128,7 @@ export async function GET(request: NextRequest) {
         verification_status: string | null;
       }
     >();
-    for (const p of profiles || []) {
+    for (const p of profiles) {
       profileById.set(Number(p.id), {
         trading_name: p.trading_name ?? null,
         legal_name: p.legal_name ?? null,
@@ -126,7 +144,7 @@ export async function GET(request: NextRequest) {
       number,
       { id: number; invite_status: string | null }
     >();
-    for (const c of customers || []) {
+    for (const c of customers) {
       const pid = Number(c.profile_id);
       if (!customerBySupplier.has(pid)) {
         customerBySupplier.set(pid, {
@@ -146,7 +164,7 @@ export async function GET(request: NextRequest) {
         row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata)
           ? (row.metadata as Record<string, unknown>)
           : {};
-      const suspended = meta.suspended === true || meta.suspended === 'true';
+      const metaSuspended = meta.suspended === true || meta.suspended === 'true';
       const suspendedAt =
         typeof meta.suspended_at === 'string'
           ? meta.suspended_at
@@ -156,6 +174,9 @@ export async function GET(request: NextRequest) {
 
       const profile = profileById.get(supplierProfileId);
       const customer = customerBySupplier.get(supplierProfileId);
+      // Align with seller gates: either BC metadata or CRM invite_status
+      const suspended =
+        metaSuspended || customer?.invite_status === 'suspended';
 
       suppliers.push({
         connectionId: Number(row.id),

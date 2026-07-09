@@ -38,6 +38,14 @@ type SharedDoc = Record<string, unknown> & {
   promised_date?: string | null;
 };
 
+/** Connected suppliers for filter dropdown (names from workspace). */
+type SupplierOption = {
+  supplierProfileId: number;
+  tradingName: string | null;
+  legalName: string | null;
+  suspended: boolean;
+};
+
 const TYPE_TABS: { value: DocType; label: string }[] = [
   { value: 'all', label: 'All' },
   { value: 'quote', label: 'Quotes' },
@@ -91,6 +99,7 @@ function BuyerDocumentsInner() {
   const [documents, setDocuments] = useState<SharedDoc[]>([]);
   const [type, setType] = useState<DocType>('all');
   const [connectionSuspended, setConnectionSuspended] = useState(false);
+  const [supplierOptions, setSupplierOptions] = useState<SupplierOption[]>([]);
   const [supplierFilter, setSupplierFilter] = useState<string>(
     supplierFromUrl && Number(supplierFromUrl) > 0 ? supplierFromUrl : ''
   );
@@ -101,6 +110,52 @@ function BuyerDocumentsInner() {
       setSupplierFilter(supplierFromUrl);
     }
   }, [supplierFromUrl]);
+
+  // Full connected-supplier list with trading names (stable across type filters)
+  const loadSuppliers = useCallback(async () => {
+    if (!privyUserId) return;
+    try {
+      const params = new URLSearchParams({
+        buyerCompanyId: String(companyId),
+        privyUserId,
+      });
+      const res = await fetch(`/api/buyer/workspace?${params}`);
+      const data = await res.json();
+      if (!res.ok) return;
+      const list: SupplierOption[] = (data.suppliers || []).map(
+        (s: {
+          supplierProfileId: number;
+          tradingName?: string | null;
+          legalName?: string | null;
+          suspended?: boolean;
+        }) => ({
+          supplierProfileId: Number(s.supplierProfileId),
+          tradingName: s.tradingName ?? null,
+          legalName: s.legalName ?? null,
+          suspended: Boolean(s.suspended),
+        })
+      );
+      // Force URL / active filter supplier into the set when present
+      const forceId =
+        supplierFromUrl && Number(supplierFromUrl) > 0
+          ? Number(supplierFromUrl)
+          : supplierFilter && Number(supplierFilter) > 0
+            ? Number(supplierFilter)
+            : null;
+      if (forceId && !list.some((s) => s.supplierProfileId === forceId)) {
+        list.push({
+          supplierProfileId: forceId,
+          tradingName: null,
+          legalName: null,
+          suspended: false,
+        });
+      }
+      list.sort((a, b) => a.supplierProfileId - b.supplierProfileId);
+      setSupplierOptions(list);
+    } catch {
+      // Dropdown is non-critical; docs still load
+    }
+  }, [companyId, privyUserId, supplierFromUrl, supplierFilter]);
 
   const load = useCallback(async () => {
     if (!privyUserId) {
@@ -123,6 +178,37 @@ function BuyerDocumentsInner() {
       if (!res.ok) throw new Error(data.error || 'Failed to load documents');
       setDocuments(data.documents || []);
       setConnectionSuspended(Boolean(data.connectionSuspended));
+
+      // Prefer documents API suppliers[] when workspace list is empty (merge flags)
+      const apiSuppliers: Array<{
+        supplierProfileId: number;
+        connectionSuspended?: boolean;
+      }> = data.suppliers || [];
+      if (apiSuppliers.length > 0) {
+        setSupplierOptions((prev) => {
+          const byId = new Map(prev.map((s) => [s.supplierProfileId, s]));
+          for (const s of apiSuppliers) {
+            const id = Number(s.supplierProfileId);
+            if (!Number.isFinite(id) || id <= 0) continue;
+            const existing = byId.get(id);
+            if (existing) {
+              if (s.connectionSuspended) {
+                byId.set(id, { ...existing, suspended: true });
+              }
+            } else {
+              byId.set(id, {
+                supplierProfileId: id,
+                tradingName: null,
+                legalName: null,
+                suspended: Boolean(s.connectionSuspended),
+              });
+            }
+          }
+          return Array.from(byId.values()).sort(
+            (a, b) => a.supplierProfileId - b.supplierProfileId
+          );
+        });
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Could not load documents');
       setDocuments([]);
@@ -133,20 +219,20 @@ function BuyerDocumentsInner() {
 
   useEffect(() => {
     if (!ready) return;
+    void loadSuppliers();
+  }, [ready, loadSuppliers]);
+
+  useEffect(() => {
+    if (!ready) return;
     void load();
   }, [ready, load]);
 
-  const supplierOptions = useMemo(() => {
-    const ids = new Set<number>();
-    for (const d of documents) {
-      const id = Number(d.supplier_profile_id);
-      if (Number.isFinite(id) && id > 0) ids.add(id);
-    }
-    if (supplierFilter && Number(supplierFilter) > 0) {
-      ids.add(Number(supplierFilter));
-    }
-    return Array.from(ids).sort((a, b) => a - b);
-  }, [documents, supplierFilter]);
+  const supplierLabel = useMemo(() => {
+    return (s: SupplierOption) => {
+      const name = s.tradingName || s.legalName;
+      return name ? `${name} (#${s.supplierProfileId})` : `Supplier #${s.supplierProfileId}`;
+    };
+  }, []);
 
   return (
     <>
@@ -189,9 +275,10 @@ function BuyerDocumentsInner() {
             className="px-3 py-2 border border-neutral-200 rounded-2xl text-sm bg-white"
           >
             <option value="">All suppliers</option>
-            {supplierOptions.map((id) => (
-              <option key={id} value={String(id)}>
-                Supplier #{id}
+            {supplierOptions.map((s) => (
+              <option key={s.supplierProfileId} value={String(s.supplierProfileId)}>
+                {supplierLabel(s)}
+                {s.suspended ? ' · Suspended' : ''}
               </option>
             ))}
           </select>
@@ -228,6 +315,14 @@ function BuyerDocumentsInner() {
                 ? formatMoney(Number(doc.total_amount), doc.currency || 'ZAR')
                 : null;
             const when = doc.updated_at || doc.created_at;
+            const supplierOpt = supplierOptions.find(
+              (s) => s.supplierProfileId === Number(doc.supplier_profile_id)
+            );
+            const supplierLine = supplierOpt
+              ? supplierLabel(supplierOpt)
+              : doc.supplier_profile_id != null
+                ? `Supplier #${doc.supplier_profile_id}`
+                : null;
             return (
               <div
                 key={`${doc.doc_type}-${doc.id}`}
@@ -254,7 +349,7 @@ function BuyerDocumentsInner() {
                     <div className="text-sm text-neutral-500 mt-1 space-y-0.5">
                       {doc.customer_name && <div>{String(doc.customer_name)}</div>}
                       <div className="text-xs">
-                        Supplier #{doc.supplier_profile_id}
+                        {supplierLine || 'Supplier'}
                         {when
                           ? ` · updated ${new Date(String(when)).toLocaleString()}`
                           : ''}
