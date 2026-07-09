@@ -6,16 +6,19 @@ import BusinessOnboardingWizard from '@/components/onboarding/BusinessOnboarding
 
 /**
  * /onboarding
- * - ?invite=TOKEN  → claim business/supplier invitation (Privy)
+ * - ?invite=TOKEN&kind=business|customer|team → claim invitation (Privy)
  * - ?type=...      → self-serve multi-step business registration (Privy)
  * - default        → self-serve wizard
  */
 export default function OnboardingContent() {
   const searchParams = useSearchParams();
   const inviteToken = searchParams.get('invite') || searchParams.get('token');
+  const kindParam = searchParams.get('kind');
+  const kind =
+    kindParam === 'customer' ? 'customer' : kindParam === 'team' ? 'team' : 'business';
 
   if (inviteToken) {
-    return <InviteClaimFlow token={inviteToken} kind="business" />;
+    return <InviteClaimFlow token={inviteToken} kind={kind} />;
   }
 
   return <BusinessOnboardingWizard />;
