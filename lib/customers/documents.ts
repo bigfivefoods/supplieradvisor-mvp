@@ -1,5 +1,8 @@
 /** Shared quote / order / invoice line-item helpers */
 
+/** Authorization attribute for buyer server-side reads (not an RLS boundary). */
+export type DocVisibility = 'seller_only' | 'shared';
+
 export type DocLineItem = {
   product_id?: number | null;
   sku?: string | null;
