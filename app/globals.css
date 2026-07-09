@@ -19,6 +19,11 @@
     color: #0f172a;
   }
 
+  /* Never leave the whole app non-interactive (bad overlay cleanup, etc.) */
+  html, body {
+    pointer-events: auto !important;
+  }
+
   /* Brand headings by default; allow local overrides without !important wars */
   h1, h2, h3 {
     color: #00b4d8;
@@ -26,6 +31,38 @@
 
   h4, h5, h6 {
     color: #0f172a;
+  }
+
+  /* Interactive controls must always receive clicks / focus / typing */
+  a,
+  button,
+  input,
+  textarea,
+  select,
+  label,
+  summary,
+  [role='button'],
+  [role='link'],
+  [role='tab'],
+  [role='menuitem'],
+  [contenteditable='true'] {
+    pointer-events: auto !important;
+  }
+
+  input:not([disabled]):not([readonly]),
+  textarea:not([disabled]):not([readonly]),
+  select:not([disabled]) {
+    cursor: text;
+  }
+
+  select:not([disabled]) {
+    cursor: pointer;
+  }
+
+  button:not([disabled]),
+  a,
+  [role='button'] {
+    cursor: pointer;
   }
 }
 

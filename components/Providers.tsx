@@ -46,8 +46,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <WagmiProvider config={wagmiConfig}>
         <QueryClientProvider client={queryClient}>
           <RainbowKitProvider>
-            {children}
-            <Toaster position="top-center" richColors closeButton expand />
+            {/* Ensure app content is always interactive above wallet portals */}
+            <div className="relative z-0 min-h-screen pointer-events-auto">{children}</div>
+            <Toaster position="top-center" richColors closeButton expand={false} />
           </RainbowKitProvider>
         </QueryClientProvider>
       </WagmiProvider>

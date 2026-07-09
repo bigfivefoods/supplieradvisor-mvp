@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -48,28 +47,13 @@ export function CompanyGate({
   children: React.ReactNode;
   noun?: string;
 }) {
-  // Re-read when storage changes so "Select company" unlocks without full reload
-  const [companyId, setCompanyId] = useState<number | null>(() =>
-    getSelectedCompanyId()
-  );
-
-  useEffect(() => {
-    const sync = () => setCompanyId(getSelectedCompanyId());
-    sync();
-    window.addEventListener('storage', sync);
-    window.addEventListener('focus', sync);
-    // Custom event used by select-company if dispatched
-    window.addEventListener('sa:company-changed', sync);
-    return () => {
-      window.removeEventListener('storage', sync);
-      window.removeEventListener('focus', sync);
-      window.removeEventListener('sa:company-changed', sync);
-    };
-  }, []);
+  // Read company once per render — do not use focus listeners that remount trees
+  // (remounts wipe form state and feel like "fields don't work").
+  const companyId = getSelectedCompanyId();
 
   if (!companyId) {
     return (
-      <div className="min-h-[50vh] flex items-center justify-center px-4">
+      <div className="min-h-[50vh] flex items-center justify-center px-4 relative z-10 pointer-events-auto">
         <div className="max-w-md w-full text-center rounded-3xl border border-neutral-200 bg-white p-10 shadow-sm">
           <div className="mx-auto mb-5 h-12 w-12 rounded-2xl bg-[#00b4d8]/10 flex items-center justify-center">
             <span className="text-[#00b4d8] font-black text-lg">SA</span>
@@ -87,7 +71,7 @@ export function CompanyGate({
       </div>
     );
   }
-  return <>{children}</>;
+  return <div className="relative z-10 pointer-events-auto">{children}</div>;
 }
 
 export function RelationshipPage({
@@ -97,18 +81,19 @@ export function RelationshipPage({
   children: React.ReactNode;
   className?: string;
 }) {
+  // No absolute overlay layers — they have blocked clicks in production.
+  // Soft wash is a background on this element only (never a covering child).
   return (
-    <div className={`relative min-h-screen pb-16 bg-transparent ${className}`}>
-      {/* soft sky wash — matches inventory clarity */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 -z-10 opacity-60"
-        style={{
-          backgroundImage:
-            'radial-gradient(circle at 15% 0%, rgba(0,180,216,0.07), transparent 42%), radial-gradient(circle at 90% 10%, rgba(0,119,182,0.04), transparent 38%)',
-        }}
-      />
-      <div className="px-3 sm:px-4 md:px-6 max-w-screen-2xl mx-auto pt-2">{children}</div>
+    <div
+      className={`relative z-10 pb-16 pointer-events-auto ${className}`}
+      style={{
+        backgroundImage:
+          'radial-gradient(circle at 15% 0%, rgba(0,180,216,0.06), transparent 42%), radial-gradient(circle at 90% 10%, rgba(0,119,182,0.03), transparent 38%)',
+      }}
+    >
+      <div className="px-3 sm:px-4 md:px-6 max-w-screen-2xl mx-auto pt-2 relative z-10 pointer-events-auto">
+        {children}
+      </div>
     </div>
   );
 }
