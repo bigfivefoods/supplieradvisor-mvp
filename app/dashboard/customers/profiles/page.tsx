@@ -1,13 +1,168 @@
 'use client';
 
-import ComingSoon from '@/components/ComingSoon';
+import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
+import { Loader2, Plus, Search, Users, Pencil, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { getSelectedCompanyId } from '@/lib/containers/company';
+import type { CustomerRecord } from '@/lib/customers/types';
+import { CompanyRequired, CustomersHeader } from '@/components/customers/CustomersShell';
 
-export default function Page() {
+export default function CustomerProfilesPage() {
   return (
-    <ComingSoon
-      title="Customer Profiles"
-      description="Customer Profiles with ratings/reviews and on-chain records."
-      backHref="/dashboard/customers"
-    />
+    <CompanyRequired>
+      <ProfilesInner />
+    </CompanyRequired>
+  );
+}
+
+function ProfilesInner() {
+  const companyId = getSelectedCompanyId()!;
+  const [customers, setCustomers] = useState<CustomerRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [q, setQ] = useState('');
+  const [status, setStatus] = useState('all');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ companyId: String(companyId) });
+      if (q) params.set('q', q);
+      if (status !== 'all') params.set('status', status);
+      const res = await fetch(`/api/customers?${params}`);
+      const data = await res.json();
+      setCustomers(data.customers || []);
+      if (data.warning) toast.message(data.warning, { description: data.hint });
+    } finally {
+      setLoading(false);
+    }
+  }, [companyId, q, status]);
+
+  useEffect(() => {
+    const t = setTimeout(() => void load(), 200);
+    return () => clearTimeout(t);
+  }, [load]);
+
+  const remove = async (id: number) => {
+    if (!confirm('Delete this customer?')) return;
+    const res = await fetch(`/api/customers?id=${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      toast.success('Deleted');
+      void load();
+    } else {
+      const d = await res.json();
+      toast.error(d.error || 'Failed');
+    }
+  };
+
+  return (
+    <div className="px-2 md:px-4 max-w-screen-2xl mx-auto pb-12">
+      <CustomersHeader
+        title="Customer profiles"
+        description="Account master data — contacts, commercial terms, and service history anchors."
+        action={
+          <Link href="/dashboard/customers/onboard" className="btn-primary !py-2.5 !px-5 text-sm">
+            <Plus className="w-4 h-4" /> Add customer
+          </Link>
+        }
+      />
+
+      <div className="flex flex-wrap gap-2 mb-4">
+        <div className="relative flex-1 min-w-[200px] max-w-md">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+          <input
+            className="input w-full !pl-9 !py-2.5 !text-sm"
+            placeholder="Search name, email, city…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+        </div>
+        <select
+          className="input !py-2.5 !px-3 !text-sm"
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+        >
+          <option value="all">All statuses</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+          <option value="prospect">Prospect</option>
+          <option value="on_hold">On hold</option>
+        </select>
+      </div>
+
+      <div className="bg-white border rounded-3xl overflow-hidden">
+        {loading ? (
+          <div className="p-16 flex justify-center">
+            <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
+          </div>
+        ) : customers.length === 0 ? (
+          <div className="p-16 text-center text-neutral-500">
+            <Users className="w-10 h-10 mx-auto mb-3 text-neutral-300" />
+            <p className="mb-4">No customers yet. Onboard your first account.</p>
+            <Link href="/dashboard/customers/onboard" className="btn-primary !py-2.5 !px-5 text-sm">
+              Add customer
+            </Link>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-neutral-50 border-b text-left text-xs text-neutral-500">
+                <tr>
+                  <th className="px-5 py-3 font-semibold">Customer</th>
+                  <th className="px-3 py-3 font-semibold">Contact</th>
+                  <th className="px-3 py-3 font-semibold">Type</th>
+                  <th className="px-3 py-3 font-semibold">Location</th>
+                  <th className="px-3 py-3 font-semibold">Status</th>
+                  <th className="px-3 py-3 font-semibold text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {customers.map((c) => (
+                  <tr key={c.id} className="hover:bg-neutral-50">
+                    <td className="px-5 py-3">
+                      <div className="font-semibold">{c.trading_name}</div>
+                      <div className="text-xs text-neutral-500">{c.legal_name || c.industry || '—'}</div>
+                    </td>
+                    <td className="px-3 py-3">
+                      <div>{c.contact_name || '—'}</div>
+                      <div className="text-xs text-neutral-500">
+                        {[c.email, c.phone].filter(Boolean).join(' · ') || '—'}
+                      </div>
+                    </td>
+                    <td className="px-3 py-3 capitalize text-xs">
+                      {(c.customer_type || 'business').replace(/_/g, ' ')}
+                    </td>
+                    <td className="px-3 py-3 text-xs text-neutral-600">
+                      {[c.city, c.country].filter(Boolean).join(', ') || '—'}
+                    </td>
+                    <td className="px-3 py-3">
+                      <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800">
+                        {c.status || 'active'}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      <Link
+                        href={`/dashboard/customers/onboard?id=${c.id}`}
+                        className="p-2 inline-flex rounded-xl hover:bg-neutral-100 text-neutral-600"
+                        title="Edit"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => void remove(c.id)}
+                        className="p-2 inline-flex rounded-xl hover:bg-red-50 text-red-600"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

@@ -1,13 +1,18 @@
 'use client';
 
-import ComingSoon from '@/components/ComingSoon';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { Loader2 } from 'lucide-react';
 
-export default function Page() {
+/** Search lives on Profiles + Leads — redirect to profiles as primary search */
+export default function CustomerSearchRedirect() {
+  const router = useRouter();
+  useEffect(() => {
+    router.replace('/dashboard/customers/profiles');
+  }, [router]);
   return (
-    <ComingSoon
-      title="Search Customers"
-      description="Customer Search with ratings/reviews."
-      backHref="/dashboard/customers"
-    />
+    <div className="flex justify-center py-20">
+      <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
+    </div>
   );
 }

@@ -1,0 +1,87 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getSupabaseServer } from '@/lib/supabase/server-client';
+import { stageProbability } from '@/lib/customers/types';
+
+export async function GET(request: NextRequest) {
+  try {
+    const companyId = Number(request.nextUrl.searchParams.get('companyId'));
+    if (!Number.isFinite(companyId)) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+    }
+    const supabase = getSupabaseServer();
+
+    const [customers, leads, opportunities] = await Promise.all([
+      supabase.from('customers').select('id, status').eq('profile_id', companyId),
+      supabase
+        .from('leads')
+        .select('id, status, value_estimate, priority, next_action_date')
+        .eq('profile_id', companyId),
+      supabase
+        .from('opportunities')
+        .select(
+          'id, stage, status, amount, opportunity_size, probability, expected_close_date, estimated_date'
+        )
+        .eq('profile_id', companyId),
+    ]);
+
+    const cust = customers.data || [];
+    const leadRows = leads.data || [];
+    const oppRows = opportunities.data || [];
+
+    const openLeads = leadRows.filter(
+      (l) => !['converted', 'unqualified', 'recycled'].includes(String(l.status || ''))
+    );
+    const openOpps = oppRows.filter((o) => {
+      const s = String(o.stage || o.status || '').toLowerCase();
+      return !['closed_won', 'closed_lost', 'won', 'lost'].includes(s);
+    });
+    const won = oppRows.filter((o) => {
+      const s = String(o.stage || o.status || '').toLowerCase();
+      return s === 'closed_won' || s === 'won';
+    });
+
+    let pipelineValue = 0;
+    let weightedPipeline = 0;
+    for (const o of openOpps) {
+      const amount = Number(o.amount ?? o.opportunity_size ?? 0);
+      const stage = String(o.stage || 'prospecting').toLowerCase().replace(/\s+/g, '_');
+      const prob =
+        o.probability != null ? Number(o.probability) : stageProbability(stage);
+      pipelineValue += amount;
+      weightedPipeline += (amount * prob) / 100;
+    }
+
+    const wonValue = won.reduce(
+      (s, o) => s + Number(o.amount ?? o.opportunity_size ?? 0),
+      0
+    );
+
+    const overdueFollowups = leadRows.filter((l) => {
+      if (!l.next_action_date) return false;
+      if (['converted', 'unqualified', 'recycled'].includes(String(l.status || ''))) return false;
+      return new Date(l.next_action_date).getTime() < Date.now();
+    }).length;
+
+    return NextResponse.json({
+      success: true,
+      summary: {
+        customers: cust.length,
+        customersActive: cust.filter((c) => c.status === 'active').length,
+        leads: leadRows.length,
+        leadsOpen: openLeads.length,
+        opportunities: oppRows.length,
+        opportunitiesOpen: openOpps.length,
+        pipelineValue,
+        weightedPipeline: Math.round(weightedPipeline),
+        wonValue,
+        wonCount: won.length,
+        overdueFollowups,
+      },
+      warnings: [customers.error, leads.error, opportunities.error]
+        .filter(Boolean)
+        .map((e) => (e as { message: string }).message),
+    });
+  } catch (e: unknown) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : 'Error' }, { status: 500 });
+  }
+}

@@ -64,14 +64,17 @@ const modules = [
     icon: Users, 
     href: '/dashboard/customers',
     sub: [
-      { name: 'Customer Profiles', href: '/dashboard/customers/profiles' },
-      { name: 'Add New Customer', href: '/dashboard/customers/onboard' },
-      { name: 'Leads & Opportunities', href: '/dashboard/customers/leads' },   // ← NEW
-      { name: 'Sent Customer Invitations', href: '/dashboard/customers/invites' },
-      { name: 'Sales Orders', href: '/dashboard/customers/orders' },
-      { name: 'Customer Contracts', href: '/dashboard/customers/contracts' },
-      { name: 'Customer Loyalty Program', href: '/dashboard/customers/loyalty' },
-      { name: 'Customer RIAD Log', href: '/dashboard/customers/riad-log' },
+      { name: 'Overview', href: '/dashboard/customers' },
+      { name: 'Leads & opportunities', href: '/dashboard/customers/leads' },
+      { name: 'Profiles', href: '/dashboard/customers/profiles' },
+      { name: 'Add customer', href: '/dashboard/customers/onboard' },
+      { name: 'Orders', href: '/dashboard/customers/orders' },
+      { name: 'Quotes', href: '/dashboard/customers/quotes' },
+      { name: 'Contracts', href: '/dashboard/customers/contracts' },
+      { name: 'Claims', href: '/dashboard/customers/claims' },
+      { name: 'Loyalty', href: '/dashboard/customers/loyalty' },
+      { name: 'Invitations', href: '/dashboard/customers/invites' },
+      { name: 'Customer RIAD', href: '/dashboard/customers/riad-log' },
     ]
   },
 
