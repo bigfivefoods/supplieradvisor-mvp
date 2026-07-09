@@ -33,6 +33,12 @@ type Summary = {
   wonValue: number;
   wonCount: number;
   overdueFollowups: number;
+  /** CRM invite_status = invited */
+  invitePending?: number;
+  /** CRM invite_status = accepted */
+  inviteAccepted?: number;
+  /** CRM invite_status = suspended */
+  inviteSuspended?: number;
 };
 
 const MODULES = [
@@ -229,6 +235,32 @@ export default function CustomersHub() {
             href="/dashboard/customers/leads?tab=pipeline"
             tone="emerald"
             isText
+          />
+        </div>
+      )}
+
+      {!loading && (
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-8">
+          <Kpi
+            label="Pending invites"
+            value={summary?.invitePending ?? 0}
+            sub="CRM phase · awaiting claim"
+            href="/dashboard/customers/invites"
+            tone={(summary?.invitePending || 0) > 0 ? 'amber' : 'neutral'}
+          />
+          <Kpi
+            label="Connected"
+            value={summary?.inviteAccepted ?? 0}
+            sub="Accepted platform links"
+            href="/dashboard/customers/profiles"
+            tone="emerald"
+          />
+          <Kpi
+            label="Suspended"
+            value={summary?.inviteSuspended ?? 0}
+            sub="Collaboration paused"
+            href="/dashboard/customers/profiles"
+            tone={(summary?.inviteSuspended || 0) > 0 ? 'amber' : 'neutral'}
           />
         </div>
       )}

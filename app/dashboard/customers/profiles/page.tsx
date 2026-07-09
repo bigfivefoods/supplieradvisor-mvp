@@ -2,14 +2,26 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Loader2, Plus, Search, Users, Pencil, Trash2 } from 'lucide-react';
+import {
+  Loader2,
+  Plus,
+  Search,
+  Users,
+  Pencil,
+  Trash2,
+  PauseCircle,
+  PlayCircle,
+} from 'lucide-react';
 import { toast } from 'sonner';
+import { usePrivy } from '@privy-io/react-auth';
+import { getCanonicalUserId } from '@/lib/auth/identity';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import {
   canInviteCustomer,
   customerInviteActionLabel,
   customerInviteStatusClass,
   customerInviteStatusLabel,
+  resolveCustomerConnectionPhase,
   type CustomerRecord,
 } from '@/lib/customers/types';
 import { CompanyRequired, CustomersHeader } from '@/components/customers/CustomersShell';
@@ -25,11 +37,14 @@ export default function CustomerProfilesPage() {
 
 function ProfilesInner() {
   const companyId = getSelectedCompanyId()!;
+  const { user } = usePrivy();
+  const privyUserId = getCanonicalUserId(user?.id);
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('all');
   const [inviteOpenId, setInviteOpenId] = useState<number | null>(null);
+  const [actionId, setActionId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -60,6 +75,46 @@ function ProfilesInner() {
     } else {
       const d = await res.json();
       toast.error(d.error || 'Failed');
+    }
+  };
+
+  const setSuspended = async (c: CustomerRecord, suspend: boolean) => {
+    if (!privyUserId) {
+      toast.error('Sign in required');
+      return;
+    }
+    const label = suspend ? 'Suspend' : 'Unsuspend';
+    if (
+      !confirm(
+        suspend
+          ? `Suspend platform collaboration with ${c.trading_name}? They keep historical access; new POs and shares are blocked.`
+          : `Restore platform collaboration with ${c.trading_name}?`
+      )
+    ) {
+      return;
+    }
+    setActionId(c.id);
+    try {
+      const res = await fetch(
+        suspend ? '/api/customers/invites/suspend' : '/api/customers/invites/unsuspend',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyId,
+            customerId: c.id,
+            privyUserId,
+          }),
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `${label} failed`);
+      toast.success(data.message || (suspend ? 'Suspended' : 'Unsuspended'));
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : `${label} failed`);
+    } finally {
+      setActionId(null);
     }
   };
 
@@ -197,6 +252,45 @@ function ProfilesInner() {
                             {customerInviteActionLabel(c)}
                           </button>
                         )}
+                        {(() => {
+                          const phase = resolveCustomerConnectionPhase(c);
+                          const busy = actionId === c.id;
+                          if (phase === 'accepted') {
+                            return (
+                              <button
+                                type="button"
+                                disabled={busy || !privyUserId}
+                                onClick={() => void setSuspended(c, true)}
+                                className="p-2 inline-flex rounded-xl hover:bg-amber-50 text-amber-700 disabled:opacity-50"
+                                title="Suspend connection"
+                              >
+                                {busy ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <PauseCircle className="w-4 h-4" />
+                                )}
+                              </button>
+                            );
+                          }
+                          if (phase === 'suspended') {
+                            return (
+                              <button
+                                type="button"
+                                disabled={busy || !privyUserId}
+                                onClick={() => void setSuspended(c, false)}
+                                className="p-2 inline-flex rounded-xl hover:bg-emerald-50 text-emerald-700 disabled:opacity-50"
+                                title="Unsuspend connection"
+                              >
+                                {busy ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <PlayCircle className="w-4 h-4" />
+                                )}
+                              </button>
+                            );
+                          }
+                          return null;
+                        })()}
                         <Link
                           href={`/dashboard/customers/onboard?id=${c.id}`}
                           className="p-2 inline-flex rounded-xl hover:bg-neutral-100 text-neutral-600"

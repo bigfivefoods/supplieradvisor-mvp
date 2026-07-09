@@ -10,8 +10,11 @@ export async function GET(request: NextRequest) {
     }
     const supabase = getSupabaseServer();
 
-    const [customers, leads, opportunities] = await Promise.all([
-      supabase.from('customers').select('id, status').eq('profile_id', companyId),
+    const [customers, leads, opportunities, invitations] = await Promise.all([
+      supabase
+        .from('customers')
+        .select('id, status, invite_status')
+        .eq('profile_id', companyId),
       supabase
         .from('leads')
         .select('id, status, value_estimate, priority, next_action_date')
@@ -22,11 +25,16 @@ export async function GET(request: NextRequest) {
           'id, stage, status, amount, opportunity_size, probability, expected_close_date, estimated_date'
         )
         .eq('profile_id', companyId),
+      supabase
+        .from('customer_invitations')
+        .select('id, status')
+        .eq('profile_id', companyId),
     ]);
 
     const cust = customers.data || [];
     const leadRows = leads.data || [];
     const oppRows = opportunities.data || [];
+    const invRows = invitations.data || [];
 
     const openLeads = leadRows.filter(
       (l) => !['converted', 'unqualified', 'recycled'].includes(String(l.status || ''))
@@ -62,6 +70,38 @@ export async function GET(request: NextRequest) {
       return new Date(l.next_action_date).getTime() < Date.now();
     }).length;
 
+    // CRM relationship-phase counts (customers.invite_status)
+    const invitePending = cust.filter(
+      (c) => String(c.invite_status || '').toLowerCase() === 'invited'
+    ).length;
+    const inviteAccepted = cust.filter(
+      (c) => String(c.invite_status || '').toLowerCase() === 'accepted'
+    ).length;
+    const inviteSuspended = cust.filter(
+      (c) => String(c.invite_status || '').toLowerCase() === 'suspended'
+    ).length;
+    const inviteExpired = cust.filter(
+      (c) => String(c.invite_status || '').toLowerCase() === 'expired'
+    ).length;
+    const inviteDeclined = cust.filter(
+      (c) => String(c.invite_status || '').toLowerCase() === 'declined'
+    ).length;
+    const inviteNotInvited = cust.filter((c) => {
+      const s = String(c.invite_status || 'not_invited').toLowerCase();
+      return s === 'not_invited' || s === '';
+    }).length;
+
+    // Invitation-attempt counts (customer_invitations.status)
+    const invitationsPending = invRows.filter(
+      (i) => String(i.status || '').toLowerCase() === 'pending'
+    ).length;
+    const invitationsClaiming = invRows.filter(
+      (i) => String(i.status || '').toLowerCase() === 'claiming'
+    ).length;
+    const invitationsExpired = invRows.filter(
+      (i) => String(i.status || '').toLowerCase() === 'expired'
+    ).length;
+
     return NextResponse.json({
       success: true,
       summary: {
@@ -76,8 +116,20 @@ export async function GET(request: NextRequest) {
         wonValue,
         wonCount: won.length,
         overdueFollowups,
+        // Platform invite relationship phase (CRM)
+        invitePending,
+        inviteAccepted,
+        inviteSuspended,
+        inviteExpired,
+        inviteDeclined,
+        inviteNotInvited,
+        // Invitation attempt rows (optional detail)
+        invitationsPending,
+        invitationsClaiming,
+        invitationsExpired,
+        invitationsTotal: invRows.length,
       },
-      warnings: [customers.error, leads.error, opportunities.error]
+      warnings: [customers.error, leads.error, opportunities.error, invitations.error]
         .filter(Boolean)
         .map((e) => (e as { message: string }).message),
     });
