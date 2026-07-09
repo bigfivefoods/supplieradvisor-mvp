@@ -56,6 +56,14 @@ type LiveTransfer = {
   to_warehouse_name?: string | null;
   from_city?: string | null;
   to_city?: string | null;
+  from_address?: string | null;
+  to_address?: string | null;
+  collection_physical?: boolean;
+  destination_physical?: boolean;
+  from_lat?: number | null;
+  from_lng?: number | null;
+  to_lat?: number | null;
+  to_lng?: number | null;
   expected_receive_date?: string | null;
   shipped_at?: string | null;
   pickup_scanned_at?: string | null;
@@ -287,12 +295,25 @@ function TrackingInner() {
                           </span>
                         </div>
                         <div className="text-xs text-neutral-600 mb-2">
-                          {t.from_warehouse_name || '—'}
-                          {t.from_city ? ` (${t.from_city})` : ''}
+                          <span className={t.collection_physical ? 'text-emerald-800' : ''}>
+                            {t.from_warehouse_name || '—'}
+                            {t.from_city ? ` (${t.from_city})` : ''}
+                          </span>
                           {' → '}
-                          <strong>{t.to_warehouse_name || '—'}</strong>
+                          <strong className={t.destination_physical ? 'text-emerald-800' : ''}>
+                            {t.to_warehouse_name || '—'}
+                          </strong>
                           {t.to_city ? ` (${t.to_city})` : ''}
                         </div>
+                        {(!t.collection_physical || !t.destination_physical) && (
+                          <div className="text-[10px] text-amber-700 mb-1">
+                            {!t.collection_physical && !t.destination_physical
+                              ? 'Pin GPS on both locations for route accuracy'
+                              : !t.collection_physical
+                                ? 'Collection site missing physical GPS'
+                                : 'Destination missing physical GPS'}
+                          </div>
+                        )}
                         <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
                           <span className="inline-flex items-center gap-1 font-semibold text-[#0077b6]">
                             <Clock className="w-3.5 h-3.5" />
@@ -384,21 +405,66 @@ function TrackingInner() {
                       Arrive {formatEtaClock(selected.eta?.eta_at)}
                     </div>
                     <div className="text-[10px] text-neutral-400 mt-0.5 capitalize">
-                      via {selected.eta?.method === 'gps' ? 'live GPS' : selected.eta?.method}
+                      via{' '}
+                      {selected.eta?.method === 'physical'
+                        ? 'physical sites'
+                        : selected.eta?.method === 'gps'
+                          ? 'live GPS'
+                          : selected.eta?.method}
                     </div>
+                  </div>
+                </div>
+
+                <div className="grid sm:grid-cols-2 gap-3 text-xs">
+                  <div className="rounded-2xl border bg-emerald-50/50 border-emerald-100 px-3 py-2">
+                    <div className="font-semibold text-emerald-900 mb-0.5">Collection (from)</div>
+                    <div className="text-emerald-900/80">{selected.from_warehouse_name}</div>
+                    <div className="text-emerald-800/70 mt-0.5">
+                      {selected.from_address || selected.from_city || '—'}
+                    </div>
+                    {selected.from_lat != null && selected.from_lng != null ? (
+                      <div className="font-mono text-[10px] mt-1 text-emerald-700">
+                        {Number(selected.from_lat).toFixed(5)}, {Number(selected.from_lng).toFixed(5)}
+                        {selected.collection_physical ? ' · physical pin' : ' · approx'}
+                      </div>
+                    ) : (
+                      <div className="text-amber-700 mt-1">No GPS — pin location on Locations page</div>
+                    )}
+                  </div>
+                  <div className="rounded-2xl border bg-amber-50/50 border-amber-100 px-3 py-2">
+                    <div className="font-semibold text-amber-900 mb-0.5">Destination (to)</div>
+                    <div className="text-amber-900/80">{selected.to_warehouse_name}</div>
+                    <div className="text-amber-800/70 mt-0.5">
+                      {selected.to_address || selected.to_city || '—'}
+                    </div>
+                    {selected.to_lat != null && selected.to_lng != null ? (
+                      <div className="font-mono text-[10px] mt-1 text-amber-800">
+                        {Number(selected.to_lat).toFixed(5)}, {Number(selected.to_lng).toFixed(5)}
+                        {selected.destination_physical ? ' · physical pin' : ' · approx'}
+                      </div>
+                    ) : (
+                      <div className="text-amber-700 mt-1">No GPS — pin location on Locations page</div>
+                    )}
                   </div>
                 </div>
 
                 <div className="grid sm:grid-cols-3 gap-3 text-sm">
                   <div className="rounded-2xl bg-neutral-50 border px-3 py-2">
                     <div className="text-[10px] uppercase text-neutral-400 font-semibold">
-                      Remaining
+                      Route / remaining
                     </div>
                     <div className="font-bold">
                       {selected.eta?.remaining_km != null
                         ? `${selected.eta.remaining_km} km`
-                        : '—'}
+                        : selected.eta?.distance_km != null
+                          ? `${selected.eta.distance_km} km route`
+                          : '—'}
                     </div>
+                    {selected.eta?.distance_km != null && (
+                      <div className="text-[10px] text-neutral-400">
+                        Full site-to-site ~{selected.eta.distance_km} km
+                      </div>
+                    )}
                   </div>
                   <div className="rounded-2xl bg-neutral-50 border px-3 py-2">
                     <div className="text-[10px] uppercase text-neutral-400 font-semibold">
@@ -487,11 +553,10 @@ function TrackingInner() {
             )}
 
             <p className="text-[11px] text-neutral-400 leading-relaxed">
-              ETA uses live driver GPS when available (distance remaining ÷ measured or default road
-              speed ~55 km/h). If no GPS yet, falls back to expected receive date or city centroids
-              on warehouse records. Set warehouse <code className="font-mono">lat</code>/
-              <code className="font-mono">lng</code> (migration{' '}
-              <code className="font-mono">20260709_warehouse_coords.sql</code>) for best accuracy.
+              Route is always <strong>collection site GPS → destination site GPS</strong> (pinned on
+              Locations). While in transit, remaining distance is from the driver&apos;s live position
+              to the destination pin. Pin both sites under Locations for accurate ETA. SQL:{' '}
+              <code className="font-mono">20260709_transfer_physical_endpoints.sql</code>
             </p>
           </div>
         </div>

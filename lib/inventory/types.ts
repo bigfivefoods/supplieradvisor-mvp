@@ -70,11 +70,35 @@ export type WarehouseRecord = {
   address?: string | null;
   city?: string | null;
   country?: string | null;
+  /** Physical GPS of the site (required for accurate transfer ETA) */
+  lat?: number | null;
+  lng?: number | null;
   container_id?: number | null;
   is_default?: boolean | null;
   stock_lines?: number;
   units_on_hand?: number;
 };
+
+export function warehouseHasPhysicalCoords(w?: {
+  lat?: number | null;
+  lng?: number | null;
+} | null) {
+  return (
+    w != null &&
+    w.lat != null &&
+    w.lng != null &&
+    Number.isFinite(Number(w.lat)) &&
+    Number.isFinite(Number(w.lng))
+  );
+}
+
+export function warehousePhysicalPoint(w?: {
+  lat?: number | null;
+  lng?: number | null;
+} | null): { lat: number; lng: number } | null {
+  if (!warehouseHasPhysicalCoords(w)) return null;
+  return { lat: Number(w!.lat), lng: Number(w!.lng) };
+}
 
 /** draft → shipped / in_transit → partially_received → received | cancelled */
 export type TransferOrderStatus =

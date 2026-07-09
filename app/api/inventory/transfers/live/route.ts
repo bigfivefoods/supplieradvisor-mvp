@@ -98,31 +98,42 @@ export async function GET(request: NextRequest) {
       const fromWh = o.from_warehouse_id ? wMap[o.from_warehouse_id] : null;
       const toWh = o.to_warehouse_id ? wMap[o.to_warehouse_id] : null;
 
-      const origin = resolvePoint({
-        lat: fromWh?.lat,
-        lng: fromWh?.lng,
+      // 1) Physical collection site: transfer snapshot → warehouse GPS → city fallback
+      const collectionPhysical = resolvePoint({
+        lat: o.from_lat ?? fromWh?.lat,
+        lng: o.from_lng ?? fromWh?.lng,
+        physicalOnly: true,
+      });
+      const collection = collectionPhysical || resolvePoint({
+        lat: o.from_lat ?? fromWh?.lat,
+        lng: o.from_lng ?? fromWh?.lng,
         city: fromWh?.city,
         country: fromWh?.country,
       });
-      // Prefer pickup scan as origin if available
-      const originGps: LatLng | null =
-        o.pickup_lat != null && o.pickup_lng != null
-          ? { lat: Number(o.pickup_lat), lng: Number(o.pickup_lng) }
-          : origin;
 
-      const dest = resolvePoint({
-        lat: toWh?.lat,
-        lng: toWh?.lng,
+      // 2) Physical destination site (same priority)
+      const destinationPhysical = resolvePoint({
+        lat: o.to_lat ?? toWh?.lat,
+        lng: o.to_lng ?? toWh?.lng,
+        physicalOnly: true,
+      });
+      const dest = destinationPhysical || resolvePoint({
+        lat: o.to_lat ?? toWh?.lat,
+        lng: o.to_lng ?? toWh?.lng,
         city: toWh?.city,
         country: toWh?.country,
       });
 
+      // Origin for route = collection physical location (not city centroid if we have GPS)
+      const origin = collection;
+
+      // Current vehicle: live driver GPS → else still at collection
       const current: LatLng | null =
         o.last_lat != null && o.last_lng != null
           ? { lat: Number(o.last_lat), lng: Number(o.last_lng) }
           : o.pickup_lat != null && o.pickup_lng != null
             ? { lat: Number(o.pickup_lat), lng: Number(o.pickup_lng) }
-            : null;
+            : origin;
 
       const trail = eventMap[o.id] || [];
       const gpsTrail = trail.filter(
@@ -135,10 +146,15 @@ export async function GET(request: NextRequest) {
       );
       const measuredSpeed = speedFromTrail(gpsTrail as Array<{ lat?: number; lng?: number; created_at?: string }>);
 
+      // Before pickup (draft): ETA = full route collection → destination
+      // In transit: remaining = current GPS → destination physical
+      const etaCurrent =
+        String(o.status) === 'draft' ? origin : current;
+
       const eta = computeTransferEta({
-        current,
+        current: etaCurrent,
         dest,
-        origin: originGps,
+        origin,
         speedKmh: measuredSpeed,
         expectedReceiveDate: o.expected_receive_date,
         shippedAt: o.shipped_at || o.pickup_scanned_at,
@@ -174,6 +190,14 @@ export async function GET(request: NextRequest) {
         to_warehouse_name: o.to_warehouse_name || toWh?.name || null,
         from_city: fromWh?.city || null,
         to_city: toWh?.city || null,
+        from_address: o.from_address || [fromWh?.address, fromWh?.city].filter(Boolean).join(', ') || null,
+        to_address: o.to_address || [toWh?.address, toWh?.city].filter(Boolean).join(', ') || null,
+        collection_physical: !!collectionPhysical,
+        destination_physical: !!destinationPhysical,
+        from_lat: collection?.lat ?? null,
+        from_lng: collection?.lng ?? null,
+        to_lat: dest?.lat ?? null,
+        to_lng: dest?.lng ?? null,
         expected_receive_date: o.expected_receive_date,
         shipped_at: o.shipped_at,
         pickup_scanned_at: o.pickup_scanned_at,

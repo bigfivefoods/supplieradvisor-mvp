@@ -126,19 +126,24 @@ export async function POST(request: NextRequest) {
 
     // Soft-retry without newer columns if schema not migrated yet
     if (error && /column|schema cache|does not exist/i.test(error.message)) {
-      const minimal = {
-        profile_id: companyId,
-        name: payload.name,
-        code: payload.code,
-        warehouse_type: payload.warehouse_type,
-        status: payload.status,
-        address: payload.address,
-        city: payload.city,
-        country: payload.country,
-        is_default: payload.is_default,
-        updated_at: payload.updated_at,
-      };
-      const retry = await supabase.from('warehouses').insert(minimal).select('*').single();
+      const soft = { ...payload };
+      for (const k of [
+        'owner_type',
+        'partner_name',
+        'partner_ref',
+        'contact_name',
+        'contact_email',
+        'contact_phone',
+        'notes',
+        'allow_stock',
+        'postal_code',
+        'region',
+        'lat',
+        'lng',
+      ]) {
+        delete soft[k];
+      }
+      const retry = await supabase.from('warehouses').insert(soft).select('*').single();
       data = retry.data;
       error = retry.error;
       if (!error && data) {
@@ -146,7 +151,7 @@ export async function POST(request: NextRequest) {
           success: true,
           warehouse: data,
           warning:
-            'Saved without partner fields — run 20260709_warehouses_and_transfer_orders.sql for full features',
+            'Saved without GPS/partner fields — run 20260709_transfer_physical_endpoints.sql and warehouses migrations',
         });
       }
     }

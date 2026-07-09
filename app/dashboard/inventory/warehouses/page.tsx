@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import {
   Loader2,
@@ -15,6 +16,8 @@ import {
   X,
   MapPin,
   ArrowLeftRight,
+  Crosshair,
+  Navigation,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -23,10 +26,20 @@ import {
   WAREHOUSE_TYPES,
   ownerTypeClass,
   ownerTypeLabel,
+  warehouseHasPhysicalCoords,
   type WarehouseOwnerType,
   type WarehouseRecord,
 } from '@/lib/inventory/types';
 import { CompanyRequired, InventoryHeader } from '@/components/inventory/InventoryShell';
+
+const LocationMap = dynamic(() => import('@/components/LocationMap'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-[200px] rounded-2xl border bg-neutral-50 flex items-center justify-center">
+      <Loader2 className="w-6 h-6 animate-spin text-[#00b4d8]" />
+    </div>
+  ),
+});
 
 type Ctr = {
   id: number;
@@ -52,6 +65,8 @@ type FormState = {
   postal_code: string;
   region: string;
   notes: string;
+  lat: string;
+  lng: string;
   is_default: boolean;
   allow_stock: boolean;
   status: string;
@@ -69,10 +84,12 @@ const emptyForm = (): FormState => ({
   contact_phone: '',
   address: '',
   city: '',
-  country: '',
+  country: 'South Africa',
   postal_code: '',
   region: '',
   notes: '',
+  lat: '',
+  lng: '',
   is_default: false,
   allow_stock: true,
   status: 'active',
@@ -97,6 +114,7 @@ function WarehousesInner() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [geocoding, setGeocoding] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -154,12 +172,66 @@ function WarehousesInner() {
       postal_code: w.postal_code || '',
       region: w.region || '',
       notes: w.notes || '',
+      lat: w.lat != null ? String(w.lat) : '',
+      lng: w.lng != null ? String(w.lng) : '',
       is_default: !!w.is_default,
       allow_stock: w.allow_stock !== false,
       status: w.status || 'active',
     });
     setEditingId(w.id);
     setShowForm(true);
+  };
+
+  const setMapPin = (lat: number, lng: number) => {
+    setForm((f) => ({
+      ...f,
+      lat: lat.toFixed(6),
+      lng: lng.toFixed(6),
+    }));
+  };
+
+  const geocodeAddress = async () => {
+    const q = [form.address, form.city, form.region, form.postal_code, form.country]
+      .filter(Boolean)
+      .join(', ');
+    if (!q.trim()) {
+      toast.error('Enter address or city first');
+      return;
+    }
+    setGeocoding(true);
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`;
+      const res = await fetch(url, {
+        headers: { Accept: 'application/json' },
+      });
+      const data = await res.json();
+      if (!Array.isArray(data) || !data[0]) {
+        throw new Error('Address not found — click the map to set the pin');
+      }
+      const lat = Number(data[0].lat);
+      const lng = Number(data[0].lon);
+      setMapPin(lat, lng);
+      toast.success('Physical coordinates set from address');
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Geocode failed');
+    } finally {
+      setGeocoding(false);
+    }
+  };
+
+  const useMyLocation = () => {
+    if (!navigator.geolocation) {
+      toast.error('GPS not available');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setMapPin(pos.coords.latitude, pos.coords.longitude);
+        toast.success('Pin set from your device GPS');
+      },
+      () => toast.error('Could not get device location'),
+      { enableHighAccuracy: true, timeout: 12000 }
+    );
   };
 
   const save = async () => {
@@ -178,6 +250,11 @@ function WarehousesInner() {
       );
       return;
     }
+    if (!form.lat || !form.lng) {
+      toast.message('No GPS pin yet', {
+        description: 'Set physical coordinates for accurate transfer ETA (map / geocode).',
+      });
+    }
     setSaving(true);
     try {
       const payload = {
@@ -185,6 +262,8 @@ function WarehousesInner() {
         ...form,
         partner_name: form.partner_name || undefined,
         code: form.code || undefined,
+        lat: form.lat !== '' ? Number(form.lat) : null,
+        lng: form.lng !== '' ? Number(form.lng) : null,
       };
       const res = await fetch('/api/inventory/warehouses', {
         method: editingId ? 'PATCH' : 'POST',
@@ -206,6 +285,20 @@ function WarehousesInner() {
     }
   };
 
+  const mapCenter = useMemo((): [number, number] => {
+    if (form.lat && form.lng && Number.isFinite(Number(form.lat)) && Number.isFinite(Number(form.lng))) {
+      return [Number(form.lat), Number(form.lng)];
+    }
+    return [-26.2041, 28.0473]; // Johannesburg default
+  }, [form.lat, form.lng]);
+
+  const selectedPos = useMemo((): [number, number] | null => {
+    if (form.lat && form.lng && Number.isFinite(Number(form.lat)) && Number.isFinite(Number(form.lng))) {
+      return [Number(form.lat), Number(form.lng)];
+    }
+    return null;
+  }, [form.lat, form.lng]);
+
   const remove = async (id: number) => {
     if (!confirm('Delete this location? Stock must be zero.')) return;
     const res = await fetch(`/api/inventory/warehouses?id=${id}`, { method: 'DELETE' });
@@ -222,7 +315,7 @@ function WarehousesInner() {
     <div className="px-2 md:px-4 max-w-screen-2xl mx-auto pb-12">
       <InventoryHeader
         title="Locations"
-        description="Step 2 — your DCs, supplier plants, and customer sites. One network for stock, counts, and transfers."
+        description="Step 2 — pin each site’s physical GPS. Transfers use collection → destination coordinates for route distance and ETA."
         action={
           <div className="flex flex-wrap gap-2">
             <Link
@@ -416,6 +509,74 @@ function WarehousesInner() {
               />
             </div>
 
+            {/* Physical GPS — used as collection / destination for transfers */}
+            <div className="border-t pt-3 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold text-neutral-600 flex items-center gap-1.5">
+                  <Navigation className="w-3.5 h-3.5 text-[#00b4d8]" /> Physical location (GPS)
+                </p>
+                {form.lat && form.lng ? (
+                  <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                    Pinned
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-900">
+                    Needed for ETA
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-neutral-500">
+                Click the map to drop a pin at the real site. Collection and destination ETAs use
+                these coordinates.
+              </p>
+              <div className="rounded-2xl overflow-hidden border">
+                <LocationMap
+                  height="200px"
+                  center={mapCenter}
+                  zoom={selectedPos ? 14 : 6}
+                  selectedPosition={selectedPos}
+                  onMapClick={setMapPin}
+                  interactive
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  className="input !p-2.5 !text-sm font-mono"
+                  placeholder="Latitude"
+                  value={form.lat}
+                  onChange={(e) => setForm({ ...form, lat: e.target.value })}
+                />
+                <input
+                  className="input !p-2.5 !text-sm font-mono"
+                  placeholder="Longitude"
+                  value={form.lng}
+                  onChange={(e) => setForm({ ...form, lng: e.target.value })}
+                />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={geocoding}
+                  onClick={() => void geocodeAddress()}
+                  className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+                >
+                  {geocoding ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <MapPin className="w-3.5 h-3.5" />
+                  )}
+                  From address
+                </button>
+                <button
+                  type="button"
+                  onClick={useMyLocation}
+                  className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+                >
+                  <Crosshair className="w-3.5 h-3.5" /> Use my GPS
+                </button>
+              </div>
+            </div>
+
             <div className="border-t pt-3 space-y-2">
               <p className="text-xs font-medium text-neutral-500">Site contact</p>
               <input
@@ -576,6 +737,18 @@ function WarehousesInner() {
                       <div className="text-xs text-neutral-400 mt-0.5">
                         {w.stock_lines || 0} lines · {Math.round(w.units_on_hand || 0)} units
                         {w.contact_name ? ` · ${w.contact_name}` : ''}
+                      </div>
+                      <div className="mt-1">
+                        {warehouseHasPhysicalCoords(w) ? (
+                          <span className="text-[10px] font-semibold text-emerald-700 inline-flex items-center gap-1">
+                            <MapPin className="w-3 h-3" />
+                            GPS {Number(w.lat).toFixed(4)}, {Number(w.lng).toFixed(4)}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-semibold text-amber-700">
+                            No physical pin — ETA less accurate
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-start gap-1 flex-shrink-0">

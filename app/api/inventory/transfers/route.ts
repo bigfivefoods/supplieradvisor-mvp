@@ -38,16 +38,51 @@ function transferNumber() {
   return `TRF-${y}${m}${day}-${rand}`;
 }
 
-async function loadWarehouseNames(
+async function loadWarehouses(
   supabase: ReturnType<typeof getSupabaseServer>,
   ids: number[]
 ) {
-  const map: Record<number, string> = {};
+  const map: Record<
+    number,
+    {
+      id: number;
+      name: string;
+      lat?: number | null;
+      lng?: number | null;
+      address?: string | null;
+      city?: string | null;
+      country?: string | null;
+    }
+  > = {};
   const unique = [...new Set(ids.filter(Boolean))];
   if (!unique.length) return map;
-  const { data } = await supabase.from('warehouses').select('id, name').in('id', unique);
-  for (const w of data || []) map[w.id] = w.name;
+  const { data } = await supabase
+    .from('warehouses')
+    .select('id, name, lat, lng, address, city, country')
+    .in('id', unique);
+  for (const w of data || []) map[w.id] = w;
   return map;
+}
+
+function physicalEndpoint(w?: {
+  lat?: number | null;
+  lng?: number | null;
+  address?: string | null;
+  city?: string | null;
+  country?: string | null;
+  name?: string;
+} | null) {
+  const lat = w?.lat != null ? Number(w.lat) : null;
+  const lng = w?.lng != null ? Number(w.lng) : null;
+  const has =
+    lat != null && lng != null && Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0);
+  const address = [w?.address, w?.city, w?.country].filter(Boolean).join(', ') || null;
+  return {
+    lat: has ? lat : null,
+    lng: has ? lng : null,
+    address,
+    name: w?.name || null,
+  };
 }
 
 async function getStockQty(
@@ -222,7 +257,9 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'At least one line required' }, { status: 400 });
       }
 
-      const names = await loadWarehouseNames(supabase, [fromId, toId]);
+      const whMap = await loadWarehouses(supabase, [fromId, toId]);
+      const fromEp = physicalEndpoint(whMap[fromId]);
+      const toEp = physicalEndpoint(whMap[toId]);
       const productIds = lines.map((l) => Number(l.product_id)).filter(Boolean);
       const { data: products } = await supabase
         .from('products')
@@ -250,8 +287,15 @@ export async function POST(request: NextRequest) {
           status: 'draft',
           from_warehouse_id: fromId,
           to_warehouse_id: toId,
-          from_warehouse_name: names[fromId] || null,
-          to_warehouse_name: names[toId] || null,
+          from_warehouse_name: fromEp.name || whMap[fromId]?.name || null,
+          to_warehouse_name: toEp.name || whMap[toId]?.name || null,
+          // Physical collection → destination (for live ETA / map)
+          from_lat: fromEp.lat,
+          from_lng: fromEp.lng,
+          to_lat: toEp.lat,
+          to_lng: toEp.lng,
+          from_address: fromEp.address,
+          to_address: toEp.address,
           expected_ship_date: body.expected_ship_date || null,
           expected_receive_date: body.expected_receive_date || null,
           carrier: body.carrier || null,
@@ -267,7 +311,7 @@ export async function POST(request: NextRequest) {
         .select('*')
         .single();
 
-      // Soft-retry without driver columns if migration not run yet
+      // Soft-retry without optional columns if migration not run yet
       if (error && /column|schema cache|does not exist/i.test(error.message)) {
         const retry = await supabase
           .from('stock_transfer_orders')
@@ -277,8 +321,8 @@ export async function POST(request: NextRequest) {
             status: 'draft',
             from_warehouse_id: fromId,
             to_warehouse_id: toId,
-            from_warehouse_name: names[fromId] || null,
-            to_warehouse_name: names[toId] || null,
+            from_warehouse_name: fromEp.name || whMap[fromId]?.name || null,
+            to_warehouse_name: toEp.name || whMap[toId]?.name || null,
             expected_ship_date: body.expected_ship_date || null,
             expected_receive_date: body.expected_receive_date || null,
             carrier: body.carrier || null,
@@ -461,6 +505,14 @@ export async function POST(request: NextRequest) {
         reference: order.transfer_number,
       });
 
+      // Re-snapshot physical collection/destination from warehouse GPS if not set
+      const whSnap = await loadWarehouses(supabase, [
+        Number(order.from_warehouse_id),
+        Number(order.to_warehouse_id),
+      ]);
+      const fromSnap = physicalEndpoint(whSnap[Number(order.from_warehouse_id)]);
+      const toSnap = physicalEndpoint(whSnap[Number(order.to_warehouse_id)]);
+
       const { data: updated, error: uErr } = await supabase
         .from('stock_transfer_orders')
         .update({
@@ -470,6 +522,12 @@ export async function POST(request: NextRequest) {
           tracking_ref: body.tracking_ref !== undefined ? body.tracking_ref : order.tracking_ref,
           ship_notes: body.ship_notes || order.ship_notes,
           onchain_hash: shipHash,
+          from_lat: order.from_lat ?? fromSnap.lat,
+          from_lng: order.from_lng ?? fromSnap.lng,
+          to_lat: order.to_lat ?? toSnap.lat,
+          to_lng: order.to_lng ?? toSnap.lng,
+          from_address: order.from_address || fromSnap.address,
+          to_address: order.to_address || toSnap.address,
           updated_at: now,
         })
         .eq('id', orderId)

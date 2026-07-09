@@ -106,21 +106,44 @@ export function coordsFromCity(city?: string | null, country?: string | null): L
   return null;
 }
 
+/**
+ * Resolve a site point. Physical GPS always wins over city centroid.
+ * Prefer explicit lat/lng (warehouse or transfer snapshot), then city fallback.
+ */
 export function resolvePoint(opts: {
   lat?: number | null;
   lng?: number | null;
   city?: string | null;
   country?: string | null;
+  /** If true, never fall back to city — only real coordinates */
+  physicalOnly?: boolean;
 }): LatLng | null {
   if (
     opts.lat != null &&
     opts.lng != null &&
     Number.isFinite(Number(opts.lat)) &&
-    Number.isFinite(Number(opts.lng))
+    Number.isFinite(Number(opts.lng)) &&
+    !(Number(opts.lat) === 0 && Number(opts.lng) === 0)
   ) {
     return { lat: Number(opts.lat), lng: Number(opts.lng) };
   }
+  if (opts.physicalOnly) return null;
   return coordsFromCity(opts.city, opts.country);
+}
+
+/** Full route between two physical warehouse sites */
+export function routeBetweenSites(
+  collection: LatLng | null,
+  destination: LatLng | null
+): { origin: LatLng | null; dest: LatLng | null; distance_km: number | null } {
+  if (!collection || !destination) {
+    return { origin: collection, dest: destination, distance_km: null };
+  }
+  return {
+    origin: collection,
+    dest: destination,
+    distance_km: Math.round(roadKm(collection, destination) * 10) / 10,
+  };
 }
 
 /**
@@ -167,7 +190,7 @@ export type EtaResult = {
   eta_at: string | null;
   speed_kmh: number | null;
   progress_pct: number | null;
-  method: 'gps' | 'schedule' | 'unknown';
+  method: 'gps' | 'physical' | 'schedule' | 'unknown';
   dest: LatLng | null;
   current: LatLng | null;
   origin: LatLng | null;
@@ -212,7 +235,7 @@ export function computeTransferEta(input: {
       eta_at: etaAt,
       speed_kmh: speed,
       progress_pct: progress,
-      method: 'gps',
+      method: origin && dest ? 'physical' : 'gps',
       dest,
       current,
       origin,
