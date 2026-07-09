@@ -12,10 +12,14 @@ import {
  *
  * Body: { companyId, customerId, privyUserId }
  *
- * Effects:
- * - customers.invite_status = 'accepted'
- * - clear business_connections.metadata.suspended / suspended_at
- * - activity_log: customer.connection.unsuspended
+ * Effects (order is intentional — fail-closed for new collaboration):
+ * 1. customers.invite_status = 'accepted' first
+ * 2. then clear business_connections.metadata.suspended / suspended_at
+ * 3. activity_log: customer.connection.unsuspended
+ *
+ * If CRM restore succeeds but BC clear fails, seller UI is Connected and
+ * invite_status gates still allow share; buyer PO may still see suspended BC
+ * until retry — safer than BC open while CRM still says Suspended.
  *
  * Does not require a new invite (design: unsuspend restores accepted).
  */
@@ -136,29 +140,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (connection) {
-      const nextMeta = { ...(connection.metadata || {}) };
-      delete nextMeta.suspended;
-      delete nextMeta.suspended_at;
-      // Explicit false for readers that check truthy only
-      nextMeta.suspended = false;
-
-      const { error: connErr } = await supabase
-        .from('business_connections')
-        .update({
-          metadata: nextMeta,
-          updated_at: now,
-        })
-        .eq('id', connection.id);
-      if (connErr) {
-        console.error('unsuspend BC metadata error:', connErr);
-        return NextResponse.json(
-          { error: `Failed to update connection: ${connErr.message}` },
-          { status: 500 }
-        );
-      }
-    }
-
+    // 1) Restore CRM first (fail-closed for dual-write partial failure)
     const { data: updated, error: custErr } = await supabase
       .from('customers')
       .update({
@@ -180,6 +162,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 2) Clear BC suspend flags after CRM is accepted
+    let connectionWarning: string | undefined;
+    if (connection) {
+      const nextMeta = { ...(connection.metadata || {}) };
+      delete nextMeta.suspended;
+      delete nextMeta.suspended_at;
+      // Explicit false for readers that check truthy only
+      nextMeta.suspended = false;
+
+      const { error: connErr } = await supabase
+        .from('business_connections')
+        .update({
+          metadata: nextMeta,
+          updated_at: now,
+        })
+        .eq('id', connection.id);
+      if (connErr) {
+        console.error('unsuspend BC metadata error:', connErr);
+        // CRM already accepted — return success with warning so seller can retry
+        connectionWarning = `Customer restored but connection metadata clear failed: ${connErr.message}. Retry unsuspend to clear BC suspended flag.`;
+      }
+    }
+
     await logActivity({
       profile_id: companyId,
       actor_user_id: member.userId,
@@ -190,12 +195,16 @@ export async function POST(request: NextRequest) {
       metadata: {
         connection_id: connectionId,
         linked_profile_id: customer.linked_profile_id,
+        connection_warning: connectionWarning ?? null,
       },
     });
 
     return NextResponse.json({
       success: true,
-      message: 'Customer connection restored (accepted)',
+      message: connectionWarning
+        ? 'Customer restored; connection metadata needs retry'
+        : 'Customer connection restored (accepted)',
+      warning: connectionWarning,
       customer: updated,
       connectionId,
     });

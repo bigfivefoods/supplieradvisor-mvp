@@ -87,17 +87,25 @@ Sellers can invite CRM customers onto SupplierAdvisor so buyers get a company-sc
 
 **Key buyer UI:** `/dashboard/buyer` (suppliers, POs, documents, reviews).
 
-### Maintenance: expire + reclaim stuck claims
+### Maintenance: expire + reclaim stuck claims (**must schedule**)
+
+Without a scheduler, stuck `claiming` only recovers via same-user claim retry after 5m, and CRM `invite_status` can lag past `expires_at`.
+
+| How | Detail |
+|-----|--------|
+| **Vercel Cron (in-repo)** | [`vercel.json`](vercel.json) — hourly `GET /api/customers/invites/expire`. Set `CRON_SECRET` in project env (Vercel sends `Authorization: Bearer $CRON_SECRET`). |
+| Manual / external | curl below (POST or GET) with the same secret |
 
 ```bash
-# Schedule hourly (or similar). Requires CRON_SECRET in server env.
+# Requires CRON_SECRET in server env. Re-run while response.moreWork === true
+# (large backlogs: up to 10×500 rows per invocation).
 curl -X POST "$APP_URL/api/customers/invites/expire" \
   -H "Authorization: Bearer $CRON_SECRET" \
   -H "Content-Type: application/json" \
   -d '{}'
 ```
 
-- Pending invites past `expires_at` → `expired`; CRM phase flips to `expired` when no other pending invite remains.
+- Pending invites past `expires_at` → `expired`; CRM phase flips to `expired` only when no other **open** invite remains (`pending` or `claiming`).
 - Stuck `claiming` locks older than **5 minutes** → back to `pending`.
 
 Company members can also run the job scoped to their company with `{ companyId, privyUserId }`.

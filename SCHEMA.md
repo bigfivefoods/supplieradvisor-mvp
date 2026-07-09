@@ -93,21 +93,23 @@ APIs:
 
 ### Expire / reap job
 
-`POST /api/customers/invites/expire`
+`POST|GET /api/customers/invites/expire` (**must be scheduled** — see `vercel.json` hourly cron)
 
 1. Reap stuck `claiming` (`updated_at` older than 5m) → `pending`, clear `user_id`
 2. Flip `pending` with `expires_at < now` → `expired`
-3. If no remaining pending invite for customer and CRM phase is `invited` → `invite_status=expired`, clear `invite_token`
+3. If no remaining **open** invite (`pending` **or** `claiming`) and CRM phase is `invited` → `invite_status=expired`, clear `invite_token` (only when the conditional CRM update actually writes a row)
+
+**Drain / batching:** each invocation runs up to 10 passes × 500 rows (reap + expire). Response includes `moreWork` — if `true`, invoke again until `reapedClaiming` and `expiredInvitations` are 0 (or `moreWork` is false). Hourly Vercel Cron is usually enough; after long outages, re-run until drained.
 
 **Auth (either):**
 
 | Mode | How |
 |------|-----|
-| Cron / service | `Authorization: Bearer $CRON_SECRET` or header `x-cron-secret` (env `CRON_SECRET` or `CUSTOMER_INVITE_EXPIRE_SECRET`). Optional body `companyId` to scope. |
-| Membership | Body `{ companyId, privyUserId }` — company-scoped only |
+| Cron / service | `Authorization: Bearer $CRON_SECRET` or header `x-cron-secret` (env `CRON_SECRET` or `CUSTOMER_INVITE_EXPIRE_SECRET`). Optional body/query `companyId` to scope. Vercel Cron uses **GET** and sends Bearer `$CRON_SECRET` when that env is set. |
+| Membership | Body (POST) or query (GET) `{ companyId, privyUserId }` — company-scoped only |
 
 ```bash
-# Global cron
+# Global cron (POST or GET)
 curl -X POST "$APP_URL/api/customers/invites/expire" \
   -H "Authorization: Bearer $CRON_SECRET" \
   -H "Content-Type: application/json" \
@@ -119,7 +121,11 @@ curl -X POST "$APP_URL/api/customers/invites/expire" \
   -d '{"companyId":123,"privyUserId":"did:privy:..."}'
 ```
 
-Schedule via Vercel Cron, GitHub Actions, or external scheduler (e.g. hourly).
+**Schedule (required in production):**
+
+- In-repo: [`vercel.json`](vercel.json) — hourly cron → `/api/customers/invites/expire`
+- Set `CRON_SECRET` in the Vercel project env so the platform attaches `Authorization: Bearer …`
+- Alternatives: GitHub Actions or external scheduler hitting the same path with the bearer secret
 
 ### Invite-related APIs (summary)
 
@@ -132,7 +138,7 @@ Schedule via Vercel Cron, GitHub Actions, or external scheduler (e.g. hourly).
 | POST | `/api/customers/invites/decline` | Token (public-ish) |
 | POST | `/api/customers/invites/suspend` | Seller member |
 | POST | `/api/customers/invites/unsuspend` | Seller member |
-| POST | `/api/customers/invites/expire` | Member **or** cron secret |
+| POST/GET | `/api/customers/invites/expire` | Member **or** cron secret (GET for Vercel Cron) |
 | GET | `/api/customers/summary` | companyId (includes invite counts) |
 | GET | `/api/invites/validate?kind=customer` | Public token |
 | POST | `/api/invites/claim` `{ kind: 'customer' }` | Privy user |
