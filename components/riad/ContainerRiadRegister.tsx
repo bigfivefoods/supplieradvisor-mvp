@@ -187,6 +187,8 @@ export default function ContainerRiadRegister({
         status: form.status,
         priority: form.priority,
         category: form.category || null,
+        stakeholder_type: form.stakeholder_type || 'internal',
+        stakeholder_name: form.category || form.owner_name || actorName || 'Container operations',
         owner_name: form.owner_name || actorName || null,
         severity: form.riad_type === 'risk' ? form.severity : null,
         likelihood: form.riad_type === 'risk' ? form.likelihood : null,
@@ -529,19 +531,32 @@ export default function ContainerRiadRegister({
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs font-medium">Priority</label>
+                    <label className="text-xs font-medium">Stakeholder type</label>
                     <select
                       className="input mt-1 w-full !p-3 !text-sm"
-                      value={form.priority}
-                      onChange={(e) => setForm({ ...form, priority: e.target.value })}
+                      value={form.stakeholder_type}
+                      onChange={(e) => setForm({ ...form, stakeholder_type: e.target.value })}
                     >
-                      {RIAD_PRIORITIES.map((p) => (
-                        <option key={p.value} value={p.value}>
-                          {p.label}
-                        </option>
-                      ))}
+                      <option value="internal">Internal</option>
+                      <option value="supplier">Supplier</option>
+                      <option value="customer">Customer</option>
+                      <option value="contractor">Contractor</option>
                     </select>
                   </div>
+                </div>
+                <div>
+                  <label className="text-xs font-medium">Priority</label>
+                  <select
+                    className="input mt-1 w-full !p-3 !text-sm"
+                    value={form.priority}
+                    onChange={(e) => setForm({ ...form, priority: e.target.value })}
+                  >
+                    {RIAD_PRIORITIES.map((p) => (
+                      <option key={p.value} value={p.value}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
