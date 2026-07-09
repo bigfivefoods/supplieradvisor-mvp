@@ -1,13 +1,13 @@
 -- =============================================================================
--- SupplierAdvisor — World-class multi-module schema upgrade
--- Safe / idempotent: uses IF NOT EXISTS and ADD COLUMN IF NOT EXISTS
+-- SupplierAdvisor — World-class multi-module schema upgrade (v2, defensive)
+-- Idempotent & safe for partial re-runs. Guards every column/index access.
 -- Project: onkklullmgrdqoertngp
 -- =============================================================================
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- -----------------------------------------------------------------------------
--- Helper: updated_at trigger
+-- Helpers
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.set_updated_at()
 RETURNS TRIGGER
@@ -19,91 +19,194 @@ BEGIN
 END;
 $$;
 
--- -----------------------------------------------------------------------------
--- 1) CORE: profiles (companies) enhancements
--- -----------------------------------------------------------------------------
-ALTER TABLE public.profiles
-  ADD COLUMN IF NOT EXISTS onboarding_complete boolean DEFAULT false,
-  ADD COLUMN IF NOT EXISTS onboarding_step text,
-  ADD COLUMN IF NOT EXISTS parent_profile_id bigint REFERENCES public.profiles(id) ON DELETE SET NULL,
-  ADD COLUMN IF NOT EXISTS primary_currency text DEFAULT 'ZAR',
-  ADD COLUMN IF NOT EXISTS timezone text DEFAULT 'Africa/Johannesburg',
-  ADD COLUMN IF NOT EXISTS is_buyer boolean DEFAULT true,
-  ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}'::jsonb;
+CREATE OR REPLACE FUNCTION public.sa_add_column(
+  p_table text,
+  p_column text,
+  p_type text,
+  p_default text DEFAULT NULL
+) RETURNS void
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = p_table AND column_name = p_column
+  ) AND EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = p_table
+  ) THEN
+    IF p_default IS NULL THEN
+      EXECUTE format('ALTER TABLE public.%I ADD COLUMN %I %s', p_table, p_column, p_type);
+    ELSE
+      EXECUTE format(
+        'ALTER TABLE public.%I ADD COLUMN %I %s DEFAULT %s',
+        p_table, p_column, p_type, p_default
+      );
+    END IF;
+  END IF;
+END;
+$$;
 
-CREATE INDEX IF NOT EXISTS idx_profiles_user_id ON public.profiles(user_id);
-CREATE INDEX IF NOT EXISTS idx_profiles_relationship ON public.profiles(relationship_type);
-CREATE INDEX IF NOT EXISTS idx_profiles_supplier_status ON public.profiles(supplier_status);
-CREATE INDEX IF NOT EXISTS idx_profiles_verification ON public.profiles(verification_status);
-CREATE INDEX IF NOT EXISTS idx_profiles_invite_token ON public.profiles(invite_token) WHERE invite_token IS NOT NULL;
+CREATE OR REPLACE FUNCTION public.sa_add_fk(
+  p_table text,
+  p_column text,
+  p_ref_table text,
+  p_ref_column text DEFAULT 'id',
+  p_on_delete text DEFAULT 'SET NULL'
+) RETURNS void
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  cname text := p_table || '_' || p_column || '_fkey';
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = p_table AND column_name = p_column
+  ) AND NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE constraint_schema = 'public' AND constraint_name = cname
+  ) THEN
+    BEGIN
+      EXECUTE format(
+        'ALTER TABLE public.%I ADD CONSTRAINT %I FOREIGN KEY (%I) REFERENCES public.%I(%I) ON DELETE %s',
+        p_table, cname, p_column, p_ref_table, p_ref_column, p_on_delete
+      );
+    EXCEPTION WHEN others THEN
+      RAISE NOTICE 'FK % skipped: %', cname, SQLERRM;
+    END;
+  END IF;
+END;
+$$;
 
--- -----------------------------------------------------------------------------
--- 2) CORE: business_users (team memberships)
--- -----------------------------------------------------------------------------
-ALTER TABLE public.business_users
-  ADD COLUMN IF NOT EXISTS permissions jsonb DEFAULT '[]'::jsonb,
-  ADD COLUMN IF NOT EXISTS last_active_at timestamptz,
-  ADD COLUMN IF NOT EXISTS expires_at timestamptz,
-  ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}'::jsonb;
+CREATE OR REPLACE FUNCTION public.sa_create_index(
+  p_name text,
+  p_table text,
+  p_columns text
+) RETURNS void
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  col text;
+  cols text[];
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = p_table
+  ) THEN
+    RETURN;
+  END IF;
 
-CREATE INDEX IF NOT EXISTS idx_business_users_profile ON public.business_users(profile_id);
-CREATE INDEX IF NOT EXISTS idx_business_users_user ON public.business_users(user_id);
-CREATE INDEX IF NOT EXISTS idx_business_users_status ON public.business_users(status);
-CREATE INDEX IF NOT EXISTS idx_business_users_invite_token ON public.business_users(invite_token) WHERE invite_token IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_business_users_email ON public.business_users(email);
-CREATE INDEX IF NOT EXISTS idx_business_users_invited_email ON public.business_users(invited_email);
+  cols := string_to_array(replace(p_columns, ' ', ''), ',');
+  FOREACH col IN ARRAY cols LOOP
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = p_table AND column_name = col
+    ) THEN
+      RAISE NOTICE 'Index % skipped: column %.% missing', p_name, p_table, col;
+      RETURN;
+    END IF;
+  END LOOP;
 
--- -----------------------------------------------------------------------------
+  EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON public.%I (%s)', p_name, p_table, p_columns);
+EXCEPTION WHEN others THEN
+  RAISE NOTICE 'Index % skipped: %', p_name, SQLERRM;
+END;
+$$;
+
+-- =============================================================================
+-- 1) CORE: profiles
+-- =============================================================================
+SELECT public.sa_add_column('profiles', 'onboarding_complete', 'boolean', 'false');
+SELECT public.sa_add_column('profiles', 'onboarding_step', 'text');
+SELECT public.sa_add_column('profiles', 'parent_profile_id', 'bigint');
+SELECT public.sa_add_column('profiles', 'primary_currency', 'text', '''ZAR''');
+SELECT public.sa_add_column('profiles', 'timezone', 'text', '''Africa/Johannesburg''');
+SELECT public.sa_add_column('profiles', 'is_buyer', 'boolean', 'true');
+SELECT public.sa_add_column('profiles', 'metadata', 'jsonb', '''{}''::jsonb');
+SELECT public.sa_add_fk('profiles', 'parent_profile_id', 'profiles', 'id', 'SET NULL');
+
+SELECT public.sa_create_index('idx_profiles_user_id', 'profiles', 'user_id');
+SELECT public.sa_create_index('idx_profiles_relationship', 'profiles', 'relationship_type');
+SELECT public.sa_create_index('idx_profiles_supplier_status', 'profiles', 'supplier_status');
+SELECT public.sa_create_index('idx_profiles_verification', 'profiles', 'verification_status');
+SELECT public.sa_create_index('idx_profiles_invite_token', 'profiles', 'invite_token');
+
+-- =============================================================================
+-- 2) CORE: business_users
+-- =============================================================================
+SELECT public.sa_add_column('business_users', 'permissions', 'jsonb', '''[]''::jsonb');
+SELECT public.sa_add_column('business_users', 'last_active_at', 'timestamptz');
+SELECT public.sa_add_column('business_users', 'expires_at', 'timestamptz');
+SELECT public.sa_add_column('business_users', 'metadata', 'jsonb', '''{}''::jsonb');
+-- ensure profile_id exists (legacy safety)
+SELECT public.sa_add_column('business_users', 'profile_id', 'bigint');
+SELECT public.sa_add_fk('business_users', 'profile_id', 'profiles', 'id', 'CASCADE');
+
+SELECT public.sa_create_index('idx_business_users_profile', 'business_users', 'profile_id');
+SELECT public.sa_create_index('idx_business_users_user', 'business_users', 'user_id');
+SELECT public.sa_create_index('idx_business_users_status', 'business_users', 'status');
+SELECT public.sa_create_index('idx_business_users_invite_token', 'business_users', 'invite_token');
+SELECT public.sa_create_index('idx_business_users_email', 'business_users', 'email');
+SELECT public.sa_create_index('idx_business_users_invited_email', 'business_users', 'invited_email');
+
+-- =============================================================================
 -- 3) NETWORK: business_connections
--- -----------------------------------------------------------------------------
-ALTER TABLE public.business_connections
-  ADD COLUMN IF NOT EXISTS responded_at timestamptz,
-  ADD COLUMN IF NOT EXISTS connection_type text DEFAULT 'partner',
-  ADD COLUMN IF NOT EXISTS notes text,
-  ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}'::jsonb;
+-- =============================================================================
+SELECT public.sa_add_column('business_connections', 'responded_at', 'timestamptz');
+SELECT public.sa_add_column('business_connections', 'connection_type', 'text', '''partner''');
+SELECT public.sa_add_column('business_connections', 'notes', 'text');
+SELECT public.sa_add_column('business_connections', 'metadata', 'jsonb', '''{}''::jsonb');
+SELECT public.sa_add_column('business_connections', 'requester_profile_id', 'bigint');
+SELECT public.sa_add_column('business_connections', 'requestee_profile_id', 'bigint');
+SELECT public.sa_add_fk('business_connections', 'requester_profile_id', 'profiles', 'id', 'SET NULL');
+SELECT public.sa_add_fk('business_connections', 'requestee_profile_id', 'profiles', 'id', 'SET NULL');
 
-CREATE INDEX IF NOT EXISTS idx_bc_requester_profile ON public.business_connections(requester_profile_id);
-CREATE INDEX IF NOT EXISTS idx_bc_requestee_profile ON public.business_connections(requestee_profile_id);
-CREATE INDEX IF NOT EXISTS idx_bc_requester_id ON public.business_connections(requester_id);
-CREATE INDEX IF NOT EXISTS idx_bc_requestee_id ON public.business_connections(requestee_id);
-CREATE INDEX IF NOT EXISTS idx_bc_status ON public.business_connections(status);
+SELECT public.sa_create_index('idx_bc_requester_profile', 'business_connections', 'requester_profile_id');
+SELECT public.sa_create_index('idx_bc_requestee_profile', 'business_connections', 'requestee_profile_id');
+SELECT public.sa_create_index('idx_bc_requester_id', 'business_connections', 'requester_id');
+SELECT public.sa_create_index('idx_bc_requestee_id', 'business_connections', 'requestee_id');
+SELECT public.sa_create_index('idx_bc_status', 'business_connections', 'status');
 
--- -----------------------------------------------------------------------------
--- 4) PROCUREMENT: purchase_orders (align with app + world-class PO process)
--- -----------------------------------------------------------------------------
-ALTER TABLE public.purchase_orders
-  ADD COLUMN IF NOT EXISTS buyer_profile_id bigint REFERENCES public.profiles(id) ON DELETE SET NULL,
-  ADD COLUMN IF NOT EXISTS supplier_profile_id bigint REFERENCES public.profiles(id) ON DELETE SET NULL,
-  ADD COLUMN IF NOT EXISTS description text,
-  ADD COLUMN IF NOT EXISTS currency text DEFAULT 'ZAR',
-  ADD COLUMN IF NOT EXISTS subtotal numeric(18,2) DEFAULT 0,
-  ADD COLUMN IF NOT EXISTS tax_amount numeric(18,2) DEFAULT 0,
-  ADD COLUMN IF NOT EXISTS shipping_amount numeric(18,2) DEFAULT 0,
-  ADD COLUMN IF NOT EXISTS discount_amount numeric(18,2) DEFAULT 0,
-  ADD COLUMN IF NOT EXISTS promised_date date,
-  ADD COLUMN IF NOT EXISTS actual_delivery_date date,
-  ADD COLUMN IF NOT EXISTS order_quantity numeric(18,4),
-  ADD COLUMN IF NOT EXISTS delivered_quantity numeric(18,4),
-  ADD COLUMN IF NOT EXISTS damaged_quantity numeric(18,4) DEFAULT 0,
-  ADD COLUMN IF NOT EXISTS items jsonb DEFAULT '[]'::jsonb,
-  ADD COLUMN IF NOT EXISTS supplier_wallet text,
-  ADD COLUMN IF NOT EXISTS onchain_tx text,
-  ADD COLUMN IF NOT EXISTS onchain_po_id text,
-  ADD COLUMN IF NOT EXISTS payment_terms text,
-  ADD COLUMN IF NOT EXISTS incoterms text,
-  ADD COLUMN IF NOT EXISTS delivery_address text,
-  ADD COLUMN IF NOT EXISTS approved_at timestamptz,
-  ADD COLUMN IF NOT EXISTS approved_by text,
-  ADD COLUMN IF NOT EXISTS funded_at timestamptz,
-  ADD COLUMN IF NOT EXISTS closed_at timestamptz,
-  ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}'::jsonb;
+-- =============================================================================
+-- 4) PROCUREMENT: purchase_orders
+-- =============================================================================
+SELECT public.sa_add_column('purchase_orders', 'buyer_profile_id', 'bigint');
+SELECT public.sa_add_column('purchase_orders', 'supplier_profile_id', 'bigint');
+SELECT public.sa_add_column('purchase_orders', 'description', 'text');
+SELECT public.sa_add_column('purchase_orders', 'currency', 'text', '''ZAR''');
+SELECT public.sa_add_column('purchase_orders', 'subtotal', 'numeric(18,2)', '0');
+SELECT public.sa_add_column('purchase_orders', 'tax_amount', 'numeric(18,2)', '0');
+SELECT public.sa_add_column('purchase_orders', 'shipping_amount', 'numeric(18,2)', '0');
+SELECT public.sa_add_column('purchase_orders', 'discount_amount', 'numeric(18,2)', '0');
+SELECT public.sa_add_column('purchase_orders', 'promised_date', 'date');
+SELECT public.sa_add_column('purchase_orders', 'actual_delivery_date', 'date');
+SELECT public.sa_add_column('purchase_orders', 'order_quantity', 'numeric(18,4)');
+SELECT public.sa_add_column('purchase_orders', 'delivered_quantity', 'numeric(18,4)');
+SELECT public.sa_add_column('purchase_orders', 'damaged_quantity', 'numeric(18,4)', '0');
+SELECT public.sa_add_column('purchase_orders', 'items', 'jsonb', '''[]''::jsonb');
+SELECT public.sa_add_column('purchase_orders', 'supplier_wallet', 'text');
+SELECT public.sa_add_column('purchase_orders', 'onchain_tx', 'text');
+SELECT public.sa_add_column('purchase_orders', 'onchain_po_id', 'text');
+SELECT public.sa_add_column('purchase_orders', 'payment_terms', 'text');
+SELECT public.sa_add_column('purchase_orders', 'incoterms', 'text');
+SELECT public.sa_add_column('purchase_orders', 'delivery_address', 'text');
+SELECT public.sa_add_column('purchase_orders', 'approved_at', 'timestamptz');
+SELECT public.sa_add_column('purchase_orders', 'approved_by', 'text');
+SELECT public.sa_add_column('purchase_orders', 'funded_at', 'timestamptz');
+SELECT public.sa_add_column('purchase_orders', 'closed_at', 'timestamptz');
+SELECT public.sa_add_column('purchase_orders', 'metadata', 'jsonb', '''{}''::jsonb');
+SELECT public.sa_add_fk('purchase_orders', 'buyer_profile_id', 'profiles', 'id', 'SET NULL');
+SELECT public.sa_add_fk('purchase_orders', 'supplier_profile_id', 'profiles', 'id', 'SET NULL');
 
--- Map legacy supplier_id → supplier_profile_id where possible
+-- Map legacy supplier_id → supplier_profile_id
 DO $$
 BEGIN
   IF EXISTS (
     SELECT 1 FROM information_schema.columns
-    WHERE table_schema = 'public' AND table_name = 'purchase_orders' AND column_name = 'supplier_id'
+    WHERE table_schema='public' AND table_name='purchase_orders' AND column_name='supplier_id'
+  ) AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema='public' AND table_name='purchase_orders' AND column_name='supplier_profile_id'
   ) THEN
     UPDATE public.purchase_orders
     SET supplier_profile_id = supplier_id
@@ -111,23 +214,21 @@ BEGIN
   END IF;
 END $$;
 
-CREATE INDEX IF NOT EXISTS idx_po_buyer ON public.purchase_orders(buyer_profile_id);
-CREATE INDEX IF NOT EXISTS idx_po_supplier ON public.purchase_orders(supplier_profile_id);
-CREATE INDEX IF NOT EXISTS idx_po_status ON public.purchase_orders(status);
-CREATE INDEX IF NOT EXISTS idx_po_number ON public.purchase_orders(po_number);
-CREATE INDEX IF NOT EXISTS idx_po_created ON public.purchase_orders(created_at DESC);
+SELECT public.sa_create_index('idx_po_buyer', 'purchase_orders', 'buyer_profile_id');
+SELECT public.sa_create_index('idx_po_supplier', 'purchase_orders', 'supplier_profile_id');
+SELECT public.sa_create_index('idx_po_supplier_legacy', 'purchase_orders', 'supplier_id');
+SELECT public.sa_create_index('idx_po_status', 'purchase_orders', 'status');
+SELECT public.sa_create_index('idx_po_number', 'purchase_orders', 'po_number');
+SELECT public.sa_create_index('idx_po_created', 'purchase_orders', 'created_at');
 
--- po_items already exists — enhance
-ALTER TABLE public.po_items
-  ADD COLUMN IF NOT EXISTS line_number int,
-  ADD COLUMN IF NOT EXISTS tax_rate numeric(8,4) DEFAULT 0,
-  ADD COLUMN IF NOT EXISTS received_quantity numeric(18,4) DEFAULT 0,
-  ADD COLUMN IF NOT EXISTS notes text,
-  ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}'::jsonb;
+-- po_items
+SELECT public.sa_add_column('po_items', 'line_number', 'int');
+SELECT public.sa_add_column('po_items', 'tax_rate', 'numeric(8,4)', '0');
+SELECT public.sa_add_column('po_items', 'received_quantity', 'numeric(18,4)', '0');
+SELECT public.sa_add_column('po_items', 'notes', 'text');
+SELECT public.sa_add_column('po_items', 'metadata', 'jsonb', '''{}''::jsonb');
+SELECT public.sa_create_index('idx_po_items_po', 'po_items', 'po_id');
 
-CREATE INDEX IF NOT EXISTS idx_po_items_po ON public.po_items(po_id);
-
--- Requisitions
 CREATE TABLE IF NOT EXISTS public.requisitions (
   id bigserial PRIMARY KEY,
   profile_id bigint NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -141,16 +242,16 @@ CREATE TABLE IF NOT EXISTS public.requisitions (
   currency text DEFAULT 'ZAR',
   approved_by text,
   approved_at timestamptz,
-  converted_po_id bigint REFERENCES public.purchase_orders(id) ON DELETE SET NULL,
+  converted_po_id bigint,
   metadata jsonb DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
+SELECT public.sa_add_column('requisitions', 'profile_id', 'bigint');
+SELECT public.sa_add_fk('requisitions', 'profile_id', 'profiles', 'id', 'CASCADE');
+SELECT public.sa_create_index('idx_requisitions_profile', 'requisitions', 'profile_id');
+SELECT public.sa_create_index('idx_requisitions_status', 'requisitions', 'status');
 
-CREATE INDEX IF NOT EXISTS idx_requisitions_profile ON public.requisitions(profile_id);
-CREATE INDEX IF NOT EXISTS idx_requisitions_status ON public.requisitions(status);
-
--- Supplier performance (OTIFEF snapshots)
 CREATE TABLE IF NOT EXISTS public.supplier_scorecards (
   id bigserial PRIMARY KEY,
   buyer_profile_id bigint NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -165,16 +266,17 @@ CREATE TABLE IF NOT EXISTS public.supplier_scorecards (
   notes text,
   metadata jsonb DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (buyer_profile_id, supplier_profile_id, period_start, period_end)
+  updated_at timestamptz NOT NULL DEFAULT now()
 );
+SELECT public.sa_create_index('idx_scorecards_buyer', 'supplier_scorecards', 'buyer_profile_id');
+SELECT public.sa_create_index('idx_scorecards_supplier', 'supplier_scorecards', 'supplier_profile_id');
 
--- -----------------------------------------------------------------------------
+-- =============================================================================
 -- 5) INVENTORY
--- -----------------------------------------------------------------------------
+-- =============================================================================
 CREATE TABLE IF NOT EXISTS public.warehouses (
   id bigserial PRIMARY KEY,
-  profile_id bigint NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  profile_id bigint REFERENCES public.profiles(id) ON DELETE CASCADE,
   name text NOT NULL,
   code text,
   address text,
@@ -186,68 +288,90 @@ CREATE TABLE IF NOT EXISTS public.warehouses (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
+SELECT public.sa_add_column('warehouses', 'profile_id', 'bigint');
+SELECT public.sa_add_fk('warehouses', 'profile_id', 'profiles', 'id', 'CASCADE');
+SELECT public.sa_create_index('idx_warehouses_profile', 'warehouses', 'profile_id');
 
-CREATE INDEX IF NOT EXISTS idx_warehouses_profile ON public.warehouses(profile_id);
-
-ALTER TABLE public.products
-  ADD COLUMN IF NOT EXISTS warehouse_id bigint REFERENCES public.warehouses(id) ON DELETE SET NULL,
-  ADD COLUMN IF NOT EXISTS reorder_level numeric(18,4) DEFAULT 0,
-  ADD COLUMN IF NOT EXISTS reorder_qty numeric(18,4) DEFAULT 0,
-  ADD COLUMN IF NOT EXISTS qty_on_hand numeric(18,4) DEFAULT 0,
-  ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}'::jsonb;
-
-CREATE INDEX IF NOT EXISTS idx_products_profile ON public.products(profile_id);
-CREATE INDEX IF NOT EXISTS idx_products_sku ON public.products(sku);
+SELECT public.sa_add_column('products', 'warehouse_id', 'bigint');
+SELECT public.sa_add_column('products', 'reorder_level', 'numeric(18,4)', '0');
+SELECT public.sa_add_column('products', 'reorder_qty', 'numeric(18,4)', '0');
+SELECT public.sa_add_column('products', 'qty_on_hand', 'numeric(18,4)', '0');
+SELECT public.sa_add_column('products', 'metadata', 'jsonb', '''{}''::jsonb');
+SELECT public.sa_add_column('products', 'profile_id', 'bigint');
+SELECT public.sa_add_fk('products', 'profile_id', 'profiles', 'id', 'CASCADE');
+SELECT public.sa_create_index('idx_products_profile', 'products', 'profile_id');
+SELECT public.sa_create_index('idx_products_sku', 'products', 'sku');
 
 CREATE TABLE IF NOT EXISTS public.stock_levels (
   id bigserial PRIMARY KEY,
-  profile_id bigint NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  product_id bigint NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
-  warehouse_id bigint REFERENCES public.warehouses(id) ON DELETE SET NULL,
+  profile_id bigint REFERENCES public.profiles(id) ON DELETE CASCADE,
+  product_id bigint REFERENCES public.products(id) ON DELETE CASCADE,
+  warehouse_id bigint,
   qty_on_hand numeric(18,4) NOT NULL DEFAULT 0,
   qty_reserved numeric(18,4) NOT NULL DEFAULT 0,
-  qty_available numeric(18,4) GENERATED ALWAYS AS (qty_on_hand - qty_reserved) STORED,
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (product_id, warehouse_id)
+  updated_at timestamptz NOT NULL DEFAULT now()
 );
+SELECT public.sa_add_column('stock_levels', 'profile_id', 'bigint');
+SELECT public.sa_add_column('stock_levels', 'product_id', 'bigint');
+SELECT public.sa_add_column('stock_levels', 'warehouse_id', 'bigint');
+SELECT public.sa_add_column('stock_levels', 'qty_on_hand', 'numeric(18,4)', '0');
+SELECT public.sa_add_column('stock_levels', 'qty_reserved', 'numeric(18,4)', '0');
+SELECT public.sa_create_index('idx_stock_levels_profile', 'stock_levels', 'profile_id');
+SELECT public.sa_create_index('idx_stock_levels_product', 'stock_levels', 'product_id');
+
+-- qty_available generated column (optional)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='stock_levels')
+     AND NOT EXISTS (
+       SELECT 1 FROM information_schema.columns
+       WHERE table_schema='public' AND table_name='stock_levels' AND column_name='qty_available'
+     ) THEN
+    ALTER TABLE public.stock_levels
+      ADD COLUMN qty_available numeric(18,4)
+      GENERATED ALWAYS AS (qty_on_hand - qty_reserved) STORED;
+  END IF;
+EXCEPTION WHEN others THEN
+  RAISE NOTICE 'qty_available skip: %', SQLERRM;
+END $$;
 
 CREATE TABLE IF NOT EXISTS public.stock_movements (
   id bigserial PRIMARY KEY,
-  profile_id bigint NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  product_id bigint NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
-  warehouse_id bigint REFERENCES public.warehouses(id) ON DELETE SET NULL,
-  movement_type text NOT NULL, -- receipt | issue | transfer | adjustment | count
-  quantity numeric(18,4) NOT NULL,
+  profile_id bigint REFERENCES public.profiles(id) ON DELETE CASCADE,
+  product_id bigint REFERENCES public.products(id) ON DELETE CASCADE,
+  warehouse_id bigint,
+  movement_type text NOT NULL DEFAULT 'adjustment',
+  quantity numeric(18,4) NOT NULL DEFAULT 0,
   reference_type text,
   reference_id text,
   notes text,
   created_by text,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+SELECT public.sa_add_column('stock_movements', 'profile_id', 'bigint');
+SELECT public.sa_create_index('idx_stock_movements_profile', 'stock_movements', 'profile_id');
+SELECT public.sa_create_index('idx_stock_movements_product', 'stock_movements', 'product_id');
 
-CREATE INDEX IF NOT EXISTS idx_stock_movements_profile ON public.stock_movements(profile_id);
-CREATE INDEX IF NOT EXISTS idx_stock_movements_product ON public.stock_movements(product_id);
+-- =============================================================================
+-- 6) CONTAINERS
+-- =============================================================================
+SELECT public.sa_add_column('containers', 'profile_id', 'bigint');
+SELECT public.sa_add_column('containers', 'assigned_contractor', 'text');
+SELECT public.sa_add_column('containers', 'contractor_id', 'bigint');
+SELECT public.sa_add_column('containers', 'tags', 'text[]', '''{}''');
+SELECT public.sa_add_column('containers', 'wifi_portal_url', 'text');
+SELECT public.sa_add_column('containers', 'capacity_units', 'numeric(18,2)');
+SELECT public.sa_add_column('containers', 'monthly_target', 'numeric(18,2)');
+SELECT public.sa_add_column('containers', 'metadata', 'jsonb', '''{}''::jsonb');
+SELECT public.sa_add_fk('containers', 'profile_id', 'profiles', 'id', 'CASCADE');
 
--- -----------------------------------------------------------------------------
--- 6) CONTAINERS (retail outlets)
--- -----------------------------------------------------------------------------
-ALTER TABLE public.containers
-  ADD COLUMN IF NOT EXISTS profile_id bigint REFERENCES public.profiles(id) ON DELETE CASCADE,
-  ADD COLUMN IF NOT EXISTS assigned_contractor text,
-  ADD COLUMN IF NOT EXISTS contractor_id bigint,
-  ADD COLUMN IF NOT EXISTS tags text[] DEFAULT '{}',
-  ADD COLUMN IF NOT EXISTS wifi_portal_url text,
-  ADD COLUMN IF NOT EXISTS capacity_units numeric(18,2),
-  ADD COLUMN IF NOT EXISTS monthly_target numeric(18,2),
-  ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}'::jsonb;
-
-CREATE INDEX IF NOT EXISTS idx_containers_profile ON public.containers(profile_id);
-CREATE INDEX IF NOT EXISTS idx_containers_status ON public.containers(status);
-CREATE INDEX IF NOT EXISTS idx_containers_code ON public.containers(container_code);
+SELECT public.sa_create_index('idx_containers_profile', 'containers', 'profile_id');
+SELECT public.sa_create_index('idx_containers_status', 'containers', 'status');
+SELECT public.sa_create_index('idx_containers_code', 'containers', 'container_code');
 
 CREATE TABLE IF NOT EXISTS public.container_contractors (
   id bigserial PRIMARY KEY,
-  profile_id bigint NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  profile_id bigint REFERENCES public.profiles(id) ON DELETE CASCADE,
   full_name text NOT NULL,
   email text,
   phone text,
@@ -259,12 +383,18 @@ CREATE TABLE IF NOT EXISTS public.container_contractors (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
-
-CREATE INDEX IF NOT EXISTS idx_container_contractors_profile ON public.container_contractors(profile_id);
+SELECT public.sa_add_column('container_contractors', 'profile_id', 'bigint');
+SELECT public.sa_create_index('idx_container_contractors_profile', 'container_contractors', 'profile_id');
 
 DO $$
 BEGIN
-  IF NOT EXISTS (
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema='public' AND table_name='containers' AND column_name='contractor_id'
+  ) AND EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema='public' AND table_name='container_contractors'
+  ) AND NOT EXISTS (
     SELECT 1 FROM information_schema.table_constraints
     WHERE constraint_name = 'containers_contractor_id_fkey'
   ) THEN
@@ -273,13 +403,13 @@ BEGIN
       FOREIGN KEY (contractor_id) REFERENCES public.container_contractors(id) ON DELETE SET NULL;
   END IF;
 EXCEPTION WHEN others THEN
-  NULL;
+  RAISE NOTICE 'containers contractor FK skip: %', SQLERRM;
 END $$;
 
 CREATE TABLE IF NOT EXISTS public.container_sales (
   id bigserial PRIMARY KEY,
-  profile_id bigint NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  container_id bigint NOT NULL REFERENCES public.containers(id) ON DELETE CASCADE,
+  profile_id bigint REFERENCES public.profiles(id) ON DELETE CASCADE,
+  container_id bigint REFERENCES public.containers(id) ON DELETE CASCADE,
   sale_date date NOT NULL DEFAULT CURRENT_DATE,
   gross_amount numeric(18,2) NOT NULL DEFAULT 0,
   net_amount numeric(18,2) NOT NULL DEFAULT 0,
@@ -289,14 +419,14 @@ CREATE TABLE IF NOT EXISTS public.container_sales (
   created_by text,
   created_at timestamptz NOT NULL DEFAULT now()
 );
-
-CREATE INDEX IF NOT EXISTS idx_container_sales_container ON public.container_sales(container_id);
+SELECT public.sa_add_column('container_sales', 'profile_id', 'bigint');
+SELECT public.sa_create_index('idx_container_sales_container', 'container_sales', 'container_id');
 
 CREATE TABLE IF NOT EXISTS public.container_payouts (
   id bigserial PRIMARY KEY,
-  profile_id bigint NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  container_id bigint REFERENCES public.containers(id) ON DELETE SET NULL,
-  contractor_id bigint REFERENCES public.container_contractors(id) ON DELETE SET NULL,
+  profile_id bigint REFERENCES public.profiles(id) ON DELETE CASCADE,
+  container_id bigint,
+  contractor_id bigint,
   period_start date,
   period_end date,
   amount numeric(18,2) NOT NULL DEFAULT 0,
@@ -306,13 +436,14 @@ CREATE TABLE IF NOT EXISTS public.container_payouts (
   metadata jsonb DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+SELECT public.sa_add_column('container_payouts', 'profile_id', 'bigint');
 
--- -----------------------------------------------------------------------------
+-- =============================================================================
 -- 7) CUSTOMERS / SALES
--- -----------------------------------------------------------------------------
+-- =============================================================================
 CREATE TABLE IF NOT EXISTS public.customers (
   id bigserial PRIMARY KEY,
-  profile_id bigint NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  profile_id bigint REFERENCES public.profiles(id) ON DELETE CASCADE,
   trading_name text NOT NULL,
   legal_name text,
   email text,
@@ -322,18 +453,18 @@ CREATE TABLE IF NOT EXISTS public.customers (
   billing_address text,
   shipping_address text,
   credit_limit numeric(18,2) DEFAULT 0,
-  linked_profile_id bigint REFERENCES public.profiles(id) ON DELETE SET NULL,
+  linked_profile_id bigint,
   metadata jsonb DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
-
-CREATE INDEX IF NOT EXISTS idx_customers_profile ON public.customers(profile_id);
+SELECT public.sa_add_column('customers', 'profile_id', 'bigint');
+SELECT public.sa_create_index('idx_customers_profile', 'customers', 'profile_id');
 
 CREATE TABLE IF NOT EXISTS public.sales_orders (
   id bigserial PRIMARY KEY,
-  profile_id bigint NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  customer_id bigint REFERENCES public.customers(id) ON DELETE SET NULL,
+  profile_id bigint REFERENCES public.profiles(id) ON DELETE CASCADE,
+  customer_id bigint,
   order_number text,
   status text NOT NULL DEFAULT 'draft',
   currency text DEFAULT 'ZAR',
@@ -349,13 +480,13 @@ CREATE TABLE IF NOT EXISTS public.sales_orders (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
-
-CREATE INDEX IF NOT EXISTS idx_sales_orders_profile ON public.sales_orders(profile_id);
-CREATE INDEX IF NOT EXISTS idx_sales_orders_status ON public.sales_orders(status);
+SELECT public.sa_add_column('sales_orders', 'profile_id', 'bigint');
+SELECT public.sa_create_index('idx_sales_orders_profile', 'sales_orders', 'profile_id');
+SELECT public.sa_create_index('idx_sales_orders_status', 'sales_orders', 'status');
 
 CREATE TABLE IF NOT EXISTS public.leads (
   id bigserial PRIMARY KEY,
-  profile_id bigint NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  profile_id bigint REFERENCES public.profiles(id) ON DELETE CASCADE,
   name text NOT NULL,
   company_name text,
   email text,
@@ -369,15 +500,17 @@ CREATE TABLE IF NOT EXISTS public.leads (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
+SELECT public.sa_add_column('leads', 'profile_id', 'bigint');
+SELECT public.sa_create_index('idx_leads_profile', 'leads', 'profile_id');
 
--- -----------------------------------------------------------------------------
--- 8) DISTRIBUTION / LOGISTICS
--- -----------------------------------------------------------------------------
+-- =============================================================================
+-- 8) DISTRIBUTION
+-- =============================================================================
 CREATE TABLE IF NOT EXISTS public.shipments (
   id bigserial PRIMARY KEY,
-  profile_id bigint NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  direction text NOT NULL DEFAULT 'outbound', -- inbound | outbound
-  reference_type text, -- po | sales_order
+  profile_id bigint REFERENCES public.profiles(id) ON DELETE CASCADE,
+  direction text NOT NULL DEFAULT 'outbound',
+  reference_type text,
   reference_id bigint,
   carrier text,
   tracking_number text,
@@ -391,12 +524,12 @@ CREATE TABLE IF NOT EXISTS public.shipments (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
-
-CREATE INDEX IF NOT EXISTS idx_shipments_profile ON public.shipments(profile_id);
+SELECT public.sa_add_column('shipments', 'profile_id', 'bigint');
+SELECT public.sa_create_index('idx_shipments_profile', 'shipments', 'profile_id');
 
 CREATE TABLE IF NOT EXISTS public.carriers (
   id bigserial PRIMARY KEY,
-  profile_id bigint NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  profile_id bigint REFERENCES public.profiles(id) ON DELETE CASCADE,
   name text NOT NULL,
   contact_email text,
   contact_phone text,
@@ -405,28 +538,30 @@ CREATE TABLE IF NOT EXISTS public.carriers (
   metadata jsonb DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+SELECT public.sa_add_column('carriers', 'profile_id', 'bigint');
 
--- -----------------------------------------------------------------------------
+-- =============================================================================
 -- 9) QUALITY & COMPLIANCE
--- -----------------------------------------------------------------------------
+-- =============================================================================
 CREATE TABLE IF NOT EXISTS public.quality_inspections (
   id bigserial PRIMARY KEY,
-  profile_id bigint NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  related_type text, -- po | product | shipment | container
+  profile_id bigint REFERENCES public.profiles(id) ON DELETE CASCADE,
+  related_type text,
   related_id bigint,
   inspection_type text DEFAULT 'incoming',
   status text NOT NULL DEFAULT 'open',
-  result text, -- pass | fail | conditional
+  result text,
   inspector text,
   findings text,
   inspected_at timestamptz DEFAULT now(),
   metadata jsonb DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+SELECT public.sa_add_column('quality_inspections', 'profile_id', 'bigint');
 
 CREATE TABLE IF NOT EXISTS public.haccp_records (
   id bigserial PRIMARY KEY,
-  profile_id bigint NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  profile_id bigint REFERENCES public.profiles(id) ON DELETE CASCADE,
   ccp_name text NOT NULL,
   measured_value text,
   unit text,
@@ -437,10 +572,11 @@ CREATE TABLE IF NOT EXISTS public.haccp_records (
   metadata jsonb DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+SELECT public.sa_add_column('haccp_records', 'profile_id', 'bigint');
 
-CREATE TABLE IF NOT EXISTS public.certificates (
+CREATE TABLE IF NOT EXISTS public.compliance_certificates (
   id bigserial PRIMARY KEY,
-  profile_id bigint NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  profile_id bigint REFERENCES public.profiles(id) ON DELETE CASCADE,
   name text NOT NULL,
   certificate_type text,
   issuer text,
@@ -452,39 +588,55 @@ CREATE TABLE IF NOT EXISTS public.certificates (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
+SELECT public.sa_add_column('compliance_certificates', 'profile_id', 'bigint');
 
--- RIAD enhancements
-ALTER TABLE public.riad_logs
-  ADD COLUMN IF NOT EXISTS profile_id bigint REFERENCES public.profiles(id) ON DELETE CASCADE,
-  ADD COLUMN IF NOT EXISTS mitigation_plan text,
-  ADD COLUMN IF NOT EXISTS residual_rpn int;
+-- RIAD: add profile_id only if missing; backfill from owner_id
+SELECT public.sa_add_column('riad_logs', 'profile_id', 'bigint');
+SELECT public.sa_add_column('riad_logs', 'mitigation_plan', 'text');
+SELECT public.sa_add_column('riad_logs', 'residual_rpn', 'int');
+SELECT public.sa_add_fk('riad_logs', 'profile_id', 'profiles', 'id', 'CASCADE');
 
-UPDATE public.riad_logs SET profile_id = owner_id WHERE profile_id IS NULL AND owner_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_riad_profile ON public.riad_logs(profile_id);
-CREATE INDEX IF NOT EXISTS idx_riad_owner ON public.riad_logs(owner_id);
-CREATE INDEX IF NOT EXISTS idx_riad_status ON public.riad_logs(status);
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema='public' AND table_name='riad_logs' AND column_name='profile_id'
+  ) AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema='public' AND table_name='riad_logs' AND column_name='owner_id'
+  ) THEN
+    UPDATE public.riad_logs
+    SET profile_id = owner_id
+    WHERE profile_id IS NULL AND owner_id IS NOT NULL;
+  END IF;
+END $$;
 
--- -----------------------------------------------------------------------------
--- 10) FINANCE / ACCOUNTING
--- -----------------------------------------------------------------------------
+SELECT public.sa_create_index('idx_riad_profile', 'riad_logs', 'profile_id');
+SELECT public.sa_create_index('idx_riad_owner', 'riad_logs', 'owner_id');
+SELECT public.sa_create_index('idx_riad_status', 'riad_logs', 'status');
+
+-- =============================================================================
+-- 10) FINANCE
+-- =============================================================================
 CREATE TABLE IF NOT EXISTS public.chart_of_accounts (
   id bigserial PRIMARY KEY,
-  profile_id bigint NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  profile_id bigint REFERENCES public.profiles(id) ON DELETE CASCADE,
   code text NOT NULL,
   name text NOT NULL,
-  account_type text NOT NULL, -- asset | liability | equity | revenue | expense
-  parent_id bigint REFERENCES public.chart_of_accounts(id) ON DELETE SET NULL,
+  account_type text NOT NULL,
+  parent_id bigint,
   is_active boolean DEFAULT true,
   currency text DEFAULT 'ZAR',
   metadata jsonb DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (profile_id, code)
+  updated_at timestamptz NOT NULL DEFAULT now()
 );
+SELECT public.sa_add_column('chart_of_accounts', 'profile_id', 'bigint');
+SELECT public.sa_create_index('idx_coa_profile', 'chart_of_accounts', 'profile_id');
 
 CREATE TABLE IF NOT EXISTS public.journal_entries (
   id bigserial PRIMARY KEY,
-  profile_id bigint NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  profile_id bigint REFERENCES public.profiles(id) ON DELETE CASCADE,
   entry_date date NOT NULL DEFAULT CURRENT_DATE,
   memo text,
   status text NOT NULL DEFAULT 'posted',
@@ -493,11 +645,12 @@ CREATE TABLE IF NOT EXISTS public.journal_entries (
   created_by text,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+SELECT public.sa_add_column('journal_entries', 'profile_id', 'bigint');
 
 CREATE TABLE IF NOT EXISTS public.journal_lines (
   id bigserial PRIMARY KEY,
-  journal_entry_id bigint NOT NULL REFERENCES public.journal_entries(id) ON DELETE CASCADE,
-  account_id bigint NOT NULL REFERENCES public.chart_of_accounts(id) ON DELETE RESTRICT,
+  journal_entry_id bigint REFERENCES public.journal_entries(id) ON DELETE CASCADE,
+  account_id bigint,
   debit numeric(18,2) DEFAULT 0,
   credit numeric(18,2) DEFAULT 0,
   memo text
@@ -505,10 +658,10 @@ CREATE TABLE IF NOT EXISTS public.journal_lines (
 
 CREATE TABLE IF NOT EXISTS public.invoices (
   id bigserial PRIMARY KEY,
-  profile_id bigint NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  direction text NOT NULL DEFAULT 'receivable', -- receivable | payable
+  profile_id bigint REFERENCES public.profiles(id) ON DELETE CASCADE,
+  direction text NOT NULL DEFAULT 'receivable',
   counterparty_name text,
-  counterparty_profile_id bigint REFERENCES public.profiles(id) ON DELETE SET NULL,
+  counterparty_profile_id bigint,
   invoice_number text,
   status text NOT NULL DEFAULT 'draft',
   issue_date date DEFAULT CURRENT_DATE,
@@ -518,23 +671,23 @@ CREATE TABLE IF NOT EXISTS public.invoices (
   tax_amount numeric(18,2) DEFAULT 0,
   total_amount numeric(18,2) DEFAULT 0,
   amount_paid numeric(18,2) DEFAULT 0,
-  po_id bigint REFERENCES public.purchase_orders(id) ON DELETE SET NULL,
-  sales_order_id bigint REFERENCES public.sales_orders(id) ON DELETE SET NULL,
+  po_id bigint,
+  sales_order_id bigint,
   notes text,
   metadata jsonb DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
-
-CREATE INDEX IF NOT EXISTS idx_invoices_profile ON public.invoices(profile_id);
-CREATE INDEX IF NOT EXISTS idx_invoices_status ON public.invoices(status);
+SELECT public.sa_add_column('invoices', 'profile_id', 'bigint');
+SELECT public.sa_create_index('idx_invoices_profile', 'invoices', 'profile_id');
+SELECT public.sa_create_index('idx_invoices_status', 'invoices', 'status');
 
 CREATE TABLE IF NOT EXISTS public.payments (
   id bigserial PRIMARY KEY,
-  profile_id bigint NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  invoice_id bigint REFERENCES public.invoices(id) ON DELETE SET NULL,
+  profile_id bigint REFERENCES public.profiles(id) ON DELETE CASCADE,
+  invoice_id bigint,
   direction text NOT NULL DEFAULT 'inbound',
-  amount numeric(18,2) NOT NULL,
+  amount numeric(18,2) NOT NULL DEFAULT 0,
   currency text DEFAULT 'ZAR',
   method text,
   reference text,
@@ -544,13 +697,14 @@ CREATE TABLE IF NOT EXISTS public.payments (
   metadata jsonb DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+SELECT public.sa_add_column('payments', 'profile_id', 'bigint');
 
--- -----------------------------------------------------------------------------
--- 11) PEOPLE / HR
--- -----------------------------------------------------------------------------
+-- =============================================================================
+-- 11) PEOPLE
+-- =============================================================================
 CREATE TABLE IF NOT EXISTS public.employees (
   id bigserial PRIMARY KEY,
-  profile_id bigint NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  profile_id bigint REFERENCES public.profiles(id) ON DELETE CASCADE,
   user_id text,
   full_name text NOT NULL,
   email text,
@@ -561,18 +715,18 @@ CREATE TABLE IF NOT EXISTS public.employees (
   status text NOT NULL DEFAULT 'active',
   start_date date,
   end_date date,
-  manager_id bigint REFERENCES public.employees(id) ON DELETE SET NULL,
+  manager_id bigint,
   metadata jsonb DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
-
-CREATE INDEX IF NOT EXISTS idx_employees_profile ON public.employees(profile_id);
+SELECT public.sa_add_column('employees', 'profile_id', 'bigint');
+SELECT public.sa_create_index('idx_employees_profile', 'employees', 'profile_id');
 
 CREATE TABLE IF NOT EXISTS public.training_records (
   id bigserial PRIMARY KEY,
-  profile_id bigint NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  employee_id bigint REFERENCES public.employees(id) ON DELETE CASCADE,
+  profile_id bigint REFERENCES public.profiles(id) ON DELETE CASCADE,
+  employee_id bigint,
   course_name text NOT NULL,
   status text DEFAULT 'assigned',
   completed_at timestamptz,
@@ -580,20 +734,22 @@ CREATE TABLE IF NOT EXISTS public.training_records (
   metadata jsonb DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+SELECT public.sa_add_column('training_records', 'profile_id', 'bigint');
 
--- -----------------------------------------------------------------------------
--- 12) PROJECTS (enhance existing)
--- -----------------------------------------------------------------------------
-ALTER TABLE public.projects
-  ADD COLUMN IF NOT EXISTS owner_user_id text,
-  ADD COLUMN IF NOT EXISTS budget numeric(18,2),
-  ADD COLUMN IF NOT EXISTS end_date date,
-  ADD COLUMN IF NOT EXISTS priority text DEFAULT 'medium',
-  ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}'::jsonb;
+-- =============================================================================
+-- 12) PROJECTS
+-- =============================================================================
+SELECT public.sa_add_column('projects', 'owner_user_id', 'text');
+SELECT public.sa_add_column('projects', 'budget', 'numeric(18,2)');
+SELECT public.sa_add_column('projects', 'end_date', 'date');
+SELECT public.sa_add_column('projects', 'priority', 'text', '''medium''');
+SELECT public.sa_add_column('projects', 'metadata', 'jsonb', '''{}''::jsonb');
+SELECT public.sa_add_column('projects', 'profile_id', 'bigint');
+SELECT public.sa_create_index('idx_projects_profile', 'projects', 'profile_id');
 
 CREATE TABLE IF NOT EXISTS public.project_tasks (
   id bigserial PRIMARY KEY,
-  project_id bigint NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
+  project_id bigint REFERENCES public.projects(id) ON DELETE CASCADE,
   title text NOT NULL,
   status text NOT NULL DEFAULT 'todo',
   assignee_user_id text,
@@ -606,23 +762,24 @@ CREATE TABLE IF NOT EXISTS public.project_tasks (
 
 CREATE TABLE IF NOT EXISTS public.timesheets (
   id bigserial PRIMARY KEY,
-  profile_id bigint NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  profile_id bigint REFERENCES public.profiles(id) ON DELETE CASCADE,
   user_id text,
-  employee_id bigint REFERENCES public.employees(id) ON DELETE SET NULL,
-  project_id bigint REFERENCES public.projects(id) ON DELETE SET NULL,
+  employee_id bigint,
+  project_id bigint,
   work_date date NOT NULL DEFAULT CURRENT_DATE,
   hours numeric(6,2) NOT NULL DEFAULT 0,
   notes text,
   status text DEFAULT 'submitted',
   created_at timestamptz NOT NULL DEFAULT now()
 );
+SELECT public.sa_add_column('timesheets', 'profile_id', 'bigint');
 
--- -----------------------------------------------------------------------------
+-- =============================================================================
 -- 13) SUSTAINABILITY
--- -----------------------------------------------------------------------------
+-- =============================================================================
 CREATE TABLE IF NOT EXISTS public.carbon_entries (
   id bigserial PRIMARY KEY,
-  profile_id bigint NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  profile_id bigint REFERENCES public.profiles(id) ON DELETE CASCADE,
   category text NOT NULL,
   amount_kgco2e numeric(18,4) NOT NULL DEFAULT 0,
   period_start date,
@@ -632,10 +789,11 @@ CREATE TABLE IF NOT EXISTS public.carbon_entries (
   metadata jsonb DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+SELECT public.sa_add_column('carbon_entries', 'profile_id', 'bigint');
 
 CREATE TABLE IF NOT EXISTS public.sustainability_certificates (
   id bigserial PRIMARY KEY,
-  profile_id bigint NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  profile_id bigint REFERENCES public.profiles(id) ON DELETE CASCADE,
   name text NOT NULL,
   standard text,
   issuer text,
@@ -645,10 +803,11 @@ CREATE TABLE IF NOT EXISTS public.sustainability_certificates (
   status text DEFAULT 'active',
   created_at timestamptz NOT NULL DEFAULT now()
 );
+SELECT public.sa_add_column('sustainability_certificates', 'profile_id', 'bigint');
 
--- -----------------------------------------------------------------------------
--- 14) AUDIT / ACTIVITY
--- -----------------------------------------------------------------------------
+-- =============================================================================
+-- 14) AUDIT
+-- =============================================================================
 CREATE TABLE IF NOT EXISTS public.activity_log (
   id bigserial PRIMARY KEY,
   profile_id bigint REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -660,24 +819,29 @@ CREATE TABLE IF NOT EXISTS public.activity_log (
   metadata jsonb DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+SELECT public.sa_add_column('activity_log', 'profile_id', 'bigint');
+SELECT public.sa_create_index('idx_activity_log_profile', 'activity_log', 'profile_id');
+SELECT public.sa_create_index('idx_activity_log_created', 'activity_log', 'created_at');
 
-CREATE INDEX IF NOT EXISTS idx_activity_log_profile ON public.activity_log(profile_id);
-CREATE INDEX IF NOT EXISTS idx_activity_log_created ON public.activity_log(created_at DESC);
+-- =============================================================================
+-- 15) INVITATIONS
+-- =============================================================================
+SELECT public.sa_add_column('invitations', 'invite_kind', 'text', '''team''');
+SELECT public.sa_add_column('invitations', 'metadata', 'jsonb', '''{}''::jsonb');
+SELECT public.sa_add_column('invitations', 'profile_id', 'bigint');
+SELECT public.sa_create_index('idx_invitations_profile', 'invitations', 'profile_id');
+SELECT public.sa_create_index('idx_invitations_token', 'invitations', 'token');
+SELECT public.sa_create_index('idx_invitations_status', 'invitations', 'status');
 
--- -----------------------------------------------------------------------------
--- 15) INVITATIONS enhancements
--- -----------------------------------------------------------------------------
-ALTER TABLE public.invitations
-  ADD COLUMN IF NOT EXISTS invite_kind text DEFAULT 'team',
-  ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}'::jsonb;
+-- documents / company_documents safety
+SELECT public.sa_add_column('documents', 'profile_id', 'bigint');
+SELECT public.sa_add_column('company_documents', 'profile_id', 'bigint');
+SELECT public.sa_create_index('idx_documents_profile', 'documents', 'profile_id');
+SELECT public.sa_create_index('idx_company_documents_profile', 'company_documents', 'profile_id');
 
-CREATE INDEX IF NOT EXISTS idx_invitations_profile ON public.invitations(profile_id);
-CREATE INDEX IF NOT EXISTS idx_invitations_token ON public.invitations(token);
-CREATE INDEX IF NOT EXISTS idx_invitations_status ON public.invitations(status);
-
--- -----------------------------------------------------------------------------
--- 16) updated_at triggers (best-effort)
--- -----------------------------------------------------------------------------
+-- =============================================================================
+-- 16) updated_at triggers
+-- =============================================================================
 DO $$
 DECLARE
   t text;
@@ -685,10 +849,12 @@ BEGIN
   FOREACH t IN ARRAY ARRAY[
     'profiles','business_users','products','warehouses','customers','sales_orders',
     'leads','shipments','projects','project_tasks','invoices','employees',
-    'container_contractors','chart_of_accounts','certificates'
+    'container_contractors','chart_of_accounts','compliance_certificates'
   ]
   LOOP
-    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name=t) THEN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name=t)
+       AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name=t AND column_name='updated_at')
+    THEN
       EXECUTE format('DROP TRIGGER IF EXISTS trg_%s_updated_at ON public.%I', t, t);
       EXECUTE format(
         'CREATE TRIGGER trg_%s_updated_at BEFORE UPDATE ON public.%I FOR EACH ROW EXECUTE FUNCTION public.set_updated_at()',
@@ -698,13 +864,9 @@ BEGIN
   END LOOP;
 END $$;
 
--- -----------------------------------------------------------------------------
--- 17) Basic RLS enablement (service role bypasses RLS; keep anon readable where needed)
---     NOTE: Tighten further once Privy→JWT integration is complete.
--- -----------------------------------------------------------------------------
--- Enable RLS on sensitive new tables but allow authenticated-style access via policies
--- that currently permit all for transition (replace with real JWT claims later).
-
+-- =============================================================================
+-- 17) RLS (transitional open policies; service role bypasses RLS)
+-- =============================================================================
 DO $$
 DECLARE
   t text;
@@ -714,7 +876,7 @@ BEGIN
   FOREACH t IN ARRAY ARRAY[
     'warehouses','stock_levels','stock_movements','container_contractors',
     'container_sales','container_payouts','customers','sales_orders','leads',
-    'shipments','carriers','quality_inspections','haccp_records','certificates',
+    'shipments','carriers','quality_inspections','haccp_records','compliance_certificates',
     'chart_of_accounts','journal_entries','journal_lines','invoices','payments',
     'employees','training_records','project_tasks','timesheets','carbon_entries',
     'sustainability_certificates','activity_log','requisitions','supplier_scorecards'
@@ -724,7 +886,6 @@ BEGIN
       EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
       pol_select := t || '_select_all';
       pol_write := t || '_write_all';
-      -- Transitional open policies (app uses service role for privileged writes)
       EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', pol_select, t);
       EXECUTE format('CREATE POLICY %I ON public.%I FOR SELECT USING (true)', pol_select, t);
       EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', pol_write, t);
@@ -737,5 +898,9 @@ BEGIN
 END $$;
 
 -- =============================================================================
--- End of migration
+-- Done
 -- =============================================================================
+DO $$
+BEGIN
+  RAISE NOTICE 'SupplierAdvisor world-class schema v2 applied successfully';
+END $$;

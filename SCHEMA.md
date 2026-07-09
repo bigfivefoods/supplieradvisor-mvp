@@ -72,7 +72,7 @@ The migration is idempotent (`IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS`).
 |-------|---------|
 | `quality_inspections` | Incoming / process inspections |
 | `haccp_records` | CCP measurements |
-| `certificates` | Compliance certificates |
+| `compliance_certificates` | Compliance certificates (named to avoid clashing with any legacy `certificates` table) |
 | `riad_logs` | Risk (RIAD) logs (profile-linked) |
 
 ### Finance / accounting
