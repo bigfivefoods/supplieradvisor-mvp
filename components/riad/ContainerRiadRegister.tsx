@@ -90,6 +90,8 @@ export default function ContainerRiadRegister({
     container_id: fixedContainerId ? String(fixedContainerId) : '',
     owner_name: actorName || '',
   });
+  const [closing, setClosing] = useState(false);
+  const [resolutionText, setResolutionText] = useState('');
 
   const rpn = computeRpn(form.severity, form.likelihood, form.time_horizon);
 
@@ -223,9 +225,6 @@ export default function ContainerRiadRegister({
       setSaving(false);
     }
   };
-
-  const [closing, setClosing] = useState(false);
-  const [resolutionText, setResolutionText] = useState('');
 
   const updateStatus = async (
     item: RiadRecord,
