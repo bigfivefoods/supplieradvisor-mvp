@@ -5,7 +5,10 @@ import {
   isInviteExpired,
   userIdMatchVariants,
 } from '@/lib/auth/identity';
-import { logActivity } from '@/lib/customers/access';
+import { isCustomerInvitesEnabled, logActivity } from '@/lib/customers/access';
+
+/** Stuck claiming lease — only same-user restore after this age (matches design reaper window). */
+const CLAIMING_STALE_MS = 5 * 60 * 1000;
 
 /**
  * POST /api/invites/claim
@@ -106,6 +109,12 @@ export async function POST(request: NextRequest) {
     }
 
     if (kind === 'customer') {
+      if (!isCustomerInvitesEnabled()) {
+        return NextResponse.json(
+          { error: 'Customer invites are disabled', code: 'CUSTOMER_INVITES_DISABLED' },
+          { status: 503 }
+        );
+      }
       return await claimCustomerInvite({
         supabase,
         token,
@@ -354,7 +363,7 @@ async function claimCustomerInvite(opts: {
     );
   }
 
-  // Same-user retry while stuck in claiming: finalize if CRM already linked, else restore to pending
+  // Same-user claiming recovery: finalize if CRM linked; else restore only when lease is stale
   if (invitePreview.status === 'claiming') {
     const variants = userIdMatchVariants(userId);
     const sameUser =
@@ -415,7 +424,22 @@ async function claimCustomerInvite(opts: {
       });
     }
 
-    // Mid-claim failure recovery: restore pending so this user can retry the full sequence
+    // Do NOT restore fresh claiming (double-submit race). Only reclaim after staleness.
+    const claimingStartedAt = invitePreview.updated_at
+      ? new Date(invitePreview.updated_at).getTime()
+      : 0;
+    const claimingAgeMs = Date.now() - claimingStartedAt;
+    if (!claimingStartedAt || claimingAgeMs < CLAIMING_STALE_MS) {
+      return NextResponse.json(
+        {
+          error:
+            'This invitation is already being claimed. Please try again shortly.',
+        },
+        { status: 409 }
+      );
+    }
+
+    // Stale claiming + same user + CRM not linked → restore pending for full retry
     await restoreInvitationPending(supabase, Number(invitePreview.id));
   } else if (invitePreview.status !== 'pending') {
     return NextResponse.json(
@@ -467,6 +491,7 @@ async function claimCustomerInvite(opts: {
         'id, profile_id, trading_name, legal_name, email, contact_name, phone, website, industry, city, country, region, linked_profile_id, connection_id, invite_status'
       )
       .eq('id', customerId)
+      .eq('profile_id', sellerProfileId)
       .maybeSingle();
 
     if (custErr) {
@@ -477,8 +502,63 @@ async function claimCustomerInvite(opts: {
         { status: 500 }
       );
     }
+    if (!customer) {
+      await restoreInvitationPending(supabase, invitationId);
+      return NextResponse.json(
+        { error: 'Customer record not found for this invitation.' },
+        { status: 404 }
+      );
+    }
 
-    // Resolve buyer profile: target membership OR create-on-claim
+    // Already connected: do not overwrite linked buyer (defense-in-depth)
+    if (customer.linked_profile_id) {
+      const existingLinked = Number(customer.linked_profile_id);
+      const variants = userIdMatchVariants(userId);
+      const { data: linkMembership } = await supabase
+        .from('business_users')
+        .select('id')
+        .eq('profile_id', existingLinked)
+        .eq('status', 'active')
+        .in('user_id', variants)
+        .limit(1);
+
+      // Finalize invitation so token is not left pending/claiming against a live link
+      await supabase
+        .from('customer_invitations')
+        .update({
+          status: 'accepted',
+          accepted_at: now,
+          token: null,
+          user_id: userId,
+          updated_at: now,
+        })
+        .eq('id', invitationId)
+        .in('status', ['claiming', 'pending']);
+
+      if (linkMembership && linkMembership.length > 0) {
+        // Idempotent success when claimer belongs to the already-linked buyer company
+        return NextResponse.json({
+          success: true,
+          alreadyMember: true,
+          kind: 'customer',
+          buyerProfileId: existingLinked,
+          profileId: existingLinked,
+          connectionId: customer.connection_id,
+          message: 'Customer is already connected.',
+        });
+      }
+
+      return NextResponse.json(
+        {
+          error:
+            'This customer is already connected to a company profile. Contact the seller if you need help.',
+          linked_profile_id: existingLinked,
+        },
+        { status: 409 }
+      );
+    }
+
+    // Resolve buyer profile: target membership OR claim-time membership match OR create-on-claim
     if (locked.target_profile_id) {
       const targetId = Number(locked.target_profile_id);
       const variants = userIdMatchVariants(userId);
@@ -510,83 +590,117 @@ async function claimCustomerInvite(opts: {
       }
       buyerProfileId = targetId;
     } else {
-      const tradingName =
-        customer?.trading_name || locked.customer_name || 'Customer';
-      const legalName = customer?.legal_name || tradingName;
-      const contactName =
-        (name ? String(name).trim() : null) ||
-        customer?.contact_name ||
-        locked.full_name ||
-        null;
-      const contactPhone =
-        (phone ? String(phone).trim() : null) || customer?.phone || null;
-
-      const { data: newProfile, error: profileInsertErr } = await supabase
-        .from('profiles')
-        .insert({
-          trading_name: tradingName,
-          legal_name: legalName,
-          email: inviteEmail,
-          contact_name: contactName,
-          contact_phone: contactPhone,
-          website: customer?.website || null,
-          industry: customer?.industry || null,
-          city: customer?.city || null,
-          country: customer?.country || 'South Africa',
-          relationship_type: 'customer',
-          supplier_status: 'active',
-          user_id: userId,
-          claimed_at: now,
-          created_at: now,
-          onboarding_complete: false,
-          metadata: {
-            source: 'customer_invite',
-            invitation_id: invitationId,
-            seller_profile_id: sellerProfileId,
-          },
-        })
-        .select('id')
-        .single();
-
-      if (profileInsertErr || !newProfile) {
-        console.error('Customer claim profile insert error:', profileInsertErr);
+      // Claim-time resolve: prefer an existing active membership whose profile email matches
+      const membershipMatch = await resolveBuyerProfileFromMembership(
+        supabase,
+        userId,
+        inviteEmail
+      );
+      if (membershipMatch.error) {
         await restoreInvitationPending(supabase, invitationId);
         return NextResponse.json(
-          {
-            error: 'Failed to create buyer company profile.',
-            details: profileInsertErr?.message,
-          },
-          { status: 500 }
+          { error: membershipMatch.error },
+          { status: membershipMatch.status }
         );
       }
 
-      createdProfileId = Number(newProfile.id);
-      buyerProfileId = createdProfileId;
+      if (membershipMatch.profileId) {
+        buyerProfileId = membershipMatch.profileId;
+        if (membershipMatch.warning) {
+          console.warn(
+            'Customer claim multi-match membership preference:',
+            membershipMatch.warning,
+            { invitationId, buyerProfileId, userId }
+          );
+        }
+      } else {
+        // Create-on-claim
+        if (membershipMatch.logCreateWarning) {
+          console.warn(
+            'Customer claim: no matching membership for invite email; creating new buyer profile',
+            { invitationId, inviteEmail, userId }
+          );
+        }
 
-      const { error: ownerErr } = await supabase.from('business_users').insert({
-        user_id: userId,
-        profile_id: createdProfileId,
-        role: 'owner',
-        status: 'active',
-        name: contactName,
-        email: inviteEmail,
-        joined_at: now,
-        created_at: now,
-      });
+        const tradingName =
+          customer.trading_name || locked.customer_name || 'Customer';
+        const legalName = customer.legal_name || tradingName;
+        const contactName =
+          (name ? String(name).trim() : null) ||
+          customer.contact_name ||
+          locked.full_name ||
+          null;
+        const contactPhone =
+          (phone ? String(phone).trim() : null) || customer.phone || null;
 
-      if (ownerErr) {
-        console.error('Customer claim owner membership error:', ownerErr);
-        // Compensate: delete orphan profile if we created it
-        await supabase.from('profiles').delete().eq('id', createdProfileId);
-        createdProfileId = null;
-        await restoreInvitationPending(supabase, invitationId);
-        return NextResponse.json(
-          {
-            error: 'Failed to create company ownership.',
-            details: ownerErr.message,
-          },
-          { status: 500 }
-        );
+        const { data: newProfile, error: profileInsertErr } = await supabase
+          .from('profiles')
+          .insert({
+            trading_name: tradingName,
+            legal_name: legalName,
+            email: inviteEmail,
+            contact_name: contactName,
+            contact_phone: contactPhone,
+            website: customer.website || null,
+            industry: customer.industry || null,
+            city: customer.city || null,
+            country: customer.country || 'South Africa',
+            region: customer.region || null,
+            relationship_type: 'customer',
+            supplier_status: 'active',
+            user_id: userId,
+            claimed_at: now,
+            created_at: now,
+            onboarding_complete: false,
+            metadata: {
+              source: 'customer_invite',
+              invitation_id: invitationId,
+              seller_profile_id: sellerProfileId,
+            },
+          })
+          .select('id')
+          .single();
+
+        if (profileInsertErr || !newProfile) {
+          console.error('Customer claim profile insert error:', profileInsertErr);
+          await restoreInvitationPending(supabase, invitationId);
+          return NextResponse.json(
+            {
+              error: 'Failed to create buyer company profile.',
+              details: profileInsertErr?.message,
+            },
+            { status: 500 }
+          );
+        }
+
+        createdProfileId = Number(newProfile.id);
+        buyerProfileId = createdProfileId;
+
+        const { error: ownerErr } = await supabase.from('business_users').insert({
+          user_id: userId,
+          profile_id: createdProfileId,
+          role: 'owner',
+          status: 'active',
+          name: contactName,
+          email: inviteEmail,
+          joined_at: now,
+          created_at: now,
+        });
+
+        if (ownerErr) {
+          console.error('Customer claim owner membership error:', ownerErr);
+          // Compensate: delete orphan profile if we created it
+          await supabase.from('profiles').delete().eq('id', createdProfileId);
+          createdProfileId = null;
+          await restoreInvitationPending(supabase, invitationId);
+          return NextResponse.json(
+            {
+              error: 'Failed to create company ownership.',
+              details: ownerErr.message,
+            },
+            { status: 500 }
+          );
+        }
       }
     }
 
@@ -722,7 +836,8 @@ async function claimCustomerInvite(opts: {
     }
 
     // Update customers: linked_profile_id, connection_id, invite_status=accepted, clear token
-    const { error: crmErr } = await supabase
+    // Require a row was written — never finalize invite without CRM link
+    const { data: crmUpdated, error: crmErr } = await supabase
       .from('customers')
       .update({
         linked_profile_id: buyerProfileId,
@@ -733,7 +848,10 @@ async function claimCustomerInvite(opts: {
         updated_at: now,
       })
       .eq('id', customerId)
-      .eq('profile_id', sellerProfileId);
+      .eq('profile_id', sellerProfileId)
+      .is('linked_profile_id', null)
+      .select('id')
+      .maybeSingle();
 
     if (crmErr) {
       console.error('Customer claim CRM update error:', crmErr);
@@ -749,6 +867,27 @@ async function claimCustomerInvite(opts: {
           details: crmErr.message,
         },
         { status: 500 }
+      );
+    }
+    if (!crmUpdated) {
+      // Race: another claim linked, or row missing — do not accept invitation
+      console.error('Customer claim CRM update matched 0 rows', {
+        customerId,
+        sellerProfileId,
+        buyerProfileId,
+      });
+      await compensateClaimFailure(supabase, {
+        invitationId,
+        createdProfileId,
+        userId,
+        connectionId,
+      });
+      return NextResponse.json(
+        {
+          error:
+            'Customer could not be linked (already connected or missing). Try again or contact support.',
+        },
+        { status: 409 }
       );
     }
 
@@ -827,6 +966,89 @@ async function claimCustomerInvite(opts: {
   }
 }
 
+/**
+ * When target_profile_id is null: prefer an active membership on a profile whose
+ * email matches the invitation (case-insensitive). Sole match → use it.
+ * Multiple matches → pick lowest profile id (deterministic) and log warning.
+ * None → create-on-claim path.
+ */
+async function resolveBuyerProfileFromMembership(
+  supabase: AdminClient,
+  userId: string,
+  inviteEmail: string
+): Promise<
+  | {
+      profileId: number | null;
+      warning?: string;
+      logCreateWarning?: boolean;
+      error?: undefined;
+      status?: undefined;
+    }
+  | { profileId?: undefined; error: string; status: number }
+> {
+  const variants = userIdMatchVariants(userId);
+  const { data: memberships, error: memErr } = await supabase
+    .from('business_users')
+    .select('id, profile_id, status, user_id')
+    .eq('status', 'active')
+    .in('user_id', variants)
+    .limit(50);
+
+  if (memErr) {
+    console.error('resolveBuyerProfileFromMembership membership query:', memErr);
+    return { error: 'Failed to resolve company membership.', status: 500 };
+  }
+
+  if (!memberships || memberships.length === 0) {
+    return { profileId: null, logCreateWarning: true };
+  }
+
+  const profileIds = Array.from(
+    new Set(
+      memberships
+        .map((m) => Number(m.profile_id))
+        .filter((id) => Number.isFinite(id) && id > 0)
+    )
+  );
+  if (profileIds.length === 0) {
+    return { profileId: null, logCreateWarning: true };
+  }
+
+  const { data: profiles, error: profErr } = await supabase
+    .from('profiles')
+    .select('id, email')
+    .in('id', profileIds);
+
+  if (profErr) {
+    console.error('resolveBuyerProfileFromMembership profiles query:', profErr);
+    return { error: 'Failed to resolve company profiles.', status: 500 };
+  }
+
+  const matching = (profiles || [])
+    .filter(
+      (p) =>
+        String(p.email || '')
+          .toLowerCase()
+          .trim() === inviteEmail
+    )
+    .map((p) => Number(p.id))
+    .filter((id) => Number.isFinite(id))
+    .sort((a, b) => a - b);
+
+  if (matching.length === 0) {
+    return { profileId: null, logCreateWarning: true };
+  }
+  if (matching.length === 1) {
+    return { profileId: matching[0] };
+  }
+
+  // Multiple member profiles share invite email — deterministic pick (lowest id)
+  return {
+    profileId: matching[0],
+    warning: `Multiple active member profiles match invite email; using profile ${matching[0]} of [${matching.join(', ')}]`,
+  };
+}
+
 async function compensateClaimFailure(
   supabase: AdminClient,
   opts: {
@@ -855,12 +1077,25 @@ async function compensateClaimFailure(
       if ((count ?? 0) === 0) {
         await supabase.from('profiles').delete().eq('id', opts.createdProfileId);
       } else {
+        // Merge claim_orphaned into existing metadata (do not drop invitation_id etc.)
+        const { data: orphanProfile } = await supabase
+          .from('profiles')
+          .select('metadata')
+          .eq('id', opts.createdProfileId)
+          .maybeSingle();
+        const priorMeta =
+          orphanProfile?.metadata &&
+          typeof orphanProfile.metadata === 'object' &&
+          !Array.isArray(orphanProfile.metadata)
+            ? (orphanProfile.metadata as Record<string, unknown>)
+            : {};
         await supabase
           .from('profiles')
           .update({
             metadata: {
+              ...priorMeta,
               claim_orphaned: true,
-              source: 'customer_invite',
+              source: priorMeta.source || 'customer_invite',
             },
           })
           .eq('id', opts.createdProfileId);

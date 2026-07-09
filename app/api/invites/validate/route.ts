@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import { isInviteExpired } from '@/lib/auth/identity';
+import { isCustomerInvitesEnabled } from '@/lib/customers/access';
 
 /**
  * GET /api/invites/validate?token=...&kind=business|team|customer
@@ -21,6 +22,17 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseAdmin();
 
     if (kind === 'customer') {
+      if (!isCustomerInvitesEnabled()) {
+        return NextResponse.json(
+          {
+            valid: false,
+            error: 'Customer invites are disabled',
+            code: 'CUSTOMER_INVITES_DISABLED',
+          },
+          { status: 503 }
+        );
+      }
+
       const { data, error } = await supabase
         .from('customer_invitations')
         .select(
