@@ -70,6 +70,17 @@ export async function POST(request: NextRequest) {
       containerSalesRes,
       stockLevelsRes,
       warehousesRes,
+      // CRM
+      customersRes,
+      leadsRes,
+      opportunitiesRes,
+      customerInvitesRes,
+      // SRM
+      srmSuppliersRes,
+      srmInvitesRes,
+      srmPosRes,
+      customerRiadRes,
+      supplierRiadRes,
     ] = await Promise.all([
       supabase
         .from('business_users')
@@ -182,6 +193,71 @@ export async function POST(request: NextRequest) {
         .from('warehouses')
         .select('id, name, status')
         .eq('profile_id', companyId),
+
+      supabase
+        .from('customers')
+        .select('id, status, invite_status, trading_name, created_at')
+        .eq('profile_id', companyId)
+        .order('created_at', { ascending: false })
+        .limit(200),
+
+      supabase
+        .from('leads')
+        .select('id, status, name, created_at')
+        .eq('profile_id', companyId)
+        .order('created_at', { ascending: false })
+        .limit(100),
+
+      supabase
+        .from('opportunities')
+        .select('id, stage, status, amount, name, updated_at')
+        .eq('profile_id', companyId)
+        .order('updated_at', { ascending: false })
+        .limit(100),
+
+      supabase
+        .from('customer_invitations')
+        .select('id, status, email, company_name, created_at')
+        .eq('profile_id', companyId)
+        .order('created_at', { ascending: false })
+        .limit(50),
+
+      supabase
+        .from('srm_suppliers')
+        .select(
+          'id, trading_name, status, invite_status, trust_score, otifef_pct, verified, linked_profile_id, created_at'
+        )
+        .eq('profile_id', companyId)
+        .order('updated_at', { ascending: false })
+        .limit(200),
+
+      supabase
+        .from('supplier_invitations')
+        .select('id, status, email, company_name, created_at')
+        .eq('profile_id', companyId)
+        .order('created_at', { ascending: false })
+        .limit(50),
+
+      supabase
+        .from('purchase_orders')
+        .select('id, status, total_amount, supplier_id, created_at, onchain_po_id')
+        .eq('buyer_profile_id', companyId)
+        .order('created_at', { ascending: false })
+        .limit(100),
+
+      supabase
+        .from('customer_riad')
+        .select('id, title, entry_type, status, severity, created_at')
+        .eq('profile_id', companyId)
+        .order('created_at', { ascending: false })
+        .limit(40),
+
+      supabase
+        .from('supplier_riad')
+        .select('id, title, entry_type, status, severity, created_at')
+        .eq('profile_id', companyId)
+        .order('created_at', { ascending: false })
+        .limit(40),
     ]);
 
     const team = teamRes.data || [];
@@ -362,11 +438,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    activity.sort((a, b) => {
-      const ta = a.at ? new Date(a.at).getTime() : 0;
-      const tb = b.at ? new Date(b.at).getTime() : 0;
-      return tb - ta;
-    });
+    // Note: CRM/SRM activity + final sort applied after those queries resolve below
 
     const alerts: DashboardAlert[] = [];
 
@@ -484,6 +556,185 @@ export async function POST(request: NextRequest) {
     const riskBar =
       highRisks.length >= 3 ? 85 : openRisks.length >= 2 ? 55 : openRisks.length === 1 ? 30 : 15;
 
+    // ── CRM pulse ────────────────────────────────────────────────────────────
+    const customers = customersRes.error ? [] : customersRes.data || [];
+    const leads = leadsRes.error ? [] : leadsRes.data || [];
+    const opportunities = opportunitiesRes.error ? [] : opportunitiesRes.data || [];
+    const customerInvites = customerInvitesRes.error ? [] : customerInvitesRes.data || [];
+
+    const openLeadStatuses = new Set(['new', 'contacted', 'working', 'qualified', 'recycled']);
+    const openLeads = leads.filter((l) => openLeadStatuses.has(String(l.status || '').toLowerCase()));
+    const openOppStages = new Set([
+      'prospecting',
+      'qualification',
+      'needs_analysis',
+      'proposal',
+      'negotiation',
+    ]);
+    const openOpps = opportunities.filter(
+      (o) =>
+        openOppStages.has(String(o.stage || '').toLowerCase()) &&
+        String(o.status || 'open').toLowerCase() !== 'closed_lost'
+    );
+    const pipelineValue = openOpps.reduce((s, o) => s + Number(o.amount || 0), 0);
+    const wonOpps = opportunities.filter(
+      (o) => String(o.stage || '').toLowerCase() === 'closed_won'
+    );
+    const customersActive = customers.filter(
+      (c) => !c.status || ['active', 'customer'].includes(String(c.status).toLowerCase())
+    ).length;
+    const crmInvitePending = customerInvites.filter((i) => i.status === 'pending').length;
+    const crmInviteAccepted =
+      customers.filter((c) => c.invite_status === 'accepted').length ||
+      customerInvites.filter((i) => i.status === 'accepted').length;
+
+    // ── SRM pulse ────────────────────────────────────────────────────────────
+    const srmBook = srmSuppliersRes.error ? [] : srmSuppliersRes.data || [];
+    const srmInvites = srmInvitesRes.error ? [] : srmInvitesRes.data || [];
+    const srmPos = srmPosRes.error ? [] : srmPosRes.data || [];
+    const srmConnected = srmBook.filter(
+      (s) => s.invite_status === 'accepted' || s.linked_profile_id
+    ).length;
+    const srmPreferred = srmBook.filter((s) => s.status === 'preferred' || s.status === 'active')
+      .length;
+    const srmInvitePending = srmInvites.filter((i) => i.status === 'pending').length;
+    const srmVerified = srmBook.filter((s) => s.verified).length;
+    const srmAvgTrust =
+      srmBook.length > 0
+        ? Math.round(
+            (srmBook.reduce((s, r) => s + Number(r.trust_score || 0), 0) / srmBook.length) * 10
+          ) / 10
+        : 0;
+    const srmAvgOtifef =
+      srmBook.length > 0
+        ? Math.round(
+            (srmBook.reduce((s, r) => s + Number(r.otifef_pct || 0), 0) / srmBook.length) * 10
+          ) / 10
+        : 0;
+    const openPoStatuses = new Set(['draft', 'sent', 'accepted', 'funded']);
+    const srmOpenPos = srmPos.filter((p) => openPoStatuses.has(String(p.status || '').toLowerCase()));
+    const srmOnchainPos = srmPos.filter((p) => p.onchain_po_id != null && p.onchain_po_id !== '');
+
+    // Customer + supplier RIAD open counts
+    const openLike = (s?: string | null) =>
+      ['open', 'active', 'in_progress', 'on_hold', 'mitigated'].includes(
+        String(s || '').toLowerCase()
+      );
+    const crmRiadOpen = (customerRiadRes.error ? [] : customerRiadRes.data || []).filter((r) =>
+      openLike(r.status)
+    ).length;
+    const srmRiadOpen = (supplierRiadRes.error ? [] : supplierRiadRes.data || []).filter((r) =>
+      openLike(r.status)
+    ).length;
+
+    // Profile completeness (My Business)
+    const completenessFields = [
+      !!company.trading_name,
+      !!company.legal_name,
+      !!company.email,
+      !!company.contact_name,
+      !!company.industry,
+      !!company.country,
+      !!company.city,
+      !!company.wallet_address,
+    ];
+    const profileCompleteness = Math.round(
+      (completenessFields.filter(Boolean).length / completenessFields.length) * 100
+    );
+
+    // Enrich activity with CRM / SRM
+    for (const c of customers.slice(0, 3)) {
+      activity.push({
+        id: `cust-${c.id}`,
+        title: `Customer: ${c.trading_name || 'Account'}`,
+        subtitle: `${c.invite_status || c.status || 'active'}`,
+        at: c.created_at || null,
+        type: 'network',
+      });
+    }
+    for (const s of srmBook.slice(0, 3)) {
+      activity.push({
+        id: `srm-${s.id}`,
+        title: `Supplier: ${s.trading_name}`,
+        subtitle: `${s.invite_status || s.status || 'prospect'}${
+          s.otifef_pct != null ? ` · OTIFEF ${Number(s.otifef_pct).toFixed(0)}%` : ''
+        }`,
+        at: s.created_at || null,
+        type: 'supplier',
+      });
+    }
+    for (const po of srmPos.slice(0, 3)) {
+      activity.push({
+        id: `po-${po.id}`,
+        title: `PO #${po.id} · R ${Number(po.total_amount || 0).toFixed(0)}`,
+        subtitle: `${po.status || 'sent'}${po.onchain_po_id ? ' · on-chain' : ''}`,
+        at: po.created_at || null,
+        type: 'supplier',
+      });
+    }
+    for (const o of openOpps.slice(0, 2)) {
+      activity.push({
+        id: `opp-${o.id}`,
+        title: o.name || 'Opportunity',
+        subtitle: `${o.stage || 'pipeline'} · R ${Number(o.amount || 0).toFixed(0)}`,
+        at: o.updated_at || null,
+        type: 'network',
+      });
+    }
+
+    activity.sort((a, b) => {
+      const ta = a.at ? new Date(a.at).getTime() : 0;
+      const tb = b.at ? new Date(b.at).getTime() : 0;
+      return tb - ta;
+    });
+
+    // CRM / SRM alerts
+    if (crmInvitePending > 0) {
+      alerts.push({
+        id: 'crm-invites',
+        severity: 'info',
+        title: `${crmInvitePending} customer invite${crmInvitePending === 1 ? '' : 's'} pending`,
+        detail: 'Buyers still need to claim their platform invitations.',
+        href: '/dashboard/customers/invites',
+      });
+    }
+    if (srmInvitePending > 0) {
+      alerts.push({
+        id: 'srm-invites',
+        severity: 'info',
+        title: `${srmInvitePending} supplier invite${srmInvitePending === 1 ? '' : 's'} pending`,
+        detail: 'Follow up so partners can claim and connect.',
+        href: '/dashboard/suppliers/invites',
+      });
+    }
+    if (srmOpenPos.length > 0) {
+      alerts.push({
+        id: 'srm-pos',
+        severity: 'info',
+        title: `${srmOpenPos.length} open purchase order${srmOpenPos.length === 1 ? '' : 's'}`,
+        detail: 'Track delivery and OTIFEF on the SRM PO pipeline.',
+        href: '/dashboard/suppliers/po',
+      });
+    }
+    if (profileCompleteness < 70) {
+      alerts.push({
+        id: 'profile-complete',
+        severity: 'warning',
+        title: `Company profile ${profileCompleteness}% complete`,
+        detail: 'Strengthen trust signals — fill contacts, location, and wallet.',
+        href: '/dashboard/my-business/profile',
+      });
+    }
+    if (crmRiadOpen + srmRiadOpen > 0) {
+      alerts.push({
+        id: 'rel-riad',
+        severity: crmRiadOpen + srmRiadOpen > 5 ? 'warning' : 'info',
+        title: `${crmRiadOpen + srmRiadOpen} open relationship RIAD items`,
+        detail: `${crmRiadOpen} customer · ${srmRiadOpen} supplier`,
+        href: '/dashboard/customers/riad-log',
+      });
+    }
+
     return NextResponse.json({
       success: true,
       company: {
@@ -539,12 +790,69 @@ export async function POST(request: NextRequest) {
         warehouseStockUnits,
         warehouseLowStock,
         stockLines: stockLevels.length + containerInv.length,
+        // CRM
+        customersTotal: customers.length,
+        customersActive,
+        leadsOpen: openLeads.length,
+        leadsTotal: leads.length,
+        opportunitiesOpen: openOpps.length,
+        pipelineValue,
+        wonCount: wonOpps.length,
+        crmInvitePending,
+        crmInviteAccepted,
+        crmRiadOpen,
+        // SRM
+        srmBookTotal: srmBook.length,
+        srmConnected,
+        srmPreferred,
+        srmInvitePending,
+        srmVerified,
+        srmAvgTrust,
+        srmAvgOtifef,
+        srmOpenPos: srmOpenPos.length,
+        srmOnchainPos: srmOnchainPos.length,
+        srmRiadOpen,
+        // Business
+        profileCompleteness,
       },
       health: {
         supplierHealth,
         fulfillmentSignal,
         riskScoreLabel,
         riskBar,
+        profileCompleteness,
+      },
+      crm: {
+        customers: customers.length,
+        customersActive,
+        leadsOpen: openLeads.length,
+        pipelineValue,
+        opportunitiesOpen: openOpps.length,
+        wonCount: wonOpps.length,
+        invitePending: crmInvitePending,
+        inviteAccepted: crmInviteAccepted,
+        riadOpen: crmRiadOpen,
+        href: '/dashboard/customers',
+      },
+      srm: {
+        book: srmBook.length,
+        connected: srmConnected,
+        preferred: srmPreferred,
+        invitePending: srmInvitePending,
+        verified: srmVerified,
+        avgTrust: srmAvgTrust,
+        avgOtifef: srmAvgOtifef,
+        openPos: srmOpenPos.length,
+        onchainPos: srmOnchainPos.length,
+        riadOpen: srmRiadOpen,
+        href: '/dashboard/suppliers',
+      },
+      business: {
+        profileCompleteness,
+        teamActive,
+        teamInvited,
+        verified: company.verification_status === 'verified',
+        href: '/dashboard/my-business',
       },
       modules: {
         containers: {
@@ -571,9 +879,12 @@ export async function POST(request: NextRequest) {
           containerScoped: containerRiads.length,
           href: '/dashboard/containers/riad-log',
         },
+        crm: { href: '/dashboard/customers' },
+        srm: { href: '/dashboard/suppliers' },
+        business: { href: '/dashboard/my-business' },
       },
-      activity: activity.slice(0, 12),
-      alerts: alerts.slice(0, 8),
+      activity: activity.slice(0, 14),
+      alerts: alerts.slice(0, 10),
       teamPreview: team.slice(0, 5).map((m) => ({
         id: m.id,
         name: m.name,
