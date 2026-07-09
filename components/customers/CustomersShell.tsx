@@ -10,6 +10,7 @@ export const CUSTOMERS_NAV = [
   { href: '/dashboard/customers/leads', label: 'Leads & opportunities' },
   { href: '/dashboard/customers/profiles', label: 'Profiles' },
   { href: '/dashboard/customers/onboard', label: 'Add customer' },
+  { href: '/dashboard/customers/invites', label: 'Invites' },
   { href: '/dashboard/customers/quotes', label: 'Quotes' },
   { href: '/dashboard/customers/orders', label: 'Orders' },
   { href: '/dashboard/customers/invoices', label: 'Invoices' },

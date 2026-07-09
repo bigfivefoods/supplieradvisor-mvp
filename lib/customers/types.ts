@@ -137,6 +137,71 @@ export const CUSTOMER_INVITATION_STATUSES = [
 export type CustomerInviteStatus = (typeof CUSTOMER_INVITE_STATUSES)[number]['value'];
 export type CustomerInvitationStatus = (typeof CUSTOMER_INVITATION_STATUSES)[number]['value'];
 
+/** UI label for CRM connection phase. accepted → "Connected". */
+export function customerInviteStatusLabel(status?: string | null): string {
+  switch ((status || 'not_invited').toLowerCase()) {
+    case 'accepted':
+      return 'Connected';
+    case 'invited':
+      return 'Invited';
+    case 'suspended':
+      return 'Suspended';
+    case 'declined':
+      return 'Declined';
+    case 'expired':
+      return 'Expired';
+    case 'not_invited':
+    default:
+      return 'Not invited';
+  }
+}
+
+export function customerInviteStatusClass(status?: string | null): string {
+  switch ((status || 'not_invited').toLowerCase()) {
+    case 'accepted':
+      return 'bg-emerald-50 text-emerald-800';
+    case 'invited':
+      return 'bg-amber-50 text-amber-800';
+    case 'suspended':
+      return 'bg-red-50 text-red-800';
+    case 'declined':
+      return 'bg-neutral-100 text-neutral-600';
+    case 'expired':
+      return 'bg-orange-50 text-orange-800';
+    case 'not_invited':
+    default:
+      return 'bg-neutral-100 text-neutral-600';
+  }
+}
+
+export function invitationAttemptStatusClass(status?: string | null): string {
+  switch ((status || '').toLowerCase()) {
+    case 'pending':
+    case 'claiming':
+      return 'bg-amber-50 text-amber-800';
+    case 'accepted':
+      return 'bg-emerald-50 text-emerald-800';
+    case 'declined':
+      return 'bg-neutral-100 text-neutral-600';
+    case 'expired':
+      return 'bg-orange-50 text-orange-800';
+    case 'revoked':
+      return 'bg-red-50 text-red-700';
+    default:
+      return 'bg-neutral-100 text-neutral-600';
+  }
+}
+
+/** Whether the seller can send/resend a platform invite for this CRM row. */
+export function canInviteCustomer(c: {
+  invite_status?: string | null;
+  linked_profile_id?: number | null;
+}): boolean {
+  if (c.linked_profile_id) return false;
+  const s = (c.invite_status || 'not_invited').toLowerCase();
+  return s !== 'accepted' && s !== 'suspended';
+}
+
 export type CustomerRecord = {
   id: number;
   profile_id?: number | null;
@@ -180,7 +245,8 @@ export type CustomerRecord = {
 
 export type CustomerInvitationRecord = {
   id: number;
-  token: string;
+  /** Present on create/resend responses only — list GET never returns token. */
+  token?: string | null;
   profile_id: number;
   customer_id: number;
   email: string;
