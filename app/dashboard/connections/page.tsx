@@ -63,6 +63,7 @@ const PROCESS = [
   { label: 'Discover', href: '/dashboard/suppliers/discover' },
   { label: 'Invite', href: '/dashboard/invite-business' },
   { label: 'Connect', href: '/dashboard/connections' },
+  { label: 'Market', href: '/dashboard/connections/marketplace' },
   { label: 'Trade', href: '/dashboard/suppliers/po' },
   { label: 'Docs', href: '/dashboard/customers/quotes' },
   { label: 'Rate', href: '/dashboard/suppliers/ratings' },
@@ -206,10 +207,10 @@ function HubInner() {
         action={
           <>
             <Link
-              href="/dashboard/suppliers/discover"
+              href="/dashboard/connections/marketplace"
               className="btn-primary !py-2.5 !px-5 text-sm"
             >
-              <Search className="w-4 h-4" /> Find suppliers
+              <Search className="w-4 h-4" /> Marketplace
             </Link>
             <Link
               href="/dashboard/invite-business"
@@ -392,18 +393,24 @@ function HubInner() {
         )}
       </Panel>
 
-      <div className="mt-8 grid sm:grid-cols-3 gap-3">
+      <div className="mt-8 grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <QuickLink
+          href="/dashboard/connections/marketplace"
+          icon={Search}
+          label="Browse marketplace"
+          desc="Goods & services on the network"
+        />
+        <QuickLink
+          href="/dashboard/connections/marketplace/sell"
+          icon={FileText}
+          label="Sell inventory"
+          desc="List products from your catalogue"
+        />
         <QuickLink
           href="/dashboard/suppliers/po"
           icon={ShoppingCart}
           label="Raise supplier PO"
-          desc="Only with connected suppliers"
-        />
-        <QuickLink
-          href="/dashboard/customers/orders"
-          icon={FileText}
-          label="Customer orders"
-          desc="Sell to connected buyers"
+          desc="Trade with connected suppliers"
         />
         <QuickLink
           href="/dashboard/suppliers/ratings"
