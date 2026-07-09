@@ -57,9 +57,12 @@ The migration is idempotent (`IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS`).
 ### Customers / sales
 | Table | Purpose |
 |-------|---------|
-| `customers` | Customer master |
+| `customers` | Customer master (seller CRM). Invite/platform fields: `linked_profile_id`, `connection_id`, `invite_status` (`not_invited` \| `invited` \| `accepted` \| `suspended` \| `declined` \| `expired`), `invite_token`, `invited_at`, `invite_accepted_at`, `invited_email`. Partial unique `uq_customers_profile_linked` on `(profile_id, linked_profile_id)` where linked is set. |
+| `customer_invitations` | Platform invites for customers (token, seller `profile_id`, `customer_id`, email, status `pending`\|`claiming`\|`accepted`\|`declined`\|`expired`\|`revoked`, optional `target_profile_id`, 14-day `expires_at`). Migration: `20260709_customer_platform_invites.sql`. |
 | `sales_orders` | Outbound orders + line items JSON |
 | `leads` | Pipeline leads |
+
+`business_connections` pair unique: `uq_bc_requester_requestee` on `(requester_profile_id, requestee_profile_id)` — claim UPSERT conflict target (duplicate cleanup runs once before index create).
 
 ### Distribution / logistics
 | Table | Purpose |

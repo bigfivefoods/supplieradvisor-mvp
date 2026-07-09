@@ -114,6 +114,29 @@ export type OpportunityRecord = {
   weighted_amount?: number;
 };
 
+/** Denormalized platform-invite phase on the seller CRM customer row (not invitation attempt status). */
+export const CUSTOMER_INVITE_STATUSES = [
+  { value: 'not_invited', label: 'Not invited' },
+  { value: 'invited', label: 'Invited' },
+  { value: 'accepted', label: 'Accepted' },
+  { value: 'suspended', label: 'Suspended' },
+  { value: 'declined', label: 'Declined' },
+  { value: 'expired', label: 'Expired' },
+] as const;
+
+/** Lifecycle of a single customer_invitations row. */
+export const CUSTOMER_INVITATION_STATUSES = [
+  { value: 'pending', label: 'Pending' },
+  { value: 'claiming', label: 'Claiming' },
+  { value: 'accepted', label: 'Accepted' },
+  { value: 'declined', label: 'Declined' },
+  { value: 'expired', label: 'Expired' },
+  { value: 'revoked', label: 'Revoked' },
+] as const;
+
+export type CustomerInviteStatus = (typeof CUSTOMER_INVITE_STATUSES)[number]['value'];
+export type CustomerInvitationStatus = (typeof CUSTOMER_INVITATION_STATUSES)[number]['value'];
+
 export type CustomerRecord = {
   id: number;
   profile_id?: number | null;
@@ -142,6 +165,36 @@ export type CustomerRecord = {
   owner_name?: string | null;
   notes?: string | null;
   rating?: number | null;
+  /** Linked buyer company profile after invite accept. */
+  linked_profile_id?: number | null;
+  /** business_connections id for the customer edge (type=customer). */
+  connection_id?: number | null;
+  /** not_invited | invited | accepted | suspended | declined | expired */
+  invite_status?: string | null;
+  invite_token?: string | null;
+  invited_at?: string | null;
+  invite_accepted_at?: string | null;
+  invited_email?: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type CustomerInvitationRecord = {
+  id: number;
+  token: string;
+  profile_id: number;
+  customer_id: number;
+  email: string;
+  full_name?: string | null;
+  status?: string | null;
+  invited_by?: string | null;
+  company_name?: string | null;
+  customer_name?: string | null;
+  target_profile_id?: number | null;
+  message?: string | null;
+  user_id?: string | null;
+  expires_at?: string | null;
+  accepted_at?: string | null;
   created_at?: string;
   updated_at?: string;
 };
