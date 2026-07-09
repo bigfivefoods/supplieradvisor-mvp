@@ -1,6 +1,12 @@
 -- Independent contractor invitations + portal identity
 -- Safe / idempotent for Supabase SQL Editor
 
+-- DROP first: CREATE OR REPLACE cannot rename parameters on existing helpers
+DROP FUNCTION IF EXISTS public.sa_add_column(text, text, text, text);
+DROP FUNCTION IF EXISTS public.sa_add_column(text, text, text);
+DROP FUNCTION IF EXISTS public.sa_create_index(text, text, text);
+DROP FUNCTION IF EXISTS public.sa_create_index(text, text, text[]);
+
 CREATE OR REPLACE FUNCTION public.sa_add_column(p_table text, p_column text, p_type text, p_default text DEFAULT NULL)
 RETURNS void
 LANGUAGE plpgsql
@@ -27,22 +33,36 @@ EXCEPTION WHEN others THEN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION public.sa_create_index(p_name text, p_table text, p_column text)
-RETURNS void
-LANGUAGE plpgsql
-AS $$
+-- Same signature/parameter names as world_class_schema (p_columns, not p_column)
+CREATE OR REPLACE FUNCTION public.sa_create_index(
+  p_name text, p_table text, p_columns text
+) RETURNS void LANGUAGE plpgsql AS $$
+DECLARE
+  col text;
+  cols text[];
 BEGIN
-  IF EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_schema = 'public' AND table_name = p_table AND column_name = p_column
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = p_table
   ) THEN
-    EXECUTE format(
-      'CREATE INDEX IF NOT EXISTS %I ON public.%I (%I)',
-      p_name, p_table, p_column
-    );
+    RETURN;
   END IF;
+
+  cols := string_to_array(replace(p_columns, ' ', ''), ',');
+  FOREACH col IN ARRAY cols LOOP
+    IF col IS NULL OR col = '' THEN CONTINUE; END IF;
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = p_table AND column_name = col
+    ) THEN
+      RAISE NOTICE 'Index % skipped: missing %.%', p_name, p_table, col;
+      RETURN;
+    END IF;
+  END LOOP;
+
+  EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON public.%I (%s)', p_name, p_table, p_columns);
 EXCEPTION WHEN others THEN
-  RAISE NOTICE 'sa_create_index % skip: %', p_name, SQLERRM;
+  RAISE NOTICE 'Index % skipped: %', p_name, SQLERRM;
 END;
 $$;
 

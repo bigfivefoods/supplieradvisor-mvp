@@ -5,6 +5,12 @@
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
+-- Drop helpers first so re-runs never hit 42P13 parameter rename errors
+DROP FUNCTION IF EXISTS public.sa_create_index(text, text, text);
+DROP FUNCTION IF EXISTS public.sa_add_column(text, text, text, text);
+DROP FUNCTION IF EXISTS public.sa_add_column(text, text, text);
+DROP FUNCTION IF EXISTS public.sa_add_fk(text, text, text, text, text);
+
 CREATE OR REPLACE FUNCTION public.set_updated_at()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
