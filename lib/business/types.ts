@@ -26,6 +26,10 @@ export const TIMEZONES = [
 
 export const CURRENCIES = ['ZAR', 'USD', 'EUR', 'GBP', 'NGN', 'KES', 'AED'] as const;
 
+/**
+ * Full profile shape as stored historically on public.profiles.
+ * Includes legacy column names so we never drop existing Supabase data.
+ */
 export type CompanyProfile = {
   id: number;
   trading_name?: string | null;
@@ -33,26 +37,33 @@ export type CompanyProfile = {
   email?: string | null;
   contact_name?: string | null;
   contact_phone?: string | null;
+  contact_number?: string | null;
   phone?: string | null;
   website?: string | null;
   industry?: string | null;
+  industries?: string[] | string | null;
   sub_industry?: string | null;
   category?: string | null;
   business_type?: string | null;
   description?: string | null;
   about?: string | null;
+  short_description?: string | null;
   city?: string | null;
   region?: string | null;
   province?: string | null;
   country?: string | null;
   continent?: string | null;
   address?: string | null;
+  street?: string | null;
   postal_code?: string | null;
   bee_level?: string | null;
+  bee_certificate_url?: string | null;
   registration_number?: string | null;
   vat_number?: string | null;
   tax_number?: string | null;
   certifications?: string[] | null;
+  iso_certifications?: string[] | null;
+  uploaded_certificates?: unknown;
   wallet_address?: string | null;
   logo_url?: string | null;
   primary_currency?: string | null;
@@ -61,13 +72,27 @@ export type CompanyProfile = {
   is_discoverable?: boolean | null;
   verification_status?: string | null;
   is_verified?: boolean | null;
+  verified_at?: string | null;
   relationship_type?: string | null;
   supplier_status?: string | null;
   public_id?: string | null;
+  bank_name?: string | null;
+  account_name?: string | null;
+  account_number?: string | null;
+  iban?: string | null;
+  swift?: string | null;
+  bank_confirmation_url?: string | null;
+  vat_certificate_url?: string | null;
+  director_id_number?: string | null;
+  export_license_number?: string | null;
+  import_license_number?: string | null;
+  export_license_url?: string | null;
+  import_license_url?: string | null;
   settings?: Record<string, unknown> | null;
   metadata?: Record<string, unknown> | null;
   created_at?: string;
   updated_at?: string;
+  [key: string]: unknown;
 };
 
 export type CompanySettings = {
@@ -116,40 +141,148 @@ export const DEFAULT_SETTINGS: CompanySettings = {
   fiscalYearStartMonth: 3,
 };
 
-/** Fields safe to PATCH on profiles from the business profile form */
+/**
+ * All columns we allow PATCH to write.
+ * Includes legacy names used by the previous profile form so saves never wipe history.
+ */
 export const PROFILE_EDITABLE_FIELDS = [
   'trading_name',
   'legal_name',
   'email',
   'contact_name',
   'contact_phone',
+  'contact_number',
   'phone',
   'website',
   'industry',
+  'industries',
   'sub_industry',
   'category',
   'business_type',
   'description',
   'about',
+  'short_description',
   'city',
   'region',
   'province',
   'country',
   'continent',
   'address',
+  'street',
   'postal_code',
   'bee_level',
+  'bee_certificate_url',
   'registration_number',
   'vat_number',
   'tax_number',
   'certifications',
+  'iso_certifications',
+  'uploaded_certificates',
   'wallet_address',
   'logo_url',
   'primary_currency',
   'timezone',
   'is_buyer',
   'is_discoverable',
+  'bank_name',
+  'account_name',
+  'account_number',
+  'iban',
+  'swift',
+  'bank_confirmation_url',
+  'vat_certificate_url',
+  'director_id_number',
+  'export_license_number',
+  'import_license_number',
+  'export_license_url',
+  'import_license_url',
+  'metadata',
 ] as const;
+
+/** Coerce legacy iso_certifications (string[] or {name,selected}[]) into string names. */
+function normalizeCertList(value: unknown): string[] {
+  if (!Array.isArray(value) || value.length === 0) return [];
+  const names: string[] = [];
+  for (const item of value) {
+    if (typeof item === 'string' && item.trim()) {
+      names.push(item.trim());
+      continue;
+    }
+    if (item && typeof item === 'object') {
+      const obj = item as { name?: string; selected?: boolean };
+      // Old profile UI stored { name, selected, file_url } — keep selected or any named entry
+      if (obj.name && (obj.selected === undefined || obj.selected === true)) {
+        names.push(String(obj.name));
+      }
+    }
+  }
+  return names;
+}
+
+/** Normalize a raw profiles row so the UI can bind consistently without losing data. */
+export function normalizeProfileRow(row: Record<string, unknown>): CompanyProfile {
+  const industries = row.industries;
+  const industriesArr: string[] | null = Array.isArray(industries)
+    ? industries.map(String).filter(Boolean)
+    : typeof industries === 'string' && industries.trim()
+      ? industries
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : null;
+  const industryFromArray =
+    industriesArr && industriesArr.length > 0 ? industriesArr[0] : null;
+
+  const certsFromModern = normalizeCertList(row.certifications);
+  const certsFromLegacy = normalizeCertList(row.iso_certifications);
+  const certs = certsFromModern.length > 0 ? certsFromModern : certsFromLegacy;
+
+  return {
+    ...row,
+    id: Number(row.id),
+    // Phone aliases — production historically used contact_number
+    contact_phone:
+      (row.contact_phone as string) ||
+      (row.contact_number as string) ||
+      (row.phone as string) ||
+      null,
+    contact_number:
+      (row.contact_number as string) ||
+      (row.contact_phone as string) ||
+      (row.phone as string) ||
+      null,
+    phone:
+      (row.phone as string) ||
+      (row.contact_phone as string) ||
+      (row.contact_number as string) ||
+      null,
+    // Address aliases — production historically used street
+    address: (row.address as string) || (row.street as string) || null,
+    street: (row.street as string) || (row.address as string) || null,
+    // Description aliases — production historically used short_description
+    description:
+      (row.description as string) ||
+      (row.short_description as string) ||
+      (row.about as string) ||
+      null,
+    short_description:
+      (row.short_description as string) ||
+      (row.description as string) ||
+      (row.about as string) ||
+      null,
+    about:
+      (row.about as string) ||
+      (row.description as string) ||
+      (row.short_description as string) ||
+      null,
+    // Industry aliases — production used industries[]
+    industry: (row.industry as string) || industryFromArray,
+    industries: industriesArr ?? (row.industry ? [String(row.industry)] : null),
+    // Cert aliases — production used iso_certifications (often object[])
+    certifications: certs,
+    iso_certifications: certs,
+  } as CompanyProfile;
+}
 
 export function roleBadgeClass(role?: string | null) {
   switch (String(role || '').toLowerCase()) {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Loader2, Save, ShieldCheck } from 'lucide-react';
+import { Loader2, Save, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -57,6 +57,7 @@ function ProfileInner() {
   const [form, setForm] = useState<Partial<CompanyProfile>>({});
   const [certs, setCerts] = useState<string[]>([]);
   const [completeness, setCompleteness] = useState<{ pct: number } | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -68,11 +69,15 @@ function ProfileInner() {
       const res = await fetch(`/api/business/profile?${params}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to load');
-      setForm(data.profile || {});
-      setCerts(
-        Array.isArray(data.profile?.certifications) ? data.profile.certifications : []
-      );
+      const profile = (data.profile || {}) as Partial<CompanyProfile>;
+      setForm(profile);
+      // Prefer normalized certifications; fall back to any leftover names
+      const fromProfile = Array.isArray(profile.certifications)
+        ? profile.certifications.map(String)
+        : [];
+      setCerts(fromProfile);
       setCompleteness(data.completeness || null);
+      setWarning(typeof data.warning === 'string' ? data.warning : null);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Load failed');
     } finally {
@@ -88,6 +93,43 @@ function ProfileInner() {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
+  /** Dual-write phone aliases so contact_number (legacy) always stays in sync. */
+  const setPhone = (value: string) => {
+    setForm((prev) => ({
+      ...prev,
+      contact_phone: value,
+      contact_number: value,
+      phone: value,
+    }));
+  };
+
+  /** Dual-write address / street (legacy column is street). */
+  const setAddress = (value: string) => {
+    setForm((prev) => ({
+      ...prev,
+      address: value,
+      street: value,
+    }));
+  };
+
+  /** Dual-write description / short_description / about. */
+  const setDescription = (value: string) => {
+    setForm((prev) => ({
+      ...prev,
+      description: value,
+      short_description: value,
+      about: value,
+    }));
+  };
+
+  const setIndustry = (value: string) => {
+    setForm((prev) => ({
+      ...prev,
+      industry: value,
+      industries: value ? [value] : [],
+    }));
+  };
+
   const toggleCert = (c: string) => {
     setCerts((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
   };
@@ -99,6 +141,13 @@ function ProfileInner() {
     }
     setSaving(true);
     try {
+      // Dual-write certs to both modern + legacy columns
+      const phone =
+        form.contact_phone || form.contact_number || form.phone || null;
+      const street = form.street || form.address || null;
+      const description =
+        form.description || form.short_description || form.about || null;
+
       const res = await fetch('/api/business/profile', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -106,12 +155,30 @@ function ProfileInner() {
           companyId,
           privyUserId,
           ...form,
+          contact_phone: phone,
+          contact_number: phone,
+          phone,
+          street,
+          address: street,
+          description,
+          short_description: description,
+          about: description,
           certifications: certs,
+          iso_certifications: certs,
+          industries:
+            Array.isArray(form.industries) && form.industries.length
+              ? form.industries
+              : form.industry
+                ? [String(form.industry)]
+                : [],
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Save failed');
       setForm(data.profile || form);
+      if (Array.isArray(data.profile?.certifications)) {
+        setCerts(data.profile.certifications.map(String));
+      }
       setCompleteness(data.completeness || null);
       toast.success('Profile saved to Supabase');
     } catch (e: unknown) {
@@ -136,7 +203,7 @@ function ProfileInner() {
       <BusinessHeader
         title="Company"
         titleAccent="profile"
-        description="Identity, contacts, geography, and certifications — the source of truth for CRM, SRM, and network discovery."
+        description="Identity, contacts, banking, and certifications — full profiles row from Supabase (legacy + modern columns)."
         action={
           <button
             type="button"
@@ -154,6 +221,15 @@ function ProfileInner() {
           </button>
         }
       />
+
+      {warning && (
+        <div className="mb-4 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+          <span>
+            Profile loaded with a membership warning (data still shown): {warning}
+          </span>
+        </div>
+      )}
 
       {/* Completeness bar */}
       <div className="mb-8 rounded-[1.35rem] border border-neutral-200/90 bg-white p-5">
@@ -174,6 +250,11 @@ function ProfileInner() {
         {(form.is_verified || form.verification_status === 'verified') && (
           <div className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
             <ShieldCheck className="w-3.5 h-3.5" /> Verified company
+          </div>
+        )}
+        {form.public_id && (
+          <div className="mt-2 text-[11px] text-neutral-400 font-mono">
+            public_id: {String(form.public_id)}
           </div>
         )}
       </div>
@@ -211,12 +292,29 @@ function ProfileInner() {
                 />
               </Field>
             </div>
-            <Field label="About / description">
+            <Field label="Tax number">
+              <input
+                className="input w-full !p-3 !text-sm"
+                value={form.tax_number || ''}
+                onChange={(e) => set('tax_number', e.target.value)}
+              />
+            </Field>
+            <Field label="About / short description">
               <textarea
                 className="input w-full !p-3 !text-sm min-h-[88px]"
-                value={String(form.description || form.about || '')}
-                onChange={(e) => set('description', e.target.value)}
+                value={String(
+                  form.description || form.short_description || form.about || ''
+                )}
+                onChange={(e) => setDescription(e.target.value)}
                 placeholder="What does this company do?"
+              />
+            </Field>
+            <Field label="Logo URL">
+              <input
+                className="input w-full !p-3 !text-sm"
+                value={form.logo_url || ''}
+                onChange={(e) => set('logo_url', e.target.value)}
+                placeholder="https://…"
               />
             </Field>
           </div>
@@ -240,14 +338,16 @@ function ProfileInner() {
               />
             </Field>
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Phone">
+              <Field label="Phone (contact_number)">
                 <input
                   className="input w-full !p-3 !text-sm"
-                  value={form.contact_phone || form.phone || ''}
-                  onChange={(e) => {
-                    set('contact_phone', e.target.value);
-                    set('phone', e.target.value);
-                  }}
+                  value={
+                    form.contact_phone ||
+                    form.contact_number ||
+                    form.phone ||
+                    ''
+                  }
+                  onChange={(e) => setPhone(e.target.value)}
                 />
               </Field>
               <Field label="Website">
@@ -309,8 +409,8 @@ function ProfileInner() {
             <Field label="Street address">
               <input
                 className="input w-full !p-3 !text-sm"
-                value={form.address || ''}
-                onChange={(e) => set('address', e.target.value)}
+                value={form.street || form.address || ''}
+                onChange={(e) => setAddress(e.target.value)}
               />
             </Field>
             <Field label="Postal code">
@@ -329,8 +429,12 @@ function ProfileInner() {
               <Field label="Industry">
                 <input
                   className="input w-full !p-3 !text-sm"
-                  value={form.industry || ''}
-                  onChange={(e) => set('industry', e.target.value)}
+                  value={
+                    form.industry ||
+                    (Array.isArray(form.industries) ? form.industries[0] : '') ||
+                    ''
+                  }
+                  onChange={(e) => setIndustry(e.target.value)}
                 />
               </Field>
               <Field label="Sub-industry">
@@ -367,7 +471,21 @@ function ProfileInner() {
                 </select>
               </Field>
             </div>
-            <SectionLabel>Certifications</SectionLabel>
+            <Field label="BEE certificate URL">
+              <input
+                className="input w-full !p-3 !text-sm"
+                value={form.bee_certificate_url || ''}
+                onChange={(e) => set('bee_certificate_url', e.target.value)}
+              />
+            </Field>
+            <Field label="VAT certificate URL">
+              <input
+                className="input w-full !p-3 !text-sm"
+                value={form.vat_certificate_url || ''}
+                onChange={(e) => set('vat_certificate_url', e.target.value)}
+              />
+            </Field>
+            <SectionLabel>Certifications (ISO + other)</SectionLabel>
             <div className="flex flex-wrap gap-1.5">
               {CERTS.map((c) => (
                 <button
@@ -384,6 +502,114 @@ function ProfileInner() {
                 </button>
               ))}
             </div>
+            {/* Show any cert names from Supabase that aren't in the preset list */}
+            {certs.filter((c) => !CERTS.includes(c)).length > 0 && (
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {certs
+                  .filter((c) => !CERTS.includes(c))
+                  .map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => toggleCert(c)}
+                      className="text-[10px] font-semibold px-2.5 py-1 rounded-full border border-slate-900 bg-slate-900 text-white"
+                    >
+                      {c}
+                    </button>
+                  ))}
+              </div>
+            )}
+          </div>
+        </Panel>
+
+        <Panel title="Banking">
+          <div className="p-5 space-y-3">
+            <Field label="Bank name">
+              <input
+                className="input w-full !p-3 !text-sm"
+                value={form.bank_name || ''}
+                onChange={(e) => set('bank_name', e.target.value)}
+              />
+            </Field>
+            <Field label="Account name">
+              <input
+                className="input w-full !p-3 !text-sm"
+                value={form.account_name || ''}
+                onChange={(e) => set('account_name', e.target.value)}
+              />
+            </Field>
+            <Field label="Account number">
+              <input
+                className="input w-full !p-3 !text-sm"
+                value={form.account_number || ''}
+                onChange={(e) => set('account_number', e.target.value)}
+              />
+            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="IBAN">
+                <input
+                  className="input w-full !p-3 !text-sm font-mono"
+                  value={form.iban || ''}
+                  onChange={(e) => set('iban', e.target.value)}
+                />
+              </Field>
+              <Field label="SWIFT / BIC">
+                <input
+                  className="input w-full !p-3 !text-sm font-mono"
+                  value={form.swift || ''}
+                  onChange={(e) => set('swift', e.target.value)}
+                />
+              </Field>
+            </div>
+            <Field label="Bank confirmation URL">
+              <input
+                className="input w-full !p-3 !text-sm"
+                value={form.bank_confirmation_url || ''}
+                onChange={(e) => set('bank_confirmation_url', e.target.value)}
+              />
+            </Field>
+          </div>
+        </Panel>
+
+        <Panel title="Licenses & director">
+          <div className="p-5 space-y-3">
+            <Field label="Director ID number">
+              <input
+                className="input w-full !p-3 !text-sm"
+                value={form.director_id_number || ''}
+                onChange={(e) => set('director_id_number', e.target.value)}
+              />
+            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Export license no.">
+                <input
+                  className="input w-full !p-3 !text-sm"
+                  value={form.export_license_number || ''}
+                  onChange={(e) => set('export_license_number', e.target.value)}
+                />
+              </Field>
+              <Field label="Import license no.">
+                <input
+                  className="input w-full !p-3 !text-sm"
+                  value={form.import_license_number || ''}
+                  onChange={(e) => set('import_license_number', e.target.value)}
+                />
+              </Field>
+            </div>
+            <Field label="Export license URL">
+              <input
+                className="input w-full !p-3 !text-sm"
+                value={form.export_license_url || ''}
+                onChange={(e) => set('export_license_url', e.target.value)}
+              />
+            </Field>
+            <Field label="Import license URL">
+              <input
+                className="input w-full !p-3 !text-sm"
+                value={form.import_license_url || ''}
+                onChange={(e) => set('import_license_url', e.target.value)}
+              />
+            </Field>
           </div>
         </Panel>
       </div>
