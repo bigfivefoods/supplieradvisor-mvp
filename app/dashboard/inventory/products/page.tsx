@@ -18,6 +18,8 @@ import {
   FileText,
   ImageIcon,
   ExternalLink,
+  FolderPlus,
+  Tags,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -26,6 +28,14 @@ import {
   uploadProductImage,
   uploadProductSpecSheet,
 } from '@/lib/inventory/uploadProductAssets';
+
+type CategoryRow = {
+  id: number;
+  name: string;
+  profile_id?: number | null;
+  is_global?: boolean;
+  description?: string | null;
+};
 
 const emptyForm = {
   name: '',
@@ -45,6 +55,7 @@ const emptyForm = {
 export default function ProductsPage() {
   const companyId = getSelectedCompanyId();
   const [products, setProducts] = useState<ProductRecord[]>([]);
+  const [categories, setCategories] = useState<CategoryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -55,6 +66,19 @@ export default function ProductsPage() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [specFile, setSpecFile] = useState<File | null>(null);
   const [uploadingAssets, setUploadingAssets] = useState(false);
+  const [showNewCategory, setShowNewCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [savingCategory, setSavingCategory] = useState(false);
+
+  const loadCategories = useCallback(async () => {
+    if (!companyId) return;
+    const res = await fetch(`/api/inventory/categories?companyId=${companyId}`);
+    const data = await res.json();
+    setCategories(data.categories || []);
+    if (data.warning) {
+      /* table may not exist yet — fallback list still works */
+    }
+  }, [companyId]);
 
   const load = useCallback(async () => {
     if (!companyId) {
@@ -75,6 +99,41 @@ export default function ProductsPage() {
     const t = setTimeout(() => void load(), 200);
     return () => clearTimeout(t);
   }, [load]);
+
+  useEffect(() => {
+    void loadCategories();
+  }, [loadCategories]);
+
+  const addCategory = async () => {
+    if (!companyId) return;
+    const name = newCategoryName.trim();
+    if (!name) {
+      toast.error('Enter a category name');
+      return;
+    }
+    setSavingCategory(true);
+    try {
+      const res = await fetch('/api/inventory/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyId, name }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || data.hint || 'Failed to save category');
+      const catName = data.category?.name || name;
+      toast.success(
+        data.alreadyExists ? `Using existing category “${catName}”` : `Category “${catName}” saved`
+      );
+      await loadCategories();
+      setForm((f) => ({ ...f, category: catName }));
+      setNewCategoryName('');
+      setShowNewCategory(false);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setSavingCategory(false);
+    }
+  };
 
   const onImagePick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -495,16 +554,86 @@ export default function ProductsPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs font-medium">Category</label>
-                  <input
-                    className="input mt-1 w-full !p-3 !text-sm"
-                    value={form.category}
-                    onChange={(e) => setForm({ ...form, category: e.target.value })}
-                    placeholder="General"
-                  />
-                  <p className="text-[11px] text-neutral-500 mt-1">
-                    Required in the database — defaults to “General” if left blank.
-                  </p>
+                  <label className="text-xs font-medium flex items-center gap-1.5">
+                    <Tags className="w-3.5 h-3.5 text-[#00b4d8]" /> Category
+                  </label>
+                  <div className="flex gap-2 mt-1">
+                    <select
+                      className="input flex-1 !p-3 !text-sm"
+                      value={form.category}
+                      onChange={(e) => {
+                        if (e.target.value === '__new__') {
+                          setShowNewCategory(true);
+                          return;
+                        }
+                        setForm({ ...form, category: e.target.value });
+                      }}
+                    >
+                      {/* Ensure current value always appears */}
+                      {form.category &&
+                        !categories.some(
+                          (c) => c.name.toLowerCase() === form.category.toLowerCase()
+                        ) && <option value={form.category}>{form.category}</option>}
+                      {categories.map((c) => (
+                        <option key={`${c.id}-${c.name}`} value={c.name}>
+                          {c.name}
+                          {c.is_global ? '' : ' (yours)'}
+                        </option>
+                      ))}
+                      <option value="__new__">+ Add new category…</option>
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => setShowNewCategory((v) => !v)}
+                      className="btn-secondary !px-3 !py-2 text-sm"
+                      title="Add category"
+                    >
+                      <FolderPlus className="w-4 h-4" />
+                    </button>
+                  </div>
+                  {showNewCategory && (
+                    <div className="mt-2 p-3 rounded-2xl border border-[#00b4d8]/25 bg-[#00b4d8]/5 space-y-2">
+                      <p className="text-[11px] text-neutral-600">
+                        New categories are saved for your company in Supabase and appear in the list.
+                      </p>
+                      <input
+                        className="input w-full !p-2.5 !text-sm"
+                        placeholder="e.g. Ambient snacks"
+                        value={newCategoryName}
+                        onChange={(e) => setNewCategoryName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            void addCategory();
+                          }
+                        }}
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowNewCategory(false);
+                            setNewCategoryName('');
+                          }}
+                          className="btn-secondary flex-1 !py-2 text-sm"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          disabled={savingCategory}
+                          onClick={() => void addCategory()}
+                          className="btn-primary flex-1 !py-2 text-sm"
+                        >
+                          {savingCategory ? (
+                            <Loader2 className="w-4 h-4 animate-spin mx-auto" />
+                          ) : (
+                            'Save category'
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   <div>
