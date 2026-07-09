@@ -2,11 +2,11 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { 
   Home, Building2, Users, Truck, Factory, Package, 
-  Calculator, Brain, ChevronDown 
+  Calculator, Brain, ChevronDown, ArrowLeftRight
 } from 'lucide-react';
 
 const modules = [
@@ -193,11 +193,29 @@ export default function Sidebar() {
     setExpandedModules(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
+  // Auto-expand the module matching the current route
+  useEffect(() => {
+    if (!pathname) return;
+    const active = modules.find((mod) => {
+      if (mod.href === '/dashboard') return pathname === '/dashboard';
+      return pathname === mod.href || pathname.startsWith(`${mod.href}/`);
+    });
+    if (active && active.sub.length > 0) {
+      setExpandedModules((prev) => ({ ...prev, [active.id]: true }));
+    }
+  }, [pathname]);
+
+  const isModuleActive = (href: string) => {
+    if (!pathname) return false;
+    if (href === '/dashboard') return pathname === '/dashboard';
+    return pathname === href || pathname.startsWith(`${href}/`);
+  };
+
   return (
     <div className="flex flex-col h-full bg-white">
       {/* Header */}
       <div className="p-6 border-b border-neutral-100">
-        <div className="flex items-center gap-3">
+        <Link href="/dashboard" className="flex items-center gap-3">
           <Image 
             src="/sa-logo.png" 
             alt="SupplierAdvisor" 
@@ -206,38 +224,47 @@ export default function Sidebar() {
             className="rounded-xl" 
             priority 
           />
-          <div className="font-black text-2xl tracking-[-1px] leading-none">
+          <div className="font-black text-xl tracking-[-1px] leading-none text-slate-900">
             SupplierAdvisor®
           </div>
-        </div>
+        </Link>
+        <Link
+          href="/dashboard/select-company"
+          className="mt-4 flex items-center gap-2 text-sm text-neutral-500 hover:text-[#00b4d8] transition-colors"
+        >
+          <ArrowLeftRight className="w-4 h-4" />
+          Switch company
+        </Link>
       </div>
 
       {/* Navigation */}
       <nav className="flex-1 p-4 overflow-y-auto">
         {modules.map((mod) => {
           const Icon = mod.icon;
-          const isActive = pathname?.startsWith(mod.href);
+          const isActive = isModuleActive(mod.href);
           const isExpanded = expandedModules[mod.id] ?? false;
 
           return (
             <div key={mod.id} className="mb-1">
               <div className={`flex items-center justify-between px-5 py-3.5 rounded-3xl transition-all ${
-                isActive ? 'bg-[#00b4d8] text-white' : 'hover:bg-neutral-100'
+                isActive ? 'bg-[#00b4d8] text-white' : 'hover:bg-neutral-100 text-slate-800'
               }`}>
                 
-                <Link href={mod.href} className="flex items-center gap-3 flex-1">
-                  <Icon className="w-5 h-5" />
-                  <span className="font-semibold">{mod.name}</span>
+                <Link href={mod.href} className="flex items-center gap-3 flex-1 min-w-0">
+                  <Icon className="w-5 h-5 flex-shrink-0" />
+                  <span className="font-semibold truncate">{mod.name}</span>
                 </Link>
 
                 {mod.sub.length > 0 && (
                   <button
+                    type="button"
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
                       toggleModule(mod.id);
                     }}
                     className="p-2 -mr-2 rounded-xl hover:bg-white/20 transition-colors"
+                    aria-label={`Toggle ${mod.name} submenu`}
                   >
                     <ChevronDown 
                       className={`w-5 h-5 transition-transform ${isExpanded ? 'rotate-180' : ''}`} 
@@ -268,13 +295,17 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* Bottom Button */}
-      <div className="p-4 border-t">
-        <button className="w-full bg-black text-white py-3 rounded-2xl flex items-center justify-center gap-2 font-medium hover:bg-neutral-800 transition-colors">
+      {/* Bottom */}
+      <div className="p-4 border-t space-y-3">
+        <button
+          type="button"
+          className="w-full bg-slate-900 text-white py-3 rounded-2xl flex items-center justify-center gap-2 font-medium hover:bg-neutral-800 transition-colors"
+          title="AI assistant coming soon"
+        >
           <Brain className="w-5 h-5" />
           Ask Grok AI Assistant
         </button>
-        <p className="text-xs text-center text-neutral-500 mt-2">Internal AI • Context Aware</p>
+        <p className="text-xs text-center text-neutral-500">Internal AI • Context Aware</p>
       </div>
     </div>
   );

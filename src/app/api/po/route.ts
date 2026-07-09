@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { poEscrowService } from '@/lib/contracts/POEscrowService';
-
+import { getPOEscrowService } from '@/lib/contracts/POEscrowService';
 
 // ==================== POST /api/po ====================
 export async function POST(request: NextRequest) {
   try {
+    const poEscrowService = getPOEscrowService();
     const body = await request.json();
     const { action, ...params } = body;
 
@@ -54,30 +54,31 @@ export async function POST(request: NextRequest) {
       action,
       transactionHash: result,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Internal server error';
     console.error('PO API Error:', error);
     return NextResponse.json(
       {
         success: false,
-        error: error.message || 'Internal server error',
+        error: message,
       },
       { status: 500 }
     );
   }
 }
 
-
 // ==================== GET /api/po?id=xx ====================
 export async function GET(request: NextRequest) {
   try {
+    const poEscrowService = getPOEscrowService();
     const { searchParams } = new URL(request.url);
     const poId = searchParams.get('id');
 
     if (!poId) {
       const counter = await poEscrowService.getPOCounter();
-      return NextResponse.json({ 
-        success: true, 
-        poCounter: counter.toString() 
+      return NextResponse.json({
+        success: true,
+        poCounter: counter.toString(),
       });
     }
 
@@ -95,10 +96,11 @@ export async function GET(request: NextRequest) {
       },
       status,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Internal server error';
     console.error('PO GET Error:', error);
     return NextResponse.json(
-      { success: false, error: error.message },
+      { success: false, error: message },
       { status: 500 }
     );
   }

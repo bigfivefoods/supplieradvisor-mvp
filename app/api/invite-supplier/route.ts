@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Resend } from 'resend';
 import { createClient } from '@/utils/supabase/server';
 import { randomUUID } from 'crypto';
-
-const resend = new Resend(process.env.RESEND_API_KEY);
+import { getAppUrl, getResend } from '@/lib/resend';
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
+  const resend = getResend();
 
   try {
     const body = await request.json();
@@ -58,7 +57,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Build personalized invite link
-    const inviteLink = `https://supplieradvisor-mvp.vercel.app/onboarding?invite=${inviteToken}`;
+    const inviteLink = `${getAppUrl()}/onboarding?invite=${inviteToken}`;
 
     // Send beautiful branded email
     const { error: emailError } = await resend.emails.send({

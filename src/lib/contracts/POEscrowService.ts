@@ -180,6 +180,38 @@ export class POEscrowService {
   }
 }
 
-// ==================== DEFAULT INSTANCE ====================
+// ==================== LAZY DEFAULT INSTANCE ====================
 
-export const poEscrowService = new POEscrowService(env.PRIVATE_KEY);
+let _poEscrowService: POEscrowService | null = null;
+
+export function getPOEscrowService(): POEscrowService {
+  if (!_poEscrowService) {
+    _poEscrowService = new POEscrowService(env.PRIVATE_KEY);
+  }
+  return _poEscrowService;
+}
+
+/** @deprecated Prefer getPOEscrowService() to avoid build-time env crashes */
+export const poEscrowService = {
+  get createPO() {
+    return getPOEscrowService().createPO.bind(getPOEscrowService());
+  },
+  get fundPO() {
+    return getPOEscrowService().fundPO.bind(getPOEscrowService());
+  },
+  get confirmDelivery() {
+    return getPOEscrowService().confirmDelivery.bind(getPOEscrowService());
+  },
+  get releaseFunds() {
+    return getPOEscrowService().releaseFunds.bind(getPOEscrowService());
+  },
+  get getPO() {
+    return getPOEscrowService().getPO.bind(getPOEscrowService());
+  },
+  get getPOStatus() {
+    return getPOEscrowService().getPOStatus.bind(getPOEscrowService());
+  },
+  get getPOCounter() {
+    return getPOEscrowService().getPOCounter.bind(getPOEscrowService());
+  },
+};

@@ -6,9 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@privy-io/react-auth": "^3.18.0",
     "@rainbow-me/rainbowkit": "^2.2.11",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.100.0",
@@ -20,11 +22,9 @@
     "lucide-react": "^1.6.0",
     "next": "^16.1.6",
     "postcss": "^8.4.47",
-    "rainbowkit": "^0.0.1",
     "react": "^18.3.1",
     "react-chartjs-2": "^5.3.1",
     "react-dom": "^18.3.1",
-    "react-hot-toast": "^2.6.0",
     "react-leaflet": "4",
     "resend": "^6.13.0",
     "sonner": "^2.0.7",
@@ -35,9 +35,7 @@
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^7.0.0",
-    "@privy-io/react-auth": "^3.18.0",
     "@types/leaflet": "^1.9.21",
-    "@types/next": "^8.0.7",
     "@types/node": "^20.19.43",
     "@types/react": "^18.3.28",
     "@types/react-dom": "^18.3.7",

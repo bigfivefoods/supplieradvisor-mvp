@@ -70,25 +70,38 @@ export default function DashboardHome() {
   }
 
   return (
-    <div className="px-4 md:px-8 lg:pr-12 py-8 lg:py-12 max-w-screen-2xl mx-auto">
+    <div className="px-2 md:px-4 max-w-screen-2xl mx-auto">
       
       {/* Header */}
       <div className="mb-10">
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
           <div>
-            <p className="text-sm text-neutral-500 mb-1">Good evening</p>
-            <h1 className="font-black text-5xl md:text-6xl tracking-[-2.5px]">
+            <p className="text-sm text-neutral-500 mb-1">
+              {(() => {
+                const hour = new Date().getHours();
+                if (hour < 12) return 'Good morning';
+                if (hour < 18) return 'Good afternoon';
+                return 'Good evening';
+              })()}
+            </p>
+            <h1 className="font-black text-4xl md:text-5xl lg:text-6xl tracking-[-2.5px] text-[#00b4d8]">
               {company.trading_name}
             </h1>
-            <p className="text-xl text-neutral-600 mt-2">
+            <p className="text-lg md:text-xl text-neutral-600 mt-2">
               {company.industry || 'Your business command center'}
             </p>
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <Link 
+              href="/dashboard/select-company" 
+              className="px-5 py-3 rounded-2xl border border-neutral-200 bg-white font-medium hover:border-neutral-300 transition-colors"
+            >
+              Switch company
+            </Link>
             <Link 
               href="/dashboard/my-business" 
-              className="btn-secondary px-6 py-3 flex items-center gap-2"
+              className="px-5 py-3 rounded-2xl border border-neutral-200 bg-white font-medium hover:border-neutral-300 transition-colors flex items-center gap-2"
             >
               Manage Business <ArrowRight className="w-4 h-4" />
             </Link>
@@ -102,7 +115,10 @@ export default function DashboardHome() {
         </div>
       </div>
 
-      {/* KPI Cards - Premium Grid */}
+      {/* KPI Cards — illustrative preview until finance modules are wired */}
+      <p className="text-xs font-medium text-neutral-400 mb-3 uppercase tracking-wide">
+        Preview metrics · live data connects as modules go live
+      </p>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
         <div className="bg-white rounded-3xl border border-neutral-200 p-6 hover:shadow-lg transition-all">
           <div className="flex items-center justify-between mb-4">
@@ -111,7 +127,7 @@ export default function DashboardHome() {
             </div>
             <span className="text-xs font-medium px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full">+12%</span>
           </div>
-          <div className="text-4xl font-black tracking-tighter mb-1">R 4.2M</div>
+          <div className="text-4xl font-black tracking-tighter mb-1 text-slate-900">R 4.2M</div>
           <div className="text-sm text-neutral-600">Monthly Revenue</div>
           <div className="text-xs text-neutral-400 mt-4">vs last month</div>
         </div>
@@ -253,7 +269,7 @@ export default function DashboardHome() {
             <h3 className="font-bold text-xl tracking-tight flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-amber-500" /> Alerts &amp; Attention
             </h3>
-            <Link href="/dashboard/suppliers/risk-alerts" className="text-sm text-[#00b4d8]">Manage</Link>
+            <Link href="/dashboard/suppliers" className="text-sm text-[#00b4d8]">Manage</Link>
           </div>
 
           <div className="space-y-4">

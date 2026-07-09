@@ -1,11 +1,13 @@
 'use client';
-import Breadcrumb from '@/components/ui/Breadcrumb';
-export default function Page() { return (
-<div className="pl-0 min-h-screen bg-[#f8fafc]">
-  <div className="py-12">
-    <Breadcrumb />
-    <h1 className="text-6xl font-black tracking-[-3px] text-[#00b4d8] mb-12">Ethical Sourcing</h1>
-    <div className="card p-12 text-xl">Ethical Sourcing with ratings, RIAD, and on-chain records</div>
-  </div>
-</div>
-); }
+
+import ComingSoon from '@/components/ComingSoon';
+
+export default function Page() {
+  return (
+    <ComingSoon
+      title="Ethical Sourcing"
+      description="Ethical Sourcing with ratings, RIAD, and on-chain records."
+      backHref="/dashboard/sustainability"
+    />
+  );
+}

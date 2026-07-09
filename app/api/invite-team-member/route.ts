@@ -1,14 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Resend } from 'resend';
-import { createClient } from '@supabase/supabase-js';
 import { randomUUID } from 'crypto';
-
-const resend = new Resend(process.env.RESEND_API_KEY);
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { getSupabaseAdmin } from '@/lib/supabase/admin';
+import { getAppUrl, getResend } from '@/lib/resend';
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,37 +9,40 @@ export async function POST(request: NextRequest) {
     const { companyId, name, email, role, companyName, invitedBy } = body;
 
     if (!email || !companyId) {
-      return NextResponse.json({ 
-        error: 'Email and companyId are required' 
-      }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Email and companyId are required' },
+        { status: 400 }
+      );
     }
 
+    const supabaseAdmin = getSupabaseAdmin();
+    const resend = getResend();
     const token = randomUUID();
 
-    const { error: insertError } = await supabaseAdmin
-      .from('business_users')
-      .insert({
-        profile_id: String(companyId),
-        name: name || null,
-        email: email.toLowerCase(),
-        invited_email: email.toLowerCase(),
-        role: role || 'member',
-        status: 'invited',
-        invited_by: invitedBy || null,
-        invite_token: token,
-      });
+    const { error: insertError } = await supabaseAdmin.from('business_users').insert({
+      profile_id: String(companyId),
+      name: name || null,
+      email: email.toLowerCase(),
+      invited_email: email.toLowerCase(),
+      role: role || 'member',
+      status: 'invited',
+      invited_by: invitedBy || null,
+      invite_token: token,
+    });
 
     if (insertError) {
-      console.error('❌ Insert error:', insertError);
-      return NextResponse.json({ 
-        error: 'Failed to create invitation',
-        details: insertError.message,
-        code: insertError.code
-      }, { status: 500 });
+      console.error('Insert error:', insertError);
+      return NextResponse.json(
+        {
+          error: 'Failed to create invitation',
+          details: insertError.message,
+          code: insertError.code,
+        },
+        { status: 500 }
+      );
     }
 
-    // ✅ Updated link to the new dedicated team invitation page
-    const inviteLink = `https://supplieradvisor-mvp.vercel.app/onboarding/team?invite=${token}`;
+    const inviteLink = `${getAppUrl()}/onboarding/team?invite=${token}`;
 
     await resend.emails.send({
       from: 'Big Five Foods <onboarding@resend.dev>',
@@ -66,16 +62,16 @@ export async function POST(request: NextRequest) {
       `,
     });
 
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Invitation sent successfully' 
+    return NextResponse.json({
+      success: true,
+      message: 'Invitation sent successfully',
     });
-
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
     console.error('Team invite error:', error);
-    return NextResponse.json({ 
-      error: 'Internal server error', 
-      details: error.message 
-    }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Internal server error', details: message },
+      { status: 500 }
+    );
   }
 }

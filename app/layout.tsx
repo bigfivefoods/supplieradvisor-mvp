@@ -1,64 +1,28 @@
-'use client';
+import type { Metadata } from 'next';
+import './globals.css';
+import { Providers } from '@/components/Providers';
 
-import { PrivyProvider } from '@privy-io/react-auth';
-import "./globals.css";
-
-// ✅ Replaced react-hot-toast with Sonner
-import { Toaster } from 'sonner';
-
-// Onchain providers
-import { WagmiProvider } from 'wagmi';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { RainbowKitProvider } from '@rainbow-me/rainbowkit';
-import { getDefaultConfig } from '@rainbow-me/rainbowkit';
-import { base, baseSepolia } from 'wagmi/chains';
-
-const config = getDefaultConfig({
-  appName: "SupplierAdvisor — Onchain Trust Layer for African Food Security",
-  projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID!,
-  chains: [baseSepolia, base],
-  ssr: true,
-});
-
-const queryClient = new QueryClient();
+export const metadata: Metadata = {
+  title: {
+    default: 'SupplierAdvisor®',
+    template: '%s · SupplierAdvisor®',
+  },
+  description:
+    'Verified, transparent supply-chain platform for B2B, B2G, and B2C — blockchain verification, AI insights, and ethical transparency.',
+  icons: {
+    icon: '/sa-logo.png',
+  },
+};
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <head>
-        <link rel="icon" href="/sa-logo.png" type="image/png" />
-        {/* Paystack Inline Script - Kept for payments */}
+        {/* Paystack Inline Script */}
         <script src="https://js.paystack.co/v1/inline.js" async />
       </head>
       <body className="antialiased">
-        <PrivyProvider
-          appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID!}
-          config={{
-            loginMethods: ['email', 'wallet', 'google', 'apple'],
-            appearance: { theme: 'light' },
-            embeddedWallets: {
-              ethereum: {
-                createOnLogin: 'users-without-wallets',
-              },
-            },
-          }}
-        >
-          <WagmiProvider config={config}>
-            <QueryClientProvider client={queryClient}>
-              <RainbowKitProvider>
-                {children}
-
-                {/* ✅ Sonner Toaster - Much better than react-hot-toast */}
-                <Toaster 
-                  position="top-center" 
-                  richColors 
-                  closeButton 
-                  expand={true}
-                />
-              </RainbowKitProvider>
-            </QueryClientProvider>
-          </WagmiProvider>
-        </PrivyProvider>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
