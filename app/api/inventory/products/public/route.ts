@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     const { data, error } = await supabase
       .from('products')
       .select(
-        'name, sku, category, uom, short_description, status, primary_image_url, onchain_status, onchain_hash, onchain_chain, onchain_tx_hash, public_id'
+        'name, sku, category, uom, short_description, status, primary_image_url, specs_sheet_url, specs_sheet_name, onchain_status, onchain_hash, onchain_chain, onchain_tx_hash, public_id'
       )
       .eq('public_id', publicId)
       .maybeSingle();

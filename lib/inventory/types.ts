@@ -15,6 +15,8 @@ export type ProductRecord = {
   short_description?: string | null;
   status?: string | null;
   primary_image_url?: string | null;
+  specs_sheet_url?: string | null;
+  specs_sheet_name?: string | null;
   track_lot?: boolean | null;
   track_serial?: boolean | null;
   is_sellable?: boolean | null;

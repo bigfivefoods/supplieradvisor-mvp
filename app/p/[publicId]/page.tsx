@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Loader2, Package, ShieldCheck, Link2 } from 'lucide-react';
+import { Loader2, Package, ShieldCheck, Link2, FileText, ExternalLink } from 'lucide-react';
 
 /**
  * Public product card — destination of inventory QR codes.
@@ -56,9 +56,33 @@ export default function PublicProductPage() {
             <p className="font-mono text-sm mt-2 opacity-90">SKU {String(product.sku)}</p>
           ) : null}
         </div>
+        {product.primary_image_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={String(product.primary_image_url)}
+            alt={String(product.name)}
+            className="w-full h-48 object-cover"
+          />
+        ) : null}
         <div className="p-6 space-y-4">
           {product.short_description ? (
             <p className="text-neutral-700 text-sm">{String(product.short_description)}</p>
+          ) : null}
+          {product.specs_sheet_url ? (
+            <a
+              href={String(product.specs_sheet_url)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-between gap-2 rounded-2xl border border-[#00b4d8]/20 bg-[#00b4d8]/5 px-4 py-3 text-sm font-medium text-[#0077b6] hover:bg-[#00b4d8]/10"
+            >
+              <span className="inline-flex items-center gap-2">
+                <FileText className="w-4 h-4" />
+                {product.specs_sheet_name
+                  ? String(product.specs_sheet_name)
+                  : 'Specifications sheet'}
+              </span>
+              <ExternalLink className="w-4 h-4" />
+            </a>
           ) : null}
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div className="rounded-2xl bg-neutral-50 p-3">

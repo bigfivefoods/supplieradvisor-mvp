@@ -14,10 +14,18 @@ import {
   Link2,
   Copy,
   Package,
+  Upload,
+  FileText,
+  ImageIcon,
+  ExternalLink,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { onchainStatusClass, type ProductRecord } from '@/lib/inventory/types';
+import {
+  uploadProductImage,
+  uploadProductSpecSheet,
+} from '@/lib/inventory/uploadProductAssets';
 
 const emptyForm = {
   name: '',
@@ -43,6 +51,10 @@ export default function ProductsPage() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [qrProduct, setQrProduct] = useState<ProductRecord | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [specFile, setSpecFile] = useState<File | null>(null);
+  const [uploadingAssets, setUploadingAssets] = useState(false);
 
   const load = useCallback(async () => {
     if (!companyId) {
@@ -64,6 +76,39 @@ export default function ProductsPage() {
     return () => clearTimeout(t);
   }, [load]);
 
+  const onImagePick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please choose an image file');
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      toast.error('Image must be under 8MB');
+      return;
+    }
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+  };
+
+  const onSpecPick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 15 * 1024 * 1024) {
+      toast.error('Spec sheet must be under 15MB');
+      return;
+    }
+    setSpecFile(file);
+  };
+
+  const resetCreateForm = () => {
+    setForm(emptyForm);
+    setImageFile(null);
+    if (imagePreview) URL.revokeObjectURL(imagePreview);
+    setImagePreview(null);
+    setSpecFile(null);
+  };
+
   const save = async () => {
     if (!companyId || !form.name.trim()) {
       toast.error('Name is required');
@@ -71,6 +116,26 @@ export default function ProductsPage() {
     }
     setSaving(true);
     try {
+      let primary_image_url: string | null = null;
+      let specs_sheet_url: string | null = null;
+      let specs_sheet_name: string | null = null;
+
+      if (imageFile || specFile) {
+        setUploadingAssets(true);
+        if (imageFile) {
+          const up = await uploadProductImage(imageFile, companyId, form.sku || form.name);
+          if (!up.url) throw new Error(up.error || 'Image upload failed');
+          primary_image_url = up.url;
+        }
+        if (specFile) {
+          const up = await uploadProductSpecSheet(specFile, companyId, form.sku || form.name);
+          if (!up.url) throw new Error(up.error || 'Spec sheet upload failed');
+          specs_sheet_url = up.url;
+          specs_sheet_name = up.fileName || specFile.name;
+        }
+        setUploadingAssets(false);
+      }
+
       const res = await fetch('/api/inventory/products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -88,19 +153,23 @@ export default function ProductsPage() {
           reorder_level: Number(form.reorder_level) || 0,
           short_description: form.short_description || undefined,
           status: form.status,
+          primary_image_url,
+          specs_sheet_url,
+          specs_sheet_name,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || data.hint || 'Failed');
       toast.success('Product created with QR + on-chain hash');
       setShowModal(false);
-      setForm(emptyForm);
+      resetCreateForm();
       setQrProduct(data.product);
       void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed');
     } finally {
       setSaving(false);
+      setUploadingAssets(false);
     }
   };
 
@@ -214,10 +283,40 @@ export default function ProductsPage() {
                 {products.map((p) => (
                   <tr key={p.id} className="hover:bg-neutral-50">
                     <td className="px-5 py-4">
-                      <div className="font-semibold text-slate-900">{p.name}</div>
-                      {p.short_description && (
-                        <div className="text-xs text-neutral-500 line-clamp-1">{p.short_description}</div>
-                      )}
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-11 h-11 rounded-xl bg-neutral-100 border overflow-hidden flex-shrink-0 flex items-center justify-center">
+                          {p.primary_image_url ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={p.primary_image_url}
+                              alt=""
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <ImageIcon className="w-4 h-4 text-neutral-400" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-semibold text-slate-900 truncate">{p.name}</div>
+                          {p.short_description && (
+                            <div className="text-xs text-neutral-500 line-clamp-1">
+                              {p.short_description}
+                            </div>
+                          )}
+                          {p.specs_sheet_url && (
+                            <a
+                              href={p.specs_sheet_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[11px] text-[#00b4d8] inline-flex items-center gap-1 mt-0.5 hover:underline"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <FileText className="w-3 h-3" />
+                              Specs
+                            </a>
+                          )}
+                        </div>
+                      </div>
                     </td>
                     <td className="px-4 py-4 font-mono text-xs">{p.sku || '—'}</td>
                     <td className="px-4 py-4 capitalize text-neutral-600">
@@ -275,11 +374,76 @@ export default function ProductsPage() {
             <div className="bg-white w-full max-w-lg rounded-3xl border shadow-xl max-h-[90vh] flex flex-col">
               <div className="flex items-center justify-between px-5 py-4 border-b">
                 <h2 className="font-bold text-lg">New product</h2>
-                <button type="button" onClick={() => setShowModal(false)} className="p-2 rounded-xl hover:bg-neutral-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowModal(false);
+                    resetCreateForm();
+                  }}
+                  className="p-2 rounded-xl hover:bg-neutral-100"
+                >
                   <X className="w-5 h-5" />
                 </button>
               </div>
               <div className="p-5 space-y-3 overflow-y-auto">
+                {/* Image + specs uploads */}
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-medium flex items-center gap-1.5 mb-1.5">
+                      <ImageIcon className="w-3.5 h-3.5 text-[#00b4d8]" /> Product image
+                    </label>
+                    {!imagePreview ? (
+                      <label className="flex flex-col items-center justify-center border-2 border-dashed border-neutral-200 rounded-2xl p-5 cursor-pointer hover:border-[#00b4d8]/50 transition-colors min-h-[120px]">
+                        <Upload className="w-6 h-6 text-neutral-400 mb-1" />
+                        <span className="text-xs text-neutral-600 text-center">JPG / PNG · max 8MB</span>
+                        <input type="file" accept="image/*" className="hidden" onChange={onImagePick} />
+                      </label>
+                    ) : (
+                      <div className="relative rounded-2xl overflow-hidden border h-[120px] bg-neutral-100">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setImageFile(null);
+                            if (imagePreview) URL.revokeObjectURL(imagePreview);
+                            setImagePreview(null);
+                          }}
+                          className="absolute top-2 right-2 bg-white/90 rounded-full p-1 shadow"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium flex items-center gap-1.5 mb-1.5">
+                      <FileText className="w-3.5 h-3.5 text-[#00b4d8]" /> Specifications sheet
+                    </label>
+                    <label className="flex flex-col items-center justify-center border-2 border-dashed border-neutral-200 rounded-2xl p-5 cursor-pointer hover:border-[#00b4d8]/50 transition-colors min-h-[120px]">
+                      <FileText className="w-6 h-6 text-neutral-400 mb-1" />
+                      <span className="text-xs text-neutral-600 text-center px-2">
+                        {specFile ? specFile.name : 'PDF / Word · max 15MB'}
+                      </span>
+                      <input
+                        type="file"
+                        accept=".pdf,.doc,.docx,application/pdf,image/*"
+                        className="hidden"
+                        onChange={onSpecPick}
+                      />
+                    </label>
+                    {specFile && (
+                      <button
+                        type="button"
+                        className="text-[11px] text-red-600 mt-1 hover:underline"
+                        onClick={() => setSpecFile(null)}
+                      >
+                        Remove spec sheet
+                      </button>
+                    )}
+                  </div>
+                </div>
+
                 <div>
                   <label className="text-xs font-medium">Name *</label>
                   <input
@@ -381,11 +545,30 @@ export default function ProductsPage() {
                 </p>
               </div>
               <div className="flex gap-3 p-5 border-t">
-                <button type="button" onClick={() => setShowModal(false)} className="btn-secondary flex-1 !py-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowModal(false);
+                    resetCreateForm();
+                  }}
+                  className="btn-secondary flex-1 !py-3"
+                >
                   Cancel
                 </button>
-                <button type="button" disabled={saving} onClick={() => void save()} className="btn-primary flex-1 !py-3">
-                  {saving ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Create product'}
+                <button
+                  type="button"
+                  disabled={saving || uploadingAssets}
+                  onClick={() => void save()}
+                  className="btn-primary flex-1 !py-3"
+                >
+                  {saving || uploadingAssets ? (
+                    <span className="inline-flex items-center gap-2 justify-center">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      {uploadingAssets ? 'Uploading…' : 'Saving…'}
+                    </span>
+                  ) : (
+                    'Create product'
+                  )}
                 </button>
               </div>
             </div>

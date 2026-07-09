@@ -44,6 +44,8 @@ SELECT public.sa_add_column('products', 'reorder_qty', 'numeric(18,4)', '0');
 SELECT public.sa_add_column('products', 'short_description', 'text');
 SELECT public.sa_add_column('products', 'status', 'text', '''active''');
 SELECT public.sa_add_column('products', 'primary_image_url', 'text');
+SELECT public.sa_add_column('products', 'specs_sheet_url', 'text');
+SELECT public.sa_add_column('products', 'specs_sheet_name', 'text');
 SELECT public.sa_add_column('products', 'track_lot', 'boolean', 'false');
 SELECT public.sa_add_column('products', 'track_serial', 'boolean', 'false');
 SELECT public.sa_add_column('products', 'is_sellable', 'boolean', 'true');
