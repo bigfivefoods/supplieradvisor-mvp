@@ -121,6 +121,8 @@ Use service role to confirm:
 
 - `profiles.onboarding_complete`
 - `purchase_orders.buyer_profile_id`, `purchase_orders.items`
+- `purchase_orders.total_amount`, `purchase_orders.supplier_profile_id` + `supplier_id`
+- `purchase_orders.seller_customer_id`, `purchase_orders.source` (customer portal bridge)
 - `containers.profile_id`, `containers.assigned_contractor`
 - `business_connections.responded_at`
 - Tables exist: `warehouses`, `customers`, `sales_orders`, `invoices`, `employees`, `activity_log`, `requisitions`, `supplier_scorecards`, `stock_levels`, `shipments`

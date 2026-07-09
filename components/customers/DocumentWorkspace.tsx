@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 // useEffect used for load
 import { Loader2, Plus, Trash2, Package, ArrowRight, Share2, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
@@ -68,15 +68,22 @@ const CONFIG: Record<
   },
 };
 
-export default function DocumentWorkspace({ type }: { type: DocType }) {
+export default function DocumentWorkspace({
+  type,
+  beforeHeader,
+}: {
+  type: DocType;
+  /** Optional content rendered above CustomersHeader (e.g. Sales | Inbound tabs) */
+  beforeHeader?: ReactNode;
+}) {
   return (
     <CompanyRequired>
-      <DocInner type={type} />
+      <DocInner type={type} beforeHeader={beforeHeader} />
     </CompanyRequired>
   );
 }
 
-function DocInner({ type }: { type: DocType }) {
+function DocInner({ type, beforeHeader }: { type: DocType; beforeHeader?: ReactNode }) {
   const companyId = getSelectedCompanyId()!;
   const { user } = usePrivy();
   const privyUserId = getCanonicalUserId(user?.id);
@@ -291,6 +298,7 @@ function DocInner({ type }: { type: DocType }) {
 
   return (
     <div className="px-2 md:px-4 max-w-screen-2xl mx-auto pb-12">
+      {beforeHeader}
       <CustomersHeader
         title={cfg.title}
         description={cfg.description}
