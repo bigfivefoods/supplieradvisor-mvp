@@ -291,12 +291,13 @@ export default function BuyerPurchaseOrdersPage() {
             poIdOnChain = parsed;
           }
         }
+        // At this point poIdOnChain is only number | null (from event parse);
+        // fall back to a known id on fundPO or when the event is missing.
         if (
-          (poIdOnChain == null || poIdOnChain === '') &&
+          poIdOnChain == null &&
           link.onchainPoId != null &&
           link.onchainPoId !== ''
         ) {
-          // fundPO path (or create when event missing but id already known)
           poIdOnChain = link.onchainPoId;
         }
         if (poIdOnChain == null || poIdOnChain === '' || !/^[1-9]\d*$/.test(String(poIdOnChain))) {

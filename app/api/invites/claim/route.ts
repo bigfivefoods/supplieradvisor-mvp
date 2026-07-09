@@ -614,8 +614,11 @@ async function claimCustomerInvite(opts: {
           );
         }
       } else {
-        // Create-on-claim
-        if (membershipMatch.logCreateWarning) {
+        // Create-on-claim (profileId null after successful membership resolve)
+        if (
+          'logCreateWarning' in membershipMatch &&
+          membershipMatch.logCreateWarning
+        ) {
           console.warn(
             'Customer claim: no matching membership for invite email; creating new buyer profile',
             { invitationId, inviteEmail, userId }
