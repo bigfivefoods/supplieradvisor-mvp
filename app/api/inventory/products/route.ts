@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { hashProductIdentity } from '@/lib/inventory/hash';
-import { productQrPayload } from '@/lib/inventory/types';
+import { normalizeProductPrices, productQrPayload } from '@/lib/inventory/types';
 import { toGtin14, isValidGtin } from '@/lib/inventory/gs1';
 
 export async function GET(request: NextRequest) {
@@ -105,6 +105,19 @@ export async function POST(request: NextRequest) {
             ? 'Kits'
             : 'General');
 
+    const priceRows = normalizeProductPrices(
+      Array.isArray(body.prices)
+        ? body.prices
+        : [
+            {
+              currency: body.base_currency || body.currency || 'ZAR',
+              cost_price: body.cost_price,
+              sell_price: body.sell_price,
+            },
+          ]
+    );
+    const primary = priceRows[0];
+
     const payload: Record<string, unknown> = {
       profile_id: companyId,
       name: String(body.name).trim(),
@@ -116,8 +129,10 @@ export async function POST(request: NextRequest) {
       category,
       product_type: productType,
       uom: body.uom || 'unit',
-      sell_price: body.sell_price != null ? Number(body.sell_price) : 0,
-      cost_price: body.cost_price != null ? Number(body.cost_price) : 0,
+      base_currency: primary.currency,
+      sell_price: primary.sell_price,
+      cost_price: primary.cost_price,
+      prices: priceRows,
       reorder_level: body.reorder_level != null ? Number(body.reorder_level) : 0,
       reorder_qty: body.reorder_qty != null ? Number(body.reorder_qty) : 0,
       short_description: body.short_description || null,
@@ -182,11 +197,14 @@ export async function PATCH(request: NextRequest) {
       'name',
       'sku',
       'barcode',
+      'gtin',
+      'gtin14',
       'category',
       'product_type',
       'uom',
       'sell_price',
       'cost_price',
+      'base_currency',
       'reorder_level',
       'reorder_qty',
       'short_description',
@@ -209,6 +227,28 @@ export async function PATCH(request: NextRequest) {
       if (body[f] !== undefined) updates[f] = body[f];
     }
 
+    if (Array.isArray(body.prices) || body.currency || body.base_currency) {
+      const priceRows = normalizeProductPrices(
+        Array.isArray(body.prices)
+          ? body.prices
+          : [
+              {
+                currency: body.base_currency || body.currency || 'ZAR',
+                cost_price: body.cost_price,
+                sell_price: body.sell_price,
+              },
+            ]
+      );
+      updates.prices = priceRows;
+      updates.base_currency = priceRows[0].currency;
+      updates.sell_price = priceRows[0].sell_price;
+      updates.cost_price = priceRows[0].cost_price;
+    }
+
+    if (body.category !== undefined) {
+      updates.category = String(body.category || '').trim() || 'General';
+    }
+
     if (body.anchor === true) {
       updates.onchain_status = 'anchored';
       updates.onchain_anchored_at = new Date().toISOString();
@@ -216,12 +256,26 @@ export async function PATCH(request: NextRequest) {
     }
 
     const supabase = getSupabaseServer();
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('products')
       .update(updates)
       .eq('id', Number(body.id))
       .select('*')
       .single();
+
+    if (error && /prices|base_currency|column/i.test(error.message)) {
+      const soft = { ...updates };
+      delete soft.prices;
+      delete soft.base_currency;
+      const retry = await supabase
+        .from('products')
+        .update(soft)
+        .eq('id', Number(body.id))
+        .select('*')
+        .single();
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ success: true, product: data });

@@ -1,3 +1,9 @@
+export type ProductPriceRow = {
+  currency: string;
+  cost_price: number;
+  sell_price: number;
+};
+
 export type ProductRecord = {
   id: number;
   profile_id?: number | null;
@@ -8,8 +14,12 @@ export type ProductRecord = {
   category?: string | null;
   product_type?: string | null;
   uom?: string | null;
+  /** Primary currency (first price row) */
+  base_currency?: string | null;
   sell_price?: number | null;
   cost_price?: number | null;
+  /** Up to 3 currency price rows */
+  prices?: ProductPriceRow[] | null;
   reorder_level?: number | null;
   reorder_qty?: number | null;
   short_description?: string | null;
@@ -101,5 +111,56 @@ export function onchainStatusClass(s?: string | null) {
       return 'bg-sky-100 text-sky-800';
     default:
       return 'bg-neutral-100 text-neutral-600';
+  }
+}
+
+export const COMMON_CURRENCIES = [
+  'ZAR',
+  'USD',
+  'EUR',
+  'GBP',
+  'NAD',
+  'BWP',
+  'ZMW',
+  'MZN',
+  'KES',
+  'NGN',
+  'AED',
+  'CNY',
+] as const;
+
+/** Normalize up to 3 price rows; first row drives base sell/cost. */
+export function normalizeProductPrices(
+  rows: Array<{ currency?: string; cost_price?: number | string; sell_price?: number | string }>
+): ProductPriceRow[] {
+  const out: ProductPriceRow[] = [];
+  const seen = new Set<string>();
+  for (const r of rows) {
+    if (out.length >= 3) break;
+    const currency = String(r.currency || 'ZAR').trim().toUpperCase() || 'ZAR';
+    if (seen.has(currency)) continue;
+    seen.add(currency);
+    out.push({
+      currency,
+      cost_price: Number(r.cost_price) || 0,
+      sell_price: Number(r.sell_price) || 0,
+    });
+  }
+  if (out.length === 0) {
+    out.push({ currency: 'ZAR', cost_price: 0, sell_price: 0 });
+  }
+  return out;
+}
+
+export function formatMoney(amount: number | null | undefined, currency = 'ZAR') {
+  const n = Number(amount) || 0;
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency: currency.length === 3 ? currency : 'ZAR',
+      maximumFractionDigits: 2,
+    }).format(n);
+  } catch {
+    return `${currency} ${n.toFixed(2)}`;
   }
 }

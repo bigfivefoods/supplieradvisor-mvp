@@ -20,10 +20,19 @@ import {
   ExternalLink,
   FolderPlus,
   Tags,
+  Pencil,
+  PlusCircle,
+  MinusCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
-import { onchainStatusClass, type ProductRecord } from '@/lib/inventory/types';
+import {
+  COMMON_CURRENCIES,
+  formatMoney,
+  normalizeProductPrices,
+  onchainStatusClass,
+  type ProductRecord,
+} from '@/lib/inventory/types';
 import {
   uploadProductImage,
   uploadProductSpecSheet,
@@ -37,6 +46,8 @@ type CategoryRow = {
   description?: string | null;
 };
 
+type PriceFormRow = { currency: string; cost_price: string; sell_price: string };
+
 const emptyForm = {
   name: '',
   sku: '',
@@ -45,12 +56,14 @@ const emptyForm = {
   category: 'General',
   product_type: 'finished_good',
   uom: 'unit',
-  sell_price: '',
-  cost_price: '',
   reorder_level: '0',
   short_description: '',
   status: 'active',
 };
+
+const defaultPrices = (): PriceFormRow[] => [
+  { currency: 'ZAR', cost_price: '', sell_price: '' },
+];
 
 export default function ProductsPage() {
   const companyId = getSelectedCompanyId();
@@ -59,8 +72,13 @@ export default function ProductsPage() {
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
   const [showModal, setShowModal] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
+  const [existingSpecUrl, setExistingSpecUrl] = useState<string | null>(null);
+  const [existingSpecName, setExistingSpecName] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(emptyForm);
+  const [priceRows, setPriceRows] = useState<PriceFormRow[]>(defaultPrices());
   const [qrProduct, setQrProduct] = useState<ProductRecord | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -162,10 +180,63 @@ export default function ProductsPage() {
 
   const resetCreateForm = () => {
     setForm(emptyForm);
+    setPriceRows(defaultPrices());
+    setEditingId(null);
+    setExistingImageUrl(null);
+    setExistingSpecUrl(null);
+    setExistingSpecName(null);
     setImageFile(null);
     if (imagePreview) URL.revokeObjectURL(imagePreview);
     setImagePreview(null);
     setSpecFile(null);
+    setShowNewCategory(false);
+    setNewCategoryName('');
+  };
+
+  const openCreate = () => {
+    resetCreateForm();
+    setShowModal(true);
+  };
+
+  const openEdit = (p: ProductRecord) => {
+    const normalized = normalizeProductPrices(
+      Array.isArray(p.prices) && p.prices.length
+        ? p.prices
+        : [
+            {
+              currency: p.base_currency || 'ZAR',
+              cost_price: p.cost_price ?? 0,
+              sell_price: p.sell_price ?? 0,
+            },
+          ]
+    );
+    setEditingId(p.id);
+    setForm({
+      name: p.name || '',
+      sku: p.sku || '',
+      barcode: p.barcode || '',
+      gtin: (p as { gtin?: string }).gtin || p.barcode || '',
+      category: p.category || 'General',
+      product_type: p.product_type || 'finished_good',
+      uom: p.uom || 'unit',
+      reorder_level: String(p.reorder_level ?? 0),
+      short_description: p.short_description || '',
+      status: p.status || 'active',
+    });
+    setPriceRows(
+      normalized.map((r) => ({
+        currency: r.currency,
+        cost_price: r.cost_price ? String(r.cost_price) : '',
+        sell_price: r.sell_price ? String(r.sell_price) : '',
+      }))
+    );
+    setExistingImageUrl(p.primary_image_url || null);
+    setExistingSpecUrl(p.specs_sheet_url || null);
+    setExistingSpecName(p.specs_sheet_name || null);
+    setImageFile(null);
+    setImagePreview(p.primary_image_url || null);
+    setSpecFile(null);
+    setShowModal(true);
   };
 
   const save = async () => {
@@ -175,9 +246,15 @@ export default function ProductsPage() {
     }
     setSaving(true);
     try {
-      let primary_image_url: string | null = null;
-      let specs_sheet_url: string | null = null;
-      let specs_sheet_name: string | null = null;
+      let primary_image_url: string | null | undefined = editingId
+        ? existingImageUrl
+        : null;
+      let specs_sheet_url: string | null | undefined = editingId
+        ? existingSpecUrl
+        : null;
+      let specs_sheet_name: string | null | undefined = editingId
+        ? existingSpecName
+        : null;
 
       if (imageFile || specFile) {
         setUploadingAssets(true);
@@ -195,34 +272,47 @@ export default function ProductsPage() {
         setUploadingAssets(false);
       }
 
+      const prices = normalizeProductPrices(
+        priceRows.map((r) => ({
+          currency: r.currency,
+          cost_price: r.cost_price,
+          sell_price: r.sell_price,
+        }))
+      );
+
+      const payload = {
+        companyId,
+        name: form.name,
+        sku: form.sku || undefined,
+        barcode: form.barcode || form.gtin || undefined,
+        gtin: form.gtin || undefined,
+        category: form.category?.trim() || 'General',
+        product_type: form.product_type,
+        uom: form.uom,
+        base_currency: prices[0].currency,
+        sell_price: prices[0].sell_price,
+        cost_price: prices[0].cost_price,
+        prices,
+        reorder_level: Number(form.reorder_level) || 0,
+        short_description: form.short_description || undefined,
+        status: form.status,
+        primary_image_url: primary_image_url || null,
+        specs_sheet_url: specs_sheet_url || null,
+        specs_sheet_name: specs_sheet_name || null,
+      };
+
       const res = await fetch('/api/inventory/products', {
-        method: 'POST',
+        method: editingId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          companyId,
-          name: form.name,
-          sku: form.sku || undefined,
-          barcode: form.barcode || form.gtin || undefined,
-          gtin: form.gtin || undefined,
-          category: form.category?.trim() || 'General',
-          product_type: form.product_type,
-          uom: form.uom,
-          sell_price: form.sell_price ? Number(form.sell_price) : 0,
-          cost_price: form.cost_price ? Number(form.cost_price) : 0,
-          reorder_level: Number(form.reorder_level) || 0,
-          short_description: form.short_description || undefined,
-          status: form.status,
-          primary_image_url,
-          specs_sheet_url,
-          specs_sheet_name,
-        }),
+        body: JSON.stringify(editingId ? { id: editingId, ...payload } : payload),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || data.hint || 'Failed');
-      toast.success('Product created with QR + on-chain hash');
+      const wasEdit = !!editingId;
+      toast.success(wasEdit ? 'Product updated' : 'Product created with QR + on-chain hash');
       setShowModal(false);
       resetCreateForm();
-      setQrProduct(data.product);
+      if (!wasEdit && data.product) setQrProduct(data.product);
       void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed');
@@ -297,7 +387,7 @@ export default function ProductsPage() {
             Master data with QR product passports and on-chain identity hashes.
           </p>
         </div>
-        <button type="button" onClick={() => setShowModal(true)} className="btn-primary !py-3 !px-5">
+        <button type="button" onClick={openCreate} className="btn-primary !py-3 !px-5">
           <Plus className="w-4 h-4" /> Add product
         </button>
       </div>
@@ -321,7 +411,7 @@ export default function ProductsPage() {
           <div className="p-16 text-center">
             <Package className="w-10 h-10 text-neutral-300 mx-auto mb-3" />
             <p className="text-neutral-600 mb-4">No products yet.</p>
-            <button type="button" onClick={() => setShowModal(true)} className="btn-primary !py-2.5 !px-5 text-sm">
+            <button type="button" onClick={openCreate} className="btn-primary !py-2.5 !px-5 text-sm">
               Create first product
             </button>
           </div>
@@ -333,14 +423,31 @@ export default function ProductsPage() {
                   <th className="px-5 py-3 font-semibold">Product</th>
                   <th className="px-4 py-3 font-semibold">SKU</th>
                   <th className="px-4 py-3 font-semibold">Type</th>
+                  <th className="px-4 py-3 font-semibold text-right">Price</th>
                   <th className="px-4 py-3 font-semibold text-right">On hand</th>
                   <th className="px-4 py-3 font-semibold">On-chain</th>
                   <th className="px-5 py-3 font-semibold text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {products.map((p) => (
-                  <tr key={p.id} className="hover:bg-neutral-50">
+                {products.map((p) => {
+                  const prices = normalizeProductPrices(
+                    Array.isArray(p.prices) && p.prices.length
+                      ? p.prices
+                      : [
+                          {
+                            currency: p.base_currency || 'ZAR',
+                            cost_price: p.cost_price ?? 0,
+                            sell_price: p.sell_price ?? 0,
+                          },
+                        ]
+                  );
+                  return (
+                  <tr
+                    key={p.id}
+                    className="hover:bg-neutral-50 cursor-pointer"
+                    onClick={() => openEdit(p)}
+                  >
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3 min-w-0">
                         <div className="w-11 h-11 rounded-xl bg-neutral-100 border overflow-hidden flex-shrink-0 flex items-center justify-center">
@@ -381,6 +488,19 @@ export default function ProductsPage() {
                     <td className="px-4 py-4 capitalize text-neutral-600">
                       {(p.product_type || 'finished_good').replace('_', ' ')}
                     </td>
+                    <td className="px-4 py-4 text-right text-xs">
+                      <div className="font-semibold text-slate-900">
+                        {formatMoney(prices[0].sell_price, prices[0].currency)}
+                      </div>
+                      <div className="text-neutral-500">
+                        cost {formatMoney(prices[0].cost_price, prices[0].currency)}
+                      </div>
+                      {prices.length > 1 && (
+                        <div className="text-neutral-400 mt-0.5">
+                          +{prices.length - 1} currency{prices.length > 2 ? 's' : ''}
+                        </div>
+                      )}
+                    </td>
                     <td className="px-4 py-4 text-right font-semibold">
                       {Number(p.qty_on_hand ?? 0)} {p.uom || ''}
                     </td>
@@ -391,8 +511,16 @@ export default function ProductsPage() {
                         {p.onchain_status || 'pending'}
                       </span>
                     </td>
-                    <td className="px-5 py-4">
+                    <td className="px-5 py-4" onClick={(e) => e.stopPropagation()}>
                       <div className="flex justify-end gap-1">
+                        <button
+                          type="button"
+                          title="Edit product"
+                          onClick={() => openEdit(p)}
+                          className="p-2 rounded-xl hover:bg-neutral-100 text-slate-700"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
                         <button
                           type="button"
                           title="QR code"
@@ -419,7 +547,8 @@ export default function ProductsPage() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -432,7 +561,9 @@ export default function ProductsPage() {
           <div className="min-h-full flex items-center justify-center p-4">
             <div className="bg-white w-full max-w-lg rounded-3xl border shadow-xl max-h-[90vh] flex flex-col">
               <div className="flex items-center justify-between px-5 py-4 border-b">
-                <h2 className="font-bold text-lg">New product</h2>
+                <h2 className="font-bold text-lg">
+                  {editingId ? 'Edit product' : 'New product'}
+                </h2>
                 <button
                   type="button"
                   onClick={() => {
@@ -465,8 +596,11 @@ export default function ProductsPage() {
                           type="button"
                           onClick={() => {
                             setImageFile(null);
-                            if (imagePreview) URL.revokeObjectURL(imagePreview);
+                            if (imagePreview && imagePreview.startsWith('blob:')) {
+                              URL.revokeObjectURL(imagePreview);
+                            }
                             setImagePreview(null);
+                            setExistingImageUrl(null);
                           }}
                           className="absolute top-2 right-2 bg-white/90 rounded-full p-1 shadow"
                         >
@@ -482,7 +616,11 @@ export default function ProductsPage() {
                     <label className="flex flex-col items-center justify-center border-2 border-dashed border-neutral-200 rounded-2xl p-5 cursor-pointer hover:border-[#00b4d8]/50 transition-colors min-h-[120px]">
                       <FileText className="w-6 h-6 text-neutral-400 mb-1" />
                       <span className="text-xs text-neutral-600 text-center px-2">
-                        {specFile ? specFile.name : 'PDF / Word · max 15MB'}
+                        {specFile
+                          ? specFile.name
+                          : existingSpecName || existingSpecUrl
+                            ? existingSpecName || 'Current specs sheet'
+                            : 'PDF / Word · max 15MB'}
                       </span>
                       <input
                         type="file"
@@ -491,14 +629,30 @@ export default function ProductsPage() {
                         onChange={onSpecPick}
                       />
                     </label>
-                    {specFile && (
-                      <button
-                        type="button"
-                        className="text-[11px] text-red-600 mt-1 hover:underline"
-                        onClick={() => setSpecFile(null)}
-                      >
-                        Remove spec sheet
-                      </button>
+                    {(specFile || existingSpecUrl) && (
+                      <div className="flex items-center gap-3 mt-1">
+                        {existingSpecUrl && !specFile && (
+                          <a
+                            href={existingSpecUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[11px] text-[#00b4d8] hover:underline inline-flex items-center gap-1"
+                          >
+                            <ExternalLink className="w-3 h-3" /> View current
+                          </a>
+                        )}
+                        <button
+                          type="button"
+                          className="text-[11px] text-red-600 hover:underline"
+                          onClick={() => {
+                            setSpecFile(null);
+                            setExistingSpecUrl(null);
+                            setExistingSpecName(null);
+                          }}
+                        >
+                          Remove spec sheet
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -635,34 +789,115 @@ export default function ProductsPage() {
                     </div>
                   )}
                 </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <div>
-                    <label className="text-xs font-medium">Sell price</label>
-                    <input
-                      type="number"
-                      className="input mt-1 w-full !p-3 !text-sm"
-                      value={form.sell_price}
-                      onChange={(e) => setForm({ ...form, sell_price: e.target.value })}
-                    />
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-medium">Pricing (up to 3 currencies)</label>
+                    {priceRows.length < 3 && (
+                      <button
+                        type="button"
+                        className="text-[11px] font-semibold text-[#00b4d8] inline-flex items-center gap-1"
+                        onClick={() =>
+                          setPriceRows((rows) => [
+                            ...rows,
+                            {
+                              currency: rows.some((r) => r.currency === 'USD') ? 'EUR' : 'USD',
+                              cost_price: '',
+                              sell_price: '',
+                            },
+                          ])
+                        }
+                      >
+                        <PlusCircle className="w-3.5 h-3.5" /> Add currency
+                      </button>
+                    )}
                   </div>
-                  <div>
-                    <label className="text-xs font-medium">Cost</label>
-                    <input
-                      type="number"
-                      className="input mt-1 w-full !p-3 !text-sm"
-                      value={form.cost_price}
-                      onChange={(e) => setForm({ ...form, cost_price: e.target.value })}
-                    />
+                  <div className="space-y-2">
+                    {priceRows.map((row, idx) => (
+                      <div
+                        key={idx}
+                        className="grid grid-cols-12 gap-2 items-end p-2.5 rounded-2xl border border-neutral-100 bg-neutral-50/80"
+                      >
+                        <div className="col-span-4">
+                          <label className="text-[10px] font-medium text-neutral-500">
+                            Currency {idx === 0 ? '(primary)' : idx + 1}
+                          </label>
+                          <select
+                            className="input mt-0.5 w-full !p-2 !text-sm"
+                            value={row.currency}
+                            onChange={(e) => {
+                              const next = [...priceRows];
+                              next[idx] = { ...next[idx], currency: e.target.value };
+                              setPriceRows(next);
+                            }}
+                          >
+                            {COMMON_CURRENCIES.map((c) => (
+                              <option key={c} value={c}>
+                                {c}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="col-span-3">
+                          <label className="text-[10px] font-medium text-neutral-500">Cost</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            className="input mt-0.5 w-full !p-2 !text-sm"
+                            value={row.cost_price}
+                            onChange={(e) => {
+                              const next = [...priceRows];
+                              next[idx] = { ...next[idx], cost_price: e.target.value };
+                              setPriceRows(next);
+                            }}
+                            placeholder="0.00"
+                          />
+                        </div>
+                        <div className="col-span-3">
+                          <label className="text-[10px] font-medium text-neutral-500">Sell</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            className="input mt-0.5 w-full !p-2 !text-sm"
+                            value={row.sell_price}
+                            onChange={(e) => {
+                              const next = [...priceRows];
+                              next[idx] = { ...next[idx], sell_price: e.target.value };
+                              setPriceRows(next);
+                            }}
+                            placeholder="0.00"
+                          />
+                        </div>
+                        <div className="col-span-2 flex justify-end pb-0.5">
+                          {priceRows.length > 1 ? (
+                            <button
+                              type="button"
+                              className="p-2 rounded-xl text-red-600 hover:bg-red-50"
+                              title="Remove currency"
+                              onClick={() =>
+                                setPriceRows((rows) => rows.filter((_, i) => i !== idx))
+                              }
+                            >
+                              <MinusCircle className="w-4 h-4" />
+                            </button>
+                          ) : (
+                            <span className="text-[10px] text-neutral-400 pr-1">base</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <div>
-                    <label className="text-xs font-medium">Reorder</label>
-                    <input
-                      type="number"
-                      className="input mt-1 w-full !p-3 !text-sm"
-                      value={form.reorder_level}
-                      onChange={(e) => setForm({ ...form, reorder_level: e.target.value })}
-                    />
-                  </div>
+                  <p className="text-[11px] text-neutral-500 mt-1.5">
+                    Primary currency is used as the main catalogue price; extra currencies store local cost/sell.
+                  </p>
+                </div>
+                <div>
+                  <label className="text-xs font-medium">Reorder level</label>
+                  <input
+                    type="number"
+                    className="input mt-1 w-full !p-3 !text-sm"
+                    value={form.reorder_level}
+                    onChange={(e) => setForm({ ...form, reorder_level: e.target.value })}
+                  />
                 </div>
                 <div>
                   <label className="text-xs font-medium">Description</label>
@@ -672,9 +907,25 @@ export default function ProductsPage() {
                     onChange={(e) => setForm({ ...form, short_description: e.target.value })}
                   />
                 </div>
+                {editingId && (
+                  <div>
+                    <label className="text-xs font-medium">Status</label>
+                    <select
+                      className="input mt-1 w-full !p-3 !text-sm"
+                      value={form.status}
+                      onChange={(e) => setForm({ ...form, status: e.target.value })}
+                    >
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                      <option value="draft">Draft</option>
+                    </select>
+                  </div>
+                )}
                 <p className="text-[11px] text-neutral-500 flex items-start gap-1.5">
                   <Link2 className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
-                  Saving generates a public QR ID and SHA-256 on-chain identity hash automatically.
+                  {editingId
+                    ? 'Changes update catalogue pricing, images, and specs. QR / public ID stay the same.'
+                    : 'Saving generates a public QR ID and SHA-256 on-chain identity hash automatically.'}
                 </p>
               </div>
               <div className="flex gap-3 p-5 border-t">
@@ -699,6 +950,8 @@ export default function ProductsPage() {
                       <Loader2 className="w-4 h-4 animate-spin" />
                       {uploadingAssets ? 'Uploading…' : 'Saving…'}
                     </span>
+                  ) : editingId ? (
+                    'Save changes'
                   ) : (
                     'Create product'
                   )}
