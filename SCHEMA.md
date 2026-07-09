@@ -5,9 +5,20 @@ World-class multi-module Postgres schema for Supabase project `onkklullmgrdqoert
 **Migration file:** [`supabase/migrations/20260709_world_class_schema.sql`](supabase/migrations/20260709_world_class_schema.sql)
 
 **Apply script:** [`scripts/apply-schema.mjs`](scripts/apply-schema.mjs)  
-`node scripts/apply-schema.mjs` attempts remote apply via pg-meta, then verifies key tables/columns with the service role client.
+`node scripts/apply-schema.mjs` verifies key tables/columns with the service role client after apply.
 
-> **Manual apply:** If remote SQL endpoints are unavailable, paste the full migration into the Supabase Dashboard → SQL Editor and run it. The migration is idempotent (`IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS`).
+### Apply this migration (required once)
+
+Remote DDL cannot be run with the **service role API key** alone (it is not the database password). Apply via SQL Editor:
+
+1. Open [Supabase SQL Editor](https://supabase.com/dashboard/project/onkklullmgrdqoertngp/sql/new)
+2. Paste the full contents of `supabase/migrations/20260709_world_class_schema.sql`
+3. Click **Run**
+4. Verify: `node scripts/apply-schema.mjs` (expect green checks)
+
+Optional for CLI apply later: set `DATABASE_URL` (pooler connection string from Dashboard → Project Settings → Database) in `.env.local` — never commit it.
+
+The migration is idempotent (`IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS`).
 
 ## Modules & tables
 
