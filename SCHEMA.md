@@ -6,6 +6,7 @@ World-class multi-module Postgres schema for Supabase project `onkklullmgrdqoert
 
 **Additive migrations (also apply via SQL Editor when deploying those features):**
 - [`supabase/migrations/20260709_customer_platform_invites.sql`](supabase/migrations/20260709_customer_platform_invites.sql) — customer invite columns, `customer_invitations`, BC pair unique `uq_bc_requester_requestee`
+- [`supabase/migrations/20260709_crm_document_visibility.sql`](supabase/migrations/20260709_crm_document_visibility.sql) — `visibility` on quotes/SO/invoices; `shared_with_buyer` / `buyer_profile_id` / `shared_at` on contracts
 
 **Apply script:** [`scripts/apply-schema.mjs`](scripts/apply-schema.mjs)  
 `node scripts/apply-schema.mjs` verifies key tables/columns with the service role client after apply.
@@ -62,7 +63,8 @@ Migrations are idempotent (`IF NOT EXISTS` / `sa_add_column` / exception-wrapped
 |-------|---------|
 | `customers` | Customer master (seller CRM). Invite/platform fields: `linked_profile_id`, `connection_id`, `invite_status` (`not_invited` \| `invited` \| `accepted` \| `suspended` \| `declined` \| `expired`), `invite_token`, `invited_at`, `invite_accepted_at`, `invited_email`. Partial unique `uq_customers_profile_linked` on `(profile_id, linked_profile_id)` where linked is set. |
 | `customer_invitations` | Platform invites for customers (token, seller `profile_id`, `customer_id`, email, status `pending`\|`claiming`\|`accepted`\|`declined`\|`expired`\|`revoked`, optional `target_profile_id`, 14-day `expires_at`). Migration: `20260709_customer_platform_invites.sql`. |
-| `sales_orders` | Outbound orders + line items JSON |
+| `sales_orders` | Outbound orders + line items JSON. `visibility` (`seller_only` \| `shared`) — buyer reads only via `GET /api/buyer/documents` when shared. Same flag on `customer_quotes` / `customer_invoices`. |
+| `customer_contracts` | Commercial contracts. Share fields: `shared_with_buyer`, `buyer_profile_id`, `shared_at` (migration `20260709_crm_document_visibility.sql`). |
 | `leads` | Pipeline leads |
 
 `business_connections` pair unique: `uq_bc_requester_requestee` on `(requester_profile_id, requestee_profile_id)` — claim UPSERT conflict target. Migration runs a **destructive** one-time cleanup before index create (keeps preferred edge per pair: `status=accepted`, then newest `updated_at`/`created_at`, then highest `id`; higher-ranked losers are deleted). Index create fails the migration if the unique index cannot be created.

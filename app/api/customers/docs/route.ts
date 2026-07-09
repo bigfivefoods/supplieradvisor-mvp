@@ -8,6 +8,10 @@ import {
   LOYALTY_EARN_RATE,
   type DocLineItem,
 } from '@/lib/customers/documents';
+import {
+  assertCompanyMember,
+  assertSellerCustomerNotSuspended,
+} from '@/lib/customers/access';
 
 type DocKind = 'quote' | 'order' | 'invoice';
 
@@ -389,6 +393,7 @@ export async function PATCH(request: NextRequest) {
 
     const supabase = getSupabaseServer();
     const table = TABLES[kind];
+    const docId = Number(body.id);
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
 
     if (body.status !== undefined) updates.status = body.status;
@@ -407,12 +412,66 @@ export async function PATCH(request: NextRequest) {
       Object.assign(updates, totals);
     }
 
-    const { data, error } = await supabase
-      .from(table)
-      .update(updates)
-      .eq('id', Number(body.id))
-      .select('*')
-      .single();
+    // Share toggle: visibility = shared | seller_only
+    // New share blocked while customer/connection suspended; unshare always allowed.
+    if (body.visibility !== undefined) {
+      const companyId = Number(body.companyId);
+      if (!Number.isFinite(companyId)) {
+        return NextResponse.json(
+          { error: 'companyId required when updating visibility' },
+          { status: 400 }
+        );
+      }
+
+      const member = await assertCompanyMember(body.privyUserId, companyId);
+      if (!member.ok) {
+        return NextResponse.json({ error: member.error }, { status: member.status });
+      }
+
+      const nextVisibility =
+        body.visibility === 'shared' || body.visibility === true ? 'shared' : 'seller_only';
+
+      const { data: existing, error: loadErr } = await supabase
+        .from(table)
+        .select('id, profile_id, customer_id, visibility')
+        .eq('id', docId)
+        .eq('profile_id', companyId)
+        .maybeSingle();
+
+      if (loadErr) {
+        return NextResponse.json({ error: loadErr.message }, { status: 500 });
+      }
+      if (!existing) {
+        return NextResponse.json({ error: 'Document not found for this company' }, { status: 404 });
+      }
+
+      if (nextVisibility === 'shared') {
+        const customerId = Number(existing.customer_id || body.customer_id);
+        if (!Number.isFinite(customerId) || customerId <= 0) {
+          return NextResponse.json(
+            { error: 'Assign a customer before sharing this document with the buyer' },
+            { status: 400 }
+          );
+        }
+        const notSuspended = await assertSellerCustomerNotSuspended(companyId, customerId);
+        if (!notSuspended.ok) {
+          return NextResponse.json(
+            { error: notSuspended.error },
+            { status: notSuspended.status }
+          );
+        }
+      }
+
+      updates.visibility = nextVisibility;
+    }
+
+    let q = supabase.from(table).update(updates).eq('id', docId);
+    // Scope ownership when companyId provided (required for share; optional for other fields)
+    if (body.companyId != null && Number.isFinite(Number(body.companyId))) {
+      q = q.eq('profile_id', Number(body.companyId));
+    }
+
+    const { data, error } = await q.select('*').single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ success: true, document: data, type: kind });
   } catch (e: unknown) {
