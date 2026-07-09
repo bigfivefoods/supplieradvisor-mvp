@@ -2,14 +2,23 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, ArrowLeftRight, Loader2 } from 'lucide-react';
+import { ArrowLeftRight, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import type { ContainerRecord } from '@/lib/containers/types';
 import type { ProductRecord } from '@/lib/inventory/types';
+import { CompanyRequired, InventoryHeader } from '@/components/inventory/InventoryShell';
 
 export default function InventorySyncPage() {
-  const companyId = getSelectedCompanyId();
+  return (
+    <CompanyRequired>
+      <SyncInner />
+    </CompanyRequired>
+  );
+}
+
+function SyncInner() {
+  const companyId = getSelectedCompanyId()!;
   const [containers, setContainers] = useState<ContainerRecord[]>([]);
   const [products, setProducts] = useState<ProductRecord[]>([]);
   const [transfers, setTransfers] = useState<Array<Record<string, unknown>>>([]);
@@ -24,17 +33,20 @@ export default function InventorySyncPage() {
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    if (!companyId) return;
     setLoading(true);
-    const [c, p, t] = await Promise.all([
-      fetch(`/api/containers?companyId=${companyId}`).then((r) => r.json()),
-      fetch(`/api/inventory/products?companyId=${companyId}`).then((r) => r.json()),
-      fetch(`/api/inventory/sync-transfer?companyId=${companyId}`).then((r) => r.json()),
-    ]);
-    setContainers(c.containers || []);
-    setProducts(p.products || []);
-    setTransfers(t.transfers || []);
-    setLoading(false);
+    try {
+      const [c, p, t] = await Promise.all([
+        fetch(`/api/containers?companyId=${companyId}`).then((r) => r.json()),
+        fetch(`/api/inventory/products?companyId=${companyId}`).then((r) => r.json()),
+        fetch(`/api/inventory/sync-transfer?companyId=${companyId}`).then((r) => r.json()),
+      ]);
+      setContainers(c.containers || []);
+      setProducts(p.products || []);
+      setTransfers(t.transfers || []);
+      if (t.warning) toast.message(t.warning, { description: t.hint });
+    } finally {
+      setLoading(false);
+    }
   }, [companyId]);
 
   useEffect(() => {
@@ -42,7 +54,7 @@ export default function InventorySyncPage() {
   }, [load]);
 
   const submit = async () => {
-    if (!companyId || !containerId || !productId) {
+    if (!containerId || !productId) {
       toast.error('Container and product required');
       return;
     }
@@ -71,26 +83,17 @@ export default function InventorySyncPage() {
     }
   };
 
-  if (!companyId) {
-    return (
-      <div className="text-center py-16">
-        <Link href="/dashboard/select-company" className="btn-primary px-6 py-3">Select company</Link>
-      </div>
-    );
-  }
-
   return (
     <div className="px-2 md:px-4 max-w-screen-2xl mx-auto pb-12">
-      <Link href="/dashboard/inventory" className="inline-flex items-center gap-2 text-sm text-neutral-500 mb-4">
-        <ArrowLeft className="w-4 h-4" /> Inventory
-      </Link>
-      <h1 className="text-3xl font-black tracking-[-2px] text-[#00b4d8] mb-2">
-        Warehouse ↔ container sync
-      </h1>
-      <p className="text-neutral-600 text-sm mb-6 max-w-2xl">
-        Auto-sync stock between central warehouse balances and retail container outlets — one ledger,
-        one hash trail.
-      </p>
+      <InventoryHeader
+        title="Warehouse ↔ container sync"
+        description="Moves stock between stock_levels and container_inventory via inventory_transfers + stock_movements."
+        action={
+          <Link href="/dashboard/inventory/stock-transfers" className="btn-secondary !py-2.5 !px-4 text-sm">
+            Internal WH transfers
+          </Link>
+        }
+      />
 
       <div className="bg-white border rounded-3xl p-6 space-y-4 max-w-xl mb-8">
         <div className="flex gap-2">
@@ -165,7 +168,7 @@ export default function InventorySyncPage() {
       </div>
 
       <div className="bg-white border rounded-3xl overflow-hidden">
-        <div className="px-5 py-3 border-b font-semibold text-sm">Transfer history</div>
+        <div className="px-5 py-3 border-b font-semibold text-sm">Transfer history (inventory_transfers)</div>
         {loading ? (
           <div className="p-10 flex justify-center">
             <Loader2 className="w-6 h-6 animate-spin text-[#00b4d8]" />
@@ -184,6 +187,7 @@ export default function InventorySyncPage() {
                     {String(t.from_type)} {String(t.from_id ?? '—')} → {String(t.to_type)}{' '}
                     {String(t.to_id ?? '—')}
                     {t.lot_number ? ` · lot ${String(t.lot_number)}` : ''}
+                    {t.created_at ? ` · ${String(t.created_at).slice(0, 19)}` : ''}
                   </div>
                 </div>
                 <span className="text-xs capitalize text-neutral-500">{String(t.status)}</span>

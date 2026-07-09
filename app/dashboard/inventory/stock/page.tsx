@@ -1,31 +1,45 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
-import { ArrowLeft, Loader2, PackagePlus, AlertTriangle } from 'lucide-react';
+import { Loader2, PackagePlus, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import type { ProductRecord, StockLevelRecord } from '@/lib/inventory/types';
+import { CompanyRequired, InventoryHeader } from '@/components/inventory/InventoryShell';
+
+type Wh = { id: number; name: string };
 
 export default function StockLevelsPage() {
-  const companyId = getSelectedCompanyId();
+  return (
+    <CompanyRequired>
+      <StockInner />
+    </CompanyRequired>
+  );
+}
+
+function StockInner() {
+  const companyId = getSelectedCompanyId()!;
   const [levels, setLevels] = useState<StockLevelRecord[]>([]);
   const [products, setProducts] = useState<ProductRecord[]>([]);
+  const [warehouses, setWarehouses] = useState<Wh[]>([]);
   const [loading, setLoading] = useState(true);
   const [productId, setProductId] = useState('');
+  const [warehouseId, setWarehouseId] = useState('');
   const [qty, setQty] = useState('1');
   const [action, setAction] = useState('receive');
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
-    if (!companyId) return;
     setLoading(true);
-    const [sRes, pRes] = await Promise.all([
+    const [sRes, pRes, wRes] = await Promise.all([
       fetch(`/api/inventory/stock?companyId=${companyId}`).then((r) => r.json()),
       fetch(`/api/inventory/products?companyId=${companyId}`).then((r) => r.json()),
+      fetch(`/api/inventory/warehouses?companyId=${companyId}`).then((r) => r.json()),
     ]);
     setLevels(sRes.levels || []);
     setProducts(pRes.products || []);
+    setWarehouses(wRes.warehouses || []);
+    if (sRes.warning) toast.message(sRes.warning);
     setLoading(false);
   }, [companyId]);
 
@@ -34,7 +48,7 @@ export default function StockLevelsPage() {
   }, [load]);
 
   const move = async () => {
-    if (!companyId || !productId) {
+    if (!productId) {
       toast.error('Select a product');
       return;
     }
@@ -46,6 +60,7 @@ export default function StockLevelsPage() {
         body: JSON.stringify({
           companyId,
           productId: Number(productId),
+          warehouseId: warehouseId ? Number(warehouseId) : undefined,
           quantity: Number(qty),
           movement_type: action,
           absolute: action === 'count',
@@ -63,29 +78,16 @@ export default function StockLevelsPage() {
     }
   };
 
-  if (!companyId) {
-    return (
-      <div className="text-center py-16">
-        <Link href="/dashboard/select-company" className="btn-primary px-6 py-3">
-          Select company
-        </Link>
-      </div>
-    );
-  }
-
   return (
     <div className="px-2 md:px-4 max-w-screen-2xl mx-auto pb-12">
-      <Link href="/dashboard/inventory" className="inline-flex items-center gap-2 text-sm text-neutral-500 mb-4">
-        <ArrowLeft className="w-4 h-4" /> Inventory
-      </Link>
-      <h1 className="text-3xl font-black tracking-[-2px] text-[#00b4d8] mb-2">Stock levels</h1>
-      <p className="text-neutral-600 mb-6 text-sm">
-        Live on-hand balances. Movements write to an immutable ledger with on-chain hash.
-      </p>
+      <InventoryHeader
+        title="Stock levels"
+        description="Live stock_levels by product and warehouse. Movements write to stock_movements with on-chain hash."
+      />
 
-      <div className="bg-white border rounded-3xl p-5 mb-6 grid sm:grid-cols-4 gap-3">
+      <div className="bg-white border rounded-3xl p-5 mb-6 grid sm:grid-cols-2 lg:grid-cols-5 gap-3">
         <select
-          className="input !p-3 !text-sm sm:col-span-2"
+          className="input !p-3 !text-sm lg:col-span-2"
           value={productId}
           onChange={(e) => setProductId(e.target.value)}
         >
@@ -98,9 +100,17 @@ export default function StockLevelsPage() {
         </select>
         <select
           className="input !p-3 !text-sm"
-          value={action}
-          onChange={(e) => setAction(e.target.value)}
+          value={warehouseId}
+          onChange={(e) => setWarehouseId(e.target.value)}
         >
+          <option value="">Default location</option>
+          {warehouses.map((w) => (
+            <option key={w.id} value={w.id}>
+              {w.name}
+            </option>
+          ))}
+        </select>
+        <select className="input !p-3 !text-sm" value={action} onChange={(e) => setAction(e.target.value)}>
           <option value="receive">Receive</option>
           <option value="issue">Issue</option>
           <option value="adjustment">Adjust (+/−)</option>
@@ -113,7 +123,7 @@ export default function StockLevelsPage() {
             value={qty}
             onChange={(e) => setQty(e.target.value)}
           />
-          <button type="button" disabled={saving} onClick={() => void move()} className="btn-primary !px-4 !py-2">
+          <button type="button" disabled={saving} onClick={() => void move()} className="btn-primary !px-4">
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <PackagePlus className="w-4 h-4" />}
           </button>
         </div>
@@ -146,6 +156,7 @@ export default function StockLevelsPage() {
                       {l.warehouse
                         ? ` · ${(l.warehouse as { name?: string }).name}`
                         : ' · default location'}
+                      {l.lot_number ? ` · lot ${l.lot_number}` : ''}
                     </div>
                   </div>
                   <div className="text-right">

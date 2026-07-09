@@ -1,13 +1,21 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
-import { ArrowLeft, FileJson, Loader2, Download } from 'lucide-react';
+import { FileJson, Loader2, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
+import { CompanyRequired, InventoryHeader } from '@/components/inventory/InventoryShell';
 
 export default function EdiPage() {
-  const companyId = getSelectedCompanyId();
+  return (
+    <CompanyRequired>
+      <EdiInner />
+    </CompanyRequired>
+  );
+}
+
+function EdiInner() {
+  const companyId = getSelectedCompanyId()!;
   const [messages, setMessages] = useState<Array<Record<string, unknown>>>([]);
   const [partner, setPartner] = useState('');
   const [loading, setLoading] = useState(true);
@@ -17,12 +25,15 @@ export default function EdiPage() {
   const [parsed, setParsed] = useState<Record<string, unknown> | null>(null);
 
   const load = useCallback(async () => {
-    if (!companyId) return;
     setLoading(true);
-    const res = await fetch(`/api/inventory/edi?companyId=${companyId}`);
-    const data = await res.json();
-    setMessages(data.messages || []);
-    setLoading(false);
+    try {
+      const res = await fetch(`/api/inventory/edi?companyId=${companyId}`);
+      const data = await res.json();
+      setMessages(data.messages || []);
+      if (data.warning) toast.message(data.warning);
+    } finally {
+      setLoading(false);
+    }
   }, [companyId]);
 
   useEffect(() => {
@@ -30,7 +41,6 @@ export default function EdiPage() {
   }, [load]);
 
   const generate = async () => {
-    if (!companyId) return;
     setGenerating(true);
     try {
       const res = await fetch('/api/inventory/edi', {
@@ -45,7 +55,11 @@ export default function EdiPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
       setLastEdi(data.edi);
-      toast.success('EDI 846 inventory advice generated');
+      toast.success(
+        data.warning
+          ? 'EDI generated (not persisted — run pedigree migration)'
+          : 'EDI 846 inventory advice generated'
+      );
       void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed');
@@ -55,7 +69,7 @@ export default function EdiPage() {
   };
 
   const parse = async () => {
-    if (!companyId || !parseRaw.trim()) return;
+    if (!parseRaw.trim()) return;
     const res = await fetch('/api/inventory/edi', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -81,24 +95,12 @@ export default function EdiPage() {
     URL.revokeObjectURL(url);
   };
 
-  if (!companyId) {
-    return (
-      <div className="text-center py-16">
-        <Link href="/dashboard/select-company" className="btn-primary px-6 py-3">Select company</Link>
-      </div>
-    );
-  }
-
   return (
     <div className="px-2 md:px-4 max-w-screen-2xl mx-auto pb-12">
-      <Link href="/dashboard/inventory" className="inline-flex items-center gap-2 text-sm text-neutral-500 mb-4">
-        <ArrowLeft className="w-4 h-4" /> Inventory
-      </Link>
-      <h1 className="text-3xl font-black tracking-[-2px] text-[#00b4d8] mb-2">GS1 &amp; EDI</h1>
-      <p className="text-neutral-600 text-sm mb-6 max-w-2xl">
-        GTIN validation, GS1 Application Identifier parsing, and outbound X12 846 / EDIFACT INVRPT
-        inventory advice for trading partners.
-      </p>
+      <InventoryHeader
+        title="GS1 & EDI"
+        description="GTIN validation, GS1 AI parsing, and outbound X12 846 / EDIFACT INVRPT from live stock_levels + products."
+      />
 
       <div className="grid lg:grid-cols-2 gap-6 mb-8">
         <div className="bg-white border rounded-3xl p-6 space-y-3">
@@ -111,8 +113,17 @@ export default function EdiPage() {
             value={partner}
             onChange={(e) => setPartner(e.target.value)}
           />
-          <button type="button" disabled={generating} onClick={() => void generate()} className="btn-primary w-full !py-3">
-            {generating ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Generate from live stock'}
+          <button
+            type="button"
+            disabled={generating}
+            onClick={() => void generate()}
+            className="btn-primary w-full !py-3"
+          >
+            {generating ? (
+              <Loader2 className="w-4 h-4 animate-spin mx-auto" />
+            ) : (
+              'Generate from live stock'
+            )}
           </button>
           {lastEdi && (
             <div className="space-y-2">
@@ -146,9 +157,11 @@ export default function EdiPage() {
       </div>
 
       <div className="bg-white border rounded-3xl overflow-hidden">
-        <div className="px-5 py-3 border-b font-semibold text-sm">Message history</div>
+        <div className="px-5 py-3 border-b font-semibold text-sm">Message history (edi_messages)</div>
         {loading ? (
-          <div className="p-10 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-[#00b4d8]" /></div>
+          <div className="p-10 flex justify-center">
+            <Loader2 className="w-6 h-6 animate-spin text-[#00b4d8]" />
+          </div>
         ) : messages.length === 0 ? (
           <div className="p-10 text-center text-neutral-500 text-sm">No EDI messages yet</div>
         ) : (
@@ -160,7 +173,8 @@ export default function EdiPage() {
                     {String(m.transaction_set)} · {String(m.control_number)}
                   </div>
                   <div className="text-xs text-neutral-500">
-                    {String(m.trading_partner)} · {String(m.status)} · {String(m.created_at || '').slice(0, 19)}
+                    {String(m.trading_partner)} · {String(m.status)} ·{' '}
+                    {String(m.created_at || '').slice(0, 19)}
                   </div>
                 </div>
                 <span className="text-xs capitalize text-neutral-500">{String(m.direction)}</span>

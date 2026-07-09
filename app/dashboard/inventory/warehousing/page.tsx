@@ -1,13 +1,18 @@
 'use client';
 
-import ComingSoon from '@/components/ComingSoon';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { Loader2 } from 'lucide-react';
 
-export default function Page() {
+/** Alias — warehousing is served by live warehouses page */
+export default function WarehousingRedirect() {
+  const router = useRouter();
+  useEffect(() => {
+    router.replace('/dashboard/inventory/warehouses');
+  }, [router]);
   return (
-    <ComingSoon
-      title="Warehousing"
-      description="Warehousing with ratings, RIAD, and on-chain tracking."
-      backHref="/dashboard/inventory"
-    />
+    <div className="flex justify-center py-20">
+      <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
+    </div>
   );
 }

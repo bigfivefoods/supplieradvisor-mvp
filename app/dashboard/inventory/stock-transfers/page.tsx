@@ -1,238 +1,176 @@
 'use client';
 
-import { useState } from 'react';
-import Breadcrumb from '@/components/ui/Breadcrumb';
-import { Plus, ArrowRight, CheckCircle, Clock, Truck } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
+import { Loader2, ArrowLeftRight } from 'lucide-react';
 import { toast } from 'sonner';
+import { getSelectedCompanyId } from '@/lib/containers/company';
+import type { ProductRecord } from '@/lib/inventory/types';
+import { CompanyRequired, InventoryHeader } from '@/components/inventory/InventoryShell';
 
-interface Transfer {
-  id: number;
-  from: string;
-  to: string;
-  item: string;
-  quantity: number;
-  uom: string;
-  status: 'Pending' | 'In Transit' | 'Completed' | 'Cancelled';
-  date: string;
-  requestedBy: string;
+type Wh = { id: number; name: string };
+
+export default function StockTransfersPage() {
+  return (
+    <CompanyRequired>
+      <TransfersInner />
+    </CompanyRequired>
+  );
 }
 
-export default function InventoryTransfers() {
-  const [showModal, setShowModal] = useState(false);
-  const [transfers, setTransfers] = useState<Transfer[]>([
-    {
-      id: 1,
-      from: 'Durban Main Warehouse',
-      to: 'Pietermaritzburg DC',
-      item: 'Wheat Flour',
-      quantity: 500,
-      uom: 'kg',
-      status: 'Completed',
-      date: '2026-06-15',
-      requestedBy: 'Sipho Nkosi',
-    },
-    {
-      id: 2,
-      from: 'C-DUR-001 (Container)',
-      to: 'Durban Main Warehouse',
-      item: 'Sugar',
-      quantity: 300,
-      uom: 'kg',
-      status: 'In Transit',
-      date: '2026-06-18',
-      requestedBy: 'Thandiwe Mthembu',
-    },
-    {
-      id: 3,
-      from: 'Pietermaritzburg DC',
-      to: 'C-PMB-002',
-      item: 'Baked Beans 400g',
-      quantity: 120,
-      uom: 'cases',
-      status: 'Pending',
-      date: '2026-06-20',
-      requestedBy: 'Sipho Nkosi',
-    },
-  ]);
+function TransfersInner() {
+  const companyId = getSelectedCompanyId()!;
+  const [products, setProducts] = useState<ProductRecord[]>([]);
+  const [warehouses, setWarehouses] = useState<Wh[]>([]);
+  const [movements, setMovements] = useState<Array<Record<string, unknown>>>([]);
+  const [productId, setProductId] = useState('');
+  const [fromWh, setFromWh] = useState('');
+  const [toWh, setToWh] = useState('');
+  const [qty, setQty] = useState('1');
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const [form, setForm] = useState({
-    from: '',
-    to: '',
-    item: '',
-    quantity: '',
-    uom: 'kg',
-    requestedBy: '',
-  });
+  const load = useCallback(async () => {
+    setLoading(true);
+    const [p, w, m] = await Promise.all([
+      fetch(`/api/inventory/products?companyId=${companyId}`).then((r) => r.json()),
+      fetch(`/api/inventory/warehouses?companyId=${companyId}`).then((r) => r.json()),
+      fetch(`/api/inventory/movements?companyId=${companyId}&type=transfer`).then((r) => r.json()),
+    ]);
+    setProducts(p.products || []);
+    setWarehouses(w.warehouses || []);
+    setMovements(m.movements || []);
+    setLoading(false);
+  }, [companyId]);
 
-  const openModal = () => {
-    setForm({ from: '', to: '', item: '', quantity: '', uom: 'kg', requestedBy: '' });
-    setShowModal(true);
-  };
+  useEffect(() => {
+    void load();
+  }, [load]);
 
-  const createTransfer = () => {
-    if (!form.from || !form.to || !form.item || !form.quantity) {
-      toast.error('Please fill in all required fields');
+  const submit = async () => {
+    if (!productId || !fromWh || !toWh) {
+      toast.error('Product, from and to warehouse required');
       return;
     }
-
-    const newTransfer: Transfer = {
-      id: Date.now(),
-      from: form.from,
-      to: form.to,
-      item: form.item,
-      quantity: parseInt(form.quantity),
-      uom: form.uom,
-      status: 'Pending',
-      date: new Date().toISOString().split('T')[0],
-      requestedBy: form.requestedBy || 'System',
-    };
-
-    setTransfers(prev => [newTransfer, ...prev]);
-    setShowModal(false);
-    toast.success('Transfer request created');
-  };
-
-  const updateStatus = (id: number, newStatus: Transfer['status']) => {
-    setTransfers(prev =>
-      prev.map(t => (t.id === id ? { ...t, status: newStatus } : t))
-    );
-    toast.success(`Transfer marked as ${newStatus}`);
-  };
-
-  const getStatusIcon = (status: string) => {
-    if (status === 'Completed') return <CheckCircle className="text-emerald-600" size={16} />;
-    if (status === 'In Transit') return <Truck className="text-amber-600" size={16} />;
-    return <Clock className="text-blue-600" size={16} />;
+    if (fromWh === toWh) {
+      toast.error('Choose different warehouses');
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch('/api/inventory/stock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          productId: Number(productId),
+          warehouseId: Number(fromWh),
+          toWarehouseId: Number(toWh),
+          quantity: Number(qty),
+          movement_type: 'transfer',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Transfer failed');
+      toast.success(`Transfer recorded · ${String(data.onchain_hash || '').slice(0, 12)}…`);
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
-    <div className="pl-0 pr-12 py-12 max-w-screen-2xl mx-auto">
-      <Breadcrumb />
+    <div className="px-2 md:px-4 max-w-screen-2xl mx-auto pb-12">
+      <InventoryHeader
+        title="Stock transfers"
+        description="Move stock between warehouses. Writes stock_movements + updates stock_levels (Supabase)."
+        action={
+          <Link href="/dashboard/inventory/sync" className="btn-secondary !py-2.5 !px-4 text-sm">
+            Warehouse ↔ container
+          </Link>
+        }
+      />
 
-      <div className="flex items-end justify-between mb-8">
-        <div>
-          <h1 className="text-6xl font-black tracking-[-3px] text-[#00b4d8]">Inventory Transfers</h1>
-          <p className="text-xl text-neutral-600">Move stock between warehouses, containers, and sites</p>
+      <div className="bg-white border rounded-3xl p-5 grid sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
+        <select
+          className="input !p-3 !text-sm lg:col-span-2"
+          value={productId}
+          onChange={(e) => setProductId(e.target.value)}
+        >
+          <option value="">Product *</option>
+          {products.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+        <select className="input !p-3 !text-sm" value={fromWh} onChange={(e) => setFromWh(e.target.value)}>
+          <option value="">From warehouse *</option>
+          {warehouses.map((w) => (
+            <option key={w.id} value={w.id}>
+              {w.name}
+            </option>
+          ))}
+        </select>
+        <select className="input !p-3 !text-sm" value={toWh} onChange={(e) => setToWh(e.target.value)}>
+          <option value="">To warehouse *</option>
+          {warehouses.map((w) => (
+            <option key={w.id} value={w.id}>
+              {w.name}
+            </option>
+          ))}
+        </select>
+        <div className="flex gap-2">
+          <input
+            type="number"
+            className="input !p-3 !text-sm flex-1"
+            value={qty}
+            onChange={(e) => setQty(e.target.value)}
+          />
+          <button type="button" disabled={saving} onClick={() => void submit()} className="btn-primary !px-4">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowLeftRight className="w-4 h-4" />}
+          </button>
         </div>
-        <button onClick={openModal} className="btn-primary flex items-center gap-3 px-8 py-4">
-          <Plus size={20} /> New Transfer
-        </button>
       </div>
 
-      <div className="bg-white rounded-3xl shadow-sm border border-neutral-100 overflow-hidden">
-        <table className="w-full">
-          <thead className="bg-neutral-50 border-b">
-            <tr>
-              <th className="px-8 py-5 text-left font-medium">From</th>
-              <th className="px-8 py-5 text-center font-medium"></th>
-              <th className="px-8 py-5 text-left font-medium">To</th>
-              <th className="px-8 py-5 text-left font-medium">Item</th>
-              <th className="px-8 py-5 text-center font-medium">Qty</th>
-              <th className="px-8 py-5 text-center font-medium">Status</th>
-              <th className="px-8 py-5 text-left font-medium">Requested By</th>
-              <th className="px-8 py-5 text-right font-medium">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {transfers.map((transfer) => (
-              <tr key={transfer.id} className="border-b last:border-none hover:bg-neutral-50">
-                <td className="px-8 py-6 font-medium">{transfer.from}</td>
-                <td className="px-8 py-6 text-center text-neutral-400"><ArrowRight size={18} /></td>
-                <td className="px-8 py-6 font-medium">{transfer.to}</td>
-                <td className="px-8 py-6">{transfer.item}</td>
-                <td className="px-8 py-6 text-center font-medium">{transfer.quantity} {transfer.uom}</td>
-                <td className="px-8 py-6 text-center">
-                  <span className={`inline-flex items-center gap-2 px-4 py-1 rounded-full text-sm font-medium ${
-                    transfer.status === 'Completed' ? 'bg-emerald-100 text-emerald-700' :
-                    transfer.status === 'In Transit' ? 'bg-amber-100 text-amber-700' :
-                    transfer.status === 'Pending' ? 'bg-blue-100 text-blue-700' :
-                    'bg-red-100 text-red-700'
-                  }`}>
-                    {getStatusIcon(transfer.status)} {transfer.status}
-                  </span>
-                </td>
-                <td className="px-8 py-6 text-neutral-600">{transfer.requestedBy}</td>
-                <td className="px-8 py-6 text-right space-x-2">
-                  {transfer.status === 'Pending' && (
-                    <button onClick={() => updateStatus(transfer.id, 'In Transit')} className="btn-primary text-sm px-5 py-2">
-                      Start Transfer
-                    </button>
-                  )}
-                  {transfer.status === 'In Transit' && (
-                    <button onClick={() => updateStatus(transfer.id, 'Completed')} className="btn-primary text-sm px-5 py-2">
-                      Mark Completed
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Create Transfer Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/70 z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-2xl p-8">
-            <h2 className="text-3xl font-bold mb-8">Create New Transfer</h2>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium mb-2">From Location</label>
-                <select className="input w-full" value={form.from} onChange={e => setForm({ ...form, from: e.target.value })}>
-                  <option value="">Select source...</option>
-                  <option>Durban Main Warehouse</option>
-                  <option>Pietermaritzburg DC</option>
-                  <option>C-DUR-001 (Container)</option>
-                  <option>C-DUR-002 Cold Room</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">To Location</label>
-                <select className="input w-full" value={form.to} onChange={e => setForm({ ...form, to: e.target.value })}>
-                  <option value="">Select destination...</option>
-                  <option>Durban Main Warehouse</option>
-                  <option>Pietermaritzburg DC</option>
-                  <option>C-DUR-001 (Container)</option>
-                  <option>C-DUR-002 Cold Room</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">Item</label>
-                <input type="text" className="input w-full" placeholder="Item name" value={form.item} onChange={e => setForm({ ...form, item: e.target.value })} />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2">Quantity</label>
-                  <input type="number" className="input w-full" value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">Unit</label>
-                  <select className="input w-full" value={form.uom} onChange={e => setForm({ ...form, uom: e.target.value })}>
-                    <option>kg</option>
-                    <option>cases</option>
-                    <option>units</option>
-                    <option>litres</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium mb-2">Requested By</label>
-                <input type="text" className="input w-full" placeholder="Staff name" value={form.requestedBy} onChange={e => setForm({ ...form, requestedBy: e.target.value })} />
-              </div>
-            </div>
-
-            <div className="flex gap-4 mt-10">
-              <button onClick={() => setShowModal(false)} className="flex-1 border py-4 rounded-3xl">Cancel</button>
-              <button onClick={createTransfer} className="flex-1 btn-primary py-4">Create Transfer</button>
-            </div>
+      <div className="bg-white border rounded-3xl overflow-hidden">
+        <div className="px-5 py-3 border-b font-semibold text-sm">Transfer history</div>
+        {loading ? (
+          <div className="p-10 flex justify-center">
+            <Loader2 className="w-6 h-6 animate-spin text-[#00b4d8]" />
           </div>
-        </div>
-      )}
+        ) : movements.length === 0 ? (
+          <div className="p-10 text-center text-neutral-500 text-sm">No transfers yet</div>
+        ) : (
+          <ul className="divide-y">
+            {movements.map((m) => (
+              <li key={String(m.id)} className="px-5 py-3 text-sm flex justify-between gap-3">
+                <div>
+                  <div className="font-semibold">
+                    {String(m.product_name || m.product_id)} × {String(m.quantity)}
+                  </div>
+                  <div className="text-xs text-neutral-500">
+                    {String(
+                      m.from_warehouse_name ||
+                        m.from_warehouse_id ||
+                        m.warehouse_name ||
+                        m.warehouse_id ||
+                        '—'
+                    )}{' '}
+                    → {String(m.to_warehouse_name || m.to_warehouse_id || '—')} ·{' '}
+                    {String(m.created_at || '').slice(0, 19)}
+                  </div>
+                </div>
+                <span className="text-[10px] font-mono text-neutral-400 max-w-[100px] truncate">
+                  {String(m.onchain_hash || '').slice(0, 10)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }

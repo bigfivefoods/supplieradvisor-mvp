@@ -1,9 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
 import {
-  ArrowLeft,
   Camera,
   Loader2,
   PackagePlus,
@@ -14,19 +12,32 @@ import {
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import type { ContainerRecord } from '@/lib/containers/types';
+import { CompanyRequired, InventoryHeader } from '@/components/inventory/InventoryShell';
+
+type Wh = { id: number; name: string };
 
 /**
  * Best-in-class scan receive: camera QR/barcode → product resolve → stock + pedigree.
- * Uses BarcodeDetector when available; falls back to manual entry / file capture.
+ * Uses BarcodeDetector when available; falls back to manual entry.
  */
 export default function InventoryScanPage() {
-  const companyId = getSelectedCompanyId();
+  return (
+    <CompanyRequired>
+      <ScanInner />
+    </CompanyRequired>
+  );
+}
+
+function ScanInner() {
+  const companyId = getSelectedCompanyId()!;
   const videoRef = useRef<HTMLVideoElement>(null);
   const [streaming, setStreaming] = useState(false);
   const [manual, setManual] = useState('');
   const [qty, setQty] = useState('1');
   const [containers, setContainers] = useState<ContainerRecord[]>([]);
+  const [warehouses, setWarehouses] = useState<Wh[]>([]);
   const [containerId, setContainerId] = useState('');
+  const [warehouseId, setWarehouseId] = useState('');
   const [busy, setBusy] = useState(false);
   const [lastResult, setLastResult] = useState<Record<string, unknown> | null>(null);
   const [detectorSupported, setDetectorSupported] = useState(false);
@@ -37,16 +48,18 @@ export default function InventoryScanPage() {
   }, []);
 
   useEffect(() => {
-    if (!companyId) return;
-    fetch(`/api/containers?companyId=${companyId}`)
-      .then((r) => r.json())
-      .then((d) => setContainers(d.containers || []))
-      .catch(() => {});
+    void Promise.all([
+      fetch(`/api/containers?companyId=${companyId}`).then((r) => r.json()),
+      fetch(`/api/inventory/warehouses?companyId=${companyId}`).then((r) => r.json()),
+    ]).then(([c, w]) => {
+      setContainers(c.containers || []);
+      setWarehouses(w.warehouses || []);
+    });
   }, [companyId]);
 
   const processRaw = useCallback(
     async (raw: string, action: 'lookup' | 'receive' = 'receive') => {
-      if (!companyId || !raw.trim() || scanLock.current) return;
+      if (!raw.trim() || scanLock.current) return;
       scanLock.current = true;
       setBusy(true);
       try {
@@ -59,6 +72,7 @@ export default function InventoryScanPage() {
             action,
             quantity: Number(qty) || 1,
             containerId: containerId ? Number(containerId) : undefined,
+            warehouseId: warehouseId ? Number(warehouseId) : undefined,
           }),
         });
         const data = await res.json();
@@ -80,7 +94,7 @@ export default function InventoryScanPage() {
         }, 1500);
       }
     },
-    [companyId, qty, containerId]
+    [companyId, qty, containerId, warehouseId]
   );
 
   const startCamera = async () => {
@@ -110,8 +124,13 @@ export default function InventoryScanPage() {
   useEffect(() => {
     if (!streaming || !detectorSupported) return;
     let active = true;
-    // BarcodeDetector is experimental (Chrome/Edge)
-    const BD = (window as unknown as { BarcodeDetector: new (opts: { formats: string[] }) => { detect: (s: HTMLVideoElement) => Promise<Array<{ rawValue?: string }>> } }).BarcodeDetector;
+    const BD = (
+      window as unknown as {
+        BarcodeDetector: new (opts: { formats: string[] }) => {
+          detect: (s: HTMLVideoElement) => Promise<Array<{ rawValue?: string }>>;
+        };
+      }
+    ).BarcodeDetector;
     const detector = new BD({
       formats: ['qr_code', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39'],
     });
@@ -140,27 +159,14 @@ export default function InventoryScanPage() {
 
   useEffect(() => () => stopCamera(), []);
 
-  if (!companyId) {
-    return (
-      <div className="text-center py-16">
-        <Link href="/dashboard/select-company" className="btn-primary px-6 py-3">
-          Select company
-        </Link>
-      </div>
-    );
-  }
-
   return (
     <div className="px-2 md:px-4 max-w-3xl mx-auto pb-12">
-      <Link href="/dashboard/inventory" className="inline-flex items-center gap-2 text-sm text-neutral-500 mb-4">
-        <ArrowLeft className="w-4 h-4" /> Inventory
-      </Link>
-      <h1 className="text-3xl font-black tracking-[-2px] text-[#00b4d8] mb-1">Scan receive</h1>
-      <p className="text-neutral-600 text-sm mb-6">
-        Point at a product QR or GS1 barcode to receive stock. Captures lot/serial/expiry when present.
-      </p>
+      <InventoryHeader
+        title="Scan receive"
+        description="QR / GS1 barcode → resolve product → stock_levels or container_inventory with lot/serial pedigree."
+      />
 
-      <div className="grid sm:grid-cols-2 gap-3 mb-4">
+      <div className="grid sm:grid-cols-3 gap-3 mb-4">
         <div>
           <label className="text-xs font-medium">Quantity</label>
           <input
@@ -172,13 +178,28 @@ export default function InventoryScanPage() {
           />
         </div>
         <div>
-          <label className="text-xs font-medium">Destination container (optional)</label>
+          <label className="text-xs font-medium">Warehouse (optional)</label>
+          <select
+            className="input mt-1 w-full !p-3 !text-sm"
+            value={warehouseId}
+            onChange={(e) => setWarehouseId(e.target.value)}
+          >
+            <option value="">Default location</option>
+            {warehouses.map((w) => (
+              <option key={w.id} value={w.id}>
+                {w.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="text-xs font-medium">Container outlet (optional)</label>
           <select
             className="input mt-1 w-full !p-3 !text-sm"
             value={containerId}
             onChange={(e) => setContainerId(e.target.value)}
           >
-            <option value="">Default warehouse stock</option>
+            <option value="">Warehouse stock</option>
             {containers.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -259,7 +280,8 @@ export default function InventoryScanPage() {
             <CheckCircle2 className="w-4 h-4" /> Last scan
           </div>
           <div className="text-emerald-900">
-            {(lastResult.product as { name?: string })?.name} · qty {String(lastResult.received ?? '—')}
+            {(lastResult.product as { name?: string })?.name} · qty{' '}
+            {String(lastResult.received ?? '—')}
           </div>
           {!!lastResult.lot_number && (
             <div className="text-xs text-emerald-800 mt-1">Lot {String(lastResult.lot_number)}</div>

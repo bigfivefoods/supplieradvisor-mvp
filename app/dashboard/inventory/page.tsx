@@ -73,14 +73,15 @@ export default function InventoryHub() {
     <div className="px-2 md:px-4 max-w-screen-2xl mx-auto pb-12">
       <div className="mb-8">
         <p className="text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-1">
-          World-class inventory
+          World-class inventory · live Supabase
         </p>
         <h1 className="text-3xl sm:text-4xl font-black tracking-[-2px] text-[#00b4d8]">
           Inventory command center
         </h1>
         <p className="text-neutral-600 mt-2 max-w-2xl">
-          Product master with QR passports, multi-warehouse stock, movement ledger with hash
-          anchoring, and container outlet stock in one system — on-chain ready.
+          All modules read/write the same tables: products, product_categories, warehouses,
+          stock_levels, stock_movements, inventory_lots, inventory_serials, inventory_transfers,
+          edi_messages — plus container_inventory for outlets.
         </p>
       </div>
 

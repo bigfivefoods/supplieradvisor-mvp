@@ -1,15 +1,16 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
-import { ArrowLeft, Loader2, AlertTriangle, Plus } from 'lucide-react';
+import { Loader2, AlertTriangle, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import type { ProductRecord } from '@/lib/inventory/types';
+import { CompanyRequired, InventoryHeader } from '@/components/inventory/InventoryShell';
 
 type Lot = {
   id: number;
   product_id: number;
+  product_name?: string | null;
   lot_number: string;
   expiry_date?: string | null;
   qty_on_hand: number;
@@ -19,10 +20,26 @@ type Lot = {
   container_id?: number | null;
 };
 
+type Serial = {
+  id: number;
+  serial_number: string;
+  lot_number?: string | null;
+  status?: string | null;
+  product_name?: string | null;
+};
+
 export default function LotsPage() {
-  const companyId = getSelectedCompanyId();
+  return (
+    <CompanyRequired>
+      <LotsInner />
+    </CompanyRequired>
+  );
+}
+
+function LotsInner() {
+  const companyId = getSelectedCompanyId()!;
   const [lots, setLots] = useState<Lot[]>([]);
-  const [serials, setSerials] = useState<Array<{ id: number; serial_number: string; lot_number?: string; status?: string }>>([]);
+  const [serials, setSerials] = useState<Serial[]>([]);
   const [expiring, setExpiring] = useState<Lot[]>([]);
   const [products, setProducts] = useState<ProductRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,17 +53,20 @@ export default function LotsPage() {
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
-    if (!companyId) return;
     setLoading(true);
-    const [lRes, pRes] = await Promise.all([
-      fetch(`/api/inventory/lots?companyId=${companyId}`).then((r) => r.json()),
-      fetch(`/api/inventory/products?companyId=${companyId}`).then((r) => r.json()),
-    ]);
-    setLots(lRes.lots || []);
-    setSerials(lRes.serials || []);
-    setExpiring(lRes.expiringSoon || []);
-    setProducts(pRes.products || []);
-    setLoading(false);
+    try {
+      const [lRes, pRes] = await Promise.all([
+        fetch(`/api/inventory/lots?companyId=${companyId}`).then((r) => r.json()),
+        fetch(`/api/inventory/products?companyId=${companyId}`).then((r) => r.json()),
+      ]);
+      setLots(lRes.lots || []);
+      setSerials(lRes.serials || []);
+      setExpiring(lRes.expiringSoon || []);
+      setProducts(pRes.products || []);
+      if (lRes.warning) toast.message(lRes.warning, { description: lRes.hint });
+    } finally {
+      setLoading(false);
+    }
   }, [companyId]);
 
   useEffect(() => {
@@ -54,13 +74,13 @@ export default function LotsPage() {
   }, [load]);
 
   const create = async () => {
-    if (!companyId || !form.product_id || !form.lot_number) {
+    if (!form.product_id || !form.lot_number) {
       toast.error('Product and lot number required');
       return;
     }
     setSaving(true);
     try {
-      const serials = form.serials
+      const serialList = form.serials
         .split(/[\n,]/)
         .map((s) => s.trim())
         .filter(Boolean);
@@ -73,12 +93,16 @@ export default function LotsPage() {
           lot_number: form.lot_number,
           expiry_date: form.expiry_date || null,
           qty_on_hand: Number(form.qty_on_hand) || 0,
-          serials,
+          serials: serialList,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
-      toast.success('Lot registered');
+      toast.success(
+        serialList.length
+          ? `Lot registered with ${serialList.length} serial${serialList.length === 1 ? '' : 's'}`
+          : 'Lot registered'
+      );
       setForm({ product_id: '', lot_number: '', expiry_date: '', qty_on_hand: '0', serials: '' });
       void load();
     } catch (e: unknown) {
@@ -88,25 +112,12 @@ export default function LotsPage() {
     }
   };
 
-  if (!companyId) {
-    return (
-      <div className="text-center py-16">
-        <Link href="/dashboard/select-company" className="btn-primary px-6 py-3">Select company</Link>
-      </div>
-    );
-  }
-
-  const productName = (id: number) => products.find((p) => p.id === id)?.name || `#${id}`;
-
   return (
     <div className="px-2 md:px-4 max-w-screen-2xl mx-auto pb-12">
-      <Link href="/dashboard/inventory" className="inline-flex items-center gap-2 text-sm text-neutral-500 mb-4">
-        <ArrowLeft className="w-4 h-4" /> Inventory
-      </Link>
-      <h1 className="text-3xl font-black tracking-[-2px] text-[#00b4d8] mb-2">Lots &amp; serials</h1>
-      <p className="text-neutral-600 text-sm mb-6">
-        Full pedigree: lot numbers, expiry, and serial tracking for regulated / high-value stock.
-      </p>
+      <InventoryHeader
+        title="Lots & serials"
+        description="Pedigree from inventory_lots and inventory_serials — lot numbers, expiry, and serial tracking."
+      />
 
       {expiring.length > 0 && (
         <div className="mb-4 p-4 rounded-2xl bg-amber-50 border border-amber-100 text-amber-900 text-sm flex gap-2">
@@ -127,7 +138,9 @@ export default function LotsPage() {
           >
             <option value="">Product *</option>
             {products.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
             ))}
           </select>
           <input
@@ -166,7 +179,9 @@ export default function LotsPage() {
           <div className="bg-white border rounded-3xl overflow-hidden">
             <div className="px-5 py-3 border-b font-semibold text-sm">Lots</div>
             {loading ? (
-              <div className="p-10 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-[#00b4d8]" /></div>
+              <div className="p-10 flex justify-center">
+                <Loader2 className="w-6 h-6 animate-spin text-[#00b4d8]" />
+              </div>
             ) : lots.length === 0 ? (
               <div className="p-10 text-center text-neutral-500 text-sm">No lots yet</div>
             ) : (
@@ -174,10 +189,11 @@ export default function LotsPage() {
                 {lots.map((l) => (
                   <li key={l.id} className="px-5 py-3 flex justify-between gap-3 text-sm">
                     <div>
-                      <div className="font-semibold">{l.lot_number}</div>
+                      <div className="font-semibold font-mono">{l.lot_number}</div>
                       <div className="text-xs text-neutral-500">
-                        {productName(l.product_id)}
+                        {l.product_name || `Product #${l.product_id}`}
                         {l.expiry_date ? ` · exp ${l.expiry_date}` : ''}
+                        {l.status ? ` · ${l.status}` : ''}
                       </div>
                     </div>
                     <div className="font-bold">{Number(l.qty_on_hand)}</div>
@@ -193,9 +209,16 @@ export default function LotsPage() {
             ) : (
               <ul className="divide-y max-h-64 overflow-y-auto">
                 {serials.slice(0, 100).map((s) => (
-                  <li key={s.id} className="px-5 py-2 text-sm flex justify-between">
-                    <span className="font-mono text-xs">{s.serial_number}</span>
-                    <span className="text-xs text-neutral-500 capitalize">{s.status} · {s.lot_number || '—'}</span>
+                  <li key={s.id} className="px-5 py-2 text-sm flex justify-between gap-2">
+                    <div className="min-w-0">
+                      <span className="font-mono text-xs">{s.serial_number || '—'}</span>
+                      {s.product_name && (
+                        <div className="text-[10px] text-neutral-400 truncate">{s.product_name}</div>
+                      )}
+                    </div>
+                    <span className="text-xs text-neutral-500 capitalize flex-shrink-0">
+                      {s.status || 'in_stock'} · {s.lot_number || '—'}
+                    </span>
                   </li>
                 ))}
               </ul>

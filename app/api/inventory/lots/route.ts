@@ -25,17 +25,46 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Serial counts
+    // Serial numbers (full fields for UI pedigree list)
     const { data: serials } = await supabase
       .from('inventory_serials')
-      .select('id, product_id, lot_number, status')
-      .eq('profile_id', companyId);
+      .select('id, product_id, serial_number, lot_id, lot_number, status, warehouse_id, container_id, created_at')
+      .eq('profile_id', companyId)
+      .order('created_at', { ascending: false })
+      .limit(500);
+
+    const productIds = [
+      ...new Set(
+        [...(data || []).map((l) => l.product_id), ...(serials || []).map((s) => s.product_id)].filter(
+          Boolean
+        )
+      ),
+    ];
+    let pMap: Record<number, { name: string; sku?: string | null }> = {};
+    if (productIds.length) {
+      const { data: products } = await supabase
+        .from('products')
+        .select('id, name, sku')
+        .in('id', productIds);
+      for (const p of products || []) pMap[p.id] = { name: p.name, sku: p.sku };
+    }
+
+    const lots = (data || []).map((l) => ({
+      ...l,
+      product_name: l.product_id ? pMap[l.product_id]?.name : null,
+      product_sku: l.product_id ? pMap[l.product_id]?.sku : null,
+    }));
+
+    const serialRows = (serials || []).map((s) => ({
+      ...s,
+      product_name: s.product_id ? pMap[s.product_id]?.name : null,
+    }));
 
     return NextResponse.json({
       success: true,
-      lots: data || [],
-      serials: serials || [],
-      expiringSoon: (data || []).filter((l) => {
+      lots,
+      serials: serialRows,
+      expiringSoon: lots.filter((l) => {
         if (!l.expiry_date) return false;
         const d = new Date(l.expiry_date).getTime();
         const days = (d - Date.now()) / 86400000;
