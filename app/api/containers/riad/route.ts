@@ -151,6 +151,14 @@ export async function POST(request: NextRequest) {
       else priority = 'low';
     }
 
+    // Legacy DB has NOT NULL on stakeholder_type (and sometimes owner_id) —
+    // always send safe defaults so container RIAD create never fails.
+    const stakeholderType = body.stakeholder_type || body.stakeholderType || 'internal';
+    const ownerId =
+      body.owner_id != null && body.owner_id !== ''
+        ? Number(body.owner_id)
+        : companyId;
+
     const payload: Record<string, unknown> = {
       profile_id: companyId,
       container_id: containerId,
@@ -163,10 +171,11 @@ export async function POST(request: NextRequest) {
       status: body.status || 'open',
       priority,
       category: body.category || null,
-      owner_name: body.owner_name || null,
-      owner_id: body.owner_id || null,
-      stakeholder_type: body.stakeholder_type || null,
-      stakeholder_name: body.stakeholder_name || null,
+      owner_name: body.owner_name || body.created_by_name || 'Unassigned',
+      owner_id: Number.isFinite(ownerId) ? ownerId : companyId,
+      stakeholder_type: stakeholderType,
+      stakeholder_id: body.stakeholder_id != null ? Number(body.stakeholder_id) : null,
+      stakeholder_name: body.stakeholder_name || body.category || 'Container operations',
       severity,
       likelihood,
       time_horizon: timeHorizon,
@@ -184,13 +193,47 @@ export async function POST(request: NextRequest) {
     };
 
     const supabase = getSupabaseServer();
-    const { data, error } = await supabase.from('riad_logs').insert(payload).select('*').single();
+    let { data, error } = await supabase.from('riad_logs').insert(payload).select('*').single();
+
+    // Retry without optional columns if schema is older / stricter
+    if (error && /null value|not-null|column/i.test(error.message)) {
+      const minimal = {
+        profile_id: companyId,
+        owner_id: companyId,
+        stakeholder_type: stakeholderType,
+        riad_type: riadType,
+        title: payload.title,
+        description: payload.description,
+        status: payload.status,
+        severity,
+        likelihood,
+        time_horizon: timeHorizon,
+        rpn,
+        logged_date: payload.logged_date,
+        container_id: containerId,
+        module: 'containers',
+        source,
+        priority,
+        category: payload.category,
+        owner_name: payload.owner_name,
+        stakeholder_name: payload.stakeholder_name,
+        mitigation_plan: payload.mitigation_plan,
+        due_date: payload.due_date,
+        created_by: payload.created_by,
+        created_by_name: payload.created_by_name,
+        updated_at: payload.updated_at,
+      };
+      const retry = await supabase.from('riad_logs').insert(minimal).select('*').single();
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error) {
       return NextResponse.json(
         {
           error: error.message,
-          hint: 'Run supabase/migrations/20260709_container_riad.sql if columns are missing',
+          hint:
+            'If this persists, in SQL Editor run: ALTER TABLE public.riad_logs ALTER COLUMN stakeholder_type DROP NOT NULL; (or set a default)',
         },
         { status: 500 }
       );

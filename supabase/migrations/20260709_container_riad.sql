@@ -53,9 +53,19 @@ SELECT public.sa_add_column('riad_logs', 'priority', 'text', '''medium'''); -- l
 SELECT public.sa_add_column('riad_logs', 'category', 'text');
 SELECT public.sa_add_column('riad_logs', 'owner_name', 'text');
 SELECT public.sa_add_column('riad_logs', 'owner_id', 'bigint');
-SELECT public.sa_add_column('riad_logs', 'stakeholder_type', 'text');
+SELECT public.sa_add_column('riad_logs', 'stakeholder_type', 'text', '''internal''');
 SELECT public.sa_add_column('riad_logs', 'stakeholder_id', 'bigint');
 SELECT public.sa_add_column('riad_logs', 'stakeholder_name', 'text');
+
+-- Legacy installs often have NOT NULL without default — relax + backfill
+DO $$
+BEGIN
+  UPDATE public.riad_logs SET stakeholder_type = 'internal' WHERE stakeholder_type IS NULL;
+  ALTER TABLE public.riad_logs ALTER COLUMN stakeholder_type SET DEFAULT 'internal';
+  -- Keep NOT NULL if present, but ensure default so inserts without the column work
+EXCEPTION WHEN others THEN
+  RAISE NOTICE 'stakeholder_type default skip: %', SQLERRM;
+END $$;
 
 -- Risk scoring
 SELECT public.sa_add_column('riad_logs', 'severity', 'int');

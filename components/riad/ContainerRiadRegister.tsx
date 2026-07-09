@@ -51,6 +51,7 @@ const emptyForm = {
   status: 'open',
   priority: 'medium',
   category: '',
+  stakeholder_type: 'internal',
   container_id: '',
   owner_name: '',
   severity: 3,
