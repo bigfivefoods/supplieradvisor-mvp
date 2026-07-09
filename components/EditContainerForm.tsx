@@ -229,9 +229,9 @@ export default function EditContainerForm({ container, onClose, onSuccess }: Edi
             </div>
 
             <div className="flex items-center gap-2 text-sm font-semibold">
-              <MapPin className="w-4 h-4 text-[#00b4d8]" /> GPS
+              <MapPin className="w-4 h-4 text-[#00b4d8]" /> Pin GPS on map
             </div>
-            <div className="h-56 rounded-3xl overflow-hidden border">
+            <div className="relative z-0 h-64 min-h-[256px] w-full rounded-3xl overflow-hidden border border-neutral-200 bg-slate-100 isolate">
               <LocationMap
                 onMapClick={(lat, lng) => {
                   setForm((p) => ({
@@ -245,7 +245,13 @@ export default function EditContainerForm({ container, onClose, onSuccess }: Edi
                     ? [Number(form.latitude), Number(form.longitude)]
                     : null
                 }
-                height="100%"
+                center={
+                  form.latitude && form.longitude
+                    ? [Number(form.latitude), Number(form.longitude)]
+                    : [-29.0, 24.5]
+                }
+                zoom={form.latitude && form.longitude ? 12 : 5}
+                height="256px"
               />
             </div>
             <div className="grid grid-cols-2 gap-3">

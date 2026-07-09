@@ -396,7 +396,10 @@ export default function AddContainerForm({ onClose, onSuccess }: AddContainerFor
               <MapPin className="w-4 h-4 text-[#00b4d8]" />
               Pin GPS on map
             </div>
-            <div className="h-64 rounded-3xl overflow-hidden border border-neutral-200">
+            <p className="text-xs text-neutral-500 -mt-3">
+              Click the map to drop a pin — latitude and longitude fill in automatically.
+            </p>
+            <div className="relative z-0 h-72 min-h-[288px] w-full rounded-3xl overflow-hidden border border-neutral-200 bg-slate-100 isolate">
               <LocationMap
                 onMapClick={(lat, lng) => {
                   setForm((p) => ({
@@ -410,7 +413,9 @@ export default function AddContainerForm({ onClose, onSuccess }: AddContainerFor
                     ? [Number(form.latitude), Number(form.longitude)]
                     : null
                 }
-                height="100%"
+                center={[-29.0, 24.5]}
+                zoom={5}
+                height="288px"
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
