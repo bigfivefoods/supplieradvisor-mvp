@@ -421,9 +421,6 @@ function ProductsInner() {
       <InventoryProcessNav />
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-6">
         <div>
-          <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-1">
-            Step 1 · Master data
-          </p>
           <h1 className="text-3xl sm:text-4xl font-black tracking-[-2px] text-[#00b4d8]">
             Products
           </h1>

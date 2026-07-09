@@ -315,7 +315,7 @@ function WarehousesInner() {
     <div className="px-2 md:px-4 max-w-screen-2xl mx-auto pb-12">
       <InventoryHeader
         title="Locations"
-        description="Step 2 — pin each site’s physical GPS. Transfers use collection → destination coordinates for route distance and ETA."
+        description="Pin each site’s physical GPS. Transfers use collection → destination coordinates for route distance and ETA."
         action={
           <div className="flex flex-wrap gap-2">
             <Link

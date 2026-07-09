@@ -343,7 +343,7 @@ function StockInner() {
     <div className="px-2 md:px-4 max-w-screen-2xl mx-auto pb-12">
       <InventoryHeader
         title="Live stock"
-        description="Step 3 — network inventory across warehouses, supplier/customer sites, and containers. Totals, by product, by location."
+        description="Network inventory across warehouses, supplier/customer sites, and containers. Totals, by product, by location."
         action={
           <div className="flex flex-wrap items-center gap-2">
             <Link

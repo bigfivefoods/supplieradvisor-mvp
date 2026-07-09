@@ -122,8 +122,7 @@ export default function InventoryHub() {
           Inventory
         </h1>
         <p className="text-neutral-600 mt-2 max-w-2xl">
-          One process from master data to reconciliation — no duplicate modules. Follow the steps
-          below, or jump in from the process bar.
+          End-to-end inventory — master data, stock, receive, transfer, and counts in one place.
         </p>
       </div>
 
@@ -161,10 +160,9 @@ export default function InventoryHub() {
         </div>
       )}
 
-      {/* Process strip */}
+      {/* Module cards */}
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-bold text-slate-800">Core process</h2>
-        <span className="text-[11px] text-neutral-400">6 steps · single source of truth</span>
+        <h2 className="text-sm font-bold text-slate-800">Modules</h2>
       </div>
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-8">
         {PROCESS_STEPS.map((step) => (
@@ -174,10 +172,9 @@ export default function InventoryHub() {
             className="bg-white border border-neutral-200 rounded-3xl p-5 hover:border-[#00b4d8] hover:shadow-md transition-all group relative"
           >
             <div className="flex items-start justify-between mb-3">
-              <div className="w-9 h-9 rounded-2xl bg-[#00b4d8]/10 text-[#0077b6] font-black flex items-center justify-center text-sm">
-                {step.n}
+              <div className="w-9 h-9 rounded-2xl bg-[#00b4d8]/10 flex items-center justify-center">
+                <step.icon className="w-5 h-5 text-[#00b4d8]" />
               </div>
-              <step.icon className="w-5 h-5 text-[#00b4d8]" />
             </div>
             <div className="font-bold text-slate-900 group-hover:text-[#0077b6]">{step.title}</div>
             <p className="text-xs text-neutral-500 mt-1 leading-relaxed">{step.desc}</p>
