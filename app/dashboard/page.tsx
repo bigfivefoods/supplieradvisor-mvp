@@ -16,6 +16,12 @@ import {
   FileText,
   RefreshCw,
   Building2,
+  Container,
+  UserCheck,
+  Scale,
+  Boxes,
+  MapPin,
+  QrCode,
 } from 'lucide-react';
 
 type CompanyData = {
@@ -46,6 +52,27 @@ type Kpis = {
   documents: number;
   projects: number;
   pendingInvites: number;
+  containersTotal?: number;
+  containersActive?: number;
+  contractorsTotal?: number;
+  contractorsActive?: number;
+  contractorsVerified?: number;
+  contractorsPortal?: number;
+  containerLowStock?: number;
+  containerUnits?: number;
+  salesToday?: number;
+  containerRiads?: number;
+  warehouses?: number;
+  warehouseStockUnits?: number;
+  warehouseLowStock?: number;
+  stockLines?: number;
+};
+
+type ModulesSnap = {
+  containers?: { total: number; active: number; href: string };
+  contractors?: { total: number; verified: number; portal: number; href: string };
+  inventory?: { products: number; warehouses: number; lowStock: number; units: number; href: string };
+  riad?: { open: number; critical: number; containerScoped: number; href: string };
 };
 
 type Health = {
@@ -60,7 +87,7 @@ type Activity = {
   title: string;
   subtitle: string;
   at: string | null;
-  type: string;
+  type: string; // team | network | risk | container | contractor | inventory | supplier | …
 };
 
 type AlertItem = {
@@ -106,6 +133,7 @@ export default function DashboardHome() {
   const [health, setHealth] = useState<Health | null>(null);
   const [activity, setActivity] = useState<Activity[]>([]);
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
+  const [, setModules] = useState<ModulesSnap | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [generatedAt, setGeneratedAt] = useState<string | null>(null);
@@ -142,6 +170,7 @@ export default function DashboardHome() {
       setHealth(data.health);
       setActivity(data.activity || []);
       setAlerts(data.alerts || []);
+      setModules(data.modules || null);
       setGeneratedAt(data.generatedAt || null);
 
       if (data.company?.trading_name) {
@@ -346,12 +375,155 @@ export default function DashboardHome() {
         </div>
       </div>
 
+      {/* Operations strip — containers, inventory, contractors, RIAD */}
+      <p className="text-xs font-medium text-neutral-400 mb-3 uppercase tracking-wide">
+        Operations · containers · inventory · compliance
+      </p>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8 sm:mb-10">
+        <Link
+          href="/dashboard/containers"
+          className="bg-white rounded-3xl border border-neutral-200 p-5 hover:border-[#00b4d8] hover:shadow-md transition-all"
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <div className="p-2.5 bg-sky-100 rounded-2xl">
+              <Container className="w-5 h-5 text-sky-700" />
+            </div>
+            {(kpis?.containerLowStock || 0) > 0 && (
+              <span className="text-[10px] font-semibold px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full">
+                {kpis?.containerLowStock} low stock
+              </span>
+            )}
+          </div>
+          <div className="text-3xl font-black tracking-tighter text-slate-900">
+            {kpis?.containersActive ?? 0}
+            <span className="text-base font-semibold text-neutral-400">
+              /{kpis?.containersTotal ?? 0}
+            </span>
+          </div>
+          <div className="text-sm text-neutral-600">Active containers</div>
+          <div className="text-xs text-neutral-400 mt-2">
+            Sales today R {(kpis?.salesToday ?? 0).toFixed(0)} · {kpis?.containerUnits ?? 0} units
+          </div>
+        </Link>
+
+        <Link
+          href="/dashboard/containers/contractors"
+          className="bg-white rounded-3xl border border-neutral-200 p-5 hover:border-[#00b4d8] hover:shadow-md transition-all"
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <div className="p-2.5 bg-emerald-100 rounded-2xl">
+              <UserCheck className="w-5 h-5 text-emerald-700" />
+            </div>
+          </div>
+          <div className="text-3xl font-black tracking-tighter text-slate-900">
+            {kpis?.contractorsVerified ?? 0}
+            <span className="text-base font-semibold text-neutral-400">
+              /{kpis?.contractorsTotal ?? 0}
+            </span>
+          </div>
+          <div className="text-sm text-neutral-600">VerifyNow contractors</div>
+          <div className="text-xs text-neutral-400 mt-2">
+            {kpis?.contractorsPortal ?? 0} portal active · ID + Home Affairs
+          </div>
+        </Link>
+
+        <Link
+          href="/dashboard/inventory"
+          className="bg-white rounded-3xl border border-neutral-200 p-5 hover:border-[#00b4d8] hover:shadow-md transition-all"
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <div className="p-2.5 bg-violet-100 rounded-2xl">
+              <Boxes className="w-5 h-5 text-violet-700" />
+            </div>
+            {(kpis?.warehouseLowStock || 0) + (kpis?.containerLowStock || 0) > 0 && (
+              <span className="text-[10px] font-semibold px-2 py-0.5 bg-red-100 text-red-700 rounded-full">
+                reorder
+              </span>
+            )}
+          </div>
+          <div className="text-3xl font-black tracking-tighter text-slate-900">
+            {kpis?.products ?? 0}
+          </div>
+          <div className="text-sm text-neutral-600">Catalogue products</div>
+          <div className="text-xs text-neutral-400 mt-2">
+            {kpis?.warehouses ?? 0} warehouses · {kpis?.stockLines ?? 0} stock lines
+          </div>
+        </Link>
+
+        <Link
+          href="/dashboard/containers/riad-log"
+          className="bg-white rounded-3xl border border-neutral-200 p-5 hover:border-[#00b4d8] hover:shadow-md transition-all"
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <div className="p-2.5 bg-amber-100 rounded-2xl">
+              <Scale className="w-5 h-5 text-amber-700" />
+            </div>
+            {(kpis?.highRisks || 0) > 0 && (
+              <span className="text-[10px] font-semibold px-2 py-0.5 bg-red-100 text-red-700 rounded-full">
+                {kpis?.highRisks} critical
+              </span>
+            )}
+          </div>
+          <div className="text-3xl font-black tracking-tighter text-slate-900">
+            {kpis?.openRisks ?? 0}
+          </div>
+          <div className="text-sm text-neutral-600">Open RIAD items</div>
+          <div className="text-xs text-neutral-400 mt-2">
+            {kpis?.containerRiads ?? 0} container-scoped · contractor + HQ
+          </div>
+        </Link>
+      </div>
+
+      {/* Module launch pads */}
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-8 sm:mb-10">
+        {[
+          {
+            href: '/dashboard/containers/manage',
+            icon: MapPin,
+            title: 'Manage containers',
+            desc: 'CRUD, GPS map, photos, assign operators',
+          },
+          {
+            href: '/dashboard/containers/contractors',
+            icon: ShieldCheck,
+            title: 'Verify contractors',
+            desc: 'ID docs + VerifyNow SA ID checks',
+          },
+          {
+            href: '/dashboard/inventory/products',
+            icon: QrCode,
+            title: 'Products & QR',
+            desc: 'SKU master, QR codes, on-chain ready',
+          },
+          {
+            href: '/dashboard/containers/riad-log',
+            icon: Scale,
+            title: 'Container RIAD',
+            desc: 'Risks, issues, actions, decisions',
+          },
+        ].map((m) => (
+          <Link
+            key={m.href}
+            href={m.href}
+            className="rounded-3xl border border-neutral-200 bg-gradient-to-br from-white to-slate-50 p-5 hover:border-[#00b4d8] transition-all group"
+          >
+            <m.icon className="w-6 h-6 text-[#00b4d8] mb-3" />
+            <div className="font-bold text-slate-900 group-hover:text-[#0077b6]">{m.title}</div>
+            <div className="text-xs text-neutral-500 mt-1">{m.desc}</div>
+          </Link>
+        ))}
+      </div>
+
       {/* Quick Actions + Business Pulse */}
       <div className="grid lg:grid-cols-3 gap-4 sm:gap-6 mb-8 sm:mb-10">
         <div className="lg:col-span-1 bg-white rounded-3xl border border-neutral-200 p-6 sm:p-8">
           <h3 className="font-bold text-lg sm:text-xl mb-5 tracking-tight text-slate-900">Quick Actions</h3>
           <div className="space-y-2">
             {[
+              { label: 'Add container outlet', href: '/dashboard/containers/add', icon: Container },
+              { label: 'Add product (QR)', href: '/dashboard/inventory/products', icon: QrCode },
+              { label: 'Appoint contractor', href: '/dashboard/containers/contractors', icon: UserCheck },
+              { label: 'Log container RIAD', href: '/dashboard/containers/riad-log', icon: Scale },
               { label: 'Add New Supplier', href: '/dashboard/suppliers/add', icon: Truck },
               { label: 'Create Purchase Order', href: '/dashboard/suppliers/po', icon: Package },
               { label: 'View Team', href: '/dashboard/my-business/team', icon: Users },
@@ -474,7 +646,13 @@ export default function DashboardHome() {
                           ? 'bg-blue-100'
                           : item.type === 'network'
                             ? 'bg-cyan-100'
-                            : 'bg-neutral-100'
+                            : item.type === 'container'
+                              ? 'bg-sky-100'
+                              : item.type === 'contractor'
+                                ? 'bg-emerald-100'
+                                : item.type === 'inventory'
+                                  ? 'bg-violet-100'
+                                  : 'bg-neutral-100'
                     }`}
                   >
                     {item.type === 'risk' ? (
@@ -485,6 +663,12 @@ export default function DashboardHome() {
                       <Network className="w-4 h-4 text-cyan-700" />
                     ) : item.type === 'supplier' ? (
                       <Truck className="w-4 h-4 text-emerald-600" />
+                    ) : item.type === 'container' ? (
+                      <Container className="w-4 h-4 text-sky-700" />
+                    ) : item.type === 'contractor' ? (
+                      <UserCheck className="w-4 h-4 text-emerald-700" />
+                    ) : item.type === 'inventory' ? (
+                      <Boxes className="w-4 h-4 text-violet-700" />
                     ) : (
                       <TrendingUp className="w-4 h-4 text-neutral-500" />
                     )}

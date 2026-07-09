@@ -1,378 +1,435 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { usePrivy } from '@privy-io/react-auth';
-import { createClient } from '@/utils/supabase/client';
-import { Plus, Search, Edit2, Trash2, X } from 'lucide-react';
-import Breadcrumb from '@/components/ui/Breadcrumb';
+import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
+import {
+  ArrowLeft,
+  Loader2,
+  Plus,
+  QrCode,
+  Search,
+  ShieldCheck,
+  Trash2,
+  X,
+  Link2,
+  Copy,
+  Package,
+} from 'lucide-react';
+import { toast } from 'sonner';
+import { getSelectedCompanyId } from '@/lib/containers/company';
+import { onchainStatusClass, type ProductRecord } from '@/lib/inventory/types';
 
-interface Product {
-  id: number;
-  name: string;
-  sku: string | null;
-  category: string | null;
-  uom: string | null;
-  sell_price: number | null;
-  primary_image_url: string | null;
-  short_description: string | null;
-  status: string;
-}
-
-interface ProductCategory {
-  id: number;
-  name: string;
-}
+const emptyForm = {
+  name: '',
+  sku: '',
+  barcode: '',
+  category: '',
+  product_type: 'finished_good',
+  uom: 'unit',
+  sell_price: '',
+  cost_price: '',
+  reorder_level: '0',
+  short_description: '',
+  status: 'active',
+};
 
 export default function ProductsPage() {
-  const { user } = usePrivy();
-  const supabase = createClient();
-
-  const [products, setProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<ProductCategory[]>([]);
-  const [currentProfileId, setCurrentProfileId] = useState<number | null>(null);
-
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  // Modal State
+  const companyId = getSelectedCompanyId();
+  const [products, setProducts] = useState<ProductRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [q, setQ] = useState('');
   const [showModal, setShowModal] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState(emptyForm);
+  const [qrProduct, setQrProduct] = useState<ProductRecord | null>(null);
 
-  const [formData, setFormData] = useState({
-    name: '',
-    sku: '',
-    category: '',
-    uom: '',
-    sell_price: 0,
-    short_description: '',
-    status: 'active',
-  });
-
-  // ==================== LOAD DATA ====================
-  const loadProfile = async () => {
-    if (!user?.id) return;
-    const { data } = await supabase
-      .from('business_users')
-      .select('profile_id')
-      .eq('user_id', user.id)
-      .eq('status', 'active')
-      .limit(1)
-      .single();
-    if (data) setCurrentProfileId(data.profile_id);
-  };
-
-  const fetchCategories = async () => {
-    const { data } = await supabase.from('product_categories').select('id, name').order('name');
-    if (data) setCategories(data);
-  };
-
-  const fetchProducts = async () => {
-    if (!currentProfileId) return;
-    let query = supabase
-      .from('products')
-      .select('id, name, sku, category, uom, sell_price, primary_image_url, short_description, status')
-      .eq('profile_id', currentProfileId)
-      .order('created_at', { ascending: false });
-
-    if (searchTerm) {
-      query = query.or(`name.ilike.%${searchTerm}%,sku.ilike.%${searchTerm}%`);
-    }
-    if (selectedCategory) {
-      query = query.eq('category', selectedCategory);
-    }
-
-    const { data } = await query;
-    if (data) setProducts(data);
-  };
-
-  useEffect(() => {
-    loadProfile();
-    fetchCategories();
-  }, [user?.id]);
-
-  useEffect(() => {
-    if (currentProfileId) fetchProducts();
-  }, [currentProfileId, searchTerm, selectedCategory]);
-
-  // ==================== OPEN MODAL ====================
-  const openCreateModal = () => {
-    setEditingProduct(null);
-    setFormData({
-      name: '',
-      sku: '',
-      category: '',
-      uom: '',
-      sell_price: 0,
-      short_description: '',
-      status: 'active',
-    });
-    setShowModal(true);
-  };
-
-  const openEditModal = (product: Product) => {
-    setEditingProduct(product);
-    setFormData({
-      name: product.name,
-      sku: product.sku || '',
-      category: product.category || '',
-      uom: product.uom || '',
-      sell_price: product.sell_price || 0,
-      short_description: product.short_description || '',
-      status: product.status || 'active',
-    });
-    setShowModal(true);
-  };
-
-  // ==================== SAVE PRODUCT ====================
-  const handleSaveProduct = async () => {
-    if (!currentProfileId || !formData.name) return alert('Product name is required');
-
-    setLoading(true);
-    try {
-      const payload = {
-        profile_id: currentProfileId,
-        name: formData.name,
-        sku: formData.sku || null,
-        category: formData.category || null,
-        uom: formData.uom || null,
-        sell_price: formData.sell_price || null,
-        short_description: formData.short_description || null,
-        status: formData.status,
-      };
-
-      if (editingProduct) {
-        const { error } = await supabase.from('products').update(payload).eq('id', editingProduct.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from('products').insert(payload);
-        if (error) throw error;
-      }
-
-      setShowModal(false);
-      fetchProducts();
-      alert(editingProduct ? 'Product updated successfully' : 'Product created successfully');
-    } catch (err: any) {
-      alert('Error: ' + err.message);
-    } finally {
+  const load = useCallback(async () => {
+    if (!companyId) {
       setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const params = new URLSearchParams({ companyId: String(companyId) });
+    if (q) params.set('q', q);
+    const res = await fetch(`/api/inventory/products?${params}`);
+    const data = await res.json();
+    setProducts(data.products || []);
+    if (data.warning) toast.message(data.warning, { description: data.hint });
+    setLoading(false);
+  }, [companyId, q]);
+
+  useEffect(() => {
+    const t = setTimeout(() => void load(), 200);
+    return () => clearTimeout(t);
+  }, [load]);
+
+  const save = async () => {
+    if (!companyId || !form.name.trim()) {
+      toast.error('Name is required');
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch('/api/inventory/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          name: form.name,
+          sku: form.sku || undefined,
+          barcode: form.barcode || undefined,
+          category: form.category || undefined,
+          product_type: form.product_type,
+          uom: form.uom,
+          sell_price: form.sell_price ? Number(form.sell_price) : 0,
+          cost_price: form.cost_price ? Number(form.cost_price) : 0,
+          reorder_level: Number(form.reorder_level) || 0,
+          short_description: form.short_description || undefined,
+          status: form.status,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || data.hint || 'Failed');
+      toast.success('Product created with QR + on-chain hash');
+      setShowModal(false);
+      setForm(emptyForm);
+      setQrProduct(data.product);
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setSaving(false);
     }
   };
 
-  // ==================== DELETE PRODUCT ====================
-  const handleDelete = async (id: number) => {
+  const remove = async (id: number) => {
     if (!confirm('Delete this product?')) return;
-    await supabase.from('products').delete().eq('id', id);
-    fetchProducts();
+    const res = await fetch(`/api/inventory/products?id=${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      toast.success('Deleted');
+      void load();
+    }
   };
+
+  const anchor = async (p: ProductRecord) => {
+    const res = await fetch('/api/inventory/products', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: p.id, anchor: true }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      toast.error(data.error || 'Failed');
+      return;
+    }
+    toast.success('Marked as anchored (ready for chain write)');
+    void load();
+  };
+
+  const copy = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success('Copied');
+    } catch {
+      toast.error('Copy failed');
+    }
+  };
+
+  if (!companyId) {
+    return (
+      <div className="text-center py-16">
+        <Link href="/dashboard/select-company" className="btn-primary px-6 py-3">
+          Select company
+        </Link>
+      </div>
+    );
+  }
 
   return (
-    <div className="pl-0 min-h-screen bg-[#f8fafc]">
-      <div className="py-12 px-8 max-w-7xl mx-auto">
-        <Breadcrumb />
-
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-5xl font-black tracking-[-2px] text-[#00b4d8]">Products</h1>
-            <p className="text-neutral-600 mt-1">Manage your product master data</p>
-          </div>
-          <button
-            onClick={openCreateModal}
-            className="flex items-center gap-2 px-6 py-3 bg-[#00b4d8] text-white font-semibold rounded-2xl hover:bg-[#0099b8]"
-          >
-            <Plus className="w-5 h-5" /> New Product
-          </button>
+    <div className="px-2 md:px-4 max-w-screen-2xl mx-auto pb-12">
+      <Link
+        href="/dashboard/inventory"
+        className="inline-flex items-center gap-2 text-sm text-neutral-500 mb-4"
+      >
+        <ArrowLeft className="w-4 h-4" /> Inventory
+      </Link>
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-3xl sm:text-4xl font-black tracking-[-2px] text-[#00b4d8]">
+            Products
+          </h1>
+          <p className="text-neutral-600 mt-1">
+            Master data with QR product passports and on-chain identity hashes.
+          </p>
         </div>
+        <button type="button" onClick={() => setShowModal(true)} className="btn-primary !py-3 !px-5">
+          <Plus className="w-4 h-4" /> Add product
+        </button>
+      </div>
 
-        {/* Search + Filters */}
-        <div className="flex gap-4 mb-6">
-          <div className="flex-1 relative">
-            <Search className="absolute left-4 top-4 w-5 h-5 text-neutral-400" />
-            <input
-              type="text"
-              placeholder="Search products by name or SKU..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 border border-neutral-200 rounded-2xl focus:border-[#00b4d8]"
-            />
+      <div className="relative mb-4 max-w-md">
+        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+        <input
+          className="input w-full !pl-10 !py-2.5 !text-sm"
+          placeholder="Search name, SKU, barcode…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
+      </div>
+
+      <div className="bg-white border rounded-3xl overflow-hidden">
+        {loading ? (
+          <div className="p-16 flex justify-center">
+            <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
           </div>
-          <select
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
-            className="px-4 py-3 border border-neutral-200 rounded-2xl focus:border-[#00b4d8]"
-          >
-            <option value="">All Categories</option>
-            {categories.map((cat) => (
-              <option key={cat.id} value={cat.name}>{cat.name}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* Products Table */}
-        <div className="bg-white rounded-3xl border border-neutral-200 overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-neutral-50 border-b">
-              <tr>
-                <th className="text-left px-6 py-4 text-sm font-medium text-neutral-600">Product</th>
-                <th className="text-left px-6 py-4 text-sm font-medium text-neutral-600">SKU</th>
-                <th className="text-left px-6 py-4 text-sm font-medium text-neutral-600">Category</th>
-                <th className="text-left px-6 py-4 text-sm font-medium text-neutral-600">UOM</th>
-                <th className="text-right px-6 py-4 text-sm font-medium text-neutral-600">Sell Price</th>
-                <th className="text-center px-6 py-4 text-sm font-medium text-neutral-600">Status</th>
-                <th className="w-24"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {products.length === 0 ? (
+        ) : products.length === 0 ? (
+          <div className="p-16 text-center">
+            <Package className="w-10 h-10 text-neutral-300 mx-auto mb-3" />
+            <p className="text-neutral-600 mb-4">No products yet.</p>
+            <button type="button" onClick={() => setShowModal(true)} className="btn-primary !py-2.5 !px-5 text-sm">
+              Create first product
+            </button>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-neutral-50 border-b text-left">
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-neutral-500">
-                    No products found.
-                  </td>
+                  <th className="px-5 py-3 font-semibold">Product</th>
+                  <th className="px-4 py-3 font-semibold">SKU</th>
+                  <th className="px-4 py-3 font-semibold">Type</th>
+                  <th className="px-4 py-3 font-semibold text-right">On hand</th>
+                  <th className="px-4 py-3 font-semibold">On-chain</th>
+                  <th className="px-5 py-3 font-semibold text-right">Actions</th>
                 </tr>
-              ) : (
-                products.map((product) => (
-                  <tr key={product.id} className="hover:bg-neutral-50">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-4">
-                        {product.primary_image_url ? (
-                          <img src={product.primary_image_url} alt="" className="w-12 h-12 rounded-xl object-cover border" />
-                        ) : (
-                          <div className="w-12 h-12 bg-neutral-100 rounded-xl" />
-                        )}
-                        <div>
-                          <div className="font-semibold">{product.name}</div>
-                          {product.short_description && (
-                            <div className="text-sm text-neutral-500 line-clamp-1">{product.short_description}</div>
-                          )}
-                        </div>
-                      </div>
+              </thead>
+              <tbody className="divide-y">
+                {products.map((p) => (
+                  <tr key={p.id} className="hover:bg-neutral-50">
+                    <td className="px-5 py-4">
+                      <div className="font-semibold text-slate-900">{p.name}</div>
+                      {p.short_description && (
+                        <div className="text-xs text-neutral-500 line-clamp-1">{p.short_description}</div>
+                      )}
                     </td>
-                    <td className="px-6 py-4 text-sm text-neutral-600">{product.sku || '—'}</td>
-                    <td className="px-6 py-4 text-sm">{product.category || '—'}</td>
-                    <td className="px-6 py-4 text-sm text-neutral-600">{product.uom || '—'}</td>
-                    <td className="px-6 py-4 text-right font-medium">R{product.sell_price?.toLocaleString() || '—'}</td>
-                    <td className="px-6 py-4 text-center">
-                      <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
-                        product.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-neutral-200 text-neutral-600'
-                      }`}>
-                        {product.status}
+                    <td className="px-4 py-4 font-mono text-xs">{p.sku || '—'}</td>
+                    <td className="px-4 py-4 capitalize text-neutral-600">
+                      {(p.product_type || 'finished_good').replace('_', ' ')}
+                    </td>
+                    <td className="px-4 py-4 text-right font-semibold">
+                      {Number(p.qty_on_hand ?? 0)} {p.uom || ''}
+                    </td>
+                    <td className="px-4 py-4">
+                      <span
+                        className={`text-[11px] px-2 py-0.5 rounded-full capitalize ${onchainStatusClass(p.onchain_status)}`}
+                      >
+                        {p.onchain_status || 'pending'}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="flex justify-end gap-2">
-                        <button onClick={() => openEditModal(product)} className="p-2 hover:bg-neutral-100 rounded-xl">
-                          <Edit2 className="w-4 h-4 text-neutral-600" />
+                    <td className="px-5 py-4">
+                      <div className="flex justify-end gap-1">
+                        <button
+                          type="button"
+                          title="QR code"
+                          onClick={() => setQrProduct(p)}
+                          className="p-2 rounded-xl hover:bg-[#00b4d8]/10 text-[#00b4d8]"
+                        >
+                          <QrCode className="w-4 h-4" />
                         </button>
-                        <button onClick={() => handleDelete(product.id)} className="p-2 hover:bg-red-50 rounded-xl">
-                          <Trash2 className="w-4 h-4 text-red-500" />
+                        <button
+                          type="button"
+                          title="Mark anchored"
+                          onClick={() => void anchor(p)}
+                          className="p-2 rounded-xl hover:bg-emerald-50 text-emerald-700"
+                        >
+                          <ShieldCheck className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void remove(p.id)}
+                          className="p-2 rounded-xl hover:bg-red-50 text-red-600"
+                        >
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
-      {/* ==================== CREATE / EDIT MODAL ==================== */}
+      {/* Create modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-auto">
-            <div className="flex justify-between items-center px-8 py-6 border-b">
-              <h2 className="text-2xl font-bold">{editingProduct ? 'Edit Product' : 'Create New Product'}</h2>
-              <button onClick={() => setShowModal(false)}><X className="w-6 h-6" /></button>
+        <div className="fixed inset-0 z-[100] bg-black/50 overflow-y-auto">
+          <div className="min-h-full flex items-center justify-center p-4">
+            <div className="bg-white w-full max-w-lg rounded-3xl border shadow-xl max-h-[90vh] flex flex-col">
+              <div className="flex items-center justify-between px-5 py-4 border-b">
+                <h2 className="font-bold text-lg">New product</h2>
+                <button type="button" onClick={() => setShowModal(false)} className="p-2 rounded-xl hover:bg-neutral-100">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-5 space-y-3 overflow-y-auto">
+                <div>
+                  <label className="text-xs font-medium">Name *</label>
+                  <input
+                    className="input mt-1 w-full !p-3 !text-sm"
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-medium">SKU</label>
+                    <input
+                      className="input mt-1 w-full !p-3 !text-sm font-mono"
+                      value={form.sku}
+                      onChange={(e) => setForm({ ...form, sku: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium">Barcode</label>
+                    <input
+                      className="input mt-1 w-full !p-3 !text-sm font-mono"
+                      value={form.barcode}
+                      onChange={(e) => setForm({ ...form, barcode: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-medium">Type</label>
+                    <select
+                      className="input mt-1 w-full !p-3 !text-sm"
+                      value={form.product_type}
+                      onChange={(e) => setForm({ ...form, product_type: e.target.value })}
+                    >
+                      <option value="finished_good">Finished good</option>
+                      <option value="raw_material">Raw material</option>
+                      <option value="consumable">Consumable</option>
+                      <option value="kit">Kit / bundle</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium">UOM</label>
+                    <input
+                      className="input mt-1 w-full !p-3 !text-sm"
+                      value={form.uom}
+                      onChange={(e) => setForm({ ...form, uom: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-medium">Category</label>
+                  <input
+                    className="input mt-1 w-full !p-3 !text-sm"
+                    value={form.category}
+                    onChange={(e) => setForm({ ...form, category: e.target.value })}
+                  />
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="text-xs font-medium">Sell price</label>
+                    <input
+                      type="number"
+                      className="input mt-1 w-full !p-3 !text-sm"
+                      value={form.sell_price}
+                      onChange={(e) => setForm({ ...form, sell_price: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium">Cost</label>
+                    <input
+                      type="number"
+                      className="input mt-1 w-full !p-3 !text-sm"
+                      value={form.cost_price}
+                      onChange={(e) => setForm({ ...form, cost_price: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium">Reorder</label>
+                    <input
+                      type="number"
+                      className="input mt-1 w-full !p-3 !text-sm"
+                      value={form.reorder_level}
+                      onChange={(e) => setForm({ ...form, reorder_level: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-medium">Description</label>
+                  <textarea
+                    className="input mt-1 w-full !p-3 !text-sm min-h-[70px]"
+                    value={form.short_description}
+                    onChange={(e) => setForm({ ...form, short_description: e.target.value })}
+                  />
+                </div>
+                <p className="text-[11px] text-neutral-500 flex items-start gap-1.5">
+                  <Link2 className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                  Saving generates a public QR ID and SHA-256 on-chain identity hash automatically.
+                </p>
+              </div>
+              <div className="flex gap-3 p-5 border-t">
+                <button type="button" onClick={() => setShowModal(false)} className="btn-secondary flex-1 !py-3">
+                  Cancel
+                </button>
+                <button type="button" disabled={saving} onClick={() => void save()} className="btn-primary flex-1 !py-3">
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Create product'}
+                </button>
+              </div>
             </div>
+          </div>
+        </div>
+      )}
 
-            <div className="p-8 space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium mb-1.5 block">Product Name *</label>
-                  <input
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-4 py-3 border border-neutral-200 rounded-2xl"
-                    placeholder="e.g. Fortified Maize Porridge"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium mb-1.5 block">SKU</label>
-                  <input
-                    value={formData.sku}
-                    onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-                    className="w-full px-4 py-3 border border-neutral-200 rounded-2xl"
-                  />
-                </div>
+      {/* QR modal */}
+      {qrProduct && (
+        <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4" onClick={() => setQrProduct(null)}>
+          <div
+            className="bg-white rounded-3xl p-6 max-w-sm w-full text-center border shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="font-bold text-lg mb-1">{qrProduct.name}</h3>
+            <p className="text-xs text-neutral-500 font-mono mb-4">{qrProduct.sku || qrProduct.public_id}</p>
+            {qrProduct.qr_payload || qrProduct.public_id ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(
+                  qrProduct.qr_payload ||
+                    `${typeof window !== 'undefined' ? window.location.origin : ''}/p/${qrProduct.public_id}`
+                )}`}
+                alt="Product QR"
+                className="mx-auto rounded-2xl border"
+                width={220}
+                height={220}
+              />
+            ) : null}
+            <p className="text-[11px] text-neutral-500 mt-3 break-all">
+              {qrProduct.qr_payload || `/p/${qrProduct.public_id}`}
+            </p>
+            {qrProduct.onchain_hash && (
+              <div className="mt-3 text-left text-[10px] font-mono bg-emerald-50 text-emerald-900 rounded-xl p-3 break-all">
+                hash: {qrProduct.onchain_hash}
               </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium mb-1.5 block">Category</label>
-                  <select
-                    value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                    className="w-full px-4 py-3 border border-neutral-200 rounded-2xl"
-                  >
-                    <option value="">Select category</option>
-                    {categories.map((cat) => (
-                      <option key={cat.id} value={cat.name}>{cat.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-sm font-medium mb-1.5 block">Unit of Measure (UOM)</label>
-                  <input
-                    value={formData.uom}
-                    onChange={(e) => setFormData({ ...formData, uom: e.target.value })}
-                    className="w-full px-4 py-3 border border-neutral-200 rounded-2xl"
-                    placeholder="kg, unit, liter, box..."
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium mb-1.5 block">Sell Price (R)</label>
-                  <input
-                    type="number"
-                    value={formData.sell_price}
-                    onChange={(e) => setFormData({ ...formData, sell_price: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-4 py-3 border border-neutral-200 rounded-2xl"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium mb-1.5 block">Status</label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                    className="w-full px-4 py-3 border border-neutral-200 rounded-2xl"
-                  >
-                    <option value="active">Active</option>
-                    <option value="archived">Archived</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium mb-1.5 block">Short Description</label>
-                <textarea
-                  value={formData.short_description}
-                  onChange={(e) => setFormData({ ...formData, short_description: e.target.value })}
-                  className="w-full px-4 py-3 border border-neutral-200 rounded-2xl h-24"
-                  placeholder="Brief description of the product..."
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 px-8 py-6 border-t bg-neutral-50 rounded-b-3xl">
-              <button onClick={() => setShowModal(false)} className="px-6 py-3 border rounded-2xl">Cancel</button>
+            )}
+            <div className="flex gap-2 mt-4">
               <button
-                onClick={handleSaveProduct}
-                disabled={loading}
-                className="px-8 py-3 bg-[#00b4d8] text-white font-semibold rounded-2xl disabled:bg-neutral-300"
+                type="button"
+                className="btn-secondary flex-1 !py-2 text-sm"
+                onClick={() =>
+                  void copy(
+                    qrProduct.qr_payload ||
+                      `${window.location.origin}/p/${qrProduct.public_id}`
+                  )
+                }
               >
-                {loading ? 'Saving...' : editingProduct ? 'Update Product' : 'Create Product'}
+                <Copy className="w-3.5 h-3.5" /> Copy link
+              </button>
+              <button type="button" className="btn-primary flex-1 !py-2 text-sm" onClick={() => setQrProduct(null)}>
+                Close
               </button>
             </div>
           </div>

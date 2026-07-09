@@ -6,7 +6,7 @@ export type DashboardActivity = {
   title: string;
   subtitle: string;
   at: string | null;
-  type: 'team' | 'network' | 'risk' | 'invite' | 'supplier' | 'system';
+  type: 'team' | 'network' | 'risk' | 'invite' | 'supplier' | 'system' | 'container' | 'inventory' | 'contractor';
 };
 
 export type DashboardAlert = {
@@ -19,8 +19,7 @@ export type DashboardAlert = {
 
 /**
  * POST /api/dashboard/summary
- * Body: { companyId: string | number }
- * Aggregates live Supabase metrics for the selected company workspace.
+ * Live Supabase command-center metrics for the selected company.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -45,10 +44,8 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
 
     if (companyError) {
-      console.error('dashboard company error:', companyError);
       return NextResponse.json({ error: companyError.message }, { status: 500 });
     }
-
     if (!company) {
       return NextResponse.json({ error: 'Company not found' }, { status: 404 });
     }
@@ -58,7 +55,8 @@ export async function POST(request: NextRequest) {
     const [
       teamRes,
       invitesRes,
-      riadRes,
+      riadByProfile,
+      riadByOwner,
       productsRes,
       projectsRes,
       documentsRes,
@@ -66,6 +64,12 @@ export async function POST(request: NextRequest) {
       suppliersRes,
       connectionsProfileRes,
       connectionsDidRes,
+      containersRes,
+      contractorsRes,
+      containerInvRes,
+      containerSalesRes,
+      stockLevelsRes,
+      warehousesRes,
     ] = await Promise.all([
       supabase
         .from('business_users')
@@ -82,10 +86,21 @@ export async function POST(request: NextRequest) {
 
       supabase
         .from('riad_logs')
-        .select('id, title, riad_type, status, severity, rpn, created_at, stakeholder_type')
+        .select(
+          'id, title, riad_type, status, severity, rpn, priority, container_id, source, created_at, module'
+        )
+        .eq('profile_id', companyId)
+        .order('created_at', { ascending: false })
+        .limit(80),
+
+      supabase
+        .from('riad_logs')
+        .select(
+          'id, title, riad_type, status, severity, rpn, priority, container_id, source, created_at, module'
+        )
         .eq('owner_id', companyId)
         .order('created_at', { ascending: false })
-        .limit(50),
+        .limit(40),
 
       supabase
         .from('products')
@@ -131,13 +146,72 @@ export async function POST(request: NextRequest) {
             .select('id, status, requested_at, accepted_at, requester_id, requestee_id, message')
             .or(`requester_id.eq.${did},requestee_id.eq.${did}`)
         : Promise.resolve({ data: [] as Record<string, unknown>[], error: null }),
+
+      supabase
+        .from('containers')
+        .select('id, name, container_code, status, city, contractor_id, assigned_contractor, created_at')
+        .eq('profile_id', companyId)
+        .order('created_at', { ascending: false }),
+
+      supabase
+        .from('container_contractors')
+        .select(
+          'id, full_name, email, status, portal_status, verification_status, training_status, created_at, contract_accepted_at, id_number'
+        )
+        .eq('profile_id', companyId)
+        .order('created_at', { ascending: false }),
+
+      supabase
+        .from('container_inventory')
+        .select('id, qty_on_hand, reorder_level, product_name, container_id')
+        .eq('profile_id', companyId),
+
+      supabase
+        .from('container_sales')
+        .select('id, gross_amount, sale_date, container_id, created_at')
+        .eq('profile_id', companyId)
+        .order('sale_date', { ascending: false })
+        .limit(100),
+
+      supabase
+        .from('stock_levels')
+        .select('id, qty_on_hand, qty_reserved, reorder_level, product_id')
+        .eq('profile_id', companyId),
+
+      supabase
+        .from('warehouses')
+        .select('id, name, status')
+        .eq('profile_id', companyId),
     ]);
 
     const team = teamRes.data || [];
     const invites = invitesRes.data || [];
-    const riads = riadRes.data || [];
+    const riadMap = new Map<number, Record<string, unknown>>();
+    for (const r of [...(riadByProfile.data || []), ...(riadByOwner.data || [])]) {
+      if (r?.id != null) riadMap.set(r.id, r);
+    }
+    const riads = Array.from(riadMap.values()) as Array<{
+      id: number;
+      title?: string;
+      riad_type?: string;
+      status?: string;
+      severity?: unknown;
+      rpn?: number | null;
+      priority?: string | null;
+      container_id?: number | null;
+      source?: string | null;
+      created_at?: string;
+      module?: string | null;
+    }>;
+
     const projects = projectsRes.data || [];
     const supplierProfiles = suppliersRes.data || [];
+    const containers = containersRes.data || [];
+    const contractors = contractorsRes.data || [];
+    const containerInv = containerInvRes.data || [];
+    const containerSales = containerSalesRes.data || [];
+    const stockLevels = stockLevelsRes.data || [];
+    const warehouses = warehousesRes.data || [];
 
     const connectionMap = new Map<string | number, Record<string, unknown>>();
     for (const c of [...(connectionsProfileRes.data || []), ...(connectionsDidRes.data || [])]) {
@@ -160,13 +234,20 @@ export async function POST(request: NextRequest) {
     ).length;
     const connectionsPending = connections.filter((c) => c.status === 'pending').length;
 
-    const openRisks = riads.filter(
-      (r) => r.status === 'active' || r.status === 'open' || r.status === 'in_progress'
+    const openRisks = riads.filter((r) =>
+      ['active', 'open', 'in_progress', 'on_hold', 'mitigated'].includes(
+        String(r.status || '').toLowerCase()
+      )
     );
     const highRisks = openRisks.filter(
       (r) =>
-        (r.severity && String(r.severity).toLowerCase() === 'high') ||
-        (typeof r.rpn === 'number' && r.rpn >= 15)
+        r.priority === 'critical' ||
+        r.priority === 'high' ||
+        (typeof r.rpn === 'number' && r.rpn >= 50) ||
+        (r.severity && String(r.severity).toLowerCase() === 'high')
+    );
+    const containerRiads = riads.filter(
+      (r) => r.module === 'containers' || r.container_id != null
     );
 
     const pendingInvites = invites.filter((i) => i.status === 'pending' || i.status === 'invited');
@@ -179,9 +260,39 @@ export async function POST(request: NextRequest) {
     const productsCount = productsRes.count ?? 0;
     const documentsCount = (documentsRes.count ?? 0) + (companyDocsRes.count ?? 0);
 
+    const containersActive = containers.filter(
+      (c) => !c.status || c.status === 'active'
+    ).length;
+    const contractorsActive = contractors.filter((c) => c.status === 'active').length;
+    const contractorsVerified = contractors.filter(
+      (c) => c.verification_status === 'verified'
+    ).length;
+    const contractorsPortal = contractors.filter(
+      (c) => c.portal_status === 'active' || c.contract_accepted_at
+    ).length;
+
+    const containerLowStock = containerInv.filter(
+      (i) => Number(i.qty_on_hand) <= Number(i.reorder_level || 0)
+    ).length;
+    const containerUnits = containerInv.reduce((s, i) => s + Number(i.qty_on_hand || 0), 0);
+
+    const today = new Date().toISOString().slice(0, 10);
+    const salesToday = containerSales
+      .filter((s) => s.sale_date === today)
+      .reduce((s, row) => s + Number(row.gross_amount || 0), 0);
+
+    const warehouseStockUnits = stockLevels.reduce(
+      (s, i) => s + Number(i.qty_on_hand || 0),
+      0
+    );
+    const warehouseLowStock = stockLevels.filter(
+      (i) => Number(i.qty_on_hand) <= Number(i.reorder_level || 0)
+    ).length;
+
+    // Activity feed
     const activity: DashboardActivity[] = [];
 
-    for (const m of team.slice(0, 5)) {
+    for (const m of team.slice(0, 4)) {
       activity.push({
         id: `team-${m.id}`,
         title:
@@ -194,27 +305,51 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    for (const inv of pendingInvites.slice(0, 3)) {
+    for (const c of containers.slice(0, 5)) {
       activity.push({
-        id: `inv-${inv.id}`,
-        title: `Pending invite to ${inv.invited_email}`,
-        subtitle: inv.role || 'Team member',
-        at: inv.created_at,
-        type: 'invite',
+        id: `ctr-${c.id}`,
+        title: `Container: ${c.name}`,
+        subtitle: `${c.container_code || '—'} · ${c.status || 'active'}${
+          c.assigned_contractor ? ` · ${c.assigned_contractor}` : ''
+        }`,
+        at: c.created_at,
+        type: 'container',
       });
     }
 
-    for (const r of riads.slice(0, 5)) {
+    for (const c of contractors.slice(0, 4)) {
+      activity.push({
+        id: `op-${c.id}`,
+        title: `Contractor: ${c.full_name}`,
+        subtitle: `${c.verification_status || 'unverified'} · portal ${c.portal_status || '—'}`,
+        at: c.contract_accepted_at || c.created_at,
+        type: 'contractor',
+      });
+    }
+
+    for (const r of riads.slice(0, 6)) {
       activity.push({
         id: `riad-${r.id}`,
         title: r.title || `${r.riad_type || 'RIAD'} logged`,
-        subtitle: `${r.riad_type || 'item'} · ${r.status || 'open'}${r.rpn != null ? ` · RPN ${r.rpn}` : ''}`,
-        at: r.created_at,
+        subtitle: `${r.riad_type || 'item'} · ${r.status || 'open'}${
+          r.rpn != null ? ` · RPN ${r.rpn}` : ''
+        }${r.source === 'contractor' ? ' · contractor' : ''}`,
+        at: r.created_at || null,
         type: 'risk',
       });
     }
 
-    for (const c of connections.slice(0, 5)) {
+    for (const sale of containerSales.slice(0, 3)) {
+      activity.push({
+        id: `sale-${sale.id}`,
+        title: `Container sale R ${Number(sale.gross_amount || 0).toFixed(0)}`,
+        subtitle: sale.sale_date || 'sale',
+        at: sale.created_at || sale.sale_date || null,
+        type: 'inventory',
+      });
+    }
+
+    for (const c of connections.slice(0, 3)) {
       activity.push({
         id: `conn-${c.id}`,
         title:
@@ -224,19 +359,6 @@ export async function POST(request: NextRequest) {
         subtitle: c.status || 'pending',
         at: c.accepted_at || c.requested_at || null,
         type: 'network',
-      });
-    }
-
-    for (const s of supplierProfiles.slice(0, 4)) {
-      activity.push({
-        id: `sup-${s.id}`,
-        title:
-          s.supplier_status === 'active'
-            ? `Supplier active: ${s.trading_name}`
-            : `Supplier listed: ${s.trading_name}`,
-        subtitle: s.supplier_status || s.relationship_type || 'supplier',
-        at: s.claimed_at || s.invited_at || s.created_at,
-        type: 'supplier',
       });
     }
 
@@ -258,33 +380,44 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    if (teamInvited > 0) {
+    if (containers.length === 0) {
       alerts.push({
-        id: 'team-pending',
+        id: 'containers-empty',
         severity: 'info',
-        title: `${teamInvited} team invitation${teamInvited === 1 ? '' : 's'} pending`,
-        detail: 'Follow up so teammates can accept and start collaborating.',
-        href: '/dashboard/my-business/team',
+        title: 'No retail containers yet',
+        detail: 'Add your first container outlet, pin GPS, and appoint a contractor.',
+        href: '/dashboard/containers/manage',
       });
     }
 
-    if (pendingInvites.length > 0) {
+    if (contractors.some((c) => c.verification_status !== 'verified' && c.id_number)) {
+      const n = contractors.filter((c) => c.verification_status !== 'verified').length;
       alerts.push({
-        id: 'invites',
-        severity: 'info',
-        title: `${pendingInvites.length} open invitation${pendingInvites.length === 1 ? '' : 's'}`,
-        detail: 'Invitations waiting to be accepted.',
-        href: '/dashboard/my-business/team',
-      });
-    }
-
-    if (connectionsPending > 0) {
-      alerts.push({
-        id: 'network-pending',
+        id: 'contractor-verify',
         severity: 'warning',
-        title: `${connectionsPending} network connection${connectionsPending === 1 ? '' : 's'} pending`,
-        detail: 'Review and accept or follow up on connection requests.',
-        href: '/dashboard/network',
+        title: `${n} contractor${n === 1 ? '' : 's'} not VerifyNow-verified`,
+        detail: 'Run SA ID checks and attach ID documents on the Contractors page.',
+        href: '/dashboard/containers/contractors',
+      });
+    }
+
+    if (containerLowStock > 0) {
+      alerts.push({
+        id: 'container-low-stock',
+        severity: 'warning',
+        title: `${containerLowStock} container stock line${containerLowStock === 1 ? '' : 's'} low`,
+        detail: 'Review outlet inventory and place replenishment orders.',
+        href: '/dashboard/containers/manage',
+      });
+    }
+
+    if (warehouseLowStock > 0) {
+      alerts.push({
+        id: 'wh-low-stock',
+        severity: 'warning',
+        title: `${warehouseLowStock} warehouse SKU${warehouseLowStock === 1 ? '' : 's'} at reorder`,
+        detail: 'Open Inventory to replenish or transfer stock.',
+        href: '/dashboard/inventory',
       });
     }
 
@@ -295,9 +428,19 @@ export async function POST(request: NextRequest) {
         title: `${openRisks.length} open RIAD item${openRisks.length === 1 ? '' : 's'}`,
         detail:
           highRisks.length > 0
-            ? `${highRisks.length} high-priority — review the RIAD log.`
-            : 'Monitor and close out active risks, issues, assumptions, and dependencies.',
-        href: '/dashboard/my-business/riad-log',
+            ? `${highRisks.length} high/critical — review Container RIAD log.`
+            : 'Monitor risks, issues, actions, and decisions across the business.',
+        href: '/dashboard/containers/riad-log',
+      });
+    }
+
+    if (teamInvited > 0) {
+      alerts.push({
+        id: 'team-pending',
+        severity: 'info',
+        title: `${teamInvited} team invitation${teamInvited === 1 ? '' : 's'} pending`,
+        detail: 'Follow up so teammates can accept and start collaborating.',
+        href: '/dashboard/my-business/team',
       });
     }
 
@@ -305,8 +448,8 @@ export async function POST(request: NextRequest) {
       alerts.push({
         id: 'products',
         severity: 'info',
-        title: 'No products catalogued yet',
-        detail: 'Add products to enable purchase orders and inventory modules.',
+        title: 'Build your inventory catalogue',
+        detail: 'Add products with SKUs and QR codes for world-class stock control.',
         href: '/dashboard/inventory/products',
       });
     }
@@ -320,10 +463,14 @@ export async function POST(request: NextRequest) {
       )
     );
 
-    const fulfillmentSignal =
-      productsCount > 0 || connectionsAccepted > 0
-        ? Math.min(100, 50 + productsCount * 5 + Math.min(connectionsAccepted, 10) * 3)
-        : 35;
+    const fulfillmentSignal = Math.min(
+      100,
+      30 +
+        Math.min(productsCount, 20) * 2 +
+        Math.min(containersActive, 10) * 3 +
+        Math.min(connectionsAccepted, 10) * 2 +
+        (warehouseStockUnits > 0 || containerUnits > 0 ? 15 : 0)
+    );
 
     const riskScoreLabel =
       highRisks.length >= 3
@@ -359,6 +506,7 @@ export async function POST(request: NextRequest) {
         short_description: company.short_description,
         contact_name: company.contact_name,
         email: company.email,
+        wallet_address: company.wallet_address,
       },
       kpis: {
         teamActive,
@@ -376,6 +524,21 @@ export async function POST(request: NextRequest) {
         documents: documentsCount,
         projects: projects.length,
         pendingInvites: pendingInvites.length,
+        // New module metrics
+        containersTotal: containers.length,
+        containersActive,
+        contractorsTotal: contractors.length,
+        contractorsActive,
+        contractorsVerified,
+        contractorsPortal,
+        containerLowStock,
+        containerUnits,
+        salesToday,
+        containerRiads: containerRiads.length,
+        warehouses: warehouses.length,
+        warehouseStockUnits,
+        warehouseLowStock,
+        stockLines: stockLevels.length + containerInv.length,
       },
       health: {
         supplierHealth,
@@ -383,8 +546,34 @@ export async function POST(request: NextRequest) {
         riskScoreLabel,
         riskBar,
       },
-      activity: activity.slice(0, 8),
-      alerts: alerts.slice(0, 6),
+      modules: {
+        containers: {
+          total: containers.length,
+          active: containersActive,
+          href: '/dashboard/containers',
+        },
+        contractors: {
+          total: contractors.length,
+          verified: contractorsVerified,
+          portal: contractorsPortal,
+          href: '/dashboard/containers/contractors',
+        },
+        inventory: {
+          products: productsCount,
+          warehouses: warehouses.length,
+          lowStock: warehouseLowStock + containerLowStock,
+          units: warehouseStockUnits + containerUnits,
+          href: '/dashboard/inventory',
+        },
+        riad: {
+          open: openRisks.length,
+          critical: highRisks.length,
+          containerScoped: containerRiads.length,
+          href: '/dashboard/containers/riad-log',
+        },
+      },
+      activity: activity.slice(0, 12),
+      alerts: alerts.slice(0, 8),
       teamPreview: team.slice(0, 5).map((m) => ({
         id: m.id,
         name: m.name,
@@ -392,6 +581,8 @@ export async function POST(request: NextRequest) {
         role: m.role,
         status: m.status,
       })),
+      containersPreview: containers.slice(0, 5),
+      contractorsPreview: contractors.slice(0, 5),
       projectsPreview: projects.slice(0, 4),
       generatedAt: new Date().toISOString(),
     });
