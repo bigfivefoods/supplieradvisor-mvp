@@ -36,42 +36,36 @@ type Summary = {
 
 const PROCESS_STEPS = [
   {
-    n: 1,
     href: '/dashboard/inventory/products',
     icon: ShoppingBag,
     title: 'Products',
     desc: 'SKU master for raw materials, finished goods, kits — QR & on-chain passport',
   },
   {
-    n: 2,
     href: '/dashboard/inventory/warehouses',
     icon: Warehouse,
     title: 'Locations',
     desc: 'Your DCs, supplier plants, and customer sites that hold stock',
   },
   {
-    n: 3,
     href: '/dashboard/inventory/stock',
     icon: TrendingUp,
     title: 'Live stock',
     desc: 'See totals and stock by product and by location in real time',
   },
   {
-    n: 4,
     href: '/dashboard/inventory/scan',
     icon: QrCode,
     title: 'Receive',
     desc: 'Scan QR / GS1 barcode to put stock on hand (with lot pedigree)',
   },
   {
-    n: 5,
     href: '/dashboard/inventory/stock-transfers',
     icon: ArrowLeftRight,
     title: 'Transfers',
     desc: 'Driver QR pickup → GPS en route → deliver; or warehouse ↔ container',
   },
   {
-    n: 6,
     href: '/dashboard/inventory/counts',
     icon: ClipboardCheck,
     title: 'Counts',

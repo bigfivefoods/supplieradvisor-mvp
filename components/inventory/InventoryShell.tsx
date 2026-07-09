@@ -6,55 +6,48 @@ import { usePathname, useRouter } from 'next/navigation';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 
-/** Canonical inventory process — keep nav, hub, and redirects in sync */
+/** Canonical inventory nav — keep hub, sidebar, and redirects in sync */
 export const INVENTORY_PROCESS = [
   {
     href: '/dashboard/inventory',
     label: 'Overview',
-    short: 'Home',
-    step: null as number | null,
+    short: 'Overview',
     exact: true,
   },
   {
     href: '/dashboard/inventory/products',
     label: 'Products',
     short: 'Products',
-    step: 1,
     exact: false,
   },
   {
     href: '/dashboard/inventory/warehouses',
     label: 'Locations',
     short: 'Locations',
-    step: 2,
     exact: false,
   },
   {
     href: '/dashboard/inventory/stock',
     label: 'Live stock',
-    short: 'Stock',
-    step: 3,
+    short: 'Live stock',
     exact: false,
   },
   {
     href: '/dashboard/inventory/scan',
     label: 'Receive',
     short: 'Receive',
-    step: 4,
     exact: false,
   },
   {
     href: '/dashboard/inventory/stock-transfers',
     label: 'Transfers',
     short: 'Transfers',
-    step: 5,
     exact: false,
   },
   {
     href: '/dashboard/inventory/counts',
     label: 'Counts',
     short: 'Counts',
-    step: 6,
     exact: false,
   },
 ] as const;
@@ -100,21 +93,12 @@ export function InventoryProcessNav() {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold border transition-all ${
+              className={`flex-shrink-0 inline-flex items-center px-3 py-2 rounded-full text-xs font-semibold border transition-all ${
                 active
                   ? 'border-[#00b4d8] bg-[#00b4d8] text-white shadow-sm'
                   : 'border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300'
               }`}
             >
-              {item.step != null && (
-                <span
-                  className={`w-5 h-5 rounded-full text-[10px] flex items-center justify-center font-bold ${
-                    active ? 'bg-white/20' : 'bg-neutral-100 text-neutral-500'
-                  }`}
-                >
-                  {item.step}
-                </span>
-              )}
               {item.short}
             </Link>
           );
