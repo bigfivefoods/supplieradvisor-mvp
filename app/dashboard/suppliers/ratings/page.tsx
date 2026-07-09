@@ -5,7 +5,11 @@ import { Loader2, Star } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
-import { CompanyRequired, SuppliersHeader } from '@/components/suppliers/SuppliersShell';
+import {
+  CompanyRequired,
+  SuppliersHeader,
+  SuppliersPage
+} from '@/components/suppliers/SuppliersShell';
 
 type Agg = {
   supplier_profile_id: number;
@@ -95,7 +99,8 @@ function RatingsInner() {
   };
 
   return (
-    <div className="px-2 md:px-4 max-w-screen-2xl mx-auto pb-12">
+    <SuppliersPage>
+    <div className="pb-8">
       <SuppliersHeader
         title="Supplier ratings"
         description="Rate suppliers on quality, delivery, communication, and value. Ratings feed the composite trust score alongside OTIFEF."
@@ -207,5 +212,6 @@ function RatingsInner() {
         </div>
       </div>
     </div>
+    </SuppliersPage>
   );
 }

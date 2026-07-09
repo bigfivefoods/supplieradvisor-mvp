@@ -6,7 +6,11 @@ import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { DOC_TYPES } from '@/lib/suppliers/types';
-import { CompanyRequired, SuppliersHeader } from '@/components/suppliers/SuppliersShell';
+import {
+  CompanyRequired,
+  SuppliersHeader,
+  SuppliersPage
+} from '@/components/suppliers/SuppliersShell';
 
 type Doc = {
   id: number;
@@ -115,7 +119,8 @@ function DocsInner() {
   };
 
   return (
-    <div className="px-2 md:px-4 max-w-screen-2xl mx-auto pb-12">
+    <SuppliersPage>
+    <div className="pb-8">
       <SuppliersHeader
         title="Supplier documents"
         description="Private vault for contracts, certificates, and SLAs. Share with connected suppliers — version bumps when content changes so both sides stay in sync."
@@ -237,5 +242,6 @@ function DocsInner() {
         )}
       </div>
     </div>
+    </SuppliersPage>
   );
 }

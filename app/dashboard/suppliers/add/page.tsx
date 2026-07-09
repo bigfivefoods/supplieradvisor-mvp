@@ -7,7 +7,11 @@ import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { SUPPLIER_CERTIFICATIONS, SUPPLIER_INDUSTRIES } from '@/lib/suppliers/types';
-import { CompanyRequired, SuppliersHeader } from '@/components/suppliers/SuppliersShell';
+import {
+  CompanyRequired,
+  SuppliersHeader,
+  SuppliersPage
+} from '@/components/suppliers/SuppliersShell';
 
 export default function AddSupplierPage() {
   return (
@@ -118,7 +122,8 @@ function AddInner() {
   };
 
   return (
-    <div className="px-2 md:px-4 max-w-screen-2xl mx-auto pb-12">
+    <SuppliersPage>
+    <div className="pb-8">
       <SuppliersHeader
         title="Add or invite supplier"
         description="Add a supplier to your book immediately. Invite them to SupplierAdvisor so they claim the profile, complete verification, and take over their own data — while your connection stays live."
@@ -265,5 +270,6 @@ function AddInner() {
         </button>
       </div>
     </div>
+    </SuppliersPage>
   );
 }

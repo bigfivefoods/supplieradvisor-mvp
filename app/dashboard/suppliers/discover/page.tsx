@@ -24,6 +24,7 @@ import {
 import {
   CompanyRequired,
   SuppliersHeader,
+  SuppliersPage,
 } from '@/components/suppliers/SuppliersShell';
 
 export default function DiscoverSuppliersPage() {
@@ -144,9 +145,10 @@ function DiscoverInner() {
   };
 
   return (
-    <div className="px-2 md:px-4 max-w-screen-2xl mx-auto pb-12">
+    <SuppliersPage>
       <SuppliersHeader
-        title="Discover suppliers"
+        title="Discover"
+        titleAccent="suppliers"
         description="Search the SupplierAdvisor network by location, industry, certifications, BEE, trust score, and OTIFEF — then connect on-chain ready companies to your book."
       />
 
@@ -425,6 +427,6 @@ function DiscoverInner() {
           )}
         </div>
       </div>
-    </div>
+    </SuppliersPage>
   );
 }

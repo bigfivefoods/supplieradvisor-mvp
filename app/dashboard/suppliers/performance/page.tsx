@@ -4,7 +4,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { Loader2, TrendingUp, Truck, Package, Award } from 'lucide-react';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { otifefBand, type OtifefMetrics, type SupplierOtifefRow } from '@/lib/suppliers/types';
-import { CompanyRequired, SuppliersHeader } from '@/components/suppliers/SuppliersShell';
+import {
+  CompanyRequired,
+  SuppliersHeader,
+  SuppliersPage
+} from '@/components/suppliers/SuppliersShell';
 
 export default function SupplierPerformancePage() {
   return (
@@ -67,7 +71,8 @@ function PerfInner() {
   const band = otifefBand(summary?.overall || 0);
 
   return (
-    <div className="px-2 md:px-4 max-w-screen-2xl mx-auto pb-12">
+    <SuppliersPage>
+    <div className="pb-8">
       <SuppliersHeader
         title="OTIFEF scorecards"
         description="On-Time × In-Full × Error-Free — the performance backbone of trusted supply. Metrics persist to supplier_scorecards and refresh trust scores on your book."
@@ -177,6 +182,7 @@ function PerfInner() {
         </>
       )}
     </div>
+    </SuppliersPage>
   );
 }
 

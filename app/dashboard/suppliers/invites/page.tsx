@@ -6,7 +6,11 @@ import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { inviteStatusClass, type SupplierInvitation } from '@/lib/suppliers/types';
-import { CompanyRequired, SuppliersHeader } from '@/components/suppliers/SuppliersShell';
+import {
+  CompanyRequired,
+  SuppliersHeader,
+  SuppliersPage
+} from '@/components/suppliers/SuppliersShell';
 
 export default function SupplierInvitesPage() {
   return (
@@ -74,7 +78,8 @@ function InvitesInner() {
   };
 
   return (
-    <div className="px-2 md:px-4 max-w-screen-2xl mx-auto pb-12">
+    <SuppliersPage>
+    <div className="pb-8">
       <SuppliersHeader
         title="Supplier invitations"
         description="Pending and historical invites. Suppliers claim via secure link, activate their company, and take ownership — your book entry links automatically."
@@ -137,5 +142,6 @@ function InvitesInner() {
         )}
       </div>
     </div>
+    </SuppliersPage>
   );
 }

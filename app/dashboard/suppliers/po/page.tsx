@@ -38,6 +38,7 @@ import POEscrowV2ABI from '@/lib/contracts/abi/POEscrowV2.json';
 import {
   CompanyRequired,
   SuppliersHeader,
+  SuppliersPage,
 } from '@/components/suppliers/SuppliersShell';
 
 const PO_ESCROW_ADDRESS = CONTRACTS.POEscrowV2.address;
@@ -576,7 +577,8 @@ function PoInner() {
   const sepoliaTx = (hash: string) => `https://sepolia.etherscan.io/tx/${hash}`;
 
   return (
-    <div className="px-2 md:px-4 max-w-screen-2xl mx-auto pb-16">
+    <SuppliersPage>
+    <div className="pb-8">
       <SuppliersHeader
         title="Purchase orders"
         description="World-class procurement: standard off-chain POs with full OTIFEF delivery capture, or optional POEscrowV2 on-chain escrow (create → fund → release) with client-signed wallet txs."
@@ -1232,6 +1234,7 @@ function PoInner() {
         </div>
       )}
     </div>
+    </SuppliersPage>
   );
 }
 

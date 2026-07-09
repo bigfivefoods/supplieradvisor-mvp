@@ -10,7 +10,11 @@ import {
   Shield,
   TrendingUp,
 } from 'lucide-react';
-import { CompanyRequired, SuppliersHeader } from '@/components/suppliers/SuppliersShell';
+import {
+  CompanyRequired,
+  SuppliersHeader,
+  SuppliersPage
+} from '@/components/suppliers/SuppliersShell';
 
 const LINKS = [
   {
@@ -57,33 +61,34 @@ const LINKS = [
 export default function SupplierPortalPage() {
   return (
     <CompanyRequired>
-      <div className="px-2 md:px-4 max-w-screen-2xl mx-auto pb-12">
+      <SuppliersPage>
         <SuppliersHeader
-          title="Supplier ops board"
+          title="Supplier ops"
+          titleAccent="board"
           description="Single command center for trusted procurement — connect, buy, escrow, measure, and rate."
         />
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           {LINKS.map((m) => {
             const Icon = m.icon;
             return (
               <Link
                 key={m.href}
                 href={m.href}
-                className="group bg-white border rounded-3xl p-6 hover:border-[#00b4d8] hover:shadow-md transition-all"
+                className="group relative overflow-hidden rounded-[1.35rem] border border-neutral-200/90 bg-white p-6 transition-all duration-300 hover:border-slate-900 hover:shadow-xl hover:shadow-slate-900/5"
               >
                 <div className="flex justify-between mb-4">
-                  <div className="p-3 rounded-2xl bg-neutral-100 group-hover:bg-[#00b4d8] group-hover:text-white transition-colors">
-                    <Icon className="w-6 h-6" />
+                  <div className="p-2.5 rounded-2xl bg-slate-50 border border-neutral-100 group-hover:bg-slate-900 group-hover:text-white group-hover:border-slate-900 transition-all">
+                    <Icon className="w-5 h-5" />
                   </div>
-                  <ArrowRight className="w-5 h-5 text-neutral-300 group-hover:text-[#00b4d8]" />
+                  <ArrowRight className="w-4 h-4 text-neutral-300 group-hover:text-[#00b4d8] transition-colors" />
                 </div>
-                <h3 className="font-bold text-lg mb-1">{m.title}</h3>
-                <p className="text-sm text-neutral-600">{m.desc}</p>
+                <h3 className="font-bold text-base tracking-tight mb-1.5">{m.title}</h3>
+                <p className="text-xs text-neutral-500 leading-relaxed">{m.desc}</p>
               </Link>
             );
           })}
         </div>
-      </div>
+      </SuppliersPage>
     </CompanyRequired>
   );
 }

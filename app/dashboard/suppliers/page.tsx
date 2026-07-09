@@ -8,19 +8,32 @@ import {
   Users,
   FileText,
   AlertTriangle,
-  ArrowRight,
   Award,
   TrendingUp,
   Search,
   Handshake,
   Star,
   ShieldCheck,
-  Loader2,
   Globe,
 } from 'lucide-react';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { otifefBand, trustBand } from '@/lib/suppliers/types';
-import { CompanyRequired, SuppliersNav } from '@/components/suppliers/SuppliersShell';
+import {
+  CompanyRequired,
+  SuppliersNav,
+  SuppliersPage,
+} from '@/components/suppliers/SuppliersShell';
+import {
+  AlertBanner,
+  KpiCard,
+  MetricHero,
+  ModuleGrid,
+  Panel,
+  ProcessRail,
+  RelationshipHeader,
+  SectionLabel,
+  type ModuleCard,
+} from '@/components/relationship/RelationshipChrome';
 
 type Summary = {
   total: number;
@@ -40,10 +53,25 @@ type Summary = {
     totalPOs: number;
     supplierCount: number;
   };
-  topSuppliers: Array<{ supplier_id: number; name: string; overall: number; total_pos: number }>;
+  topSuppliers: Array<{
+    supplier_id: number;
+    name: string;
+    overall: number;
+    total_pos: number;
+  }>;
 };
 
-const MODULES = [
+const PROCESS = [
+  { label: 'Discover', href: '/dashboard/suppliers/discover' },
+  { label: 'Invite', href: '/dashboard/suppliers/add' },
+  { label: 'Connect', href: '/dashboard/suppliers/network' },
+  { label: 'PO', href: '/dashboard/suppliers/po' },
+  { label: 'Escrow', href: '/dashboard/suppliers/po' },
+  { label: 'OTIFEF', href: '/dashboard/suppliers/performance' },
+  { label: 'Rate', href: '/dashboard/suppliers/ratings' },
+];
+
+const MODULES: ModuleCard[] = [
   {
     href: '/dashboard/suppliers/discover',
     icon: Search,
@@ -55,53 +83,53 @@ const MODULES = [
     href: '/dashboard/suppliers/network',
     icon: Users,
     title: 'My supplier network',
-    desc: 'Your book of suppliers — connected, preferred, prospects',
+    desc: 'Your book — prospects, preferred, connected partners',
     badge: 'Core',
   },
   {
     href: '/dashboard/suppliers/add',
     icon: Plus,
     title: 'Add & invite',
-    desc: 'Add off-platform suppliers; they claim and take over their profile',
+    desc: 'Add off-platform suppliers; they claim and take over',
     badge: 'Connect',
   },
   {
     href: '/dashboard/suppliers/invites',
     icon: Handshake,
     title: 'Invitations',
-    desc: 'Track pending invites, resend, revoke',
+    desc: 'Pending, resend, revoke — full invite lifecycle',
+  },
+  {
+    href: '/dashboard/suppliers/po',
+    icon: Truck,
+    title: 'Purchase orders',
+    desc: 'Standard + on-chain escrow, delivery capture, release funds',
+    badge: 'Core',
   },
   {
     href: '/dashboard/suppliers/performance',
     icon: TrendingUp,
     title: 'OTIFEF performance',
-    desc: 'On-Time · In-Full · Error-Free scorecards by supplier',
+    desc: 'On-Time · In-Full · Error-Free scorecards',
     badge: 'Live',
   },
   {
     href: '/dashboard/suppliers/ratings',
     icon: Star,
     title: 'Ratings & reviews',
-    desc: 'Rate quality, delivery, communication, value after every PO',
+    desc: 'Quality, delivery, communication, value after every PO',
   },
   {
     href: '/dashboard/suppliers/documents',
     icon: FileText,
     title: 'Shared documents',
-    desc: 'Contracts, certs, SLAs — share in real time when connected',
-  },
-  {
-    href: '/dashboard/suppliers/po',
-    icon: Truck,
-    title: 'Purchase orders',
-    desc: 'Standard + on-chain escrow lifecycle, OTIFEF delivery capture, release funds',
-    badge: 'Core',
+    desc: 'Contracts, certs, SLAs — share when connected',
   },
   {
     href: '/dashboard/suppliers/portal',
     icon: Globe,
     title: 'Ops board',
-    desc: 'Command center for connect → buy → measure → rate',
+    desc: 'Command center: connect → buy → measure → rate',
   },
   {
     href: '/dashboard/suppliers/contracts',
@@ -115,7 +143,7 @@ const MODULES = [
     title: 'Supplier RIAD',
     desc: 'Risks, issues, actions, decisions across the supply base',
   },
-] as const;
+];
 
 export default function SuppliersHubPage() {
   return (
@@ -154,225 +182,212 @@ function HubInner() {
   const trust = trustBand(summary?.avgTrust || 0);
 
   return (
-    <div className="px-2 md:px-4 max-w-screen-2xl mx-auto pb-12">
-      <SuppliersNav />
-
-      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500 mb-1">
-            Supplier relationship management
-          </p>
-          <h1 className="text-4xl sm:text-5xl font-black tracking-[-2px] text-slate-900">
-            Find suppliers you can <span className="text-[#00b4d8]">trust</span>
-          </h1>
-          <p className="text-neutral-600 mt-2 max-w-2xl text-sm sm:text-base">
-            Discover verified suppliers with rich metadata, connect on-chain, share documents in
-            real time, invite partners off-platform, and run OTIFEF performance with peer ratings —
-            one world-class SRM process.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link href="/dashboard/suppliers/discover" className="btn-primary !py-2.5 !px-5 text-sm">
-            <Search className="w-4 h-4" /> Discover
-          </Link>
-          <Link href="/dashboard/suppliers/add" className="btn-secondary !py-2.5 !px-5 text-sm">
-            <Plus className="w-4 h-4" /> Add supplier
-          </Link>
-        </div>
-      </div>
+    <SuppliersPage>
+      <RelationshipHeader
+        nav={<SuppliersNav />}
+        eyebrow="Supplier relationship management"
+        title="Suppliers you can"
+        titleAccent="trust"
+        description="Discover verified partners, connect on-chain, share documents in real time, invite off-platform suppliers who take over their profile, and run OTIFEF with peer ratings — one precision SRM process."
+        action={
+          <>
+            <Link href="/dashboard/suppliers/discover" className="btn-primary !py-2.5 !px-5 text-sm">
+              <Search className="w-4 h-4" /> Discover
+            </Link>
+            <Link href="/dashboard/suppliers/add" className="btn-secondary !py-2.5 !px-5 text-sm">
+              <Plus className="w-4 h-4" /> Add supplier
+            </Link>
+          </>
+        }
+      />
 
       {warning && (
-        <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <AlertBanner>
           {warning}
-          {warning.includes('srm_suppliers') || warning.includes('does not exist') ? (
+          {(warning.includes('srm_suppliers') || warning.includes('does not exist')) && (
             <span className="block text-xs mt-1 opacity-80">
               Run <code className="font-mono">20260709_srm_supplier_module.sql</code> in Supabase.
             </span>
-          ) : null}
-        </div>
+          )}
+        </AlertBanner>
       )}
 
-      {/* KPI strip */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3 mb-8">
-        <Kpi
+      <SectionLabel>Lifecycle</SectionLabel>
+      <ProcessRail steps={PROCESS} />
+
+      <SectionLabel>Pulse</SectionLabel>
+      <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3 sm:gap-4 mb-8">
+        <KpiCard
           icon={Users}
           label="In my book"
-          value={loading ? '—' : String(summary?.total ?? 0)}
-          hint="Prospects + active"
+          value={summary?.total ?? 0}
+          sub="Prospects + active"
+          href="/dashboard/suppliers/network"
+          loading={loading}
         />
-        <Kpi
+        <KpiCard
           icon={Handshake}
           label="Connected"
-          value={loading ? '—' : String(summary?.connected ?? 0)}
-          hint="On-platform edges"
+          value={summary?.connected ?? 0}
+          sub="On-platform edges"
+          href="/dashboard/suppliers/network"
           tone="emerald"
+          loading={loading}
         />
-        <Kpi
+        <KpiCard
           icon={Globe}
           label="Pending invites"
-          value={loading ? '—' : String(summary?.invitePending ?? 0)}
-          hint="Awaiting claim"
-          tone="sky"
+          value={summary?.invitePending ?? 0}
+          sub="Awaiting claim"
+          href="/dashboard/suppliers/invites"
+          tone={(summary?.invitePending || 0) > 0 ? 'amber' : 'cyan'}
+          loading={loading}
         />
-        <Kpi
+        <KpiCard
           icon={ShieldCheck}
           label="Verified"
-          value={loading ? '—' : String(summary?.verified ?? 0)}
-          hint="In network"
+          value={summary?.verified ?? 0}
+          sub="In network"
+          tone="cyan"
+          loading={loading}
         />
-        <Kpi
+        <KpiCard
           icon={TrendingUp}
           label="Avg trust"
-          value={loading ? '—' : `${summary?.avgTrust ?? 0}`}
-          hint={trust.label}
-          tone="indigo"
+          value={summary?.avgTrust ?? 0}
+          sub={trust.label}
+          href="/dashboard/suppliers/performance"
+          tone="violet"
+          loading={loading}
         />
-        <Kpi
+        <KpiCard
           icon={AlertTriangle}
           label="Open RIADs"
-          value={loading ? '—' : String(summary?.openRiads ?? 0)}
-          hint="Supply-base risks"
-          tone="amber"
+          value={summary?.openRiads ?? 0}
+          sub="Supply-base risks"
+          href="/dashboard/suppliers/riad-log"
+          tone={(summary?.openRiads || 0) > 0 ? 'amber' : 'neutral'}
+          loading={loading}
         />
       </div>
 
-      {/* OTIFEF hero */}
-      <div className="mb-10">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="font-bold text-xl tracking-tight">
-              Portfolio OTIFEF <span className="text-emerald-600">performance</span>
-            </h2>
-            <p className="text-sm text-neutral-500">
-              Last 12 months · On-Time × In-Full × Error-Free
-            </p>
-          </div>
+      <SectionLabel
+        action={
           <Link
             href="/dashboard/suppliers/performance"
-            className="text-sm text-[#00b4d8] flex items-center gap-1 hover:underline"
+            className="text-xs font-semibold text-[#00b4d8] hover:underline"
           >
-            Full scorecards <ArrowRight className="w-4 h-4" />
+            Full scorecards →
           </Link>
-        </div>
+        }
+      >
+        Portfolio OTIFEF
+      </SectionLabel>
+      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
+        <MetricHero
+          label="Overall OTIFEF"
+          value={loading ? '—' : (ot?.overall ?? 0).toFixed(1)}
+          unit="%"
+          icon={TrendingUp}
+          badge={
+            <span className={`inline-flex text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full ${band.className}`}>
+              {band.label}
+            </span>
+          }
+          hint={`${ot?.totalPOs ?? 0} POs · ${ot?.supplierCount ?? 0} suppliers · 12 months`}
+        />
+        <KpiCard
+          icon={Truck}
+          label="On time"
+          value={loading ? '—' : `${(ot?.onTime ?? 0).toFixed(1)}%`}
+          sub="By promised date"
+          loading={loading}
+        />
+        <KpiCard
+          icon={FileText}
+          label="In full"
+          value={loading ? '—' : `${(ot?.inFull ?? 0).toFixed(1)}%`}
+          sub="Quantity accuracy"
+          loading={loading}
+        />
+        <KpiCard
+          icon={Award}
+          label="Error free"
+          value={loading ? '—' : `${(ot?.errorFree ?? 0).toFixed(1)}%`}
+          sub="Damage-free rate"
+          loading={loading}
+        />
+      </div>
 
-        {loading ? (
-          <div className="bg-white rounded-3xl border p-12 flex justify-center">
-            <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white rounded-3xl border border-neutral-200 p-6 relative overflow-hidden">
-              <div className="text-xs font-medium text-neutral-500 mb-2">OVERALL OTIFEF</div>
-              <div className="font-black text-5xl tracking-tighter mb-2">
-                {(ot?.overall ?? 0).toFixed(1)}
-                <span className="text-2xl">%</span>
-              </div>
-              <span className={`inline-flex text-xs font-bold px-3 py-1 rounded-full ${band.className}`}>
-                {band.label}
-              </span>
-              <div className="text-xs text-neutral-500 mt-3">
-                {ot?.totalPOs ?? 0} POs · {ot?.supplierCount ?? 0} suppliers
-              </div>
-            </div>
-            <MetricCard label="On time" value={ot?.onTime ?? 0} hint="Delivered by promised date" />
-            <MetricCard label="In full" value={ot?.inFull ?? 0} hint="Quantity accuracy" />
-            <MetricCard label="Error free" value={ot?.errorFree ?? 0} hint="Damage-free rate" />
-          </div>
-        )}
-
-        {!loading && summary?.topSuppliers && summary.topSuppliers.length > 0 && (
-          <div className="mt-4 bg-white rounded-3xl border divide-y">
-            <div className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-neutral-500">
-              Top OTIFEF suppliers (12m)
-            </div>
-            {summary.topSuppliers.map((s) => (
-              <div
+      {!loading && summary?.topSuppliers && summary.topSuppliers.length > 0 && (
+        <Panel title="Top OTIFEF suppliers" className="mb-10">
+          <ul className="divide-y divide-neutral-100">
+            {summary.topSuppliers.map((s, i) => (
+              <li
                 key={s.supplier_id}
-                className="px-5 py-3 flex items-center justify-between text-sm"
+                className="px-5 py-3.5 flex items-center justify-between text-sm"
               >
-                <span className="font-medium text-slate-900">{s.name}</span>
-                <span className="font-black text-[#00b4d8]">{s.overall.toFixed(1)}%</span>
-              </div>
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="text-[10px] font-black text-neutral-300 w-5">
+                    {String(i + 1).padStart(2, '0')}
+                  </span>
+                  <span className="font-semibold text-slate-900 truncate">{s.name}</span>
+                  <span className="text-[11px] text-neutral-400">{s.total_pos} POs</span>
+                </div>
+                <span className="font-black text-[#00b4d8] tabular-nums">
+                  {s.overall.toFixed(1)}%
+                </span>
+              </li>
             ))}
+          </ul>
+        </Panel>
+      )}
+
+      <SectionLabel
+        action={
+          <Link
+            href="/dashboard/suppliers/portal"
+            className="text-xs font-semibold text-[#00b4d8] hover:underline"
+          >
+            Open ops board →
+          </Link>
+        }
+      >
+        Workspace
+      </SectionLabel>
+      <ModuleGrid modules={MODULES} />
+
+      <div className="mt-10">
+        <Panel title="Operating principle">
+          <div className="px-5 py-6 sm:px-8 sm:py-8 grid sm:grid-cols-3 gap-6 text-sm">
+            <Principle
+              n="01"
+              title="Trust is measurable"
+              body="OTIFEF, peer ratings, and verification compose a living trust score — not a gut feel."
+            />
+            <Principle
+              n="02"
+              title="Connect on-chain when it matters"
+              body="Standard POs for speed; POEscrowV2 create → fund → release when capital must be locked."
+            />
+            <Principle
+              n="03"
+              title="Invite, then hand over"
+              body="Add any supplier offline. They claim, verify, and take ownership — your edge stays live."
+            />
           </div>
-        )}
+        </Panel>
       </div>
-
-      {/* Modules */}
-      <h2 className="font-bold text-xl tracking-tight mb-4">SRM workspace</h2>
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {MODULES.map((m) => {
-          const Icon = m.icon;
-          return (
-            <Link
-              key={m.href}
-              href={m.href}
-              className="group bg-white border border-neutral-200 rounded-3xl p-6 hover:border-[#00b4d8] hover:shadow-md transition-all"
-            >
-              <div className="flex items-start justify-between mb-4">
-                <div className="p-3 bg-neutral-100 rounded-2xl group-hover:bg-[#00b4d8] group-hover:text-white transition-colors">
-                  <Icon className="w-6 h-6" />
-                </div>
-                <div className="flex items-center gap-2">
-                  {'badge' in m && m.badge && (
-                    <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-[#00b4d8]/10 text-[#0077b6]">
-                      {m.badge}
-                    </span>
-                  )}
-                  <ArrowRight className="w-5 h-5 text-neutral-300 group-hover:text-[#00b4d8]" />
-                </div>
-              </div>
-              <h3 className="font-bold text-lg tracking-tight mb-1">{m.title}</h3>
-              <p className="text-sm text-neutral-600">{m.desc}</p>
-            </Link>
-          );
-        })}
-      </div>
-    </div>
+    </SuppliersPage>
   );
 }
 
-function Kpi({
-  icon: Icon,
-  label,
-  value,
-  hint,
-  tone = 'slate',
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  value: string;
-  hint: string;
-  tone?: 'slate' | 'emerald' | 'sky' | 'indigo' | 'amber';
-}) {
-  const tones: Record<string, string> = {
-    slate: 'bg-neutral-100 text-slate-700',
-    emerald: 'bg-emerald-100 text-emerald-700',
-    sky: 'bg-sky-100 text-sky-700',
-    indigo: 'bg-indigo-100 text-indigo-700',
-    amber: 'bg-amber-100 text-amber-800',
-  };
+function Principle({ n, title, body }: { n: string; title: string; body: string }) {
   return (
-    <div className="bg-white rounded-2xl border border-neutral-200 p-4">
-      <div className={`inline-flex p-2 rounded-xl mb-2 ${tones[tone]}`}>
-        <Icon className="w-4 h-4" />
-      </div>
-      <div className="text-2xl font-black tracking-tight">{value}</div>
-      <div className="text-xs font-medium text-slate-700">{label}</div>
-      <div className="text-[11px] text-neutral-500 mt-0.5">{hint}</div>
-    </div>
-  );
-}
-
-function MetricCard({ label, value, hint }: { label: string; value: number; hint: string }) {
-  return (
-    <div className="bg-white rounded-3xl border border-neutral-200 p-6">
-      <div className="text-xs font-medium text-neutral-500 mb-2 uppercase">{label}</div>
-      <div className="font-black text-4xl tracking-tighter mb-1">
-        {value.toFixed(1)}
-        <span className="text-xl">%</span>
-      </div>
-      <div className="text-xs text-neutral-500">{hint}</div>
+    <div>
+      <div className="text-[10px] font-black tracking-[0.2em] text-[#00b4d8] mb-2">{n}</div>
+      <div className="font-bold text-slate-900 mb-1.5">{title}</div>
+      <p className="text-xs text-neutral-500 leading-relaxed">{body}</p>
     </div>
   );
 }
