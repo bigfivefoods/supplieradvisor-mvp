@@ -1,9 +1,16 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePrivy } from '@privy-io/react-auth';
 import { createClient } from '@/utils/supabase/client';
+import {
+  useAccount,
+  useWriteContract,
+  useWaitForTransactionReceipt,
+  usePublicClient,
+} from 'wagmi';
+import { parseEther, parseEventLogs } from 'viem';
 import {
   Plus,
   Trash2,
@@ -12,11 +19,36 @@ import {
   X,
   Loader2,
   ArrowLeft,
+  Wallet,
+  CheckCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId, getSelectedCompanyName } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
-import { BUYER_PO_CANCEL_STATUSES } from '@/lib/procurement/types';
+import {
+  BUYER_PO_CANCEL_STATUSES,
+  isCustomerPoEscrowEnabled,
+} from '@/lib/procurement/types';
+import { CONTRACTS } from '@/lib/contracts/config';
+import POEscrowV2ABI from '@/lib/contracts/abi/POEscrowV2.json';
+
+const PO_ESCROW_ADDRESS = CONTRACTS.POEscrowV2.address;
+/**
+ * Demo-only ZAR→ETH rate (matches suppliers/po). Drives real msg.value for fundPO —
+ * not for production without an oracle / explicit ETH amount field.
+ */
+const ETH_RATE_ZAR = 55000;
+
+type EscrowLinkKind = 'create' | 'fund';
+
+type PendingEscrowLink = {
+  supabasePoId: number;
+  txHash: `0x${string}`;
+  supplierWallet: string | null;
+  /** Known chain id when funding (no PO_Created log expected) */
+  onchainPoId: string | number | null;
+  kind: EscrowLinkKind;
+};
 
 interface LineItem {
   product_id: number | null;
@@ -31,6 +63,7 @@ interface ConnectedSupplier {
   supplierProfileId: number;
   trading_name: string | null;
   legal_name: string | null;
+  wallet_address: string | null;
   suspended: boolean;
 }
 
@@ -46,6 +79,9 @@ interface PurchaseOrder {
   items?: LineItem[] | null;
   currency?: string | null;
   created_at: string;
+  onchain_tx?: string | null;
+  onchain_po_id?: string | number | null;
+  supplier_wallet?: string | null;
 }
 
 export default function BuyerPurchaseOrdersPage() {
@@ -55,12 +91,47 @@ export default function BuyerPurchaseOrdersPage() {
   const companyName = getSelectedCompanyName();
   const privyUserId = getCanonicalUserId(user?.id);
 
+  const escrowEnabled = isCustomerPoEscrowEnabled();
+  const { address: connectedWallet } = useAccount();
+  const publicClient = usePublicClient();
+  const {
+    writeContract,
+    data: txHash,
+    isPending: isContractPending,
+    error: writeError,
+    isError: isWriteError,
+    reset: resetWrite,
+  } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
+    hash: txHash,
+  });
+
+  /**
+   * After writeContract is submitted: wait for confirm, then trust-then-audit persist.
+   * Kept in refs so confirmation effect can pick them up once.
+   */
+  const pendingSubmitRef = useRef<{
+    supabasePoId: number;
+    supplierWallet: string | null;
+    onchainPoId: string | number | null;
+    kind: EscrowLinkKind;
+  } | null>(null);
+  const autoLinkDoneForHashRef = useRef<string | null>(null);
+  /** Avoid re-toasting the same writeContract error */
+  const writeErrorToastedRef = useRef<string | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [linking, setLinking] = useState(false);
+  /** Confirmed tx awaiting (or failed) server persist — enables Retry link */
+  const [pendingLink, setPendingLink] = useState<PendingEscrowLink | null>(null);
+  const [linkError, setLinkError] = useState<string | null>(null);
   const [suppliers, setSuppliers] = useState<ConnectedSupplier[]>([]);
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
   const [selectedSupplierId, setSelectedSupplierId] = useState<number | null>(null);
   const [description, setDescription] = useState('');
+  const [useEscrow, setUseEscrow] = useState(false);
+  const [supplierWallet, setSupplierWallet] = useState('');
   const [lineItems, setLineItems] = useState<LineItem[]>([
     { product_id: null, item_name: '', quantity: 1, unit_price: 0, uom: null },
   ]);
@@ -90,11 +161,16 @@ export default function BuyerPurchaseOrdersPage() {
 
     const rows = conns || [];
     const supplierIds = rows.map((c: { requester_profile_id: number }) => c.requester_profile_id);
-    let profiles: { id: number; trading_name: string | null; legal_name: string | null }[] = [];
+    let profiles: {
+      id: number;
+      trading_name: string | null;
+      legal_name: string | null;
+      wallet_address: string | null;
+    }[] = [];
     if (supplierIds.length) {
       const { data: p } = await supabase
         .from('profiles')
-        .select('id, trading_name, legal_name')
+        .select('id, trading_name, legal_name, wallet_address')
         .in('id', supplierIds);
       profiles = p || [];
     }
@@ -115,6 +191,7 @@ export default function BuyerPurchaseOrdersPage() {
           supplierProfileId: c.requester_profile_id,
           trading_name: profile?.trading_name ?? null,
           legal_name: profile?.legal_name ?? null,
+          wallet_address: profile?.wallet_address ?? null,
           suspended: meta.suspended === true || meta.suspended === 'true',
         };
       }
@@ -146,6 +223,152 @@ export default function BuyerPurchaseOrdersPage() {
     Promise.all([loadSuppliers(), loadPOs()]).finally(() => setLoading(false));
   }, [companyId, loadSuppliers, loadPOs]);
 
+  // Prefill supplier wallet when selecting a connected supplier
+  useEffect(() => {
+    if (selectedSupplier?.wallet_address) {
+      setSupplierWallet(selectedSupplier.wallet_address);
+    }
+  }, [selectedSupplier?.supplierProfileId, selectedSupplier?.wallet_address]);
+
+  // Surface async wallet reject / writeContract failures (try/catch around writeContract is sync-only)
+  useEffect(() => {
+    if (!isWriteError || !writeError) return;
+    const msg = writeError.message || 'Wallet transaction failed or was rejected';
+    if (writeErrorToastedRef.current === msg) return;
+    writeErrorToastedRef.current = msg;
+
+    const pending = pendingSubmitRef.current;
+    pendingSubmitRef.current = null;
+    autoLinkDoneForHashRef.current = null;
+
+    const kindLabel = pending?.kind === 'fund' ? 'fundPO' : 'createPO';
+    const poHint = pending?.supabasePoId
+      ? ` Off-chain PO #${pending.supabasePoId} is unchanged` +
+        (pending.kind === 'create'
+          ? ' — use Create on-chain escrow when ready.'
+          : '.')
+      : '';
+    toast.error(`${kindLabel} failed: ${msg}.${poHint}`);
+  }, [isWriteError, writeError]);
+
+  /**
+   * Parse receipt + POST trust-then-audit persist.
+   * On failure keeps `pendingLink` so the user can Retry without a second createPO.
+   */
+  const persistEscrowLink = useCallback(
+    async (link: PendingEscrowLink) => {
+      if (!companyId || !privyUserId) {
+        setLinkError('Select a company and sign in to link on-chain refs');
+        setPendingLink(link);
+        return;
+      }
+      if (!publicClient) {
+        setLinkError('Wallet public client not ready — retry in a moment');
+        setPendingLink(link);
+        return;
+      }
+
+      setLinking(true);
+      setLinkError(null);
+      setPendingLink(link);
+
+      try {
+        const receipt = await publicClient.getTransactionReceipt({ hash: link.txHash });
+        const parsedLogs = parseEventLogs({
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          abi: POEscrowV2ABI.abi as any,
+          // ABI event is PO_Created (not POCreated) — src/lib/contracts/abi/POEscrowV2.json
+          eventName: 'PO_Created',
+          logs: receipt.logs,
+        });
+
+        let poIdOnChain: number | string | null = null;
+        if (parsedLogs.length > 0) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const eventArgs = (parsedLogs[0] as any).args;
+          const parsed = Number(eventArgs?.poId ?? eventArgs?.[0]);
+          if (Number.isFinite(parsed) && parsed > 0) {
+            poIdOnChain = parsed;
+          }
+        }
+        // At this point poIdOnChain is only number | null (from event parse);
+        // fall back to a known id on fundPO or when the event is missing.
+        if (
+          poIdOnChain == null &&
+          link.onchainPoId != null &&
+          link.onchainPoId !== ''
+        ) {
+          poIdOnChain = link.onchainPoId;
+        }
+        if (poIdOnChain == null || poIdOnChain === '' || !/^[1-9]\d*$/.test(String(poIdOnChain))) {
+          throw new Error(
+            'Could not parse on-chain PO id from receipt (expected PO_Created). Use Retry link after the tx confirms.'
+          );
+        }
+
+        const res = await fetch(`/api/buyer/purchase-orders/${link.supabasePoId}/onchain`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            buyerCompanyId: companyId,
+            privyUserId,
+            onchain_tx: link.txHash,
+            onchain_po_id: poIdOnChain,
+            supplier_wallet: link.supplierWallet || undefined,
+            kind: link.kind,
+          }),
+        });
+        const json = await res.json();
+        if (!res.ok) {
+          throw new Error(json.error || 'Failed to save on-chain refs');
+        }
+
+        toast.success(
+          link.kind === 'create'
+            ? `On-chain escrow linked (chain PO #${poIdOnChain})`
+            : `Fund recorded for chain PO #${poIdOnChain} (create tx preserved)`
+        );
+        setPendingLink(null);
+        setLinkError(null);
+        pendingSubmitRef.current = null;
+        resetWrite();
+        await loadPOs();
+      } catch (e: unknown) {
+        console.error('Failed to link onchain PO:', e);
+        const msg = e instanceof Error ? e.message : 'Failed to link on-chain PO';
+        setLinkError(msg);
+        setPendingLink(link);
+        toast.error(msg);
+      } finally {
+        setLinking(false);
+      }
+    },
+    [companyId, privyUserId, publicClient, loadPOs, resetWrite]
+  );
+
+  // After wallet confirms createPO/fundPO, auto-link once per hash
+  useEffect(() => {
+    if (!isConfirmed || !txHash) return;
+    if (autoLinkDoneForHashRef.current === txHash) return;
+    const submit = pendingSubmitRef.current;
+    if (!submit) return;
+
+    autoLinkDoneForHashRef.current = txHash;
+    const link: PendingEscrowLink = {
+      supabasePoId: submit.supabasePoId,
+      txHash,
+      supplierWallet: submit.supplierWallet,
+      onchainPoId: submit.onchainPoId,
+      kind: submit.kind,
+    };
+    void persistEscrowLink(link);
+  }, [isConfirmed, txHash, persistEscrowLink]);
+
+  const retryPendingLink = () => {
+    if (!pendingLink || linking) return;
+    void persistEscrowLink(pendingLink);
+  };
+
   const addLineItem = () => {
     setLineItems([
       ...lineItems,
@@ -161,6 +384,44 @@ export default function BuyerPurchaseOrdersPage() {
     const updated = [...lineItems];
     updated[index] = { ...updated[index], [field]: value };
     setLineItems(updated);
+  };
+
+  const amountInEth = (amountZar: number) =>
+    (amountZar / ETH_RATE_ZAR).toFixed(6);
+
+  /** Client-signed createPO — never POEscrowService / server key */
+  const submitCreateOnchain = (supabasePoId: number, wallet: string, amountZar: number) => {
+    const eth = amountInEth(amountZar);
+    const metadataURI = `https://supplieradvisor.app/po/${supabasePoId}`;
+    setLinkError(null);
+    autoLinkDoneForHashRef.current = null;
+    writeErrorToastedRef.current = null;
+    pendingSubmitRef.current = {
+      supabasePoId,
+      supplierWallet: wallet,
+      onchainPoId: null,
+      kind: 'create',
+    };
+    writeContract(
+      {
+        address: PO_ESCROW_ADDRESS,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        abi: POEscrowV2ABI.abi as any,
+        functionName: 'createPO',
+        args: [wallet as `0x${string}`, parseEther(eth), metadataURI],
+      },
+      {
+        onError: (err) => {
+          pendingSubmitRef.current = null;
+          autoLinkDoneForHashRef.current = null;
+          const msg = err?.message || 'Wallet rejected createPO';
+          writeErrorToastedRef.current = msg;
+          toast.error(
+            `createPO failed: ${msg}. Off-chain PO #${supabasePoId} remains — use Create on-chain escrow when ready.`
+          );
+        },
+      }
+    );
   };
 
   const handleRaisePO = async () => {
@@ -182,6 +443,18 @@ export default function BuyerPurchaseOrdersPage() {
       return;
     }
 
+    const wantEscrow = escrowEnabled && useEscrow;
+    if (wantEscrow) {
+      if (!connectedWallet) {
+        toast.error('Connect your wallet to create on-chain escrow');
+        return;
+      }
+      if (!supplierWallet.trim() || !/^0x[a-fA-F0-9]{40}$/.test(supplierWallet.trim())) {
+        toast.error('Valid supplier wallet address (0x…) is required for escrow');
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       const res = await fetch('/api/buyer/purchase-orders', {
@@ -193,6 +466,7 @@ export default function BuyerPurchaseOrdersPage() {
           privyUserId,
           description: description || null,
           currency: 'ZAR',
+          useEscrow: wantEscrow,
           items: validItems.map((i) => ({
             product_id: i.product_id,
             item_name: i.item_name.trim(),
@@ -207,9 +481,24 @@ export default function BuyerPurchaseOrdersPage() {
         toast.error(json.error || 'Failed to create PO');
         return;
       }
-      toast.success(`Purchase order #${json.purchaseOrder?.id ?? ''} created`);
+
+      const newPo = json.purchaseOrder as PurchaseOrder | undefined;
+      const newId = newPo?.id;
+      const amount = Number(newPo?.total_amount ?? totalAmount);
+
+      if (wantEscrow && newId) {
+        toast.success(
+          `Off-chain PO #${newId} created. Confirm wallet createPO (~${amountInEth(amount)} ETH demo rate), or use Create on-chain escrow later if the wallet is cancelled.`
+        );
+        submitCreateOnchain(newId, supplierWallet.trim(), amount);
+      } else {
+        toast.success(`Purchase order #${newId ?? ''} created`);
+      }
+
       setSelectedSupplierId(null);
       setDescription('');
+      setUseEscrow(false);
+      setSupplierWallet('');
       setLineItems([{ product_id: null, item_name: '', quantity: 1, unit_price: 0, uom: null }]);
       await loadPOs();
     } catch (e: unknown) {
@@ -217,6 +506,75 @@ export default function BuyerPurchaseOrdersPage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const createOnchainEscrowForPo = (po: PurchaseOrder) => {
+    if (!escrowEnabled) return;
+    if (!connectedWallet) {
+      toast.error('Connect your wallet to create on-chain escrow');
+      return;
+    }
+    let wallet = po.supplier_wallet || '';
+    if (!wallet || !/^0x[a-fA-F0-9]{40}$/.test(wallet)) {
+      const prompted = window.prompt('Enter supplier wallet address (0x…):', supplierWallet || '');
+      if (!prompted || !/^0x[a-fA-F0-9]{40}$/.test(prompted.trim())) {
+        toast.error('Valid supplier wallet required');
+        return;
+      }
+      wallet = prompted.trim();
+    }
+    const amount = Number(po.total_amount ?? po.subtotal ?? 0);
+    const eth = amountInEth(amount);
+    toast.message(
+      `Creating on-chain escrow for PO #${po.id} (demo amount ${eth} ETH @ R${ETH_RATE_ZAR}/ETH)…`
+    );
+    submitCreateOnchain(po.id, wallet, amount);
+  };
+
+  const fundOnchainPO = (po: PurchaseOrder) => {
+    if (!escrowEnabled) return;
+    if (!connectedWallet) {
+      toast.error('Connect your wallet to fund escrow');
+      return;
+    }
+    const onchainId = po.onchain_po_id;
+    if (onchainId == null || onchainId === '') {
+      toast.error('No on-chain PO id linked yet');
+      return;
+    }
+    const amount = Number(po.total_amount ?? po.subtotal ?? 0);
+    const eth = amountInEth(amount);
+    setLinkError(null);
+    autoLinkDoneForHashRef.current = null;
+    writeErrorToastedRef.current = null;
+    pendingSubmitRef.current = {
+      supabasePoId: po.id,
+      supplierWallet: po.supplier_wallet || null,
+      onchainPoId: onchainId,
+      kind: 'fund',
+    };
+    writeContract(
+      {
+        address: PO_ESCROW_ADDRESS,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        abi: POEscrowV2ABI.abi as any,
+        functionName: 'fundPO',
+        args: [BigInt(String(onchainId))],
+        value: parseEther(eth),
+      },
+      {
+        onError: (err) => {
+          pendingSubmitRef.current = null;
+          autoLinkDoneForHashRef.current = null;
+          const msg = err?.message || 'Wallet rejected fundPO';
+          writeErrorToastedRef.current = msg;
+          toast.error(`fundPO failed: ${msg}. Off-chain PO #${po.id} is unchanged.`);
+        },
+      }
+    );
+    toast.message(
+      `Funding on-chain PO #${onchainId} with ${eth} ETH (demo rate R${ETH_RATE_ZAR}/ETH)…`
+    );
   };
 
   const handleCancel = async (poId: number) => {
@@ -257,6 +615,8 @@ export default function BuyerPurchaseOrdersPage() {
     );
   }
 
+  const busy = saving || isContractPending || isConfirming || linking;
+
   return (
     <div className="pl-0 min-h-screen bg-[#f8fafc]">
       <div className="py-10 px-6 max-w-5xl mx-auto">
@@ -273,8 +633,25 @@ export default function BuyerPurchaseOrdersPage() {
               Raise purchase order
             </h1>
             <p className="text-neutral-600 mt-2 text-sm">
-              Connected suppliers only · off-chain PO (escrow is a later PR)
+              Connected suppliers only
+              {escrowEnabled
+                ? ' · optional client-signed on-chain escrow'
+                : ' · off-chain PO (escrow flag off)'}
             </p>
+            {escrowEnabled && (
+              <div className="flex flex-wrap items-center gap-2 mt-2">
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
+                  Escrow available
+                </span>
+                {connectedWallet ? (
+                  <span className="text-xs text-neutral-500 font-mono">
+                    Wallet {connectedWallet.slice(0, 6)}…{connectedWallet.slice(-4)}
+                  </span>
+                ) : (
+                  <span className="text-xs text-amber-700">Connect wallet for escrow</span>
+                )}
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <Link
@@ -333,7 +710,10 @@ export default function BuyerPurchaseOrdersPage() {
                             }`}
                           >
                             <div className="font-medium">{name}</div>
-                            <div className="text-xs text-neutral-500">ID {s.supplierProfileId}</div>
+                            <div className="text-xs text-neutral-500">
+                              ID {s.supplierProfileId}
+                              {s.wallet_address ? ' · has wallet' : ''}
+                            </div>
                           </button>
                           <div className="flex items-center gap-2 shrink-0">
                             {s.suspended && (
@@ -368,6 +748,72 @@ export default function BuyerPurchaseOrdersPage() {
                   placeholder="Delivery instructions, payment terms..."
                 />
               </div>
+
+              {escrowEnabled && (
+                <div className="mb-6 p-4 rounded-2xl border border-neutral-200 bg-neutral-50/80">
+                  <label className="flex items-center gap-2 text-sm font-medium cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={useEscrow}
+                      onChange={(e) => setUseEscrow(e.target.checked)}
+                      className="w-4 h-4 accent-[#00b4d8]"
+                    />
+                    <Wallet className="w-4 h-4 text-[#00b4d8]" />
+                    Create on-chain escrow (client-signed POEscrowV2)
+                  </label>
+                  <p className="text-xs text-neutral-500 mt-2 ml-6">
+                    Off-chain PO is created first; your connected wallet signs createPO. Server never
+                    signs with a platform private key. Demo ETH amount uses a fixed ZAR rate of R
+                    {ETH_RATE_ZAR.toLocaleString()}/ETH (not for production).
+                    {useEscrow && totalAmount > 0 && (
+                      <>
+                        {' '}
+                        ≈ {amountInEth(totalAmount)} ETH for this PO.
+                      </>
+                    )}
+                  </p>
+                  {useEscrow && (
+                    <div className="mt-3 ml-6">
+                      <label className="text-xs text-neutral-500 mb-1 block">
+                        Supplier wallet address
+                      </label>
+                      <input
+                        type="text"
+                        value={supplierWallet}
+                        onChange={(e) => setSupplierWallet(e.target.value)}
+                        className="w-full px-4 py-3 border border-neutral-200 rounded-2xl font-mono text-sm focus:border-[#00b4d8]"
+                        placeholder="0x…"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {escrowEnabled && pendingLink && (
+                <div className="mb-6 p-4 rounded-2xl border border-amber-200 bg-amber-50">
+                  <div className="text-sm font-medium text-amber-900">
+                    {linkError
+                      ? 'On-chain tx confirmed but link to this PO failed'
+                      : linking
+                        ? 'Linking on-chain escrow…'
+                        : 'Pending on-chain link'}
+                  </div>
+                  <p className="text-xs text-amber-800 mt-1 font-mono break-all">
+                    PO #{pendingLink.supabasePoId} · {pendingLink.kind} · {pendingLink.txHash}
+                  </p>
+                  {linkError && (
+                    <p className="text-xs text-red-700 mt-1">{linkError}</p>
+                  )}
+                  <button
+                    type="button"
+                    disabled={linking}
+                    onClick={retryPendingLink}
+                    className="mt-3 px-4 py-2 bg-amber-700 text-white text-sm font-medium rounded-xl disabled:bg-neutral-300"
+                  >
+                    {linking ? 'Retrying…' : 'Retry link'}
+                  </button>
+                </div>
+              )}
 
               <div className="mb-6">
                 <div className="flex justify-between items-center mb-3">
@@ -448,7 +894,7 @@ export default function BuyerPurchaseOrdersPage() {
                   type="button"
                   onClick={handleRaisePO}
                   disabled={
-                    saving ||
+                    busy ||
                     !selectedSupplierId ||
                     !!selectedSupplier?.suspended ||
                     suppliers.length === 0
@@ -456,7 +902,15 @@ export default function BuyerPurchaseOrdersPage() {
                   className="px-8 py-3 bg-[#00b4d8] text-white font-semibold rounded-2xl disabled:bg-neutral-300 flex items-center gap-2"
                 >
                   <FileText className="w-5 h-5" />
-                  {saving ? 'Creating...' : 'Raise purchase order'}
+                  {busy
+                    ? isConfirming
+                      ? 'Confirming chain…'
+                      : isContractPending
+                        ? 'Wallet…'
+                        : 'Creating...'
+                    : escrowEnabled && useEscrow
+                      ? 'Raise PO + on-chain escrow'
+                      : 'Raise purchase order'}
                 </button>
               </div>
             </div>
@@ -487,42 +941,92 @@ export default function BuyerPurchaseOrdersPage() {
                       supplier?.trading_name ||
                       supplier?.legal_name ||
                       `Supplier ${po.supplier_profile_id || po.supplier_id || '?'}`;
+                    const isOnchain = po.onchain_po_id != null && po.onchain_po_id !== '';
                     return (
                       <div
                         key={po.id}
-                        className="border border-neutral-200 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+                        className="border border-neutral-200 rounded-2xl p-5 flex flex-col gap-3"
                       >
-                        <div>
-                          <div className="font-semibold text-lg">
-                            PO #{po.id} · {supplierLabel}
-                          </div>
-                          {po.description && (
-                            <div className="text-neutral-600 text-sm mt-0.5">{po.description}</div>
-                          )}
-                          <div className="text-xs text-neutral-400 mt-1">
-                            {po.created_at
-                              ? new Date(po.created_at).toLocaleString()
-                              : ''}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <div className="text-right">
-                            <div className="text-xl font-bold text-[#00b4d8]">
-                              R{amount.toLocaleString()}
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                          <div>
+                            <div className="font-semibold text-lg">
+                              PO #{po.id} · {supplierLabel}
                             </div>
-                            <div className="text-sm capitalize text-neutral-600">{po.status}</div>
+                            {po.description && (
+                              <div className="text-neutral-600 text-sm mt-0.5">{po.description}</div>
+                            )}
+                            {escrowEnabled && (
+                              <div className="text-xs mt-1">
+                                {isOnchain ? (
+                                  <span className="text-emerald-600 font-medium">
+                                    On-chain escrow ID: {po.onchain_po_id}
+                                  </span>
+                                ) : (
+                                  <span className="text-amber-600 font-medium">
+                                    Standard PO (no on-chain escrow yet)
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            <div className="text-xs text-neutral-400 mt-1">
+                              {po.created_at
+                                ? new Date(po.created_at).toLocaleString()
+                                : ''}
+                            </div>
                           </div>
-                          {canCancel && (
-                            <button
-                              type="button"
-                              disabled={saving}
-                              onClick={() => handleCancel(po.id)}
-                              className="px-3 py-1.5 text-sm border border-red-200 text-red-600 rounded-xl hover:bg-red-50"
-                            >
-                              Cancel
-                            </button>
-                          )}
+                          <div className="flex items-center gap-3">
+                            <div className="text-right">
+                              <div className="text-xl font-bold text-[#00b4d8]">
+                                R{amount.toLocaleString()}
+                              </div>
+                              <div className="text-sm capitalize text-neutral-600">{po.status}</div>
+                            </div>
+                            {canCancel && (
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => handleCancel(po.id)}
+                                className="px-3 py-1.5 text-sm border border-red-200 text-red-600 rounded-xl hover:bg-red-50"
+                              >
+                                Cancel
+                              </button>
+                            )}
+                          </div>
                         </div>
+
+                        {escrowEnabled && (
+                          <div className="flex flex-wrap gap-2">
+                            {isOnchain &&
+                              po.status !== 'funded' &&
+                              po.status !== 'paid' &&
+                              po.status !== 'completed' &&
+                              po.status !== 'cancelled' && (
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() => fundOnchainPO(po)}
+                                  className="px-4 py-1.5 bg-[#00b4d8] text-white rounded-xl text-sm font-medium flex items-center gap-1.5 disabled:bg-neutral-300"
+                                >
+                                  <Wallet className="w-3.5 h-3.5" /> Fund on-chain escrow
+                                </button>
+                              )}
+                            {!isOnchain && po.status !== 'cancelled' && (
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => createOnchainEscrowForPo(po)}
+                                className="px-4 py-1.5 bg-emerald-600 text-white rounded-xl text-sm font-medium flex items-center gap-1.5 disabled:bg-neutral-300"
+                              >
+                                <Wallet className="w-3.5 h-3.5" /> Create on-chain escrow
+                              </button>
+                            )}
+                            {po.onchain_tx && (
+                              <span className="px-3 py-1.5 text-xs bg-emerald-100 text-emerald-700 rounded-xl flex items-center gap-1">
+                                <CheckCircle className="w-3.5 h-3.5" /> Chain tx saved
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
