@@ -1,163 +1,260 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, MapPin } from 'lucide-react';
-import { createClient } from '@/utils/supabase/client';
+import React, { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
+import {
+  Plus, Edit2, Trash2, MapPin, ExternalLink, Search, Package, RefreshCw,
+} from 'lucide-react';
+import { toast } from 'sonner';
 import AddContainerForm from '@/components/AddContainerForm';
 import EditContainerForm, { Container } from '@/components/EditContainerForm';
+import { getSelectedCompanyId } from '@/lib/containers/company';
+import type { ContainerRecord } from '@/lib/containers/types';
 
-const supabase = createClient();
+function toEditContainer(c: ContainerRecord): Container {
+  return {
+    id: c.id,
+    container_code: c.container_code,
+    name: c.name,
+    type: c.type ?? null,
+    status: c.status ?? null,
+    country: c.country ?? null,
+    province: c.province ?? null,
+    city: c.city ?? null,
+    address: c.address ?? null,
+    latitude: c.latitude ?? null,
+    longitude: c.longitude ?? null,
+    deployed_date: c.deployed_date ?? null,
+    purchase_date: c.purchase_date ?? null,
+    cost: c.cost ?? null,
+    assigned_contractor: c.assigned_contractor ?? null,
+    tags: Array.isArray(c.tags) ? c.tags.join(',') : (c.tags as string) || null,
+    photo_url: c.photo_url ?? null,
+    notes: c.notes ?? null,
+  };
+}
 
 export default function ManageContainersPage() {
-  const [containers, setContainers] = useState<Container[]>([]);
+  const [containers, setContainers] = useState<ContainerRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [editingContainer, setEditingContainer] = useState<Container | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [showAdd, setShowAdd] = useState(false);
+  const [editing, setEditing] = useState<Container | null>(null);
+  const [search, setSearch] = useState('');
+  const [companyId, setCompanyId] = useState<number | null>(null);
 
-  const fetchContainers = async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('containers')
-      .select('*')
-      .order('updated_at', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching containers:', error);
-    } else {
-      setContainers(data || []);
+  const load = useCallback(async () => {
+    const id = getSelectedCompanyId();
+    setCompanyId(id);
+    if (!id) {
+      setContainers([]);
+      setLoading(false);
+      return;
     }
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    fetchContainers();
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/containers?companyId=${id}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to load');
+      setContainers(data.containers || []);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Load failed');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const filteredContainers = containers.filter((c) =>
-    c.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.container_code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.country?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.assigned_contractor?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const filtered = containers.filter((c) => {
+    const q = search.toLowerCase();
+    return (
+      c.name?.toLowerCase().includes(q) ||
+      c.container_code?.toLowerCase().includes(q) ||
+      c.city?.toLowerCase().includes(q) ||
+      c.assigned_contractor?.toLowerCase().includes(q)
+    );
+  });
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this container?')) return;
-
-    const { error } = await supabase.from('containers').delete().eq('id', id);
-    if (!error) {
-      fetchContainers();
+    if (!confirm('Delete this container outlet? This cannot be undone.')) return;
+    const res = await fetch(`/api/containers/${id}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) {
+      toast.error(data.error || 'Delete failed');
+      return;
     }
+    toast.success('Container deleted');
+    void load();
   };
 
+  if (!companyId && !loading) {
+    return (
+      <div className="max-w-md mx-auto py-16 text-center px-4">
+        <Package className="w-12 h-12 text-neutral-300 mx-auto mb-4" />
+        <h2 className="text-2xl font-bold mb-3">Select a company</h2>
+        <p className="text-neutral-600 mb-6">Choose a company workspace to manage its retail containers.</p>
+        <Link href="/dashboard/select-company" className="btn-primary px-8 py-3 inline-block">
+          Select company
+        </Link>
+      </div>
+    );
+  }
+
   return (
-    <div className="p-8 max-w-7xl mx-auto">
-      <div className="flex justify-between items-center mb-8">
+    <div className="px-2 md:px-4 max-w-screen-2xl mx-auto">
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-4xl font-black tracking-[-2px]">Manage Containers</h1>
-          <p className="text-slate-500 mt-1">View and manage all containers</p>
+          <h1 className="text-3xl sm:text-4xl font-black tracking-[-2px] text-[#00b4d8]">
+            Manage containers
+          </h1>
+          <p className="text-neutral-600 mt-1">
+            Retail outlets · contractors · locations · inventory
+          </p>
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 bg-black text-white px-6 py-3 rounded-3xl hover:bg-slate-800 transition-colors"
-        >
-          <Plus className="w-4 h-4" /> Add New Container
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/dashboard/containers/map" className="btn-secondary !py-3 !px-5 text-sm">
+            <MapPin className="w-4 h-4" /> Map
+          </Link>
+          <button type="button" onClick={() => void load()} className="btn-secondary !py-3 !px-5 text-sm">
+            <RefreshCw className="w-4 h-4" /> Refresh
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowAdd(true)}
+            className="btn-primary !py-3 !px-5 text-sm"
+          >
+            <Plus className="w-4 h-4" /> Add container
+          </button>
+        </div>
       </div>
 
-      <input
-        type="text"
-        placeholder="Search containers..."
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
-        className="w-full max-w-md px-5 py-3 rounded-3xl border border-slate-200 mb-6 focus:outline-none focus:ring-2 focus:ring-black"
-      />
+      <div className="relative mb-6 max-w-md">
+        <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400" />
+        <input
+          className="input w-full !pl-11 !py-3 !text-base"
+          placeholder="Search code, name, city, contractor…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
 
-      <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden">
-        <table className="w-full">
-          <thead className="bg-slate-50 border-b">
-            <tr>
-              <th className="text-left px-6 py-4 text-sm font-semibold text-slate-600">Container</th>
-              <th className="text-left px-6 py-4 text-sm font-semibold text-slate-600">Location</th>
-              <th className="text-left px-6 py-4 text-sm font-semibold text-slate-600">Status</th>
-              <th className="text-left px-6 py-4 text-sm font-semibold text-slate-600">Contractor</th>
-              <th className="text-right px-6 py-4 text-sm font-semibold text-slate-600">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y">
-            {loading ? (
+      <div className="bg-white rounded-3xl border border-neutral-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[720px]">
+            <thead className="bg-neutral-50 border-b">
               <tr>
-                <td colSpan={5} className="px-6 py-12 text-center text-slate-400">Loading containers...</td>
+                <th className="text-left px-5 py-4 text-sm font-semibold text-neutral-600">Outlet</th>
+                <th className="text-left px-5 py-4 text-sm font-semibold text-neutral-600">Location</th>
+                <th className="text-left px-5 py-4 text-sm font-semibold text-neutral-600">Status</th>
+                <th className="text-left px-5 py-4 text-sm font-semibold text-neutral-600">Contractor</th>
+                <th className="text-right px-5 py-4 text-sm font-semibold text-neutral-600">Actions</th>
               </tr>
-            ) : filteredContainers.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="px-6 py-12 text-center text-slate-400">No containers found</td>
-              </tr>
-            ) : (
-              filteredContainers.map((container) => (
-                <tr key={container.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-5">
-                    <div className="font-semibold">{container.name}</div>
-                    <div className="text-sm text-slate-500 font-mono">{container.container_code}</div>
-                  </td>
-                  <td className="px-6 py-5 text-sm">
-                    <div className="flex items-center gap-2">
-                      <MapPin className="w-4 h-4 text-slate-400" />
-                      {container.city || container.province || container.country || '—'}
-                    </div>
-                  </td>
-                  <td className="px-6 py-5">
-                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
-                      container.status === 'active' 
-                        ? 'bg-green-100 text-green-700' 
-                        : 'bg-slate-100 text-slate-600'
-                    }`}>
-                      {container.status || '—'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-5 text-sm text-slate-600">
-                    {container.assigned_contractor || '—'}
-                  </td>
-                  <td className="px-6 py-5 text-right">
-                    <div className="flex justify-end gap-2">
-                      <button
-                        onClick={() => setEditingContainer(container)}
-                        className="flex items-center gap-1.5 px-4 py-2 text-sm rounded-2xl border border-slate-200 hover:bg-slate-100 transition-colors"
-                      >
-                        <Edit2 className="w-4 h-4" /> Edit
-                      </button>
-                      <button
-                        onClick={() => handleDelete(container.id)}
-                        className="flex items-center gap-1.5 px-4 py-2 text-sm rounded-2xl border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" /> Delete
-                      </button>
-                    </div>
+            </thead>
+            <tbody className="divide-y">
+              {loading ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-14 text-center text-neutral-400">
+                    Loading containers…
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-14 text-center text-neutral-500">
+                    No containers yet.{' '}
+                    <button type="button" className="text-[#00b4d8] font-medium" onClick={() => setShowAdd(true)}>
+                      Add your first outlet
+                    </button>
+                  </td>
+                </tr>
+              ) : (
+                filtered.map((c) => (
+                  <tr key={c.id} className="hover:bg-neutral-50/80">
+                    <td className="px-5 py-4">
+                      <Link href={`/dashboard/containers/${c.id}`} className="group">
+                        <div className="font-semibold text-slate-900 group-hover:text-[#00b4d8]">
+                          {c.name}
+                        </div>
+                        <div className="text-xs font-mono text-neutral-500">{c.container_code}</div>
+                      </Link>
+                    </td>
+                    <td className="px-5 py-4 text-sm text-neutral-600">
+                      <div className="flex items-center gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-neutral-400" />
+                        {[c.city, c.province, c.country].filter(Boolean).join(', ') || '—'}
+                      </div>
+                      {c.latitude != null && c.longitude != null && (
+                        <div className="text-xs text-neutral-400 mt-0.5">
+                          {Number(c.latitude).toFixed(4)}, {Number(c.longitude).toFixed(4)}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-5 py-4">
+                      <span
+                        className={`inline-block px-3 py-1 rounded-full text-xs font-medium capitalize ${
+                          c.status === 'active'
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : c.status === 'maintenance'
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-neutral-100 text-neutral-600'
+                        }`}
+                      >
+                        {c.status || '—'}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4 text-sm text-neutral-700">
+                      {c.assigned_contractor || <span className="text-neutral-400">Unassigned</span>}
+                    </td>
+                    <td className="px-5 py-4">
+                      <div className="flex justify-end gap-2">
+                        <Link
+                          href={`/dashboard/containers/${c.id}`}
+                          className="inline-flex items-center gap-1 px-3 py-2 text-sm rounded-2xl border border-neutral-200 hover:bg-neutral-50"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" /> Open
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => setEditing(toEditContainer(c))}
+                          className="inline-flex items-center gap-1 px-3 py-2 text-sm rounded-2xl border border-neutral-200 hover:bg-neutral-50"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" /> Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleDelete(c.id)}
+                          className="inline-flex items-center gap-1 px-3 py-2 text-sm rounded-2xl border border-red-200 text-red-600 hover:bg-red-50"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {showAddModal && (
+      {showAdd && (
         <AddContainerForm
-          onClose={() => setShowAddModal(false)}
+          onClose={() => setShowAdd(false)}
           onSuccess={() => {
-            setShowAddModal(false);
-            fetchContainers();
+            setShowAdd(false);
+            void load();
           }}
         />
       )}
 
-      {editingContainer && (
+      {editing && (
         <EditContainerForm
-          container={editingContainer!}
-          onClose={() => setEditingContainer(null)}
+          container={editing}
+          onClose={() => setEditing(null)}
           onSuccess={() => {
-            setEditingContainer(null);
-            fetchContainers();
+            setEditing(null);
+            void load();
           }}
         />
       )}

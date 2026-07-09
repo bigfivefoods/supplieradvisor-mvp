@@ -1,122 +1,143 @@
 'use client';
 
-import { useParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import Breadcrumb from '@/components/ui/Breadcrumb';
-import { 
-  MapPin, 
-  User, 
-  TrendingUp, 
-  Package, 
-  DollarSign, 
-  FileText, 
-  AlertCircle 
+import { useParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
+import {
+  ArrowLeft, MapPin, Package, User, Boxes, ShoppingCart, Loader2,
 } from 'lucide-react';
+import type { ContainerRecord } from '@/lib/containers/types';
 
-export default function ContainerDetail() {
+const LocationMap = dynamic(() => import('@/components/LocationMap'), { ssr: false });
+
+export default function ContainerDetailPage() {
   const params = useParams();
-  const containerId = params.id;
+  const id = params?.id as string;
+  const [container, setContainer] = useState<ContainerRecord | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!id) return;
+    fetch(`/api/containers/${id}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.error) setError(d.error);
+        else setContainer(d.container);
+      })
+      .catch(() => setError('Failed to load'))
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-20">
+        <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
+      </div>
+    );
+  }
+
+  if (error || !container) {
+    return (
+      <div className="text-center py-16 px-4">
+        <p className="text-neutral-600 mb-4">{error || 'Container not found'}</p>
+        <Link href="/dashboard/containers/manage" className="btn-primary px-6 py-3">
+          Back to manage
+        </Link>
+      </div>
+    );
+  }
+
+  const hasGps = container.latitude != null && container.longitude != null;
 
   return (
-    <div className="pl-0 pr-12 py-12 max-w-screen-2xl mx-auto">
-      <Breadcrumb />
-      
-      <div className="flex items-start justify-between mb-8">
+    <div className="px-2 md:px-4 max-w-screen-2xl mx-auto">
+      <Link href="/dashboard/containers/manage" className="inline-flex items-center gap-2 text-sm text-neutral-500 mb-4">
+        <ArrowLeft className="w-4 h-4" /> Manage containers
+      </Link>
+
+      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-8">
         <div>
-          <div className="flex items-center gap-3 mb-2">
-            <span className="px-4 py-1 bg-emerald-100 text-emerald-700 rounded-full text-sm font-medium">Active</span>
-            <span className="text-neutral-500">Container #{containerId}</span>
+          <div className="flex flex-wrap items-center gap-3 mb-2">
+            <h1 className="text-3xl sm:text-4xl font-black tracking-[-2px] text-[#00b4d8]">
+              {container.name}
+            </h1>
+            <span className={`px-3 py-1 rounded-full text-xs font-semibold capitalize ${
+              container.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-neutral-100'
+            }`}>
+              {container.status}
+            </span>
           </div>
-          <h1 className="text-5xl font-black tracking-[-2.5px] text-[#00b4d8]">Nongoma Spaza 03</h1>
-          <p className="text-xl text-neutral-600 mt-1 flex items-center gap-2">
-            <MapPin className="w-5 h-5" /> Nongoma, KwaZulu-Natal
+          <p className="font-mono text-sm text-neutral-500">{container.container_code}</p>
+          <p className="text-neutral-600 mt-2 flex items-center gap-2">
+            <MapPin className="w-4 h-4" />
+            {[container.address, container.city, container.province, container.country]
+              .filter(Boolean)
+              .join(', ') || 'No address'}
+          </p>
+          <p className="text-neutral-600 mt-1 flex items-center gap-2">
+            <User className="w-4 h-4" />
+            Contractor: {container.assigned_contractor || 'Unassigned'}
           </p>
         </div>
-
-        <div className="flex gap-3">
-          <Link 
-            href={`/dashboard/containers/${containerId}/contractor`}
-            className="flex items-center gap-2 px-5 py-3 rounded-2xl border hover:bg-neutral-50"
-          >
-            <User className="w-4 h-4" /> Manage Contractor
-          </Link>
-          <Link 
-            href={`/dashboard/containers/${containerId}/performance`}
-            className="flex items-center gap-2 bg-[#00b4d8] text-white px-5 py-3 rounded-2xl hover:bg-[#0096b8]"
-          >
-            <TrendingUp className="w-4 h-4" /> View Performance
-          </Link>
-        </div>
-      </div>
-
-      {/* Quick Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <div className="bg-white rounded-3xl p-6 border">
-          <div className="text-sm text-neutral-500">This Month Revenue</div>
-          <div className="text-3xl font-bold mt-1">R 87,450</div>
-          <div className="text-emerald-600 text-sm mt-1">+12% vs last month</div>
-        </div>
-        <div className="bg-white rounded-3xl p-6 border">
-          <div className="text-sm text-neutral-500">Gross Margin</div>
-          <div className="text-3xl font-bold mt-1">34.2%</div>
-        </div>
-        <div className="bg-white rounded-3xl p-6 border">
-          <div className="text-sm text-neutral-500">Contractor</div>
-          <div className="text-xl font-semibold mt-1">Sipho Dlamini</div>
-          <div className="text-sm text-neutral-500">Since Jan 2025</div>
-        </div>
-        <div className="bg-white rounded-3xl p-6 border">
-          <div className="text-sm text-neutral-500">Commission Rate</div>
-          <div className="text-3xl font-bold mt-1">15%</div>
-        </div>
-      </div>
-
-      {/* Navigation Tabs */}
-      <div className="bg-white rounded-3xl border p-2 mb-8">
         <div className="flex flex-wrap gap-2">
-          <Link href={`/dashboard/containers/${containerId}/performance`} className="flex items-center gap-2 px-5 py-3 rounded-2xl hover:bg-neutral-100 text-sm font-medium">
-            <TrendingUp className="w-4 h-4" /> Performance
+          <Link href={`/dashboard/containers/${id}/inventory`} className="btn-primary !py-3 !px-5 text-sm">
+            <Boxes className="w-4 h-4" /> Inventory
           </Link>
-          <Link href={`/dashboard/containers/${containerId}/inventory`} className="flex items-center gap-2 px-5 py-3 rounded-2xl hover:bg-neutral-100 text-sm font-medium">
-            <Package className="w-4 h-4" /> Inventory
-          </Link>
-          <Link href={`/dashboard/containers/${containerId}/sales`} className="flex items-center gap-2 px-5 py-3 rounded-2xl hover:bg-neutral-100 text-sm font-medium">
-            <DollarSign className="w-4 h-4" /> Sales
-          </Link>
-          <Link href={`/dashboard/containers/${containerId}/payouts`} className="flex items-center gap-2 px-5 py-3 rounded-2xl hover:bg-neutral-100 text-sm font-medium">
-            <DollarSign className="w-4 h-4" /> Payouts
-          </Link>
-          <Link href={`/dashboard/containers/${containerId}/contractor`} className="flex items-center gap-2 px-5 py-3 rounded-2xl hover:bg-neutral-100 text-sm font-medium">
-            <User className="w-4 h-4" /> Contractor
-          </Link>
-          <Link href={`/dashboard/containers/${containerId}/compliance`} className="flex items-center gap-2 px-5 py-3 rounded-2xl hover:bg-neutral-100 text-sm font-medium">
-            <AlertCircle className="w-4 h-4" /> Compliance
+          <Link href="/dashboard/containers/map" className="btn-secondary !py-3 !px-5 text-sm">
+            Map
           </Link>
         </div>
       </div>
 
-      {/* Overview Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-3xl p-8 border">
-          <h3 className="font-bold text-xl mb-4">Location Details</h3>
-          <div className="space-y-3 text-sm">
-            <div><span className="text-neutral-500">Address:</span> Main Road, Nongoma</div>
-            <div><span className="text-neutral-500">Province:</span> KwaZulu-Natal, South Africa</div>
-            <div><span className="text-neutral-500">Coordinates:</span> -27.8923, 31.4567</div>
-            <div><span className="text-neutral-500">Deployed:</span> 12 March 2024</div>
-          </div>
+      <div className="grid lg:grid-cols-2 gap-6 mb-8">
+        <div className="h-72 rounded-3xl overflow-hidden border bg-white">
+          {hasGps ? (
+            <LocationMap
+              selectedPosition={[Number(container.latitude), Number(container.longitude)]}
+              pins={[{
+                id: container.id,
+                position: [Number(container.latitude), Number(container.longitude)],
+                label: container.name,
+              }]}
+              height="100%"
+              zoom={14}
+              interactive={false}
+            />
+          ) : (
+            <div className="h-full flex items-center justify-center text-neutral-500 text-sm p-6 text-center">
+              No GPS coordinates. Edit the container and pin it on the map.
+            </div>
+          )}
         </div>
 
-        <div className="bg-white rounded-3xl p-8 border">
-          <h3 className="font-bold text-xl mb-4">Current Contract</h3>
-          <div className="space-y-3 text-sm">
-            <div><span className="text-neutral-500">Contractor:</span> Sipho Dlamini</div>
-            <div><span className="text-neutral-500">Start Date:</span> 01 Jan 2025</div>
-            <div><span className="text-neutral-500">Commission:</span> 15%</div>
-            <div><span className="text-neutral-500">Status:</span> <span className="text-emerald-600 font-medium">Active</span></div>
-          </div>
+        <div className="grid sm:grid-cols-2 gap-4">
+          {[
+            { href: `/dashboard/containers/${id}/inventory`, icon: Boxes, title: 'Inventory', desc: 'Stock levels, receive goods, reorder' },
+            { href: `/dashboard/containers/${id}/inventory?tab=orders`, icon: ShoppingCart, title: 'Orders', desc: 'Order stock for this outlet' },
+            { href: '/dashboard/containers/contractors', icon: User, title: 'Contractors', desc: 'Appoint, train, pay operators' },
+            { href: '/dashboard/containers/manage', icon: Package, title: 'All outlets', desc: 'CRUD manage list' },
+          ].map((card) => (
+            <Link
+              key={card.href}
+              href={card.href}
+              className="bg-white border border-neutral-200 rounded-3xl p-5 hover:border-[#00b4d8] transition-colors"
+            >
+              <card.icon className="w-6 h-6 text-[#00b4d8] mb-3" />
+              <div className="font-semibold text-slate-900">{card.title}</div>
+              <div className="text-sm text-neutral-500 mt-1">{card.desc}</div>
+            </Link>
+          ))}
         </div>
       </div>
+
+      {container.notes && (
+        <div className="bg-white border rounded-3xl p-6">
+          <h3 className="font-bold mb-2">Notes</h3>
+          <p className="text-neutral-600 whitespace-pre-wrap">{container.notes}</p>
+        </div>
+      )}
     </div>
   );
 }
