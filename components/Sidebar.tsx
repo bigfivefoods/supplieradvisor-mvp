@@ -105,6 +105,7 @@ const modules = [
       { name: '3. Live stock', href: '/dashboard/inventory/stock' },
       { name: '4. Receive', href: '/dashboard/inventory/scan' },
       { name: '5. Transfers', href: '/dashboard/inventory/stock-transfers' },
+      { name: 'Live tracking', href: '/dashboard/inventory/tracking' },
       { name: '6. Counts', href: '/dashboard/inventory/counts' },
       { name: 'Lots & serials', href: '/dashboard/inventory/lots' },
       { name: 'GS1 & EDI', href: '/dashboard/inventory/edi' },

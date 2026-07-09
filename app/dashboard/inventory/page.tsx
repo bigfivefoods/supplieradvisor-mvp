@@ -16,6 +16,7 @@ import {
   TrendingUp,
   Fingerprint,
   ChevronRight,
+  Navigation,
 } from 'lucide-react';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { InventoryProcessNav, INVENTORY_TOOLS } from '@/components/inventory/InventoryShell';
@@ -195,10 +196,23 @@ export default function InventoryHub() {
 
       {/* Tools (secondary) */}
       <div className="mb-3">
-        <h2 className="text-sm font-bold text-slate-800">Specialist tools</h2>
-        <p className="text-xs text-neutral-500">Optional — use when you need pedigree or B2B export</p>
+        <h2 className="text-sm font-bold text-slate-800">Tracking & specialist tools</h2>
+        <p className="text-xs text-neutral-500">Live movement board, pedigree, and B2B export</p>
       </div>
-      <div className="grid sm:grid-cols-2 gap-3 mb-8">
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-8">
+        <Link
+          href="/dashboard/inventory/tracking"
+          className="bg-white border rounded-3xl p-5 hover:border-[#00b4d8] transition-all flex gap-4 items-start"
+        >
+          <Navigation className="w-6 h-6 text-[#00b4d8] flex-shrink-0" />
+          <div>
+            <div className="font-bold">Live transfer tracking</div>
+            <p className="text-xs text-neutral-500 mt-1">
+              Real-time map, GPS from drivers, ETA to destination
+            </p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-neutral-300 ml-auto flex-shrink-0" />
+        </Link>
         <Link
           href="/dashboard/inventory/lots"
           className="bg-white border rounded-3xl p-5 hover:border-slate-400 transition-all flex gap-4 items-start"

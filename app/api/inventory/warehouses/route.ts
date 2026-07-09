@@ -110,6 +110,8 @@ export async function POST(request: NextRequest) {
       country: body.country || null,
       postal_code: body.postal_code || null,
       region: body.region || null,
+      lat: body.lat != null && body.lat !== '' ? Number(body.lat) : null,
+      lng: body.lng != null && body.lng !== '' ? Number(body.lng) : null,
       container_id: body.container_id || null,
       is_default: !!body.is_default,
       updated_at: new Date().toISOString(),
@@ -186,6 +188,8 @@ export async function PATCH(request: NextRequest) {
       'country',
       'postal_code',
       'region',
+      'lat',
+      'lng',
       'container_id',
       'is_default',
     ] as const;

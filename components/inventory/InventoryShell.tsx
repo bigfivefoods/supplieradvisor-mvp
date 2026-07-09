@@ -60,6 +60,7 @@ export const INVENTORY_PROCESS = [
 ] as const;
 
 export const INVENTORY_TOOLS = [
+  { href: '/dashboard/inventory/tracking', label: 'Live tracking' },
   { href: '/dashboard/inventory/lots', label: 'Lots & serials' },
   { href: '/dashboard/inventory/edi', label: 'GS1 & EDI' },
 ] as const;

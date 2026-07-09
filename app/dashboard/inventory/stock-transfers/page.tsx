@@ -307,23 +307,31 @@ function TransfersInner() {
         title="Transfers"
         description="Location transfers: draft → driver QR pickup → GPS in transit → deliver/receive. Container tab for warehouse ↔ outlet sync."
         action={
-          mainTab === 'locations' ? (
-            <div className="flex flex-wrap gap-2">
-              <Link
-                href="/dashboard/inventory/warehouses"
-                className="btn-secondary !py-2.5 !px-4 text-sm"
-              >
-                Locations
-              </Link>
-              <button
-                type="button"
-                onClick={() => setShowCreate((v) => !v)}
-                className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center gap-1.5"
-              >
-                <Plus className="w-4 h-4" /> New transfer
-              </button>
-            </div>
-          ) : undefined
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/dashboard/inventory/tracking"
+              className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-1.5"
+            >
+              <MapPin className="w-4 h-4" /> Live tracking
+            </Link>
+            {mainTab === 'locations' && (
+              <>
+                <Link
+                  href="/dashboard/inventory/warehouses"
+                  className="btn-secondary !py-2.5 !px-4 text-sm"
+                >
+                  Locations
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setShowCreate((v) => !v)}
+                  className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center gap-1.5"
+                >
+                  <Plus className="w-4 h-4" /> New transfer
+                </button>
+              </>
+            )}
+          </div>
         }
       />
 
