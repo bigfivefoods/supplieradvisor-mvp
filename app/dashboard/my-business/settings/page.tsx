@@ -1,288 +1,321 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { createClient } from '@/utils/supabase/client';
+import { useCallback, useEffect, useState } from 'react';
+import { Loader2, Save } from 'lucide-react';
+import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
-import { 
-  Settings as SettingsIcon, Bell, Users, 
-  Trash2, AlertTriangle, Save 
-} from 'lucide-react';
+import { getSelectedCompanyId } from '@/lib/containers/company';
+import { getCanonicalUserId } from '@/lib/auth/identity';
+import {
+  CURRENCIES,
+  DEFAULT_SETTINGS,
+  TIMEZONES,
+  type CompanySettings,
+} from '@/lib/business/types';
+import {
+  CompanyRequired,
+  BusinessHeader,
+  BusinessPage,
+} from '@/components/business/BusinessShell';
+import { Panel } from '@/components/relationship/RelationshipChrome';
 
-interface CompanySettings {
-  companyName: string;
-  timezone: string;
-  emailNotifications: boolean;
-  projectUpdates: boolean;
-  teamInvites: boolean;
-  marketingEmails: boolean;
+export default function BusinessSettingsPage() {
+  return (
+    <CompanyRequired>
+      <SettingsInner />
+    </CompanyRequired>
+  );
 }
 
-export default function BusinessSettings() {
-  const [companyId, setCompanyId] = useState<string | null>(null);
-  const [settings, setSettings] = useState<CompanySettings>({
-    companyName: '',
-    timezone: 'Africa/Johannesburg',
-    emailNotifications: true,
-    projectUpdates: true,
-    teamInvites: true,
-    marketingEmails: false,
-  });
+function SettingsInner() {
+  const companyId = getSelectedCompanyId()!;
+  const { user } = usePrivy();
+  const privyUserId = getCanonicalUserId(user?.id);
 
+  const [tradingName, setTradingName] = useState('');
+  const [settings, setSettings] = useState<CompanySettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Create Supabase client (modern pattern)
-  const supabase = createClient();
-
-  // Load settings from Supabase
-  useEffect(() => {
-    const loadSettings = async () => {
-      const storedId = localStorage.getItem('selectedCompanyId');
-      if (!storedId) {
-        setLoading(false);
-        return;
-      }
-
-      setCompanyId(storedId);
-
-      const { data: row } = await supabase
-        .from('profiles')
-        .select('trading_name, settings')
-        .eq('id', Number(storedId))
-        .single();
-
-      if (row) {
-        const savedSettings = row.settings || {};
-        
-        setSettings({
-          companyName: row.trading_name || '',
-          timezone: savedSettings.timezone || 'Africa/Johannesburg',
-          emailNotifications: savedSettings.emailNotifications ?? true,
-          projectUpdates: savedSettings.projectUpdates ?? true,
-          teamInvites: savedSettings.teamInvites ?? true,
-          marketingEmails: savedSettings.marketingEmails ?? false,
-        });
-      }
-
-      setLoading(false);
-    };
-
-    loadSettings();
-  }, [supabase]);
-
-  const handleToggle = (key: keyof CompanySettings) => {
-    setSettings(prev => ({
-      ...prev,
-      [key]: !prev[key]
-    }));
-  };
-
-  const handleInputChange = (key: keyof CompanySettings, value: string) => {
-    setSettings(prev => ({
-      ...prev,
-      [key]: value
-    }));
-  };
-
-  // Save settings to Supabase
-  const saveSettings = async () => {
-    if (!companyId) return;
-
-    setSaving(true);
-
+  const load = useCallback(async () => {
+    setLoading(true);
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          trading_name: settings.companyName,
-          settings: {
-            timezone: settings.timezone,
-            emailNotifications: settings.emailNotifications,
-            projectUpdates: settings.projectUpdates,
-            teamInvites: settings.teamInvites,
-            marketingEmails: settings.marketingEmails,
-          }
-        })
-        .eq('id', Number(companyId));
+      const params = new URLSearchParams({ companyId: String(companyId) });
+      if (privyUserId) params.set('privyUserId', privyUserId);
+      const res = await fetch(`/api/business/settings?${params}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to load');
+      setTradingName(data.trading_name || '');
+      setSettings({ ...DEFAULT_SETTINGS, ...(data.settings || {}) });
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Load failed');
+    } finally {
+      setLoading(false);
+    }
+  }, [companyId, privyUserId]);
 
-      if (error) throw error;
+  useEffect(() => {
+    void load();
+  }, [load]);
 
-      toast.success('Settings saved successfully');
-    } catch (error: any) {
-      toast.error('Failed to save settings', {
-        description: error.message,
+  const toggle = (key: keyof CompanySettings) => {
+    setSettings((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch('/api/business/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          trading_name: tradingName,
+          settings,
+        }),
       });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Save failed');
+      setSettings({ ...DEFAULT_SETTINGS, ...(data.settings || settings) });
+      toast.success('Settings saved to Supabase');
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Save failed');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDeleteCompany = () => {
-    const confirmed = confirm(
-      'Are you sure you want to permanently delete this company? This action cannot be undone.'
-    );
-    
-    if (confirmed) {
-      toast.error('Company deletion feature coming soon.');
-      // TODO: Implement company deletion logic
-    }
-  };
-
   if (loading) {
-    return <div className="p-12 text-center">Loading settings...</div>;
-  }
-
-  if (!companyId) {
     return (
-      <div className="p-12 max-w-md mx-auto text-center">
-        <h2 className="text-2xl font-bold mb-4">No Company Selected</h2>
-        <p className="text-neutral-600 mb-6">Please select a company first.</p>
-        <Link href="/dashboard/select-company" className="btn-primary px-8 py-3">
-          Select Company
-        </Link>
-      </div>
+      <BusinessPage>
+        <div className="py-24 flex justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
+        </div>
+      </BusinessPage>
     );
   }
 
   return (
-    <div className="px-4 md:px-8 lg:pr-12 py-8 lg:py-12 max-w-screen-2xl mx-auto">
-      
-      {/* Header */}
-      <div className="mb-10">
-        <Link href="/dashboard/my-business" className="text-sm text-neutral-500 hover:text-neutral-700 flex items-center gap-1 mb-2">
-          ← Back to My Business
-        </Link>
-        <h1 className="font-black text-4xl md:text-5xl tracking-[-2px]">Settings</h1>
-        <p className="text-xl text-neutral-600 mt-2">Manage your company preferences and configuration</p>
-      </div>
+    <BusinessPage>
+      <BusinessHeader
+        title="Business"
+        titleAccent="settings"
+        description="Locale, currency, notifications, and network discoverability — synced to Supabase on every save."
+        action={
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => void save()}
+            className="btn-primary !py-2.5 !px-5 text-sm"
+          >
+            {saving ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <>
+                <Save className="w-4 h-4" /> Save settings
+              </>
+            )}
+          </button>
+        }
+      />
 
-      <div className="max-w-4xl space-y-8">
-        
-        {/* General Settings */}
-        <div className="bg-white rounded-3xl border border-neutral-200 p-8">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-3 bg-[#00b4d8]/10 rounded-2xl">
-              <SettingsIcon className="w-6 h-6 text-[#00b4d8]" />
-            </div>
-            <h2 className="text-2xl font-bold">General Settings</h2>
-          </div>
-
-          <div className="space-y-6">
+      <div className="grid lg:grid-cols-2 gap-4 sm:gap-5 max-w-5xl">
+        <Panel title="Locale & commercial">
+          <div className="p-5 space-y-4">
             <div>
-              <label className="text-sm font-medium text-neutral-600">Company Display Name</label>
-              <input 
-                type="text" 
-                className="input w-full mt-1" 
-                value={settings.companyName}
-                onChange={(e) => handleInputChange('companyName', e.target.value)}
+              <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-400">
+                Display name
+              </label>
+              <input
+                className="input mt-1 w-full !p-3 !text-sm"
+                value={tradingName}
+                onChange={(e) => setTradingName(e.target.value)}
               />
             </div>
-
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-400">
+                  Timezone
+                </label>
+                <select
+                  className="input mt-1 w-full !p-3 !text-sm"
+                  value={settings.timezone}
+                  onChange={(e) => setSettings({ ...settings, timezone: e.target.value })}
+                >
+                  {TIMEZONES.map((tz) => (
+                    <option key={tz} value={tz}>
+                      {tz}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-400">
+                  Primary currency
+                </label>
+                <select
+                  className="input mt-1 w-full !p-3 !text-sm"
+                  value={settings.primary_currency}
+                  onChange={(e) =>
+                    setSettings({ ...settings, primary_currency: e.target.value })
+                  }
+                >
+                  {CURRENCIES.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
             <div>
-              <label className="text-sm font-medium text-neutral-600">Timezone</label>
-              <select 
-                className="input w-full mt-1"
-                value={settings.timezone}
-                onChange={(e) => handleInputChange('timezone', e.target.value)}
+              <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-400">
+                Default payment terms
+              </label>
+              <input
+                className="input mt-1 w-full !p-3 !text-sm"
+                value={settings.defaultPaymentTerms}
+                onChange={(e) =>
+                  setSettings({ ...settings, defaultPaymentTerms: e.target.value })
+                }
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-400">
+                Fiscal year starts (month)
+              </label>
+              <select
+                className="input mt-1 w-full !p-3 !text-sm"
+                value={settings.fiscalYearStartMonth}
+                onChange={(e) =>
+                  setSettings({
+                    ...settings,
+                    fiscalYearStartMonth: Number(e.target.value),
+                  })
+                }
               >
-                <option value="Africa/Johannesburg">Africa/Johannesburg (SAST)</option>
-                <option value="Africa/Nairobi">Africa/Nairobi (EAT)</option>
-                <option value="Africa/Lagos">Africa/Lagos (WAT)</option>
-                <option value="UTC">UTC</option>
+                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                  <option key={m} value={m}>
+                    {new Date(2000, m - 1, 1).toLocaleString('en', { month: 'long' })}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
-        </div>
+        </Panel>
 
-        {/* Notification Settings */}
-        <div className="bg-white rounded-3xl border border-neutral-200 p-8">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-3 bg-amber-100 rounded-2xl">
-              <Bell className="w-6 h-6 text-amber-600" />
-            </div>
-            <h2 className="text-2xl font-bold">Notifications</h2>
+        <Panel title="Network posture">
+          <div className="p-5 space-y-1">
+            <Toggle
+              label="Discoverable on network"
+              desc="Appear in supplier discovery and marketplace search"
+              on={settings.is_discoverable}
+              onToggle={() => toggle('is_discoverable')}
+            />
+            <Toggle
+              label="Act as buyer"
+              desc="Enable SRM procurement features for this company"
+              on={settings.is_buyer}
+              onToggle={() => toggle('is_buyer')}
+            />
           </div>
+        </Panel>
 
-          <div className="space-y-6">
-            {[
-              { key: 'emailNotifications' as const, label: 'Email Notifications', desc: 'Receive important updates via email' },
-              { key: 'projectUpdates' as const, label: 'Project Updates', desc: 'Get notified when project status changes' },
-              { key: 'teamInvites' as const, label: 'Team Invitations', desc: 'Receive alerts when someone joins your team' },
-              { key: 'marketingEmails' as const, label: 'Marketing & Product Updates', desc: 'Occasional emails about new features' },
-            ].map(({ key, label, desc }) => (
-              <div key={key} className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">{label}</p>
-                  <p className="text-sm text-neutral-500">{desc}</p>
-                </div>
-                <button
-                  onClick={() => handleToggle(key)}
-                  className={`w-12 h-7 rounded-full transition-colors ${settings[key] ? 'bg-[#00b4d8]' : 'bg-neutral-200'}`}
-                >
-                  <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform ${settings[key] ? 'translate-x-6' : 'translate-x-1'}`} />
-                </button>
-              </div>
-            ))}
+        <Panel title="Notifications" className="lg:col-span-2">
+          <div className="p-5 grid sm:grid-cols-2 gap-1">
+            <Toggle
+              label="Email notifications"
+              desc="Important account and operational alerts"
+              on={settings.emailNotifications}
+              onToggle={() => toggle('emailNotifications')}
+            />
+            <Toggle
+              label="Project updates"
+              desc="Status changes on company projects"
+              on={settings.projectUpdates}
+              onToggle={() => toggle('projectUpdates')}
+            />
+            <Toggle
+              label="Team invites"
+              desc="Notify when members join or leave"
+              on={settings.teamInvites}
+              onToggle={() => toggle('teamInvites')}
+            />
+            <Toggle
+              label="PO alerts"
+              desc="Purchase order lifecycle and escrow events"
+              on={settings.poAlerts}
+              onToggle={() => toggle('poAlerts')}
+            />
+            <Toggle
+              label="RIAD alerts"
+              desc="Critical risks and open issues"
+              on={settings.riadAlerts}
+              onToggle={() => toggle('riadAlerts')}
+            />
+            <Toggle
+              label="Weekly digest"
+              desc="Summary of CRM / SRM activity"
+              on={settings.weeklyDigest}
+              onToggle={() => toggle('weeklyDigest')}
+            />
+            <Toggle
+              label="Marketing emails"
+              desc="Product updates and tips (optional)"
+              on={settings.marketingEmails}
+              onToggle={() => toggle('marketingEmails')}
+            />
           </div>
-        </div>
-
-        {/* Team Permissions */}
-        <div className="bg-white rounded-3xl border border-neutral-200 p-8">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-3 bg-purple-100 rounded-2xl">
-              <Users className="w-6 h-6 text-purple-600" />
-            </div>
-            <h2 className="text-2xl font-bold">Team Permissions</h2>
-          </div>
-
-          <p className="text-neutral-600 mb-4">
-            Control what different team members can access and modify.
-          </p>
-
-          <Link href="/dashboard/my-business/team" className="inline-flex items-center gap-2 text-[#00b4d8] hover:underline font-medium">
-            Manage Team &amp; Roles →
-          </Link>
-        </div>
-
-        {/* Danger Zone */}
-        <div className="bg-white rounded-3xl border border-red-200 p-8">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-3 bg-red-100 rounded-2xl">
-              <AlertTriangle className="w-6 h-6 text-red-600" />
-            </div>
-            <h2 className="text-2xl font-bold text-red-600">Danger Zone</h2>
-          </div>
-
-          <div className="space-y-4">
-            <div>
-              <p className="font-medium text-red-600">Delete Company</p>
-              <p className="text-sm text-neutral-600 mt-1">
-                Permanently delete this company and all associated data. This action cannot be undone.
-              </p>
-            </div>
-
-            <button 
-              onClick={handleDeleteCompany}
-              className="flex items-center gap-2 px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-2xl font-semibold transition-colors"
-            >
-              <Trash2 className="w-4 h-4" /> Delete Company
-            </button>
-          </div>
-        </div>
-
-        {/* Save Button */}
-        <div className="flex justify-end">
-          <button 
-            onClick={saveSettings} 
-            disabled={saving}
-            className="btn-primary px-10 py-4 flex items-center gap-2 disabled:opacity-70"
-          >
-            <Save className="w-5 h-5" />
-            {saving ? 'Saving...' : 'Save Settings'}
-          </button>
-        </div>
+        </Panel>
       </div>
-    </div>
+
+      <div className="mt-6 flex justify-end max-w-5xl">
+        <button
+          type="button"
+          disabled={saving}
+          onClick={() => void save()}
+          className="btn-primary !py-3 !px-8 text-sm"
+        >
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save to Supabase'}
+        </button>
+      </div>
+    </BusinessPage>
+  );
+}
+
+function Toggle({
+  label,
+  desc,
+  on,
+  onToggle,
+}: {
+  label: string;
+  desc: string;
+  on: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className="w-full flex items-center justify-between gap-4 rounded-2xl border border-transparent hover:border-neutral-100 hover:bg-neutral-50/80 px-3 py-3 text-left transition-all"
+    >
+      <div>
+        <div className="text-sm font-semibold text-slate-900">{label}</div>
+        <div className="text-xs text-neutral-500 mt-0.5">{desc}</div>
+      </div>
+      <span
+        className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
+          on ? 'bg-slate-900' : 'bg-neutral-200'
+        }`}
+      >
+        <span
+          className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+            on ? 'translate-x-5' : 'translate-x-0.5'
+          }`}
+        />
+      </span>
+    </button>
   );
 }
