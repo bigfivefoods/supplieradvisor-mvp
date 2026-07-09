@@ -116,7 +116,8 @@ const MODULES = [
     href: '/dashboard/customers/invites',
     icon: UserPlus,
     title: 'Invitations',
-    desc: 'Sent customer portal / network invites',
+    desc: 'Send, resend, and revoke platform invites — connect buyers without leaving CRM',
+    badge: 'Connect',
   },
 ] as const;
 

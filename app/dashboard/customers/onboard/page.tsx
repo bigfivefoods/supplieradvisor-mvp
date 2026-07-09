@@ -1,12 +1,14 @@
 'use client';
 
 import { Suspense, useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Loader2, Save } from 'lucide-react';
+import { CheckCircle2, Loader2, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { LEAD_SOURCES } from '@/lib/customers/types';
 import { CompanyRequired, CustomersHeader } from '@/components/customers/CustomersShell';
+import InviteCustomerButton from '@/components/customers/InviteCustomerButton';
 
 export default function OnboardCustomerPage() {
   return (
@@ -31,6 +33,13 @@ function OnboardInner() {
   const editId = searchParams.get('id');
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(!!editId);
+  /** After create: optional platform invite before navigating away. */
+  const [createdCustomer, setCreatedCustomer] = useState<{
+    id: number;
+    trading_name: string;
+    email?: string | null;
+    contact_name?: string | null;
+  } | null>(null);
   const [form, setForm] = useState({
     trading_name: '',
     legal_name: '',
@@ -124,7 +133,18 @@ function OnboardInner() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || data.hint || 'Failed');
       toast.success(editId ? 'Customer updated' : 'Customer onboarded');
-      router.push('/dashboard/customers/profiles');
+      if (editId) {
+        router.push('/dashboard/customers/profiles');
+      } else if (data.customer?.id) {
+        setCreatedCustomer({
+          id: data.customer.id,
+          trading_name: data.customer.trading_name || form.trading_name,
+          email: data.customer.email || form.email || null,
+          contact_name: data.customer.contact_name || form.contact_name || null,
+        });
+      } else {
+        router.push('/dashboard/customers/profiles');
+      }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed');
     } finally {
@@ -140,11 +160,76 @@ function OnboardInner() {
     );
   }
 
+  if (createdCustomer) {
+    return (
+      <div className="px-2 md:px-4 max-w-3xl mx-auto pb-12">
+        <CustomersHeader
+          title="Customer created"
+          description="Optional: invite them onto the platform. You can skip and invite later from Profiles or Invites."
+        />
+        <div className="bg-white border rounded-3xl p-6 space-y-5">
+          <div className="flex gap-3 items-start">
+            <CheckCircle2 className="w-8 h-8 text-emerald-600 flex-shrink-0" />
+            <div>
+              <div className="font-bold text-lg text-slate-900">{createdCustomer.trading_name}</div>
+              <p className="text-sm text-neutral-600 mt-1">
+                Offline CRM profile is ready. Platform connection is optional — quotes, orders, and
+                invoices work without an invite.
+              </p>
+            </div>
+          </div>
+
+          <InviteCustomerButton
+            customerId={createdCustomer.id}
+            customerName={createdCustomer.trading_name}
+            defaultEmail={createdCustomer.email || ''}
+            defaultContactName={createdCustomer.contact_name || ''}
+            defaultOpen
+            variant="primary"
+          />
+
+          <div className="flex flex-wrap gap-2 pt-2 border-t">
+            <Link
+              href="/dashboard/customers/profiles"
+              className="btn-primary !py-2.5 !px-5 text-sm"
+            >
+              Go to profiles
+            </Link>
+            <Link
+              href="/dashboard/customers/invites"
+              className="btn-secondary !py-2.5 !px-5 text-sm"
+            >
+              View invites
+            </Link>
+            <button
+              type="button"
+              className="btn-secondary !py-2.5 !px-5 text-sm"
+              onClick={() => {
+                setCreatedCustomer(null);
+                setForm((f) => ({
+                  ...f,
+                  trading_name: '',
+                  legal_name: '',
+                  contact_name: '',
+                  email: '',
+                  phone: '',
+                  notes: '',
+                }));
+              }}
+            >
+              Add another
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="px-2 md:px-4 max-w-3xl mx-auto pb-12">
       <CustomersHeader
         title={editId ? 'Edit customer' : 'Onboard customer'}
-        description="Create a full customer account with commercial and contact details."
+        description="Create a full customer account with commercial and contact details. You can invite them to the platform after save."
         action={
           <button
             type="button"

@@ -68,6 +68,7 @@ const modules = [
       { name: 'Leads & opportunities', href: '/dashboard/customers/leads' },
       { name: 'Profiles', href: '/dashboard/customers/profiles' },
       { name: 'Add customer', href: '/dashboard/customers/onboard' },
+      { name: 'Invites', href: '/dashboard/customers/invites' },
       { name: 'Quotes', href: '/dashboard/customers/quotes' },
       { name: 'Orders', href: '/dashboard/customers/orders' },
       { name: 'Invoices', href: '/dashboard/customers/invoices' },

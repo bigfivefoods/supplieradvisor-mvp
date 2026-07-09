@@ -5,8 +5,15 @@ import Link from 'next/link';
 import { Loader2, Plus, Search, Users, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
-import type { CustomerRecord } from '@/lib/customers/types';
+import {
+  canInviteCustomer,
+  customerInviteActionLabel,
+  customerInviteStatusClass,
+  customerInviteStatusLabel,
+  type CustomerRecord,
+} from '@/lib/customers/types';
 import { CompanyRequired, CustomersHeader } from '@/components/customers/CustomersShell';
+import InviteCustomerButton from '@/components/customers/InviteCustomerButton';
 
 export default function CustomerProfilesPage() {
   return (
@@ -22,6 +29,7 @@ function ProfilesInner() {
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('all');
+  const [inviteOpenId, setInviteOpenId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -59,11 +67,19 @@ function ProfilesInner() {
     <div className="px-2 md:px-4 max-w-screen-2xl mx-auto pb-12">
       <CustomersHeader
         title="Customer profiles"
-        description="Account master data — contacts, commercial terms, and service history anchors."
+        description="Account master data — contacts, commercial terms, and service history anchors. Platform invites are optional; offline customers stay fully editable."
         action={
-          <Link href="/dashboard/customers/onboard" className="btn-primary !py-2.5 !px-5 text-sm">
-            <Plus className="w-4 h-4" /> Add customer
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/dashboard/customers/invites"
+              className="btn-secondary !py-2.5 !px-5 text-sm"
+            >
+              Invites
+            </Link>
+            <Link href="/dashboard/customers/onboard" className="btn-primary !py-2.5 !px-5 text-sm">
+              <Plus className="w-4 h-4" /> Add customer
+            </Link>
+          </div>
         }
       />
 
@@ -113,6 +129,7 @@ function ProfilesInner() {
                   <th className="px-3 py-3 font-semibold">Type</th>
                   <th className="px-3 py-3 font-semibold">Location</th>
                   <th className="px-3 py-3 font-semibold">Status</th>
+                  <th className="px-3 py-3 font-semibold">Connection</th>
                   <th className="px-3 py-3 font-semibold text-right">Actions</th>
                 </tr>
               </thead>
@@ -140,21 +157,61 @@ function ProfilesInner() {
                         {c.status || 'active'}
                       </span>
                     </td>
+                    <td className="px-3 py-3">
+                      <span
+                        className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${customerInviteStatusClass(c.invite_status, c.linked_profile_id)}`}
+                      >
+                        {customerInviteStatusLabel(c.invite_status, c.linked_profile_id)}
+                      </span>
+                      {inviteOpenId === c.id && canInviteCustomer(c) && (
+                        <div className="mt-2 min-w-[240px]">
+                          <InviteCustomerButton
+                            key={c.id}
+                            customerId={c.id}
+                            customerName={c.trading_name}
+                            defaultEmail={c.email || c.invited_email || ''}
+                            defaultContactName={c.contact_name || ''}
+                            defaultOpen
+                            resend={
+                              c.invite_status === 'invited' ||
+                              c.invite_status === 'declined' ||
+                              c.invite_status === 'expired'
+                            }
+                            onCancel={() => setInviteOpenId(null)}
+                            onSent={() => {
+                              setInviteOpenId(null);
+                              void load();
+                            }}
+                          />
+                        </div>
+                      )}
+                    </td>
                     <td className="px-3 py-3 text-right">
-                      <Link
-                        href={`/dashboard/customers/onboard?id=${c.id}`}
-                        className="p-2 inline-flex rounded-xl hover:bg-neutral-100 text-neutral-600"
-                        title="Edit"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </Link>
-                      <button
-                        type="button"
-                        onClick={() => void remove(c.id)}
-                        className="p-2 inline-flex rounded-xl hover:bg-red-50 text-red-600"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="inline-flex items-center justify-end gap-0.5">
+                        {canInviteCustomer(c) && inviteOpenId !== c.id && (
+                          <button
+                            type="button"
+                            onClick={() => setInviteOpenId(c.id)}
+                            className="text-xs font-semibold text-[#00b4d8] hover:underline px-2 py-1"
+                          >
+                            {customerInviteActionLabel(c)}
+                          </button>
+                        )}
+                        <Link
+                          href={`/dashboard/customers/onboard?id=${c.id}`}
+                          className="p-2 inline-flex rounded-xl hover:bg-neutral-100 text-neutral-600"
+                          title="Edit"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => void remove(c.id)}
+                          className="p-2 inline-flex rounded-xl hover:bg-red-50 text-red-600"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
