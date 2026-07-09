@@ -32,7 +32,7 @@ const emptyForm = {
   sku: '',
   barcode: '',
   gtin: '',
-  category: '',
+  category: 'General',
   product_type: 'finished_good',
   uom: 'unit',
   sell_price: '',
@@ -145,7 +145,7 @@ export default function ProductsPage() {
           sku: form.sku || undefined,
           barcode: form.barcode || form.gtin || undefined,
           gtin: form.gtin || undefined,
-          category: form.category || undefined,
+          category: form.category?.trim() || 'General',
           product_type: form.product_type,
           uom: form.uom,
           sell_price: form.sell_price ? Number(form.sell_price) : 0,
@@ -500,7 +500,11 @@ export default function ProductsPage() {
                     className="input mt-1 w-full !p-3 !text-sm"
                     value={form.category}
                     onChange={(e) => setForm({ ...form, category: e.target.value })}
+                    placeholder="General"
                   />
+                  <p className="text-[11px] text-neutral-500 mt-1">
+                    Required in the database — defaults to “General” if left blank.
+                  </p>
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   <div>

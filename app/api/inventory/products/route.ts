@@ -93,16 +93,28 @@ export async function POST(request: NextRequest) {
       // soft warning — still store for operational use
     }
 
-    const payload = {
+    const productType = body.product_type || 'finished_good';
+    // Legacy DB often has NOT NULL on category (and similar) without defaults
+    const category =
+      (body.category && String(body.category).trim()) ||
+      (productType === 'raw_material'
+        ? 'Raw materials'
+        : productType === 'consumable'
+          ? 'Consumables'
+          : productType === 'kit'
+            ? 'Kits'
+            : 'General');
+
+    const payload: Record<string, unknown> = {
       profile_id: companyId,
       name: String(body.name).trim(),
-      sku: body.sku || null,
+      sku: body.sku ? String(body.sku).trim() : null,
       barcode: body.barcode || gtinRaw || null,
       gtin: gtinRaw,
       gtin14,
       public_id: publicId,
-      category: body.category || null,
-      product_type: body.product_type || 'finished_good',
+      category,
+      product_type: productType,
       uom: body.uom || 'unit',
       sell_price: body.sell_price != null ? Number(body.sell_price) : 0,
       cost_price: body.cost_price != null ? Number(body.cost_price) : 0,
@@ -125,12 +137,32 @@ export async function POST(request: NextRequest) {
     };
 
     const supabase = getSupabaseServer();
-    const { data, error } = await supabase.from('products').insert(payload).select('*').single();
+    let { data, error } = await supabase.from('products').insert(payload).select('*').single();
+
+    // Retry without optional columns if older schema rejects them
+    if (error && /column|schema cache|does not exist/i.test(error.message)) {
+      const minimal = {
+        profile_id: companyId,
+        name: payload.name,
+        sku: payload.sku,
+        category,
+        uom: payload.uom,
+        sell_price: payload.sell_price,
+        short_description: payload.short_description,
+        status: payload.status,
+        primary_image_url: payload.primary_image_url,
+      };
+      const retry = await supabase.from('products').insert(minimal).select('*').single();
+      data = retry.data;
+      error = retry.error;
+    }
+
     if (error) {
       return NextResponse.json(
         {
           error: error.message,
-          hint: 'Run 20260709_inventory_world_class.sql if columns missing',
+          hint:
+            'If category is NOT NULL without default, run: ALTER TABLE products ALTER COLUMN category SET DEFAULT \'General\'; UPDATE products SET category = \'General\' WHERE category IS NULL;',
         },
         { status: 500 }
       );
