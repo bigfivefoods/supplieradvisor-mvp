@@ -3,6 +3,19 @@
  * On-chain POEscrowV2 is separate — never gate reviews only on chain enum.
  */
 
+/**
+ * Feature flag: optional client-signed POEscrowV2 for customer-portal POs.
+ * Reads CUSTOMER_PO_ESCROW_ENABLED, then NEXT_PUBLIC_CUSTOMER_PO_ESCROW_ENABLED.
+ * Default false when unset. Never use POEscrowService (server private key) for buyer path.
+ */
+export function isCustomerPoEscrowEnabled(): boolean {
+  const raw =
+    process.env.CUSTOMER_PO_ESCROW_ENABLED ??
+    process.env.NEXT_PUBLIC_CUSTOMER_PO_ESCROW_ENABLED;
+  if (raw === undefined || raw === '') return false;
+  return ['1', 'true', 'yes', 'on'].includes(String(raw).toLowerCase().trim());
+}
+
 export const PO_STATUSES = [
   'draft',
   'sent',

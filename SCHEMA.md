@@ -7,7 +7,6 @@ World-class multi-module Postgres schema for Supabase project `onkklullmgrdqoert
 **Additive migrations (also apply via SQL Editor when deploying those features):**
 - [`supabase/migrations/20260709_customer_platform_invites.sql`](supabase/migrations/20260709_customer_platform_invites.sql) — customer invite columns, `customer_invitations`, BC pair unique `uq_bc_requester_requestee`
 - [`supabase/migrations/20260709_customer_purchase_orders.sql`](supabase/migrations/20260709_customer_purchase_orders.sql) — buyer-raised POs: `total_amount`, dual `supplier_id`/`supplier_profile_id`, `seller_customer_id`, `source`
-- [`supabase/migrations/20260709_po_reviews.sql`](supabase/migrations/20260709_po_reviews.sql) — bilateral post-PO peer reviews (`po_reviews`, UNIQUE per PO+reviewer)
 
 **Apply script:** [`scripts/apply-schema.mjs`](scripts/apply-schema.mjs)  
 `node scripts/apply-schema.mjs` verifies key tables/columns with the service role client after apply.
@@ -21,7 +20,6 @@ Remote DDL cannot be run with the **service role API key** alone (it is not the 
 3. Paste and run any additive migrations needed for the environment:
    - Customer platform invites: `supabase/migrations/20260709_customer_platform_invites.sql`
    - Customer-portal purchase orders: `supabase/migrations/20260709_customer_purchase_orders.sql`
-   - Post-PO peer reviews: `supabase/migrations/20260709_po_reviews.sql`
 4. Verify: `node scripts/apply-schema.mjs` (expect green checks)
 
 Optional for CLI apply later: set `DATABASE_URL` (pooler connection string from Dashboard → Project Settings → Database) in `.env.local` — never commit it.
@@ -43,7 +41,6 @@ Migrations are idempotent (`IF NOT EXISTS` / `sa_add_column` / exception-wrapped
 |-------|---------|
 | `purchase_orders` | Buyer/supplier POs, amounts, items JSON, on-chain refs |
 | `po_items` | Line items (tax, received qty) |
-| `po_reviews` | Bilateral post-PO peer reviews (1–5 stars; UNIQUE per PO+reviewer; published\|hidden) |
 | `requisitions` | Pre-PO purchase requests |
 | `supplier_scorecards` | OTIFEF performance snapshots |
 
@@ -127,7 +124,9 @@ Use service role to confirm:
 - `purchase_orders.buyer_profile_id`, `purchase_orders.items`
 - `purchase_orders.total_amount`, `purchase_orders.supplier_profile_id` + `supplier_id`
 - `purchase_orders.seller_customer_id`, `purchase_orders.source` (customer portal bridge)
-- `po_reviews` table exists with UNIQUE `(purchase_order_id, reviewer_profile_id)`
+- `purchase_orders.onchain_tx`, `purchase_orders.onchain_po_id`, `purchase_orders.supplier_wallet` (optional escrow)
+
+**Buyer PO escrow (PR 9):** When `CUSTOMER_PO_ESCROW_ENABLED` / `NEXT_PUBLIC_CUSTOMER_PO_ESCROW_ENABLED` is true (default **false**), buyers may client-sign `POEscrowV2.createPO` / `fundPO` and persist refs via `POST /api/buyer/purchase-orders/[id]/onchain`. **Trust-then-audit:** the server does not verify the tx receipt or parse `POCreated` logs before writing `onchain_tx` / `onchain_po_id`. Never use `POEscrowService` (server private key) for the buyer path.
 - `containers.profile_id`, `containers.assigned_contractor`
 - `business_connections.responded_at`
 - Tables exist: `warehouses`, `customers`, `sales_orders`, `invoices`, `employees`, `activity_log`, `requisitions`, `supplier_scorecards`, `stock_levels`, `shipments`
@@ -149,7 +148,8 @@ node scripts/apply-schema.mjs
 | `NEXT_PUBLIC_SUPABASE_URL` | Client + server |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Client |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server only (invite APIs, schema apply, privileged writes) |
-| `PO_REVIEWS_ENABLED` | Server (default true when unset; set `false` to 503 reviews APIs) |
+| `CUSTOMER_PO_ESCROW_ENABLED` | Server: buyer onchain API (default false) |
+| `NEXT_PUBLIC_CUSTOMER_PO_ESCROW_ENABLED` | Client: buyer PO UI escrow path (default false) |
 
 Optional for remote `psql` / CLI apply (not required for the app runtime):
 
