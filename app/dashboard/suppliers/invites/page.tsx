@@ -5,6 +5,7 @@ import { Loader2, RefreshCw, Ban } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
+import { getCanonicalUserId } from '@/lib/auth/identity';
 import { inviteStatusClass, type SupplierInvitation } from '@/lib/suppliers/types';
 import {
   CompanyRequired,
@@ -23,6 +24,7 @@ export default function SupplierInvitesPage() {
 function InvitesInner() {
   const companyId = getSelectedCompanyId()!;
   const { user } = usePrivy();
+  const privyUserId = getCanonicalUserId(user?.id);
   const [rows, setRows] = useState<SupplierInvitation[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<number | null>(null);
@@ -30,16 +32,16 @@ function InvitesInner() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(
-        `/api/suppliers/invites?companyId=${companyId}&privyUserId=${encodeURIComponent(user?.id || '')}`
-      );
+      const params = new URLSearchParams({ companyId: String(companyId) });
+      if (privyUserId) params.set('privyUserId', privyUserId);
+      const res = await fetch(`/api/suppliers/invites?${params}`);
       const data = await res.json();
       setRows(data.invitations || []);
       if (data.warning) toast.message(data.warning);
     } finally {
       setLoading(false);
     }
-  }, [companyId, user?.id]);
+  }, [companyId, privyUserId]);
 
   useEffect(() => {
     void load();
@@ -53,7 +55,7 @@ function InvitesInner() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           companyId,
-          privyUserId: user?.id,
+          privyUserId,
           invitationId: id,
           action,
         }),

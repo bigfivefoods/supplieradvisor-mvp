@@ -39,11 +39,11 @@
   }
 
   .btn-primary {
-    @apply bg-[#00b4d8] hover:bg-[#0099b8] active:scale-95 text-white font-semibold py-4 px-10 rounded-3xl transition-all duration-200 inline-flex items-center justify-center;
+    @apply bg-[#00b4d8] hover:bg-[#0099b8] active:scale-95 text-white font-semibold py-4 px-10 rounded-3xl transition-all duration-200 inline-flex items-center justify-center gap-2 cursor-pointer;
   }
 
   .btn-secondary {
-    @apply bg-white hover:bg-neutral-50 active:scale-95 text-slate-900 font-semibold py-4 px-10 rounded-3xl border border-neutral-200 transition-all duration-200 inline-flex items-center justify-center;
+    @apply bg-white hover:bg-neutral-50 active:scale-95 text-slate-900 font-semibold py-4 px-10 rounded-3xl border border-neutral-200 transition-all duration-200 inline-flex items-center justify-center gap-2 cursor-pointer;
   }
 
   .input {

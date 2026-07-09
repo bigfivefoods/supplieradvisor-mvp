@@ -6,6 +6,7 @@ import { Loader2, UserPlus } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
+import { getCanonicalUserId } from '@/lib/auth/identity';
 import { SUPPLIER_CERTIFICATIONS, SUPPLIER_INDUSTRIES } from '@/lib/suppliers/types';
 import {
   CompanyRequired,
@@ -24,6 +25,7 @@ export default function AddSupplierPage() {
 function AddInner() {
   const companyId = getSelectedCompanyId()!;
   const { user } = usePrivy();
+  const privyUserId = getCanonicalUserId(user?.id);
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [sendInvite, setSendInvite] = useState(true);
@@ -68,7 +70,7 @@ function AddInner() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             companyId,
-            privyUserId: user?.id,
+            privyUserId,
             trading_name: form.trading_name,
             legal_name: form.legal_name || form.trading_name,
             contact_name: form.contact_name,
@@ -103,7 +105,7 @@ function AddInner() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             companyId,
-            privyUserId: user?.id,
+            privyUserId,
             ...form,
             email: form.contact_email,
             phone: form.contact_phone,

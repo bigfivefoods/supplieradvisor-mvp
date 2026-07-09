@@ -4,6 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
+import { toast } from 'sonner';
 import { 
   Home, Building2, Users, Truck, Factory, Package, 
   Calculator, Brain, ChevronDown, ArrowLeftRight
@@ -33,9 +34,9 @@ const modules = [
     id: 'network', 
     name: 'Network', 
     icon: Users, 
-    href: '/dashboard/network',
+    href: '/dashboard/connections',
     sub: [
-      { name: 'My Connections', href: '/dashboard/network' },
+      { name: 'My Connections', href: '/dashboard/connections' },
       { name: 'Invite Company', href: '/dashboard/invite-business' },
     ]
   },
@@ -72,6 +73,7 @@ const modules = [
       { name: 'Leads & opportunities', href: '/dashboard/customers/leads' },
       { name: 'Profiles', href: '/dashboard/customers/profiles' },
       { name: 'Add customer', href: '/dashboard/customers/onboard' },
+      { name: 'Platform invites', href: '/dashboard/customers/invites' },
       { name: 'Quotes', href: '/dashboard/customers/quotes' },
       { name: 'Orders', href: '/dashboard/customers/orders' },
       { name: 'Invoices', href: '/dashboard/customers/invoices' },
@@ -315,8 +317,13 @@ export default function Sidebar() {
       <div className="p-4 border-t space-y-3">
         <button
           type="button"
-          className="w-full bg-[#00b4d8] text-white py-3 rounded-2xl flex items-center justify-center gap-2 font-medium hover:bg-[#0096c7] transition-colors shadow-sm"
+          className="w-full bg-[#00b4d8] text-white py-3 rounded-2xl flex items-center justify-center gap-2 font-medium hover:bg-[#0096c7] transition-colors shadow-sm cursor-pointer"
           title="AI assistant coming soon"
+          onClick={() =>
+            toast.message('Grok AI Assistant', {
+              description: 'Context-aware help is coming soon for CRM, SRM, and inventory.',
+            })
+          }
         >
           <Brain className="w-5 h-5" />
           Ask Grok AI Assistant

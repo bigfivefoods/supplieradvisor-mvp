@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -47,7 +48,25 @@ export function CompanyGate({
   children: React.ReactNode;
   noun?: string;
 }) {
-  const companyId = getSelectedCompanyId();
+  // Re-read when storage changes so "Select company" unlocks without full reload
+  const [companyId, setCompanyId] = useState<number | null>(() =>
+    getSelectedCompanyId()
+  );
+
+  useEffect(() => {
+    const sync = () => setCompanyId(getSelectedCompanyId());
+    sync();
+    window.addEventListener('storage', sync);
+    window.addEventListener('focus', sync);
+    // Custom event used by select-company if dispatched
+    window.addEventListener('sa:company-changed', sync);
+    return () => {
+      window.removeEventListener('storage', sync);
+      window.removeEventListener('focus', sync);
+      window.removeEventListener('sa:company-changed', sync);
+    };
+  }, []);
+
   if (!companyId) {
     return (
       <div className="min-h-[50vh] flex items-center justify-center px-4">

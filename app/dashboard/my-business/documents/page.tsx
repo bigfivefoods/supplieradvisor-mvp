@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { FileText, Loader2, ExternalLink } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
-import { createClient } from '@/utils/supabase/client';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
 import {
@@ -24,7 +23,7 @@ type DocRow = {
 
 /**
  * Company documents vault — persists JSON list on profiles.metadata.documents
- * (works without a dedicated table; upgrades cleanly later).
+ * via membership-checked /api/business/profile (avoids client RLS failures).
  */
 export default function BusinessDocumentsPage() {
   return (
@@ -38,7 +37,6 @@ function DocsInner() {
   const companyId = getSelectedCompanyId()!;
   const { user } = usePrivy();
   const privyUserId = getCanonicalUserId(user?.id);
-  const supabase = createClient();
 
   const [docs, setDocs] = useState<DocRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,25 +69,36 @@ function DocsInner() {
   }, [load]);
 
   const persist = async (next: DocRow[]) => {
+    if (!privyUserId) {
+      toast.error('Sign in required to save documents');
+      return;
+    }
     setSaving(true);
     try {
-      // Load current metadata then merge
+      // Load current metadata then merge via membership-checked API
+      // (client Supabase RLS often blocks direct profiles updates)
       const params = new URLSearchParams({ companyId: String(companyId) });
-      if (privyUserId) params.set('privyUserId', privyUserId);
+      params.set('privyUserId', privyUserId);
       const res = await fetch(`/api/business/profile?${params}`);
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to load profile');
       const prevMeta =
         data.profile?.metadata && typeof data.profile.metadata === 'object'
-          ? { ...data.profile.metadata }
+          ? { ...(data.profile.metadata as Record<string, unknown>) }
           : {};
       prevMeta.documents = next;
 
-      const { error } = await supabase
-        .from('profiles')
-        .update({ metadata: prevMeta, updated_at: new Date().toISOString() })
-        .eq('id', companyId);
-
-      if (error) throw error;
+      const patch = await fetch('/api/business/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          metadata: prevMeta,
+        }),
+      });
+      const patchData = await patch.json();
+      if (!patch.ok) throw new Error(patchData.error || 'Save failed');
       setDocs(next);
       toast.success('Documents synced to Supabase');
     } catch (e: unknown) {

@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { usePrivy } from '@privy-io/react-auth';
 import {
   useAccount,
@@ -93,15 +94,25 @@ type PurchaseOrder = {
 export default function SupplierPurchaseOrdersPage() {
   return (
     <CompanyRequired>
-      <PoInner />
+      <Suspense
+        fallback={
+          <div className="flex justify-center py-20">
+            <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
+          </div>
+        }
+      >
+        <PoInner />
+      </Suspense>
     </CompanyRequired>
   );
 }
 
 function PoInner() {
   const { user } = usePrivy();
+  const searchParams = useSearchParams();
   const companyId = getSelectedCompanyId()!;
   const privyUserId = getCanonicalUserId(user?.id);
+  const preselectSupplierId = Number(searchParams.get('supplierId') || 0) || null;
   const escrowEnabled = isSupplierPoEscrowEnabled();
 
   const { address: connectedWallet } = useAccount();
@@ -173,7 +184,11 @@ function PoInner() {
   const selectedSupplier = suppliers.find((s) => s.id === selectedSrmId) || null;
 
   const load = useCallback(async () => {
-    if (!privyUserId) return;
+    if (!privyUserId) {
+      // Wait for Privy session — do not leave loading stuck forever
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const [bookRes, poRes] = await Promise.all([
@@ -186,22 +201,26 @@ function PoInner() {
       const pos = await poRes.json();
       const list = (book.suppliers || []) as BookSupplier[];
       // Prefer suppliers that can receive POs (linked platform profile)
-      setSuppliers(
-        list.filter(
-          (s) =>
-            s.linked_profile_id ||
-            s.invite_status === 'accepted' ||
-            s.status === 'active' ||
-            s.status === 'preferred'
-        )
+      const filtered = list.filter(
+        (s) =>
+          s.linked_profile_id ||
+          s.invite_status === 'accepted' ||
+          s.status === 'active' ||
+          s.status === 'preferred'
       );
+      setSuppliers(filtered);
+      // Preselect from ?supplierId= (network Raise PO)
+      if (preselectSupplierId && filtered.some((s) => s.id === preselectSupplierId)) {
+        setSelectedSrmId(preselectSupplierId);
+        setTab('create');
+      }
       if (!poRes.ok) toast.error(pos.error || 'Failed to load POs');
       setPurchaseOrders(pos.purchaseOrders || []);
       setCounts(pos.counts || counts);
     } finally {
       setLoading(false);
     }
-  }, [companyId, privyUserId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [companyId, privyUserId, preselectSupplierId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     void load();
