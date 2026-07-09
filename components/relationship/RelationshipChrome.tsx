@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 
-/** Shared chrome for CRM + SRM — one product language, two domains. */
+/** Shared chrome for CRM + SRM + My Business — light white/blue inventory language. */
 
 export type NavItem = {
   href: string;
@@ -31,9 +31,11 @@ export type ProcessStep = {
   href: string;
 };
 
+const BRAND = '#00b4d8';
+const BRAND_DEEP = '#0077b6';
+
 function isActive(pathname: string, href: string, exact?: boolean) {
   if (exact) return pathname === href;
-  // strip query for match
   const base = href.split('?')[0];
   return pathname === base || pathname.startsWith(base + '/');
 }
@@ -49,11 +51,11 @@ export function CompanyGate({
   if (!companyId) {
     return (
       <div className="min-h-[50vh] flex items-center justify-center px-4">
-        <div className="max-w-md w-full text-center rounded-[2rem] border border-neutral-200/80 bg-white p-10 shadow-sm">
-          <div className="mx-auto mb-5 h-12 w-12 rounded-2xl bg-slate-900 flex items-center justify-center">
+        <div className="max-w-md w-full text-center rounded-3xl border border-neutral-200 bg-white p-10 shadow-sm">
+          <div className="mx-auto mb-5 h-12 w-12 rounded-2xl bg-[#00b4d8]/10 flex items-center justify-center">
             <span className="text-[#00b4d8] font-black text-lg">SA</span>
           </div>
-          <h2 className="text-xl font-black tracking-tight text-slate-900 mb-2">
+          <h2 className="text-xl font-black tracking-tight text-slate-800 mb-2">
             Select a company
           </h2>
           <p className="text-sm text-neutral-500 mb-6">
@@ -77,16 +79,14 @@ export function RelationshipPage({
   className?: string;
 }) {
   return (
-    <div
-      className={`relative min-h-screen pb-16 ${className}`}
-    >
-      {/* subtle industrial grid wash */}
+    <div className={`relative min-h-screen pb-16 bg-transparent ${className}`}>
+      {/* soft sky wash — matches inventory clarity */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 -z-10 opacity-[0.35]"
+        className="pointer-events-none absolute inset-0 -z-10 opacity-60"
         style={{
           backgroundImage:
-            'radial-gradient(circle at 20% 0%, rgba(0,180,216,0.08), transparent 45%), radial-gradient(circle at 80% 20%, rgba(15,23,42,0.04), transparent 40%)',
+            'radial-gradient(circle at 15% 0%, rgba(0,180,216,0.07), transparent 42%), radial-gradient(circle at 90% 10%, rgba(0,119,182,0.04), transparent 38%)',
         }}
       />
       <div className="px-3 sm:px-4 md:px-6 max-w-screen-2xl mx-auto pt-2">{children}</div>
@@ -96,30 +96,26 @@ export function RelationshipPage({
 
 export function RelationshipNav({
   items,
-  accent = 'cyan',
 }: {
   items: readonly NavItem[];
+  /** @deprecated accent kept for API compat — always cyan/light now */
   accent?: 'cyan' | 'slate';
 }) {
   const pathname = usePathname() || '';
-  const activeCls =
-    accent === 'cyan'
-      ? 'bg-slate-900 text-white border-slate-900 shadow-md shadow-slate-900/10'
-      : 'bg-slate-900 text-white border-slate-900';
 
   return (
-    <div className="mb-8 -mx-1">
-      <div className="flex gap-1 overflow-x-auto pb-1 px-1 scrollbar-thin">
+    <div className="mb-6 -mx-1">
+      <div className="flex gap-1.5 overflow-x-auto pb-1 px-1 scrollbar-thin">
         {items.map((item) => {
           const active = isActive(pathname, item.href, item.exact);
           return (
             <Link
               key={item.href}
               href={item.href}
-              className={`flex-shrink-0 px-3.5 py-2 rounded-full text-[11px] font-semibold tracking-wide uppercase border transition-all duration-200 ${
+              className={`flex-shrink-0 inline-flex items-center px-3 py-2 rounded-full text-xs font-semibold border transition-all ${
                 active
-                  ? activeCls
-                  : 'border-neutral-200/90 bg-white/80 backdrop-blur text-neutral-500 hover:border-neutral-400 hover:text-slate-900'
+                  ? 'border-[#00b4d8] bg-[#00b4d8] text-white shadow-sm'
+                  : 'border-neutral-200 bg-white text-neutral-600 hover:border-[#00b4d8]/40 hover:text-[#0077b6]'
               }`}
             >
               {item.label}
@@ -143,7 +139,7 @@ export function RelationshipHeader({
 }: {
   eyebrow?: string;
   title: string;
-  /** Optional accent word rendered in brand cyan */
+  /** Optional second word; rendered in brand cyan when title is dark, or reverse */
   titleAccent?: string;
   description?: string;
   action?: React.ReactNode;
@@ -152,28 +148,28 @@ export function RelationshipHeader({
   nav?: React.ReactNode;
 }) {
   return (
-    <div className="mb-8 sm:mb-10">
+    <div className="mb-6 sm:mb-8">
       {nav}
       {backHref && (
         <Link
           href={backHref}
-          className="group inline-flex items-center gap-2 text-xs font-medium text-neutral-400 mb-4 hover:text-slate-900 transition-colors"
+          className="group inline-flex items-center gap-2 text-sm text-neutral-500 mb-3 hover:text-[#0077b6] transition-colors"
         >
-          <ArrowLeft className="w-3.5 h-3.5 transition-transform group-hover:-translate-x-0.5" />
+          <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-0.5 text-[#00b4d8]" />
           {backLabel || 'Overview'}
         </Link>
       )}
-      <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5">
+      <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
         <div className="max-w-3xl">
           {eyebrow && (
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-neutral-400 mb-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-1">
               {eyebrow}
             </p>
           )}
-          <h1 className="text-4xl sm:text-5xl lg:text-[3.25rem] font-black tracking-[-0.04em] text-slate-900 leading-[1.05]">
+          <h1 className="text-3xl sm:text-4xl font-black tracking-[-2px] text-[#00b4d8] leading-[1.1]">
             {titleAccent ? (
               <>
-                {title}{' '}
+                <span className="text-slate-800">{title}</span>{' '}
                 <span className="text-[#00b4d8]">{titleAccent}</span>
               </>
             ) : (
@@ -181,7 +177,7 @@ export function RelationshipHeader({
             )}
           </h1>
           {description && (
-            <p className="text-neutral-500 mt-3 text-sm sm:text-[15px] leading-relaxed max-w-2xl">
+            <p className="text-neutral-600 mt-2 text-sm max-w-2xl leading-relaxed">
               {description}
             </p>
           )}
@@ -200,9 +196,9 @@ export function ProcessRail({ steps }: { steps: ProcessStep[] }) {
           <div key={step.href + step.label} className="flex items-center">
             <Link
               href={step.href}
-              className="group flex items-center gap-2 rounded-2xl border border-neutral-200/80 bg-white px-3.5 py-2.5 hover:border-slate-900 hover:shadow-sm transition-all"
+              className="group flex items-center gap-2 rounded-2xl border border-neutral-200 bg-white px-3.5 py-2.5 hover:border-[#00b4d8] hover:shadow-sm transition-all"
             >
-              <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-slate-900 text-[10px] font-black text-white group-hover:bg-[#00b4d8] transition-colors">
+              <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-[#00b4d8]/10 text-[10px] font-black text-[#00b4d8] group-hover:bg-[#00b4d8] group-hover:text-white transition-colors">
                 {i + 1}
               </span>
               <span className="text-xs font-semibold text-slate-700 whitespace-nowrap">
@@ -210,7 +206,7 @@ export function ProcessRail({ steps }: { steps: ProcessStep[] }) {
               </span>
             </Link>
             {i < steps.length - 1 && (
-              <div className="w-4 sm:w-6 h-px bg-gradient-to-r from-neutral-300 to-neutral-200 mx-1" />
+              <div className="w-4 sm:w-6 h-px bg-gradient-to-r from-[#00b4d8]/30 to-neutral-200 mx-1" />
             )}
           </div>
         ))}
@@ -221,29 +217,29 @@ export function ProcessRail({ steps }: { steps: ProcessStep[] }) {
 
 const KPI_TONES = {
   neutral: {
-    ring: 'border-neutral-200/90',
-    icon: 'bg-neutral-100 text-slate-700',
-    value: 'text-slate-900',
+    ring: 'border-neutral-200',
+    icon: 'bg-[#00b4d8]/10 text-[#00b4d8]',
+    value: 'text-slate-800',
   },
   cyan: {
     ring: 'border-[#00b4d8]/25',
     icon: 'bg-[#00b4d8]/10 text-[#0077b6]',
-    value: 'text-slate-900',
+    value: 'text-slate-800',
   },
   emerald: {
     ring: 'border-emerald-200/80',
-    icon: 'bg-emerald-50 text-emerald-700',
+    icon: 'bg-emerald-50 text-emerald-600',
     value: 'text-emerald-900',
   },
   amber: {
     ring: 'border-amber-200/80',
-    icon: 'bg-amber-50 text-amber-800',
+    icon: 'bg-amber-50 text-amber-600',
     value: 'text-amber-950',
   },
   violet: {
     ring: 'border-violet-200/80',
-    icon: 'bg-violet-50 text-violet-700',
-    value: 'text-slate-900',
+    icon: 'bg-violet-50 text-violet-600',
+    value: 'text-slate-800',
   },
 } as const;
 
@@ -267,8 +263,8 @@ export function KpiCard({
   const t = KPI_TONES[tone];
   const inner = (
     <div
-      className={`relative h-full rounded-[1.25rem] border ${t.ring} bg-white/90 backdrop-blur p-4 sm:p-5 transition-all duration-200 ${
-        href ? 'hover:shadow-lg hover:shadow-slate-900/5 hover:-translate-y-0.5 hover:border-slate-300' : ''
+      className={`relative h-full rounded-3xl border ${t.ring} bg-white p-4 sm:p-5 transition-all duration-200 ${
+        href ? 'hover:shadow-md hover:border-[#00b4d8]' : ''
       }`}
     >
       <div className="flex items-start justify-between gap-2 mb-3">
@@ -290,9 +286,9 @@ export function KpiCard({
           {label}
         </div>
       )}
-      <div className={`text-2xl sm:text-3xl font-black tracking-[-0.03em] tabular-nums ${t.value}`}>
+      <div className={`text-2xl sm:text-3xl font-black tracking-tighter tabular-nums ${t.value}`}>
         {loading ? (
-          <Loader2 className="w-6 h-6 animate-spin text-neutral-300" />
+          <Loader2 className="w-6 h-6 animate-spin text-[#00b4d8]" />
         ) : (
           value
         )}
@@ -320,28 +316,30 @@ export function ModuleGrid({ modules }: { modules: readonly ModuleCard[] }) {
           <Link
             key={m.href}
             href={m.href}
-            className="group relative overflow-hidden rounded-[1.35rem] border border-neutral-200/90 bg-white p-5 sm:p-6 transition-all duration-300 hover:border-slate-900 hover:shadow-xl hover:shadow-slate-900/5"
+            className="group relative overflow-hidden rounded-3xl border border-neutral-200 bg-white p-5 sm:p-6 transition-all duration-200 hover:border-[#00b4d8] hover:shadow-md"
           >
-            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-br from-[#00b4d8]/[0.04] to-transparent pointer-events-none" />
             <div className="relative flex items-start justify-between mb-4">
-              <div className="p-2.5 rounded-2xl bg-slate-50 text-slate-800 border border-neutral-100 group-hover:bg-slate-900 group-hover:text-white group-hover:border-slate-900 transition-all duration-300">
-                <Icon className="w-5 h-5" />
+              <div className="w-9 h-9 rounded-2xl bg-[#00b4d8]/10 flex items-center justify-center">
+                <Icon className="w-5 h-5 text-[#00b4d8]" />
               </div>
               <div className="flex items-center gap-2">
                 {m.badge && (
-                  <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-900 text-white">
+                  <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#00b4d8]/10 text-[#0077b6] border border-[#00b4d8]/20">
                     {m.badge}
                   </span>
                 )}
                 <ArrowRight className="w-4 h-4 text-neutral-300 group-hover:text-[#00b4d8] group-hover:translate-x-0.5 transition-all" />
               </div>
             </div>
-            <h3 className="relative font-bold text-[15px] sm:text-base tracking-tight text-slate-900 mb-1.5">
+            <h3 className="relative font-bold text-[15px] sm:text-base tracking-tight text-slate-800 mb-1.5 group-hover:text-[#0077b6] transition-colors">
               {m.title}
             </h3>
             <p className="relative text-xs sm:text-[13px] text-neutral-500 leading-relaxed">
               {m.desc}
             </p>
+            <div className="mt-3 text-xs font-semibold text-[#00b4d8] inline-flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              Open <ArrowRight className="w-3.5 h-3.5" />
+            </div>
           </Link>
         );
       })}
@@ -357,10 +355,8 @@ export function SectionLabel({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="flex items-end justify-between gap-3 mb-4">
-      <h2 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-400">
-        {children}
-      </h2>
+    <div className="flex items-end justify-between gap-3 mb-3">
+      <h2 className="text-sm font-bold text-slate-800">{children}</h2>
       {action}
     </div>
   );
@@ -379,14 +375,12 @@ export function Panel({
 }) {
   return (
     <div
-      className={`rounded-[1.35rem] border border-neutral-200/90 bg-white overflow-hidden ${className}`}
+      className={`rounded-3xl border border-neutral-200 bg-white overflow-hidden ${className}`}
     >
       {(title || action) && (
         <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-neutral-100">
           {title && (
-            <h3 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-400">
-              {title}
-            </h3>
+            <h3 className="text-xs font-bold text-slate-700 tracking-wide">{title}</h3>
           )}
           {action}
         </div>
@@ -414,6 +408,7 @@ export function AlertBanner({
   );
 }
 
+/** Light metric highlight — white card with cyan accent (no black panels). */
 export function MetricHero({
   label,
   value,
@@ -430,25 +425,32 @@ export function MetricHero({
   icon?: LucideIcon;
 }) {
   return (
-    <div className="relative overflow-hidden rounded-[1.35rem] border border-slate-900 bg-slate-900 text-white p-6 sm:p-7">
+    <div className="relative overflow-hidden rounded-3xl border border-[#00b4d8]/25 bg-gradient-to-br from-white to-[#00b4d8]/[0.06] p-6 sm:p-7">
       <div
         aria-hidden
-        className="absolute -right-8 -top-8 h-40 w-40 rounded-full bg-[#00b4d8]/20 blur-2xl"
+        className="absolute -right-8 -top-8 h-40 w-40 rounded-full bg-[#00b4d8]/10 blur-2xl"
       />
       <div className="relative flex items-start justify-between mb-4">
         <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-400">
           {label}
         </span>
-        {Icon && <Icon className="w-5 h-5 text-[#00b4d8]" />}
+        {Icon && (
+          <div className="p-2 rounded-xl bg-[#00b4d8]/10">
+            <Icon className="w-5 h-5 text-[#00b4d8]" />
+          </div>
+        )}
       </div>
       <div className="relative flex items-baseline gap-1">
-        <span className="text-5xl sm:text-6xl font-black tracking-[-0.05em] tabular-nums">
+        <span className="text-5xl sm:text-6xl font-black tracking-tighter tabular-nums text-slate-800">
           {value}
         </span>
-        {unit && <span className="text-2xl font-bold text-neutral-400">{unit}</span>}
+        {unit && <span className="text-2xl font-bold text-[#00b4d8]">{unit}</span>}
       </div>
       {badge && <div className="relative mt-3">{badge}</div>}
-      {hint && <p className="relative mt-3 text-xs text-neutral-400">{hint}</p>}
+      {hint && <p className="relative mt-3 text-xs text-neutral-500">{hint}</p>}
     </div>
   );
 }
+
+// Export brand tokens for page-level consistency (optional use)
+export const RELATIONSHIP_BRAND = { BRAND, BRAND_DEEP } as const;

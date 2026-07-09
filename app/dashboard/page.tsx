@@ -291,10 +291,10 @@ export default function DashboardHome() {
     return (
       <RelationshipPage>
         <div className="max-w-md mx-auto text-center py-20">
-          <div className="mx-auto mb-5 h-12 w-12 rounded-2xl bg-slate-900 flex items-center justify-center">
+          <div className="mx-auto mb-5 h-12 w-12 rounded-2xl bg-[#00b4d8]/10 flex items-center justify-center">
             <Building2 className="w-6 h-6 text-[#00b4d8]" />
           </div>
-          <h2 className="text-2xl font-black tracking-tight text-slate-900 mb-2">
+          <h2 className="text-2xl font-black tracking-tight text-slate-800 mb-2">
             Select a company
           </h2>
           <p className="text-sm text-neutral-500 mb-6">
@@ -428,17 +428,17 @@ export default function DashboardHome() {
         {/* CRM card */}
         <Link
           href="/dashboard/customers"
-          className="group rounded-[1.35rem] border border-neutral-200/90 bg-white p-6 hover:border-slate-900 hover:shadow-xl hover:shadow-slate-900/5 transition-all"
+          className="group rounded-3xl border border-neutral-200 bg-white p-6 hover:border-[#00b4d8] hover:shadow-md transition-all"
         >
           <div className="flex items-center justify-between mb-4">
-            <div className="p-2.5 rounded-2xl bg-slate-900 text-[#00b4d8]">
-              <Users className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-2xl bg-[#00b4d8]/10 flex items-center justify-center">
+              <Users className="w-5 h-5 text-[#00b4d8]" />
             </div>
-            <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-900 text-white">
+            <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#00b4d8]/10 text-[#0077b6] border border-[#00b4d8]/20">
               CRM
             </span>
           </div>
-          <h3 className="font-bold text-lg tracking-tight text-slate-900 mb-1">
+          <h3 className="font-bold text-lg tracking-tight text-slate-800 mb-1">
             Customers you can <span className="text-[#00b4d8]">grow</span>
           </h3>
           <p className="text-xs text-neutral-500 mb-5 leading-relaxed">
@@ -461,17 +461,17 @@ export default function DashboardHome() {
         {/* SRM card */}
         <Link
           href="/dashboard/suppliers"
-          className="group rounded-[1.35rem] border border-neutral-200/90 bg-white p-6 hover:border-slate-900 hover:shadow-xl hover:shadow-slate-900/5 transition-all"
+          className="group rounded-3xl border border-neutral-200 bg-white p-6 hover:border-[#00b4d8] hover:shadow-md transition-all"
         >
           <div className="flex items-center justify-between mb-4">
-            <div className="p-2.5 rounded-2xl bg-slate-900 text-[#00b4d8]">
-              <Truck className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-2xl bg-[#00b4d8]/10 flex items-center justify-center">
+              <Truck className="w-5 h-5 text-[#00b4d8]" />
             </div>
-            <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-900 text-white">
+            <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#00b4d8]/10 text-[#0077b6] border border-[#00b4d8]/20">
               SRM
             </span>
           </div>
-          <h3 className="font-bold text-lg tracking-tight text-slate-900 mb-1">
+          <h3 className="font-bold text-lg tracking-tight text-slate-800 mb-1">
             Suppliers you can <span className="text-[#00b4d8]">trust</span>
           </h3>
           <p className="text-xs text-neutral-500 mb-5 leading-relaxed">
@@ -491,27 +491,27 @@ export default function DashboardHome() {
           </div>
         </Link>
 
-        {/* Business card */}
+        {/* Business card — light, same language as CRM/SRM */}
         <Link
           href="/dashboard/my-business"
-          className="group rounded-[1.35rem] border border-slate-900 bg-slate-900 text-white p-6 hover:shadow-xl hover:shadow-slate-900/20 transition-all relative overflow-hidden"
+          className="group rounded-3xl border border-neutral-200 bg-white p-6 hover:border-[#00b4d8] hover:shadow-md transition-all relative overflow-hidden"
         >
           <div
             aria-hidden
-            className="absolute -right-6 -top-6 h-32 w-32 rounded-full bg-[#00b4d8]/20 blur-2xl"
+            className="absolute -right-6 -top-6 h-32 w-32 rounded-full bg-[#00b4d8]/10 blur-2xl"
           />
           <div className="relative flex items-center justify-between mb-4">
-            <div className="p-2.5 rounded-2xl bg-white/10 text-[#00b4d8]">
-              <Building2 className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-2xl bg-[#00b4d8]/10 flex items-center justify-center">
+              <Building2 className="w-5 h-5 text-[#00b4d8]" />
             </div>
-            <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/10">
+            <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#00b4d8]/10 text-[#0077b6] border border-[#00b4d8]/20">
               Company
             </span>
           </div>
-          <h3 className="relative font-bold text-lg tracking-tight mb-1">
+          <h3 className="relative font-bold text-lg tracking-tight text-slate-800 mb-1">
             My business, <span className="text-[#00b4d8]">mastered</span>
           </h3>
-          <p className="relative text-xs text-neutral-400 mb-5 leading-relaxed">
+          <p className="relative text-xs text-neutral-500 mb-5 leading-relaxed">
             Profile integrity, team, settings, legal
           </p>
           <div className="relative">
@@ -519,15 +519,17 @@ export default function DashboardHome() {
               <span className="text-[10px] uppercase tracking-wider text-neutral-400 font-semibold">
                 Profile complete
               </span>
-              <span className="text-3xl font-black tracking-tighter tabular-nums">{pct}%</span>
+              <span className="text-3xl font-black tracking-tighter tabular-nums text-slate-800">
+                {pct}%
+              </span>
             </div>
-            <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+            <div className="h-1.5 rounded-full bg-neutral-100 overflow-hidden">
               <div
                 className="h-full rounded-full bg-[#00b4d8]"
                 style={{ width: `${pct}%` }}
               />
             </div>
-            <div className="mt-4 grid grid-cols-2 gap-2 text-xs text-neutral-300">
+            <div className="mt-4 grid grid-cols-2 gap-2 text-xs text-neutral-500">
               <span>{business?.teamActive ?? kpis?.teamActive ?? 0} active team</span>
               <span>{business?.verified ? 'Verified' : 'Unverified'}</span>
             </div>
@@ -754,9 +756,9 @@ function QuickAction({
   return (
     <Link
       href={href}
-      className="flex items-center gap-3 rounded-[1.25rem] border border-neutral-200/90 bg-white px-4 py-3.5 hover:border-slate-900 hover:shadow-md transition-all group"
+      className="flex items-center gap-3 rounded-3xl border border-neutral-200 bg-white px-4 py-3.5 hover:border-[#00b4d8] hover:shadow-md transition-all group"
     >
-      <div className="p-2 rounded-xl bg-slate-50 group-hover:bg-slate-900 group-hover:text-white transition-colors">
+      <div className="p-2 rounded-xl bg-[#00b4d8]/10 text-[#00b4d8]">
         <Icon className="w-4 h-4" />
       </div>
       <span className="text-sm font-semibold text-slate-800">{label}</span>

@@ -25,10 +25,10 @@ export default function BusinessRiadPage() {
         <div className="grid sm:grid-cols-2 gap-4 max-w-3xl">
           <Panel>
             <div className="p-6">
-              <div className="p-2.5 rounded-2xl bg-slate-900 text-[#00b4d8] w-fit mb-4">
-                <Scale className="w-5 h-5" />
+              <div className="w-10 h-10 rounded-2xl bg-[#00b4d8]/10 flex items-center justify-center mb-4">
+                <Scale className="w-5 h-5 text-[#00b4d8]" />
               </div>
-              <h3 className="font-bold text-lg mb-2">Supplier RIAD</h3>
+              <h3 className="font-bold text-lg mb-2 text-slate-800">Supplier RIAD</h3>
               <p className="text-sm text-neutral-500 mb-4 leading-relaxed">
                 Supply-base risks, OTIF issues, capacity decisions — full register with status
                 chips and filters.
@@ -43,10 +43,10 @@ export default function BusinessRiadPage() {
           </Panel>
           <Panel>
             <div className="p-6">
-              <div className="p-2.5 rounded-2xl bg-slate-900 text-[#00b4d8] w-fit mb-4">
-                <Scale className="w-5 h-5" />
+              <div className="w-10 h-10 rounded-2xl bg-[#00b4d8]/10 flex items-center justify-center mb-4">
+                <Scale className="w-5 h-5 text-[#00b4d8]" />
               </div>
-              <h3 className="font-bold text-lg mb-2">Customer RIAD</h3>
+              <h3 className="font-bold text-lg mb-2 text-slate-800">Customer RIAD</h3>
               <p className="text-sm text-neutral-500 mb-4 leading-relaxed">
                 Credit, delivery, quality, and relationship items for your CRM accounts.
               </p>

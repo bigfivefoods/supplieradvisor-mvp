@@ -287,7 +287,7 @@ export function normalizeProfileRow(row: Record<string, unknown>): CompanyProfil
 export function roleBadgeClass(role?: string | null) {
   switch (String(role || '').toLowerCase()) {
     case 'owner':
-      return 'bg-slate-900 text-white';
+      return 'bg-[#00b4d8] text-white';
     case 'admin':
       return 'bg-[#00b4d8]/15 text-[#0077b6]';
     case 'finance':

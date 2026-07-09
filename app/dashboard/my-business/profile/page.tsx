@@ -243,7 +243,7 @@ function ProfileInner() {
         </div>
         <div className="h-2 rounded-full bg-neutral-100 overflow-hidden">
           <div
-            className="h-full rounded-full bg-gradient-to-r from-slate-900 to-[#00b4d8]"
+            className="h-full rounded-full bg-gradient-to-r from-[#00b4d8] to-[#0077b6]"
             style={{ width: `${completeness?.pct ?? 0}%` }}
           />
         </div>
@@ -494,8 +494,8 @@ function ProfileInner() {
                   onClick={() => toggleCert(c)}
                   className={`text-[10px] font-semibold px-2.5 py-1 rounded-full border transition-all ${
                     certs.includes(c)
-                      ? 'border-slate-900 bg-slate-900 text-white'
-                      : 'border-neutral-200 text-neutral-600 hover:border-neutral-400'
+                      ? 'border-[#00b4d8] bg-[#00b4d8] text-white'
+                      : 'border-neutral-200 text-neutral-600 hover:border-[#00b4d8]/40'
                   }`}
                 >
                   {c}
@@ -512,7 +512,7 @@ function ProfileInner() {
                       key={c}
                       type="button"
                       onClick={() => toggleCert(c)}
-                      className="text-[10px] font-semibold px-2.5 py-1 rounded-full border border-slate-900 bg-slate-900 text-white"
+                      className="text-[10px] font-semibold px-2.5 py-1 rounded-full border border-[#00b4d8] bg-[#00b4d8] text-white"
                     >
                       {c}
                     </button>

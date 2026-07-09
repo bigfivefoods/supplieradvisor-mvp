@@ -894,25 +894,27 @@ function PoInner() {
           </div>
 
           <div className="lg:col-span-2 space-y-4">
-            <div className="bg-slate-900 text-white rounded-3xl p-6">
-              <div className="text-xs text-neutral-400 uppercase tracking-wide">Order total</div>
-              <div className="text-4xl font-black tracking-tighter mt-1">
+            <div className="bg-white border border-[#00b4d8]/25 rounded-3xl p-6 bg-gradient-to-br from-white to-[#00b4d8]/[0.06]">
+              <div className="text-xs text-neutral-400 uppercase tracking-wide font-semibold">
+                Order total
+              </div>
+              <div className="text-4xl font-black tracking-tighter mt-1 text-slate-800">
                 R{totalAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
               </div>
               {useEscrow && (
-                <div className="text-sm text-[#90e0ef] mt-2">
+                <div className="text-sm text-[#0077b6] mt-2 font-medium">
                   ≈ {amountInEth(totalAmount)} ETH escrow
                 </div>
               )}
-              <div className="mt-4 text-xs text-neutral-400 space-y-1">
+              <div className="mt-4 text-xs text-neutral-500 space-y-1.5">
                 <div className="flex items-center gap-2">
-                  <CheckCircle className="w-3.5 h-3.5 text-emerald-400" /> Off-chain audit trail
+                  <CheckCircle className="w-3.5 h-3.5 text-emerald-500" /> Off-chain audit trail
                 </div>
                 <div className="flex items-center gap-2">
-                  <Clock className="w-3.5 h-3.5 text-sky-400" /> OTIFEF on delivery
+                  <Clock className="w-3.5 h-3.5 text-[#00b4d8]" /> OTIFEF on delivery
                 </div>
                 <div className="flex items-center gap-2">
-                  <Star className="w-3.5 h-3.5 text-amber-400" /> Rate after complete
+                  <Star className="w-3.5 h-3.5 text-amber-500" /> Rate after complete
                 </div>
               </div>
             </div>

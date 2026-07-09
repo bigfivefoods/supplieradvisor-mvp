@@ -315,7 +315,7 @@ export default function Sidebar() {
       <div className="p-4 border-t space-y-3">
         <button
           type="button"
-          className="w-full bg-slate-900 text-white py-3 rounded-2xl flex items-center justify-center gap-2 font-medium hover:bg-neutral-800 transition-colors"
+          className="w-full bg-[#00b4d8] text-white py-3 rounded-2xl flex items-center justify-center gap-2 font-medium hover:bg-[#0096c7] transition-colors shadow-sm"
           title="AI assistant coming soon"
         >
           <Brain className="w-5 h-5" />

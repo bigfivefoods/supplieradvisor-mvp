@@ -307,7 +307,7 @@ function Toggle({
       </div>
       <span
         className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
-          on ? 'bg-slate-900' : 'bg-neutral-200'
+          on ? 'bg-[#00b4d8]' : 'bg-neutral-200'
         }`}
       >
         <span

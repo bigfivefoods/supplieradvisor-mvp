@@ -74,11 +74,11 @@ export default function SupplierPortalPage() {
               <Link
                 key={m.href}
                 href={m.href}
-                className="group relative overflow-hidden rounded-[1.35rem] border border-neutral-200/90 bg-white p-6 transition-all duration-300 hover:border-slate-900 hover:shadow-xl hover:shadow-slate-900/5"
+                className="group relative overflow-hidden rounded-3xl border border-neutral-200 bg-white p-6 transition-all duration-200 hover:border-[#00b4d8] hover:shadow-md"
               >
                 <div className="flex justify-between mb-4">
-                  <div className="p-2.5 rounded-2xl bg-slate-50 border border-neutral-100 group-hover:bg-slate-900 group-hover:text-white group-hover:border-slate-900 transition-all">
-                    <Icon className="w-5 h-5" />
+                  <div className="w-10 h-10 rounded-2xl bg-[#00b4d8]/10 flex items-center justify-center">
+                    <Icon className="w-5 h-5 text-[#00b4d8]" />
                   </div>
                   <ArrowRight className="w-4 h-4 text-neutral-300 group-hover:text-[#00b4d8] transition-colors" />
                 </div>

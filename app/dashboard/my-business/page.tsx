@@ -252,7 +252,7 @@ function HubInner() {
           </div>
           <div className="h-2 rounded-full bg-neutral-100 overflow-hidden mb-5">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-slate-900 to-[#00b4d8] transition-all duration-500"
+              className="h-full rounded-full bg-gradient-to-r from-[#00b4d8] to-[#0077b6] transition-all duration-500"
               style={{ width: `${pct}%` }}
             />
           </div>
