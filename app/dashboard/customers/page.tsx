@@ -97,8 +97,8 @@ const MODULES = [
   {
     href: '/dashboard/customers/portal',
     icon: Globe,
-    title: 'Customer portal',
-    desc: 'Self-service access for your customers',
+    title: 'Connected customers ops board',
+    desc: 'Seller team shortcuts for the customer lifecycle (buyer self-service is under Buyer workspace)',
   },
   {
     href: '/dashboard/customers/search',
