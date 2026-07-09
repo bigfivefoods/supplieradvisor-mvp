@@ -224,27 +224,64 @@ export default function ContainerRiadRegister({
     }
   };
 
-  const updateStatus = async (item: RiadRecord, status: string) => {
-    const res = await fetch('/api/containers/riad', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id: item.id,
-        status,
-        containerId: item.container_id || fixedContainerId,
-        privyUserId: mode === 'contractor' ? privyUserId : undefined,
-        email: mode === 'contractor' ? email : undefined,
-        resolution: status === 'resolved' || status === 'closed' ? item.resolution : undefined,
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      toast.error(data.error || 'Update failed');
-      return;
+  const [closing, setClosing] = useState(false);
+  const [resolutionText, setResolutionText] = useState('');
+
+  const updateStatus = async (
+    item: RiadRecord,
+    status: string,
+    extras?: { resolution?: string }
+  ) => {
+    setClosing(true);
+    try {
+      const res = await fetch('/api/containers/riad', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: item.id,
+          status,
+          containerId: item.container_id || fixedContainerId || undefined,
+          privyUserId: mode === 'contractor' ? privyUserId : undefined,
+          email: mode === 'contractor' ? email : undefined,
+          resolution:
+            extras?.resolution ??
+            (status === 'resolved' || status === 'closed'
+              ? resolutionText || item.resolution || undefined
+              : undefined),
+          closed_at:
+            status === 'closed' || status === 'resolved' ? new Date().toISOString() : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || 'Update failed');
+        return;
+      }
+      toast.success(
+        status === 'closed' || status === 'resolved'
+          ? `${(item.riad_type || 'Item').charAt(0).toUpperCase()}${(item.riad_type || 'item').slice(1)} closed`
+          : 'Status updated'
+      );
+      setDetail(data.item);
+      setResolutionText('');
+      void load();
+    } finally {
+      setClosing(false);
     }
-    toast.success('Status updated');
-    setDetail(data.item);
-    void load();
+  };
+
+  const closeItem = async (item: RiadRecord) => {
+    const note =
+      resolutionText.trim() ||
+      (typeof window !== 'undefined'
+        ? window.prompt('Optional close note / resolution (or leave blank):') || ''
+        : '');
+    await updateStatus(item, 'closed', { resolution: note || 'Closed' });
+  };
+
+  const isClosed = (s?: string | null) => {
+    const v = (s || '').toLowerCase();
+    return v === 'closed' || v === 'resolved';
   };
 
   const remove = async (item: RiadRecord) => {
@@ -392,12 +429,16 @@ export default function ContainerRiadRegister({
             {filtered.map((item) => {
               const Icon = typeIcon(item.riad_type);
               const band = item.rpn != null ? rpnBand(Number(item.rpn)) : null;
+              const closed = isClosed(item.status);
               return (
-                <li key={item.id}>
+                <li key={item.id} className="flex items-stretch gap-0">
                   <button
                     type="button"
-                    onClick={() => setDetail(item)}
-                    className="w-full text-left px-4 sm:px-6 py-4 hover:bg-neutral-50 transition-colors flex gap-3 items-start"
+                    onClick={() => {
+                      setDetail(item);
+                      setResolutionText(item.resolution || '');
+                    }}
+                    className="flex-1 text-left px-4 sm:px-6 py-4 hover:bg-neutral-50 transition-colors flex gap-3 items-start min-w-0"
                   >
                     <div className="mt-0.5 p-2 rounded-xl bg-neutral-100">
                       <Icon className="w-4 h-4 text-[#00b4d8]" />
@@ -423,7 +464,11 @@ export default function ContainerRiadRegister({
                           </span>
                         )}
                       </div>
-                      <div className="font-semibold text-slate-900 truncate">{item.title}</div>
+                      <div
+                        className={`font-semibold truncate ${closed ? 'text-neutral-500 line-through decoration-neutral-300' : 'text-slate-900'}`}
+                      >
+                        {item.title}
+                      </div>
                       <div className="text-xs text-neutral-500 mt-0.5 flex flex-wrap gap-x-2">
                         {item.container_name && (
                           <span>
@@ -441,6 +486,22 @@ export default function ContainerRiadRegister({
                       </div>
                     )}
                   </button>
+                  {!closed && (
+                    <div className="flex items-center pr-3 sm:pr-4">
+                      <button
+                        type="button"
+                        disabled={closing}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void closeItem(item);
+                        }}
+                        className="text-xs font-semibold px-3 py-2 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 whitespace-nowrap"
+                        title="Close this RIAD item"
+                      >
+                        Close
+                      </button>
+                    </div>
+                  )}
                 </li>
               );
             })}
@@ -765,13 +826,81 @@ export default function ContainerRiadRegister({
                 {detail.mitigation_plan}
               </div>
             )}
+            {detail.resolution && (
+              <div className="mb-4 p-3 rounded-2xl bg-neutral-50 text-sm text-slate-700 border">
+                <div className="font-semibold mb-1 text-neutral-600">Resolution / close note</div>
+                {detail.resolution}
+              </div>
+            )}
+
+            {!isClosed(detail.status) ? (
+              <div className="space-y-3 mb-6 p-4 rounded-2xl border border-emerald-100 bg-emerald-50/40">
+                <div className="font-semibold text-sm text-emerald-900">
+                  Close this {detail.riad_type || 'item'}
+                </div>
+                <textarea
+                  className="input w-full !p-3 !text-sm min-h-[80px] bg-white"
+                  placeholder="Resolution note (what was done, outcome…)"
+                  value={resolutionText}
+                  onChange={(e) => setResolutionText(e.target.value)}
+                />
+                <button
+                  type="button"
+                  disabled={closing}
+                  onClick={() => void updateStatus(detail, 'closed', { resolution: resolutionText || 'Closed' })}
+                  className="btn-primary w-full !py-3 text-sm"
+                >
+                  {closing ? (
+                    <Loader2 className="w-4 h-4 animate-spin mx-auto" />
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" /> Close {detail.riad_type || 'item'}
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  disabled={closing}
+                  onClick={() =>
+                    void updateStatus(detail, 'resolved', {
+                      resolution: resolutionText || 'Resolved',
+                    })
+                  }
+                  className="btn-secondary w-full !py-2.5 text-sm"
+                >
+                  Mark resolved
+                </button>
+              </div>
+            ) : (
+              <div className="mb-6 p-4 rounded-2xl bg-neutral-100 text-sm text-neutral-700">
+                This item is <strong className="capitalize">{detail.status}</strong>
+                {detail.closed_at
+                  ? ` · ${new Date(detail.closed_at).toLocaleString()}`
+                  : ''}
+                . You can reopen it below.
+              </div>
+            )}
+
             <div className="space-y-2">
               <label className="text-xs font-medium text-neutral-500">Update status</label>
               <select
                 className="input w-full !p-3 !text-sm"
-                value={detail.status}
+                value={
+                  RIAD_STATUSES.some((s) => s.value === detail.status)
+                    ? detail.status
+                    : detail.status === 'active'
+                      ? 'open'
+                      : detail.status || 'open'
+                }
                 onChange={(e) => void updateStatus(detail, e.target.value)}
+                disabled={closing}
               >
+                {/* Legacy statuses still present in DB */}
+                {detail.status &&
+                  !RIAD_STATUSES.some((s) => s.value === detail.status) &&
+                  detail.status !== 'active' && (
+                    <option value={detail.status}>{detail.status}</option>
+                  )}
                 {RIAD_STATUSES.map((s) => (
                   <option key={s.value} value={s.value}>
                     {s.label}

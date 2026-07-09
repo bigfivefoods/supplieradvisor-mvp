@@ -301,20 +301,46 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
+    const nextStatus = String(updates.status ?? body.status ?? '');
     if (
-      (body.status === 'closed' || body.status === 'resolved') &&
-      !body.closed_at &&
+      (nextStatus === 'closed' || nextStatus === 'resolved') &&
       updates.closed_at === undefined
     ) {
-      updates.closed_at = new Date().toISOString();
+      updates.closed_at = body.closed_at || new Date().toISOString();
+    }
+    // Re-open clears closed_at
+    if (['open', 'active', 'in_progress', 'on_hold', 'mitigated'].includes(nextStatus)) {
+      updates.closed_at = null;
+    }
+    if (body.resolution !== undefined) {
+      updates.resolution = body.resolution;
     }
 
     const supabase = getSupabaseServer();
+    // Do not force container_id match when null (company-wide items)
     let q = supabase.from('riad_logs').update(updates).eq('id', Number(body.id));
-    if (body.containerId) q = q.eq('container_id', Number(body.containerId));
+    if (body.containerId != null && Number.isFinite(Number(body.containerId))) {
+      q = q.eq('container_id', Number(body.containerId));
+    }
 
     const { data, error } = await q.select('*').single();
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) {
+      // Retry without closed_at if column missing
+      if (/closed_at|resolution/i.test(error.message)) {
+        const soft = { ...updates };
+        delete soft.closed_at;
+        delete soft.resolution;
+        const retry = await supabase
+          .from('riad_logs')
+          .update(soft)
+          .eq('id', Number(body.id))
+          .select('*')
+          .single();
+        if (retry.error) return NextResponse.json({ error: retry.error.message }, { status: 500 });
+        return NextResponse.json({ success: true, item: retry.data });
+      }
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
     return NextResponse.json({ success: true, item: data });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Error' }, { status: 500 });

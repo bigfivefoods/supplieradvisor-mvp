@@ -11,13 +11,15 @@ import {
   Boxes,
   GraduationCap,
   BarChart3,
+  Scale,
+  ShieldCheck,
 } from 'lucide-react';
 
 export default function ContainersHub() {
   return (
     <ModuleHub
       title="Containers"
-      description="Retail outlets run by independent contractors — map locations, appoint & train operators, order and receive stock, and manage payouts."
+      description="Retail outlets run by independent contractors — map locations, appoint & train operators, order and receive stock, RIAD register, and manage payouts."
       backHref="/dashboard"
     >
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -41,9 +43,15 @@ export default function ContainersHub() {
         />
         <HubCard
           title="Contractors"
-          description="Appoint independent contractors, track training, and store payout banking details."
+          description="Appoint independent contractors, VerifyNow ID checks, training, and payout banking."
           href="/dashboard/containers/contractors"
           icon={Users}
+        />
+        <HubCard
+          title="Container RIAD log"
+          description="Risks, issues, actions & decisions for outlets — log, manage, and close items. Contractors can log too."
+          href="/dashboard/containers/riad-log"
+          icon={Scale}
         />
         <HubCard
           title="Training hub"
@@ -62,6 +70,12 @@ export default function ContainersHub() {
           description="Open manage, then pick an outlet to order, receive, and track stock."
           href="/dashboard/containers/manage"
           icon={Boxes}
+        />
+        <HubCard
+          title="Verify contractors"
+          description="SA ID documents and VerifyNow Home Affairs verification."
+          href="/dashboard/containers/contractors"
+          icon={ShieldCheck}
         />
         <HubCard
           title="Metrics"
