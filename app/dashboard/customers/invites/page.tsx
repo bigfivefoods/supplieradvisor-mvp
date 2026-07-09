@@ -26,6 +26,7 @@ import InviteCustomerButton from '@/components/customers/InviteCustomerButton';
 const FILTERS = [
   { value: 'all', label: 'All' },
   { value: 'pending', label: 'Pending' },
+  { value: 'claiming', label: 'Claiming' },
   { value: 'accepted', label: 'Accepted' },
   { value: 'declined', label: 'Declined' },
   { value: 'expired', label: 'Expired' },
@@ -97,8 +98,15 @@ function InvitesInner() {
     setLoadingCustomers(true);
     try {
       const res = await fetch(`/api/customers?companyId=${companyId}`);
-      const data = await res.json();
-      const list = (data.customers || []) as CustomerRecord[];
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(
+          (data as { error?: string }).error || 'Failed to load customers for invite'
+        );
+        return;
+      }
+      const list = ((data as { customers?: CustomerRecord[] }).customers ||
+        []) as CustomerRecord[];
       // Prefer offline / not-yet-connected rows
       setCustomers(
         list.filter(
@@ -108,6 +116,8 @@ function InvitesInner() {
             c.invite_status !== 'suspended'
         )
       );
+    } catch {
+      toast.error('Failed to load customers for invite');
     } finally {
       setLoadingCustomers(false);
     }
@@ -273,12 +283,19 @@ function InvitesInner() {
               </select>
               {picked && (
                 <InviteCustomerButton
+                  key={picked.id}
                   customerId={picked.id}
                   customerName={picked.trading_name}
                   defaultEmail={picked.email || picked.invited_email || ''}
                   defaultContactName={picked.contact_name || ''}
                   defaultOpen
                   variant="primary"
+                  resend={
+                    picked.invite_status === 'invited' ||
+                    picked.invite_status === 'declined' ||
+                    picked.invite_status === 'expired'
+                  }
+                  onCancel={() => setPickedCustomerId('')}
                   onSent={() => {
                     setShowInvitePicker(false);
                     setStatus('pending');

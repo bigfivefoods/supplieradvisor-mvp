@@ -186,9 +186,6 @@ function OnboardInner() {
             defaultContactName={createdCustomer.contact_name || ''}
             defaultOpen
             variant="primary"
-            onSent={() => {
-              toast.success('You can manage this invite under Invites');
-            }}
           />
 
           <div className="flex flex-wrap gap-2 pt-2 border-t">

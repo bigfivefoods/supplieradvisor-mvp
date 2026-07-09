@@ -13,11 +13,15 @@ type Props = {
   defaultEmail?: string;
   defaultContactName?: string;
   onSent?: (result?: { inviteLink?: string }) => void;
+  /** Called when the expanded form is cancelled (e.g. clear parent inviteOpenId). */
+  onCancel?: () => void;
   className?: string;
   /** Compact link style (profiles table) vs primary button. */
   variant?: 'link' | 'button' | 'primary';
   /** Start expanded (e.g. post-onboard CTA). */
   defaultOpen?: boolean;
+  /** Use resend copy when customer already has an outstanding / prior invite. */
+  resend?: boolean;
 };
 
 /**
@@ -30,9 +34,11 @@ export default function InviteCustomerButton({
   defaultEmail = '',
   defaultContactName = '',
   onSent,
+  onCancel,
   className = '',
   variant = 'link',
   defaultOpen = false,
+  resend = false,
 }: Props) {
   const { user } = usePrivy();
   const [open, setOpen] = useState(defaultOpen);
@@ -41,6 +47,15 @@ export default function InviteCustomerButton({
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [lastLink, setLastLink] = useState('');
+
+  const title = resend ? 'Resend platform invite' : 'Invite to platform';
+  const collapsedLabel = resend ? 'Resend invite' : 'Invite to platform';
+  const submitLabel = resend ? 'Resend invite' : 'Send invite';
+
+  const close = () => {
+    setOpen(false);
+    onCancel?.();
+  };
 
   const send = async () => {
     const companyId = getSelectedCompanyId();
@@ -78,7 +93,7 @@ export default function InviteCustomerButton({
       if (data.warning) {
         toast.message('Invitation created', { description: data.warning });
       } else {
-        toast.success(data.message || 'Invitation sent');
+        toast.success(data.message || (resend ? 'Invitation resent' : 'Invitation sent'));
       }
       if (data.inviteLink) setLastLink(data.inviteLink);
       onSent?.({ inviteLink: data.inviteLink });
@@ -102,7 +117,7 @@ export default function InviteCustomerButton({
         onClick={() => setOpen(true)}
         className={`${base} ${className}`}
       >
-        <Mail className="w-4 h-4" /> Invite to platform
+        <Mail className="w-4 h-4" /> {collapsedLabel}
       </button>
     );
   }
@@ -112,7 +127,8 @@ export default function InviteCustomerButton({
       className={`p-4 rounded-2xl border border-[#00b4d8]/30 bg-[#00b4d8]/5 space-y-3 text-left ${className}`}
     >
       <div className="text-sm font-semibold text-slate-900">
-        Invite to platform{customerName ? ` · ${customerName}` : ''}
+        {title}
+        {customerName ? ` · ${customerName}` : ''}
       </div>
       <p className="text-xs text-neutral-600">
         Sends an email so they can join SupplierAdvisor and connect as a buyer. Your offline CRM
@@ -141,7 +157,7 @@ export default function InviteCustomerButton({
       <div className="flex gap-2">
         <button
           type="button"
-          onClick={() => setOpen(false)}
+          onClick={close}
           className="btn-secondary flex-1 !py-2 text-sm"
         >
           Cancel
@@ -156,7 +172,7 @@ export default function InviteCustomerButton({
             <Loader2 className="w-4 h-4 animate-spin" />
           ) : (
             <>
-              <Send className="w-4 h-4" /> Send invite
+              <Send className="w-4 h-4" /> {submitLabel}
             </>
           )}
         </button>

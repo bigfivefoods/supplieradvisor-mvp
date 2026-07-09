@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import {
   canInviteCustomer,
+  customerInviteActionLabel,
   customerInviteStatusClass,
   customerInviteStatusLabel,
   type CustomerRecord,
@@ -158,18 +159,25 @@ function ProfilesInner() {
                     </td>
                     <td className="px-3 py-3">
                       <span
-                        className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${customerInviteStatusClass(c.invite_status)}`}
+                        className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${customerInviteStatusClass(c.invite_status, c.linked_profile_id)}`}
                       >
-                        {customerInviteStatusLabel(c.invite_status)}
+                        {customerInviteStatusLabel(c.invite_status, c.linked_profile_id)}
                       </span>
                       {inviteOpenId === c.id && canInviteCustomer(c) && (
                         <div className="mt-2 min-w-[240px]">
                           <InviteCustomerButton
+                            key={c.id}
                             customerId={c.id}
                             customerName={c.trading_name}
                             defaultEmail={c.email || c.invited_email || ''}
                             defaultContactName={c.contact_name || ''}
                             defaultOpen
+                            resend={
+                              c.invite_status === 'invited' ||
+                              c.invite_status === 'declined' ||
+                              c.invite_status === 'expired'
+                            }
+                            onCancel={() => setInviteOpenId(null)}
                             onSent={() => {
                               setInviteOpenId(null);
                               void load();
@@ -186,7 +194,7 @@ function ProfilesInner() {
                             onClick={() => setInviteOpenId(c.id)}
                             className="text-xs font-semibold text-[#00b4d8] hover:underline px-2 py-1"
                           >
-                            Invite
+                            {customerInviteActionLabel(c)}
                           </button>
                         )}
                         <Link
