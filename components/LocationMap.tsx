@@ -31,6 +31,8 @@ interface LocationMapProps {
   className?: string;
   height?: string;
   interactive?: boolean;
+  /** Default false so wheel/trackpad scrolls parent modals/forms */
+  scrollWheelZoom?: boolean;
 }
 
 function MapClickHandler({ onMapClick }: { onMapClick: (lat: number, lng: number) => void }) {
@@ -99,6 +101,7 @@ export default function LocationMap({
   zoom = 5,
   height = '100%',
   interactive = true,
+  scrollWheelZoom = false,
   className = '',
 }: LocationMapProps) {
   // Client-only gate avoids React Strict Mode / SSR leaflet init issues
@@ -136,7 +139,7 @@ export default function LocationMap({
         center={defaultCenter}
         zoom={zoom}
         style={{ height: '100%', width: '100%', borderRadius: 24, zIndex: 0 }}
-        scrollWheelZoom={interactive}
+        scrollWheelZoom={scrollWheelZoom}
         dragging={interactive}
         className="!z-0"
       >

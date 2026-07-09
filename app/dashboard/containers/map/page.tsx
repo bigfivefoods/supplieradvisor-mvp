@@ -79,7 +79,7 @@ export default function ContainersMapPage() {
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 h-[480px] sm:h-[560px] rounded-3xl overflow-hidden border border-neutral-200 bg-white">
           {!loading && (
-            <LocationMap pins={pins} layer={layer} height="100%" interactive zoom={6} />
+            <LocationMap pins={pins} layer={layer} height="100%" interactive scrollWheelZoom zoom={6} />
           )}
         </div>
         <div className="bg-white border border-neutral-200 rounded-3xl p-5 max-h-[560px] overflow-y-auto">

@@ -187,21 +187,33 @@ export default function AddContainerForm({ onClose, onSuccess }: AddContainerFor
   };
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white w-full max-w-5xl max-h-[92vh] overflow-y-auto rounded-3xl shadow-2xl border border-neutral-200">
-        <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between z-10">
-          <div>
-            <h2 className="text-2xl font-black tracking-tight text-[#00b4d8]">Add retail container</h2>
-            <p className="text-sm text-neutral-500">
-              Create the outlet first — contractor is optional (assign now or later)
-            </p>
+    <div
+      className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm overflow-y-auto overscroll-contain"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="add-container-title"
+    >
+      {/* min-h-full + py allows scrolling when content taller than viewport */}
+      <div className="min-h-full flex items-start sm:items-center justify-center p-3 sm:p-4 py-6 sm:py-8">
+        <div className="bg-white w-full max-w-5xl max-h-[min(92dvh,920px)] flex flex-col rounded-3xl shadow-2xl border border-neutral-200 my-auto">
+          <div className="flex-shrink-0 bg-white border-b px-4 sm:px-6 py-4 flex items-center justify-between rounded-t-3xl">
+            <div className="min-w-0 pr-2">
+              <h2 id="add-container-title" className="text-xl sm:text-2xl font-black tracking-tight text-[#00b4d8]">
+                Add retail container
+              </h2>
+              <p className="text-sm text-neutral-500">
+                Create the outlet first — contractor is optional (assign now or later)
+              </p>
+            </div>
+            <button type="button" onClick={onClose} className="p-2 rounded-xl hover:bg-neutral-100 flex-shrink-0">
+              <X className="w-5 h-5" />
+            </button>
           </div>
-          <button type="button" onClick={onClose} className="p-2 rounded-xl hover:bg-neutral-100">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
 
-        <form onSubmit={handleSubmit} className="p-6 grid lg:grid-cols-2 gap-8">
+          <form
+            onSubmit={handleSubmit}
+            className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6 grid lg:grid-cols-2 gap-6 lg:gap-8"
+          >
           <div className="space-y-5">
             <div className="p-3 rounded-2xl bg-blue-50 border border-blue-100 text-sm text-blue-900 flex gap-2">
               <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
@@ -437,7 +449,7 @@ export default function AddContainerForm({ onClose, onSuccess }: AddContainerFor
               </div>
             </div>
 
-            <div className="flex gap-3 pt-2">
+            <div className="flex gap-3 pt-2 pb-2 lg:col-span-2">
               <button type="button" onClick={onClose} className="btn-secondary flex-1 !py-3">
                 Cancel
               </button>
@@ -453,7 +465,8 @@ export default function AddContainerForm({ onClose, onSuccess }: AddContainerFor
               </button>
             </div>
           </div>
-        </form>
+          </form>
+        </div>
       </div>
     </div>
   );

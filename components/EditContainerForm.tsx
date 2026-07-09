@@ -145,19 +145,30 @@ export default function EditContainerForm({ container, onClose, onSuccess }: Edi
   };
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white w-full max-w-5xl max-h-[92vh] overflow-y-auto rounded-3xl shadow-2xl border border-neutral-200">
-        <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between z-10">
-          <div>
-            <h2 className="text-2xl font-black tracking-tight text-[#00b4d8]">Edit container</h2>
-            <p className="text-sm text-neutral-500">{container.container_code}</p>
+    <div
+      className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm overflow-y-auto overscroll-contain"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="edit-container-title"
+    >
+      <div className="min-h-full flex items-start sm:items-center justify-center p-3 sm:p-4 py-6 sm:py-8">
+        <div className="bg-white w-full max-w-5xl max-h-[min(92dvh,920px)] flex flex-col rounded-3xl shadow-2xl border border-neutral-200 my-auto">
+          <div className="flex-shrink-0 bg-white border-b px-4 sm:px-6 py-4 flex items-center justify-between rounded-t-3xl">
+            <div className="min-w-0 pr-2">
+              <h2 id="edit-container-title" className="text-xl sm:text-2xl font-black tracking-tight text-[#00b4d8]">
+                Edit container
+              </h2>
+              <p className="text-sm text-neutral-500">{container.container_code}</p>
+            </div>
+            <button type="button" onClick={onClose} className="p-2 rounded-xl hover:bg-neutral-100 flex-shrink-0">
+              <X className="w-5 h-5" />
+            </button>
           </div>
-          <button type="button" onClick={onClose} className="p-2 rounded-xl hover:bg-neutral-100">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
 
-        <form onSubmit={handleSubmit} className="p-6 grid lg:grid-cols-2 gap-8">
+          <form
+            onSubmit={handleSubmit}
+            className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6 grid lg:grid-cols-2 gap-6 lg:gap-8"
+          >
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -264,7 +275,7 @@ export default function EditContainerForm({ container, onClose, onSuccess }: Edi
                 <input className="input mt-1 w-full !p-3 !text-base" value={form.longitude} onChange={(e) => set('longitude', e.target.value)} />
               </div>
             </div>
-            <div className="flex gap-3 pt-2">
+            <div className="flex gap-3 pt-2 pb-2 lg:col-span-2">
               <button type="button" onClick={onClose} className="btn-secondary flex-1 !py-3">Cancel</button>
               <button type="submit" disabled={loading || uploading} className="btn-primary flex-1 !py-3">
                 {loading || uploading ? (
@@ -275,7 +286,8 @@ export default function EditContainerForm({ container, onClose, onSuccess }: Edi
               </button>
             </div>
           </div>
-        </form>
+          </form>
+        </div>
       </div>
     </div>
   );
