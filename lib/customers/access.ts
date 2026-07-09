@@ -127,9 +127,9 @@ export async function assertCustomerConnection(
 export async function assertSellerCustomerNotSuspended(
   sellerCompanyId: number,
   customerId: number
-): Promise<{ ok: true } | { ok: false; error: string; status: 409 | 404 | 500 }> {
+): Promise<{ ok: true } | { ok: false; error: string; status: 400 | 409 | 404 | 500 }> {
   if (!Number.isFinite(sellerCompanyId) || !Number.isFinite(customerId)) {
-    return { ok: false, error: 'sellerCompanyId and customerId are required', status: 404 };
+    return { ok: false, error: 'sellerCompanyId and customerId are required', status: 400 };
   }
 
   const supabase = getSupabaseServer();
@@ -239,39 +239,78 @@ export function isCustomerInvitesEnabled(): boolean {
   return !['0', 'false', 'no', 'off'].includes(String(raw).toLowerCase().trim());
 }
 
-/** SQL-backed invite rate limits (not in-memory — multi-instance safe). */
+/**
+ * SQL-backed invite rate limits (design Security table).
+ * - max 20 pending per seller company
+ * - max 5 invites/resends per customer per 24h
+ * - max 30 invites created per company per hour
+ * No daily company cap (would make hourly dead code if set below 30).
+ * No per-customer pending cap (send/resend always replace pending for that customer).
+ */
 export const CUSTOMER_INVITE_LIMITS = {
   /** Max pending invitations per seller company */
   maxPendingPerCompany: 20,
-  /** Max pending invitations per customer CRM row */
-  maxPendingPerCustomer: 3,
   /** Max invitation rows created per customer in a rolling 24h window (incl. resends) */
   maxPerCustomerPer24h: 5,
   /** Max invitation rows created per company in a rolling 1h window */
   maxPerCompanyPerHour: 30,
-  /** Max invitation rows created per company in a rolling 24h window */
-  maxPerCompanyPerDay: 20,
 } as const;
 
 /**
+ * Resolve target_profile_id by exact email match (case-normalized).
+ * Uses `.eq` after lowercasing — never ILIKE ( `_` / `%` are wildcards).
+ * Returns id only when exactly one profile matches; 0 or many → null.
+ */
+export async function resolveSoleTargetProfileIdByEmail(
+  email: string
+): Promise<number | null> {
+  const normalized = String(email || '')
+    .toLowerCase()
+    .trim();
+  if (!normalized.includes('@')) return null;
+
+  const supabase = getSupabaseServer();
+  // Exact equality only. Invite/profile writers store emails lowercased.
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, email')
+    .eq('email', normalized)
+    .limit(5);
+
+  if (error) {
+    console.error('resolveSoleTargetProfileIdByEmail:', error);
+    return null;
+  }
+
+  const rows = (data || []).filter(
+    (r) => String(r.email || '').toLowerCase().trim() === normalized
+  );
+  if (rows.length === 1) return Number(rows[0].id);
+  return null;
+}
+
+/**
  * Enforce invite rate limits via SQL counts on customer_invitations.
- * Returns 429 payload when over limit. Not in-memory (multi-instance safe).
+ * Fail-closed: any count query error → 500 (do not coerce failed counts to 0).
  *
  * @param opts.replacingCustomerPending — when true, caller will revoke this
- *   customer's pending rows before insert; pending-per-customer is treated as
- *   0 for that customer, and pending-per-company is reduced by that count.
+ *   customer's pending rows before insert; company pending count is reduced by
+ *   that customer's current pending count.
  */
 export async function checkCustomerInviteRateLimits(opts: {
   companyId: number;
   customerId: number;
   replacingCustomerPending?: boolean;
-}): Promise<{ ok: true } | { ok: false; error: string; status: 429; retryAfterSeconds?: number }> {
+}): Promise<
+  | { ok: true }
+  | { ok: false; error: string; status: 429 | 500; retryAfterSeconds?: number }
+> {
   const supabase = getSupabaseServer();
   const now = Date.now();
   const hourAgo = new Date(now - 60 * 60 * 1000).toISOString();
   const dayAgo = new Date(now - 24 * 60 * 60 * 1000).toISOString();
 
-  const [pendingCompany, pendingCustomer, createdCustomer24h, createdCompany1h, createdCompany24h] =
+  const [pendingCompany, pendingCustomer, createdCustomer24h, createdCompany1h] =
     await Promise.all([
       supabase
         .from('customer_invitations')
@@ -293,31 +332,48 @@ export async function checkCustomerInviteRateLimits(opts: {
         .select('id', { count: 'exact', head: true })
         .eq('profile_id', opts.companyId)
         .gte('created_at', hourAgo),
-      supabase
-        .from('customer_invitations')
-        .select('id', { count: 'exact', head: true })
-        .eq('profile_id', opts.companyId)
-        .gte('created_at', dayAgo),
     ]);
 
-  const pendingCustomerCount = pendingCustomer.count ?? 0;
-  let pendingCompanyCount = pendingCompany.count ?? 0;
+  const countResults = [
+    pendingCompany,
+    pendingCustomer,
+    createdCustomer24h,
+    createdCompany1h,
+  ];
+  for (const result of countResults) {
+    if (result.error) {
+      console.error('checkCustomerInviteRateLimits count error:', result.error);
+      return {
+        ok: false,
+        error: 'Failed to enforce invite rate limits',
+        status: 500,
+      };
+    }
+    if (result.count == null) {
+      console.error('checkCustomerInviteRateLimits missing count (fail-closed)');
+      return {
+        ok: false,
+        error: 'Failed to enforce invite rate limits',
+        status: 500,
+      };
+    }
+  }
+
+  const pendingCustomerCount = pendingCustomer.count as number;
+  let pendingCompanyCount = pendingCompany.count as number;
   if (opts.replacingCustomerPending) {
     // After revoke of this customer's pending, company pending drops by that amount
     pendingCompanyCount = Math.max(0, pendingCompanyCount - pendingCustomerCount);
   }
-  const effectivePendingCustomer = opts.replacingCustomerPending ? 0 : pendingCustomerCount;
-  const customer24hCount = createdCustomer24h.count ?? 0;
-  const company1hCount = createdCompany1h.count ?? 0;
-  const company24hCount = createdCompany24h.count ?? 0;
+  const customer24hCount = createdCustomer24h.count as number;
+  const company1hCount = createdCompany1h.count as number;
 
-  // Time-window limits first (do not require revoke)
   if (customer24hCount >= CUSTOMER_INVITE_LIMITS.maxPerCustomerPer24h) {
     return {
       ok: false,
       error: `Rate limit: at most ${CUSTOMER_INVITE_LIMITS.maxPerCustomerPer24h} invites/resends per customer per 24 hours.`,
       status: 429,
-      retryAfterSeconds: 3600,
+      // Retry-After omitted — accurate value would need oldest row in window
     };
   }
 
@@ -326,20 +382,10 @@ export async function checkCustomerInviteRateLimits(opts: {
       ok: false,
       error: `Rate limit: at most ${CUSTOMER_INVITE_LIMITS.maxPerCompanyPerHour} invitations per company per hour.`,
       status: 429,
-      retryAfterSeconds: 3600,
     };
   }
 
-  if (company24hCount >= CUSTOMER_INVITE_LIMITS.maxPerCompanyPerDay) {
-    return {
-      ok: false,
-      error: `Rate limit: at most ${CUSTOMER_INVITE_LIMITS.maxPerCompanyPerDay} invitations per company per day.`,
-      status: 429,
-      retryAfterSeconds: 3600,
-    };
-  }
-
-  // After this send we will have +1 pending for company and customer
+  // After this send we will have +1 pending for company
   if (pendingCompanyCount + 1 > CUSTOMER_INVITE_LIMITS.maxPendingPerCompany) {
     return {
       ok: false,
@@ -348,13 +394,9 @@ export async function checkCustomerInviteRateLimits(opts: {
     };
   }
 
-  if (effectivePendingCustomer + 1 > CUSTOMER_INVITE_LIMITS.maxPendingPerCustomer) {
-    return {
-      ok: false,
-      error: `Rate limit: at most ${CUSTOMER_INVITE_LIMITS.maxPendingPerCustomer} pending invitations for this customer. Revoke or wait for accept/expire.`,
-      status: 429,
-    };
-  }
-
   return { ok: true };
 }
+
+/** List projection for GET /api/customers/invites — never includes token. */
+export const CUSTOMER_INVITATION_LIST_COLUMNS =
+  'id, profile_id, customer_id, email, full_name, status, invited_by, company_name, customer_name, target_profile_id, message, user_id, expires_at, accepted_at, created_at, updated_at';

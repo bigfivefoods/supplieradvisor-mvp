@@ -80,6 +80,16 @@ export function buildCustomerInviteLink(token: string) {
   return `${getAppUrl()}/onboarding?invite=${encodeURIComponent(token)}&kind=customer`;
 }
 
+/** Escape user-controlled strings before interpolating into HTML email bodies. */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 export function customerInviteEmailHtml(params: {
   inviteeName?: string | null;
   customerName: string;
@@ -88,14 +98,21 @@ export function customerInviteEmailHtml(params: {
   inviteLink: string;
   message?: string | null;
 }) {
-  const { inviteeName, customerName, sellerCompanyName, invitedBy, inviteLink, message } = params;
-  const personalNote =
-    message && String(message).trim()
-      ? `<p style="color:#334155;font-size:15px;line-height:1.7;margin:0 0 18px;padding:14px 16px;background:#f1f5f9;border-radius:12px;border-left:4px solid #00b4d8;">
+  const inviteeName = params.inviteeName ? escapeHtml(String(params.inviteeName)) : null;
+  const customerName = escapeHtml(String(params.customerName));
+  const sellerCompanyName = escapeHtml(String(params.sellerCompanyName));
+  const invitedBy = escapeHtml(String(params.invitedBy));
+  // Links are constructed by us; still escape attribute context
+  const inviteLink = escapeHtml(String(params.inviteLink));
+  const messageRaw = params.message ? String(params.message).trim() : '';
+  const message = messageRaw ? escapeHtml(messageRaw) : '';
+
+  const personalNote = message
+    ? `<p style="color:#334155;font-size:15px;line-height:1.7;margin:0 0 18px;padding:14px 16px;background:#f1f5f9;border-radius:12px;border-left:4px solid #00b4d8;">
         <strong style="display:block;margin-bottom:6px;font-size:12px;text-transform:uppercase;letter-spacing:0.06em;color:#64748b;">Message from ${invitedBy}</strong>
-        ${String(message).trim()}
+        ${message}
       </p>`
-      : '';
+    : '';
 
   return `
 <!DOCTYPE html>

@@ -6,8 +6,10 @@ import { INVITE_EXPIRY_DAYS } from '@/lib/auth/identity';
 import {
   assertCompanyMember,
   checkCustomerInviteRateLimits,
+  CUSTOMER_INVITATION_LIST_COLUMNS,
   isCustomerInvitesEnabled,
   logActivity,
+  resolveSoleTargetProfileIdByEmail,
 } from '@/lib/customers/access';
 import {
   buildCustomerInviteLink,
@@ -111,7 +113,7 @@ export async function POST(request: NextRequest) {
       if (rate.retryAfterSeconds) {
         headers['Retry-After'] = String(rate.retryAfterSeconds);
       }
-      return NextResponse.json({ error: rate.error }, { status: 429, headers });
+      return NextResponse.json({ error: rate.error }, { status: rate.status, headers });
     }
 
     // Revoke prior pending for this customer (design: one active invite attempt)
@@ -122,16 +124,8 @@ export async function POST(request: NextRequest) {
       .eq('customer_id', customerId)
       .eq('status', 'pending');
 
-    // Resolve optional target_profile_id by email (0 or many → null; 1 → set)
-    let targetProfileId: number | null = null;
-    const { data: emailProfiles } = await supabase
-      .from('profiles')
-      .select('id, email')
-      .ilike('email', email)
-      .limit(5);
-    if (emailProfiles && emailProfiles.length === 1) {
-      targetProfileId = Number(emailProfiles[0].id);
-    }
+    // Resolve optional target_profile_id by exact email (0 or many → null; 1 → set)
+    const targetProfileId = await resolveSoleTargetProfileIdByEmail(email);
 
     const { data: sellerProfile } = await supabase
       .from('profiles')
@@ -188,7 +182,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await supabase
+    const { error: crmErr } = await supabase
       .from('customers')
       .update({
         invite_status: 'invited',
@@ -199,6 +193,12 @@ export async function POST(request: NextRequest) {
       })
       .eq('id', customerId)
       .eq('profile_id', companyId);
+
+    let crmWarning: string | undefined;
+    if (crmErr) {
+      console.error('Customer CRM invite_status update failed:', crmErr);
+      crmWarning = `Invitation created (id=${invitation.id}) but CRM invite fields failed to update: ${crmErr.message}`;
+    }
 
     const inviteLink = buildCustomerInviteLink(token);
 
@@ -242,10 +242,12 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    const warning = [crmWarning, emailWarning].filter(Boolean).join(' ') || undefined;
+
     return NextResponse.json({
       success: true,
-      message: emailWarning ? undefined : 'Invitation sent successfully',
-      warning: emailWarning,
+      message: warning ? undefined : 'Invitation sent successfully',
+      warning,
       invitation,
       inviteLink,
       inviteToken: token,
@@ -263,6 +265,7 @@ export async function POST(request: NextRequest) {
 /**
  * GET /api/customers/invites?companyId=&privyUserId=
  * List invitations for the seller company (membership required).
+ * Tokens are never returned on the list (use POST create/resend inviteLink for copy).
  */
 export async function GET(request: NextRequest) {
   try {
@@ -291,7 +294,7 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseServer();
     let query = supabase
       .from('customer_invitations')
-      .select('*')
+      .select(CUSTOMER_INVITATION_LIST_COLUMNS)
       .eq('profile_id', companyId)
       .order('created_at', { ascending: false })
       .limit(200);
@@ -308,11 +311,10 @@ export async function GET(request: NextRequest) {
       console.error('GET customer invites error:', error);
       return NextResponse.json(
         {
-          success: true,
-          invitations: [],
-          warning: error.message,
+          error: error.message,
           hint: 'Run supabase/migrations/20260709_customer_platform_invites.sql',
-        }
+        },
+        { status: 500 }
       );
     }
 

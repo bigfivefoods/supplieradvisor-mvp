@@ -6,6 +6,9 @@ import {
   logActivity,
 } from '@/lib/customers/access';
 
+/** Statuses that may be revoked by the seller. Stuck `claiming` is for the expiry/reap job. */
+const REVOCABLE_STATUSES = new Set(['pending', 'expired']);
+
 /**
  * POST /api/customers/invites/revoke
  * Body: { companyId, invitationId, privyUserId }
@@ -51,12 +54,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invitation not found' }, { status: 404 });
     }
 
-    if (invitation.status === 'accepted') {
-      return NextResponse.json(
-        { error: 'Cannot revoke an already accepted invitation' },
-        { status: 409 }
-      );
-    }
     if (invitation.status === 'revoked') {
       return NextResponse.json({
         success: true,
@@ -65,17 +62,37 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    if (!REVOCABLE_STATUSES.has(String(invitation.status || ''))) {
+      return NextResponse.json(
+        {
+          error:
+            invitation.status === 'claiming'
+              ? 'Invitation is mid-claim and cannot be revoked. Wait for claim to finish or for the reclaim window.'
+              : `Cannot revoke invitation with status "${invitation.status}"`,
+          status: invitation.status,
+        },
+        { status: 409 }
+      );
+    }
+
     const now = new Date().toISOString();
     const { data: updated, error: updErr } = await supabase
       .from('customer_invitations')
       .update({ status: 'revoked', updated_at: now })
       .eq('id', invitationId)
       .eq('profile_id', companyId)
+      .in('status', ['pending', 'expired'])
       .select('*')
       .single();
 
     if (updErr) {
       return NextResponse.json({ error: updErr.message }, { status: 500 });
+    }
+    if (!updated) {
+      return NextResponse.json(
+        { error: 'Invitation could not be revoked (status may have changed)' },
+        { status: 409 }
+      );
     }
 
     // If no other pending invite for this customer, reset CRM invite phase
@@ -97,7 +114,9 @@ export async function POST(request: NextRequest) {
       if (
         customer &&
         !customer.linked_profile_id &&
-        (customer.invite_status === 'invited' || customer.invite_token)
+        (customer.invite_status === 'invited' ||
+          customer.invite_status === 'expired' ||
+          customer.invite_token)
       ) {
         await supabase
           .from('customers')

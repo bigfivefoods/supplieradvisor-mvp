@@ -8,6 +8,7 @@ import {
   checkCustomerInviteRateLimits,
   isCustomerInvitesEnabled,
   logActivity,
+  resolveSoleTargetProfileIdByEmail,
 } from '@/lib/customers/access';
 import {
   buildCustomerInviteLink,
@@ -125,7 +126,7 @@ export async function POST(request: NextRequest) {
       if (rate.retryAfterSeconds) {
         headers['Retry-After'] = String(rate.retryAfterSeconds);
       }
-      return NextResponse.json({ error: rate.error }, { status: 429, headers });
+      return NextResponse.json({ error: rate.error }, { status: rate.status, headers });
     }
 
     // Revoke prior pending so only one active token
@@ -140,14 +141,7 @@ export async function POST(request: NextRequest) {
         ? Number(priorInvite.target_profile_id)
         : null;
     if (targetProfileId == null) {
-      const { data: emailProfiles } = await supabase
-        .from('profiles')
-        .select('id, email')
-        .ilike('email', email)
-        .limit(5);
-      if (emailProfiles && emailProfiles.length === 1) {
-        targetProfileId = Number(emailProfiles[0].id);
-      }
+      targetProfileId = await resolveSoleTargetProfileIdByEmail(email);
     }
 
     const { data: sellerProfile } = await supabase
@@ -216,7 +210,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await supabase
+    const { error: crmErr } = await supabase
       .from('customers')
       .update({
         invite_status: 'invited',
@@ -227,6 +221,12 @@ export async function POST(request: NextRequest) {
       })
       .eq('id', customerId)
       .eq('profile_id', companyId);
+
+    let crmWarning: string | undefined;
+    if (crmErr) {
+      console.error('Customer CRM invite_status update failed on resend:', crmErr);
+      crmWarning = `Invitation recreated (id=${invitation.id}) but CRM invite fields failed to update: ${crmErr.message}`;
+    }
 
     const inviteLink = buildCustomerInviteLink(token);
 
@@ -269,10 +269,12 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    const warning = [crmWarning, emailWarning].filter(Boolean).join(' ') || undefined;
+
     return NextResponse.json({
       success: true,
-      message: emailWarning ? undefined : 'Invitation resent',
-      warning: emailWarning,
+      message: warning ? undefined : 'Invitation resent',
+      warning,
       invitation,
       inviteLink,
       inviteToken: token,
