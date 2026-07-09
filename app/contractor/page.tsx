@@ -16,6 +16,7 @@ import {
   AlertCircle,
   AlertTriangle,
   RefreshCw,
+  Scale,
 } from 'lucide-react';
 import { extractEmailFromPrivyUser, getCanonicalUserId } from '@/lib/auth/identity';
 import type { ContainerRecord } from '@/lib/containers/types';
@@ -288,6 +289,12 @@ function OutletDashboard({
             icon: ClipboardList,
             title: 'Stock count',
             desc: 'Count on-hand stock and submit adjustments',
+          },
+          {
+            href: `/contractor/outlet/${container.id}/riad`,
+            icon: Scale,
+            title: 'RIAD log',
+            desc: 'Log risks, issues, actions & decisions for this outlet',
           },
         ].map((card) => (
           <Link
