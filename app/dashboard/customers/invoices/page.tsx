@@ -2,6 +2,6 @@
 
 import DocumentWorkspace from '@/components/customers/DocumentWorkspace';
 
-export default function OrdersPage() {
-  return <DocumentWorkspace type="order" />;
+export default function InvoicesPage() {
+  return <DocumentWorkspace type="invoice" />;
 }

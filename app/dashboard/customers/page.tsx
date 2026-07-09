@@ -56,34 +56,43 @@ const MODULES = [
     desc: 'Onboard a new customer account from a lead or from scratch',
   },
   {
-    href: '/dashboard/customers/orders',
-    icon: ShoppingCart,
-    title: 'Sales orders',
-    desc: 'Customer orders and fulfilment',
-  },
-  {
     href: '/dashboard/customers/quotes',
     icon: FileText,
     title: 'Quotes',
-    desc: 'Commercial quotes and proposals',
+    desc: 'Pick products/services from inventory, price, send, convert to order',
+    badge: 'Sell',
   },
   {
-    href: '/dashboard/customers/contracts',
-    icon: Handshake,
-    title: 'Contracts',
-    desc: 'Customer agreements and commercial terms',
+    href: '/dashboard/customers/orders',
+    icon: ShoppingCart,
+    title: 'Sales orders',
+    desc: 'Confirmed purchases — convert quotes or build from catalogue',
+    badge: 'Sell',
   },
   {
-    href: '/dashboard/customers/claims',
-    icon: AlertTriangle,
-    title: 'Claims',
-    desc: 'Complaints, returns, and claim resolution',
+    href: '/dashboard/customers/invoices',
+    icon: FileText,
+    title: 'Invoices',
+    desc: 'Bill customers, mark paid, auto-earn loyalty points',
+    badge: 'Sell',
   },
   {
     href: '/dashboard/customers/loyalty',
     icon: Award,
     title: 'Loyalty',
-    desc: 'Points, tiers, and rewards',
+    desc: 'Points, bronze→platinum tiers, earn & redeem',
+  },
+  {
+    href: '/dashboard/customers/claims',
+    icon: AlertTriangle,
+    title: 'Claims',
+    desc: 'Quality, delivery, damage — investigate and resolve',
+  },
+  {
+    href: '/dashboard/customers/contracts',
+    icon: Handshake,
+    title: 'Contracts',
+    desc: 'Supply/service agreements, SLAs, renewals',
   },
   {
     href: '/dashboard/customers/portal',
@@ -160,8 +169,30 @@ export default function CustomersHub() {
           Customers
         </h1>
         <p className="text-neutral-600 mt-2 max-w-2xl">
-          Lead capture → qualification → opportunity pipeline → customer account → orders & service.
+          Lead → opportunity → quote (pick products) → order → invoice → loyalty · plus claims,
+          contracts, and RIAD — all on Supabase.
         </p>
+      </div>
+
+      <div className="mb-8 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 text-center text-[11px] font-semibold">
+        {[
+          ['Leads', '/dashboard/customers/leads'],
+          ['Opps', '/dashboard/customers/leads?tab=pipeline'],
+          ['Quote', '/dashboard/customers/quotes'],
+          ['Order', '/dashboard/customers/orders'],
+          ['Invoice', '/dashboard/customers/invoices'],
+          ['Loyalty', '/dashboard/customers/loyalty'],
+          ['Claims', '/dashboard/customers/claims'],
+          ['RIAD', '/dashboard/customers/riad-log'],
+        ].map(([label, href]) => (
+          <Link
+            key={href}
+            href={href}
+            className="rounded-2xl border bg-white py-2.5 px-1 hover:border-[#00b4d8] text-slate-700"
+          >
+            {label}
+          </Link>
+        ))}
       </div>
 
       {loading ? (

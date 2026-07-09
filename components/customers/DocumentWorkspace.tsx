@@ -1,0 +1,518 @@
+'use client';
+
+import { useCallback, useEffect, useMemo, useState } from 'react';
+// useEffect used for load
+import { Loader2, Plus, Trash2, Package, ArrowRight } from 'lucide-react';
+import { toast } from 'sonner';
+import { getSelectedCompanyId } from '@/lib/containers/company';
+import {
+  calcDocTotals,
+  calcLineTotal,
+  formatMoney,
+  statusBadgeClass,
+  type DocLineItem,
+} from '@/lib/customers/documents';
+import type { CustomerRecord } from '@/lib/customers/types';
+import type { ProductRecord } from '@/lib/inventory/types';
+import { CompanyRequired, CustomersHeader } from '@/components/customers/CustomersShell';
+
+type DocType = 'quote' | 'order' | 'invoice';
+
+type DocRecord = Record<string, unknown> & {
+  id: number;
+  status?: string;
+  items?: DocLineItem[];
+  customer_id?: number | null;
+  customer_name?: string | null;
+  total_amount?: number;
+  currency?: string;
+  notes?: string | null;
+};
+
+const CONFIG: Record<
+  DocType,
+  {
+    title: string;
+    description: string;
+    numberField: string;
+    statuses: string[];
+    convertLabel?: string;
+    convertAction?: string;
+  }
+> = {
+  quote: {
+    title: 'Quotes',
+    description: 'Build commercial quotes from your product catalogue. Accept and convert to sales orders.',
+    numberField: 'quote_number',
+    statuses: ['draft', 'sent', 'accepted', 'rejected', 'expired', 'converted'],
+    convertLabel: 'Convert to order',
+    convertAction: 'convert_to_order',
+  },
+  order: {
+    title: 'Sales orders',
+    description: 'Confirm customer orders with product lines. Fulfil and convert to invoices.',
+    numberField: 'order_number',
+    statuses: ['draft', 'confirmed', 'processing', 'shipped', 'fulfilled', 'cancelled', 'invoiced'],
+    convertLabel: 'Convert to invoice',
+    convertAction: 'convert_to_invoice',
+  },
+  invoice: {
+    title: 'Invoices',
+    description: 'Bill customers, track payment, and auto-earn loyalty points on paid invoices.',
+    numberField: 'invoice_number',
+    statuses: ['draft', 'sent', 'paid', 'partial', 'overdue', 'void'],
+  },
+};
+
+export default function DocumentWorkspace({ type }: { type: DocType }) {
+  return (
+    <CompanyRequired>
+      <DocInner type={type} />
+    </CompanyRequired>
+  );
+}
+
+function DocInner({ type }: { type: DocType }) {
+  const companyId = getSelectedCompanyId()!;
+  const cfg = CONFIG[type];
+  const [docs, setDocs] = useState<DocRecord[]>([]);
+  const [customers, setCustomers] = useState<CustomerRecord[]>([]);
+  const [products, setProducts] = useState<ProductRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const [statusFilter, setStatusFilter] = useState('all');
+
+  const [customerId, setCustomerId] = useState('');
+  const [taxRate, setTaxRate] = useState('15');
+  const [notes, setNotes] = useState('');
+  const [validUntil, setValidUntil] = useState('');
+  const [promisedDate, setPromisedDate] = useState('');
+  const [dueDate, setDueDate] = useState('');
+  const [lines, setLines] = useState<DocLineItem[]>([
+    { name: '', quantity: 1, unit_price: 0, line_total: 0, uom: 'unit' },
+  ]);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ companyId: String(companyId), type });
+      if (statusFilter !== 'all') params.set('status', statusFilter);
+      const [d, c, p] = await Promise.all([
+        fetch(`/api/customers/docs?${params}`).then((r) => r.json()),
+        fetch(`/api/customers?companyId=${companyId}`).then((r) => r.json()),
+        fetch(`/api/inventory/products?companyId=${companyId}`).then((r) => r.json()),
+      ]);
+      setDocs(d.documents || []);
+      setCustomers(c.customers || []);
+      setProducts(p.products || []);
+      if (d.warning) toast.message(d.warning, { description: d.hint });
+    } finally {
+      setLoading(false);
+    }
+  }, [companyId, type, statusFilter]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const totals = useMemo(
+    () => calcDocTotals(lines.filter((l) => l.name), Number(taxRate) || 0),
+    [lines, taxRate]
+  );
+
+  const addProductLine = (productId: string) => {
+    const p = products.find((x) => String(x.id) === productId);
+    if (!p) return;
+    const unit_price = Number(p.sell_price || 0);
+    setLines((prev) => [
+      ...prev.filter((l) => l.name || l.product_id),
+      {
+        product_id: p.id,
+        sku: p.sku,
+        name: p.name,
+        quantity: 1,
+        unit_price,
+        uom: p.uom || 'unit',
+        line_total: unit_price,
+      },
+    ]);
+  };
+
+  const updateLine = (idx: number, patch: Partial<DocLineItem>) => {
+    setLines((prev) => {
+      const next = [...prev];
+      const row = { ...next[idx], ...patch };
+      row.line_total = calcLineTotal(Number(row.quantity), Number(row.unit_price));
+      next[idx] = row;
+      return next;
+    });
+  };
+
+  const create = async () => {
+    const valid = lines.filter((l) => l.name.trim());
+    if (!valid.length) {
+      toast.error('Add at least one product or service line');
+      return;
+    }
+    setSaving(true);
+    try {
+      const body: Record<string, unknown> = {
+        companyId,
+        type,
+        customer_id: customerId || null,
+        tax_rate: Number(taxRate) || 0,
+        notes: notes || null,
+        items: valid,
+        status: type === 'invoice' ? 'sent' : type === 'order' ? 'confirmed' : 'draft',
+      };
+      if (type === 'quote') body.valid_until = validUntil || null;
+      if (type === 'order') body.promised_date = promisedDate || null;
+      if (type === 'invoice') body.due_date = dueDate || null;
+
+      const res = await fetch('/api/customers/docs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || data.hint || 'Failed');
+      toast.success(`${cfg.title.slice(0, -1)} created`);
+      setShowForm(false);
+      setLines([{ name: '', quantity: 1, unit_price: 0, line_total: 0, uom: 'unit' }]);
+      setNotes('');
+      setCustomerId('');
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const convert = async (id: number) => {
+    if (!cfg.convertAction) return;
+    setBusyId(id);
+    try {
+      const res = await fetch('/api/customers/docs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyId, type, id, action: cfg.convertAction }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Convert failed');
+      toast.success(cfg.convertLabel || 'Converted');
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const markPaid = async (id: number) => {
+    setBusyId(id);
+    try {
+      const res = await fetch('/api/customers/docs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyId, type: 'invoice', id, action: 'mark_paid' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      toast.success('Marked paid · loyalty points earned');
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const setStatus = async (id: number, status: string) => {
+    const res = await fetch('/api/customers/docs', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, id, status }),
+    });
+    if (res.ok) void load();
+  };
+
+  const remove = async (id: number) => {
+    if (!confirm('Delete this document?')) return;
+    const res = await fetch(`/api/customers/docs?type=${type}&id=${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      toast.success('Deleted');
+      void load();
+    }
+  };
+
+  return (
+    <div className="px-2 md:px-4 max-w-screen-2xl mx-auto pb-12">
+      <CustomersHeader
+        title={cfg.title}
+        description={cfg.description}
+        action={
+          <button
+            type="button"
+            onClick={() => setShowForm((v) => !v)}
+            className="btn-primary !py-2.5 !px-5 text-sm"
+          >
+            <Plus className="w-4 h-4" /> New {type}
+          </button>
+        }
+      />
+
+      {showForm && (
+        <div className="bg-white border rounded-3xl p-5 mb-6 space-y-4">
+          <h2 className="font-bold flex items-center gap-2">
+            <Package className="w-4 h-4 text-[#00b4d8]" /> Build {type} — select products & services
+          </h2>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="lg:col-span-2">
+              <label className="text-xs font-medium text-neutral-500">Customer</label>
+              <select
+                className="input mt-1 w-full !p-3 !text-sm"
+                value={customerId}
+                onChange={(e) => setCustomerId(e.target.value)}
+              >
+                <option value="">Select customer…</option>
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>{c.trading_name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-neutral-500">Tax %</label>
+              <input
+                className="input mt-1 w-full !p-3 !text-sm"
+                type="number"
+                value={taxRate}
+                onChange={(e) => setTaxRate(e.target.value)}
+              />
+            </div>
+            {type === 'quote' && (
+              <div>
+                <label className="text-xs font-medium text-neutral-500">Valid until</label>
+                <input
+                  type="date"
+                  className="input mt-1 w-full !p-3 !text-sm"
+                  value={validUntil}
+                  onChange={(e) => setValidUntil(e.target.value)}
+                />
+              </div>
+            )}
+            {type === 'order' && (
+              <div>
+                <label className="text-xs font-medium text-neutral-500">Promised date</label>
+                <input
+                  type="date"
+                  className="input mt-1 w-full !p-3 !text-sm"
+                  value={promisedDate}
+                  onChange={(e) => setPromisedDate(e.target.value)}
+                />
+              </div>
+            )}
+            {type === 'invoice' && (
+              <div>
+                <label className="text-xs font-medium text-neutral-500">Due date</label>
+                <input
+                  type="date"
+                  className="input mt-1 w-full !p-3 !text-sm"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                />
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-neutral-500">Add from catalogue</label>
+            <select
+              className="input mt-1 w-full !p-3 !text-sm"
+              value=""
+              onChange={(e) => {
+                if (e.target.value) addProductLine(e.target.value);
+              }}
+            >
+              <option value="">Select product / service…</option>
+              {products.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                  {p.sku ? ` (${p.sku})` : ''} · {formatMoney(Number(p.sell_price || 0), p.base_currency || 'ZAR')}
+                </option>
+              ))}
+            </select>
+            {products.length === 0 && (
+              <p className="text-[11px] text-amber-700 mt-1">
+                No products yet — add them under Inventory → Products first.
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <div className="text-xs font-semibold text-neutral-500">Lines</div>
+            {lines.map((l, idx) => (
+              <div key={idx} className="grid grid-cols-12 gap-2 items-center">
+                <input
+                  className="input !p-2 !text-sm col-span-5"
+                  placeholder="Item name"
+                  value={l.name}
+                  onChange={(e) => updateLine(idx, { name: e.target.value })}
+                />
+                <input
+                  type="number"
+                  className="input !p-2 !text-sm col-span-2"
+                  placeholder="Qty"
+                  value={l.quantity}
+                  onChange={(e) => updateLine(idx, { quantity: Number(e.target.value) })}
+                />
+                <input
+                  type="number"
+                  className="input !p-2 !text-sm col-span-2"
+                  placeholder="Price"
+                  value={l.unit_price}
+                  onChange={(e) => updateLine(idx, { unit_price: Number(e.target.value) })}
+                />
+                <div className="col-span-2 text-right text-sm font-semibold tabular-nums">
+                  {formatMoney(l.line_total)}
+                </div>
+                <button
+                  type="button"
+                  className="col-span-1 text-neutral-400 hover:text-red-600"
+                  onClick={() => setLines(lines.filter((_, i) => i !== idx))}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              className="text-xs font-semibold text-[#00b4d8]"
+              onClick={() =>
+                setLines([...lines, { name: '', quantity: 1, unit_price: 0, line_total: 0, uom: 'unit' }])
+              }
+            >
+              + Custom line
+            </button>
+          </div>
+
+          <textarea
+            className="input w-full !p-3 !text-sm min-h-[56px]"
+            placeholder="Notes"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+          />
+
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3">
+            <div className="text-sm">
+              <div>Subtotal {formatMoney(totals.subtotal)}</div>
+              <div className="text-neutral-500">Tax {formatMoney(totals.tax_amount)}</div>
+              <div className="text-lg font-black">Total {formatMoney(totals.total_amount)}</div>
+            </div>
+            <div className="flex gap-2">
+              <button type="button" className="btn-secondary !py-2.5 !px-4" onClick={() => setShowForm(false)}>
+                Cancel
+              </button>
+              <button type="button" disabled={saving} className="btn-primary !py-2.5 !px-5" onClick={() => void create()}>
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : `Create ${type}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-2 mb-4">
+        <select
+          className="input !py-2 !px-3 !text-sm"
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+        >
+          <option value="all">All statuses</option>
+          {cfg.statuses.map((s) => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="bg-white border rounded-3xl overflow-hidden">
+        {loading ? (
+          <div className="p-16 flex justify-center">
+            <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
+          </div>
+        ) : docs.length === 0 ? (
+          <div className="p-16 text-center text-neutral-500 text-sm">
+            No {cfg.title.toLowerCase()} yet. Create one and pick products from your catalogue.
+          </div>
+        ) : (
+          <ul className="divide-y">
+            {docs.map((d) => {
+              const num = String(d[cfg.numberField] || d.id);
+              const itemCount = Array.isArray(d.items) ? d.items.length : 0;
+              return (
+                <li key={d.id} className="px-5 py-4 flex flex-wrap items-center justify-between gap-3 text-sm">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-bold font-mono">{num}</span>
+                      <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${statusBadgeClass(d.status)}`}>
+                        {d.status}
+                      </span>
+                    </div>
+                    <div className="text-xs text-neutral-500 mt-0.5">
+                      {d.customer_name || 'No customer'} · {itemCount} line{itemCount === 1 ? '' : 's'}
+                      {d.created_at ? ` · ${String(d.created_at).slice(0, 10)}` : ''}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="font-bold text-base tabular-nums mr-2">
+                      {formatMoney(Number(d.total_amount || 0), String(d.currency || 'ZAR'))}
+                    </div>
+                    {cfg.convertAction && d.status !== 'converted' && d.status !== 'invoiced' && (
+                      <button
+                        type="button"
+                        disabled={busyId === d.id}
+                        onClick={() => void convert(d.id)}
+                        className="btn-secondary !py-1.5 !px-3 text-xs"
+                      >
+                        {busyId === d.id ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <>
+                            {cfg.convertLabel} <ArrowRight className="w-3 h-3" />
+                          </>
+                        )}
+                      </button>
+                    )}
+                    {type === 'invoice' && d.status !== 'paid' && d.status !== 'void' && (
+                      <button
+                        type="button"
+                        disabled={busyId === d.id}
+                        onClick={() => void markPaid(d.id)}
+                        className="btn-primary !py-1.5 !px-3 text-xs"
+                      >
+                        Mark paid
+                      </button>
+                    )}
+                    {type === 'quote' && d.status === 'draft' && (
+                      <button
+                        type="button"
+                        onClick={() => void setStatus(d.id, 'sent')}
+                        className="text-xs font-semibold text-[#0077b6]"
+                      >
+                        Mark sent
+                      </button>
+                    )}
+                    <button type="button" onClick={() => void remove(d.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}

@@ -68,13 +68,14 @@ const modules = [
       { name: 'Leads & opportunities', href: '/dashboard/customers/leads' },
       { name: 'Profiles', href: '/dashboard/customers/profiles' },
       { name: 'Add customer', href: '/dashboard/customers/onboard' },
-      { name: 'Orders', href: '/dashboard/customers/orders' },
       { name: 'Quotes', href: '/dashboard/customers/quotes' },
-      { name: 'Contracts', href: '/dashboard/customers/contracts' },
-      { name: 'Claims', href: '/dashboard/customers/claims' },
+      { name: 'Orders', href: '/dashboard/customers/orders' },
+      { name: 'Invoices', href: '/dashboard/customers/invoices' },
       { name: 'Loyalty', href: '/dashboard/customers/loyalty' },
-      { name: 'Invitations', href: '/dashboard/customers/invites' },
+      { name: 'Claims', href: '/dashboard/customers/claims' },
+      { name: 'Contracts', href: '/dashboard/customers/contracts' },
       { name: 'Customer RIAD', href: '/dashboard/customers/riad-log' },
+      { name: 'Portal', href: '/dashboard/customers/portal' },
     ]
   },
 

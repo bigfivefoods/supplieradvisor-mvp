@@ -10,8 +10,13 @@ export const CUSTOMERS_NAV = [
   { href: '/dashboard/customers/leads', label: 'Leads & opportunities' },
   { href: '/dashboard/customers/profiles', label: 'Profiles' },
   { href: '/dashboard/customers/onboard', label: 'Add customer' },
-  { href: '/dashboard/customers/orders', label: 'Orders' },
   { href: '/dashboard/customers/quotes', label: 'Quotes' },
+  { href: '/dashboard/customers/orders', label: 'Orders' },
+  { href: '/dashboard/customers/invoices', label: 'Invoices' },
+  { href: '/dashboard/customers/loyalty', label: 'Loyalty' },
+  { href: '/dashboard/customers/claims', label: 'Claims' },
+  { href: '/dashboard/customers/contracts', label: 'Contracts' },
+  { href: '/dashboard/customers/riad-log', label: 'RIAD' },
 ] as const;
 
 export function CompanyRequired({ children }: { children: React.ReactNode }) {
