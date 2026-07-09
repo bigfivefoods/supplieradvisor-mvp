@@ -169,8 +169,7 @@ export type CustomerRecord = {
   linked_profile_id?: number | null;
   /** business_connections id for the customer edge (type=customer). */
   connection_id?: number | null;
-  /** not_invited | invited | accepted | suspended | declined | expired */
-  invite_status?: string | null;
+  invite_status?: CustomerInviteStatus | null;
   invite_token?: string | null;
   invited_at?: string | null;
   invite_accepted_at?: string | null;
@@ -186,7 +185,7 @@ export type CustomerInvitationRecord = {
   customer_id: number;
   email: string;
   full_name?: string | null;
-  status?: string | null;
+  status?: CustomerInvitationStatus | null;
   invited_by?: string | null;
   company_name?: string | null;
   customer_name?: string | null;

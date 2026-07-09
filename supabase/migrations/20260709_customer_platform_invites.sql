@@ -116,21 +116,68 @@ UPDATE public.customers
 SET invite_status = 'not_invited'
 WHERE invite_status IS NULL;
 
+-- Indexes created independently so one failure does not skip the others
+SELECT public.sa_create_index('idx_customers_linked_profile', 'customers', 'linked_profile_id');
+SELECT public.sa_create_index('idx_customers_invite_status', 'customers', 'invite_status');
+
+-- 1:1 linked buyer per seller CRM scope (partial unique; not via sa_create_index)
 DO $$
 BEGIN
-  CREATE INDEX IF NOT EXISTS idx_customers_linked_profile ON public.customers(linked_profile_id);
-  CREATE INDEX IF NOT EXISTS idx_customers_invite_status ON public.customers(invite_status);
-  -- 1:1 linked buyer per seller CRM scope
   CREATE UNIQUE INDEX IF NOT EXISTS uq_customers_profile_linked
     ON public.customers(profile_id, linked_profile_id)
     WHERE linked_profile_id IS NOT NULL;
 EXCEPTION WHEN others THEN
-  RAISE NOTICE 'customers invite indexes skip: %', SQLERRM;
+  RAISE NOTICE 'uq_customers_profile_linked skip: %', SQLERRM;
 END $$;
 
 -- ---------------------------------------------------------------------------
 -- business_connections: one-time duplicate cleanup + pair unique (UPSERT target)
+-- Cleanup is destructive: non-survivor rows for a pair are permanently deleted.
+-- Keep preference: status=accepted, then newest updated_at/created_at, then highest id.
 -- ---------------------------------------------------------------------------
+DO $$
+DECLARE
+  deleted_count int := 0;
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'business_connections'
+  ) AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'business_connections'
+      AND column_name = 'requester_profile_id'
+  ) AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'business_connections'
+      AND column_name = 'requestee_profile_id'
+  ) THEN
+    DELETE FROM public.business_connections a
+    USING (
+      SELECT id,
+        ROW_NUMBER() OVER (
+          PARTITION BY requester_profile_id, requestee_profile_id
+          ORDER BY
+            CASE WHEN status = 'accepted' THEN 0 ELSE 1 END,
+            COALESCE(updated_at, created_at, 'epoch'::timestamptz) DESC,
+            id DESC
+        ) AS rn
+      FROM public.business_connections
+      WHERE requester_profile_id IS NOT NULL
+        AND requestee_profile_id IS NOT NULL
+    ) ranked
+    WHERE a.id = ranked.id
+      AND ranked.rn > 1;
+
+    GET DIAGNOSTICS deleted_count = ROW_COUNT;
+    RAISE NOTICE
+      'business_connections duplicate cleanup removed % row(s) (kept accepted > newest > highest id per pair)',
+      deleted_count;
+  END IF;
+EXCEPTION WHEN others THEN
+  RAISE NOTICE 'bc duplicate cleanup skip: %', SQLERRM;
+END $$;
+
+-- Unique pair index is required for claim UPSERT — fail loud if it cannot be created
 DO $$
 BEGIN
   IF EXISTS (
@@ -145,20 +192,38 @@ BEGIN
     WHERE table_schema = 'public' AND table_name = 'business_connections'
       AND column_name = 'requestee_profile_id'
   ) THEN
-    -- Keep lowest id per (requester, requestee) pair; delete the rest
-    DELETE FROM public.business_connections a
-    USING public.business_connections b
-    WHERE a.requester_profile_id IS NOT NULL
-      AND a.requestee_profile_id IS NOT NULL
-      AND a.requester_profile_id = b.requester_profile_id
-      AND a.requestee_profile_id = b.requestee_profile_id
-      AND a.id > b.id;
-
     CREATE UNIQUE INDEX IF NOT EXISTS uq_bc_requester_requestee
       ON public.business_connections (requester_profile_id, requestee_profile_id);
   END IF;
-EXCEPTION WHEN others THEN
-  RAISE NOTICE 'uq_bc_requester_requestee skip: %', SQLERRM;
+EXCEPTION
+  WHEN unique_violation THEN
+    RAISE EXCEPTION
+      'uq_bc_requester_requestee failed: residual duplicates remain after cleanup. %',
+      SQLERRM;
+  WHEN others THEN
+    RAISE EXCEPTION 'uq_bc_requester_requestee create failed: %', SQLERRM;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'business_connections'
+  ) AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'business_connections'
+      AND column_name = 'requester_profile_id'
+  ) AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'business_connections'
+      AND column_name = 'requestee_profile_id'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM pg_indexes
+    WHERE schemaname = 'public' AND indexname = 'uq_bc_requester_requestee'
+  ) THEN
+    RAISE EXCEPTION
+      'Required unique index uq_bc_requester_requestee was not created on business_connections (claim UPSERT depends on it)';
+  END IF;
 END $$;
 
 -- ---------------------------------------------------------------------------
@@ -217,7 +282,7 @@ EXCEPTION WHEN others THEN
   RAISE NOTICE 'customer_invitations token unique skip: %', SQLERRM;
 END $$;
 
-SELECT public.sa_create_index('idx_customer_invitations_token', 'customer_invitations', 'token');
+-- Token is covered by UNIQUE constraint customer_invitations_token_key (no redundant non-unique index)
 SELECT public.sa_create_index('idx_customer_invitations_profile', 'customer_invitations', 'profile_id');
 SELECT public.sa_create_index('idx_customer_invitations_customer', 'customer_invitations', 'customer_id');
 SELECT public.sa_create_index('idx_customer_invitations_email', 'customer_invitations', 'email');
@@ -340,7 +405,7 @@ WHERE schemaname = 'public'
     'idx_customers_invite_status',
     'uq_customers_profile_linked',
     'uq_bc_requester_requestee',
-    'idx_customer_invitations_token',
+    'customer_invitations_token_key',
     'idx_customer_invitations_profile',
     'idx_customer_invitations_customer',
     'idx_customer_invitations_email',

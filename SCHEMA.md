@@ -2,23 +2,26 @@
 
 World-class multi-module Postgres schema for Supabase project `onkklullmgrdqoertngp`.
 
-**Migration file:** [`supabase/migrations/20260709_world_class_schema.sql`](supabase/migrations/20260709_world_class_schema.sql)
+**Base migration:** [`supabase/migrations/20260709_world_class_schema.sql`](supabase/migrations/20260709_world_class_schema.sql)
+
+**Additive migrations (also apply via SQL Editor when deploying those features):**
+- [`supabase/migrations/20260709_customer_platform_invites.sql`](supabase/migrations/20260709_customer_platform_invites.sql) — customer invite columns, `customer_invitations`, BC pair unique `uq_bc_requester_requestee`
 
 **Apply script:** [`scripts/apply-schema.mjs`](scripts/apply-schema.mjs)  
 `node scripts/apply-schema.mjs` verifies key tables/columns with the service role client after apply.
 
-### Apply this migration (required once)
+### Apply migrations (SQL Editor)
 
 Remote DDL cannot be run with the **service role API key** alone (it is not the database password). Apply via SQL Editor:
 
 1. Open [Supabase SQL Editor](https://supabase.com/dashboard/project/onkklullmgrdqoertngp/sql/new)
-2. Paste the full contents of `supabase/migrations/20260709_world_class_schema.sql`
-3. Click **Run**
+2. Paste the full contents of `supabase/migrations/20260709_world_class_schema.sql` → **Run**
+3. Paste and run any additive migrations needed for the environment (at minimum for customer platform invites: `supabase/migrations/20260709_customer_platform_invites.sql`)
 4. Verify: `node scripts/apply-schema.mjs` (expect green checks)
 
 Optional for CLI apply later: set `DATABASE_URL` (pooler connection string from Dashboard → Project Settings → Database) in `.env.local` — never commit it.
 
-The migration is idempotent (`IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS`).
+Migrations are idempotent (`IF NOT EXISTS` / `sa_add_column` / exception-wrapped DO blocks).
 
 ## Modules & tables
 
@@ -62,7 +65,7 @@ The migration is idempotent (`IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS`).
 | `sales_orders` | Outbound orders + line items JSON |
 | `leads` | Pipeline leads |
 
-`business_connections` pair unique: `uq_bc_requester_requestee` on `(requester_profile_id, requestee_profile_id)` — claim UPSERT conflict target (duplicate cleanup runs once before index create).
+`business_connections` pair unique: `uq_bc_requester_requestee` on `(requester_profile_id, requestee_profile_id)` — claim UPSERT conflict target. Migration runs a **destructive** one-time cleanup before index create (keeps preferred edge per pair: `status=accepted`, then newest `updated_at`/`created_at`, then highest `id`; higher-ranked losers are deleted). Index create fails the migration if the unique index cannot be created.
 
 ### Distribution / logistics
 | Table | Purpose |
