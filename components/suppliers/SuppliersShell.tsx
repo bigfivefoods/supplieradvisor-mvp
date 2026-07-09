@@ -11,7 +11,8 @@ import {
 export const SUPPLIERS_NAV: readonly NavItem[] = [
   { href: '/dashboard/suppliers', label: 'Overview', exact: true },
   { href: '/dashboard/suppliers/discover', label: 'Discover' },
-  { href: '/dashboard/suppliers/network', label: 'Network' },
+  { href: '/dashboard/suppliers/network', label: 'Book' },
+  { href: '/dashboard/connections', label: 'Connections' },
   { href: '/dashboard/suppliers/add', label: 'Add' },
   { href: '/dashboard/suppliers/invites', label: 'Invites' },
   { href: '/dashboard/suppliers/performance', label: 'OTIFEF' },

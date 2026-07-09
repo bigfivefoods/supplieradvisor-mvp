@@ -36,8 +36,10 @@ const modules = [
     icon: Users, 
     href: '/dashboard/connections',
     sub: [
-      { name: 'My Connections', href: '/dashboard/connections' },
-      { name: 'Invite Company', href: '/dashboard/invite-business' },
+      { name: 'Connections hub', href: '/dashboard/connections' },
+      { name: 'Find suppliers', href: '/dashboard/suppliers/discover' },
+      { name: 'Customer invites', href: '/dashboard/customers/invites' },
+      { name: 'Invite company', href: '/dashboard/invite-business' },
     ]
   },
 

@@ -89,6 +89,13 @@ const MODULES: ModuleCard[] = [
     badge: 'Connect',
   },
   {
+    href: '/dashboard/connections',
+    icon: Globe,
+    title: 'Network connections',
+    desc: 'Accepted edges unlock POs, docs, ratings, and RIAD',
+    badge: 'Network',
+  },
+  {
     href: '/dashboard/customers/quotes',
     icon: FileText,
     title: 'Quotes',

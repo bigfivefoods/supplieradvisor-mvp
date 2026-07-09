@@ -82,9 +82,16 @@ const MODULES: ModuleCard[] = [
   {
     href: '/dashboard/suppliers/network',
     icon: Users,
-    title: 'My supplier network',
-    desc: 'Your book — prospects, preferred, connected partners',
+    title: 'My supplier book',
+    desc: 'Prospects, preferred, and connected partners in your book',
     badge: 'Core',
+  },
+  {
+    href: '/dashboard/connections',
+    icon: Handshake,
+    title: 'Platform connections',
+    desc: 'Accept/decline edges that unlock POs, docs, ratings, RIAD',
+    badge: 'Network',
   },
   {
     href: '/dashboard/suppliers/add',

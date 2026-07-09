@@ -14,6 +14,7 @@ export const CUSTOMERS_NAV: readonly NavItem[] = [
   { href: '/dashboard/customers/profiles', label: 'Profiles' },
   { href: '/dashboard/customers/onboard', label: 'Add' },
   { href: '/dashboard/customers/invites', label: 'Invites' },
+  { href: '/dashboard/connections', label: 'Network' },
   { href: '/dashboard/customers/quotes', label: 'Quotes' },
   { href: '/dashboard/customers/orders', label: 'Orders' },
   { href: '/dashboard/customers/invoices', label: 'Invoices' },

@@ -204,7 +204,7 @@ const PLATFORM_MODULES: ModuleCard[] = [
     href: '/dashboard/connections',
     icon: Network,
     title: 'Network',
-    desc: 'Connection requests, accept / decline, partner edges',
+    desc: 'Connected suppliers & customers · pending · trade graph',
   },
 ];
 
