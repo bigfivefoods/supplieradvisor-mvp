@@ -14,6 +14,7 @@ export const CUSTOMERS_NAV = [
   { href: '/dashboard/customers/quotes', label: 'Quotes' },
   { href: '/dashboard/customers/orders', label: 'Orders' },
   { href: '/dashboard/customers/invoices', label: 'Invoices' },
+  { href: '/dashboard/customers/reviews', label: 'Peer reviews' },
   { href: '/dashboard/customers/loyalty', label: 'Loyalty' },
   { href: '/dashboard/customers/claims', label: 'Claims' },
   { href: '/dashboard/customers/contracts', label: 'Contracts' },

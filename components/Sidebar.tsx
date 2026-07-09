@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { 
   Home, Building2, Users, Truck, Factory, Package, 
-  Calculator, Brain, ChevronDown, ArrowLeftRight, ShoppingBag
+  Calculator, Brain, ChevronDown, ArrowLeftRight
 } from 'lucide-react';
 
 const modules = [
@@ -40,20 +40,6 @@ const modules = [
     ]
   },
 
-  // ==================== BUYER WORKSPACE ====================
-  {
-    id: 'buyer',
-    name: 'Buyer workspace',
-    icon: ShoppingBag,
-    href: '/dashboard/buyer',
-    sub: [
-      { name: 'Hub', href: '/dashboard/buyer' },
-      { name: 'Suppliers', href: '/dashboard/buyer/suppliers' },
-      { name: 'Purchase orders', href: '/dashboard/buyer/pos' },
-      { name: 'Documents', href: '/dashboard/buyer/documents' },
-    ]
-  },
-
   // ==================== SUPPLIERS ====================
   {  
     id: 'suppliers', 
@@ -82,15 +68,17 @@ const modules = [
       { name: 'Leads & opportunities', href: '/dashboard/customers/leads' },
       { name: 'Profiles', href: '/dashboard/customers/profiles' },
       { name: 'Add customer', href: '/dashboard/customers/onboard' },
-      { name: 'Invites', href: '/dashboard/customers/invites' },
       { name: 'Quotes', href: '/dashboard/customers/quotes' },
       { name: 'Orders', href: '/dashboard/customers/orders' },
       { name: 'Invoices', href: '/dashboard/customers/invoices' },
+      { name: 'Peer reviews', href: '/dashboard/customers/reviews' },
       { name: 'Loyalty', href: '/dashboard/customers/loyalty' },
       { name: 'Claims', href: '/dashboard/customers/claims' },
       { name: 'Contracts', href: '/dashboard/customers/contracts' },
       { name: 'Customer RIAD', href: '/dashboard/customers/riad-log' },
-      { name: 'Ops board', href: '/dashboard/customers/portal' },
+      { name: 'Portal', href: '/dashboard/customers/portal' },
+      { name: 'Buyer POs', href: '/dashboard/buyer/pos' },
+      { name: 'Buyer reviews', href: '/dashboard/buyer/reviews' },
     ]
   },
 

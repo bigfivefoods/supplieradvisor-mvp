@@ -48,6 +48,51 @@ export function isPoReviewable(status: string | null | undefined): boolean {
   return (PO_REVIEWABLE_STATUSES as readonly string[]).includes(String(status || ''));
 }
 
+/** Peer review status on po_reviews */
+export const PO_REVIEW_STATUSES = ['published', 'hidden'] as const;
+export type PoReviewStatus = (typeof PO_REVIEW_STATUSES)[number];
+
+/** Optional dimension keys for multi-axis rating (1–5 each). */
+export const PO_REVIEW_DIMENSION_KEYS = [
+  'quality',
+  'delivery',
+  'communication',
+  'value',
+] as const;
+
+export type PoReviewDimensionKey = (typeof PO_REVIEW_DIMENSION_KEYS)[number];
+
+export type PoReviewRecord = {
+  id: number;
+  purchase_order_id: number;
+  reviewer_profile_id: number;
+  reviewee_profile_id: number;
+  rating: number;
+  title?: string | null;
+  body?: string | null;
+  dimensions?: Record<string, number> | null;
+  status?: PoReviewStatus | string | null;
+  metadata?: Record<string, unknown> | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+/** Normalize optional dimensions map; invalid keys/values dropped. */
+export function normalizeReviewDimensions(
+  raw: unknown
+): Record<string, number> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    const key = String(k).toLowerCase().trim();
+    if (!key || key.length > 40) continue;
+    const n = Number(v);
+    if (!Number.isFinite(n) || n < 1 || n > 5) continue;
+    out[key] = Math.round(n);
+  }
+  return out;
+}
+
 export type PoLineItem = {
   product_id?: number | null;
   item_name: string;
