@@ -164,7 +164,28 @@ Feature flag: `CUSTOMER_INVITES_ENABLED` (default true when unset).
 | `po_items` | Line items (tax, received qty) |
 | `po_reviews` | Bilateral post-PO peer reviews (1–5 stars; UNIQUE per PO+reviewer; published\|hidden) |
 | `requisitions` | Pre-PO purchase requests |
-| `supplier_scorecards` | OTIFEF performance snapshots |
+| `supplier_scorecards` | OTIFEF performance snapshots (written by `GET /api/suppliers/otifef?persist=1`) |
+
+### Supplier SRM (buyer book)
+| Table | Purpose |
+|-------|---------|
+| `srm_suppliers` | Company-scoped supplier master (buyer `profile_id`): metadata, certs, trust/OTIFEF cache, `linked_profile_id`, `connection_id`, invite lifecycle. Migration: `20260709_srm_supplier_module.sql`. |
+| `supplier_invitations` | Platform invites for off-platform suppliers (`token`, 14-day expiry, pending\|accepted\|revoked…). Claim via existing business invite + SRM link on accept. |
+| `supplier_documents` | Shared vault (`visibility` private\|shared, version, content_hash). Share requires accepted `business_connections` with `connection_type='supplier'` (buyer=requester, supplier=requestee). |
+
+APIs: `/api/suppliers`, `/summary`, `/discover`, `/connect`, `/invites`, `/otifef`, `/ratings`, `/documents`, `/purchase-orders`, `/purchase-orders/[id]/onchain`. Feature flags: `SUPPLIER_INVITES_ENABLED` (default true), `SUPPLIER_PO_ESCROW_ENABLED` / `NEXT_PUBLIC_SUPPLIER_PO_ESCROW_ENABLED` (default **true** — client-signed POEscrowV2 create/fund/release).
+
+### SRM purchase order process
+| Step | Off-chain | On-chain (optional) |
+|------|-----------|---------------------|
+| Raise | `POST /api/suppliers/purchase-orders` (`source=srm`) | — |
+| Escrow create | status stays sent/accepted | wallet `createPO` → `POST …/onchain` kind=create |
+| Fund | status → `funded` | wallet `fundPO` + value |
+| Delivery | PATCH promised/actual qty + damaged → `completed` (OTIFEF inputs) | — |
+| Release | status completed | wallet `releaseFunds` → `POST …/onchain` kind=release |
+| Rate | `POST /api/suppliers/ratings` | — |
+
+Buyer transitions: `lib/procurement/types.ts` → `SRM_BUYER_PO_TRANSITIONS`.
 
 ### Inventory
 | Table | Purpose |

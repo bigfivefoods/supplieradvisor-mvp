@@ -6,6 +6,7 @@ import {
   userIdMatchVariants,
 } from '@/lib/auth/identity';
 import { isCustomerInvitesEnabled, logActivity } from '@/lib/customers/access';
+import { upsertSupplierConnection } from '@/lib/suppliers/access';
 
 /** Stuck claiming lease — only same-user restore after this age (matches design reaper window). */
 const CLAIMING_STALE_MS = 5 * 60 * 1000;
@@ -239,12 +240,95 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // SRM: if this token came from a buyer supplier invite, link book + on-chain-ready edge
+    let srmLinked: { buyerProfileId: number; supplierId: number; connectionId?: number } | null =
+      null;
+    try {
+      const { data: srmInv } = await supabase
+        .from('supplier_invitations')
+        .select('id, profile_id, supplier_id, status')
+        .eq('token', token)
+        .maybeSingle();
+
+      // Also match by invite that still points at this shell via supplier_invitations.token
+      // (token was rotated onto profile; look up pending invites for this email / linked shell)
+      let inviteRow = srmInv;
+      if (!inviteRow) {
+        const { data: byShell } = await supabase
+          .from('srm_suppliers')
+          .select('id, profile_id')
+          .eq('linked_profile_id', profile.id)
+          .eq('invite_status', 'invited')
+          .limit(1)
+          .maybeSingle();
+        if (byShell) {
+          inviteRow = {
+            id: 0,
+            profile_id: byShell.profile_id,
+            supplier_id: byShell.id,
+            status: 'pending',
+          };
+        }
+      }
+
+      if (inviteRow?.profile_id && inviteRow?.supplier_id) {
+        const buyerId = Number(inviteRow.profile_id);
+        const srmId = Number(inviteRow.supplier_id);
+        const conn = await upsertSupplierConnection({
+          buyerProfileId: buyerId,
+          supplierProfileId: Number(profile.id),
+          notes: 'Supplier claimed platform invite',
+          metadata: { source: 'supplier_invite_claim', token_claimed: true },
+        });
+        await supabase
+          .from('srm_suppliers')
+          .update({
+            linked_profile_id: profile.id,
+            connection_id: conn.ok ? conn.connectionId : null,
+            invite_status: 'accepted',
+            invite_accepted_at: now,
+            invite_token: null,
+            status: 'active',
+            updated_at: now,
+          })
+          .eq('id', srmId);
+        if (inviteRow.id) {
+          await supabase
+            .from('supplier_invitations')
+            .update({
+              status: 'accepted',
+              accepted_at: now,
+              target_profile_id: profile.id,
+              updated_at: now,
+            })
+            .eq('id', inviteRow.id);
+        }
+        srmLinked = {
+          buyerProfileId: buyerId,
+          supplierId: srmId,
+          connectionId: conn.ok ? conn.connectionId : undefined,
+        };
+        await logActivity({
+          profile_id: buyerId,
+          actor_user_id: userId,
+          action: 'supplier.invite_accepted',
+          entity_type: 'srm_suppliers',
+          entity_id: String(srmId),
+          summary: `Supplier claimed invite and connected: ${profile.trading_name || profile.id}`,
+          metadata: srmLinked,
+        });
+      }
+    } catch (srmErr) {
+      console.error('SRM link after business claim soft-fail:', srmErr);
+    }
+
     return NextResponse.json({
       success: true,
       kind: 'business',
       profileId: profile.id,
       role: 'owner',
       message: 'Business profile claimed successfully!',
+      srm: srmLinked,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Claim failed';
