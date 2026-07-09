@@ -103,6 +103,9 @@ export type StockTransferOrder = {
   id: number;
   profile_id?: number | null;
   transfer_number?: string | null;
+  /** Unguessable token for driver QR → /t/{token} */
+  public_token?: string | null;
+  driver_url?: string | null;
   status: TransferOrderStatus | string;
   from_warehouse_id?: number | null;
   to_warehouse_id?: number | null;
@@ -118,11 +121,32 @@ export type StockTransferOrder = {
   ship_notes?: string | null;
   receive_notes?: string | null;
   notes?: string | null;
+  driver_name?: string | null;
+  driver_phone?: string | null;
+  vehicle_reg?: string | null;
+  pickup_scanned_at?: string | null;
+  dropoff_scanned_at?: string | null;
+  last_lat?: number | null;
+  last_lng?: number | null;
+  last_location_at?: string | null;
   onchain_hash?: string | null;
   created_at?: string;
   updated_at?: string;
   lines?: StockTransferLine[];
 };
+
+export function transferDriverUrl(token?: string | null, appUrl?: string) {
+  if (!token) return null;
+  const base = (appUrl || process.env.NEXT_PUBLIC_APP_URL || 'https://www.supplieradvisor.com').replace(
+    /\/$/,
+    ''
+  );
+  return `${base}/t/${token}`;
+}
+
+export function transferQrImageUrl(driverUrl: string, size = 220) {
+  return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(driverUrl)}`;
+}
 
 export const WAREHOUSE_OWNER_TYPES: {
   value: WarehouseOwnerType;

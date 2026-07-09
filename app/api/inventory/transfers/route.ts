@@ -1,6 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { randomBytes } from 'crypto';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { hashMovement } from '@/lib/inventory/hash';
+
+function newPublicToken() {
+  return randomBytes(16).toString('hex');
+}
+
+function driverUrlFor(token: string | null | undefined, request?: NextRequest) {
+  if (!token) return null;
+  const base = (
+    process.env.NEXT_PUBLIC_APP_URL ||
+    request?.nextUrl.origin ||
+    'https://www.supplieradvisor.com'
+  ).replace(/\/$/, '');
+  return `${base}/t/${token}`;
+}
 
 type LineInput = {
   product_id: number;
@@ -120,7 +135,10 @@ export async function GET(request: NextRequest) {
         });
       }
       if (!data) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-      const transfer = await enrichOrder(supabase, data);
+      const transfer = {
+        ...(await enrichOrder(supabase, data)),
+        driver_url: driverUrlFor(data.public_token, request),
+      };
       return NextResponse.json({ success: true, transfer, transfers: [transfer] });
     }
 
@@ -160,6 +178,7 @@ export async function GET(request: NextRequest) {
     const transfers = orders.map((o) => ({
       ...o,
       lines: lineMap[o.id] || [],
+      driver_url: driverUrlFor(o.public_token, request),
     }));
 
     return NextResponse.json({ success: true, transfers });
@@ -212,6 +231,7 @@ export async function POST(request: NextRequest) {
       const pMap = Object.fromEntries((products || []).map((p) => [p.id, p]));
 
       const number = body.transfer_number || transferNumber();
+      const publicToken = body.public_token || newPublicToken();
       const onchainHash = hashMovement({
         profileId: companyId,
         productId: productIds[0] || 0,
@@ -221,11 +241,12 @@ export async function POST(request: NextRequest) {
         reference: number,
       });
 
-      const { data: order, error } = await supabase
+      let { data: order, error } = await supabase
         .from('stock_transfer_orders')
         .insert({
           profile_id: companyId,
           transfer_number: number,
+          public_token: publicToken,
           status: 'draft',
           from_warehouse_id: fromId,
           to_warehouse_id: toId,
@@ -235,6 +256,9 @@ export async function POST(request: NextRequest) {
           expected_receive_date: body.expected_receive_date || null,
           carrier: body.carrier || null,
           tracking_ref: body.tracking_ref || null,
+          driver_name: body.driver_name || body.driverName || null,
+          driver_phone: body.driver_phone || body.driverPhone || null,
+          vehicle_reg: body.vehicle_reg || body.vehicleReg || null,
           notes: body.notes || null,
           created_by: body.created_by || null,
           onchain_hash: onchainHash,
@@ -243,15 +267,51 @@ export async function POST(request: NextRequest) {
         .select('*')
         .single();
 
+      // Soft-retry without driver columns if migration not run yet
+      if (error && /column|schema cache|does not exist/i.test(error.message)) {
+        const retry = await supabase
+          .from('stock_transfer_orders')
+          .insert({
+            profile_id: companyId,
+            transfer_number: number,
+            status: 'draft',
+            from_warehouse_id: fromId,
+            to_warehouse_id: toId,
+            from_warehouse_name: names[fromId] || null,
+            to_warehouse_name: names[toId] || null,
+            expected_ship_date: body.expected_ship_date || null,
+            expected_receive_date: body.expected_receive_date || null,
+            carrier: body.carrier || null,
+            tracking_ref: body.tracking_ref || null,
+            notes: body.notes || null,
+            created_by: body.created_by || null,
+            onchain_hash: onchainHash,
+            updated_at: now,
+          })
+          .select('*')
+          .single();
+        order = retry.data;
+        error = retry.error;
+      }
+
       if (error) {
         return NextResponse.json(
           {
             error: error.message,
-            hint: 'Run 20260709_warehouses_and_transfer_orders.sql',
+            hint: 'Run 20260709_warehouses_and_transfer_orders.sql and 20260709_transfer_driver_tracking.sql',
           },
           { status: 500 }
         );
       }
+
+      // Log created event (ignore if events table missing)
+      await supabase.from('stock_transfer_events').insert({
+        transfer_id: order.id,
+        profile_id: companyId,
+        event_type: 'created',
+        notes: `Draft ${number}`,
+        payload: { transfer_number: number },
+      });
 
       const lineRows = lines.map((l) => {
         const pid = Number(l.product_id);
@@ -281,9 +341,15 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: lineErr.message }, { status: 500 });
       }
 
+      const token = order.public_token || publicToken;
       return NextResponse.json({
         success: true,
-        transfer: { ...order, lines: insertedLines || [] },
+        transfer: {
+          ...order,
+          public_token: token,
+          lines: insertedLines || [],
+          driver_url: driverUrlFor(token, request),
+        },
       });
     }
 

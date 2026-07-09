@@ -67,7 +67,7 @@ const PROCESS_STEPS = [
     href: '/dashboard/inventory/stock-transfers',
     icon: ArrowLeftRight,
     title: 'Transfers',
-    desc: 'Ship & receive between locations, or sync warehouse ↔ container',
+    desc: 'Driver QR pickup → GPS en route → deliver; or warehouse ↔ container',
   },
   {
     n: 6,

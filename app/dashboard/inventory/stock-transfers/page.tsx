@@ -13,12 +13,18 @@ import {
   ChevronRight,
   ClipboardList,
   Container,
+  QrCode,
+  Copy,
+  Smartphone,
+  MapPin,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import type { ContainerRecord } from '@/lib/containers/types';
 import {
   ownerTypeLabel,
+  transferDriverUrl,
+  transferQrImageUrl,
   transferStatusClass,
   type ProductRecord,
   type StockTransferOrder,
@@ -299,7 +305,7 @@ function TransfersInner() {
     <div className="px-2 md:px-4 max-w-screen-2xl mx-auto pb-12">
       <InventoryHeader
         title="Transfers"
-        description="One place for all stock movement between locations and containers. Location transfers use draft → ship → receive; container sync moves stock to/from outlets."
+        description="Location transfers: draft → driver QR pickup → GPS in transit → deliver/receive. Container tab for warehouse ↔ outlet sync."
         action={
           mainTab === 'locations' ? (
             <div className="flex flex-wrap gap-2">
@@ -729,6 +735,9 @@ function TransfersInner() {
 
                   {open && (
                     <div className="px-5 pb-5 bg-neutral-50/80 border-t space-y-4">
+                      {/* Driver QR / cellphone handoff */}
+                      <DriverHandoffPanel transfer={t} />
+
                       {/* Lines table */}
                       <div className="overflow-x-auto rounded-2xl border bg-white mt-3">
                         <table className="w-full text-xs">
@@ -928,6 +937,111 @@ function TransfersInner() {
       </div>
         </>
       )}
+    </div>
+  );
+}
+
+function DriverHandoffPanel({ transfer }: { transfer: StockTransferOrder }) {
+  const url =
+    transfer.driver_url ||
+    transferDriverUrl(transfer.public_token) ||
+    (transfer.public_token
+      ? `${typeof window !== 'undefined' ? window.location.origin : ''}/t/${transfer.public_token}`
+      : null);
+
+  const copy = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success('Copied');
+    } catch {
+      toast.error('Could not copy');
+    }
+  };
+
+  if (!url && !transfer.public_token) {
+    return (
+      <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
+        Driver QR not available yet. Run migration{' '}
+        <code className="font-mono">20260709_transfer_driver_tracking.sql</code> then create a new
+        transfer.
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 rounded-2xl border border-sky-100 bg-sky-50/60 p-4">
+      <div className="flex flex-col sm:flex-row gap-4 items-start">
+        {url && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={transferQrImageUrl(url, 160)}
+            alt="Driver transfer QR"
+            className="w-36 h-36 rounded-2xl bg-white border shadow-sm"
+          />
+        )}
+        <div className="flex-1 min-w-0 space-y-2">
+          <div className="font-semibold text-sky-950 flex items-center gap-2">
+            <Smartphone className="w-4 h-4 text-[#00b4d8]" /> Driver cellphone handoff
+          </div>
+          <p className="text-xs text-sky-900/80 leading-relaxed">
+            Print or WhatsApp this QR / link. Driver scans on phone → confirms{' '}
+            <strong>pickup</strong> (stock leaves source) → GPS tracks en route → confirms{' '}
+            <strong>delivery</strong> (stock received at destination).
+          </p>
+          {url && (
+            <div className="flex flex-wrap gap-2 items-center">
+              <code className="text-[11px] font-mono bg-white border rounded-lg px-2 py-1.5 break-all max-w-full">
+                {url}
+              </code>
+              <button
+                type="button"
+                onClick={() => void copy(url)}
+                className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
+              >
+                <Copy className="w-3.5 h-3.5" /> Copy link
+              </button>
+              <a
+                href={url}
+                target="_blank"
+                rel="noreferrer"
+                className="btn-primary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
+              >
+                <QrCode className="w-3.5 h-3.5" /> Open
+              </a>
+            </div>
+          )}
+          <div className="flex flex-wrap gap-3 text-[11px] text-sky-900/70">
+            {transfer.driver_name && (
+              <span>
+                Driver: <strong>{transfer.driver_name}</strong>
+                {transfer.driver_phone ? ` · ${transfer.driver_phone}` : ''}
+              </span>
+            )}
+            {transfer.pickup_scanned_at && (
+              <span className="inline-flex items-center gap-1">
+                <Truck className="w-3 h-3" /> Pickup{' '}
+                {String(transfer.pickup_scanned_at).slice(0, 19)}
+              </span>
+            )}
+            {transfer.dropoff_scanned_at && (
+              <span className="inline-flex items-center gap-1">
+                <PackageCheck className="w-3 h-3" /> Dropoff{' '}
+                {String(transfer.dropoff_scanned_at).slice(0, 19)}
+              </span>
+            )}
+            {transfer.last_lat != null && transfer.last_lng != null && (
+              <a
+                href={`https://www.google.com/maps?q=${transfer.last_lat},${transfer.last_lng}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 font-semibold text-[#0077b6]"
+              >
+                <MapPin className="w-3 h-3" /> Live map
+              </a>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
