@@ -70,3 +70,7 @@ export function buildBusinessInviteLink(token: string) {
 export function buildTeamInviteLink(token: string) {
   return `${getAppUrl()}/onboarding/team?invite=${encodeURIComponent(token)}`;
 }
+
+export function buildContractorInviteLink(token: string) {
+  return `${getAppUrl()}/contractor/invite?token=${encodeURIComponent(token)}`;
+}

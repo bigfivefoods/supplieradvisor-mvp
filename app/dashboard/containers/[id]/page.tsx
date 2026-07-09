@@ -8,6 +8,7 @@ import {
   ArrowLeft, MapPin, Package, User, Boxes, ShoppingCart, Loader2,
 } from 'lucide-react';
 import type { ContainerRecord } from '@/lib/containers/types';
+import InviteContractorButton from '@/components/containers/InviteContractorButton';
 
 const LocationMap = dynamic(() => import('@/components/LocationMap'), { ssr: false });
 
@@ -80,6 +81,14 @@ export default function ContainerDetailPage() {
             <User className="w-4 h-4" />
             Contractor: {container.assigned_contractor || 'Unassigned'}
           </p>
+          <div className="mt-3">
+            <InviteContractorButton
+              containerId={container.id}
+              containerName={container.name}
+              defaultName={container.assigned_contractor || ''}
+              contractorId={container.contractor_id}
+            />
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link href={`/dashboard/containers/${id}/inventory`} className="btn-primary !py-3 !px-5 text-sm">

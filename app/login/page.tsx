@@ -6,24 +6,57 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { usePrivy } from '@privy-io/react-auth';
 import { ArrowRight, Loader2, ShieldCheck, Smartphone, Sparkles } from 'lucide-react';
+import { extractEmailFromPrivyUser, getCanonicalUserId } from '@/lib/auth/identity';
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const claimed = searchParams.get('claimed');
-  const next = searchParams.get('next') || '/dashboard/select-company';
-  const { login, ready, authenticated } = usePrivy();
+  const next = searchParams.get('next') || '';
+  const { login, ready, authenticated, user } = usePrivy();
   const [navigating, setNavigating] = useState(false);
 
   useEffect(() => {
-    if (!ready || !authenticated) return;
+    if (!ready || !authenticated || !user) return;
     setNavigating(true);
-    // Delay slightly so mobile session storage is fully written before navigation
-    const t = setTimeout(() => {
-      router.replace(next);
-    }, 250);
+
+    const t = setTimeout(async () => {
+      // Prefer explicit next for invite flows
+      if (next.startsWith('/contractor/invite') || next.startsWith('/onboarding')) {
+        router.replace(next);
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/contractor/session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            privyUserId: getCanonicalUserId(user.id),
+            email: extractEmailFromPrivyUser(user),
+          }),
+        });
+        const data = await res.json();
+
+        // Pure operators → contractor portal only
+        if (data.isContractor && !data.isBusinessUser) {
+          router.replace('/contractor');
+          return;
+        }
+        // Explicit contractor next
+        if (next.startsWith('/contractor')) {
+          router.replace(next);
+          return;
+        }
+        // Business users (or dual role) → company select / requested next
+        router.replace(next || '/dashboard/select-company');
+      } catch {
+        router.replace(next || '/dashboard/select-company');
+      }
+    }, 300);
+
     return () => clearTimeout(t);
-  }, [ready, authenticated, router, next]);
+  }, [ready, authenticated, user, router, next]);
 
   const handleLogin = () => {
     if (!ready) return;
@@ -39,7 +72,7 @@ function LoginForm() {
       <div className="w-full max-w-md text-center">
         <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8] mx-auto mb-4" />
         <p className="text-neutral-600 font-medium">You&apos;re signed in</p>
-        <p className="text-sm text-neutral-500 mt-2">Taking you to select a company…</p>
+        <p className="text-sm text-neutral-500 mt-2">Opening your workspace…</p>
       </div>
     );
   }
@@ -64,7 +97,7 @@ function LoginForm() {
           Welcome back
         </h1>
         <p className="text-neutral-600 text-sm sm:text-base px-2">
-          Sign in to choose a company linked to your profile
+          Business workspace or contractor operator portal
         </p>
       </div>
 
@@ -82,11 +115,11 @@ function LoginForm() {
           </li>
           <li className="flex gap-3 items-start">
             <Smartphone className="w-4 h-4 text-[#00b4d8] mt-0.5 flex-shrink-0" />
-            Google &amp; Apple (use the same account as your other devices)
+            Operators land on their container portal only
           </li>
           <li className="flex gap-3 items-start">
             <ShieldCheck className="w-4 h-4 text-[#00b4d8] mt-0.5 flex-shrink-0" />
-            Then pick your company from your profile
+            Business users select a company workspace
           </li>
         </ul>
 
@@ -106,8 +139,7 @@ function LoginForm() {
         </button>
 
         <p className="text-center text-xs sm:text-sm text-neutral-500 leading-relaxed">
-          Tip on phone: prefer <strong>email code</strong> if Google/Apple popups are blocked. Use the{' '}
-          <strong>same email</strong> as on your laptop/iPad.
+          Contractors: use the email from your invitation. Business teams: use your company login.
         </p>
 
         <p className="text-center text-sm text-neutral-500">

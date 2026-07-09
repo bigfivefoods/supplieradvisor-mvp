@@ -38,6 +38,13 @@ export type ContractorRecord = {
   status?: string | null;
   training_status?: string | null;
   bank_details?: Record<string, unknown> | null;
+  /** Portal identity (set after invite + contract accept) */
+  user_id?: string | null;
+  portal_status?: 'draft' | 'invited' | 'active' | 'suspended' | string | null;
+  contract_accepted_at?: string | null;
+  contract_version?: string | null;
+  invited_at?: string | null;
+  invite_token?: string | null;
   created_at?: string;
   updated_at?: string;
 };

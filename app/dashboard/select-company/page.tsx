@@ -95,6 +95,34 @@ export default function SelectCompanyPage() {
     }
   }, [ready, authenticated, router]);
 
+  // Pure contractors never pick a company — operator portal only
+  useEffect(() => {
+    if (!ready || !authenticated || !privyUser) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/contractor/session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            privyUserId: getCanonicalUserId(privyUser.id),
+            email: extractEmailFromPrivyUser(privyUser),
+          }),
+        });
+        const data = await res.json();
+        if (cancelled) return;
+        if (data.isContractor && !data.isBusinessUser) {
+          router.replace('/contractor');
+        }
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [ready, authenticated, privyUser, router]);
+
   const handleSelectCompany = (companyId: string, tradingName?: string) => {
     try {
       localStorage.setItem('selectedCompanyId', companyId);

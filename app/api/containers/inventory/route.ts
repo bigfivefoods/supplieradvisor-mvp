@@ -1,17 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
+import { assertContractorContainerAccess } from '@/lib/contractor/access';
 
-/** GET ?companyId=&containerId= */
+/** GET ?companyId=&containerId=&privyUserId=&email= */
 export async function GET(request: NextRequest) {
   try {
     const companyId = Number(request.nextUrl.searchParams.get('companyId'));
     const containerId = request.nextUrl.searchParams.get('containerId');
-    if (!Number.isFinite(companyId)) {
-      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+    const privyUserId = request.nextUrl.searchParams.get('privyUserId');
+    const email = request.nextUrl.searchParams.get('email');
+
+    if (!Number.isFinite(companyId) && !privyUserId) {
+      return NextResponse.json({ error: 'companyId or privyUserId required' }, { status: 400 });
     }
 
     const supabase = getSupabaseServer();
-    let q = supabase.from('container_inventory').select('*').eq('profile_id', companyId);
+    let profileId = companyId;
+
+    if (containerId && privyUserId) {
+      const access = await assertContractorContainerAccess(
+        Number(containerId),
+        privyUserId,
+        email
+      );
+      if (!access.ok) {
+        return NextResponse.json({ error: access.error }, { status: access.status });
+      }
+      if (access.container.profile_id) profileId = access.container.profile_id;
+    }
+
+    if (!Number.isFinite(profileId)) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+    }
+
+    let q = supabase.from('container_inventory').select('*').eq('profile_id', profileId);
     if (containerId) q = q.eq('container_id', Number(containerId));
     const { data, error } = await q.order('product_name');
 
@@ -36,18 +58,35 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const companyId = Number(body.companyId);
+    let companyId = Number(body.companyId);
     const containerId = Number(body.containerId);
     const action = body.action || 'upsert'; // upsert | receive | adjust
 
-    if (!Number.isFinite(companyId) || !Number.isFinite(containerId) || !body.product_name) {
+    if (!Number.isFinite(containerId) || !body.product_name) {
       return NextResponse.json(
-        { error: 'companyId, containerId, and product_name are required' },
+        { error: 'containerId and product_name are required' },
         { status: 400 }
       );
     }
 
     const supabase = getSupabaseServer();
+
+    if (body.privyUserId) {
+      const access = await assertContractorContainerAccess(
+        containerId,
+        body.privyUserId,
+        body.email
+      );
+      if (!access.ok) {
+        return NextResponse.json({ error: access.error }, { status: access.status });
+      }
+      if (access.container.profile_id) companyId = access.container.profile_id;
+    }
+
+    if (!Number.isFinite(companyId)) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+    }
+
     const qty = Number(body.quantity ?? body.qty_on_hand ?? 0);
 
     if (action === 'receive' || action === 'adjust') {
