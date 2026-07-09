@@ -596,7 +596,7 @@ async function claimCustomerInvite(opts: {
         userId,
         inviteEmail
       );
-      if (membershipMatch.error) {
+      if (membershipMatch.ok === false) {
         await restoreInvitationPending(supabase, invitationId);
         return NextResponse.json(
           { error: membershipMatch.error },
@@ -614,7 +614,7 @@ async function claimCustomerInvite(opts: {
           );
         }
       } else {
-        // Create-on-claim
+        // Create-on-claim (no matching membership profile for invite email)
         if (membershipMatch.logCreateWarning) {
           console.warn(
             'Customer claim: no matching membership for invite email; creating new buyer profile',
@@ -978,13 +978,12 @@ async function resolveBuyerProfileFromMembership(
   inviteEmail: string
 ): Promise<
   | {
+      ok: true;
       profileId: number | null;
       warning?: string;
       logCreateWarning?: boolean;
-      error?: undefined;
-      status?: undefined;
     }
-  | { profileId?: undefined; error: string; status: number }
+  | { ok: false; error: string; status: number }
 > {
   const variants = userIdMatchVariants(userId);
   const { data: memberships, error: memErr } = await supabase
@@ -996,11 +995,11 @@ async function resolveBuyerProfileFromMembership(
 
   if (memErr) {
     console.error('resolveBuyerProfileFromMembership membership query:', memErr);
-    return { error: 'Failed to resolve company membership.', status: 500 };
+    return { ok: false, error: 'Failed to resolve company membership.', status: 500 };
   }
 
   if (!memberships || memberships.length === 0) {
-    return { profileId: null, logCreateWarning: true };
+    return { ok: true, profileId: null, logCreateWarning: true };
   }
 
   const profileIds = Array.from(
@@ -1011,7 +1010,7 @@ async function resolveBuyerProfileFromMembership(
     )
   );
   if (profileIds.length === 0) {
-    return { profileId: null, logCreateWarning: true };
+    return { ok: true, profileId: null, logCreateWarning: true };
   }
 
   const { data: profiles, error: profErr } = await supabase
@@ -1021,7 +1020,7 @@ async function resolveBuyerProfileFromMembership(
 
   if (profErr) {
     console.error('resolveBuyerProfileFromMembership profiles query:', profErr);
-    return { error: 'Failed to resolve company profiles.', status: 500 };
+    return { ok: false, error: 'Failed to resolve company profiles.', status: 500 };
   }
 
   const matching = (profiles || [])
@@ -1036,14 +1035,15 @@ async function resolveBuyerProfileFromMembership(
     .sort((a, b) => a - b);
 
   if (matching.length === 0) {
-    return { profileId: null, logCreateWarning: true };
+    return { ok: true, profileId: null, logCreateWarning: true };
   }
   if (matching.length === 1) {
-    return { profileId: matching[0] };
+    return { ok: true, profileId: matching[0] };
   }
 
   // Multiple member profiles share invite email — deterministic pick (lowest id)
   return {
+    ok: true,
     profileId: matching[0],
     warning: `Multiple active member profiles match invite email; using profile ${matching[0]} of [${matching.join(', ')}]`,
   };
