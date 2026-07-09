@@ -25,7 +25,7 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
 
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
     const fields = [
-      'container_code', 'name', 'type', 'status', 'container_type', 'country', 'province', 'city',
+      'container_code', 'name', 'type', 'status', 'container_type', 'continent', 'country', 'province', 'city',
       'address', 'deployed_date', 'purchase_date', 'photo_url', 'notes', 'assigned_contractor',
       'wifi_portal_url', 'is_active',
     ] as const;

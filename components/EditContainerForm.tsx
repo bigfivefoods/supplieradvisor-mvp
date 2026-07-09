@@ -1,11 +1,13 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { X, MapPin, Loader2 } from 'lucide-react';
+import { X, MapPin, Loader2, Upload } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import type { ContractorRecord } from '@/lib/containers/types';
+import GeoSelectFields, { type GeoValue } from '@/components/geo/GeoSelectFields';
+import { uploadContainerPhoto } from '@/lib/containers/uploadPhoto';
 
 const LocationMap = dynamic(() => import('@/components/LocationMap'), { ssr: false });
 
@@ -15,6 +17,7 @@ export interface Container {
   name: string;
   type: string | null;
   status: string | null;
+  continent?: string | null;
   country: string | null;
   province: string | null;
   city: string | null;
@@ -41,14 +44,22 @@ export default function EditContainerForm({ container, onClose, onSuccess }: Edi
   const companyId = getSelectedCompanyId();
   const [contractors, setContractors] = useState<ContractorRecord[]>([]);
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(container.photo_url);
+
+  const [geo, setGeo] = useState<GeoValue>({
+    continent: container.continent || '',
+    country: container.country || '',
+    province: container.province || '',
+    city: container.city || '',
+  });
+
   const [form, setForm] = useState({
     container_code: container.container_code || '',
     name: container.name || '',
     type: container.type || 'Retail',
     status: container.status || 'active',
-    country: container.country || 'South Africa',
-    province: container.province || '',
-    city: container.city || '',
     address: container.address || '',
     latitude: container.latitude?.toString() || '',
     longitude: container.longitude?.toString() || '',
@@ -72,22 +83,51 @@ export default function EditContainerForm({ container, onClose, onSuccess }: Edi
 
   const set = (field: string, value: string) => setForm((p) => ({ ...p, [field]: value }));
 
+  const onPhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please choose an image file');
+      return;
+    }
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const contractor = contractors.find((c) => String(c.id) === form.contractor_id);
     try {
+      let photo_url = form.photo_url || null;
+      if (photoFile && companyId) {
+        setUploading(true);
+        const uploaded = await uploadContainerPhoto(photoFile, companyId, form.container_code);
+        setUploading(false);
+        if (!uploaded.url) {
+          toast.error(uploaded.error || 'Photo upload failed');
+          setLoading(false);
+          return;
+        }
+        photo_url = uploaded.url;
+      }
+
+      const contractor = contractors.find((c) => String(c.id) === form.contractor_id);
       const res = await fetch(`/api/containers/${container.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
+          continent: geo.continent || null,
+          country: geo.country || null,
+          province: geo.province || null,
+          city: geo.city || null,
           contractor_id: form.contractor_id || null,
           assigned_contractor: contractor?.full_name || form.assigned_contractor || null,
           tags: form.tags,
           cost: form.cost || null,
           latitude: form.latitude || null,
           longitude: form.longitude || null,
+          photo_url,
           profile_id: companyId,
         }),
       });
@@ -100,6 +140,7 @@ export default function EditContainerForm({ container, onClose, onSuccess }: Edi
       toast.error(err instanceof Error ? err.message : 'Update failed');
     } finally {
       setLoading(false);
+      setUploading(false);
     }
   };
 
@@ -146,23 +187,15 @@ export default function EditContainerForm({ container, onClose, onSuccess }: Edi
                 ))}
               </select>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-sm font-medium">City</label>
-                <input className="input mt-1 w-full !p-3 !text-base" value={form.city} onChange={(e) => set('city', e.target.value)} />
-              </div>
-              <div>
-                <label className="text-sm font-medium">Province</label>
-                <input className="input mt-1 w-full !p-3 !text-base" value={form.province} onChange={(e) => set('province', e.target.value)} />
-              </div>
+
+            <div>
+              <h3 className="text-sm font-semibold mb-2">Location (Supabase)</h3>
+              <GeoSelectFields value={geo} onChange={setGeo} />
             </div>
+
             <div>
               <label className="text-sm font-medium">Address</label>
               <input className="input mt-1 w-full !p-3 !text-base" value={form.address} onChange={(e) => set('address', e.target.value)} />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Tags (comma separated)</label>
-              <input className="input mt-1 w-full !p-3 !text-base" value={form.tags} onChange={(e) => set('tags', e.target.value)} placeholder="spaza, rural, pilot" />
             </div>
             <div>
               <label className="text-sm font-medium">Notes</label>
@@ -171,10 +204,34 @@ export default function EditContainerForm({ container, onClose, onSuccess }: Edi
           </div>
 
           <div className="space-y-4">
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              <MapPin className="w-4 h-4 text-[#00b4d8]" /> Location
+            <div>
+              <label className="text-sm font-semibold flex items-center gap-2 mb-2">
+                <Upload className="w-4 h-4 text-[#00b4d8]" /> Container photo
+              </label>
+              <div className="border-2 border-dashed border-neutral-200 rounded-3xl p-4">
+                {photoPreview ? (
+                  <div className="relative w-full h-44 rounded-2xl overflow-hidden bg-neutral-100">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={photoPreview} alt="Container" className="w-full h-full object-cover" />
+                    <label className="absolute bottom-2 right-2 bg-white px-3 py-1.5 rounded-full text-xs font-medium shadow cursor-pointer">
+                      Change
+                      <input type="file" accept="image/*" className="hidden" onChange={onPhotoChange} />
+                    </label>
+                  </div>
+                ) : (
+                  <label className="cursor-pointer block py-8 text-center">
+                    <Upload className="w-8 h-8 text-neutral-400 mx-auto mb-2" />
+                    <span className="text-sm text-neutral-600">Upload container image</span>
+                    <input type="file" accept="image/*" className="hidden" onChange={onPhotoChange} />
+                  </label>
+                )}
+              </div>
             </div>
-            <div className="h-72 rounded-3xl overflow-hidden border">
+
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <MapPin className="w-4 h-4 text-[#00b4d8]" /> GPS
+            </div>
+            <div className="h-56 rounded-3xl overflow-hidden border">
               <LocationMap
                 onMapClick={(lat, lng) => {
                   setForm((p) => ({
@@ -203,8 +260,12 @@ export default function EditContainerForm({ container, onClose, onSuccess }: Edi
             </div>
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={onClose} className="btn-secondary flex-1 !py-3">Cancel</button>
-              <button type="submit" disabled={loading} className="btn-primary flex-1 !py-3">
-                {loading ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Save changes'}
+              <button type="submit" disabled={loading || uploading} className="btn-primary flex-1 !py-3">
+                {loading || uploading ? (
+                  <Loader2 className="w-4 h-4 animate-spin mx-auto" />
+                ) : (
+                  'Save changes'
+                )}
               </button>
             </div>
           </div>

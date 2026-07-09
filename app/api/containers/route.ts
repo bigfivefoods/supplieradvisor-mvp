@@ -59,6 +59,7 @@ export async function POST(request: NextRequest) {
       type: body.type || 'Retail',
       status: body.status || 'active',
       container_type: body.container_type || '40ft',
+      continent: body.continent || null,
       country: body.country || 'South Africa',
       province: body.province || null,
       city: body.city || null,
@@ -100,6 +101,7 @@ export async function POST(request: NextRequest) {
         notes: payload.notes,
         photo_url: payload.photo_url,
         assigned_contractor: payload.assigned_contractor,
+        contractor_id: payload.contractor_id,
       };
       const retry = await supabase.from('containers').insert(minimal).select('*').single();
       if (retry.error) {
