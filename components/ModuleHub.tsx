@@ -6,46 +6,65 @@ import { ReactNode } from 'react';
 
 interface ModuleHubProps {
   title: string;
+  titleAccent?: string;
   description?: string;
   backHref?: string;
+  backLabel?: string;
+  action?: ReactNode;
   children: ReactNode;
 }
 
-export default function ModuleHub({ 
-  title, 
-  description, 
-  backHref = '/dashboard', 
-  children 
+/**
+ * Canonical light hub shell for module overview pages.
+ * Matches RelationshipChrome / Operations / Distribution language.
+ */
+export default function ModuleHub({
+  title,
+  titleAccent,
+  description,
+  backHref = '/dashboard',
+  backLabel = 'Dashboard',
+  action,
+  children,
 }: ModuleHubProps) {
   return (
-    <div className="px-4 md:px-8 lg:pr-12 py-8 lg:py-12 max-w-screen-2xl mx-auto">
-      {/* Back Navigation */}
-      {backHref && (
-        <Link 
-          href={backHref} 
-          className="inline-flex items-center gap-2 text-sm text-neutral-500 hover:text-neutral-700 mb-6 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back to Dashboard
-        </Link>
-      )}
-
-      {/* Header */}
-      <div className="mb-10">
-        <h1 className="font-black text-4xl md:text-5xl lg:text-6xl tracking-[-2.5px] text-[#00b4d8] mb-3">
-          {title}
-        </h1>
-        
-        {description && (
-          <p className="text-lg md:text-xl text-neutral-600 max-w-3xl">
-            {description}
-          </p>
+    <div className="sa-page">
+      <div className="px-1 sm:px-2 max-w-screen-2xl mx-auto">
+        {backHref && (
+          <Link
+            href={backHref}
+            className="group inline-flex items-center gap-2 text-sm text-neutral-500 mb-4 hover:text-[#0077b6] transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4 text-[#00b4d8] transition-transform group-hover:-translate-x-0.5" />
+            {backLabel}
+          </Link>
         )}
-      </div>
 
-      {/* Content */}
-      <div className="space-y-8">
-        {children}
+        <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 mb-8 sm:mb-10">
+          <div className="max-w-3xl">
+            <p className="text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-1">
+              Module
+            </p>
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-[-2px] leading-[1.1]">
+              {titleAccent ? (
+                <>
+                  <span className="text-slate-800">{title}</span>{' '}
+                  <span className="text-[#00b4d8]">{titleAccent}</span>
+                </>
+              ) : (
+                <span className="text-[#00b4d8]">{title}</span>
+              )}
+            </h1>
+            {description && (
+              <p className="text-neutral-600 mt-3 text-sm sm:text-base max-w-2xl leading-relaxed">
+                {description}
+              </p>
+            )}
+          </div>
+          {action && <div className="flex flex-wrap gap-2 shrink-0">{action}</div>}
+        </div>
+
+        <div className="space-y-8">{children}</div>
       </div>
     </div>
   );

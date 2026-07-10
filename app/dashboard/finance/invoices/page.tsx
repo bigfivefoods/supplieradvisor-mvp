@@ -1,13 +1,5 @@
-'use client';
-
-import ComingSoon from '@/components/ComingSoon';
+import { redirect } from 'next/navigation';
 
 export default function Page() {
-  return (
-    <ComingSoon
-      title="Invoices & Payments"
-      description="Invoice creation, approvals, and payment tracking module.."
-      backHref="/dashboard/finance"
-    />
-  );
+  redirect('/dashboard/accounting/accounts-receivable');
 }

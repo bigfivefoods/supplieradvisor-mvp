@@ -1,13 +1,5 @@
-'use client';
-
-import ComingSoon from '@/components/ComingSoon';
+import { redirect } from 'next/navigation';
 
 export default function Page() {
-  return (
-    <ComingSoon
-      title="Analytics"
-      description="Procurement Analytics Module with ratings, RIAD, and on-chain records."
-      backHref="/dashboard/procurement"
-    />
-  );
+  redirect('/dashboard/suppliers/performance');
 }

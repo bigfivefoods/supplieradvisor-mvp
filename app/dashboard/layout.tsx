@@ -108,7 +108,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             className={
               hideChrome
                 ? 'flex-1 relative z-10 pointer-events-auto'
-                : 'flex-1 relative z-10 pointer-events-auto pl-0 pr-4 md:pr-8 py-6 md:py-10 max-w-screen-2xl w-full mx-auto'
+                : 'flex-1 relative z-10 pointer-events-auto px-3 sm:px-4 md:px-6 lg:px-8 py-5 md:py-8 max-w-screen-2xl w-full mx-auto'
             }
           >
             <ModuleAccessGate>{children}</ModuleAccessGate>

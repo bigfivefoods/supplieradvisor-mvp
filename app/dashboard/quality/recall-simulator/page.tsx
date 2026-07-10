@@ -6,8 +6,10 @@ export default function Page() {
   return (
     <ComingSoon
       title="Recall Simulator"
-      description="Recall Simulator with ratings, RIAD, and on-chain records."
+      description="Quality capability on the roadmap — use live inventory lots and operations exceptions for trust and holds today."
       backHref="/dashboard/quality"
+      primaryHref="/dashboard/operations/exceptions"
+      primaryLabel="Open ops exceptions"
     />
   );
 }

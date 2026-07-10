@@ -84,14 +84,8 @@ export function RelationshipPage({
   // No absolute overlay layers — they have blocked clicks in production.
   // Soft wash is a background on this element only (never a covering child).
   return (
-    <div
-      className={`relative z-10 pb-16 pointer-events-auto ${className}`}
-      style={{
-        backgroundImage:
-          'radial-gradient(circle at 15% 0%, rgba(0,180,216,0.06), transparent 42%), radial-gradient(circle at 90% 10%, rgba(0,119,182,0.03), transparent 38%)',
-      }}
-    >
-      <div className="px-3 sm:px-4 md:px-6 max-w-screen-2xl mx-auto pt-2 relative z-10 pointer-events-auto">
+    <div className={`sa-page ${className}`}>
+      <div className="px-0 sm:px-1 max-w-screen-2xl mx-auto pt-1 relative z-10 pointer-events-auto">
         {children}
       </div>
     </div>

@@ -5,9 +5,11 @@ import ComingSoon from '@/components/ComingSoon';
 export default function Page() {
   return (
     <ComingSoon
-      title="Water & Waste"
-      description="Water & Waste Module with ratings, RIAD, and on-chain records."
+      title="Water Waste"
+      description="Sustainability metrics are on the roadmap. Trade and leadership already advance ethical sourcing outcomes."
       backHref="/dashboard/sustainability"
+      primaryHref="/dashboard/suppliers"
+      primaryLabel="Open suppliers (ethical trade)"
     />
   );
 }

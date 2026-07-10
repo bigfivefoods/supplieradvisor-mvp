@@ -6,8 +6,10 @@ export default function Page() {
   return (
     <ComingSoon
       title="Kanban Boards"
-      description="Kanban Boards with ratings, RIAD, and on-chain records."
+      description="Project delivery tooling is expanding. Use My Business projects and Operations for live work today."
       backHref="/dashboard/projects"
+      primaryHref="/dashboard/my-business/projects"
+      primaryLabel="Open business projects"
     />
   );
 }

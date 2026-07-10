@@ -1,12 +1,5 @@
-'use client';
-
-import ComingSoon from '@/components/ComingSoon';
+import { redirect } from 'next/navigation';
 
 export default function Page() {
-  return (
-    <ComingSoon
-      title="Budgets"
-      backHref="/dashboard/finance"
-    />
-  );
+  redirect('/dashboard/accounting/management');
 }

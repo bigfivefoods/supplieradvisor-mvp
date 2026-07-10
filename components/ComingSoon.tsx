@@ -1,82 +1,104 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, Construction, Sparkles } from 'lucide-react';
-import Breadcrumb from '@/components/ui/Breadcrumb';
+import {
+  ArrowLeft,
+  ArrowRight,
+  Construction,
+  type LucideIcon,
+  Sparkles,
+} from 'lucide-react';
 
 interface ComingSoonProps {
   title: string;
   description?: string;
   backHref?: string;
   features?: string[];
+  /** Preferred live path when this feature lives elsewhere */
+  primaryHref?: string;
+  primaryLabel?: string;
+  icon?: LucideIcon;
 }
 
+/**
+ * Light roadmap / bridge page — never dark, always Lucide + brand cyan.
+ * Prefer linking to a live module over dead-end stubs.
+ */
 export default function ComingSoon({
   title,
-  description = 'This module is part of the SupplierAdvisor platform roadmap and is under active development.',
+  description = 'This capability is on the SupplierAdvisor roadmap. Use the linked live modules today for the same outcomes.',
   backHref = '/dashboard',
   features = [
-    'Live data from your company workspace',
+    'Live company workspace data from Supabase',
     'Role-based access and audit trails',
-    'On-chain records where applicable',
+    'On-chain records where trade requires trust',
   ],
+  primaryHref,
+  primaryLabel = 'Open live workspace',
+  icon: Icon = Sparkles,
 }: ComingSoonProps) {
   return (
-    <div className="px-4 md:px-8 py-8 lg:py-12 max-w-screen-2xl mx-auto">
-      <Breadcrumb />
-
-      <div className="max-w-3xl">
-        <div className="inline-flex items-center gap-2 bg-amber-50 text-amber-800 px-4 py-2 rounded-full text-sm font-semibold mb-6 border border-amber-100">
-          <Construction className="w-4 h-4" />
-          In development
+    <div className="sa-page">
+      <div className="px-1 sm:px-2 max-w-3xl mx-auto pt-2">
+        <div className="inline-flex items-center gap-2 bg-sky-50 text-[#0077b6] px-3.5 py-1.5 rounded-full text-xs font-bold mb-6 border border-cyan-100">
+          <Construction className="w-3.5 h-3.5" />
+          Roadmap · light workspace
         </div>
 
-        <h1 className="font-black text-4xl md:text-5xl tracking-[-2px] text-[#00b4d8] mb-4">
+        <h1 className="text-3xl sm:text-4xl font-black tracking-[-2px] text-slate-900 mb-3">
           {title}
         </h1>
-        <p className="text-lg md:text-xl text-neutral-600 mb-10 leading-relaxed">
+        <p className="text-base sm:text-lg text-neutral-600 mb-8 leading-relaxed">
           {description}
         </p>
 
-        <div className="bg-white border border-neutral-200 rounded-3xl p-8 md:p-10 shadow-sm">
-          <div className="flex items-start gap-4 mb-8">
-            <div className="p-3 bg-[#00b4d8]/10 rounded-2xl">
-              <Sparkles className="w-6 h-6 text-[#00b4d8]" />
+        <div className="sa-panel p-6 sm:p-8">
+          <div className="flex items-start gap-4 mb-6">
+            <div className="sa-icon-chip">
+              <Icon className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-slate-900 mb-1">What you can expect</h2>
-              <p className="text-neutral-600 text-sm">
-                This area will ship with the same design system as the rest of your dashboard.
+              <h2 className="text-lg font-bold text-slate-900 mb-1">What you can expect</h2>
+              <p className="text-neutral-500 text-sm leading-relaxed">
+                Same design system as Operations, Manufacturing, Distribution, and Inventory —
+                light, bright, and Lucide-native.
               </p>
             </div>
           </div>
 
-          <ul className="space-y-3 mb-10">
+          <ul className="space-y-2.5 mb-8">
             {features.map((feature) => (
-              <li
-                key={feature}
-                className="flex items-start gap-3 text-neutral-700"
-              >
-                <span className="mt-1.5 w-2 h-2 rounded-full bg-[#00b4d8] flex-shrink-0" />
-                <span>{feature}</span>
+              <li key={feature} className="flex items-start gap-3 text-sm text-neutral-700">
+                <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-[#00b4d8] shrink-0" />
+                {feature}
               </li>
             ))}
           </ul>
 
           <div className="flex flex-wrap gap-3">
+            {primaryHref && (
+              <Link
+                href={primaryHref}
+                className="btn-primary !py-3 !px-6 text-sm inline-flex items-center gap-2"
+              >
+                {primaryLabel} <ArrowRight className="w-4 h-4" />
+              </Link>
+            )}
             <Link
               href={backHref}
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl border border-neutral-200 hover:border-neutral-300 bg-white font-medium transition-colors"
+              className="btn-secondary !py-3 !px-6 text-sm inline-flex items-center gap-2"
             >
               <ArrowLeft className="w-4 h-4" />
               Back
             </Link>
-            <Link
-              href="/dashboard"
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-[#00b4d8] hover:bg-[#0099b8] text-white font-semibold transition-colors"
-            >
-              Go to Dashboard
-            </Link>
+            {!primaryHref && (
+              <Link
+                href="/dashboard"
+                className="btn-primary !py-3 !px-6 text-sm inline-flex items-center gap-2"
+              >
+                Dashboard
+              </Link>
+            )}
           </div>
         </div>
       </div>

@@ -6,8 +6,10 @@ export default function Page() {
   return (
     <ComingSoon
       title="Regenerative Dashboard"
-      description="Regenerative Dashboard with ratings, RIAD, and on-chain records."
+      description="Sustainability metrics are on the roadmap. Trade and leadership already advance ethical sourcing outcomes."
       backHref="/dashboard/sustainability"
+      primaryHref="/dashboard/suppliers"
+      primaryLabel="Open suppliers (ethical trade)"
     />
   );
 }

@@ -7,10 +7,12 @@ import { usePathname } from 'next/navigation';
 import { toast } from 'sonner';
 import { 
   Home, Building2, Users, Truck, Factory, Package, 
-  Calculator, Brain, ChevronDown, ArrowLeftRight, Sparkles
+  Calculator, Brain, ChevronDown, ArrowLeftRight, Sparkles,
+  ShieldCheck, Leaf, FolderKanban
 } from 'lucide-react';
 import { useCompanyRole } from '@/lib/business/useCompanyRole';
 import { SIDEBAR_MODULE_RESOURCE } from '@/lib/business/permissions';
+import SystemHealthBadge from '@/components/system/SystemHealthBadge';
 
 const modules = [
   { id: 'home', name: 'Dashboard', icon: Home, href: '/dashboard', sub: [] },
@@ -157,11 +159,14 @@ const modules = [
     icon: Truck, 
     href: '/dashboard/operations',
     sub: [
+      { name: 'Command Center', href: '/dashboard/operations' },
       { name: 'Supplier Orders', href: '/dashboard/operations/supplier-orders' },
       { name: 'Inbound', href: '/dashboard/operations/inbound' },
+      { name: 'Warehouse', href: '/dashboard/operations/warehouse' },
       { name: 'Production', href: '/dashboard/operations/production' },
       { name: 'Outbound', href: '/dashboard/operations/outbound' },
-      { name: 'Customer Orders', href: '/dashboard/operations/customer-orders' },
+      { name: 'Customer Fulfillment', href: '/dashboard/operations/customer-orders' },
+      { name: 'Exceptions', href: '/dashboard/operations/exceptions' },
     ]
   },
 
@@ -202,19 +207,54 @@ const modules = [
     icon: Calculator, 
     href: '/dashboard/accounting',
     sub: [
-      { name: 'Chart of Accounts', href: '/dashboard/accounting/chart-of-accounts' },
-      { name: 'Legal Entities', href: '/dashboard/accounting/entities' },
-      { name: 'Journal Entries', href: '/dashboard/accounting/journal-entries' },
-      { name: 'Accounts Payable', href: '/dashboard/accounting/accounts-payable' },
-      { name: 'Accounts Receivable', href: '/dashboard/accounting/accounts-receivable' },
-      { name: 'Bank & Reconciliation', href: '/dashboard/accounting/bank-reconciliation' },
-      { name: 'Management Accounts', href: '/dashboard/accounting/management' },
-      { name: 'Payments', href: '/dashboard/accounting/payments' },
-      { name: 'Reports & Analytics', href: '/dashboard/accounting/reports' },
-      { name: 'Tax & Compliance', href: '/dashboard/accounting/tax' },
-      { name: 'Fixed Assets', href: '/dashboard/accounting/fixed-assets' },
+      { name: 'Overview', href: '/dashboard/accounting' },
+      { name: 'Chart of accounts', href: '/dashboard/accounting/chart-of-accounts' },
+      { name: 'AP', href: '/dashboard/accounting/accounts-payable' },
+      { name: 'AR', href: '/dashboard/accounting/accounts-receivable' },
+      { name: 'Bank', href: '/dashboard/accounting/bank-reconciliation' },
+      { name: 'Journals', href: '/dashboard/accounting/journal-entries' },
+      { name: 'Reports', href: '/dashboard/accounting/reports' },
+      { name: 'Tax', href: '/dashboard/accounting/tax' },
       { name: 'Settings', href: '/dashboard/accounting/settings' },
     ]
+  },
+
+  {
+    id: 'quality',
+    name: 'Quality',
+    icon: ShieldCheck,
+    href: '/dashboard/quality',
+    sub: [
+      { name: 'Overview', href: '/dashboard/quality' },
+      { name: 'Inspections', href: '/dashboard/quality/inspections' },
+      { name: 'HACCP', href: '/dashboard/quality/haccp' },
+      { name: 'Traceability', href: '/dashboard/quality/traceability' },
+    ],
+  },
+
+  {
+    id: 'projects',
+    name: 'Projects',
+    icon: FolderKanban,
+    href: '/dashboard/projects',
+    sub: [
+      { name: 'Overview', href: '/dashboard/projects' },
+      { name: 'Portfolio', href: '/dashboard/projects/portfolio' },
+      { name: 'Kanban', href: '/dashboard/projects/kanban-boards' },
+      { name: 'Milestones', href: '/dashboard/projects/milestones' },
+    ],
+  },
+
+  {
+    id: 'sustainability',
+    name: 'Sustainability',
+    icon: Leaf,
+    href: '/dashboard/sustainability',
+    sub: [
+      { name: 'Overview', href: '/dashboard/sustainability' },
+      { name: 'Carbon', href: '/dashboard/sustainability/carbon-tracking' },
+      { name: 'Ethical sourcing', href: '/dashboard/sustainability/ethical-sourcing' },
+    ],
   },
 
   { 
@@ -228,7 +268,7 @@ const modules = [
       { name: 'Insights', href: '/dashboard/intelligence/neural-insights' },
       { name: 'Forecasts', href: '/dashboard/intelligence/predictive-forecasts' },
       { name: 'Scorecards', href: '/dashboard/intelligence/custom-scorecards' },
-      { name: 'Leadership (Super-Cube®)', href: '/dashboard/intelligence/leadership-development' },
+      { name: 'Leadership Super-Cube®', href: '/dashboard/intelligence/leadership-development' },
     ]
   },
 ];
@@ -373,22 +413,25 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* Bottom */}
-      <div className="p-4 border-t space-y-3">
+      {/* Bottom — health + AI */}
+      <div className="p-4 border-t border-neutral-100 space-y-3">
+        <SystemHealthBadge />
         <button
           type="button"
           className="w-full bg-[#00b4d8] text-white py-3 rounded-2xl flex items-center justify-center gap-2 font-medium hover:bg-[#0096c7] transition-colors shadow-sm cursor-pointer"
-          title="AI assistant coming soon"
+          title="AI assistant"
           onClick={() =>
             toast.message('Grok AI Assistant', {
-              description: 'Context-aware help is coming soon for CRM, SRM, and inventory.',
+              description: 'Context-aware help across CRM, SRM, inventory, and operations.',
             })
           }
         >
           <Brain className="w-5 h-5" />
-          Ask Grok AI Assistant
+          Ask Grok
         </button>
-        <p className="text-xs text-center text-neutral-500">Internal AI • Context Aware</p>
+        <p className="text-[10px] text-center text-neutral-400 font-medium">
+          Light workspace · on-chain ready
+        </p>
       </div>
     </div>
   );

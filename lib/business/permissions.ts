@@ -316,6 +316,9 @@ export const SIDEBAR_MODULE_RESOURCE: Record<string, PermissionResource> = {
   manufacturing: 'manufacturing',
   distribution: 'distribution',
   accounting: 'accounting',
+  quality: 'operations',
+  projects: 'projects',
+  sustainability: 'operations',
   intelligence: 'intelligence',
 };
 
@@ -353,7 +356,13 @@ export function resourceForPath(pathname: string | null | undefined): Permission
     return 'accounting';
   }
   if (pathname.startsWith('/dashboard/intelligence')) return 'intelligence';
+  if (pathname.startsWith('/dashboard/quality')) return 'operations';
+  if (pathname.startsWith('/dashboard/projects')) return 'projects';
+  if (pathname.startsWith('/dashboard/sustainability')) return 'operations';
   if (pathname.startsWith('/dashboard/invite-business')) return 'network';
+  if (pathname.startsWith('/dashboard/procurement')) return 'suppliers';
+  if (pathname.startsWith('/dashboard/supplychain')) return 'operations';
+  if (pathname.startsWith('/dashboard/people')) return 'team';
   return 'dashboard';
 }
 

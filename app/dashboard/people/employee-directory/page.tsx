@@ -1,13 +1,5 @@
-'use client';
-
-import ComingSoon from '@/components/ComingSoon';
+import { redirect } from 'next/navigation';
 
 export default function Page() {
-  return (
-    <ComingSoon
-      title="Employee Directory"
-      description="Employee Directory with ratings/reviews."
-      backHref="/dashboard/people"
-    />
-  );
+  redirect('/dashboard/my-business/team');
 }
