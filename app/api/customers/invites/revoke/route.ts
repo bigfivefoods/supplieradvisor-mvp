@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import {
-  assertCompanyMember,
+  assertCustomersAccess,
   isCustomerInvitesEnabled,
   logActivity,
 } from '@/lib/customers/access';
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const member = await assertCompanyMember(privyUserId, companyId);
+    const member = await assertCustomersAccess(privyUserId, companyId, 'write');
     if (!member.ok) {
       return NextResponse.json({ error: member.error }, { status: member.status });
     }

@@ -1,12 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { stageProbability } from '@/lib/customers/types';
+import { assertCustomersAccess } from '@/lib/customers/access';
 
 export async function GET(request: NextRequest) {
   try {
     const companyId = Number(request.nextUrl.searchParams.get('companyId'));
+    const privyUserId = request.nextUrl.searchParams.get('privyUserId');
     if (!Number.isFinite(companyId)) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+    }
+    if (privyUserId) {
+      const mem = await assertCustomersAccess(privyUserId, companyId, 'view');
+      if (!mem.ok) {
+        return NextResponse.json({ error: mem.error }, { status: mem.status });
+      }
     }
     const supabase = getSupabaseServer();
 

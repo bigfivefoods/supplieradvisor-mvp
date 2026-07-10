@@ -1,5 +1,11 @@
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { getCanonicalUserId, userIdMatchVariants } from '@/lib/auth/identity';
+import {
+  assertCompanyPermission,
+  type MembershipFail,
+  type MembershipOk,
+} from '@/lib/business/access';
+import type { AccessLevel } from '@/lib/business/permissions';
 
 /**
  * Active business_users membership for a Privy user + company profile.
@@ -38,6 +44,19 @@ export async function assertCompanyMember(
   }
 
   return { ok: true, userId };
+}
+
+/**
+ * Membership + Customers module access (view / write).
+ * Use on all CRM customer routes so sales_contractor can R/W customers only,
+ * and roles without customers access are blocked server-side.
+ */
+export async function assertCustomersAccess(
+  privyUserId: string | null | undefined,
+  companyId: number,
+  need: AccessLevel = 'view'
+): Promise<MembershipOk | MembershipFail> {
+  return assertCompanyPermission(privyUserId, companyId, 'customers', need);
 }
 
 export type CustomerConnection = {

@@ -2,13 +2,15 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { toast } from 'sonner';
 import { 
   Home, Building2, Users, Truck, Factory, Package, 
   Calculator, Brain, ChevronDown, ArrowLeftRight
 } from 'lucide-react';
+import { useCompanyRole } from '@/lib/business/useCompanyRole';
+import { SIDEBAR_MODULE_RESOURCE } from '@/lib/business/permissions';
 
 const modules = [
   { id: 'home', name: 'Dashboard', icon: Home, href: '/dashboard', sub: [] },
@@ -211,22 +213,35 @@ const modules = [
 export default function Sidebar() {
   const pathname = usePathname();
   const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({});
+  const { role, canViewModule, homePath, roleLabel, rights, loading } = useCompanyRole();
+
+  /** Only modules the current company role can view (sales_contractor → Customers only). */
+  const visibleModules = useMemo(() => {
+    return modules.filter((mod) => {
+      const resource = SIDEBAR_MODULE_RESOURCE[mod.id];
+      if (!resource) return true;
+      // Until role loads, show all to avoid flash-empty sidebar for full-access users.
+      // Once role is known, enforce strictly.
+      if (!role) return true;
+      return canViewModule(resource);
+    });
+  }, [role, canViewModule]);
 
   const toggleModule = (id: string) => {
-    setExpandedModules(prev => ({ ...prev, [id]: !prev[id] }));
+    setExpandedModules((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
   // Auto-expand the module matching the current route
   useEffect(() => {
     if (!pathname) return;
-    const active = modules.find((mod) => {
+    const active = visibleModules.find((mod) => {
       if (mod.href === '/dashboard') return pathname === '/dashboard';
       return pathname === mod.href || pathname.startsWith(`${mod.href}/`);
     });
     if (active && active.sub.length > 0) {
       setExpandedModules((prev) => ({ ...prev, [active.id]: true }));
     }
-  }, [pathname]);
+  }, [pathname, visibleModules]);
 
   const isModuleActive = (href: string) => {
     if (!pathname) return false;
@@ -238,14 +253,14 @@ export default function Sidebar() {
     <div className="flex flex-col h-full bg-white">
       {/* Header */}
       <div className="p-6 border-b border-neutral-100">
-        <Link href="/dashboard" className="flex items-center gap-3">
-          <Image 
-            src="/sa-logo.png" 
-            alt="SupplierAdvisor" 
-            width={40} 
-            height={40} 
-            className="rounded-xl" 
-            priority 
+        <Link href={homePath || '/dashboard'} className="flex items-center gap-3">
+          <Image
+            src="/sa-logo.png"
+            alt="SupplierAdvisor"
+            width={40}
+            height={40}
+            className="rounded-xl"
+            priority
           />
           <div className="font-black text-xl tracking-[-1px] leading-none text-slate-900">
             SupplierAdvisor®
@@ -258,21 +273,28 @@ export default function Sidebar() {
           <ArrowLeftRight className="w-4 h-4" />
           Switch company
         </Link>
+        {!loading && role && (
+          <p className="mt-3 text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
+            {roleLabel || role}
+            {rights ? ` · ${rights}` : ''}
+          </p>
+        )}
       </div>
 
       {/* Navigation */}
       <nav className="flex-1 p-4 overflow-y-auto">
-        {modules.map((mod) => {
+        {visibleModules.map((mod) => {
           const Icon = mod.icon;
           const isActive = isModuleActive(mod.href);
           const isExpanded = expandedModules[mod.id] ?? false;
 
           return (
             <div key={mod.id} className="mb-1">
-              <div className={`flex items-center justify-between px-5 py-3.5 rounded-3xl transition-all ${
-                isActive ? 'bg-[#00b4d8] text-white' : 'hover:bg-neutral-100 text-slate-800'
-              }`}>
-                
+              <div
+                className={`flex items-center justify-between px-5 py-3.5 rounded-3xl transition-all ${
+                  isActive ? 'bg-[#00b4d8] text-white' : 'hover:bg-neutral-100 text-slate-800'
+                }`}
+              >
                 <Link href={mod.href} className="flex items-center gap-3 flex-1 min-w-0">
                   <Icon className="w-5 h-5 flex-shrink-0" />
                   <span className="font-semibold truncate">{mod.name}</span>
@@ -289,8 +311,8 @@ export default function Sidebar() {
                     className="p-2 -mr-2 rounded-xl hover:bg-white/20 transition-colors"
                     aria-label={`Toggle ${mod.name} submenu`}
                   >
-                    <ChevronDown 
-                      className={`w-5 h-5 transition-transform ${isExpanded ? 'rotate-180' : ''}`} 
+                    <ChevronDown
+                      className={`w-5 h-5 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
                     />
                   </button>
                 )}
@@ -303,8 +325,8 @@ export default function Sidebar() {
                       key={index}
                       href={sub.href}
                       className={`block px-5 py-2.5 rounded-3xl text-sm transition-all ${
-                        pathname === sub.href 
-                          ? 'text-[#00b4d8] bg-blue-50 font-medium' 
+                        pathname === sub.href
+                          ? 'text-[#00b4d8] bg-blue-50 font-medium'
                           : 'text-slate-600 hover:text-slate-900 hover:bg-neutral-50'
                       }`}
                     >

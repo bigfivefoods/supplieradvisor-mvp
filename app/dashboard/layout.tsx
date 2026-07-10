@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Sidebar from '@/components/Sidebar';
 import AuthGate from '@/components/AuthGate';
+import ModuleAccessGate from '@/components/ModuleAccessGate';
 import { Menu, X } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 
@@ -76,7 +77,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 : 'flex-1 relative z-10 pointer-events-auto pl-0 pr-4 md:pr-8 py-6 md:py-10 max-w-screen-2xl w-full mx-auto'
             }
           >
-            {children}
+            <ModuleAccessGate>{children}</ModuleAccessGate>
           </main>
         </div>
 

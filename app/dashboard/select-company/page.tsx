@@ -6,6 +6,7 @@ import { usePrivy } from '@privy-io/react-auth';
 import { useRouter } from 'next/navigation';
 import { Building2, ArrowRight, Plus, LogOut, RefreshCw, Loader2 } from 'lucide-react';
 import { extractEmailFromPrivyUser, getCanonicalUserId } from '@/lib/auth/identity';
+import { defaultHomePathForRole } from '@/lib/business/permissions';
 import { toast } from 'sonner';
 
 interface Company {
@@ -123,7 +124,7 @@ export default function SelectCompanyPage() {
     };
   }, [ready, authenticated, privyUser, router]);
 
-  const handleSelectCompany = (companyId: string, tradingName?: string) => {
+  const handleSelectCompany = (companyId: string, tradingName?: string, role?: string) => {
     try {
       localStorage.setItem('selectedCompanyId', companyId);
       if (tradingName) localStorage.setItem('selectedCompanyName', tradingName);
@@ -132,7 +133,8 @@ export default function SelectCompanyPage() {
     } catch {
       // private mode / blocked storage — still navigate
     }
-    router.push('/dashboard');
+    // Sales contractors land in Customers, not the full dashboard hub
+    router.push(defaultHomePathForRole(role));
   };
 
   const handleSignIn = () => {
@@ -277,7 +279,9 @@ export default function SelectCompanyPage() {
                 <button
                   key={company.id}
                   type="button"
-                  onClick={() => handleSelectCompany(company.id, company.trading_name)}
+                  onClick={() =>
+                    handleSelectCompany(company.id, company.trading_name, company.role)
+                  }
                   className="group text-left bg-white border border-neutral-200 rounded-3xl p-6 sm:p-8 cursor-pointer hover:border-[#00b4d8] hover:shadow-xl transition-all active:scale-[0.985] touch-manipulation"
                 >
                   <div className="flex justify-between items-start mb-6">
@@ -286,7 +290,7 @@ export default function SelectCompanyPage() {
                     </div>
                     <div className="flex flex-col items-end gap-2">
                       <span className="text-xs px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 font-medium capitalize">
-                        {company.role}
+                        {String(company.role || '').replace(/_/g, ' ')}
                       </span>
                       {company.verification_status === 'verified' && (
                         <span className="text-xs px-3 py-1 rounded-full bg-blue-50 text-[#00b4d8] font-medium">
@@ -304,7 +308,16 @@ export default function SelectCompanyPage() {
                   )}
 
                   <div className="flex items-center justify-between mt-auto pt-6 border-t border-neutral-100">
-                    <span className="text-sm text-neutral-500">Open dashboard</span>
+                    <span className="text-sm text-neutral-500">
+                      {String(company.role || '')
+                        .toLowerCase()
+                        .includes('sales_contractor') ||
+                      String(company.role || '')
+                        .toLowerCase()
+                        .includes('sales contractor')
+                        ? 'Open Customers'
+                        : 'Open dashboard'}
+                    </span>
                     <ArrowRight className="w-5 h-5 text-[#00b4d8] group-hover:translate-x-1 transition-transform" />
                   </div>
                 </button>
