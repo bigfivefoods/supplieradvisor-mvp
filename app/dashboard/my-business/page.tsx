@@ -27,6 +27,7 @@ import {
   KpiCard,
   ModuleGrid,
   Panel,
+  ProcessLifecycle,
   ProcessRail,
   RelationshipHeader,
   SectionLabel,
@@ -51,12 +52,36 @@ type Summary = {
 };
 
 const PROCESS = [
-  { label: 'Profile', href: '/dashboard/my-business/profile' },
-  { label: 'Legal', href: '/dashboard/my-business/legal' },
-  { label: 'Team', href: '/dashboard/my-business/team' },
-  { label: 'Settings', href: '/dashboard/my-business/settings' },
-  { label: 'Documents', href: '/dashboard/my-business/documents' },
-  { label: 'RIAD', href: '/dashboard/my-business/riad-log' },
+  {
+    label: 'Profile',
+    href: '/dashboard/my-business/profile',
+    desc: 'Trading identity the network trusts.',
+  },
+  {
+    label: 'Legal',
+    href: '/dashboard/my-business/legal',
+    desc: 'Registration, tax, and regulatory posture.',
+  },
+  {
+    label: 'Team',
+    href: '/dashboard/my-business/team',
+    desc: 'Invite with roles and least privilege.',
+  },
+  {
+    label: 'Settings',
+    href: '/dashboard/my-business/settings',
+    desc: 'Currency, timezone, discoverability.',
+  },
+  {
+    label: 'Documents',
+    href: '/dashboard/my-business/documents',
+    desc: 'Company vault for proofs and packs.',
+  },
+  {
+    label: 'RIAD',
+    href: '/dashboard/my-business/riad-log',
+    desc: 'Company-level risk and decision log.',
+  },
 ];
 
 const MODULES: ModuleCard[] = [
@@ -169,8 +194,11 @@ function HubInner() {
         }
       />
 
-      <SectionLabel>Operating lifecycle</SectionLabel>
-      <ProcessRail steps={PROCESS} />
+      <ProcessLifecycle
+        title="Company operating lifecycle"
+        intro="Identity → legal → team → settings → documents → RIAD. Complete the company so every module inherits trust."
+        steps={PROCESS}
+      />
 
       <SectionLabel>Pulse</SectionLabel>
       <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3 sm:gap-4 mb-8">

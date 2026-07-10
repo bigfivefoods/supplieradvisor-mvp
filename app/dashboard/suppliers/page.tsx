@@ -29,6 +29,7 @@ import {
   MetricHero,
   ModuleGrid,
   Panel,
+  ProcessLifecycle,
   ProcessRail,
   RelationshipHeader,
   SectionLabel,
@@ -62,13 +63,41 @@ type Summary = {
 };
 
 const PROCESS = [
-  { label: 'Discover', href: '/dashboard/suppliers/discover' },
-  { label: 'Invite', href: '/dashboard/suppliers/add' },
-  { label: 'Connect', href: '/dashboard/suppliers/network' },
-  { label: 'PO', href: '/dashboard/suppliers/po' },
-  { label: 'Escrow', href: '/dashboard/suppliers/po' },
-  { label: 'OTIFEF', href: '/dashboard/suppliers/performance' },
-  { label: 'Rate', href: '/dashboard/suppliers/ratings' },
+  {
+    label: 'Discover',
+    href: '/dashboard/suppliers/discover',
+    desc: 'Search trusted companies by metadata and OTIFEF.',
+  },
+  {
+    label: 'Invite',
+    href: '/dashboard/suppliers/add',
+    desc: 'Add off-platform suppliers and send claim links.',
+  },
+  {
+    label: 'Connect',
+    href: '/dashboard/suppliers/network',
+    desc: 'Accept edges that unlock trade tools.',
+  },
+  {
+    label: 'PO',
+    href: '/dashboard/suppliers/po',
+    desc: 'Raise purchase orders against connected suppliers.',
+  },
+  {
+    label: 'Escrow',
+    href: '/dashboard/suppliers/po',
+    desc: 'Lock capital on-chain when the deal needs it.',
+  },
+  {
+    label: 'OTIFEF',
+    href: '/dashboard/suppliers/performance',
+    desc: 'Measure on-time, in-full, error-free delivery.',
+  },
+  {
+    label: 'Rate',
+    href: '/dashboard/suppliers/ratings',
+    desc: 'Peer score after every PO closes the loop.',
+  },
 ];
 
 const MODULES: ModuleCard[] = [
@@ -219,8 +248,11 @@ function HubInner() {
         </AlertBanner>
       )}
 
-      <SectionLabel>Lifecycle</SectionLabel>
-      <ProcessRail steps={PROCESS} />
+      <ProcessLifecycle
+        title="Supplier lifecycle"
+        intro="Discover → invite → connect → PO → escrow when needed → OTIFEF → rate. Every step is a live workspace."
+        steps={PROCESS}
+      />
 
       <SectionLabel>Pulse</SectionLabel>
       <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3 sm:gap-4 mb-8">

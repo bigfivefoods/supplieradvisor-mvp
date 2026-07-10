@@ -10,7 +10,6 @@ import {
   Loader2,
   Network,
   RefreshCw,
-  Rocket,
   Workflow,
 } from 'lucide-react';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -21,6 +20,10 @@ import {
   SchemaHint,
   TelemetryCard,
 } from '@/components/manufacturing/ManufacturingShell';
+import {
+  OperatingPrinciples,
+  ProcessLifecycle,
+} from '@/components/relationship/RelationshipChrome';
 
 type Summary = {
   boms: number;
@@ -275,25 +278,42 @@ function CommandInner() {
             </div>
           </div>
 
-          {/* Flow */}
-          <div className="mb-3 flex items-center gap-2">
-            <Rocket className="w-4 h-4 text-[#00b4d8]" />
-            <h3 className="text-xs font-black uppercase tracking-[0.16em] text-neutral-400">
-              Production flow
-            </h3>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 mb-8 text-xs font-semibold text-slate-600">
-            {['Demand / MPS', 'MRP netting', 'BOM explode', 'Work orders', 'Cells', 'Ship quality'].map(
-              (step, i, arr) => (
-                <div key={step} className="flex items-center gap-2">
-                  <span className="rounded-full border border-neutral-200 bg-white px-3 py-1.5 shadow-sm">
-                    {step}
-                  </span>
-                  {i < arr.length - 1 && <ArrowRight className="w-3.5 h-3.5 text-neutral-300" />}
-                </div>
-              )
-            )}
-          </div>
+          <ProcessLifecycle
+            title="Manufacturing lifecycle"
+            intro="Demand is firmed on the MPS, materials are netted by MRP through active BOMs, then work orders run on cells until quality ships."
+            steps={[
+              {
+                label: 'MPS',
+                href: '/dashboard/manufacturing/master-production-schedules',
+                desc: 'Firm weekly demand on the master schedule.',
+              },
+              {
+                label: 'MRP',
+                href: '/dashboard/manufacturing/mrp',
+                desc: 'Net gross requirements against stock and receipts.',
+              },
+              {
+                label: 'BOM',
+                href: '/dashboard/manufacturing/bills-of-materials',
+                desc: 'Explode components, scrap, and yield.',
+              },
+              {
+                label: 'Work orders',
+                href: '/dashboard/manufacturing/production-orders',
+                desc: 'Release, run, hold, and complete production.',
+              },
+              {
+                label: 'Cells',
+                href: '/dashboard/manufacturing/work-centers',
+                desc: 'Assign capacity and track WIP load.',
+              },
+              {
+                label: 'Quality',
+                href: '/dashboard/quality',
+                desc: 'Hold release until inspections pass.',
+              },
+            ]}
+          />
 
           <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4 mb-8">
             {MODULES.map((m) => {
@@ -347,6 +367,23 @@ function CommandInner() {
               </Link>
             </div>
           )}
+
+          <OperatingPrinciples
+            items={[
+              {
+                title: 'Plan before you make',
+                body: 'MPS firms demand; MRP nets materials against stock. Work orders start from truth, not gut feel.',
+              },
+              {
+                title: 'BOM is engineering truth',
+                body: 'Active bills of materials drive explosion, scrap, and yield. No shadow recipes in spreadsheets.',
+              },
+              {
+                title: 'Cells own the physics',
+                body: 'Capacity, efficiency, and WIP live on work cells. OEE-style telemetry keeps the floor honest.',
+              },
+            ]}
+          />
         </>
       )}
     </ManufacturingPage>

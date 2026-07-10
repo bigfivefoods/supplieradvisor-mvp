@@ -30,6 +30,7 @@ import {
   KpiCard,
   ModuleGrid,
   Panel,
+  ProcessLifecycle,
   ProcessRail,
   RelationshipHeader,
   SectionLabel,
@@ -37,14 +38,46 @@ import {
 } from '@/components/relationship/RelationshipChrome';
 
 const PROCESS = [
-  { label: 'CoA', href: '/dashboard/accounting/chart-of-accounts' },
-  { label: 'Journal', href: '/dashboard/accounting/journal-entries' },
-  { label: 'AR', href: '/dashboard/accounting/accounts-receivable' },
-  { label: 'AP', href: '/dashboard/accounting/accounts-payable' },
-  { label: 'Pay', href: '/dashboard/accounting/payments' },
-  { label: 'Bank', href: '/dashboard/accounting/bank-reconciliation' },
-  { label: 'Allocate', href: '/dashboard/accounting/bank-reconciliation' },
-  { label: 'Mgmt', href: '/dashboard/accounting/management' },
+  {
+    label: 'CoA',
+    href: '/dashboard/accounting/chart-of-accounts',
+    desc: 'Define the ledger structure first.',
+  },
+  {
+    label: 'Journal',
+    href: '/dashboard/accounting/journal-entries',
+    desc: 'Post balanced double-entry journals.',
+  },
+  {
+    label: 'AR',
+    href: '/dashboard/accounting/accounts-receivable',
+    desc: 'Invoice customers and collect.',
+  },
+  {
+    label: 'AP',
+    href: '/dashboard/accounting/accounts-payable',
+    desc: 'Capture supplier bills to pay.',
+  },
+  {
+    label: 'Pay',
+    href: '/dashboard/accounting/payments',
+    desc: 'Run payment batches against open items.',
+  },
+  {
+    label: 'Bank',
+    href: '/dashboard/accounting/bank-reconciliation',
+    desc: 'Import and match bank activity.',
+  },
+  {
+    label: 'Allocate',
+    href: '/dashboard/accounting/bank-reconciliation',
+    desc: 'Allocate cash to invoices and bills.',
+  },
+  {
+    label: 'Mgmt',
+    href: '/dashboard/accounting/management',
+    desc: 'Management accounts from one ledger.',
+  },
 ];
 
 const MODULES: ModuleCard[] = [
@@ -215,8 +248,11 @@ function HubInner() {
         </AlertBanner>
       )}
 
-      <SectionLabel>Ledger lifecycle</SectionLabel>
-      <ProcessRail steps={PROCESS} />
+      <ProcessLifecycle
+        title="Ledger lifecycle"
+        intro="Chart of accounts → journals → AR/AP → payments → bank match → management accounts. One books, membership-scoped."
+        steps={PROCESS}
+      />
 
       <SectionLabel>Pulse</SectionLabel>
       <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3 sm:gap-4 mb-8">

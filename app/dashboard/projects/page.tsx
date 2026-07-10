@@ -77,6 +77,51 @@ export default function ProjectsHub() {
       title="Projects"
       titleAccent="delivery"
       description="Plan and deliver initiatives with milestones, risk, and audit-friendly status — same light chrome as Operations."
+      lifecycle={{
+        title: 'Delivery lifecycle',
+        intro: 'From portfolio intent to execution boards, gates, and reported outcomes.',
+        steps: [
+          {
+            label: 'Portfolio',
+            href: '/dashboard/projects/portfolio',
+            desc: 'Choose which initiatives get capacity.',
+          },
+          {
+            label: 'Plan',
+            href: '/dashboard/projects/kanban-boards',
+            desc: 'Break work into boards and work packages.',
+          },
+          {
+            label: 'Execute',
+            href: '/dashboard/projects/milestones',
+            desc: 'Hit gates with clear done criteria.',
+          },
+          {
+            label: 'Risk',
+            href: '/dashboard/projects/risk-register',
+            desc: 'Own and mitigate threats as you go.',
+          },
+          {
+            label: 'Report',
+            href: '/dashboard/projects/reporting',
+            desc: 'Status packs stakeholders can trust.',
+          },
+        ],
+      }}
+      principles={[
+        {
+          title: 'Outcomes over activity',
+          body: 'Milestones and portfolio views force clarity on what done means — not just busy boards.',
+        },
+        {
+          title: 'Risk is owned',
+          body: 'Every material risk has an owner and a mitigation. Silent risk is unmanaged risk.',
+        },
+        {
+          title: 'Audit-friendly progress',
+          body: 'Status, budget, and time capture stay membership-scoped so leadership can trust the narrative.',
+        },
+      ]}
     >
       <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
         {NODES.map((n) => (

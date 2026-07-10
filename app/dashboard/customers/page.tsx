@@ -28,6 +28,7 @@ import {
   KpiCard,
   ModuleGrid,
   Panel,
+  ProcessLifecycle,
   ProcessRail,
   RelationshipHeader,
   SectionLabel,
@@ -52,13 +53,41 @@ type Summary = {
 };
 
 const PROCESS = [
-  { label: 'Lead', href: '/dashboard/customers/leads' },
-  { label: 'Opportunity', href: '/dashboard/customers/leads?tab=pipeline' },
-  { label: 'Quote', href: '/dashboard/customers/quotes' },
-  { label: 'Order', href: '/dashboard/customers/orders' },
-  { label: 'Invoice', href: '/dashboard/customers/invoices' },
-  { label: 'Loyalty', href: '/dashboard/customers/loyalty' },
-  { label: 'RIAD', href: '/dashboard/customers/riad-log' },
+  {
+    label: 'Lead',
+    href: '/dashboard/customers/leads',
+    desc: 'Capture and score demand early.',
+  },
+  {
+    label: 'Opportunity',
+    href: '/dashboard/customers/leads?tab=pipeline',
+    desc: 'Qualify and weight the pipeline.',
+  },
+  {
+    label: 'Quote',
+    href: '/dashboard/customers/quotes',
+    desc: 'Commercial offer with multi-currency prices.',
+  },
+  {
+    label: 'Order',
+    href: '/dashboard/customers/orders',
+    desc: 'Convert to a fulfillable customer order.',
+  },
+  {
+    label: 'Invoice',
+    href: '/dashboard/customers/invoices',
+    desc: 'Bill and collect through AR.',
+  },
+  {
+    label: 'Loyalty',
+    href: '/dashboard/customers/loyalty',
+    desc: 'Retain and reward after the sale.',
+  },
+  {
+    label: 'RIAD',
+    href: '/dashboard/customers/riad-log',
+    desc: 'Log risk, issues, actions, decisions.',
+  },
 ];
 
 const MODULES: ModuleCard[] = [
@@ -210,8 +239,11 @@ function HubInner() {
         }
       />
 
-      <SectionLabel>Lifecycle</SectionLabel>
-      <ProcessRail steps={PROCESS} />
+      <ProcessLifecycle
+        title="Customer lifecycle"
+        intro="Lead → opportunity → quote → order → invoice → loyalty, with RIAD for issues that need a closed loop."
+        steps={PROCESS}
+      />
 
       <SectionLabel>Pulse</SectionLabel>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4">

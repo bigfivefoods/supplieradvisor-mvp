@@ -56,6 +56,52 @@ export default function QualityHub() {
       title="Quality"
       titleAccent="& trust"
       description="Protect the brand — inspections, HACCP, lot traceability, and recall readiness on a light workspace."
+      lifecycle={{
+        title: 'Quality lifecycle',
+        intro:
+          'Control at source, inspect what moves, trace pedigree, and release only when the gate is clear.',
+        steps: [
+          {
+            label: 'HACCP',
+            href: '/dashboard/quality/haccp',
+            desc: 'Define critical controls before production runs.',
+          },
+          {
+            label: 'Inspect',
+            href: '/dashboard/quality/inspections',
+            desc: 'Incoming and in-process checks against the plan.',
+          },
+          {
+            label: 'Trace',
+            href: '/dashboard/quality/traceability',
+            desc: 'Lot pedigree for every material movement.',
+          },
+          {
+            label: 'Hold / release',
+            href: '/dashboard/operations/exceptions',
+            desc: 'Open quality blocks ship until cleared.',
+          },
+          {
+            label: 'Recall ready',
+            href: '/dashboard/quality/recall-simulator',
+            desc: 'Practice scope and communication before a real event.',
+          },
+        ],
+      }}
+      principles={[
+        {
+          title: 'Prevent before you inspect',
+          body: 'HACCP and critical controls reduce defect rate at source — inspection confirms, it does not invent quality.',
+        },
+        {
+          title: 'Trace every lot',
+          body: 'Pedigree and chain of custody turn a recall from panic into a precise, time-bound action.',
+        },
+        {
+          title: 'Hold the release gate',
+          body: 'Open quality points block ship and put-away until cleared — trust travels with the goods.',
+        },
+      ]}
     >
       <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
         {NODES.map((n) => (

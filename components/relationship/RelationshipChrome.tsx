@@ -29,6 +29,8 @@ export type ModuleCard = {
 export type ProcessStep = {
   label: string;
   href: string;
+  /** Short explanation of this stage in the lifecycle */
+  desc?: string;
 };
 
 const BRAND = '#00b4d8';
@@ -190,18 +192,19 @@ export function ProcessRail({
   steps,
   showNumbers = true,
 }: {
-  steps: ProcessStep[];
+  steps: readonly ProcessStep[];
   /** When false, step labels render without the 1/2/3 cycle badges. */
   showNumbers?: boolean;
 }) {
   return (
-    <div className="mb-8 overflow-x-auto">
+    <div className="mb-4 overflow-x-auto">
       <div className="flex items-center gap-0 min-w-max">
         {steps.map((step, i) => (
           <div key={step.href + step.label} className="flex items-center">
             <Link
               href={step.href}
               className="group flex items-center gap-2 rounded-2xl border border-neutral-200 bg-white px-3.5 py-2.5 hover:border-[#00b4d8] hover:shadow-sm transition-all"
+              title={step.desc}
             >
               {showNumbers && (
                 <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-[#00b4d8]/10 text-[10px] font-black text-[#00b4d8] group-hover:bg-[#00b4d8] group-hover:text-white transition-colors">
@@ -218,6 +221,71 @@ export function ProcessRail({
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Full process lifecycle: title, intro, clickable rail, and explained stages.
+ * Built into module hubs so the operating process is explicit and navigable.
+ */
+export function ProcessLifecycle({
+  title = 'Process lifecycle',
+  intro,
+  steps,
+  showNumbers = true,
+  className = '',
+}: {
+  title?: string;
+  intro?: string;
+  steps: readonly ProcessStep[];
+  showNumbers?: boolean;
+  className?: string;
+}) {
+  const hasDesc = steps.some((s) => s.desc);
+  return (
+    <div className={`mb-8 ${className}`}>
+      <SectionLabel>{title}</SectionLabel>
+      {intro && (
+        <p className="text-sm text-neutral-500 mb-3 max-w-2xl leading-relaxed -mt-1">
+          {intro}
+        </p>
+      )}
+      <ProcessRail steps={steps} showNumbers={showNumbers} />
+      {hasDesc && (
+        <div
+          className={`grid gap-3 mt-1 ${
+            steps.length <= 3
+              ? 'sm:grid-cols-3'
+              : steps.length <= 4
+                ? 'sm:grid-cols-2 lg:grid-cols-4'
+                : 'sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
+          }`}
+        >
+          {steps.map((step, i) => (
+            <Link
+              key={step.href + step.label + i}
+              href={step.href}
+              className="group rounded-2xl border border-neutral-200 bg-white px-4 py-3.5 hover:border-[#00b4d8]/50 hover:shadow-sm transition-all"
+            >
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-[#00b4d8]/10 text-[10px] font-black text-[#00b4d8] group-hover:bg-[#00b4d8] group-hover:text-white transition-colors">
+                  {i + 1}
+                </span>
+                <span className="text-xs font-bold text-slate-800 group-hover:text-[#0077b6]">
+                  {step.label}
+                </span>
+                <ArrowRight className="w-3 h-3 text-neutral-300 ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
+              </div>
+              {step.desc && (
+                <p className="text-[11px] text-neutral-500 leading-relaxed pl-8">
+                  {step.desc}
+                </p>
+              )}
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -393,6 +461,41 @@ export function Panel({
         </div>
       )}
       {children}
+    </div>
+  );
+}
+
+export type OperatingPrincipleItem = {
+  title: string;
+  body: string;
+};
+
+/**
+ * Shared “Operating principle” panel used on module hubs
+ * (same pattern as Suppliers: 3 numbered principles).
+ */
+export function OperatingPrinciples({
+  items,
+  className = '',
+}: {
+  items: readonly OperatingPrincipleItem[];
+  className?: string;
+}) {
+  return (
+    <div className={`mt-10 ${className}`}>
+      <Panel title="Operating principle">
+        <div className="px-5 py-6 sm:px-8 sm:py-8 grid sm:grid-cols-3 gap-6 text-sm">
+          {items.map((item, i) => (
+            <div key={item.title}>
+              <div className="text-[10px] font-black tracking-[0.2em] text-[#00b4d8] mb-2">
+                {String(i + 1).padStart(2, '0')}
+              </div>
+              <div className="font-bold text-slate-900 mb-1.5">{item.title}</div>
+              <p className="text-xs text-neutral-500 leading-relaxed">{item.body}</p>
+            </div>
+          ))}
+        </div>
+      </Panel>
     </div>
   );
 }

@@ -25,6 +25,7 @@ import {
   TelemetryCard,
   WorkbenchLink,
 } from '@/components/operations/OperationsShell';
+import { ProcessLifecycle } from '@/components/relationship/RelationshipChrome';
 
 type Shipment = {
   id: number;
@@ -134,30 +135,37 @@ function Inner() {
         />
       </div>
 
-      {/* Process steps */}
-      <div className="rounded-3xl border border-sky-100 bg-gradient-to-br from-white to-sky-50/60 p-5 mb-8">
-        <h3 className="text-xs font-black uppercase tracking-widest text-neutral-400 mb-3">
-          Inbound playbook
-        </h3>
-        <ol className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
-          {[
-            'Plan shipment against supplier PO',
-            'Track pickup → hub → destination',
-            'Receive / scan into warehouse',
-            'Quality check → available stock',
-          ].map((step, i) => (
-            <li
-              key={step}
-              className="rounded-2xl bg-white border border-sky-50 px-3 py-3 text-slate-600 leading-snug"
-            >
-              <span className="text-[10px] font-black text-[#00b4d8] block mb-1">
-                STEP {i + 1}
-              </span>
-              {step}
-            </li>
-          ))}
-        </ol>
-      </div>
+      <ProcessLifecycle
+        title="Inbound lifecycle"
+        intro="From purchase order through logistics legs to warehouse put-away and quality release."
+        steps={[
+          {
+            label: 'Supplier PO',
+            href: '/dashboard/operations/supplier-orders',
+            desc: 'Demand that triggers the inbound plan.',
+          },
+          {
+            label: 'Plan leg',
+            href: '/dashboard/distribution/inbound',
+            desc: 'Create inbound shipment and assign carrier.',
+          },
+          {
+            label: 'Track',
+            href: '/dashboard/distribution/tracking',
+            desc: 'Pickup → hub → destination events.',
+          },
+          {
+            label: 'Receive',
+            href: '/dashboard/inventory/scan',
+            desc: 'Scan into on-hand with lot pedigree.',
+          },
+          {
+            label: 'Quality',
+            href: '/dashboard/quality/inspections',
+            desc: 'Inspect before stock is free to use.',
+          },
+        ]}
+      />
 
       {loading ? (
         <div className="py-16 flex justify-center">

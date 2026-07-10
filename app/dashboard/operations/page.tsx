@@ -15,7 +15,6 @@ import {
   ShoppingCart,
   Truck,
   Warehouse,
-  Workflow,
 } from 'lucide-react';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import {
@@ -25,6 +24,10 @@ import {
   StatusPill,
   TelemetryCard,
 } from '@/components/operations/OperationsShell';
+import {
+  OperatingPrinciples,
+  ProcessLifecycle,
+} from '@/components/relationship/RelationshipChrome';
 
 type Summary = {
   supplierPos: number;
@@ -57,15 +60,6 @@ type Summary = {
   throughput: number;
   recent: { id: string; domain: string; title: string; status: string; href: string }[];
 };
-
-const FLOW = [
-  { href: '/dashboard/operations/supplier-orders', label: 'Procure', icon: Truck },
-  { href: '/dashboard/operations/inbound', label: 'Inbound', icon: ArrowDownToLine },
-  { href: '/dashboard/operations/warehouse', label: 'Warehouse', icon: Warehouse },
-  { href: '/dashboard/operations/production', label: 'Make', icon: Factory },
-  { href: '/dashboard/operations/outbound', label: 'Outbound', icon: ArrowUpFromLine },
-  { href: '/dashboard/operations/customer-orders', label: 'Fulfill', icon: ShoppingCart },
-] as const;
 
 const MODULES = [
   {
@@ -253,32 +247,47 @@ function CommandInner() {
         </div>
       ) : (
         <>
-          {/* Process rail */}
-          <div className="mb-3 flex items-center gap-2">
-            <Workflow className="w-4 h-4 text-[#00b4d8]" />
-            <h3 className="text-xs font-black uppercase tracking-[0.16em] text-neutral-400">
-              Value stream
-            </h3>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 mb-8">
-            {FLOW.map((step, i) => {
-              const Icon = step.icon;
-              return (
-                <div key={step.href} className="flex items-center gap-2">
-                  <Link
-                    href={step.href}
-                    className="inline-flex items-center gap-2 rounded-2xl border border-cyan-100 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 shadow-sm hover:border-[#00b4d8] hover:text-[#0077b6] transition-all"
-                  >
-                    <Icon className="w-3.5 h-3.5 text-[#00b4d8]" />
-                    {step.label}
-                  </Link>
-                  {i < FLOW.length - 1 && (
-                    <ArrowRight className="w-3.5 h-3.5 text-cyan-300 hidden sm:block" />
-                  )}
-                </div>
-              );
-            })}
-          </div>
+          <ProcessLifecycle
+            title="Value stream lifecycle"
+            intro="Procure → receive → store → make → ship → fulfill. Each stage is a live workbench — click through to execute."
+            steps={[
+              {
+                label: 'Procure',
+                href: '/dashboard/operations/supplier-orders',
+                desc: 'Raise and track supplier POs that feed materials.',
+              },
+              {
+                label: 'Inbound',
+                href: '/dashboard/operations/inbound',
+                desc: 'Plan and track goods into your network.',
+              },
+              {
+                label: 'Warehouse',
+                href: '/dashboard/operations/warehouse',
+                desc: 'Put-away, stock, transfers, and counts.',
+              },
+              {
+                label: 'Make',
+                href: '/dashboard/operations/production',
+                desc: 'Work orders, BOMs, MPS, and MRP.',
+              },
+              {
+                label: 'Outbound',
+                href: '/dashboard/operations/outbound',
+                desc: 'Dispatch finished goods on any mode.',
+              },
+              {
+                label: 'Fulfill',
+                href: '/dashboard/operations/customer-orders',
+                desc: 'Close customer orders with POD proof.',
+              },
+              {
+                label: 'Exceptions',
+                href: '/dashboard/operations/exceptions',
+                desc: 'Clear holds that block the stream.',
+              },
+            ]}
+          />
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
             <TelemetryCard
@@ -451,6 +460,23 @@ function CommandInner() {
               </div>
             </div>
           </div>
+
+          <OperatingPrinciples
+            items={[
+              {
+                title: 'One value stream',
+                body: 'Procure → inbound → warehouse → make → outbound → fulfill. Every stage is visible on one tower — no spreadsheet drift.',
+              },
+              {
+                title: 'Exceptions block flow',
+                body: 'Holds, logistics exceptions, and quality gates surface first. Clear them to restore throughput.',
+              },
+              {
+                title: 'Orchestrate, then dive deep',
+                body: 'Command metrics live here; SRM, inventory, manufacturing, and distribution own the full tooling.',
+              },
+            ]}
+          />
         </>
       )}
     </OperationsPage>

@@ -11,7 +11,6 @@ import {
   Loader2,
   MapPin,
   RefreshCw,
-  Route,
   Ship,
   Truck,
   Users,
@@ -24,6 +23,10 @@ import {
   SchemaHint,
   TelemetryCard,
 } from '@/components/distribution/DistributionShell';
+import {
+  OperatingPrinciples,
+  ProcessLifecycle,
+} from '@/components/relationship/RelationshipChrome';
 
 type Summary = {
   shipments: number;
@@ -247,30 +250,42 @@ function CommandInner() {
             />
           </div>
 
-          {/* Chain flow */}
-          <div className="mb-3 flex items-center gap-2">
-            <Route className="w-4 h-4 text-[#00b4d8]" />
-            <h3 className="text-xs font-black uppercase tracking-[0.16em] text-neutral-400">
-              End-to-end chain
-            </h3>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 mb-8 text-xs font-semibold text-slate-600">
-            {[
-              'Supplier / plant',
-              'Inbound leg',
-              'Receive & put-away',
-              'Make / pack',
-              'Outbound leg',
-              'Customer / POD',
-            ].map((step, i, arr) => (
-              <div key={step} className="flex items-center gap-2">
-                <span className="rounded-full border border-cyan-100 bg-white px-3 py-1.5 shadow-sm">
-                  {step}
-                </span>
-                {i < arr.length - 1 && <ArrowRight className="w-3.5 h-3.5 text-cyan-300" />}
-              </div>
-            ))}
-          </div>
+          <ProcessLifecycle
+            title="Distribution lifecycle"
+            intro="From carrier setup through inbound and outbound legs to live tracking and POD — every stage is a click into the workbench."
+            steps={[
+              {
+                label: 'Carriers',
+                href: '/dashboard/distribution/carriers',
+                desc: 'Onboard 3PL, ocean, air, and last-mile partners.',
+              },
+              {
+                label: 'Fleet',
+                href: '/dashboard/distribution/fleet-drivers',
+                desc: 'Own vehicles and drivers for regional runs.',
+              },
+              {
+                label: 'Inbound',
+                href: '/dashboard/distribution/inbound',
+                desc: 'Plan supplier → DC legs and log events.',
+              },
+              {
+                label: 'Outbound',
+                href: '/dashboard/distribution/outbound',
+                desc: 'Dispatch FG to customers on any mode.',
+              },
+              {
+                label: 'Track',
+                href: '/dashboard/distribution/tracking',
+                desc: 'Control-tower events from pickup to POD.',
+              },
+              {
+                label: 'Incoterms',
+                href: '/dashboard/distribution/incoterms',
+                desc: 'Assign commercial risk before the move.',
+              },
+            ]}
+          />
 
           <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4 mb-8">
             {MODULES.map((m) => {
@@ -355,6 +370,23 @@ function CommandInner() {
               </div>
             </div>
           </div>
+
+          <OperatingPrinciples
+            items={[
+              {
+                title: 'Local to global, one chain',
+                body: 'Road, rail, ocean, and air share the same status spine — door to destination, not siloed modes.',
+              },
+              {
+                title: 'Events beat estimates',
+                body: 'Every handoff is logged. Tracking is evidence of movement, not a best-guess ETA alone.',
+              },
+              {
+                title: 'Incoterms assign risk',
+                body: 'Who pays and who owns risk is explicit on every lane — commercial clarity before the truck moves.',
+              },
+            ]}
+          />
         </>
       )}
     </DistributionPage>

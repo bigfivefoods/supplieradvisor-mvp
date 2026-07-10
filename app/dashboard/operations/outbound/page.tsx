@@ -26,6 +26,7 @@ import {
   TelemetryCard,
   WorkbenchLink,
 } from '@/components/operations/OperationsShell';
+import { ProcessLifecycle } from '@/components/relationship/RelationshipChrome';
 
 type Shipment = {
   id: number;
@@ -151,29 +152,32 @@ function Inner() {
         />
       </div>
 
-      <div className="rounded-3xl border border-amber-100 bg-gradient-to-br from-white to-amber-50/40 p-5 mb-8">
-        <h3 className="text-xs font-black uppercase tracking-widest text-neutral-400 mb-3">
-          Outbound playbook
-        </h3>
-        <ol className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
-          {[
-            'Confirm customer order / PO',
-            'Allocate FG stock & pick',
-            'Book carrier or assign fleet',
-            'Ship → track → POD',
-          ].map((step, i) => (
-            <li
-              key={step}
-              className="rounded-2xl bg-white border border-amber-50 px-3 py-3 text-slate-600"
-            >
-              <span className="text-[10px] font-black text-amber-700 block mb-1">
-                STEP {i + 1}
-              </span>
-              {step}
-            </li>
-          ))}
-        </ol>
-      </div>
+      <ProcessLifecycle
+        title="Outbound lifecycle"
+        intro="Confirm demand, allocate stock, book the leg, then track to POD."
+        steps={[
+          {
+            label: 'Customer order',
+            href: '/dashboard/operations/customer-orders',
+            desc: 'Confirm what must ship and when.',
+          },
+          {
+            label: 'Allocate stock',
+            href: '/dashboard/inventory/stock',
+            desc: 'Pick finished goods that are free to ship.',
+          },
+          {
+            label: 'Book leg',
+            href: '/dashboard/distribution/outbound',
+            desc: 'Assign carrier, fleet, mode, and Incoterms.',
+          },
+          {
+            label: 'Track → POD',
+            href: '/dashboard/distribution/tracking',
+            desc: 'Events from dock to customer door.',
+          },
+        ]}
+      />
 
       {loading ? (
         <div className="py-16 flex justify-center">

@@ -36,7 +36,9 @@ import {
   KpiCard,
   MetricHero,
   ModuleGrid,
+  OperatingPrinciples,
   Panel,
+  ProcessLifecycle,
   ProcessRail,
   RelationshipHeader,
   RelationshipPage,
@@ -482,17 +484,45 @@ export default function DashboardHome() {
         </div>
       )}
 
-      <SectionLabel>Trade lifecycle</SectionLabel>
-      <ProcessRail
-        showNumbers={false}
+      <ProcessLifecycle
+        title="Trade lifecycle"
+        intro="How value moves on SupplierAdvisor — from discovery through connection, commercial terms, order, invoice, and stock."
         steps={[
-          { label: 'Discover', href: '/dashboard/suppliers/discover' },
-          { label: 'Connect', href: '/dashboard/connections' },
-          { label: 'Pricing', href: '/dashboard/connections/pricing' },
-          { label: 'Quote', href: '/dashboard/customers/quotes' },
-          { label: 'PO', href: '/dashboard/suppliers/po' },
-          { label: 'Invoice', href: '/dashboard/accounting/accounts-receivable' },
-          { label: 'Inventory', href: '/dashboard/inventory/products' },
+          {
+            label: 'Discover',
+            href: '/dashboard/suppliers/discover',
+            desc: 'Find companies by trust and capability.',
+          },
+          {
+            label: 'Connect',
+            href: '/dashboard/connections',
+            desc: 'Handshake unlocks trade tools.',
+          },
+          {
+            label: 'Pricing',
+            href: '/dashboard/connections/pricing',
+            desc: 'Agreed prices between companies.',
+          },
+          {
+            label: 'Quote',
+            href: '/dashboard/customers/quotes',
+            desc: 'Offer to customers with multi-currency.',
+          },
+          {
+            label: 'PO',
+            href: '/dashboard/suppliers/po',
+            desc: 'Commit demand with optional escrow.',
+          },
+          {
+            label: 'Invoice',
+            href: '/dashboard/accounting/accounts-receivable',
+            desc: 'Bill and collect on the same ledger.',
+          },
+          {
+            label: 'Inventory',
+            href: '/dashboard/inventory/products',
+            desc: 'Stock master that fulfills the order.',
+          },
         ]}
       />
 
@@ -794,6 +824,23 @@ export default function DashboardHome() {
         <QuickAction href="/dashboard/customers/quotes" icon={FileText} label="New quote" />
         <QuickAction href="/dashboard/my-business/settings" icon={Settings} label="Company settings" />
       </div>
+
+      <OperatingPrinciples
+        items={[
+          {
+            title: 'Connect before you trade',
+            body: 'Network edges unlock POs, pricing, documents, and settlement — company-scoped, not person-scoped.',
+          },
+          {
+            title: 'One ledger of operations',
+            body: 'CRM, SRM, inventory, manufacturing, and distribution share live Supabase truth — no shadow systems.',
+          },
+          {
+            title: 'Trust compounds on-chain',
+            body: 'Where capital or pedigree matters, hashes and escrow sit beside the same commercial workflows.',
+          },
+        ]}
+      />
     </RelationshipPage>
   );
 }

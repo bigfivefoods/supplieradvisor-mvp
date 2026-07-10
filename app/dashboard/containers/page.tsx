@@ -28,6 +28,7 @@ import {
   KpiCard,
   ModuleGrid,
   Panel,
+  ProcessLifecycle,
   ProcessRail,
   RelationshipHeader,
   SectionLabel,
@@ -47,13 +48,41 @@ type Summary = {
 };
 
 const PROCESS = [
-  { label: 'Add', href: '/dashboard/containers/add' },
-  { label: 'Map', href: '/dashboard/containers/map' },
-  { label: 'Contractors', href: '/dashboard/containers/contractors' },
-  { label: 'Train', href: '/dashboard/containers/training' },
-  { label: 'Stock', href: '/dashboard/containers/manage' },
-  { label: 'RIAD', href: '/dashboard/containers/riad-log' },
-  { label: 'Metrics', href: '/dashboard/containers/metrics' },
+  {
+    label: 'Add',
+    href: '/dashboard/containers/add',
+    desc: 'Onboard a retail outlet to the network.',
+  },
+  {
+    label: 'Map',
+    href: '/dashboard/containers/map',
+    desc: 'Pin GPS so stock and sales attach to a place.',
+  },
+  {
+    label: 'Contractors',
+    href: '/dashboard/containers/contractors',
+    desc: 'Appoint independent operators.',
+  },
+  {
+    label: 'Train',
+    href: '/dashboard/containers/training',
+    desc: 'Certify operators before go-live.',
+  },
+  {
+    label: 'Stock',
+    href: '/dashboard/containers/manage',
+    desc: 'Order, receive, and manage outlet inventory.',
+  },
+  {
+    label: 'RIAD',
+    href: '/dashboard/containers/riad-log',
+    desc: 'Log risk, issues, actions, decisions.',
+  },
+  {
+    label: 'Metrics',
+    href: '/dashboard/containers/metrics',
+    desc: 'Performance of the outlet network.',
+  },
 ];
 
 const MODULES: ModuleCard[] = [
@@ -216,8 +245,11 @@ function HubInner() {
         }
       />
 
-      <SectionLabel>Lifecycle</SectionLabel>
-      <ProcessRail steps={PROCESS} />
+      <ProcessLifecycle
+        title="Container lifecycle"
+        intro="Locate → map → appoint → train → stock → RIAD → metrics. Every outlet is a node in the live network."
+        steps={PROCESS}
+      />
 
       <SectionLabel>Pulse</SectionLabel>
       <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3 sm:gap-4 mb-8">

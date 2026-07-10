@@ -20,6 +20,10 @@ import {
 } from 'lucide-react';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { InventoryProcessNav, INVENTORY_TOOLS } from '@/components/inventory/InventoryShell';
+import {
+  OperatingPrinciples,
+  ProcessLifecycle,
+} from '@/components/relationship/RelationshipChrome';
 
 type Summary = {
   products: number;
@@ -160,6 +164,43 @@ export default function InventoryHub() {
         </div>
       )}
 
+      <ProcessLifecycle
+        title="Inventory lifecycle"
+        intro="Master data → locations → live stock → receive → move → count. Every step writes stock truth in Supabase."
+        steps={[
+          {
+            label: 'Products',
+            href: '/dashboard/inventory/products',
+            desc: 'SKU master for raw materials and finished goods.',
+          },
+          {
+            label: 'Locations',
+            href: '/dashboard/inventory/warehouses',
+            desc: 'DCs, plants, supplier and customer sites.',
+          },
+          {
+            label: 'Live stock',
+            href: '/dashboard/inventory/stock',
+            desc: 'On-hand by product and location in real time.',
+          },
+          {
+            label: 'Receive',
+            href: '/dashboard/inventory/scan',
+            desc: 'Scan QR / GS1 into on-hand with lot pedigree.',
+          },
+          {
+            label: 'Transfer',
+            href: '/dashboard/inventory/stock-transfers',
+            desc: 'Move stock with driver GPS when needed.',
+          },
+          {
+            label: 'Count',
+            href: '/dashboard/inventory/counts',
+            desc: 'Physical stock take and variance posting.',
+          },
+        ]}
+      />
+
       {/* Module cards */}
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-sm font-bold text-slate-800">Modules</h2>
@@ -262,6 +303,23 @@ export default function InventoryHub() {
           <ArrowRight className="w-4 h-4 ml-auto" />
         </Link>
       )}
+
+      <OperatingPrinciples
+        items={[
+          {
+            title: 'Master data first',
+            body: 'Products, locations, and UOMs are the foundation. Stock without a clean SKU master is noise.',
+          },
+          {
+            title: 'Every unit has a home',
+            body: 'On-hand lives at a location — warehouse, plant, or container. Transfers keep the physical truth synced.',
+          },
+          {
+            title: 'Pedigree when it matters',
+            body: 'Lots, serials, and on-chain hashes support audit and recall without slowing daily put-away.',
+          },
+        ]}
+      />
 
       <p className="mt-8 text-[11px] text-neutral-400 text-center">
         Consolidated: raw materials & finished goods live under Products · warehouse↔container under

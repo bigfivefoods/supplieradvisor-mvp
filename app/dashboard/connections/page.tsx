@@ -43,7 +43,9 @@ import {
 import {
   AlertBanner,
   KpiCard,
+  OperatingPrinciples,
   Panel,
+  ProcessLifecycle,
   ProcessRail,
   RelationshipHeader,
   SectionLabel,
@@ -60,12 +62,36 @@ type Tab =
 
 /** Single linear lifecycle — one place for each step (no duplicate paths). */
 const PROCESS = [
-  { label: 'Discover', href: '/dashboard/suppliers/discover' },
-  { label: 'Connect', href: '/dashboard/connections' },
-  { label: 'Pricing', href: '/dashboard/connections/pricing' },
-  { label: 'Trade', href: '/dashboard/suppliers/po' },
-  { label: 'Invoice', href: '/dashboard/accounting/accounts-receivable' },
-  { label: 'Market', href: '/dashboard/connections/marketplace' },
+  {
+    label: 'Discover',
+    href: '/dashboard/suppliers/discover',
+    desc: 'Find companies by trust, industry, and location.',
+  },
+  {
+    label: 'Connect',
+    href: '/dashboard/connections',
+    desc: 'Request → accept → secure handshake.',
+  },
+  {
+    label: 'Pricing',
+    href: '/dashboard/connections/pricing',
+    desc: 'List prices between connected companies.',
+  },
+  {
+    label: 'Trade',
+    href: '/dashboard/suppliers/po',
+    desc: 'Raise POs once the edge is live.',
+  },
+  {
+    label: 'Invoice',
+    href: '/dashboard/accounting/accounts-receivable',
+    desc: 'Bill and collect against the same counterparty.',
+  },
+  {
+    label: 'Market',
+    href: '/dashboard/connections/marketplace',
+    desc: 'Optional marketplace reach beyond the graph.',
+  },
 ];
 
 const EMPTY_SUMMARY: NetworkSummary = {
@@ -250,8 +276,11 @@ function HubInner() {
         </div>
       )}
 
-      <SectionLabel>Lifecycle</SectionLabel>
-      <ProcessRail steps={PROCESS} />
+      <ProcessLifecycle
+        title="Network lifecycle"
+        intro="Discover → connect → price → trade → invoice. Marketplace is optional reach on top of the secure graph."
+        steps={PROCESS}
+      />
 
       <SectionLabel>Pulse</SectionLabel>
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4 mb-8">
@@ -412,6 +441,23 @@ function HubInner() {
           desc="AR/AP with network counterparties"
         />
       </div>
+
+      <OperatingPrinciples
+        items={[
+          {
+            title: 'Request, then handshake',
+            body: 'Trade only after both companies accept. Edges unlock POs, pricing, documents, and settlement.',
+          },
+          {
+            title: 'One graph, many roles',
+            body: 'The same connection can be supplier or customer depending on the flow — identity stays company-scoped.',
+          },
+          {
+            title: 'Suspend without erase',
+            body: 'Paused edges block new collaboration while history remains readable for audit and claims.',
+          },
+        ]}
+      />
     </ConnectionsPage>
   );
 }

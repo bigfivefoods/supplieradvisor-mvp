@@ -26,7 +26,9 @@ import {
 import {
   KpiCard,
   MetricHero,
+  OperatingPrinciples,
   Panel,
+  ProcessLifecycle,
   SectionLabel,
 } from '@/components/relationship/RelationshipChrome';
 import FxRateStrip from '@/components/fx/FxRateStrip';
@@ -118,6 +120,38 @@ function HubInner() {
       )}
 
       <FxRateStrip currency={ccy} className="mb-8" />
+
+      <ProcessLifecycle
+        title="Intelligence lifecycle"
+        intro="Sense live vitals, surface insights, forecast demand, score performance, and develop leaders who act on the signal."
+        steps={[
+          {
+            label: 'Pulse',
+            href: '/dashboard/intelligence/pulse-dashboard',
+            desc: 'Live ops, network, and finance vitals.',
+          },
+          {
+            label: 'Insights',
+            href: '/dashboard/intelligence/neural-insights',
+            desc: 'Risks, concentration, and opportunities.',
+          },
+          {
+            label: 'Forecast',
+            href: '/dashboard/intelligence/predictive-forecasts',
+            desc: 'Forward view of demand and pressure.',
+          },
+          {
+            label: 'Scorecards',
+            href: '/dashboard/intelligence/custom-scorecards',
+            desc: 'KPIs leadership reviews on cadence.',
+          },
+          {
+            label: 'Lead',
+            href: '/dashboard/intelligence/leadership-development',
+            desc: 'Super-Cube® develops the human system.',
+          },
+        ]}
+      />
 
       <SectionLabel>Enterprise health</SectionLabel>
       <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 mb-8">
@@ -308,6 +342,23 @@ function HubInner() {
           <ArrowRight className="w-4 h-4 text-neutral-300 ml-auto" />
         </Link>
       </div>
+
+      <OperatingPrinciples
+        items={[
+          {
+            title: 'Live data, not vanity BI',
+            body: 'Pulse and insights read Supabase trade, network, and finance — the same books operators use every day.',
+          },
+          {
+            title: 'Signal over noise',
+            body: 'Rule-based insights highlight risk, concentration, and opportunity so leaders act, not drown in charts.',
+          },
+          {
+            title: 'Lead the human system',
+            body: 'Super-Cube® develops the people who run the network — better decisions compound across every module.',
+          },
+        ]}
+      />
     </IntelligencePage>
   );
 }
