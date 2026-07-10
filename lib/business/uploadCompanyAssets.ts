@@ -30,6 +30,62 @@ function safeName(name?: string) {
   return (name || 'file').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40);
 }
 
+/**
+ * Preferred path: server upload with service role (bypasses Storage RLS).
+ * Falls back to browser Supabase client if the API is unavailable.
+ */
+export async function uploadCompanyAssetServerFirst(opts: {
+  file: File;
+  companyId: number | string;
+  kind: string;
+  privyUserId?: string | null;
+  /** When set, server also PATCHes this profiles column with the new URL. */
+  profileField?: string | null;
+}): Promise<{
+  url: string | null;
+  fileName?: string;
+  error?: string;
+  profileSynced?: boolean;
+  profile?: Record<string, unknown> | null;
+}> {
+  const { file, companyId, kind, privyUserId, profileField } = opts;
+
+  // 1) Server-side (service role) — reliable for production
+  try {
+    const body = new FormData();
+    body.append('file', file);
+    body.append('companyId', String(companyId));
+    body.append('privyUserId', String(privyUserId || ''));
+    body.append('kind', kind);
+    if (profileField) body.append('profileField', profileField);
+
+    const res = await fetch('/api/business/upload', { method: 'POST', body });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.url) {
+      return {
+        url: String(data.url),
+        fileName: data.fileName || file.name,
+        profileSynced: Boolean(data.profileSynced),
+        profile: data.profile || null,
+      };
+    }
+    // If server returned a useful error and no fallback is likely better, surface it
+    // but still try client fallback for transient issues.
+    console.warn('Server upload failed, trying client:', data.error || res.status);
+  } catch (e) {
+    console.warn('Server upload network error, trying client:', e);
+  }
+
+  // 2) Client fallback
+  const isLogo = kind === 'logo' || profileField === 'logo_url';
+  if (isLogo) {
+    const r = await uploadCompanyLogo(file, companyId);
+    return { ...r, profileSynced: false };
+  }
+  const r = await uploadCompanyDocument(file, companyId, kind);
+  return { ...r, profileSynced: false };
+}
+
 /** Company logo image. */
 export async function uploadCompanyLogo(
   file: File,

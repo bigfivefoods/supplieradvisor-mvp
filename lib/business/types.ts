@@ -392,6 +392,12 @@ export function normalizeProfileRow(row: Record<string, unknown>): CompanyProfil
     iso_certifications: certs.length ? certs : uploaded.map((c) => c.name),
     uploaded_certificates: uploaded,
     export_licenses: normalizeExportLicenses(row.export_licenses),
+    // Business type aliases
+    business_type:
+      (row.business_type as string) || (row.category as string) || null,
+    category: (row.category as string) || (row.business_type as string) || null,
+    bee_level: (row.bee_level as string) || null,
+    bee_certificate_url: (row.bee_certificate_url as string) || null,
     latitude: lat as number | string | null,
     longitude: lng as number | string | null,
     lat: lat as number | string | null,
