@@ -159,7 +159,16 @@ export default function LandingPage() {
           className="absolute inset-0 w-full h-full object-cover"
         />
 
-        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/30 to-black/50" />
+        {/* Dotted + dark overlays — same treatment as bigfivegroup.africa/connect */}
+        <div
+          className="absolute inset-0 bg-[radial-gradient(#ffffff_0.8px,transparent_1px)] bg-[length:4px_4px] opacity-10 pointer-events-none"
+          aria-hidden
+        />
+        <div className="absolute inset-0 bg-black/45 pointer-events-none" aria-hidden />
+        <div
+          className="absolute inset-0 bg-gradient-to-b from-black/25 via-transparent to-black/40 pointer-events-none"
+          aria-hidden
+        />
 
         <div className="relative z-10 max-w-4xl mx-auto text-center px-6 pt-32">
           <div className="inline-flex items-center gap-2 bg-white/90 backdrop-blur-md rounded-3xl px-6 py-2 mb-8 shadow-sm mt-5">
