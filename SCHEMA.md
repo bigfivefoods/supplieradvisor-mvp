@@ -243,15 +243,19 @@ Customer-type edges: `connection_type = 'customer'`, seller = `requester`, buyer
 | `accounting_periods` | Open / closed fiscal periods |
 | `accounting_settings` | Currency, prefixes, document sequences, lock date |
 | `bank_accounts` | Operating banks, wallets, gateways |
-| `bank_transactions` | Statement lines for reconciliation |
+| `bank_transactions` | Statement lines + GL allocation status |
+| `bank_import_batches` | CSV/OFX import audit trail |
 | `tax_rates` | VAT / tax codes |
 | `fixed_assets` | Asset register + depreciation |
 
-Migration: `supabase/migrations/20260710_accounting_module.sql`
+Migrations:
+- `supabase/migrations/20260710_accounting_module.sql`
+- `supabase/migrations/20260710_accounting_bank_allocation.sql` (CSV import + allocate columns)
 
-Dashboard: `/dashboard/accounting` (hub + CoA, journals, AR, AP, payments, bank, reports, tax, assets, entities, settings).
+Dashboard: `/dashboard/accounting` (hub + CoA, journals, AR, AP, payments, bank import/allocate, management accounts, reports, tax, assets, entities, settings).
 
 APIs under `/api/accounting/*` — membership-checked via `accounting` permission.
+Bank: `POST /api/accounting/bank/import`, `POST /api/accounting/bank/allocate`.
 
 ### People / HR
 | Table | Purpose |

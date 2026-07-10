@@ -184,10 +184,26 @@ export type BankTransaction = {
   amount: number;
   currency?: string | null;
   status: string;
+  /** unallocated | allocated | matched_invoice | excluded */
+  allocation_status?: string | null;
+  gl_account_id?: number | null;
+  counterparty_name?: string | null;
+  category?: string | null;
+  tax_code?: string | null;
+  tax_amount?: number | null;
+  balance_after?: number | null;
+  external_id?: string | null;
+  import_batch_id?: number | null;
   matched_payment_id?: number | null;
   matched_journal_id?: number | null;
+  matched_invoice_id?: number | null;
+  allocated_at?: string | null;
+  allocated_by?: string | null;
+  notes?: string | null;
   metadata?: Record<string, unknown> | null;
   created_at?: string;
+  /** joined */
+  gl_account_name?: string | null;
 };
 
 export type AccountingEntity = {

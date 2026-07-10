@@ -5,7 +5,7 @@ import { parseCompanyId, round2 } from '@/lib/accounting/server';
 import { invoiceBalance } from '@/lib/accounting/types';
 
 /**
- * GET ?companyId=&report=trial_balance|pnl|balance_sheet|ar_aging|ap_aging|cashflow
+ * GET ?companyId=&report=trial_balance|pnl|balance_sheet|ar_aging|ap_aging|cashflow|management_accounts
  * Optional: from=&to= (YYYY-MM-DD)
  */
 export async function GET(request: NextRequest) {
@@ -113,6 +113,174 @@ export async function GET(request: NextRequest) {
           count: (payments || []).length,
         },
         rows: payments || [],
+      });
+    }
+
+    if (report === 'management_accounts') {
+      // P&L from posted journals + bank allocation pulse
+      const { data: accounts, error: accErr } = await supabase
+        .from('chart_of_accounts')
+        .select('*')
+        .eq('profile_id', companyId)
+        .eq('is_active', true)
+        .order('code');
+
+      if (accErr) {
+        return NextResponse.json({
+          success: true,
+          report,
+          warning: accErr.message,
+          summary: null,
+          income: [],
+          expenses: [],
+          bank: null,
+        });
+      }
+
+      let jeQ = supabase
+        .from('journal_entries')
+        .select('id, entry_date, status, source')
+        .eq('profile_id', companyId)
+        .eq('status', 'posted');
+      if (from) jeQ = jeQ.gte('entry_date', from);
+      if (to) jeQ = jeQ.lte('entry_date', to);
+      const { data: entries } = await jeQ;
+      const entryIds = (entries || []).map((e) => e.id);
+
+      let lines: Array<{ account_id: number; debit: number; credit: number }> = [];
+      if (entryIds.length) {
+        const { data: lineRows } = await supabase
+          .from('journal_lines')
+          .select('account_id, debit, credit')
+          .in('journal_entry_id', entryIds);
+        lines = (lineRows || []).map((l) => ({
+          account_id: Number(l.account_id),
+          debit: Number(l.debit || 0),
+          credit: Number(l.credit || 0),
+        }));
+      }
+
+      const totals: Record<number, { debit: number; credit: number }> = {};
+      for (const l of lines) {
+        if (!totals[l.account_id]) totals[l.account_id] = { debit: 0, credit: 0 };
+        totals[l.account_id].debit += l.debit;
+        totals[l.account_id].credit += l.credit;
+      }
+
+      const income: Array<Record<string, unknown>> = [];
+      const expenses: Array<Record<string, unknown>> = [];
+      const cogsRows: Array<Record<string, unknown>> = [];
+
+      for (const a of accounts || []) {
+        if (a.is_header) continue;
+        const t = totals[a.id] || { debit: 0, credit: 0 };
+        const type = String(a.account_type || '');
+        if (type === 'revenue') {
+          const amount = round2(t.credit - t.debit);
+          if (amount !== 0) {
+            income.push({
+              id: a.id,
+              code: a.code,
+              name: a.name,
+              account_type: type,
+              amount,
+            });
+          }
+        } else if (type === 'cogs') {
+          const amount = round2(t.debit - t.credit);
+          if (amount !== 0) {
+            cogsRows.push({
+              id: a.id,
+              code: a.code,
+              name: a.name,
+              account_type: type,
+              amount,
+            });
+          }
+        } else if (type === 'expense') {
+          const amount = round2(t.debit - t.credit);
+          if (amount !== 0) {
+            expenses.push({
+              id: a.id,
+              code: a.code,
+              name: a.name,
+              account_type: type,
+              amount,
+            });
+          }
+        }
+      }
+
+      const revenue = round2(income.reduce((s, r) => s + Number(r.amount), 0));
+      const cogs = round2(cogsRows.reduce((s, r) => s + Number(r.amount), 0));
+      const expenseTotal = round2(expenses.reduce((s, r) => s + Number(r.amount), 0));
+      const grossProfit = round2(revenue - cogs);
+      const operatingProfit = round2(grossProfit - expenseTotal);
+
+      // Bank allocation progress
+      let bankQ = supabase
+        .from('bank_transactions')
+        .select('id, amount, allocation_status, txn_date, description, gl_account_id')
+        .eq('profile_id', companyId);
+      if (from) bankQ = bankQ.gte('txn_date', from);
+      if (to) bankQ = bankQ.lte('txn_date', to);
+      const { data: bankTxns } = await bankQ;
+
+      let unallocated = 0;
+      let unallocatedIn = 0;
+      let unallocatedOut = 0;
+      let allocatedCount = 0;
+      let bankIn = 0;
+      let bankOut = 0;
+      for (const t of bankTxns || []) {
+        const amt = Number(t.amount || 0);
+        if (amt > 0) bankIn += amt;
+        else bankOut += Math.abs(amt);
+        const st = String(t.allocation_status || 'unallocated');
+        if (st === 'unallocated') {
+          unallocated++;
+          if (amt > 0) unallocatedIn += amt;
+          else unallocatedOut += Math.abs(amt);
+        } else if (st === 'allocated' || st === 'matched_invoice') {
+          allocatedCount++;
+        }
+      }
+
+      // Recent allocated bank lines for detail
+      const recentAllocated = (bankTxns || [])
+        .filter((t) => ['allocated', 'matched_invoice'].includes(String(t.allocation_status)))
+        .slice(0, 50);
+
+      return NextResponse.json({
+        success: true,
+        report,
+        period: { from, to },
+        summary: {
+          revenue,
+          cogs,
+          grossProfit,
+          expenses: expenseTotal,
+          operatingProfit,
+          netIncome: operatingProfit,
+          journalCount: entryIds.length,
+          bankLines: (bankTxns || []).length,
+          bankIn: round2(bankIn),
+          bankOut: round2(bankOut),
+          unallocated,
+          unallocatedIn: round2(unallocatedIn),
+          unallocatedOut: round2(unallocatedOut),
+          allocatedCount,
+        },
+        income,
+        cogs: cogsRows,
+        expenses,
+        bank: {
+          unallocated,
+          unallocatedIn: round2(unallocatedIn),
+          unallocatedOut: round2(unallocatedOut),
+          allocatedCount,
+          recentAllocated,
+        },
       });
     }
 

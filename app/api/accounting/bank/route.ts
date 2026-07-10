@@ -53,20 +53,58 @@ export async function GET(request: NextRequest) {
       unreconciled_count: unrecCount[a.id] || 0,
     }));
 
+    const allocationStatus = request.nextUrl.searchParams.get('allocation_status');
+    const limit = Math.min(1000, Number(request.nextUrl.searchParams.get('limit') || 500) || 500);
+
     let transactions: unknown[] = [];
-    if (include === 'transactions' || accountId) {
+    if (include === 'transactions' || accountId || allocationStatus) {
       let tq = supabase
         .from('bank_transactions')
         .select('*')
         .eq('profile_id', companyId)
         .order('txn_date', { ascending: false })
-        .limit(200);
+        .order('id', { ascending: false })
+        .limit(limit);
       if (accountId) tq = tq.eq('bank_account_id', Number(accountId));
+      if (allocationStatus && allocationStatus !== 'all') {
+        tq = tq.eq('allocation_status', allocationStatus);
+      }
       const { data: txns } = await tq;
       transactions = txns || [];
     }
 
-    return NextResponse.json({ success: true, accounts: enriched, transactions });
+    // Allocation pulse
+    const { data: allocRows } = await supabase
+      .from('bank_transactions')
+      .select('allocation_status, amount')
+      .eq('profile_id', companyId);
+    const pulse = {
+      unallocated: 0,
+      allocated: 0,
+      matched_invoice: 0,
+      excluded: 0,
+      unallocatedIn: 0,
+      unallocatedOut: 0,
+    };
+    for (const r of allocRows || []) {
+      const s = String(r.allocation_status || 'unallocated');
+      if (s === 'allocated') pulse.allocated++;
+      else if (s === 'matched_invoice') pulse.matched_invoice++;
+      else if (s === 'excluded') pulse.excluded++;
+      else {
+        pulse.unallocated++;
+        const amt = Number(r.amount || 0);
+        if (amt > 0) pulse.unallocatedIn += amt;
+        else pulse.unallocatedOut += Math.abs(amt);
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      accounts: enriched,
+      transactions,
+      pulse,
+    });
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },

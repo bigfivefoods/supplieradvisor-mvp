@@ -16,6 +16,7 @@ export const ACCOUNTING_NAV: readonly NavItem[] = [
   { href: '/dashboard/accounting/accounts-payable', label: 'Payable' },
   { href: '/dashboard/accounting/payments', label: 'Payments' },
   { href: '/dashboard/accounting/bank-reconciliation', label: 'Bank' },
+  { href: '/dashboard/accounting/management', label: 'Mgmt accounts' },
   { href: '/dashboard/accounting/reports', label: 'Reports' },
   { href: '/dashboard/accounting/tax', label: 'Tax' },
   { href: '/dashboard/accounting/fixed-assets', label: 'Assets' },

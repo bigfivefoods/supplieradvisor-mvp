@@ -43,7 +43,8 @@ const PROCESS = [
   { label: 'AP', href: '/dashboard/accounting/accounts-payable' },
   { label: 'Pay', href: '/dashboard/accounting/payments' },
   { label: 'Bank', href: '/dashboard/accounting/bank-reconciliation' },
-  { label: 'Report', href: '/dashboard/accounting/reports' },
+  { label: 'Allocate', href: '/dashboard/accounting/bank-reconciliation' },
+  { label: 'Mgmt', href: '/dashboard/accounting/management' },
 ];
 
 const MODULES: ModuleCard[] = [
@@ -84,15 +85,22 @@ const MODULES: ModuleCard[] = [
   {
     href: '/dashboard/accounting/bank-reconciliation',
     icon: Landmark,
-    title: 'Bank & reconciliation',
-    desc: 'Bank accounts, statement lines, match and clear',
+    title: 'Bank import & allocation',
+    desc: 'CSV from FNB/RMB → allocate income/expense → journals',
+    badge: 'Core',
+  },
+  {
+    href: '/dashboard/accounting/management',
+    icon: BarChart3,
+    title: 'Management accounts',
+    desc: 'Period P&L from allocated books — revenue, costs, profit',
+    badge: 'Live',
   },
   {
     href: '/dashboard/accounting/reports',
     icon: BarChart3,
     title: 'Reports & analytics',
     desc: 'Trial balance, P&L, balance sheet, aging, cash flow',
-    badge: 'Live',
   },
   {
     href: '/dashboard/accounting/tax',

@@ -205,6 +205,7 @@ const modules = [
       { name: 'Accounts Payable', href: '/dashboard/accounting/accounts-payable' },
       { name: 'Accounts Receivable', href: '/dashboard/accounting/accounts-receivable' },
       { name: 'Bank & Reconciliation', href: '/dashboard/accounting/bank-reconciliation' },
+      { name: 'Management Accounts', href: '/dashboard/accounting/management' },
       { name: 'Payments', href: '/dashboard/accounting/payments' },
       { name: 'Reports & Analytics', href: '/dashboard/accounting/reports' },
       { name: 'Tax & Compliance', href: '/dashboard/accounting/tax' },
