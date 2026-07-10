@@ -2,13 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { assertAccountingAccess } from '@/lib/accounting/access';
 import { parseCompanyId, round2 } from '@/lib/accounting/server';
-import { parseBankCsv } from '@/lib/accounting/csv';
+import { parseBankCsv, type ParseResult } from '@/lib/accounting/csv';
+import { parseBankPdfBuffer, linesToCsv } from '@/lib/accounting/pdf-statement';
 
 /**
- * POST — import bank statement CSV
+ * POST — import bank statement CSV or PDF
  * body: {
  *   companyId, privyUserId, bank_account_id,
- *   csv: string, filename?, format?: 'auto'|'fnb'|'rmb'|'universal',
+ *   csv?: string,
+ *   pdfBase64?: string,  // raw base64 or data:application/pdf;base64,...
+ *   filename?, format?: 'auto'|'fnb'|'rmb'|'universal',
  *   dryRun?: boolean
  * }
  */
@@ -18,18 +21,15 @@ export async function POST(request: NextRequest) {
     const companyId = parseCompanyId(body.companyId);
     const privyUserId = body.privyUserId as string | undefined;
     const bankAccountId = Number(body.bank_account_id);
-    const csv = String(body.csv || '');
     const dryRun = !!body.dryRun;
     const formatHint = String(body.format || 'auto');
+    const filename = String(body.filename || '');
 
     if (!Number.isFinite(companyId) || !Number.isFinite(bankAccountId)) {
       return NextResponse.json(
         { error: 'companyId and bank_account_id required' },
         { status: 400 }
       );
-    }
-    if (!csv.trim()) {
-      return NextResponse.json({ error: 'csv content required' }, { status: 400 });
     }
     if (privyUserId) {
       const mem = await assertAccountingAccess(privyUserId, companyId, 'write');
@@ -48,21 +48,56 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Bank account not found' }, { status: 404 });
     }
 
-    const parsed = parseBankCsv(csv, formatHint);
-    if (parsed.lines.length === 0) {
-      return NextResponse.json({
-        success: false,
-        error: 'No transactions parsed',
-        warnings: parsed.warnings,
-        format: parsed.format,
-        skipped: parsed.skipped,
-      }, { status: 400 });
+    let parsed: ParseResult & { csv?: string; pages?: number; textPreview?: string };
+    let source: 'csv' | 'pdf' = 'csv';
+
+    if (body.pdfBase64) {
+      source = 'pdf';
+      let b64 = String(body.pdfBase64);
+      const comma = b64.indexOf(',');
+      if (b64.startsWith('data:') && comma >= 0) b64 = b64.slice(comma + 1);
+      const buffer = Buffer.from(b64, 'base64');
+      if (buffer.length < 100) {
+        return NextResponse.json({ error: 'PDF file is empty or invalid' }, { status: 400 });
+      }
+      if (buffer.length > 12 * 1024 * 1024) {
+        return NextResponse.json({ error: 'PDF too large (max 12MB)' }, { status: 400 });
+      }
+      // quick magic check
+      if (buffer.subarray(0, 4).toString() !== '%PDF') {
+        return NextResponse.json(
+          { error: 'File does not look like a PDF. Upload a .pdf statement.' },
+          { status: 400 }
+        );
+      }
+      parsed = await parseBankPdfBuffer(buffer);
+    } else if (body.csv) {
+      parsed = parseBankCsv(String(body.csv), formatHint);
+      parsed.csv = String(body.csv);
+    } else {
+      return NextResponse.json(
+        { error: 'Provide csv text or pdfBase64' },
+        { status: 400 }
+      );
     }
 
-    // Dedupe against existing external_ids for this company
+    if (parsed.lines.length === 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'No transactions parsed',
+          warnings: parsed.warnings,
+          format: parsed.format,
+          skipped: parsed.skipped,
+          source,
+          textPreview: parsed.textPreview,
+        },
+        { status: 400 }
+      );
+    }
+
     const externalIds = parsed.lines.map((l) => l.external_id);
     const existing = new Set<string>();
-    // chunk in groups of 100
     for (let i = 0; i < externalIds.length; i += 100) {
       const chunk = externalIds.slice(i, i + 100);
       const { data: rows } = await supabase
@@ -78,18 +113,22 @@ export async function POST(request: NextRequest) {
 
     const toInsert = parsed.lines.filter((l) => !existing.has(l.external_id));
     const duplicates = parsed.lines.length - toInsert.length;
+    const csvOut = parsed.csv || linesToCsv(parsed.lines);
 
     if (dryRun) {
       return NextResponse.json({
         success: true,
         dryRun: true,
-        format: parsed.format,
+        source,
+        format: source === 'pdf' ? 'pdf' : parsed.format,
+        pages: parsed.pages,
         parsed: parsed.lines.length,
         wouldImport: toInsert.length,
         duplicates,
         skipped: parsed.skipped,
         warnings: parsed.warnings,
         preview: toInsert.slice(0, 25),
+        csv: csvOut,
       });
     }
 
@@ -98,24 +137,22 @@ export async function POST(request: NextRequest) {
       .insert({
         profile_id: companyId,
         bank_account_id: bankAccountId,
-        source: 'csv',
-        filename: body.filename || null,
-        format_hint: parsed.format,
+        source,
+        filename: filename || null,
+        format_hint: source === 'pdf' ? 'pdf' : parsed.format,
         row_count: parsed.lines.length,
         imported_count: 0,
         skipped_count: parsed.skipped,
         duplicate_count: duplicates,
         imported_by: privyUserId || null,
-        metadata: { format_hint: formatHint },
+        metadata: { format_hint: formatHint, pages: parsed.pages },
       })
       .select('*')
       .single();
 
+    let batchId: number | null = null;
     if (batchErr || !batch) {
-      // If batches table missing, still try insert without batch
-      if (batchErr?.message?.includes('does not exist') || batchErr?.code === '42P01') {
-        // fall through without batch
-      } else {
+      if (!(batchErr?.message?.includes('does not exist') || batchErr?.code === '42P01')) {
         return NextResponse.json(
           {
             error: batchErr?.message || 'Failed to create import batch',
@@ -124,9 +161,10 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
+    } else {
+      batchId = batch.id;
     }
 
-    const batchId = batch?.id || null;
     const rows = toInsert.map((l) => ({
       profile_id: companyId,
       bank_account_id: bankAccountId,
@@ -141,11 +179,10 @@ export async function POST(request: NextRequest) {
       counterparty_name: l.counterparty_name,
       external_id: l.external_id,
       import_batch_id: batchId,
-      metadata: { import_raw: l.raw, format: parsed.format },
+      metadata: { import_raw: l.raw, format: source === 'pdf' ? 'pdf' : parsed.format, source },
     }));
 
     let imported = 0;
-    // insert in chunks
     for (let i = 0; i < rows.length; i += 100) {
       const chunk = rows.slice(i, i + 100);
       const { data: inserted, error: insErr } = await supabase
@@ -153,14 +190,17 @@ export async function POST(request: NextRequest) {
         .insert(chunk)
         .select('id');
       if (insErr) {
-        return NextResponse.json({
-          success: false,
-          error: insErr.message,
-          imported,
-          hint: insErr.message.includes('allocation_status')
-            ? 'Run supabase/migrations/20260710_accounting_bank_allocation.sql'
-            : undefined,
-        }, { status: 400 });
+        return NextResponse.json(
+          {
+            success: false,
+            error: insErr.message,
+            imported,
+            hint: insErr.message.includes('allocation_status')
+              ? 'Run supabase/migrations/20260710_accounting_bank_allocation.sql'
+              : undefined,
+          },
+          { status: 400 }
+        );
       }
       imported += inserted?.length || chunk.length;
     }
@@ -172,7 +212,6 @@ export async function POST(request: NextRequest) {
         .eq('id', batchId);
     }
 
-    // Optionally refresh current_balance from last balance_after in file
     const withBal = [...toInsert]
       .filter((l) => l.balance_after != null)
       .sort((a, b) => a.txn_date.localeCompare(b.txn_date));
@@ -183,19 +222,18 @@ export async function POST(request: NextRequest) {
         .update({
           current_balance: round2(Number(last.balance_after)),
           last_import_at: new Date().toISOString(),
-          import_format: parsed.format,
+          import_format: source === 'pdf' ? 'pdf' : parsed.format,
           updated_at: new Date().toISOString(),
         })
         .eq('id', bankAccountId);
     } else {
-      // adjust by sum of imported amounts
       const delta = toInsert.reduce((s, l) => s + l.amount, 0);
       await supabase
         .from('bank_accounts')
         .update({
           current_balance: round2(Number(bank.current_balance || 0) + delta),
           last_import_at: new Date().toISOString(),
-          import_format: parsed.format,
+          import_format: source === 'pdf' ? 'pdf' : parsed.format,
           updated_at: new Date().toISOString(),
         })
         .eq('id', bankAccountId);
@@ -203,13 +241,15 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      format: parsed.format,
+      source,
+      format: source === 'pdf' ? 'pdf' : parsed.format,
       batch_id: batchId,
       parsed: parsed.lines.length,
       imported,
       duplicates,
       skipped: parsed.skipped,
       warnings: parsed.warnings,
+      csv: csvOut,
     });
   } catch (e: unknown) {
     return NextResponse.json(

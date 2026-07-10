@@ -88,7 +88,9 @@ function Inner() {
     bank_account_id: '',
     format: 'auto',
     csv: '',
+    pdfBase64: '',
     filename: '',
+    kind: 'csv' as 'csv' | 'pdf',
   });
   const [importPreview, setImportPreview] = useState<Record<string, unknown> | null>(null);
 
@@ -188,9 +190,32 @@ function Inner() {
     }
   }
 
+  function importPayload(dryRun: boolean) {
+    const base = {
+      companyId,
+      privyUserId,
+      bank_account_id: Number(importForm.bank_account_id),
+      format: importForm.format,
+      filename: importForm.filename || null,
+      dryRun,
+    };
+    if (importForm.kind === 'pdf' && importForm.pdfBase64) {
+      return { ...base, pdfBase64: importForm.pdfBase64 };
+    }
+    return { ...base, csv: importForm.csv };
+  }
+
   async function dryRunImport() {
-    if (!importForm.bank_account_id || !importForm.csv.trim()) {
-      toast.error('Select account and paste or upload CSV');
+    if (!importForm.bank_account_id) {
+      toast.error('Select a bank account');
+      return;
+    }
+    if (importForm.kind === 'pdf' && !importForm.pdfBase64) {
+      toast.error('Upload a PDF statement');
+      return;
+    }
+    if (importForm.kind === 'csv' && !importForm.csv.trim()) {
+      toast.error('Paste or upload CSV');
       return;
     }
     setSaving(true);
@@ -198,20 +223,16 @@ function Inner() {
       const res = await fetch('/api/accounting/bank/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          companyId,
-          privyUserId,
-          bank_account_id: Number(importForm.bank_account_id),
-          csv: importForm.csv,
-          format: importForm.format,
-          filename: importForm.filename || null,
-          dryRun: true,
-        }),
+        body: JSON.stringify(importPayload(true)),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Parse failed');
       setImportPreview(data);
-      toast.success(`Preview: ${data.wouldImport} new · ${data.duplicates} duplicates`);
+      toast.success(
+        `Preview: ${data.wouldImport} new · ${data.duplicates} duplicates${
+          data.source === 'pdf' ? ' (from PDF)' : ''
+        }`
+      );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed');
     } finally {
@@ -220,8 +241,16 @@ function Inner() {
   }
 
   async function runImport() {
-    if (!importForm.bank_account_id || !importForm.csv.trim()) {
-      toast.error('Select account and CSV');
+    if (!importForm.bank_account_id) {
+      toast.error('Select a bank account');
+      return;
+    }
+    if (importForm.kind === 'pdf' && !importForm.pdfBase64) {
+      toast.error('Upload a PDF statement');
+      return;
+    }
+    if (importForm.kind === 'csv' && !importForm.csv.trim()) {
+      toast.error('Paste or upload CSV');
       return;
     }
     setSaving(true);
@@ -229,22 +258,25 @@ function Inner() {
       const res = await fetch('/api/accounting/bank/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          companyId,
-          privyUserId,
-          bank_account_id: Number(importForm.bank_account_id),
-          csv: importForm.csv,
-          format: importForm.format,
-          filename: importForm.filename || null,
-          dryRun: false,
-        }),
+        body: JSON.stringify(importPayload(false)),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Import failed');
       toast.success(`Imported ${data.imported} lines (${data.duplicates} duplicates skipped)`);
+      if (data.csv && data.source === 'pdf') {
+        // keep converted CSV in preview state for optional download
+        setImportPreview(data);
+      }
       setShowImport(false);
       setImportPreview(null);
-      setImportForm({ bank_account_id: '', format: 'auto', csv: '', filename: '' });
+      setImportForm({
+        bank_account_id: '',
+        format: 'auto',
+        csv: '',
+        pdfBase64: '',
+        filename: '',
+        kind: 'csv',
+      });
       setAllocFilter('unallocated');
       void load();
     } catch (err) {
@@ -254,13 +286,51 @@ function Inner() {
     }
   }
 
+  function downloadCsvFromPreview() {
+    const csv = importPreview?.csv;
+    if (typeof csv !== 'string' || !csv) {
+      toast.error('No CSV available — run Preview first');
+      return;
+    }
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = (importForm.filename || 'statement').replace(/\.pdf$/i, '') + '.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('CSV downloaded');
+  }
+
   function onFile(file: File | null) {
     if (!file) return;
-    setImportForm((f) => ({ ...f, filename: file.name }));
+    const isPdf =
+      file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    setImportPreview(null);
+    if (isPdf) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = String(reader.result || '');
+        setImportForm((f) => ({
+          ...f,
+          filename: file.name,
+          kind: 'pdf',
+          pdfBase64: result,
+          csv: '',
+        }));
+      };
+      reader.readAsDataURL(file);
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => {
-      setImportForm((f) => ({ ...f, csv: String(reader.result || '') }));
-      setImportPreview(null);
+      setImportForm((f) => ({
+        ...f,
+        filename: file.name,
+        kind: 'csv',
+        csv: String(reader.result || ''),
+        pdfBase64: '',
+      }));
     };
     reader.readAsText(file);
   }
@@ -467,7 +537,7 @@ function Inner() {
               className="btn-primary !py-2.5 !px-5 text-sm"
               disabled={accounts.length === 0}
             >
-              <Upload className="w-4 h-4" /> Import CSV
+              <Upload className="w-4 h-4" /> Import PDF/CSV
             </button>
           </>
         }
@@ -798,28 +868,59 @@ function Inner() {
 
       {/* Import modal */}
       {showImport && (
-        <Modal title="Import bank CSV" onClose={() => setShowImport(false)} wide>
+        <Modal title="Import bank PDF or CSV" onClose={() => setShowImport(false)} wide>
           <div className="space-y-3">
             <p className="text-xs text-neutral-500 leading-relaxed">
-              Export CSV from FNB/RMB online banking (Date, Description, Amount or Money In/Out,
-              Balance). Or use our universal template.
+              Upload an <strong>FNB/RMB PDF statement</strong> — we extract text, convert to
+              transactions (and optional CSV), then import. Text-based PDFs work best; scanned
+              image-only PDFs may need OCR first. CSV is still supported.
             </p>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                className="text-xs font-semibold text-[#00b4d8] inline-flex items-center gap-1 hover:underline"
-                onClick={() => {
-                  setImportForm((f) => ({
-                    ...f,
-                    csv: UNIVERSAL_CSV_TEMPLATE,
-                    format: 'universal',
-                    filename: 'template.csv',
-                  }));
-                  setImportPreview(null);
-                }}
+                className={`text-xs font-semibold px-3 py-1.5 rounded-full border ${
+                  importForm.kind === 'pdf'
+                    ? 'border-[#00b4d8] bg-[#00b4d8] text-white'
+                    : 'border-neutral-200 bg-white text-neutral-600'
+                }`}
+                onClick={() =>
+                  setImportForm((f) => ({ ...f, kind: 'pdf', csv: '', pdfBase64: f.pdfBase64 }))
+                }
               >
-                <Download className="w-3.5 h-3.5" /> Load template
+                PDF
               </button>
+              <button
+                type="button"
+                className={`text-xs font-semibold px-3 py-1.5 rounded-full border ${
+                  importForm.kind === 'csv'
+                    ? 'border-[#00b4d8] bg-[#00b4d8] text-white'
+                    : 'border-neutral-200 bg-white text-neutral-600'
+                }`}
+                onClick={() =>
+                  setImportForm((f) => ({ ...f, kind: 'csv', pdfBase64: '' }))
+                }
+              >
+                CSV
+              </button>
+              {importForm.kind === 'csv' && (
+                <button
+                  type="button"
+                  className="text-xs font-semibold text-[#00b4d8] inline-flex items-center gap-1 hover:underline"
+                  onClick={() => {
+                    setImportForm((f) => ({
+                      ...f,
+                      kind: 'csv',
+                      csv: UNIVERSAL_CSV_TEMPLATE,
+                      format: 'universal',
+                      filename: 'template.csv',
+                      pdfBase64: '',
+                    }));
+                    setImportPreview(null);
+                  }}
+                >
+                  <Download className="w-3.5 h-3.5" /> Load CSV template
+                </button>
+              )}
             </div>
             <Field label="Bank account" required>
               <select
@@ -839,47 +940,114 @@ function Inner() {
               </select>
             </Field>
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Format hint">
-                <select
-                  value={importForm.format}
-                  onChange={(e) => setImportForm({ ...importForm, format: e.target.value })}
-                  className="input"
-                >
-                  <option value="auto">Auto-detect</option>
-                  <option value="fnb">FNB / Money In-Out</option>
-                  <option value="rmb">RMB</option>
-                  <option value="universal">Universal</option>
-                </select>
-              </Field>
-              <Field label="CSV file">
+              {importForm.kind === 'csv' && (
+                <Field label="CSV format hint">
+                  <select
+                    value={importForm.format}
+                    onChange={(e) => setImportForm({ ...importForm, format: e.target.value })}
+                    className="input"
+                  >
+                    <option value="auto">Auto-detect</option>
+                    <option value="fnb">FNB / Money In-Out</option>
+                    <option value="rmb">RMB</option>
+                    <option value="universal">Universal</option>
+                  </select>
+                </Field>
+              )}
+              <Field label={importForm.kind === 'pdf' ? 'PDF file' : 'CSV file'}>
                 <input
                   type="file"
-                  accept=".csv,text/csv,text/plain"
+                  accept={
+                    importForm.kind === 'pdf'
+                      ? 'application/pdf,.pdf'
+                      : '.csv,text/csv,text/plain'
+                  }
                   onChange={(e) => onFile(e.target.files?.[0] || null)}
                   className="text-xs w-full"
                 />
+                {importForm.filename && (
+                  <div className="text-[11px] text-neutral-500 mt-1">{importForm.filename}</div>
+                )}
               </Field>
             </div>
-            <Field label="CSV content">
-              <textarea
-                value={importForm.csv}
-                onChange={(e) => {
-                  setImportForm({ ...importForm, csv: e.target.value });
-                  setImportPreview(null);
-                }}
-                className="input min-h-[140px] font-mono text-xs"
-                placeholder="Paste CSV here…"
-              />
-            </Field>
+            {importForm.kind === 'csv' && (
+              <Field label="CSV content">
+                <textarea
+                  value={importForm.csv}
+                  onChange={(e) => {
+                    setImportForm({
+                      ...importForm,
+                      kind: 'csv',
+                      csv: e.target.value,
+                      pdfBase64: '',
+                    });
+                    setImportPreview(null);
+                  }}
+                  className="input min-h-[140px] font-mono text-xs"
+                  placeholder="Paste CSV here…"
+                />
+              </Field>
+            )}
+            {importForm.kind === 'pdf' && !importForm.pdfBase64 && (
+              <div className="rounded-2xl border border-dashed border-neutral-200 px-4 py-8 text-center text-xs text-neutral-500">
+                Choose a .pdf bank statement (max ~12MB)
+              </div>
+            )}
+            {importForm.kind === 'pdf' && importForm.pdfBase64 && (
+              <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 px-4 py-3 text-xs text-emerald-900">
+                PDF loaded ({Math.round((importForm.pdfBase64.length * 0.75) / 1024)} KB approx).
+                Run <strong>Preview</strong> to extract transactions.
+              </div>
+            )}
             {importPreview && (
               <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-xs space-y-1">
                 <div>
-                  Format: <strong>{String(importPreview.format)}</strong>
+                  Source: <strong>{String(importPreview.source || importForm.kind)}</strong>
+                  {importPreview.pages != null ? ` · ${String(importPreview.pages)} pages` : ''}
                 </div>
                 <div>
                   Would import: <strong>{String(importPreview.wouldImport)}</strong> · Duplicates:{' '}
                   {String(importPreview.duplicates)} · Skipped: {String(importPreview.skipped)}
                 </div>
+                {Array.isArray(importPreview.warnings) &&
+                  (importPreview.warnings as string[]).map((w) => (
+                    <div key={w} className="text-amber-800">
+                      {w}
+                    </div>
+                  ))}
+                {Array.isArray(importPreview.preview) &&
+                  (importPreview.preview as Array<{ txn_date: string; description: string; amount: number }>).length >
+                    0 && (
+                    <div className="mt-2 max-h-32 overflow-y-auto border-t border-neutral-200 pt-2 space-y-0.5">
+                      {(
+                        importPreview.preview as Array<{
+                          txn_date: string;
+                          description: string;
+                          amount: number;
+                        }>
+                      )
+                        .slice(0, 8)
+                        .map((p, i) => (
+                          <div key={i} className="flex justify-between gap-2 font-mono">
+                            <span className="truncate">
+                              {p.txn_date} {p.description}
+                            </span>
+                            <span className="tabular-nums flex-shrink-0">
+                              {Number(p.amount).toFixed(2)}
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                {typeof importPreview.csv === 'string' && (
+                  <button
+                    type="button"
+                    onClick={downloadCsvFromPreview}
+                    className="mt-2 inline-flex items-center gap-1 text-[#00b4d8] font-semibold hover:underline"
+                  >
+                    <Download className="w-3.5 h-3.5" /> Download converted CSV
+                  </button>
+                )}
               </div>
             )}
             <div className="flex justify-end gap-2 pt-2">
