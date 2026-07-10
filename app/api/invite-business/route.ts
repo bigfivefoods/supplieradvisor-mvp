@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
-import { getResend, getResendFrom } from '@/lib/resend';
+import { getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
 import { buildBusinessInviteLink, businessInviteEmailHtml } from '@/lib/invites/email';
 import { INVITE_EXPIRY_DAYS } from '@/lib/auth/identity';
 
@@ -72,6 +72,7 @@ export async function POST(request: NextRequest) {
 
     const { error: emailError } = await resend.emails.send({
       from: getResendFrom(),
+        replyTo: getResendReplyTo(),
       to: email,
       subject: `${invitedBy} invited ${trading_name} to SupplierAdvisor`,
       html: businessInviteEmailHtml({

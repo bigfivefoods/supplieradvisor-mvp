@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { getResend, getResendFrom } from '@/lib/resend';
+import { getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
 import { businessInviteEmailHtml, buildBusinessInviteLink } from '@/lib/invites/email';
 import { INVITE_EXPIRY_DAYS } from '@/lib/auth/identity';
 import {
@@ -211,6 +211,7 @@ export async function POST(request: NextRequest) {
       const resend = getResend();
       const { error: emailError } = await resend.emails.send({
         from: getResendFrom(),
+        replyTo: getResendReplyTo(),
         to: email,
         subject: `${body.invitedBy || 'A buyer'} invited you to SupplierAdvisor`,
         html: businessInviteEmailHtml({
@@ -359,6 +360,7 @@ export async function PATCH(request: NextRequest) {
         const resend = getResend();
         await resend.emails.send({
           from: getResendFrom(),
+        replyTo: getResendReplyTo(),
           to: inv.email,
           subject: `Reminder: join SupplierAdvisor`,
           html: businessInviteEmailHtml({

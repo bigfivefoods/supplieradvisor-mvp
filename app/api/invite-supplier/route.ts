@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { randomUUID } from 'crypto';
-import { getAppUrl, getResend, getResendFrom } from '@/lib/resend';
+import { getAppUrl, getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -62,6 +62,7 @@ export async function POST(request: NextRequest) {
     // Send beautiful branded email
     const { error: emailError } = await resend.emails.send({
       from: getResendFrom(),
+        replyTo: getResendReplyTo(),
       to: contact_email,
       subject: `${invitedBy} has invited you to join SupplierAdvisor`,
       html: `

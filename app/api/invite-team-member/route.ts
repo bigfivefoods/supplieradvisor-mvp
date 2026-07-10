@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
-import { getResend, getResendFrom, getAppUrl } from '@/lib/resend';
+import { getAppUrl, getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
 import { buildTeamInviteLink, teamInviteEmailHtml } from '@/lib/invites/email';
 import { INVITE_EXPIRY_DAYS, getCanonicalUserId } from '@/lib/auth/identity';
 import { assertCanManageTeam } from '@/lib/business/access';
@@ -188,6 +188,7 @@ export async function POST(request: NextRequest) {
     try {
       const { data: emailData, error: emailError } = await resend.emails.send({
         from: getResendFrom(),
+        replyTo: getResendReplyTo(),
         to: normalizedEmail,
         subject: `Join ${displayCompany} on SupplierAdvisor`,
         html: teamInviteEmailHtml({
