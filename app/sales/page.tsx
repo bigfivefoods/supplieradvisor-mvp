@@ -56,26 +56,29 @@ export default function SalesCommandCentre() {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-3">
-        <Loader2 className="w-10 h-10 animate-spin text-amber-400" />
-        <p className="text-slate-400 text-sm">Loading your sales command centre…</p>
+        <Loader2 className="w-10 h-10 animate-spin text-[#00b4d8]" />
+        <p className="text-neutral-600 text-sm">Loading your sales command centre…</p>
       </div>
     );
   }
 
   if (error || !summary) {
     return (
-      <div className="max-w-lg mx-auto rounded-3xl border border-red-500/30 bg-red-500/10 p-8 text-center">
-        <AlertTriangle className="w-10 h-10 text-red-400 mx-auto mb-3" />
-        <p className="font-semibold text-red-200 mb-2">Could not load portal</p>
-        <p className="text-sm text-red-200/80 mb-4">{error}</p>
-        <p className="text-xs text-slate-500 mb-4">
+      <div className="max-w-lg mx-auto rounded-3xl border border-red-200 bg-red-50 p-8 text-center">
+        <AlertTriangle className="w-10 h-10 text-red-500 mx-auto mb-3" />
+        <p className="font-semibold text-red-800 mb-2">Could not load portal</p>
+        <p className="text-sm text-red-700 mb-4">{error}</p>
+        <p className="text-xs text-neutral-600 mb-4">
           If tables are missing, run{' '}
-          <code className="text-amber-300">20260710_sales_contractor_portal.sql</code> in Supabase.
+          <code className="text-[#0077b6] bg-sky-50 px-1 rounded">
+            20260710_sales_contractor_portal.sql
+          </code>{' '}
+          in Supabase.
         </p>
         <button
           type="button"
           onClick={() => void load()}
-          className="px-5 py-2.5 rounded-2xl bg-white/10 text-sm font-semibold hover:bg-white/15"
+          className="px-5 py-2.5 rounded-2xl bg-[#00b4d8] text-white text-sm font-semibold hover:bg-[#0096c7]"
         >
           Retry
         </button>
@@ -87,33 +90,31 @@ export default function SalesCommandCentre() {
 
   return (
     <div className="space-y-8">
-      {/* Hero */}
-      <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br from-amber-500/20 via-orange-600/10 to-cyan-500/10 p-6 sm:p-10">
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImciIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTTAgNjBMMTAgNTBNMzAgNjBMNjAgMzBNMCA0MEwyMCAyME00MCA2MEw2MCA0MCIgc3Ryb2tlPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMDMpIiBmaWxsPSJub25lIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2cpIi8+PC9zdmc+')] opacity-60" />
+      {/* Hero — light & bright */}
+      <section className="relative overflow-hidden rounded-[2rem] border border-sky-100 bg-gradient-to-br from-sky-50 via-white to-amber-50 p-6 sm:p-10 shadow-sm">
         <div className="relative flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full bg-amber-400/15 border border-amber-400/30 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-amber-200 mb-4">
-              <Sparkles className="w-3.5 h-3.5" />
+            <div className="inline-flex items-center gap-2 rounded-full bg-[#00b4d8]/10 border border-[#00b4d8]/25 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-[#0077b6] mb-4">
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
               {summary.roleLabel} · {summary.companyName}
             </div>
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight text-white leading-[1.1]">
-              Sell with confidence.
-              <span className="block text-transparent bg-clip-text bg-gradient-to-r from-amber-300 to-orange-400">
-                Track every rand you earn.
-              </span>
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight leading-[1.1]">
+              <span className="text-slate-900">Sell with confidence.</span>
+              <span className="block text-[#00b4d8]">Track every rand you earn.</span>
             </h1>
-            <p className="mt-4 text-slate-300 max-w-xl text-sm sm:text-base leading-relaxed">
+            <p className="mt-4 text-neutral-600 max-w-xl text-sm sm:text-base leading-relaxed">
               Your independent contractor workspace for leads, customers, and closed deals. All CRM
-              records belong to <strong className="text-white">{summary.companyName}</strong> —
-              you earn progressive commission from <strong className="text-amber-200">3.5%</strong> up
-              to <strong className="text-amber-200">5.5%</strong> as deals get bigger.
+              records belong to <strong className="text-slate-900">{summary.companyName}</strong> —
+              you earn progressive commission from{' '}
+              <strong className="text-amber-700">3.5%</strong> up to{' '}
+              <strong className="text-amber-700">5.5%</strong> as deals get bigger.
             </p>
           </div>
           <div className="flex flex-col sm:flex-row gap-3">
             {!summary.agreementSigned && (
               <Link
                 href="/sales/agreement"
-                className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-white text-slate-900 font-bold text-sm shadow-xl"
+                className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-white border border-neutral-200 text-slate-900 font-bold text-sm shadow-sm hover:border-[#00b4d8]"
               >
                 Sign agreement first
                 <ArrowRight className="w-4 h-4" />
@@ -121,7 +122,7 @@ export default function SalesCommandCentre() {
             )}
             <Link
               href="/sales/pipeline"
-              className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold text-sm shadow-xl shadow-orange-500/25"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-[#00b4d8] hover:bg-[#0096c7] text-white font-bold text-sm shadow-md"
             >
               Capture a lead
               <ArrowRight className="w-4 h-4" />
@@ -131,14 +132,14 @@ export default function SalesCommandCentre() {
       </section>
 
       {!summary.agreementSigned && (
-        <div className="rounded-2xl border border-amber-400/40 bg-amber-500/10 px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <p className="text-sm text-amber-100">
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <p className="text-sm text-amber-900">
             <strong>Action required:</strong> Sign the Independent Sales Contractor Agreement to
             unlock full portal tools and commission tracking.
           </p>
           <Link
             href="/sales/agreement"
-            className="shrink-0 text-sm font-bold text-amber-300 hover:text-amber-200"
+            className="shrink-0 text-sm font-bold text-amber-800 hover:text-amber-950"
           >
             Review &amp; sign →
           </Link>
@@ -148,22 +149,21 @@ export default function SalesCommandCentre() {
       {!summary.subscriptionExempt &&
         summary.agreementSigned &&
         !summary.subscriptionActive && (
-        <div className="rounded-2xl border border-orange-400/40 bg-orange-500/10 px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <p className="text-sm text-orange-100">
-            <strong>Subscribe to access:</strong> R199/month · 6-month platform subscription
-            (R1,194 prepaid via Paystack) is required for independent sales contractors.
-            Owners and finance have free full access.
-          </p>
-          <Link
-            href="/sales/subscribe"
-            className="shrink-0 text-sm font-bold text-orange-300 hover:text-orange-200"
-          >
-            Subscribe now →
-          </Link>
-        </div>
-      )}
+          <div className="rounded-2xl border border-orange-200 bg-orange-50 px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <p className="text-sm text-orange-950">
+              <strong>Subscribe to access:</strong> R199/month · 6-month platform subscription
+              (R1,194 prepaid via Paystack) is required for independent sales contractors. Owners
+              and finance have free full access.
+            </p>
+            <Link
+              href="/sales/subscribe"
+              className="shrink-0 text-sm font-bold text-orange-800 hover:text-orange-950"
+            >
+              Subscribe now →
+            </Link>
+          </div>
+        )}
 
-      {/* KPI grid */}
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <Kpi
           icon={Wallet}
@@ -196,22 +196,25 @@ export default function SalesCommandCentre() {
       </section>
 
       <section className="grid lg:grid-cols-5 gap-4">
-        <div className="lg:col-span-3 rounded-3xl border border-white/15 bg-slate-900/70 p-5 sm:p-6 shadow-inner">
+        <div className="lg:col-span-3 rounded-3xl border border-neutral-200 bg-white p-5 sm:p-6 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="font-bold text-white text-lg">Commission momentum</h2>
-              <p className="text-xs text-slate-300 mt-0.5">
+              <h2 className="font-bold text-slate-900 text-lg">Commission momentum</h2>
+              <p className="text-xs text-neutral-600 mt-0.5">
                 Last 6 months ·{' '}
-                <span className="text-amber-300 font-semibold">projected</span>
+                <span className="text-amber-700 font-semibold">projected</span>
                 {' · '}
-                <span className="text-emerald-300 font-semibold">earned</span>
+                <span className="text-emerald-700 font-semibold">earned</span>
               </p>
             </div>
-            <Link href="/sales/earnings" className="text-xs font-semibold text-amber-200 hover:text-amber-100">
+            <Link
+              href="/sales/earnings"
+              className="text-xs font-semibold text-[#00b4d8] hover:text-[#0077b6]"
+            >
               Earnings →
             </Link>
           </div>
-          <div className="h-64 sm:h-72 rounded-2xl bg-slate-950/60 border border-white/10 p-2 sm:p-3">
+          <div className="h-64 sm:h-72 rounded-2xl bg-slate-50 border border-neutral-100 p-2 sm:p-3">
             <EarningsTrendChart
               labels={summary.pipelineByMonth.map((m) => m.month)}
               projected={summary.pipelineByMonth.map((m) => m.projected)}
@@ -220,21 +223,24 @@ export default function SalesCommandCentre() {
           </div>
         </div>
 
-        <div className="lg:col-span-2 rounded-3xl border border-white/15 bg-slate-900/70 p-5 sm:p-6">
-          <h2 className="font-bold text-white text-lg mb-1">What you could make</h2>
-          <p className="text-xs text-slate-300 mb-4">
-            Bigger deals → higher rate <span className="text-amber-200 font-semibold">(3.5% → 5.5%)</span>
+        <div className="lg:col-span-2 rounded-3xl border border-neutral-200 bg-white p-5 sm:p-6 shadow-sm">
+          <h2 className="font-bold text-slate-900 text-lg mb-1">What you could make</h2>
+          <p className="text-xs text-neutral-600 mb-4">
+            Bigger deals → higher rate{' '}
+            <span className="text-amber-700 font-semibold">(3.5% → 5.5%)</span>
           </p>
           <ul className="space-y-2.5">
             {summary.commissionPreview.samples.map((s) => (
               <li
                 key={s.amount}
-                className="flex items-center justify-between rounded-2xl bg-slate-950/70 border border-amber-400/20 px-3 py-2.5"
+                className="flex items-center justify-between rounded-2xl bg-amber-50 border border-amber-100 px-3 py-2.5"
               >
-                <span className="text-sm text-slate-200 font-medium">{formatZar(s.amount)} deal</span>
-                <span className="text-sm font-bold text-amber-200">
+                <span className="text-sm text-slate-700 font-medium">
+                  {formatZar(s.amount)} deal
+                </span>
+                <span className="text-sm font-bold text-amber-800">
                   {formatZarPrecise(s.commission)}
-                  <span className="text-[10px] font-semibold text-slate-400 ml-1">
+                  <span className="text-[10px] font-semibold text-neutral-500 ml-1">
                     ~{s.effectiveRatePct}%
                   </span>
                 </span>
@@ -243,14 +249,13 @@ export default function SalesCommandCentre() {
           </ul>
           <Link
             href="/sales/agreement"
-            className="mt-4 block text-center text-xs font-semibold text-slate-400 hover:text-amber-300"
+            className="mt-4 block text-center text-xs font-semibold text-[#00b4d8] hover:text-[#0077b6]"
           >
             View full commission schedule →
           </Link>
         </div>
       </section>
 
-      {/* Quick modules */}
       <section className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {[
           {
@@ -285,47 +290,46 @@ export default function SalesCommandCentre() {
           <Link
             key={m.href}
             href={m.href}
-            className="group rounded-3xl border border-white/10 bg-white/[0.03] p-5 hover:border-amber-400/40 hover:bg-amber-500/5 transition-all"
+            className="group rounded-3xl border border-neutral-200 bg-white p-5 hover:border-[#00b4d8]/50 hover:shadow-md transition-all shadow-sm"
           >
-            <m.icon className="w-6 h-6 text-amber-300 mb-3" />
-            <div className="font-bold text-white group-hover:text-amber-100">{m.title}</div>
-            <div className="text-xs text-slate-400 mt-1">{m.desc}</div>
-            <div className="text-[11px] font-semibold text-slate-500 mt-3">{m.meta}</div>
+            <m.icon className="w-6 h-6 text-[#00b4d8] mb-3" />
+            <div className="font-bold text-slate-900 group-hover:text-[#0077b6]">{m.title}</div>
+            <div className="text-xs text-neutral-600 mt-1">{m.desc}</div>
+            <div className="text-[11px] font-semibold text-neutral-500 mt-3">{m.meta}</div>
           </Link>
         ))}
       </section>
 
-      {/* Top deals */}
-      <section className="rounded-3xl border border-white/15 bg-slate-900/70 overflow-hidden">
-        <div className="px-5 sm:px-6 py-4 border-b border-white/10 flex items-center justify-between bg-slate-950/40">
-          <h2 className="font-bold text-white">Highest-value opportunities</h2>
+      <section className="rounded-3xl border border-neutral-200 bg-white overflow-hidden shadow-sm">
+        <div className="px-5 sm:px-6 py-4 border-b border-neutral-100 flex items-center justify-between bg-slate-50/80">
+          <h2 className="font-bold text-slate-900">Highest-value opportunities</h2>
           <Link
             href="/sales/pipeline"
-            className="text-xs font-semibold text-amber-200 hover:text-amber-100"
+            className="text-xs font-semibold text-[#00b4d8] hover:text-[#0077b6]"
           >
             Open pipeline →
           </Link>
         </div>
         {summary.topDeals.length === 0 ? (
-          <p className="p-8 text-center text-sm text-slate-400">
+          <p className="p-8 text-center text-sm text-neutral-500">
             No open deals yet — capture a lead to start earning.
           </p>
         ) : (
-          <ul className="divide-y divide-white/10">
+          <ul className="divide-y divide-neutral-100">
             {summary.topDeals.map((d) => (
               <li
                 key={`${d.type}-${d.id}`}
-                className="px-5 sm:px-6 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-white/[0.03]"
+                className="px-5 sm:px-6 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-slate-50"
               >
                 <div>
-                  <div className="font-semibold text-white">{d.name}</div>
-                  <div className="text-[11px] text-slate-400 uppercase tracking-wide font-medium">
+                  <div className="font-semibold text-slate-900">{d.name}</div>
+                  <div className="text-[11px] text-neutral-500 uppercase tracking-wide font-medium">
                     {d.type} · {d.stage}
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="font-bold text-white">{formatZar(d.amount)}</div>
-                  <div className="text-xs font-semibold text-amber-200">
+                  <div className="font-bold text-slate-900">{formatZar(d.amount)}</div>
+                  <div className="text-xs font-semibold text-amber-700">
                     You could earn {formatZarPrecise(d.commission)}
                   </div>
                 </div>
@@ -352,21 +356,17 @@ function Kpi({
   accent: 'amber' | 'emerald' | 'sky' | 'violet';
 }) {
   const tones = {
-    amber: 'border-amber-400/40 bg-gradient-to-br from-amber-500/25 to-slate-900 text-amber-200',
-    emerald:
-      'border-emerald-400/40 bg-gradient-to-br from-emerald-500/25 to-slate-900 text-emerald-200',
-    sky: 'border-sky-400/40 bg-gradient-to-br from-sky-500/25 to-slate-900 text-sky-200',
-    violet:
-      'border-violet-400/40 bg-gradient-to-br from-violet-500/25 to-slate-900 text-violet-200',
+    amber: 'border-amber-200 bg-gradient-to-br from-amber-50 to-white text-amber-700',
+    emerald: 'border-emerald-200 bg-gradient-to-br from-emerald-50 to-white text-emerald-700',
+    sky: 'border-sky-200 bg-gradient-to-br from-sky-50 to-white text-sky-700',
+    violet: 'border-violet-200 bg-gradient-to-br from-violet-50 to-white text-violet-700',
   };
   return (
-    <div className={`rounded-3xl border p-4 sm:p-5 shadow-lg ${tones[accent]}`}>
+    <div className={`rounded-3xl border p-4 sm:p-5 shadow-sm ${tones[accent]}`}>
       <Icon className="w-5 h-5 mb-3" />
-      <div className="text-[11px] font-bold uppercase tracking-wide text-slate-200/90">{label}</div>
-      <div className="text-xl sm:text-2xl font-black text-white mt-1 tracking-tight drop-shadow-sm">
-        {value}
-      </div>
-      <div className="text-[11px] text-slate-300 mt-1">{hint}</div>
+      <div className="text-[11px] font-bold uppercase tracking-wide text-neutral-600">{label}</div>
+      <div className="text-xl sm:text-2xl font-black text-slate-900 mt-1 tracking-tight">{value}</div>
+      <div className="text-[11px] text-neutral-600 mt-1">{hint}</div>
     </div>
   );
 }

@@ -26,20 +26,20 @@ ChartJS.register(
   Filler
 );
 
-/** High-contrast palette for dark sales portal backgrounds */
+/** High-contrast palette for light sales portal */
 const COLORS = {
-  grid: 'rgba(255,255,255,0.08)',
-  tick: '#e2e8f0',
-  legend: '#f1f5f9',
-  projectedLine: '#fbbf24', // amber-400 — bright on slate
-  projectedFill: 'rgba(251,191,36,0.22)',
-  earnedLine: '#34d399', // emerald-400
-  earnedFill: 'rgba(52,211,153,0.18)',
-  pipelineBar: '#38bdf8', // sky-400
-  commissionBar: '#fb923c', // orange-400
-  tooltipBg: 'rgba(15,23,42,0.96)',
-  tooltipBorder: 'rgba(251,191,36,0.45)',
-  tooltipText: '#f8fafc',
+  grid: 'rgba(148,163,184,0.25)',
+  tick: '#475569',
+  legend: '#0f172a',
+  projectedLine: '#d97706', // amber-600
+  projectedFill: 'rgba(245,158,11,0.18)',
+  earnedLine: '#059669', // emerald-600
+  earnedFill: 'rgba(16,185,129,0.15)',
+  pipelineBar: '#0284c7', // sky-600
+  commissionBar: '#ea580c', // orange-600
+  tooltipBg: '#ffffff',
+  tooltipBorder: 'rgba(0,180,216,0.45)',
+  tooltipText: '#0f172a',
 };
 
 const baseOptions = {
@@ -124,7 +124,7 @@ export function EarningsTrendChart({
             pointRadius: 4,
             pointHoverRadius: 6,
             pointBackgroundColor: COLORS.projectedLine,
-            pointBorderColor: '#0f172a',
+            pointBorderColor: '#fff',
             pointBorderWidth: 2,
           },
           {
@@ -138,7 +138,7 @@ export function EarningsTrendChart({
             pointRadius: 4,
             pointHoverRadius: 6,
             pointBackgroundColor: COLORS.earnedLine,
-            pointBorderColor: '#0f172a',
+            pointBorderColor: '#fff',
             pointBorderWidth: 2,
           },
         ],
@@ -166,7 +166,7 @@ export function ForecastBarChart({
             label: 'Weighted pipeline',
             data: amounts,
             backgroundColor: COLORS.pipelineBar,
-            hoverBackgroundColor: '#7dd3fc',
+            hoverBackgroundColor: '#0ea5e9',
             borderRadius: 10,
             borderSkipped: false,
             maxBarThickness: 28,
@@ -175,7 +175,7 @@ export function ForecastBarChart({
             label: 'Est. commission',
             data: commissions,
             backgroundColor: COLORS.commissionBar,
-            hoverBackgroundColor: '#fdba74',
+            hoverBackgroundColor: '#f97316',
             borderRadius: 10,
             borderSkipped: false,
             maxBarThickness: 28,

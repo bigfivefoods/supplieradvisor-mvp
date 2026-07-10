@@ -77,7 +77,6 @@ export default function SalesShell({ children }: { children: React.ReactNode }) 
         if (cancelled) return;
         if (res.ok) {
           setCompanyName(data.companyName || '');
-          // Owner / finance / admin: free full access — never gate on agreement or Paystack
           if (data.subscriptionExempt || !data.isSalesContractor) {
             setNeedAgreement(false);
             setNeedSubscription(false);
@@ -112,15 +111,15 @@ export default function SalesShell({ children }: { children: React.ReactNode }) 
 
   if (!ready || !authenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-950">
-        <Loader2 className="w-8 h-8 animate-spin text-amber-400" />
+      <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]">
+        <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-black text-slate-100">
-      <header className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/80 backdrop-blur-xl">
+    <div className="min-h-screen bg-[#f8fafc] text-slate-800">
+      <header className="sticky top-0 z-40 border-b border-neutral-200 bg-white/95 backdrop-blur-xl shadow-sm">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
           <Link href="/sales" className="flex items-center gap-3 min-w-0">
             <div className="relative">
@@ -129,15 +128,15 @@ export default function SalesShell({ children }: { children: React.ReactNode }) 
                 alt="SA"
                 width={40}
                 height={40}
-                className="rounded-xl ring-2 ring-amber-400/40"
+                className="rounded-xl ring-2 ring-[#00b4d8]/30"
               />
-              <Sparkles className="w-3.5 h-3.5 text-amber-300 absolute -top-1 -right-1" />
+              <Sparkles className="w-3.5 h-3.5 text-amber-500 absolute -top-1 -right-1" />
             </div>
             <div className="min-w-0">
-              <div className="font-black text-sm tracking-tight text-white">
+              <div className="font-black text-sm tracking-tight text-slate-900">
                 Sales Contractor Portal
               </div>
-              <div className="text-[11px] text-amber-200/80 truncate">
+              <div className="text-[11px] text-neutral-500 truncate">
                 {companyName || 'Customer sales team'}
                 {email ? ` · ${email}` : ''}
               </div>
@@ -146,15 +145,15 @@ export default function SalesShell({ children }: { children: React.ReactNode }) 
           <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
             <Link
               href="/dashboard/select-company"
-              className="px-3 py-2 rounded-2xl text-xs sm:text-sm font-medium text-slate-300 hover:bg-white/5 inline-flex items-center gap-1.5"
+              className="px-3 py-2 rounded-2xl text-xs sm:text-sm font-medium text-neutral-600 hover:bg-neutral-100 inline-flex items-center gap-1.5"
             >
-              <ArrowLeftRight className="w-4 h-4" />
+              <ArrowLeftRight className="w-4 h-4 text-[#00b4d8]" />
               <span className="hidden sm:inline">Switch company</span>
             </Link>
             <button
               type="button"
               onClick={() => logout()}
-              className="px-3 py-2 rounded-2xl text-xs sm:text-sm font-medium text-slate-300 hover:bg-white/5 inline-flex items-center gap-1.5"
+              className="px-3 py-2 rounded-2xl text-xs sm:text-sm font-medium text-neutral-600 hover:bg-neutral-100 inline-flex items-center gap-1.5"
             >
               <LogOut className="w-4 h-4" />
               <span className="hidden sm:inline">Sign out</span>
@@ -162,7 +161,7 @@ export default function SalesShell({ children }: { children: React.ReactNode }) 
           </div>
         </div>
         <nav className="max-w-7xl mx-auto px-2 sm:px-4 pb-2 overflow-x-auto">
-          <div className="flex gap-1 min-w-max">
+          <div className="flex gap-1.5 min-w-max">
             {NAV.map((item) => {
               const Icon = item.icon;
               const active = item.exact
@@ -185,10 +184,10 @@ export default function SalesShell({ children }: { children: React.ReactNode }) 
                 <Link
                   key={item.href}
                   href={locked ? lockHref : item.href}
-                  className={`px-3 py-2 rounded-2xl text-xs sm:text-sm font-semibold inline-flex items-center gap-1.5 transition-colors ${
+                  className={`px-3 py-2 rounded-full text-xs sm:text-sm font-semibold inline-flex items-center gap-1.5 border transition-all ${
                     active
-                      ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-orange-500/20'
-                      : 'text-slate-400 hover:text-white hover:bg-white/5'
+                      ? 'border-[#00b4d8] bg-[#00b4d8] text-white shadow-sm'
+                      : 'border-neutral-200 bg-white text-neutral-600 hover:border-[#00b4d8]/40 hover:text-[#0077b6]'
                   }`}
                 >
                   <Icon className="w-3.5 h-3.5" />
@@ -202,7 +201,7 @@ export default function SalesShell({ children }: { children: React.ReactNode }) 
 
       <main className="max-w-7xl mx-auto px-4 py-6 sm:py-8">{children}</main>
 
-      <footer className="text-center text-[11px] text-slate-500 py-10 px-4">
+      <footer className="text-center text-[11px] text-neutral-500 py-10 px-4 border-t border-neutral-100 bg-white">
         Independent sales contractor · CRM data belongs to the company · Commission 3.5%–5.5% ·
         Contractors: R199/mo · 6-month sub · Owners &amp; finance: free full access · Powered by
         SupplierAdvisor®

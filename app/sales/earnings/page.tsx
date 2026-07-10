@@ -41,7 +41,7 @@ export default function SalesEarningsPage() {
   if (loading || !summary) {
     return (
       <div className="flex justify-center py-24">
-        <Loader2 className="w-8 h-8 animate-spin text-amber-400" />
+        <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
       </div>
     );
   }
@@ -51,11 +51,11 @@ export default function SalesEarningsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-black text-white tracking-tight flex items-center gap-2">
-          <Wallet className="w-8 h-8 text-amber-400" />
+        <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+          <Wallet className="w-8 h-8 text-[#00b4d8]" />
           Earnings
         </h1>
-        <p className="text-slate-400 mt-1 text-sm">
+        <p className="text-neutral-500 mt-1 text-sm">
           Projected, earned, and paid commission for deals you work under{' '}
           {summary.companyName}.
         </p>
@@ -67,15 +67,15 @@ export default function SalesEarningsPage() {
         <Stat label="Paid" value={formatZarPrecise(k.paidCommission)} />
       </div>
 
-      <div className="rounded-3xl border border-white/15 bg-slate-900/70 p-5 sm:p-6">
-        <h2 className="font-bold text-white mb-1">Trend</h2>
-        <p className="text-xs text-slate-300 mb-4">
-          <span className="text-amber-300 font-semibold">Projected</span>
+      <div className="rounded-3xl border border-neutral-200 bg-white p-5 sm:p-6">
+        <h2 className="font-bold text-slate-900 mb-1">Trend</h2>
+        <p className="text-xs text-neutral-600 mb-4">
+          <span className="text-amber-600 font-semibold">Projected</span>
           {' · '}
-          <span className="text-emerald-300 font-semibold">Earned</span>
+          <span className="text-emerald-600 font-semibold">Earned</span>
           {' · commission 3.5% → 5.5%'}
         </p>
-        <div className="h-72 rounded-2xl bg-slate-950/60 border border-white/10 p-2 sm:p-3">
+        <div className="h-72 rounded-2xl bg-slate-50 border border-neutral-100 p-2 sm:p-3">
           <EarningsTrendChart
             labels={summary.pipelineByMonth.map((m) => m.month)}
             projected={summary.pipelineByMonth.map((m) => m.projected)}
@@ -84,9 +84,9 @@ export default function SalesEarningsPage() {
         </div>
       </div>
 
-      <div className="rounded-3xl border border-white/15 bg-slate-900/70 p-5 sm:p-6">
-        <h2 className="font-bold text-white mb-2">Deal calculator</h2>
-        <p className="text-xs text-slate-300 mb-4">
+      <div className="rounded-3xl border border-neutral-200 bg-white p-5 sm:p-6">
+        <h2 className="font-bold text-slate-900 mb-2">Deal calculator</h2>
+        <p className="text-xs text-neutral-600 mb-4">
           Drag to simulate commission on a quote or invoice total
         </p>
         <input
@@ -99,9 +99,9 @@ export default function SalesEarningsPage() {
           className="w-full accent-amber-500"
         />
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-          <span className="text-slate-300 text-sm">
+          <span className="text-neutral-600 text-sm">
             Deal size:{' '}
-            <strong className="text-white">
+            <strong className="text-slate-900">
               R{demoAmount.toLocaleString('en-ZA')}
             </strong>
           </span>
@@ -109,24 +109,24 @@ export default function SalesEarningsPage() {
         </div>
       </div>
 
-      <div className="rounded-3xl border border-white/10 bg-white/[0.03] overflow-hidden">
-        <div className="px-5 py-4 border-b border-white/10 font-bold text-white">
+      <div className="rounded-3xl border border-neutral-200 bg-white overflow-hidden">
+        <div className="px-5 py-4 border-b border-neutral-200 font-bold text-slate-900">
           Recent activity
         </div>
-        <ul className="divide-y divide-white/5">
+        <ul className="divide-y divide-neutral-100">
           {summary.recentActivity.length === 0 ? (
-            <li className="p-6 text-sm text-slate-500 text-center">No activity yet</li>
+            <li className="p-6 text-sm text-neutral-500 text-center">No activity yet</li>
           ) : (
             summary.recentActivity.map((a) => (
               <li key={a.id} className="px-5 py-3 flex justify-between gap-3 text-sm">
                 <div>
-                  <div className="text-slate-200">{a.label}</div>
-                  <div className="text-[11px] text-slate-500">
+                  <div className="text-slate-700">{a.label}</div>
+                  <div className="text-[11px] text-neutral-500">
                     {new Date(a.at).toLocaleString('en-ZA')}
                   </div>
                 </div>
                 {a.commission != null && (
-                  <div className="text-amber-300 font-semibold whitespace-nowrap">
+                  <div className="text-amber-600 font-semibold whitespace-nowrap">
                     {formatZarPrecise(a.commission)}
                   </div>
                 )}
@@ -150,16 +150,16 @@ function Stat({
 }) {
   return (
     <div
-      className={`rounded-3xl border p-5 shadow-lg ${
+      className={`rounded-3xl border p-5 shadow-sm ${
         highlight
-          ? 'border-amber-400/50 bg-gradient-to-br from-amber-500/30 to-slate-900'
-          : 'border-white/15 bg-slate-900/70'
+          ? 'border-amber-300 bg-gradient-to-br from-amber-50 to-white'
+          : 'border-neutral-200 bg-white'
       }`}
     >
-      <div className="text-[11px] uppercase tracking-wide text-slate-200 font-bold">
+      <div className="text-[11px] uppercase tracking-wide text-slate-700 font-bold">
         {label}
       </div>
-      <div className="text-2xl font-black text-white mt-1 drop-shadow-sm">{value}</div>
+      <div className="text-2xl font-black text-slate-900 mt-1 drop-shadow-sm">{value}</div>
     </div>
   );
 }

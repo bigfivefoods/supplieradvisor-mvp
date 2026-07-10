@@ -89,7 +89,7 @@ export default function SalesCustomersPage() {
 
   if (!companyId) {
     return (
-      <p className="text-center text-slate-400 py-16">Select a company first.</p>
+      <p className="text-center text-neutral-500 py-16">Select a company first.</p>
     );
   }
 
@@ -97,27 +97,27 @@ export default function SalesCustomersPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-2">
-            <Users className="w-7 h-7 text-amber-300" />
+          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+            <Users className="w-7 h-7 text-amber-600" />
             Customers
           </h1>
-          <p className="text-sm text-slate-300 mt-1">
+          <p className="text-sm text-neutral-600 mt-1">
             Company-owned accounts · managed only in this sales portal
           </p>
         </div>
         <button
           type="button"
           onClick={() => setShowForm((v) => !v)}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-bold"
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-[#00b4d8] to-[#0077b6] text-white text-sm font-bold"
         >
           <Plus className="w-4 h-4" /> Add customer
         </button>
       </div>
 
       <div className="relative">
-        <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
+        <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-neutral-500" />
         <input
-          className="w-full rounded-2xl bg-slate-950/80 border border-white/15 pl-11 pr-4 py-3 text-white text-sm placeholder:text-slate-500"
+          className="w-full rounded-2xl bg-white/80 border border-neutral-200 pl-11 pr-4 py-3 text-slate-900 text-sm placeholder:text-neutral-500"
           placeholder="Search customers…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -125,8 +125,8 @@ export default function SalesCustomersPage() {
       </div>
 
       {showForm && (
-        <div className="rounded-3xl border border-white/15 bg-slate-900/80 p-5 space-y-3">
-          <h2 className="font-bold text-white">New customer</h2>
+        <div className="rounded-3xl border border-neutral-200 bg-white p-5 space-y-3">
+          <h2 className="font-bold text-slate-900">New customer</h2>
           <div className="grid sm:grid-cols-2 gap-3">
             {(
               [
@@ -139,7 +139,7 @@ export default function SalesCustomersPage() {
             ).map(([key, ph]) => (
               <input
                 key={key}
-                className="rounded-2xl bg-slate-950 border border-white/15 px-4 py-3 text-white text-sm"
+                className="rounded-2xl bg-white border border-neutral-200 px-4 py-3 text-slate-800 text-sm"
                 placeholder={ph}
                 value={form[key]}
                 onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
@@ -147,7 +147,7 @@ export default function SalesCustomersPage() {
             ))}
           </div>
           <textarea
-            className="w-full rounded-2xl bg-slate-950 border border-white/15 px-4 py-3 text-white text-sm min-h-[64px]"
+            className="w-full rounded-2xl bg-white border border-neutral-200 px-4 py-3 text-slate-800 text-sm min-h-[64px]"
             placeholder="Notes"
             value={form.notes}
             onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
@@ -156,7 +156,7 @@ export default function SalesCustomersPage() {
             <button
               type="button"
               onClick={() => setShowForm(false)}
-              className="px-4 py-2.5 rounded-2xl border border-white/20 text-slate-200 text-sm font-semibold"
+              className="px-4 py-2.5 rounded-2xl border border-neutral-200 text-slate-700 text-sm font-semibold"
             >
               Cancel
             </button>
@@ -164,7 +164,7 @@ export default function SalesCustomersPage() {
               type="button"
               disabled={saving}
               onClick={() => void save()}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-bold disabled:opacity-50"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-[#00b4d8] to-[#0077b6] text-white text-sm font-bold disabled:opacity-50"
             >
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save customer'}
             </button>
@@ -172,35 +172,35 @@ export default function SalesCustomersPage() {
         </div>
       )}
 
-      <div className="rounded-3xl border border-white/15 bg-slate-900/70 overflow-hidden">
+      <div className="rounded-3xl border border-neutral-200 bg-white overflow-hidden">
         {loading ? (
           <div className="py-20 flex justify-center">
-            <Loader2 className="w-8 h-8 animate-spin text-amber-400" />
+            <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
           </div>
         ) : customers.length === 0 ? (
-          <div className="p-12 text-center text-slate-400 text-sm space-y-3">
+          <div className="p-12 text-center text-neutral-500 text-sm space-y-3">
             <p>No customers yet.</p>
-            <Link href="/sales/pipeline" className="text-amber-300 font-semibold text-sm">
+            <Link href="/sales/pipeline" className="text-amber-600 font-semibold text-sm">
               Start from a lead →
             </Link>
           </div>
         ) : (
-          <ul className="divide-y divide-white/10">
+          <ul className="divide-y divide-neutral-100">
             {customers.map((c) => (
               <li
                 key={c.id}
                 className="px-5 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
               >
                 <div>
-                  <div className="font-semibold text-white">
+                  <div className="font-semibold text-slate-900">
                     {c.trading_name || c.legal_name || 'Customer'}
                   </div>
-                  <div className="text-xs text-slate-400">
+                  <div className="text-xs text-neutral-500">
                     {c.contact_name || '—'} · {c.email || c.phone || 'No contact'}
                     {c.city ? ` · ${c.city}` : ''}
                   </div>
                 </div>
-                <span className="text-[10px] font-bold uppercase px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-200 border border-emerald-400/30 w-fit">
+                <span className="text-[10px] font-bold uppercase px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 w-fit">
                   {c.status || 'active'}
                 </span>
               </li>

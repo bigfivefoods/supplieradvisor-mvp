@@ -315,7 +315,7 @@ function DocInner({
       onClick={() => setShowForm((v) => !v)}
       className={
         sales
-          ? 'inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-bold shadow-lg shadow-orange-500/20'
+          ? 'inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-[#00b4d8] hover:bg-[#0096c7] text-white text-sm font-bold shadow-sm'
           : 'btn-primary !py-2.5 !px-5 text-sm'
       }
     >
@@ -335,11 +335,11 @@ function DocInner({
       {sales ? (
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-black text-[#00b4d8] tracking-tight">
               {cfg.title}
             </h1>
-            <p className="text-sm text-slate-300 mt-1 max-w-xl">{cfg.description}</p>
-            <p className="text-[11px] text-slate-500 mt-1">
+            <p className="text-sm text-neutral-600 mt-1 max-w-xl">{cfg.description}</p>
+            <p className="text-[11px] text-neutral-500 mt-1">
               Records are saved under your company · commission 3.5%–5.5%
             </p>
           </div>
@@ -357,14 +357,14 @@ function DocInner({
         <div
           className={
             sales
-              ? 'bg-slate-900/80 border border-white/15 rounded-3xl p-5 mb-2 space-y-4 text-slate-100'
+              ? 'bg-white border border-neutral-200 rounded-3xl p-5 mb-2 space-y-4 text-slate-800 shadow-sm'
               : 'bg-white border rounded-3xl p-5 mb-6 space-y-4'
           }
         >
           <h2
-            className={`font-bold flex items-center gap-2 ${sales ? 'text-white' : ''}`}
+            className={`font-bold flex items-center gap-2 ${sales ? 'text-slate-900' : ''}`}
           >
-            <Package className={`w-4 h-4 ${sales ? 'text-amber-300' : 'text-[#00b4d8]'}`} />{' '}
+            <Package className={`w-4 h-4 ${sales ? 'text-[#00b4d8]' : 'text-[#00b4d8]'}`} />{' '}
             Build {type} — select products & services
           </h2>
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -505,15 +505,15 @@ function DocInner({
 
           <div
             className={`flex flex-wrap items-center justify-between gap-3 border-t pt-3 ${
-              sales ? 'border-white/10' : ''
+              sales ? 'border-neutral-100' : ''
             }`}
           >
-            <div className={`text-sm space-y-2 ${sales ? 'text-slate-100' : ''}`}>
+            <div className={`text-sm space-y-2 ${sales ? 'text-slate-800' : ''}`}>
               <div>Subtotal {formatMoney(totals.subtotal)}</div>
-              <div className={sales ? 'text-slate-400' : 'text-neutral-500'}>
+              <div className={sales ? 'text-neutral-500' : 'text-neutral-500'}>
                 Tax {formatMoney(totals.tax_amount)}
               </div>
-              <div className={`text-lg font-black ${sales ? 'text-white' : ''}`}>
+              <div className={`text-lg font-black ${sales ? 'text-slate-900' : ''}`}>
                 Total {formatMoney(totals.total_amount)}
               </div>
               <CommissionBadge amount={Number(totals.total_amount || 0)} />
@@ -523,7 +523,7 @@ function DocInner({
                 type="button"
                 className={
                   sales
-                    ? 'px-4 py-2.5 rounded-2xl border border-white/20 text-slate-200 text-sm font-semibold hover:bg-white/5'
+                    ? 'px-4 py-2.5 rounded-2xl border border-neutral-200 text-slate-700 text-sm font-semibold hover:bg-slate-50'
                     : 'btn-secondary !py-2.5 !px-4'
                 }
                 onClick={() => setShowForm(false)}
@@ -535,7 +535,7 @@ function DocInner({
                 disabled={saving}
                 className={
                   sales
-                    ? 'inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-bold disabled:opacity-50'
+                    ? 'inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-[#00b4d8] hover:bg-[#0096c7] text-white text-sm font-bold disabled:opacity-50'
                     : 'btn-primary !py-2.5 !px-5'
                 }
                 onClick={() => void create()}
@@ -551,7 +551,7 @@ function DocInner({
         <select
           className={
             sales
-              ? 'rounded-2xl bg-slate-950/80 border border-white/15 text-slate-100 text-sm px-3 py-2'
+              ? 'rounded-2xl bg-white border border-neutral-200 text-slate-800 text-sm px-3 py-2'
               : 'input !py-2 !px-3 !text-sm'
           }
           value={statusFilter}
@@ -567,24 +567,24 @@ function DocInner({
       <div
         className={
           sales
-            ? 'bg-slate-900/80 border border-white/15 rounded-3xl overflow-hidden'
+            ? 'bg-white border border-neutral-200 rounded-3xl overflow-hidden shadow-sm'
             : 'bg-white border rounded-3xl overflow-hidden'
         }
       >
         {loading ? (
           <div className="p-16 flex justify-center">
             <Loader2
-              className={`w-8 h-8 animate-spin ${sales ? 'text-amber-400' : 'text-[#00b4d8]'}`}
+              className={`w-8 h-8 animate-spin ${sales ? 'text-[#00b4d8]' : 'text-[#00b4d8]'}`}
             />
           </div>
         ) : docs.length === 0 ? (
           <div
-            className={`p-16 text-center text-sm ${sales ? 'text-slate-400' : 'text-neutral-500'}`}
+            className={`p-16 text-center text-sm ${sales ? 'text-neutral-500' : 'text-neutral-500'}`}
           >
             No {cfg.title.toLowerCase()} yet. Create one and pick products from your catalogue.
           </div>
         ) : (
-          <ul className={sales ? 'divide-y divide-white/10' : 'divide-y'}>
+          <ul className={sales ? 'divide-y divide-neutral-100' : 'divide-y'}>
             {docs.map((d) => {
               const num = String(d[cfg.numberField] || d.id);
               const itemCount = Array.isArray(d.items) ? d.items.length : 0;
@@ -593,12 +593,12 @@ function DocInner({
                 <li
                   key={d.id}
                   className={`px-5 py-4 flex flex-wrap items-center justify-between gap-3 text-sm ${
-                    sales ? 'text-slate-100' : ''
+                    sales ? 'text-slate-800' : ''
                   }`}
                 >
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className={`font-bold font-mono ${sales ? 'text-white' : ''}`}>
+                      <span className={`font-bold font-mono ${sales ? 'text-slate-900' : ''}`}>
                         {num}
                       </span>
                       <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${statusBadgeClass(d.status)}`}>
@@ -620,7 +620,7 @@ function DocInner({
                       </span>
                     </div>
                     <div
-                      className={`text-xs mt-0.5 ${sales ? 'text-slate-400' : 'text-neutral-500'}`}
+                      className={`text-xs mt-0.5 ${sales ? 'text-neutral-500' : 'text-neutral-500'}`}
                     >
                       {d.customer_name || 'No customer'} · {itemCount} line{itemCount === 1 ? '' : 's'}
                       {d.created_at ? ` · ${String(d.created_at).slice(0, 10)}` : ''}

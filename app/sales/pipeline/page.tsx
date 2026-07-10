@@ -142,7 +142,7 @@ export default function SalesPipelinePage() {
 
   if (!companyId) {
     return (
-      <p className="text-center text-slate-400 py-16">Select a company to open your pipeline.</p>
+      <p className="text-center text-neutral-500 py-16">Select a company to open your pipeline.</p>
     );
   }
 
@@ -150,18 +150,18 @@ export default function SalesPipelinePage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-2">
-            <Target className="w-7 h-7 text-amber-300" />
+          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+            <Target className="w-7 h-7 text-amber-600" />
             Pipeline
           </h1>
-          <p className="text-sm text-slate-300 mt-1">
+          <p className="text-sm text-neutral-600 mt-1">
             Leads &amp; opportunities · saved under your company · sales portal only
           </p>
         </div>
         <button
           type="button"
           onClick={() => setShowForm((v) => !v)}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-bold shadow-lg"
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-[#00b4d8] to-[#0077b6] text-white text-sm font-bold shadow-sm"
         >
           <Plus className="w-4 h-4" />
           {tab === 'leads' ? 'New lead' : 'New opportunity'}
@@ -184,8 +184,8 @@ export default function SalesPipelinePage() {
             }}
             className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-2xl text-sm font-semibold transition-colors ${
               tab === t.id
-                ? 'bg-amber-500 text-white'
-                : 'bg-white/5 text-slate-300 border border-white/10 hover:bg-white/10'
+                ? 'bg-[#00b4d8] text-white'
+                : 'bg-slate-50 text-neutral-600 border border-neutral-200 hover:bg-slate-100'
             }`}
           >
             <t.icon className="w-4 h-4" />
@@ -195,31 +195,31 @@ export default function SalesPipelinePage() {
       </div>
 
       {showForm && (
-        <div className="rounded-3xl border border-white/15 bg-slate-900/80 p-5 space-y-3">
-          <h2 className="font-bold text-white">
+        <div className="rounded-3xl border border-neutral-200 bg-white p-5 space-y-3">
+          <h2 className="font-bold text-slate-900">
             {tab === 'leads' ? 'Capture lead' : 'Add opportunity'}
           </h2>
           <div className="grid sm:grid-cols-2 gap-3">
             <input
-              className="rounded-2xl bg-slate-950 border border-white/15 px-4 py-3 text-white text-sm"
+              className="rounded-2xl bg-white border border-neutral-200 px-4 py-3 text-slate-800 text-sm"
               placeholder={tab === 'leads' ? 'Contact name *' : 'Opportunity name *'}
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
             />
             <input
-              className="rounded-2xl bg-slate-950 border border-white/15 px-4 py-3 text-white text-sm"
+              className="rounded-2xl bg-white border border-neutral-200 px-4 py-3 text-slate-800 text-sm"
               placeholder="Company"
               value={form.company_name}
               onChange={(e) => setForm((f) => ({ ...f, company_name: e.target.value }))}
             />
             <input
-              className="rounded-2xl bg-slate-950 border border-white/15 px-4 py-3 text-white text-sm"
+              className="rounded-2xl bg-white border border-neutral-200 px-4 py-3 text-slate-800 text-sm"
               placeholder="Email"
               value={form.email}
               onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
             />
             <input
-              className="rounded-2xl bg-slate-950 border border-white/15 px-4 py-3 text-white text-sm"
+              className="rounded-2xl bg-white border border-neutral-200 px-4 py-3 text-slate-800 text-sm"
               placeholder="Phone"
               value={form.phone}
               onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
@@ -227,7 +227,7 @@ export default function SalesPipelinePage() {
             {tab === 'opportunities' && (
               <>
                 <select
-                  className="rounded-2xl bg-slate-950 border border-white/15 px-4 py-3 text-white text-sm"
+                  className="rounded-2xl bg-white border border-neutral-200 px-4 py-3 text-slate-800 text-sm"
                   value={form.stage}
                   onChange={(e) => setForm((f) => ({ ...f, stage: e.target.value }))}
                 >
@@ -239,7 +239,7 @@ export default function SalesPipelinePage() {
                 </select>
                 <input
                   type="number"
-                  className="rounded-2xl bg-slate-950 border border-white/15 px-4 py-3 text-white text-sm"
+                  className="rounded-2xl bg-white border border-neutral-200 px-4 py-3 text-slate-800 text-sm"
                   placeholder="Deal amount (ZAR)"
                   value={form.amount}
                   onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
@@ -253,7 +253,7 @@ export default function SalesPipelinePage() {
             )}
             {tab === 'leads' && (
               <select
-                className="rounded-2xl bg-slate-950 border border-white/15 px-4 py-3 text-white text-sm"
+                className="rounded-2xl bg-white border border-neutral-200 px-4 py-3 text-slate-800 text-sm"
                 value={form.status}
                 onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
               >
@@ -266,7 +266,7 @@ export default function SalesPipelinePage() {
             )}
           </div>
           <textarea
-            className="w-full rounded-2xl bg-slate-950 border border-white/15 px-4 py-3 text-white text-sm min-h-[72px]"
+            className="w-full rounded-2xl bg-white border border-neutral-200 px-4 py-3 text-slate-800 text-sm min-h-[72px]"
             placeholder="Notes"
             value={form.notes}
             onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
@@ -275,7 +275,7 @@ export default function SalesPipelinePage() {
             <button
               type="button"
               onClick={() => setShowForm(false)}
-              className="px-4 py-2.5 rounded-2xl border border-white/20 text-slate-200 text-sm font-semibold"
+              className="px-4 py-2.5 rounded-2xl border border-neutral-200 text-slate-700 text-sm font-semibold"
             >
               Cancel
             </button>
@@ -283,7 +283,7 @@ export default function SalesPipelinePage() {
               type="button"
               disabled={saving}
               onClick={() => void (tab === 'leads' ? saveLead() : saveOpp())}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-bold disabled:opacity-50"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-[#00b4d8] to-[#0077b6] text-white text-sm font-bold disabled:opacity-50"
             >
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save'}
             </button>
@@ -291,25 +291,25 @@ export default function SalesPipelinePage() {
         </div>
       )}
 
-      <div className="rounded-3xl border border-white/15 bg-slate-900/70 overflow-hidden">
+      <div className="rounded-3xl border border-neutral-200 bg-white overflow-hidden">
         {loading ? (
           <div className="py-20 flex justify-center">
-            <Loader2 className="w-8 h-8 animate-spin text-amber-400" />
+            <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
           </div>
         ) : tab === 'leads' ? (
           leads.length === 0 ? (
-            <p className="p-12 text-center text-slate-400 text-sm">No leads yet — capture your first.</p>
+            <p className="p-12 text-center text-neutral-500 text-sm">No leads yet — capture your first.</p>
           ) : (
-            <ul className="divide-y divide-white/10">
+            <ul className="divide-y divide-neutral-100">
               {leads.map((l) => (
                 <li key={l.id} className="px-5 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div>
-                    <div className="font-semibold text-white">{l.name}</div>
-                    <div className="text-xs text-slate-400">
+                    <div className="font-semibold text-slate-900">{l.name}</div>
+                    <div className="text-xs text-neutral-500">
                       {l.company_name || '—'} · {l.email || l.phone || 'No contact'}
                     </div>
                   </div>
-                  <span className="text-[10px] font-bold uppercase px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-200 border border-amber-400/30 w-fit">
+                  <span className="text-[10px] font-bold uppercase px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 w-fit">
                     {l.status || 'new'}
                   </span>
                 </li>
@@ -317,9 +317,9 @@ export default function SalesPipelinePage() {
             </ul>
           )
         ) : opps.length === 0 ? (
-          <p className="p-12 text-center text-slate-400 text-sm">No opportunities yet.</p>
+          <p className="p-12 text-center text-neutral-500 text-sm">No opportunities yet.</p>
         ) : (
-          <ul className="divide-y divide-white/10">
+          <ul className="divide-y divide-neutral-100">
             {opps.map((o) => {
               const amount = Number(
                 (o as { amount?: number; opportunity_size?: number }).amount ||
@@ -332,13 +332,13 @@ export default function SalesPipelinePage() {
                   className="px-5 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
                 >
                   <div>
-                    <div className="font-semibold text-white">{o.name}</div>
-                    <div className="text-xs text-slate-400">
+                    <div className="font-semibold text-slate-900">{o.name}</div>
+                    <div className="text-xs text-neutral-500">
                       {o.company_name || '—'} · {o.stage || 'prospecting'}
                     </div>
                   </div>
                   <div className="text-right space-y-1">
-                    <div className="font-bold text-white">{formatMoney(amount)}</div>
+                    <div className="font-bold text-slate-900">{formatMoney(amount)}</div>
                     {amount > 0 && <CommissionBadge amount={amount} />}
                   </div>
                 </li>
