@@ -9,12 +9,12 @@ import {
 } from '@/lib/verifynow/client';
 
 /**
- * POST — Verify company via VerifyNow CIPC (pure server-side API, no redirect).
+ * POST — Verify company via VerifyNow CIPC after R69 Paystack payment.
  *
  * Body: {
  *   companyId, privyUserId,
+ *   paystackReference,  // required — no free verification
  *   registrationNumber?, vatNumber?, solePropIdNumber?,
- *   paystackReference?,  // optional payment audit trail
  *   mode?: 'sandbox' | 'production',
  *   consent?: boolean
  * }
@@ -29,6 +29,20 @@ export async function POST(request: NextRequest) {
     const mem = await assertCompanyMember(body.privyUserId, companyId);
     if (!mem.ok) {
       return NextResponse.json({ error: mem.error }, { status: mem.status });
+    }
+
+    const paystackReference = String(
+      body.paystackReference || body.reference || ''
+    ).trim();
+    if (!paystackReference) {
+      return NextResponse.json(
+        {
+          error: 'Payment is required before verification',
+          hint: 'Complete the R69 Paystack checkout, then verification runs automatically.',
+          amount_zar: 69,
+        },
+        { status: 402 }
+      );
     }
 
     if (body.consent === false) {
@@ -97,10 +111,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-
-    const paystackReference = String(
-      body.paystackReference || body.reference || profile.verification_payment_ref || ''
-    ).trim();
 
     const now = new Date().toISOString();
 

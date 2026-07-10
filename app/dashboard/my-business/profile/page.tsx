@@ -665,8 +665,15 @@ function ProfileInner() {
     }
   };
 
-  /** Pure in-page VerifyNow CIPC call (server proxy — API key never leaves the server). */
-  const runVerifyNow = async (opts?: { paystackReference?: string }) => {
+  /**
+   * After successful R69 Paystack payment, run VerifyNow CIPC (server-side).
+   * Payment is required — free verification is not offered.
+   */
+  const runVerifyNow = async (paystackReference: string) => {
+    if (!paystackReference?.trim()) {
+      toast.error('Payment is required before verification (R69).');
+      return;
+    }
     if (!registrationForVerify && !vatForVerify) {
       toast.error('Add a CIPC registration number (or VAT number) first, then save.');
       return;
@@ -677,7 +684,7 @@ function ProfileInner() {
     }
 
     setVerifying(true);
-    toast.loading('Verifying company with VerifyNow (CIPC)…', { id: 'vn-company' });
+    toast.loading('Payment received — verifying with VerifyNow (CIPC)…', { id: 'vn-company' });
     try {
       const res = await fetch('/api/business/verify', {
         method: 'POST',
@@ -687,7 +694,7 @@ function ProfileInner() {
           privyUserId,
           registrationNumber: registrationForVerify || undefined,
           vatNumber: vatForVerify || undefined,
-          paystackReference: opts?.paystackReference,
+          paystackReference,
           consent: true,
         }),
       });
@@ -708,12 +715,12 @@ function ProfileInner() {
   };
 
   /**
-   * Optional Paystack fee (R69) stays on-page via iframe, then runs VerifyNow CIPC.
+   * Single path: Pay R69 via on-page Paystack, then VerifyNow CIPC.
    * Users never leave SupplierAdvisor for VerifyNow.
    */
   const startVerifyPayment = () => {
     if (!registrationForVerify && !vatForVerify) {
-      toast.error('Add a CIPC registration number (or VAT number) before paying.');
+      toast.error('Add a CIPC registration number (or VAT number) before verifying.');
       return;
     }
     if (!verifyConsent) {
@@ -728,8 +735,9 @@ function ProfileInner() {
     }
     const key = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY;
     if (!key) {
-      // No Paystack — fall through to pure API verification using platform credits
-      void runVerifyNow();
+      toast.error(
+        'Paystack is not configured. Set NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY to enable R69 verification.'
+      );
       return;
     }
     if (!window.PaystackPop) {
@@ -758,10 +766,15 @@ function ProfileInner() {
               variable_name: 'purpose',
               value: 'verifynow_company_verification',
             },
+            {
+              display_name: 'Amount ZAR',
+              variable_name: 'amount_zar',
+              value: String(VERIFY_AMOUNT_ZAR),
+            },
           ],
         },
         callback: (response: { reference?: string }) => {
-          void runVerifyNow({ paystackReference: response.reference || ref });
+          void runVerifyNow(response.reference || ref);
         },
         onClose: () => {
           setPaying(false);
@@ -931,14 +944,14 @@ function ProfileInner() {
         )}
       </div>
 
-      {/* VerifyNow CIPC — pure in-page API integration (no external navigation) */}
+      {/* VerifyNow CIPC — Pay R69 via Paystack, then verify in-page (no free path) */}
       <Panel className="mb-6" title="Company verification">
         <div className="p-5 space-y-4">
           <p className="text-sm text-neutral-600 leading-relaxed">
             Run a live <strong>CIPC company check</strong> through VerifyNow without leaving
-            SupplierAdvisor. We call their API from our server using your registration number
-            (or VAT number). Optional fee: <strong>R{VERIFY_AMOUNT_ZAR}</strong> via secure
-            on-page Paystack checkout.
+            SupplierAdvisor. We use your registration number (or VAT number) from this profile.
+            Verification costs <strong>R{VERIFY_AMOUNT_ZAR}</strong> per check, paid securely via
+            on-page Paystack checkout — payment is required for every verification.
           </p>
 
           <div className="grid sm:grid-cols-2 gap-3">
@@ -1000,32 +1013,30 @@ function ProfileInner() {
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              disabled={verifying || paying || !verifyConsent}
-              onClick={() => void runVerifyNow()}
+              disabled={
+                verifying ||
+                paying ||
+                !verifyConsent ||
+                (!registrationForVerify && !vatForVerify)
+              }
+              onClick={startVerifyPayment}
               className="btn-primary !py-2.5 !px-5 text-sm"
             >
-              {verifying ? (
+              {paying || verifying ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <>
                   <ShieldCheck className="w-4 h-4" />{' '}
-                  {isVerified ? 'Re-verify with VerifyNow' : 'Verify with VerifyNow'}
+                  {isVerified
+                    ? `Pay R${VERIFY_AMOUNT_ZAR} & re-verify`
+                    : `Pay R${VERIFY_AMOUNT_ZAR} & verify`}
                 </>
               )}
             </button>
-            <button
-              type="button"
-              disabled={verifying || paying || !verifyConsent}
-              onClick={startVerifyPayment}
-              className="btn-secondary !py-2.5 !px-4 text-sm"
-            >
-              {paying ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <>Pay R{VERIFY_AMOUNT_ZAR} &amp; verify</>
-              )}
-            </button>
           </div>
+          <p className="text-[11px] text-neutral-500">
+            R{VERIFY_AMOUNT_ZAR}.00 ZAR charged via Paystack for each CIPC verification.
+          </p>
 
           {displayVerification &&
             (displayVerification.companyName || displayVerification.registrationNumber) && (
