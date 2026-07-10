@@ -79,6 +79,13 @@ export async function POST(request: NextRequest) {
       srmPosRes,
       customerRiadRes,
       supplierRiadRes,
+      // Network trade expansion
+      pricingAgreementsRes,
+      customerQuotesRes,
+      customerInvoicesRes,
+      productsFullRes,
+      accountingInvoicesRes,
+      marketplaceListingsRes,
     ] = await Promise.all([
       supabase
         .from('business_users')
@@ -256,6 +263,46 @@ export async function POST(request: NextRequest) {
         .eq('profile_id', companyId)
         .order('created_at', { ascending: false })
         .limit(40),
+
+      supabase
+        .from('pricing_agreements')
+        .select('id, status, title, seller_profile_id, buyer_profile_id, currency, updated_at')
+        .or(`seller_profile_id.eq.${companyId},buyer_profile_id.eq.${companyId}`)
+        .order('updated_at', { ascending: false })
+        .limit(100),
+
+      supabase
+        .from('customer_quotes')
+        .select('id, status, total_amount, currency, created_at')
+        .eq('profile_id', companyId)
+        .order('created_at', { ascending: false })
+        .limit(100),
+
+      supabase
+        .from('customer_invoices')
+        .select('id, status, total_amount, amount_paid, currency, created_at')
+        .eq('profile_id', companyId)
+        .order('created_at', { ascending: false })
+        .limit(100),
+
+      supabase
+        .from('products')
+        .select('id, base_currency, prices, sell_price, name, status')
+        .eq('profile_id', companyId)
+        .limit(500),
+
+      supabase
+        .from('invoices')
+        .select('id, direction, status, total_amount, amount_paid, currency, created_at')
+        .eq('profile_id', companyId)
+        .order('created_at', { ascending: false })
+        .limit(200),
+
+      supabase
+        .from('marketplace_listings')
+        .select('id, status, title, unit_price, currency, created_at')
+        .eq('seller_profile_id', companyId)
+        .limit(100),
     ]);
 
     const team = teamRes.data || [];
@@ -293,11 +340,30 @@ export async function POST(request: NextRequest) {
         connectionMap.set((c as { id: string | number }).id, c as Record<string, unknown>);
       }
     }
-    const connections = Array.from(connectionMap.values()) as Array<{
+    // Prefer company-scoped edges (profile ids) for the modern network graph
+    const companyConnections = (connectionsProfileRes.data || []).filter((c) => {
+      const a = Number((c as { requester_profile_id?: number }).requester_profile_id);
+      const b = Number((c as { requestee_profile_id?: number }).requestee_profile_id);
+      return Number.isFinite(a) && a > 0 && Number.isFinite(b) && b > 0;
+    }) as Array<{
       id: string | number;
       status?: string;
       requested_at?: string | null;
       accepted_at?: string | null;
+      requester_profile_id?: number | null;
+      requestee_profile_id?: number | null;
+    }>;
+    const connections = (
+      companyConnections.length
+        ? companyConnections
+        : Array.from(connectionMap.values())
+    ) as Array<{
+      id: string | number;
+      status?: string;
+      requested_at?: string | null;
+      accepted_at?: string | null;
+      requester_profile_id?: number | null;
+      requestee_profile_id?: number | null;
     }>;
 
     const teamActive = team.filter((m) => m.status === 'active').length;
@@ -307,6 +373,14 @@ export async function POST(request: NextRequest) {
       (c) => c.status === 'accepted' || c.status === 'approved'
     ).length;
     const connectionsPending = connections.filter((c) => c.status === 'pending').length;
+    const networkPendingIn = connections.filter(
+      (c) =>
+        c.status === 'pending' && Number(c.requestee_profile_id) === companyId
+    ).length;
+    const networkPendingOut = connections.filter(
+      (c) =>
+        c.status === 'pending' && Number(c.requester_profile_id) === companyId
+    ).length;
 
     const openRisks = riads.filter((r) =>
       ['active', 'open', 'in_progress', 'on_hold', 'mitigated'].includes(
@@ -724,6 +798,141 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // ── Network trade expansion (pricing, quotes, AR/AP, multi-currency) ────
+    const pricingAgreements = pricingAgreementsRes.error
+      ? []
+      : pricingAgreementsRes.data || [];
+    const pricingActive = pricingAgreements.filter(
+      (a) => String(a.status || '').toLowerCase() === 'active'
+    ).length;
+    const pricingSelling = pricingAgreements.filter(
+      (a) => Number(a.seller_profile_id) === companyId
+    ).length;
+    const pricingBuying = pricingAgreements.filter(
+      (a) => Number(a.buyer_profile_id) === companyId
+    ).length;
+
+    const quotes = customerQuotesRes.error ? [] : customerQuotesRes.data || [];
+    const openQuoteStatuses = new Set(['draft', 'sent', 'accepted']);
+    const quotesOpen = quotes.filter((q) =>
+      openQuoteStatuses.has(String(q.status || '').toLowerCase())
+    ).length;
+    const quotesValue = quotes
+      .filter((q) => openQuoteStatuses.has(String(q.status || '').toLowerCase()))
+      .reduce((s, q) => s + Number(q.total_amount || 0), 0);
+
+    const custInvoices = customerInvoicesRes.error ? [] : customerInvoicesRes.data || [];
+    const openInvStatuses = new Set(['draft', 'sent', 'partial', 'overdue']);
+    const invoicesOpen = custInvoices.filter((i) =>
+      openInvStatuses.has(String(i.status || '').toLowerCase())
+    ).length;
+    const invoicesOpenValue = custInvoices
+      .filter((i) => openInvStatuses.has(String(i.status || '').toLowerCase()))
+      .reduce(
+        (s, i) =>
+          s + Math.max(0, Number(i.total_amount || 0) - Number(i.amount_paid || 0)),
+        0
+      );
+
+    const productsFull = productsFullRes.error ? [] : productsFullRes.data || [];
+    let multiCurrencyProducts = 0;
+    const currencySet = new Set<string>();
+    for (const p of productsFull) {
+      const prices = Array.isArray(p.prices) ? p.prices : [];
+      if (prices.length > 1) multiCurrencyProducts += 1;
+      if (p.base_currency) currencySet.add(String(p.base_currency).toUpperCase());
+      for (const row of prices) {
+        if (row && typeof row === 'object' && (row as { currency?: string }).currency) {
+          currencySet.add(String((row as { currency: string }).currency).toUpperCase());
+        }
+      }
+    }
+    if (currencySet.size === 0) currencySet.add('ZAR');
+
+    const acctInvoices = accountingInvoicesRes.error
+      ? []
+      : accountingInvoicesRes.data || [];
+    const arOpen = acctInvoices.filter(
+      (i) =>
+        i.direction === 'receivable' &&
+        !['paid', 'void', 'cancelled'].includes(String(i.status || '').toLowerCase())
+    );
+    const apOpen = acctInvoices.filter(
+      (i) =>
+        i.direction === 'payable' &&
+        !['paid', 'void', 'cancelled'].includes(String(i.status || '').toLowerCase())
+    );
+    const arOpenValue = arOpen.reduce(
+      (s, i) => s + Math.max(0, Number(i.total_amount || 0) - Number(i.amount_paid || 0)),
+      0
+    );
+    const apOpenValue = apOpen.reduce(
+      (s, i) => s + Math.max(0, Number(i.total_amount || 0) - Number(i.amount_paid || 0)),
+      0
+    );
+
+    const listings = marketplaceListingsRes.error
+      ? []
+      : marketplaceListingsRes.data || [];
+    const listingsActive = listings.filter(
+      (l) => String(l.status || '').toLowerCase() === 'active'
+    ).length;
+
+    if (networkPendingIn > 0) {
+      alerts.unshift({
+        id: 'network-incoming',
+        severity: 'warning',
+        title: `${networkPendingIn} incoming connection request${networkPendingIn === 1 ? '' : 's'}`,
+        detail: 'Accept or decline partners so trade, pricing, and POs can unlock.',
+        href: '/dashboard/connections',
+      });
+    }
+    if (pricingActive === 0 && connectionsAccepted > 0) {
+      alerts.push({
+        id: 'pricing-empty',
+        severity: 'info',
+        title: 'No active pricing agreements',
+        detail: 'Set wholesale list prices with connected companies for global trade.',
+        href: '/dashboard/connections/pricing',
+      });
+    }
+    if (arOpen.length > 0) {
+      alerts.push({
+        id: 'ar-open',
+        severity: 'info',
+        title: `${arOpen.length} open AR invoice${arOpen.length === 1 ? '' : 's'}`,
+        detail: `Outstanding ~ ${arOpenValue.toLocaleString(undefined, { maximumFractionDigits: 0 })} across currencies.`,
+        href: '/dashboard/accounting/accounts-receivable',
+      });
+    }
+
+    for (const a of pricingAgreements.slice(0, 2)) {
+      activity.push({
+        id: `pa-${a.id}`,
+        title: `Pricing: ${a.title || 'Agreement'}`,
+        subtitle: `${a.status || 'draft'} · ${a.currency || 'ZAR'} · ${
+          Number(a.seller_profile_id) === companyId ? 'selling' : 'buying'
+        }`,
+        at: a.updated_at || null,
+        type: 'network',
+      });
+    }
+    for (const q of quotes.slice(0, 2)) {
+      activity.push({
+        id: `quote-${q.id}`,
+        title: `Quote · ${String(q.currency || 'ZAR')} ${Number(q.total_amount || 0).toFixed(0)}`,
+        subtitle: String(q.status || 'draft'),
+        at: q.created_at || null,
+        type: 'network',
+      });
+    }
+
+    activity.sort((a, b) => {
+      const ta = a.at ? new Date(a.at).getTime() : 0;
+      const tb = b.at ? new Date(b.at).getTime() : 0;
+      return tb - ta;
+    });
+
     return NextResponse.json({
       success: true,
       company: {
@@ -747,6 +956,7 @@ export async function POST(request: NextRequest) {
         contact_name: company.contact_name,
         email: company.email,
         wallet_address: company.wallet_address,
+        primary_currency: company.primary_currency || 'ZAR',
       },
       kpis: {
         teamActive,
@@ -754,6 +964,8 @@ export async function POST(request: NextRequest) {
         teamTotal: team.length,
         networkAccepted: connectionsAccepted,
         networkPending: connectionsPending,
+        networkPendingIn,
+        networkPendingOut,
         networkTotal: connections.length,
         suppliersTotal: supplierProfiles.length,
         suppliersActive: activeSuppliers,
@@ -801,6 +1013,22 @@ export async function POST(request: NextRequest) {
         srmOpenPos: srmOpenPos.length,
         srmOnchainPos: srmOnchainPos.length,
         srmRiadOpen,
+        // Network trade
+        pricingAgreements: pricingAgreements.length,
+        pricingActive,
+        pricingSelling,
+        pricingBuying,
+        quotesOpen,
+        quotesValue,
+        invoicesOpen,
+        invoicesOpenValue,
+        multiCurrencyProducts,
+        catalogueCurrencies: Array.from(currencySet).sort(),
+        arOpen: arOpen.length,
+        arOpenValue,
+        apOpen: apOpen.length,
+        apOpenValue,
+        marketplaceListings: listingsActive,
         // Business
         profileCompleteness,
       },
@@ -810,6 +1038,36 @@ export async function POST(request: NextRequest) {
         riskScoreLabel,
         riskBar,
         profileCompleteness,
+      },
+      network: {
+        accepted: connectionsAccepted,
+        pending: connectionsPending,
+        pendingIn: networkPendingIn,
+        pendingOut: networkPendingOut,
+        pricingActive,
+        pricingTotal: pricingAgreements.length,
+        marketplaceListings: listingsActive,
+        href: '/dashboard/connections',
+      },
+      trade: {
+        quotesOpen,
+        quotesValue,
+        invoicesOpen,
+        invoicesOpenValue,
+        openPos: srmOpenPos.length,
+        onchainPos: srmOnchainPos.length,
+        arOpen: arOpen.length,
+        arOpenValue,
+        apOpen: apOpen.length,
+        apOpenValue,
+      },
+      inventory: {
+        products: productsCount,
+        multiCurrencyProducts,
+        currencies: Array.from(currencySet).sort(),
+        warehouseLowStock,
+        warehouses: warehouses.length,
+        href: '/dashboard/inventory/products',
       },
       crm: {
         customers: customers.length,

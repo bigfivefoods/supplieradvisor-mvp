@@ -24,6 +24,11 @@ import {
   ShoppingCart,
   Settings,
   Loader2,
+  Wallet,
+  CreditCard,
+  Search,
+  Globe2,
+  Tag,
 } from 'lucide-react';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import {
@@ -38,6 +43,7 @@ import {
   SectionLabel,
   type ModuleCard,
 } from '@/components/relationship/RelationshipChrome';
+import FxRateStrip from '@/components/fx/FxRateStrip';
 
 type CompanyData = {
   id: number;
@@ -48,6 +54,8 @@ type CompanyData = {
   country?: string | null;
   city?: string | null;
   trust_score?: number | null;
+  primary_currency?: string | null;
+  wallet_address?: string | null;
 };
 
 type Kpis = {
@@ -56,6 +64,8 @@ type Kpis = {
   teamTotal: number;
   networkAccepted: number;
   networkPending: number;
+  networkPendingIn?: number;
+  networkPendingOut?: number;
   suppliersActive: number;
   suppliersTotal: number;
   openRisks: number;
@@ -69,7 +79,6 @@ type Kpis = {
   warehouseLowStock?: number;
   containerLowStock?: number;
   salesToday?: number;
-  // CRM
   customersTotal?: number;
   customersActive?: number;
   leadsOpen?: number;
@@ -78,7 +87,6 @@ type Kpis = {
   crmInvitePending?: number;
   crmInviteAccepted?: number;
   crmRiadOpen?: number;
-  // SRM
   srmBookTotal?: number;
   srmConnected?: number;
   srmInvitePending?: number;
@@ -89,6 +97,21 @@ type Kpis = {
   srmOnchainPos?: number;
   srmRiadOpen?: number;
   profileCompleteness?: number;
+  pricingAgreements?: number;
+  pricingActive?: number;
+  pricingSelling?: number;
+  pricingBuying?: number;
+  quotesOpen?: number;
+  quotesValue?: number;
+  invoicesOpen?: number;
+  invoicesOpenValue?: number;
+  multiCurrencyProducts?: number;
+  catalogueCurrencies?: string[];
+  arOpen?: number;
+  arOpenValue?: number;
+  apOpen?: number;
+  apOpenValue?: number;
+  marketplaceListings?: number;
 };
 
 type CrmSnap = {
@@ -113,6 +136,39 @@ type SrmSnap = {
   openPos: number;
   onchainPos: number;
   riadOpen: number;
+  href: string;
+};
+
+type NetworkSnap = {
+  accepted: number;
+  pending: number;
+  pendingIn: number;
+  pendingOut: number;
+  pricingActive: number;
+  pricingTotal: number;
+  marketplaceListings: number;
+  href: string;
+};
+
+type TradeSnap = {
+  quotesOpen: number;
+  quotesValue: number;
+  invoicesOpen: number;
+  invoicesOpenValue: number;
+  openPos: number;
+  onchainPos: number;
+  arOpen: number;
+  arOpenValue: number;
+  apOpen: number;
+  apOpenValue: number;
+};
+
+type InventorySnap = {
+  products: number;
+  multiCurrencyProducts: number;
+  currencies: string[];
+  warehouseLowStock: number;
+  warehouses: number;
   href: string;
 };
 
@@ -162,49 +218,57 @@ function formatRelative(iso: string | null) {
   return new Date(iso).toLocaleDateString();
 }
 
-function money(n: number) {
-  return `R ${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+function money(n: number, currency = 'ZAR') {
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency: currency.length === 3 ? currency : 'ZAR',
+      maximumFractionDigits: 0,
+    }).format(Number(n || 0));
+  } catch {
+    return `${currency} ${Number(n || 0).toLocaleString()}`;
+  }
 }
 
 const PLATFORM_MODULES: ModuleCard[] = [
   {
-    href: '/dashboard/customers',
-    icon: Users,
-    title: 'Customers CRM',
-    desc: 'Lead → quote → order → invoice · invites · loyalty · RIAD',
-    badge: 'Grow',
+    href: '/dashboard/connections',
+    icon: Network,
+    title: 'Network',
+    desc: 'Connect companies · pricing · marketplace · trade graph',
+    badge: 'Core',
   },
   {
     href: '/dashboard/suppliers',
     icon: Truck,
     title: 'Suppliers SRM',
-    desc: 'Discover · connect · PO · escrow · OTIFEF · ratings',
+    desc: 'Discover · PO · escrow · OTIFEF · ratings',
     badge: 'Trust',
   },
   {
-    href: '/dashboard/my-business',
-    icon: Building2,
-    title: 'My Business',
-    desc: 'Profile, team, settings, legal, documents',
-    badge: 'Core',
+    href: '/dashboard/customers',
+    icon: Users,
+    title: 'Customers CRM',
+    desc: 'Lead → quote → order → invoice · multi-currency',
+    badge: 'Grow',
   },
   {
     href: '/dashboard/inventory',
     icon: Boxes,
     title: 'Inventory',
-    desc: 'Catalogue, warehouses, stock levels, transfers',
+    desc: 'Multi-currency catalogue, warehouses, stock',
+  },
+  {
+    href: '/dashboard/accounting',
+    icon: Wallet,
+    title: 'Accounting',
+    desc: 'AR/AP, bank, journals, management accounts',
   },
   {
     href: '/dashboard/containers',
     icon: Container,
     title: 'Containers',
-    desc: 'Outlets, contractors, sales, container RIAD',
-  },
-  {
-    href: '/dashboard/connections',
-    icon: Network,
-    title: 'Network',
-    desc: 'Connections · marketplace · trade graph',
+    desc: 'Outlets, contractors, sales, RIAD',
   },
 ];
 
@@ -213,6 +277,9 @@ export default function DashboardHome() {
   const [kpis, setKpis] = useState<Kpis | null>(null);
   const [crm, setCrm] = useState<CrmSnap | null>(null);
   const [srm, setSrm] = useState<SrmSnap | null>(null);
+  const [network, setNetwork] = useState<NetworkSnap | null>(null);
+  const [trade, setTrade] = useState<TradeSnap | null>(null);
+  const [inventory, setInventory] = useState<InventorySnap | null>(null);
   const [business, setBusiness] = useState<BusinessSnap | null>(null);
   const [activity, setActivity] = useState<Activity[]>([]);
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
@@ -252,6 +319,9 @@ export default function DashboardHome() {
       setKpis(data.kpis);
       setCrm(data.crm || null);
       setSrm(data.srm || null);
+      setNetwork(data.network || null);
+      setTrade(data.trade || null);
+      setInventory(data.inventory || null);
       setBusiness(data.business || null);
       setActivity(data.activity || []);
       setAlerts(data.alerts || []);
@@ -309,15 +379,33 @@ export default function DashboardHome() {
   }
 
   const pct = business?.profileCompleteness ?? kpis?.profileCompleteness ?? 0;
+  const baseCcy = company.primary_currency || 'ZAR';
+  const currencies =
+    inventory?.currencies?.length
+      ? inventory.currencies
+      : kpis?.catalogueCurrencies?.length
+        ? kpis.catalogueCurrencies
+        : [baseCcy];
+
+  const pendingIn = network?.pendingIn ?? kpis?.networkPendingIn ?? 0;
+  const networkAccepted = network?.accepted ?? kpis?.networkAccepted ?? 0;
+  const pricingActive = network?.pricingActive ?? kpis?.pricingActive ?? 0;
 
   return (
     <RelationshipPage>
       <RelationshipHeader
-        eyebrow={`${greeting()} · Command center`}
+        eyebrow={`${greeting()} · Global command center`}
         title={company.trading_name}
         description={
-          [company.industry, company.city, company.country].filter(Boolean).join(' · ') ||
-          'Live operating system for CRM, SRM, inventory, and containers — one product language.'
+          [
+            company.industry,
+            company.city,
+            company.country,
+            currencies.length > 1 ? `${currencies.length} catalogue currencies` : baseCcy,
+          ]
+            .filter(Boolean)
+            .join(' · ') ||
+          'Network · multi-currency trade · CRM · SRM · inventory · accounting'
         }
         action={
           <>
@@ -331,14 +419,17 @@ export default function DashboardHome() {
             <Link href="/dashboard/select-company" className="btn-secondary !py-2.5 !px-4 text-sm">
               Switch
             </Link>
-            <Link href="/dashboard/suppliers/add" className="btn-primary !py-2.5 !px-5 text-sm">
-              <Plus className="w-4 h-4" /> Add supplier
+            <Link
+              href="/dashboard/suppliers/discover"
+              className="btn-primary !py-2.5 !px-5 text-sm"
+            >
+              <Search className="w-4 h-4" /> Find companies
             </Link>
           </>
         }
       />
 
-      <div className="flex flex-wrap items-center gap-2 mb-6 -mt-4">
+      <div className="flex flex-wrap items-center gap-2 mb-4 -mt-4">
         {company.verification_status === 'verified' ? (
           <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-full bg-emerald-100 text-emerald-800">
             <ShieldCheck className="w-3.5 h-3.5" /> Verified
@@ -351,12 +442,22 @@ export default function DashboardHome() {
             Get verified
           </Link>
         )}
+        {company.wallet_address && (
+          <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-full bg-sky-50 text-[#0077b6] border border-sky-100">
+            <Wallet className="w-3 h-3" /> On-chain ready
+          </span>
+        )}
+        <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-full bg-neutral-100 text-neutral-600">
+          <Globe2 className="w-3 h-3" /> {currencies.join(' · ')}
+        </span>
         {generatedAt && (
           <span className="text-[11px] text-neutral-400">
-            Live from Supabase · {formatRelative(generatedAt) || 'just now'}
+            Live · {formatRelative(generatedAt) || 'just now'}
           </span>
         )}
       </div>
+
+      <FxRateStrip currency={baseCcy} className="mb-6" />
 
       {error && (
         <AlertBanner tone="red">
@@ -369,186 +470,202 @@ export default function DashboardHome() {
         </AlertBanner>
       )}
 
-      <SectionLabel>Platform lifecycle</SectionLabel>
+      {pendingIn > 0 && (
+        <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="text-sm text-amber-900">
+            <strong>{pendingIn}</strong> incoming network connection
+            {pendingIn === 1 ? '' : 's'} waiting — accept to unlock trade.
+          </div>
+          <Link href="/dashboard/connections" className="btn-primary !py-2 !px-4 text-xs">
+            Review network
+          </Link>
+        </div>
+      )}
+
+      <SectionLabel>Trade lifecycle</SectionLabel>
       <ProcessRail
         showNumbers={false}
         steps={[
-          { label: 'Business', href: '/dashboard/my-business' },
-          { label: 'Customers', href: '/dashboard/customers' },
-          { label: 'Suppliers', href: '/dashboard/suppliers' },
-          { label: 'Inventory', href: '/dashboard/inventory' },
-          { label: 'Containers', href: '/dashboard/containers' },
-          { label: 'Network', href: '/dashboard/connections' },
+          { label: 'Discover', href: '/dashboard/suppliers/discover' },
+          { label: 'Connect', href: '/dashboard/connections' },
+          { label: 'Pricing', href: '/dashboard/connections/pricing' },
+          { label: 'Quote', href: '/dashboard/customers/quotes' },
+          { label: 'PO', href: '/dashboard/suppliers/po' },
+          { label: 'Invoice', href: '/dashboard/accounting/accounts-receivable' },
+          { label: 'Inventory', href: '/dashboard/inventory/products' },
         ]}
       />
 
-      {/* Core pulse */}
+      {/* Hero metrics */}
       <SectionLabel>Workspace pulse</SectionLabel>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4 mb-8">
         <KpiCard
-          icon={Users}
-          label="Team active"
-          value={kpis?.teamActive ?? 0}
-          sub={`${kpis?.teamInvited ?? 0} invited · ${kpis?.teamTotal ?? 0} total`}
-          href="/dashboard/my-business/team"
-          tone={(kpis?.teamInvited || 0) > 0 ? 'amber' : 'neutral'}
+          icon={Network}
+          label="Connected companies"
+          value={networkAccepted}
+          sub={`${pendingIn} in · ${network?.pendingOut ?? kpis?.networkPendingOut ?? 0} out`}
+          href="/dashboard/connections"
+          tone={pendingIn > 0 ? 'amber' : 'emerald'}
         />
         <KpiCard
-          icon={Handshake}
-          label="Customers"
-          value={crm?.customers ?? kpis?.customersTotal ?? 0}
-          sub={`${crm?.customersActive ?? kpis?.customersActive ?? 0} active · ${crm?.invitePending ?? 0} invites`}
-          href="/dashboard/customers"
+          icon={Tag}
+          label="Pricing agreements"
+          value={pricingActive}
+          sub={`${kpis?.pricingSelling ?? 0} sell · ${kpis?.pricingBuying ?? 0} buy`}
+          href="/dashboard/connections/pricing"
           tone="cyan"
         />
         <KpiCard
-          icon={Truck}
-          label="Supplier book"
-          value={srm?.book ?? kpis?.srmBookTotal ?? 0}
-          sub={`${srm?.connected ?? kpis?.srmConnected ?? 0} connected · ${srm?.invitePending ?? 0} invites`}
-          href="/dashboard/suppliers/network"
+          icon={FileText}
+          label="Open quotes"
+          value={trade?.quotesOpen ?? kpis?.quotesOpen ?? 0}
+          sub={money(trade?.quotesValue ?? kpis?.quotesValue ?? 0, baseCcy)}
+          href="/dashboard/customers/quotes"
+        />
+        <KpiCard
+          icon={ShoppingCart}
+          label="Open POs"
+          value={trade?.openPos ?? srm?.openPos ?? kpis?.srmOpenPos ?? 0}
+          sub={`${trade?.onchainPos ?? srm?.onchainPos ?? 0} on-chain`}
+          href="/dashboard/suppliers/po"
           tone="emerald"
+        />
+        <KpiCard
+          icon={Wallet}
+          label="AR open"
+          value={trade?.arOpen ?? kpis?.arOpen ?? 0}
+          sub={money(trade?.arOpenValue ?? kpis?.arOpenValue ?? 0, baseCcy)}
+          href="/dashboard/accounting/accounts-receivable"
+          tone="cyan"
+        />
+        <KpiCard
+          icon={CreditCard}
+          label="AP open"
+          value={trade?.apOpen ?? kpis?.apOpen ?? 0}
+          sub={money(trade?.apOpenValue ?? kpis?.apOpenValue ?? 0, baseCcy)}
+          href="/dashboard/accounting/accounts-payable"
+        />
+      </div>
+
+      {/* Four pillars */}
+      <SectionLabel>Systems</SectionLabel>
+      <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4 mb-10">
+        <Pillar
+          href="/dashboard/connections"
+          icon={Network}
+          badge="Network"
+          title="Companies you connect"
+          desc="Request · accept · pricing · marketplace"
+        >
+          <StatMini label="Connected" value={String(networkAccepted)} />
+          <StatMini label="Incoming" value={String(pendingIn)} />
+          <StatMini label="Pricing live" value={String(pricingActive)} />
+          <StatMini
+            label="Listings"
+            value={String(network?.marketplaceListings ?? kpis?.marketplaceListings ?? 0)}
+          />
+        </Pillar>
+
+        <Pillar
+          href="/dashboard/suppliers"
+          icon={Truck}
+          badge="SRM"
+          title="Suppliers you trust"
+          desc="Book · OTIFEF · PO · ratings"
+        >
+          <StatMini label="Book" value={String(srm?.book ?? kpis?.srmBookTotal ?? 0)} />
+          <StatMini
+            label="OTIFEF"
+            value={`${Number(srm?.avgOtifef ?? kpis?.srmAvgOtifef ?? 0).toFixed(0)}%`}
+          />
+          <StatMini label="Open POs" value={String(srm?.openPos ?? 0)} />
+          <StatMini label="Verified" value={String(srm?.verified ?? 0)} />
+        </Pillar>
+
+        <Pillar
+          href="/dashboard/customers"
+          icon={Users}
+          badge="CRM"
+          title="Customers you grow"
+          desc="Pipeline · multi-currency quotes · invoices"
+        >
+          <StatMini label="Accounts" value={String(crm?.customers ?? 0)} />
+          <StatMini label="Pipeline" value={money(crm?.pipelineValue ?? 0, baseCcy)} />
+          <StatMini label="Quotes" value={String(trade?.quotesOpen ?? 0)} />
+          <StatMini label="Invoices" value={String(trade?.invoicesOpen ?? kpis?.invoicesOpen ?? 0)} />
+        </Pillar>
+
+        <Pillar
+          href="/dashboard/inventory/products"
+          icon={Boxes}
+          badge="Inventory"
+          title="Catalogue you sell"
+          desc="Multi-currency SKUs · warehouses · stock"
+        >
+          <StatMini label="Products" value={String(inventory?.products ?? kpis?.products ?? 0)} />
+          <StatMini
+            label="Multi-FX SKUs"
+            value={String(inventory?.multiCurrencyProducts ?? kpis?.multiCurrencyProducts ?? 0)}
+          />
+          <StatMini label="Currencies" value={String(currencies.length)} />
+          <StatMini
+            label="Low stock"
+            value={String(
+              (inventory?.warehouseLowStock ?? kpis?.warehouseLowStock ?? 0) +
+                (kpis?.containerLowStock ?? 0)
+            )}
+          />
+        </Pillar>
+      </div>
+
+      {/* Performance + finance strip */}
+      <SectionLabel>Performance & finance</SectionLabel>
+      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-10">
+        <MetricHero
+          label="Portfolio OTIFEF"
+          value={Number(srm?.avgOtifef ?? kpis?.srmAvgOtifef ?? 0).toFixed(1)}
+          unit="%"
+          icon={TrendingUp}
+          hint={`Trust ${Number(srm?.avgTrust ?? 0).toFixed(0)} · ${srm?.openPos ?? 0} open POs`}
+        />
+        <KpiCard
+          icon={Target}
+          label="CRM pipeline"
+          value={money(crm?.pipelineValue ?? 0, baseCcy)}
+          sub={`${crm?.opportunitiesOpen ?? 0} open deals`}
+          href="/dashboard/customers/leads"
+          tone="cyan"
+        />
+        <KpiCard
+          icon={Star}
+          label="Profile complete"
+          value={`${pct}%`}
+          sub={business?.verified ? 'Verified company' : 'Complete verification'}
+          href="/dashboard/my-business"
+          tone={pct >= 80 ? 'emerald' : 'amber'}
         />
         <KpiCard
           icon={AlertTriangle}
           label="Open RIADs"
           value={
             (kpis?.openRisks ?? 0) +
-            (crm?.riadOpen ?? kpis?.crmRiadOpen ?? 0) +
-            (srm?.riadOpen ?? kpis?.srmRiadOpen ?? 0)
+            (crm?.riadOpen ?? 0) +
+            (srm?.riadOpen ?? 0)
           }
-          sub={`${kpis?.highRisks ?? 0} high · CRM + SRM + ops`}
+          sub={`${kpis?.highRisks ?? 0} high priority`}
           href="/dashboard/customers/riad-log"
           tone={(kpis?.highRisks || 0) > 0 ? 'amber' : 'neutral'}
         />
       </div>
 
-      {/* Three pillars: CRM · SRM · Business */}
-      <SectionLabel>Relationship systems</SectionLabel>
-      <div className="grid lg:grid-cols-3 gap-4 mb-10">
-        {/* CRM card */}
-        <Link
-          href="/dashboard/customers"
-          className="group rounded-3xl border border-neutral-200 bg-white p-6 hover:border-[#00b4d8] hover:shadow-md transition-all"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div className="w-10 h-10 rounded-2xl bg-[#00b4d8]/10 flex items-center justify-center">
-              <Users className="w-5 h-5 text-[#00b4d8]" />
-            </div>
-            <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#00b4d8]/10 text-[#0077b6] border border-[#00b4d8]/20">
-              CRM
-            </span>
-          </div>
-          <h3 className="font-bold text-lg tracking-tight text-slate-800 mb-1">
-            Customers you can <span className="text-[#00b4d8]">grow</span>
-          </h3>
-          <p className="text-xs text-neutral-500 mb-5 leading-relaxed">
-            Pipeline, quotes, orders, invoices, invites, loyalty
-          </p>
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <StatMini label="Open leads" value={String(crm?.leadsOpen ?? 0)} />
-            <StatMini
-              label="Pipeline"
-              value={money(crm?.pipelineValue ?? kpis?.pipelineValue ?? 0)}
-            />
-            <StatMini label="Open deals" value={String(crm?.opportunitiesOpen ?? 0)} />
-            <StatMini label="Connected" value={String(crm?.inviteAccepted ?? 0)} />
-          </div>
-          <div className="mt-5 flex items-center gap-1 text-xs font-semibold text-[#00b4d8]">
-            Open CRM <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-          </div>
-        </Link>
-
-        {/* SRM card */}
-        <Link
-          href="/dashboard/suppliers"
-          className="group rounded-3xl border border-neutral-200 bg-white p-6 hover:border-[#00b4d8] hover:shadow-md transition-all"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div className="w-10 h-10 rounded-2xl bg-[#00b4d8]/10 flex items-center justify-center">
-              <Truck className="w-5 h-5 text-[#00b4d8]" />
-            </div>
-            <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#00b4d8]/10 text-[#0077b6] border border-[#00b4d8]/20">
-              SRM
-            </span>
-          </div>
-          <h3 className="font-bold text-lg tracking-tight text-slate-800 mb-1">
-            Suppliers you can <span className="text-[#00b4d8]">trust</span>
-          </h3>
-          <p className="text-xs text-neutral-500 mb-5 leading-relaxed">
-            Discover, connect, PO escrow, OTIFEF, ratings
-          </p>
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <StatMini label="Connected" value={String(srm?.connected ?? 0)} />
-            <StatMini
-              label="OTIFEF"
-              value={`${Number(srm?.avgOtifef ?? kpis?.srmAvgOtifef ?? 0).toFixed(0)}%`}
-            />
-            <StatMini label="Open POs" value={String(srm?.openPos ?? 0)} />
-            <StatMini label="On-chain" value={String(srm?.onchainPos ?? 0)} />
-          </div>
-          <div className="mt-5 flex items-center gap-1 text-xs font-semibold text-[#00b4d8]">
-            Open SRM <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-          </div>
-        </Link>
-
-        {/* Business card — light, same language as CRM/SRM */}
-        <Link
-          href="/dashboard/my-business"
-          className="group rounded-3xl border border-neutral-200 bg-white p-6 hover:border-[#00b4d8] hover:shadow-md transition-all relative overflow-hidden"
-        >
-          <div
-            aria-hidden
-            className="absolute -right-6 -top-6 h-32 w-32 rounded-full bg-[#00b4d8]/10 blur-2xl"
-          />
-          <div className="relative flex items-center justify-between mb-4">
-            <div className="w-10 h-10 rounded-2xl bg-[#00b4d8]/10 flex items-center justify-center">
-              <Building2 className="w-5 h-5 text-[#00b4d8]" />
-            </div>
-            <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#00b4d8]/10 text-[#0077b6] border border-[#00b4d8]/20">
-              Company
-            </span>
-          </div>
-          <h3 className="relative font-bold text-lg tracking-tight text-slate-800 mb-1">
-            My business, <span className="text-[#00b4d8]">mastered</span>
-          </h3>
-          <p className="relative text-xs text-neutral-500 mb-5 leading-relaxed">
-            Profile integrity, team, settings, legal
-          </p>
-          <div className="relative">
-            <div className="flex items-end justify-between mb-2">
-              <span className="text-[10px] uppercase tracking-wider text-neutral-400 font-semibold">
-                Profile complete
-              </span>
-              <span className="text-3xl font-black tracking-tighter tabular-nums text-slate-800">
-                {pct}%
-              </span>
-            </div>
-            <div className="h-1.5 rounded-full bg-neutral-100 overflow-hidden">
-              <div
-                className="h-full rounded-full bg-[#00b4d8]"
-                style={{ width: `${pct}%` }}
-              />
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-2 text-xs text-neutral-500">
-              <span>{business?.teamActive ?? kpis?.teamActive ?? 0} active team</span>
-              <span>{business?.verified ? 'Verified' : 'Unverified'}</span>
-            </div>
-          </div>
-          <div className="relative mt-5 flex items-center gap-1 text-xs font-semibold text-[#00b4d8]">
-            Open workspace <ArrowRight className="w-3.5 h-3.5" />
-          </div>
-        </Link>
-      </div>
-
-      {/* Ops + Inventory strip */}
+      {/* Ops strip */}
       <SectionLabel>Operations</SectionLabel>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-10">
         <KpiCard
           icon={Container}
           label="Containers"
           value={kpis?.containersActive ?? 0}
-          sub={`${kpis?.containersTotal ?? 0} total · sales today ${money(kpis?.salesToday ?? 0)}`}
+          sub={`${kpis?.containersTotal ?? 0} total · today ${money(kpis?.salesToday ?? 0, baseCcy)}`}
           href="/dashboard/containers"
           tone="cyan"
         />
@@ -556,7 +673,7 @@ export default function DashboardHome() {
           icon={UserCheck}
           label="Contractors"
           value={kpis?.contractorsVerified ?? 0}
-          sub={`${kpis?.contractorsTotal ?? 0} total verified`}
+          sub={`${kpis?.contractorsTotal ?? 0} total`}
           href="/dashboard/containers/contractors"
           tone="emerald"
         />
@@ -565,27 +682,23 @@ export default function DashboardHome() {
           label="Products"
           value={kpis?.products ?? 0}
           sub={
-            (kpis?.warehouseLowStock || 0) + (kpis?.containerLowStock || 0) > 0
-              ? 'Reorder needed'
+            (kpis?.multiCurrencyProducts || 0) > 0
+              ? `${kpis?.multiCurrencyProducts} multi-currency`
               : 'Catalogue SKUs'
           }
-          href="/dashboard/inventory"
-          tone={
-            (kpis?.warehouseLowStock || 0) + (kpis?.containerLowStock || 0) > 0
-              ? 'amber'
-              : 'neutral'
-          }
+          href="/dashboard/inventory/products"
         />
         <KpiCard
-          icon={Network}
-          label="Network"
-          value={kpis?.networkAccepted ?? 0}
-          sub={`${kpis?.networkPending ?? 0} pending requests`}
-          href="/dashboard/connections"
+          icon={Users}
+          label="Team"
+          value={kpis?.teamActive ?? 0}
+          sub={`${kpis?.teamInvited ?? 0} invited`}
+          href="/dashboard/my-business/team"
+          tone={(kpis?.teamInvited || 0) > 0 ? 'amber' : 'neutral'}
         />
       </div>
 
-      {/* Activity + Alerts */}
+      {/* Attention + Activity */}
       <div className="grid lg:grid-cols-5 gap-4 mb-10">
         <Panel
           title="Attention"
@@ -602,7 +715,7 @@ export default function DashboardHome() {
             </div>
           ) : (
             <ul className="divide-y divide-neutral-100">
-              {alerts.slice(0, 6).map((a) => (
+              {alerts.slice(0, 8).map((a) => (
                 <li key={a.id}>
                   <Link
                     href={a.href}
@@ -645,11 +758,11 @@ export default function DashboardHome() {
         >
           {activity.length === 0 ? (
             <div className="p-8 text-center text-sm text-neutral-500">
-              Activity will appear as your team works across CRM, SRM, and operations.
+              Connect companies, set pricing, and raise quotes — activity will stream here.
             </div>
           ) : (
             <ul className="divide-y divide-neutral-100">
-              {activity.slice(0, 8).map((item) => (
+              {activity.slice(0, 10).map((item) => (
                 <li
                   key={item.id}
                   className="px-5 py-3.5 flex items-start justify-between gap-3"
@@ -672,75 +785,64 @@ export default function DashboardHome() {
         </Panel>
       </div>
 
-      {/* OTIFEF hero when SRM has data */}
-      {(srm?.avgOtifef || 0) > 0 && (
-        <>
-          <SectionLabel
-            action={
-              <Link
-                href="/dashboard/suppliers/performance"
-                className="text-xs font-semibold text-[#00b4d8] hover:underline"
-              >
-                Scorecards →
-              </Link>
-            }
-          >
-            Supply performance
-          </SectionLabel>
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-10">
-            <MetricHero
-              label="Portfolio OTIFEF"
-              value={Number(srm?.avgOtifef ?? 0).toFixed(1)}
-              unit="%"
-              icon={TrendingUp}
-              hint={`Trust avg ${Number(srm?.avgTrust ?? 0).toFixed(0)} · ${srm?.openPos ?? 0} open POs`}
-            />
-            <KpiCard
-              icon={ShoppingCart}
-              label="Open POs"
-              value={srm?.openPos ?? 0}
-              sub={`${srm?.onchainPos ?? 0} on-chain escrow`}
-              href="/dashboard/suppliers/po"
-            />
-            <KpiCard
-              icon={Star}
-              label="Verified suppliers"
-              value={srm?.verified ?? 0}
-              sub="In your book"
-              href="/dashboard/suppliers/network"
-              tone="emerald"
-            />
-            <KpiCard
-              icon={Target}
-              label="CRM pipeline"
-              value={money(crm?.pipelineValue ?? 0)}
-              sub={`${crm?.opportunitiesOpen ?? 0} open deals`}
-              href="/dashboard/customers/leads"
-              tone="cyan"
-            />
-          </div>
-        </>
-      )}
-
       <SectionLabel>Platform modules</SectionLabel>
       <ModuleGrid modules={PLATFORM_MODULES} />
 
-      <div className="mt-10 grid sm:grid-cols-3 gap-3">
-        <QuickAction href="/dashboard/customers/onboard" icon={Plus} label="Add customer" />
-        <QuickAction href="/dashboard/suppliers/discover" icon={Truck} label="Discover suppliers" />
+      <div className="mt-10 grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <QuickAction href="/dashboard/suppliers/discover" icon={Search} label="Discover companies" />
+        <QuickAction href="/dashboard/connections/pricing" icon={Tag} label="Pricing agreements" />
+        <QuickAction href="/dashboard/customers/quotes" icon={FileText} label="New quote" />
         <QuickAction href="/dashboard/my-business/settings" icon={Settings} label="Company settings" />
       </div>
     </RelationshipPage>
   );
 }
 
+function Pillar({
+  href,
+  icon: Icon,
+  badge,
+  title,
+  desc,
+  children,
+}: {
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  badge: string;
+  title: string;
+  desc: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      className="group rounded-3xl border border-neutral-200 bg-white p-5 hover:border-[#00b4d8] hover:shadow-md transition-all"
+    >
+      <div className="flex items-center justify-between mb-3">
+        <div className="w-10 h-10 rounded-2xl bg-[#00b4d8]/10 flex items-center justify-center">
+          <Icon className="w-5 h-5 text-[#00b4d8]" />
+        </div>
+        <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#00b4d8]/10 text-[#0077b6] border border-[#00b4d8]/20">
+          {badge}
+        </span>
+      </div>
+      <h3 className="font-bold text-base tracking-tight text-slate-800 mb-0.5">{title}</h3>
+      <p className="text-xs text-neutral-500 mb-4 leading-relaxed">{desc}</p>
+      <div className="grid grid-cols-2 gap-2 text-sm">{children}</div>
+      <div className="mt-4 flex items-center gap-1 text-xs font-semibold text-[#00b4d8]">
+        Open <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+      </div>
+    </Link>
+  );
+}
+
 function StatMini({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl bg-neutral-50 border border-neutral-100 px-3 py-2">
-      <div className="text-[10px] uppercase tracking-wider text-neutral-400 font-semibold">
+    <div className="rounded-xl bg-neutral-50 border border-neutral-100 px-2.5 py-2">
+      <div className="text-[9px] uppercase tracking-wider text-neutral-400 font-semibold">
         {label}
       </div>
-      <div className="font-bold text-slate-900 tabular-nums mt-0.5">{value}</div>
+      <div className="font-bold text-slate-900 tabular-nums mt-0.5 text-sm truncate">{value}</div>
     </div>
   );
 }
