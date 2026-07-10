@@ -146,10 +146,11 @@ export async function POST(request: NextRequest) {
 
     const inviteLink = buildContractorInviteLink(token);
 
+    const from = getResendFrom();
     try {
       const resend = getResend();
-      await resend.emails.send({
-        from: getResendFrom(),
+      const { data: emailData, error: emailError } = await resend.emails.send({
+        from,
         replyTo: getResendReplyTo(),
         to: email,
         subject: `Operate ${containerName} — Independent contractor invitation`,
@@ -159,6 +160,34 @@ export async function POST(request: NextRequest) {
           containerName,
           inviteLink,
         }),
+        tags: [
+          { name: 'type', value: 'contractor_invite' },
+          { name: 'company_id', value: String(companyId) },
+        ],
+      });
+      if (emailError) {
+        const msg =
+          typeof emailError === 'object' && emailError && 'message' in emailError
+            ? String((emailError as { message?: string }).message)
+            : String(emailError);
+        return NextResponse.json({
+          success: true,
+          warning: `Invite created but email failed: ${msg}`,
+          inviteLink,
+          invite,
+          contractorId,
+          from,
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: 'Invitation sent',
+        inviteLink,
+        invite,
+        contractorId,
+        from,
+        emailId: emailData?.id || null,
       });
     } catch (emailErr: unknown) {
       const msg = emailErr instanceof Error ? emailErr.message : 'Email failed';
@@ -168,16 +197,9 @@ export async function POST(request: NextRequest) {
         inviteLink,
         invite,
         contractorId,
+        from,
       });
     }
-
-    return NextResponse.json({
-      success: true,
-      message: 'Invitation sent',
-      inviteLink,
-      invite,
-      contractorId,
-    });
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Invite failed' },

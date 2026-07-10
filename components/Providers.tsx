@@ -12,6 +12,10 @@ import '@rainbow-me/rainbowkit/styles.css';
 const walletConnectProjectId =
   process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || '00000000000000000000000000000000';
 
+const hasRealWalletConnect =
+  Boolean(process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID) &&
+  process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID !== '00000000000000000000000000000000';
+
 const wagmiConfig = getDefaultConfig({
   appName: 'SupplierAdvisor — Onchain Trust Layer for African Food Security',
   projectId: walletConnectProjectId,
@@ -19,26 +23,44 @@ const wagmiConfig = getDefaultConfig({
   ssr: true,
 });
 
+/**
+ * Privy login methods. Prefer email/social for contractors & mobile.
+ * Wallet is optional and only advertised when WalletConnect is configured —
+ * a dummy WC project id often causes "Something went wrong" in the modal.
+ */
+const LOGIN_METHODS = (
+  hasRealWalletConnect
+    ? (['email', 'google', 'apple', 'wallet'] as const)
+    : (['email', 'google', 'apple'] as const)
+).slice();
+
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
   const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID || '';
+
+  if (!privyAppId) {
+    console.error('NEXT_PUBLIC_PRIVY_APP_ID is missing — authentication will fail');
+  }
 
   return (
     <PrivyProvider
       appId={privyAppId}
       config={{
-        // Email first — most reliable on mobile browsers (no popup blockers)
-        loginMethods: ['email', 'google', 'apple', 'wallet'],
+        loginMethods: LOGIN_METHODS as ('email' | 'google' | 'apple' | 'wallet')[],
         appearance: {
           theme: 'light',
           accentColor: '#00b4d8',
           logo: '/sa-logo.png',
           showWalletLoginFirst: false,
+          landingHeader: 'Sign in to SupplierAdvisor',
+          loginMessage: 'Use the email address your invitation was sent to.',
         },
-        // Improve session restore across mobile Safari / in-app browsers
+        // Do NOT auto-create embedded wallets on email login.
+        // Wallet creation failures surface as "Something went wrong / Try again later"
+        // and block contractor email OTP sign-in. Business users can link wallets later.
         embeddedWallets: {
           ethereum: {
-            createOnLogin: 'users-without-wallets',
+            createOnLogin: 'off',
           },
         },
       }}
@@ -46,7 +68,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <WagmiProvider config={wagmiConfig}>
         <QueryClientProvider client={queryClient}>
           <RainbowKitProvider>
-            {/* Ensure app content is always interactive above wallet portals */}
             <div className="relative z-0 min-h-screen pointer-events-auto">{children}</div>
             <Toaster position="top-center" richColors closeButton expand={false} />
           </RainbowKitProvider>
