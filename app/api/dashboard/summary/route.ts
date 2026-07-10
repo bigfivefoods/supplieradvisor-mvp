@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
+import { computeProfileCompleteness } from '@/lib/business/completeness';
+import { normalizeProfileRow } from '@/lib/business/types';
 
 export type DashboardActivity = {
   id: string;
@@ -32,14 +34,10 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseServer();
 
+    // Full row so profile completeness matches My Business hub / profile page
     const { data: company, error: companyError } = await supabase
       .from('profiles')
-      .select(
-        `id, user_id, trading_name, legal_name, industry, industries, business_type, country, city,
-         verification_status, verified_at, supplier_status, status, relationship_type,
-         trust_score, logo_url, short_description, email, contact_name, contact_phone,
-         wallet_address, created_at, updated_at`
-      )
+      .select('*')
       .eq('id', companyId)
       .maybeSingle();
 
@@ -627,20 +625,11 @@ export async function POST(request: NextRequest) {
       openLike(r.status)
     ).length;
 
-    // Profile completeness (My Business)
-    const completenessFields = [
-      !!company.trading_name,
-      !!company.legal_name,
-      !!company.email,
-      !!company.contact_name,
-      !!company.industry,
-      !!company.country,
-      !!company.city,
-      !!company.wallet_address,
-    ];
-    const profileCompleteness = Math.round(
-      (completenessFields.filter(Boolean).length / completenessFields.length) * 100
-    );
+    // Same formula as My Business hub (/api/business/summary)
+    const normalizedCompany = normalizeProfileRow(company as Record<string, unknown>);
+    const profileCompleteness = computeProfileCompleteness(
+      normalizedCompany as Record<string, unknown>
+    ).pct;
 
     // Enrich activity with CRM / SRM
     for (const c of customers.slice(0, 3)) {

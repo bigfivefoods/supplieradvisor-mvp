@@ -59,11 +59,14 @@ export type CompanyProfile = {
   bee_level?: string | null;
   bee_certificate_url?: string | null;
   registration_number?: string | null;
+  registration_certificate_url?: string | null;
   vat_number?: string | null;
   tax_number?: string | null;
   certifications?: string[] | null;
   iso_certifications?: string[] | null;
-  uploaded_certificates?: unknown;
+  /** Structured certs: { name, awarded_date?, expiry_date?, file_url? }[] */
+  uploaded_certificates?: CertificationEntry[] | unknown;
+  sub_industries?: string[] | string | null;
   wallet_address?: string | null;
   logo_url?: string | null;
   primary_currency?: string | null;
@@ -73,6 +76,7 @@ export type CompanyProfile = {
   verification_status?: string | null;
   is_verified?: boolean | null;
   verified_at?: string | null;
+  verification_payment_ref?: string | null;
   relationship_type?: string | null;
   supplier_status?: string | null;
   public_id?: string | null;
@@ -88,11 +92,30 @@ export type CompanyProfile = {
   import_license_number?: string | null;
   export_license_url?: string | null;
   import_license_url?: string | null;
+  /** Per-country export licenses: { country, license_number?, file_url? }[] */
+  export_licenses?: ExportLicenseEntry[] | unknown;
+  latitude?: number | string | null;
+  longitude?: number | string | null;
+  lat?: number | string | null;
+  lng?: number | string | null;
   settings?: Record<string, unknown> | null;
   metadata?: Record<string, unknown> | null;
   created_at?: string;
   updated_at?: string;
   [key: string]: unknown;
+};
+
+export type CertificationEntry = {
+  name: string;
+  awarded_date?: string | null;
+  expiry_date?: string | null;
+  file_url?: string | null;
+};
+
+export type ExportLicenseEntry = {
+  country: string;
+  license_number?: string | null;
+  file_url?: string | null;
 };
 
 export type CompanySettings = {
@@ -157,6 +180,7 @@ export const PROFILE_EDITABLE_FIELDS = [
   'industry',
   'industries',
   'sub_industry',
+  'sub_industries',
   'category',
   'business_type',
   'description',
@@ -170,9 +194,14 @@ export const PROFILE_EDITABLE_FIELDS = [
   'address',
   'street',
   'postal_code',
+  'latitude',
+  'longitude',
+  'lat',
+  'lng',
   'bee_level',
   'bee_certificate_url',
   'registration_number',
+  'registration_certificate_url',
   'vat_number',
   'tax_number',
   'certifications',
@@ -196,6 +225,7 @@ export const PROFILE_EDITABLE_FIELDS = [
   'import_license_number',
   'export_license_url',
   'import_license_url',
+  'export_licenses',
   'metadata',
 ] as const;
 
@@ -219,23 +249,100 @@ function normalizeCertList(value: unknown): string[] {
   return names;
 }
 
+function normalizeStringList(value: unknown): string[] | null {
+  if (Array.isArray(value)) {
+    const arr = value.map(String).map((s) => s.trim()).filter(Boolean);
+    return arr.length ? arr : null;
+  }
+  if (typeof value === 'string' && value.trim()) {
+    const arr = value
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    return arr.length ? arr : null;
+  }
+  return null;
+}
+
+function normalizeCertEntries(value: unknown): CertificationEntry[] {
+  if (!Array.isArray(value) || value.length === 0) return [];
+  const out: CertificationEntry[] = [];
+  for (const item of value) {
+    if (typeof item === 'string' && item.trim()) {
+      out.push({ name: item.trim() });
+      continue;
+    }
+    if (item && typeof item === 'object') {
+      const obj = item as {
+        name?: string;
+        awarded_date?: string;
+        expiry_date?: string;
+        file_url?: string;
+        selected?: boolean;
+      };
+      if (obj.name && (obj.selected === undefined || obj.selected === true)) {
+        out.push({
+          name: String(obj.name),
+          awarded_date: obj.awarded_date || null,
+          expiry_date: obj.expiry_date || null,
+          file_url: obj.file_url || null,
+        });
+      }
+    }
+  }
+  return out;
+}
+
+function normalizeExportLicenses(value: unknown): ExportLicenseEntry[] {
+  if (!Array.isArray(value) || value.length === 0) return [];
+  return value
+    .filter((x) => x && typeof x === 'object')
+    .map((x) => {
+      const o = x as ExportLicenseEntry;
+      return {
+        country: String(o.country || ''),
+        license_number: o.license_number || null,
+        file_url: o.file_url || null,
+      };
+    })
+    .filter((x) => x.country);
+}
+
 /** Normalize a raw profiles row so the UI can bind consistently without losing data. */
 export function normalizeProfileRow(row: Record<string, unknown>): CompanyProfile {
-  const industries = row.industries;
-  const industriesArr: string[] | null = Array.isArray(industries)
-    ? industries.map(String).filter(Boolean)
-    : typeof industries === 'string' && industries.trim()
-      ? industries
-          .split(',')
-          .map((s) => s.trim())
-          .filter(Boolean)
-      : null;
+  const industriesArr = normalizeStringList(row.industries);
   const industryFromArray =
     industriesArr && industriesArr.length > 0 ? industriesArr[0] : null;
 
   const certsFromModern = normalizeCertList(row.certifications);
   const certsFromLegacy = normalizeCertList(row.iso_certifications);
   const certs = certsFromModern.length > 0 ? certsFromModern : certsFromLegacy;
+
+  const certEntries = normalizeCertEntries(
+    row.uploaded_certificates ?? row.certifications ?? row.iso_certifications
+  );
+  // Prefer structured entries; fill from name-only certs when empty
+  const uploaded =
+    certEntries.length > 0
+      ? certEntries
+      : certs.map((name) => ({ name } as CertificationEntry));
+
+  const subIndustries =
+    normalizeStringList(row.sub_industries) ||
+    (row.sub_industry ? [String(row.sub_industry)] : null);
+
+  const lat =
+    row.latitude != null
+      ? row.latitude
+      : row.lat != null
+        ? row.lat
+        : null;
+  const lng =
+    row.longitude != null
+      ? row.longitude
+      : row.lng != null
+        ? row.lng
+        : null;
 
   return {
     ...row,
@@ -278,9 +385,17 @@ export function normalizeProfileRow(row: Record<string, unknown>): CompanyProfil
     // Industry aliases — production used industries[]
     industry: (row.industry as string) || industryFromArray,
     industries: industriesArr ?? (row.industry ? [String(row.industry)] : null),
+    sub_industries: subIndustries,
+    sub_industry: (row.sub_industry as string) || (subIndustries?.[0] ?? null),
     // Cert aliases — production used iso_certifications (often object[])
-    certifications: certs,
-    iso_certifications: certs,
+    certifications: certs.length ? certs : uploaded.map((c) => c.name),
+    iso_certifications: certs.length ? certs : uploaded.map((c) => c.name),
+    uploaded_certificates: uploaded,
+    export_licenses: normalizeExportLicenses(row.export_licenses),
+    latitude: lat as number | string | null,
+    longitude: lng as number | string | null,
+    lat: lat as number | string | null,
+    lng: lng as number | string | null,
   } as CompanyProfile;
 }
 

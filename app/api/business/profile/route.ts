@@ -5,6 +5,7 @@ import {
   PROFILE_EDITABLE_FIELDS,
   normalizeProfileRow,
 } from '@/lib/business/types';
+import { computeDetailedCompleteness } from '@/lib/business/completeness';
 
 /**
  * GET ?companyId=&privyUserId=
@@ -52,7 +53,7 @@ export async function GET(request: NextRequest) {
     }
 
     const profile = normalizeProfileRow(data as Record<string, unknown>);
-    const completeness = computeCompleteness(profile as Record<string, unknown>);
+    const completeness = computeDetailedCompleteness(profile as Record<string, unknown>);
 
     return NextResponse.json({
       success: true,
@@ -94,7 +95,8 @@ export async function PATCH(request: NextRequest) {
       if (
         f === 'certifications' ||
         f === 'iso_certifications' ||
-        f === 'industries'
+        f === 'industries' ||
+        f === 'sub_industries'
       ) {
         const arr = Array.isArray(body[f])
           ? body[f].map(String)
@@ -113,8 +115,18 @@ export async function PATCH(request: NextRequest) {
         continue;
       }
 
-      if (f === 'uploaded_certificates' || f === 'metadata') {
+      if (
+        f === 'uploaded_certificates' ||
+        f === 'export_licenses' ||
+        f === 'metadata'
+      ) {
         updates[f] = body[f];
+        continue;
+      }
+
+      if (f === 'latitude' || f === 'longitude' || f === 'lat' || f === 'lng') {
+        const n = body[f] === '' || body[f] == null ? null : Number(body[f]);
+        updates[f] = n != null && Number.isFinite(n) ? n : null;
         continue;
       }
 
@@ -158,6 +170,26 @@ export async function PATCH(request: NextRequest) {
       updates.industry === undefined
     ) {
       updates.industry = String((updates.industries as string[])[0]);
+    }
+    if (
+      Array.isArray(updates.sub_industries) &&
+      (updates.sub_industries as string[]).length > 0 &&
+      updates.sub_industry === undefined
+    ) {
+      updates.sub_industry = String((updates.sub_industries as string[])[0]);
+    }
+    // Dual-write lat/lng aliases
+    if (updates.latitude != null && updates.lat === undefined) {
+      updates.lat = updates.latitude;
+    }
+    if (updates.longitude != null && updates.lng === undefined) {
+      updates.lng = updates.longitude;
+    }
+    if (updates.lat != null && updates.latitude === undefined) {
+      updates.latitude = updates.lat;
+    }
+    if (updates.lng != null && updates.longitude === undefined) {
+      updates.longitude = updates.lng;
     }
 
     if (Object.keys(updates).length <= 1) {
@@ -229,41 +261,9 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({
       success: true,
       profile,
-      completeness: computeCompleteness(profile as Record<string, unknown>),
+      completeness: computeDetailedCompleteness(profile as Record<string, unknown>),
     });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Error' }, { status: 500 });
   }
-}
-
-function computeCompleteness(p: Record<string, unknown>) {
-  const phone = p.phone || p.contact_phone || p.contact_number;
-  const address = p.address || p.street;
-  const description = p.description || p.short_description || p.about;
-  const certs = (p.certifications as unknown[]) || (p.iso_certifications as unknown[]) || [];
-  const industry = p.industry || (Array.isArray(p.industries) ? p.industries[0] : p.industries);
-
-  const checks: Array<{ key: string; label: string; ok: boolean }> = [
-    { key: 'trading_name', label: 'Trading name', ok: !!p.trading_name },
-    { key: 'legal_name', label: 'Legal name', ok: !!p.legal_name },
-    { key: 'email', label: 'Email', ok: !!p.email },
-    { key: 'contact_name', label: 'Contact name', ok: !!p.contact_name },
-    { key: 'phone', label: 'Phone', ok: !!phone },
-    { key: 'website', label: 'Website', ok: !!p.website },
-    { key: 'industry', label: 'Industry', ok: !!industry },
-    { key: 'country', label: 'Country', ok: !!p.country },
-    { key: 'city', label: 'City', ok: !!p.city },
-    { key: 'address', label: 'Address', ok: !!address },
-    {
-      key: 'registration',
-      label: 'Registration / VAT',
-      ok: !!(p.registration_number || p.vat_number),
-    },
-    { key: 'description', label: 'Description', ok: !!description },
-    { key: 'certs', label: 'Certifications', ok: Array.isArray(certs) && certs.length > 0 },
-    { key: 'wallet', label: 'Wallet', ok: !!p.wallet_address },
-  ];
-  const done = checks.filter((c) => c.ok).length;
-  const pct = Math.round((done / checks.length) * 100);
-  return { pct, done, total: checks.length, checks };
 }

@@ -192,7 +192,14 @@ export function RelationshipHeader({
   );
 }
 
-export function ProcessRail({ steps }: { steps: ProcessStep[] }) {
+export function ProcessRail({
+  steps,
+  showNumbers = true,
+}: {
+  steps: ProcessStep[];
+  /** When false, step labels render without the 1/2/3 cycle badges. */
+  showNumbers?: boolean;
+}) {
   return (
     <div className="mb-8 overflow-x-auto">
       <div className="flex items-center gap-0 min-w-max">
@@ -202,9 +209,11 @@ export function ProcessRail({ steps }: { steps: ProcessStep[] }) {
               href={step.href}
               className="group flex items-center gap-2 rounded-2xl border border-neutral-200 bg-white px-3.5 py-2.5 hover:border-[#00b4d8] hover:shadow-sm transition-all"
             >
-              <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-[#00b4d8]/10 text-[10px] font-black text-[#00b4d8] group-hover:bg-[#00b4d8] group-hover:text-white transition-colors">
-                {i + 1}
-              </span>
+              {showNumbers && (
+                <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-[#00b4d8]/10 text-[10px] font-black text-[#00b4d8] group-hover:bg-[#00b4d8] group-hover:text-white transition-colors">
+                  {i + 1}
+                </span>
+              )}
               <span className="text-xs font-semibold text-slate-700 whitespace-nowrap">
                 {step.label}
               </span>

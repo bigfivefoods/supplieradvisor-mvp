@@ -371,6 +371,7 @@ export default function DashboardHome() {
 
       <SectionLabel>Platform lifecycle</SectionLabel>
       <ProcessRail
+        showNumbers={false}
         steps={[
           { label: 'Business', href: '/dashboard/my-business' },
           { label: 'Customers', href: '/dashboard/customers' },

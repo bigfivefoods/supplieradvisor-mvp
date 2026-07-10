@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { assertCompanyMember } from '@/lib/customers/access';
+import { computeProfileCompleteness } from '@/lib/business/completeness';
+import { normalizeProfileRow } from '@/lib/business/types';
 
 /**
  * GET ?companyId=&privyUserId= — My Business hub KPIs
+ * Profile completeness uses the same shared formula as the dashboard hub card.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -20,13 +23,8 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseServer();
 
     const [profileRes, teamRes, riadRes, poRes, docsRes] = await Promise.all([
-      supabase
-        .from('profiles')
-        .select(
-          'id, trading_name, legal_name, email, contact_name, contact_phone, phone, website, industry, country, city, address, registration_number, vat_number, certifications, verification_status, is_verified, is_discoverable, wallet_address, primary_currency, timezone, settings'
-        )
-        .eq('id', companyId)
-        .maybeSingle(),
+      // select * so alias columns (street, contact_number, iso_certifications) feed completeness
+      supabase.from('profiles').select('*').eq('id', companyId).maybeSingle(),
       supabase
         .from('business_users')
         .select('id, status, role', { count: 'exact' })
@@ -57,30 +55,19 @@ export async function GET(request: NextRequest) {
     }
 
     const team = teamRes.data || [];
-    const completeness = {
-      trading_name: !!p.trading_name,
-      legal_name: !!p.legal_name,
-      email: !!p.email,
-      contact: !!(p.contact_name || p.contact_phone || p.phone),
-      industry: !!p.industry,
-      location: !!(p.country && p.city),
-      address: !!p.address,
-      registration: !!(p.registration_number || p.vat_number),
-      certs: Array.isArray(p.certifications) && p.certifications.length > 0,
-      wallet: !!p.wallet_address,
-    };
-    const done = Object.values(completeness).filter(Boolean).length;
-    const total = Object.keys(completeness).length;
+    const profile = normalizeProfileRow(p as Record<string, unknown>);
+    const comp = computeProfileCompleteness(profile as Record<string, unknown>);
 
     return NextResponse.json({
       success: true,
       summary: {
-        trading_name: p.trading_name || p.legal_name || 'Your company',
-        verification_status: p.verification_status || (p.is_verified ? 'verified' : 'unverified'),
-        is_verified: p.is_verified === true || p.verification_status === 'verified',
-        is_discoverable: p.is_discoverable !== false,
-        primary_currency: p.primary_currency || 'ZAR',
-        timezone: p.timezone || 'Africa/Johannesburg',
+        trading_name: profile.trading_name || profile.legal_name || 'Your company',
+        verification_status:
+          profile.verification_status || (profile.is_verified ? 'verified' : 'unverified'),
+        is_verified: profile.is_verified === true || profile.verification_status === 'verified',
+        is_discoverable: profile.is_discoverable !== false,
+        primary_currency: profile.primary_currency || 'ZAR',
+        timezone: profile.timezone || 'Africa/Johannesburg',
         teamTotal: teamRes.count ?? team.length,
         teamActive: team.filter((m) => m.status === 'active').length,
         teamInvited: team.filter((m) =>
@@ -89,8 +76,8 @@ export async function GET(request: NextRequest) {
         openRiads: riadRes.count || 0,
         purchaseOrders: poRes.error ? 0 : poRes.count || 0,
         documents: docsRes.error ? 0 : docsRes.count || 0,
-        profileCompleteness: Math.round((done / total) * 100),
-        completeness,
+        profileCompleteness: comp.pct,
+        completeness: comp.map,
       },
     });
   } catch (e: unknown) {
