@@ -25,6 +25,7 @@ import {
 import { KpiCard, Panel } from '@/components/relationship/RelationshipChrome';
 
 type MembershipMe = {
+  memberId?: number;
   role: string;
   roleLabel: string;
   rights: string;
@@ -96,6 +97,12 @@ function TeamInner() {
   }, [load]);
 
   const canManage = me?.canManageTeam === true;
+  const myMemberId = me?.memberId != null ? Number(me.memberId) : null;
+  const isAdmin = me?.role === 'admin';
+  const isOwner = me?.role === 'owner';
+  /** Admins may promote themselves to Owner; owners may assign Owner to anyone. */
+  const canAssignOwnerTo = (memberId: number) =>
+    isOwner || (isAdmin && myMemberId != null && memberId === myMemberId);
 
   const invite = async () => {
     if (!form.email.trim()) {
@@ -168,6 +175,10 @@ function TeamInner() {
       toast.error('Only owners and admins can change roles');
       return;
     }
+    if (role === 'owner' && !canAssignOwnerTo(memberId)) {
+      toast.error('Admins may only promote their own profile to Owner');
+      return;
+    }
     setBusyId(memberId);
     try {
       const res = await fetch('/api/business/team', {
@@ -177,7 +188,11 @@ function TeamInner() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Update failed');
-      toast.success('Role updated');
+      toast.success(
+        role === 'owner' && myMemberId === memberId
+          ? 'You are now Owner'
+          : 'Role updated'
+      );
       void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed');
@@ -258,13 +273,11 @@ function TeamInner() {
               disabled={!canManage}
               onChange={(e) => setForm({ ...form, role: e.target.value })}
             >
-              {TEAM_ROLE_OPTIONS.filter((r) => r.value !== 'owner' || me?.role === 'owner').map(
-                (r) => (
-                  <option key={r.value} value={r.value}>
-                    {r.label} — {r.rights}
-                  </option>
-                )
-              )}
+              {TEAM_ROLE_OPTIONS.filter((r) => r.value !== 'owner' || isOwner).map((r) => (
+                <option key={r.value} value={r.value}>
+                  {r.label} — {r.rights}
+                </option>
+              ))}
             </select>
             {roleHelp && (
               <p className="text-[11px] text-neutral-500 leading-relaxed">{roleHelp.description}</p>
@@ -343,14 +356,38 @@ function TeamInner() {
                         </span>
                         <select
                           className="input !py-1.5 !px-2 !text-xs !w-auto"
-                          value={m.role || 'member'}
+                          value={(() => {
+                            const raw = String(m.role || 'member');
+                            const known = TEAM_ROLE_OPTIONS.some((r) => r.value === raw);
+                            if (known) return raw;
+                            // Map legacy free-text titles (e.g. CEO) via normalized option if present
+                            return raw;
+                          })()}
                           disabled={busyId === m.id || !canManage}
                           onChange={(e) => void updateRole(m.id, e.target.value)}
-                          title={canManage ? 'Change role' : 'View only — cannot change roles'}
+                          title={
+                            canManage
+                              ? isAdmin && myMemberId === m.id
+                                ? 'You can promote yourself to Owner'
+                                : 'Change role'
+                              : 'View only — cannot change roles'
+                          }
                         >
-                          {TEAM_ROLE_OPTIONS.map((r) => (
+                          {/* Preserve legacy free-text role values as selectable until changed */}
+                          {m.role &&
+                            !TEAM_ROLE_OPTIONS.some((r) => r.value === String(m.role)) && (
+                              <option value={String(m.role)}>{String(m.role)} (current)</option>
+                            )}
+                          {TEAM_ROLE_OPTIONS.filter(
+                            (r) => r.value !== 'owner' || canAssignOwnerTo(m.id)
+                          ).map((r) => (
                             <option key={r.value} value={r.value}>
                               {r.label}
+                              {r.value === 'owner' &&
+                              isAdmin &&
+                              myMemberId === m.id
+                                ? ' (promote me)'
+                                : ''}
                             </option>
                           ))}
                         </select>

@@ -92,11 +92,17 @@ export async function PATCH(request: NextRequest) {
     };
     if (body.role != null) {
       const nextRole = normalizeTeamRole(body.role);
+      // Owners may assign owner to anyone. Admins may promote *themselves* to owner only.
       if (nextRole === 'owner' && mem.role !== 'owner') {
-        return NextResponse.json(
-          { error: 'Only an owner can assign the owner role' },
-          { status: 403 }
-        );
+        if (mem.role !== 'admin' || Number(memberId) !== Number(mem.memberId)) {
+          return NextResponse.json(
+            {
+              error:
+                'Admins may only set their own profile to Owner. Ask an existing owner to promote others.',
+            },
+            { status: 403 }
+          );
+        }
       }
       updates.role = nextRole;
     }
