@@ -1,11 +1,11 @@
 /**
  * Independent sales contractor commission engine.
  *
- * Progressive sliding scale — larger deals earn higher rates (max 5%):
- *   R0 – R50,000          → 1.0%
- *   R50,001 – R150,000    → 2.0%
- *   R150,001 – R400,000   → 3.0%
- *   R400,001 – R1,000,000 → 4.0%
+ * Progressive sliding scale — larger deals earn higher rates (3% → 5% max):
+ *   R0 – R50,000          → 3.0%
+ *   R50,001 – R150,000    → 3.5%
+ *   R150,001 – R400,000   → 4.0%
+ *   R400,001 – R1,000,000 → 4.5%
  *   above R1,000,000      → 5.0% (cap)
  *
  * Commission is calculated progressively across bands.
@@ -19,17 +19,17 @@ export type CommissionTier = {
   label?: string;
 };
 
-/** Bigger deals → higher commission % (capped at 5%). */
+/** Bigger deals → higher commission % (starts at 3%, capped at 5%). */
 export const DEFAULT_COMMISSION_TIERS: CommissionTier[] = [
-  { upTo: 50_000, ratePct: 1, label: 'Starter' },
-  { upTo: 150_000, ratePct: 2, label: 'Growth' },
-  { upTo: 400_000, ratePct: 3, label: 'Core' },
-  { upTo: 1_000_000, ratePct: 4, label: 'Enterprise' },
+  { upTo: 50_000, ratePct: 3, label: 'Starter' },
+  { upTo: 150_000, ratePct: 3.5, label: 'Growth' },
+  { upTo: 400_000, ratePct: 4, label: 'Core' },
+  { upTo: 1_000_000, ratePct: 4.5, label: 'Enterprise' },
   { upTo: null, ratePct: 5, label: 'Strategic (max)' },
 ];
 
 export const MAX_COMMISSION_PCT = 5;
-export const MIN_COMMISSION_PCT = 1;
+export const MIN_COMMISSION_PCT = 3;
 
 export type CommissionBreakdownLine = {
   bandFrom: number;
@@ -56,7 +56,10 @@ function normalizeTiers(tiers?: CommissionTier[] | null): CommissionTier[] {
   return tiers
     .map((t) => ({
       upTo: t.upTo == null ? null : Number(t.upTo),
-      ratePct: Math.min(MAX_COMMISSION_PCT, Math.max(MIN_COMMISSION_PCT, Number(t.ratePct) || 0)),
+      ratePct: Math.min(
+        MAX_COMMISSION_PCT,
+        Math.max(MIN_COMMISSION_PCT, Number(t.ratePct) || MIN_COMMISSION_PCT)
+      ),
       label: t.label,
     }))
     .sort((a, b) => {
@@ -163,17 +166,20 @@ export function parseStoredTiers(raw: unknown): CommissionTier[] {
 }
 
 /**
- * Detect inverted (old) scale where small deals had higher % than large —
- * and replace with current DEFAULT so bigger deals earn more.
+ * Upgrade legacy scales (inverted 5%→1%, or starting below 3%) to current DEFAULT.
  */
 export function ensureAscendingCommissionTiers(
   tiers?: CommissionTier[] | null
 ): CommissionTier[] {
-  const t = normalizeTiers(tiers);
-  if (t.length < 2) return DEFAULT_COMMISSION_TIERS;
-  const first = t[0].ratePct;
-  const last = t[t.length - 1].ratePct;
-  // Old model: first band 5%, last band 1%
-  if (first > last) return DEFAULT_COMMISSION_TIERS;
-  return t;
+  if (!tiers || !Array.isArray(tiers) || tiers.length < 2) {
+    return DEFAULT_COMMISSION_TIERS;
+  }
+  // Inspect raw rates before clamping so we detect legacy 1% floors
+  const rawRates = tiers.map((x) => Number(x.ratePct) || 0);
+  const firstRaw = rawRates[0];
+  const lastRaw = rawRates[rawRates.length - 1];
+  if (firstRaw > lastRaw || firstRaw < MIN_COMMISSION_PCT) {
+    return DEFAULT_COMMISSION_TIERS;
+  }
+  return normalizeTiers(tiers);
 }

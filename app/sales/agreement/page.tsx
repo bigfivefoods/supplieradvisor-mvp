@@ -115,7 +115,7 @@ export default function SalesAgreementPage() {
         </h1>
         <p className="mt-2 text-slate-400 max-w-2xl">
           Sign the agreement, then subscribe (R199/mo · 6 months). Commission grows with deal size
-          from 1% up to 5%. All customers and deals are saved under the company.
+          from 3% up to 5%. All customers and deals are saved under the company.
         </p>
       </div>
 
@@ -200,7 +200,7 @@ export default function SalesAgreementPage() {
             />
             <span className="text-sm text-slate-200">
               I have read and agree to the Independent Sales Contractor Agreement, including the
-              commission schedule (1% → 5% as deals grow, max 5%), the R199/month 6-month portal
+              commission schedule (3% → 5% as deals grow, max 5%), the R199/month 6-month portal
               subscription, and that all CRM data belongs to{' '}
               <strong>{companyName || 'the Company'}</strong>.
             </span>

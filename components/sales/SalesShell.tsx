@@ -77,11 +77,16 @@ export default function SalesShell({ children }: { children: React.ReactNode }) 
         if (cancelled) return;
         if (res.ok) {
           setCompanyName(data.companyName || '');
+          // Owner / finance / admin: free full access — never gate on agreement or Paystack
+          if (data.subscriptionExempt || !data.isSalesContractor) {
+            setNeedAgreement(false);
+            setNeedSubscription(false);
+            return;
+          }
           const signed = Boolean(data.signed);
           const subOk = Boolean(data.subscriptionActive);
           setNeedAgreement(!signed);
-          setNeedSubscription(signed && !subOk && Boolean(data.isSalesContractor));
-          if (!data.isSalesContractor) return;
+          setNeedSubscription(signed && !subOk);
           if (!signed && pathname && !pathname.startsWith('/sales/agreement')) {
             router.replace('/sales/agreement');
             return;
@@ -198,8 +203,9 @@ export default function SalesShell({ children }: { children: React.ReactNode }) 
       <main className="max-w-7xl mx-auto px-4 py-6 sm:py-8">{children}</main>
 
       <footer className="text-center text-[11px] text-slate-500 py-10 px-4">
-        Independent sales contractor · CRM data belongs to the company · Commission grows with deal
-        size (max 5%) · R199/mo · 6-month portal subscription · Powered by SupplierAdvisor®
+        Independent sales contractor · CRM data belongs to the company · Commission 3%–5% ·
+        Contractors: R199/mo · 6-month sub · Owners &amp; finance: free full access · Powered by
+        SupplierAdvisor®
       </footer>
     </div>
   );

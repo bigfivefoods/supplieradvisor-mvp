@@ -42,13 +42,23 @@ export async function GET(request: NextRequest) {
     }
 
     const sub = agr.agreement.subscription || computeSubscriptionInfo({});
+    const effectiveSub = ctx.subscriptionExempt
+      ? {
+          ...sub,
+          status: 'active' as const,
+          isActive: true,
+          daysRemaining: null,
+        }
+      : sub;
 
     return NextResponse.json({
       success: true,
       companyName: ctx.companyName,
       isSalesContractor: ctx.isSalesContractor,
-      agreementSigned: agr.agreement.status === 'signed',
-      subscription: sub,
+      subscriptionExempt: ctx.subscriptionExempt,
+      agreementSigned:
+        ctx.subscriptionExempt || agr.agreement.status === 'signed',
+      subscription: effectiveSub,
       pricing: {
         monthlyZar: SALES_SUBSCRIPTION_MONTHLY_ZAR,
         termMonths: SALES_SUBSCRIPTION_TERM_MONTHS,

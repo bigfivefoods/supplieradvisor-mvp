@@ -202,7 +202,7 @@ export async function POST(request: NextRequest) {
           inviteLink,
         });
     const emailSubject = isSalesContractor
-      ? `Join the ${displayCompany} customer sales team — earn up to 5% commission`
+      ? `Join the ${displayCompany} customer sales team — earn 3%–5% commission`
       : `Join ${displayCompany} on SupplierAdvisor`;
 
     try {

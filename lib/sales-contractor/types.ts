@@ -60,6 +60,8 @@ export type SalesPortalSummary = {
   roleLabel: string;
   agreementSigned: boolean;
   subscriptionActive: boolean;
+  /** Owner / finance / admin — no paid sub */
+  subscriptionExempt?: boolean;
   subscription: SalesSubscriptionInfo | null;
   agreement: SalesContractorAgreement | null;
   kpis: {

@@ -20,6 +20,8 @@ import type { SalesContractorAgreement } from './types';
 
 export type SalesRepContext = MembershipOk & {
   isSalesContractor: boolean;
+  /** Owner / finance / admin — no paid subscription or agreement required */
+  subscriptionExempt: boolean;
   companyName: string;
 };
 
@@ -35,10 +37,13 @@ export async function assertSalesPortalAccess(
   if (!mem.ok) return mem;
 
   const role = normalizeTeamRole(mem.role);
+  // Owner / finance / admin get free full portal access (no paid sub).
+  // Sales + sales_contractor use the contractor portal features.
   const allowed =
     role === 'sales_contractor' ||
     role === 'owner' ||
     role === 'admin' ||
+    role === 'finance' ||
     role === 'sales';
 
   if (!allowed) {
@@ -59,6 +64,9 @@ export async function assertSalesPortalAccess(
   return {
     ...mem,
     isSalesContractor: role === 'sales_contractor',
+    /** Owner, finance, admin — full free access (no agreement/sub gate). */
+    subscriptionExempt:
+      role === 'owner' || role === 'finance' || role === 'admin',
     companyName:
       company?.trading_name || company?.legal_name || 'Your company',
   };

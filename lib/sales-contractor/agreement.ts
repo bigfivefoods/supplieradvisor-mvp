@@ -11,7 +11,7 @@ import {
   SALES_SUBSCRIPTION_TOTAL_ZAR,
 } from './subscription';
 
-export const SALES_CONTRACTOR_CONTRACT_VERSION = 'ISC-2026.2';
+export const SALES_CONTRACTOR_CONTRACT_VERSION = 'ISC-2026.3';
 
 export const SALES_CONTRACTOR_CONTRACT_TITLE =
   'Independent Sales Contractor Agreement';
@@ -151,7 +151,7 @@ export function salesContractorInviteEmailHtml(params: {
       </h1>
       <p style="margin:14px 0 0;font-size:15px;opacity:.95;line-height:1.6;max-width:480px;">
         Join as an <strong>Independent Sales Contractor</strong> — earn progressive commission from
-        <strong>1% up to 5%</strong> as deals get bigger, with a world-class portal for leads, customers, quotes, and earnings.
+        <strong>3% up to 5%</strong> as deals get bigger, with a world-class portal for leads, customers, quotes, and earnings.
       </p>
     </div>
     <div style="padding:36px 36px 28px;color:#334155;font-size:16px;line-height:1.7;">
@@ -180,7 +180,7 @@ export function salesContractorInviteEmailHtml(params: {
       </p>
     </div>
     <div style="background:#f8fafc;padding:18px 36px;font-size:11px;color:#94a3b8;text-align:center;border-top:1px solid #e2e8f0;">
-      SupplierAdvisor® · Independent sellers. Company-owned CRM. Bigger deals, higher commission (max 5%).
+      SupplierAdvisor® · Independent sellers. Company-owned CRM. Commission 3%–5% (grows with deal size).
     </div>
   </div>
 </body>

@@ -46,12 +46,17 @@ export async function GET(request: NextRequest) {
       tiers: agr.agreement.commission_tiers,
     });
 
+    const subActive =
+      ctx.subscriptionExempt || Boolean(agr.agreement.subscription?.isActive);
+
     return NextResponse.json({
       success: true,
       companyName: ctx.companyName,
       isSalesContractor: ctx.isSalesContractor,
-      signed: isAgreementSigned(agr.agreement),
-      subscriptionActive: Boolean(agr.agreement.subscription?.isActive),
+      subscriptionExempt: ctx.subscriptionExempt,
+      // Owner / finance / admin: free full access
+      signed: ctx.subscriptionExempt || isAgreementSigned(agr.agreement),
+      subscriptionActive: subActive,
       subscription: agr.agreement.subscription || null,
       agreement: agr.agreement,
       contractVersion: SALES_CONTRACTOR_CONTRACT_VERSION,

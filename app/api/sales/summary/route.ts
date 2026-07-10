@@ -48,7 +48,8 @@ export async function GET(request: NextRequest) {
     );
     const variants = userIdMatchVariants(ctx.userId);
     const scopeMine = ctx.isSalesContractor;
-    const subscriptionActive = Boolean(agreement?.subscription?.isActive);
+    const subscriptionActive =
+      ctx.subscriptionExempt || Boolean(agreement?.subscription?.isActive);
 
     const supabase = getSupabaseServer();
 
@@ -257,8 +258,9 @@ export async function GET(request: NextRequest) {
     const summary: SalesPortalSummary = {
       companyName: ctx.companyName,
       roleLabel: ctx.isSalesContractor ? 'Sales contractor' : String(ctx.role),
-      agreementSigned: isAgreementSigned(agreement),
+      agreementSigned: ctx.subscriptionExempt || isAgreementSigned(agreement),
       subscriptionActive,
+      subscriptionExempt: ctx.subscriptionExempt,
       subscription: agreement?.subscription || null,
       agreement,
       kpis: {

@@ -105,7 +105,7 @@ export default function SalesCommandCentre() {
             <p className="mt-4 text-slate-300 max-w-xl text-sm sm:text-base leading-relaxed">
               Your independent contractor workspace for leads, customers, and closed deals. All CRM
               records belong to <strong className="text-white">{summary.companyName}</strong> —
-              you earn progressive commission from <strong className="text-amber-300">1%</strong> up
+              you earn progressive commission from <strong className="text-amber-300">3%</strong> up
               to <strong className="text-amber-300">5%</strong> as deals get bigger.
             </p>
           </div>
@@ -145,11 +145,14 @@ export default function SalesCommandCentre() {
         </div>
       )}
 
-      {summary.agreementSigned && !summary.subscriptionActive && (
+      {!summary.subscriptionExempt &&
+        summary.agreementSigned &&
+        !summary.subscriptionActive && (
         <div className="rounded-2xl border border-orange-400/40 bg-orange-500/10 px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <p className="text-sm text-orange-100">
             <strong>Subscribe to access:</strong> R199/month · 6-month platform subscription
-            (R1,194 prepaid via Paystack) is required to use the sales contractor portal.
+            (R1,194 prepaid via Paystack) is required for independent sales contractors.
+            Owners and finance have free full access.
           </p>
           <Link
             href="/sales/subscribe"
@@ -215,7 +218,7 @@ export default function SalesCommandCentre() {
         <div className="lg:col-span-2 rounded-3xl border border-white/10 bg-white/[0.03] p-5 sm:p-6">
           <h2 className="font-bold text-white text-lg mb-1">What you could make</h2>
           <p className="text-xs text-slate-400 mb-4">
-            Bigger deals → higher rate (max 5%)
+            Bigger deals → higher rate (3% → 5%)
           </p>
           <ul className="space-y-2.5">
             {summary.commissionPreview.samples.map((s) => (
