@@ -220,12 +220,12 @@ const modules = [
     icon: Brain, 
     href: '/dashboard/intelligence',
     sub: [
-      { name: 'Pulse Dashboard', href: '/dashboard/intelligence/pulse-dashboard' },
-      { name: 'Neural Insights', href: '/dashboard/intelligence/neural-insights' },
-      { name: 'Predictive Forecasts', href: '/dashboard/intelligence/predictive-forecasts' },
-      { name: 'Simulation Lab', href: '/dashboard/intelligence/simulation-lab' },
-      { name: 'Custom Scorecards', href: '/dashboard/intelligence/custom-scorecards' },
-      { name: 'Leadership Development', href: '/dashboard/intelligence/leadership-development' },
+      { name: 'Overview', href: '/dashboard/intelligence' },
+      { name: 'Pulse', href: '/dashboard/intelligence/pulse-dashboard' },
+      { name: 'Insights', href: '/dashboard/intelligence/neural-insights' },
+      { name: 'Forecasts', href: '/dashboard/intelligence/predictive-forecasts' },
+      { name: 'Scorecards', href: '/dashboard/intelligence/custom-scorecards' },
+      { name: 'Leadership (Super-Cube®)', href: '/dashboard/intelligence/leadership-development' },
     ]
   },
 ];
