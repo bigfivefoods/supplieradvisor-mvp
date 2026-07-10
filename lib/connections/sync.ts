@@ -35,19 +35,32 @@ export type ProfileLite = {
   otifef_average?: number | null;
 };
 
+/** Production-safe columns (no phone / is_verified — those do not exist on profiles). */
 const PROFILE_LITE_SELECT =
-  'id, trading_name, legal_name, email, phone, contact_phone, contact_name, industry, sub_industry, city, country, province, continent, website, certifications, wallet_address, bee_level, verification_status, is_verified, trust_score, otifef_average';
+  'id, trading_name, legal_name, email, contact_phone, contact_name, industry, sub_industry, city, country, province, continent, website, certifications, wallet_address, bee_level, verification_status, trust_score, otifef_average';
+
+const PROFILE_LITE_MINIMAL =
+  'id, trading_name, legal_name, email, contact_phone, contact_name, industry, city, country, website, wallet_address, verification_status, trust_score';
 
 export async function loadProfileLite(
   profileId: number
 ): Promise<ProfileLite | null> {
   const supabase = getSupabaseServer();
-  const { data } = await supabase
-    .from('profiles')
-    .select(PROFILE_LITE_SELECT)
-    .eq('id', profileId)
-    .maybeSingle();
-  return data as ProfileLite | null;
+  for (const select of [PROFILE_LITE_SELECT, PROFILE_LITE_MINIMAL]) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select(select)
+      .eq('id', profileId)
+      .maybeSingle();
+    if (!error && data) {
+      const row = data as unknown as ProfileLite;
+      row.phone = row.contact_phone || null;
+      row.is_verified =
+        String(row.verification_status || '').toLowerCase() === 'verified';
+      return row;
+    }
+  }
+  return null;
 }
 
 /**
@@ -120,7 +133,8 @@ export async function ensureSrmBookEntry(opts: {
   if (!peer) return null;
 
   const verified =
-    peer.is_verified === true || peer.verification_status === 'verified';
+    peer.is_verified === true ||
+    String(peer.verification_status || '').toLowerCase() === 'verified';
 
   const { data: created, error } = await supabase
     .from('srm_suppliers')
@@ -129,7 +143,7 @@ export async function ensureSrmBookEntry(opts: {
       trading_name: peer.trading_name || 'Supplier',
       legal_name: peer.legal_name || peer.trading_name,
       email: peer.email,
-      phone: peer.phone || peer.contact_phone || null,
+      phone: peer.contact_phone || peer.phone || null,
       contact_name: peer.contact_name,
       industry: peer.industry,
       sub_industry: peer.sub_industry,
@@ -394,14 +408,21 @@ export async function upsertNetworkConnection(opts: {
   const payload: Record<string, unknown> = {
     requester_profile_id: opts.requesterProfileId,
     requestee_profile_id: opts.requesteeProfileId,
+    // Legacy person-id columns also accept company ids as strings in some rows
+    requester_id: String(opts.requesterProfileId),
+    requestee_id: String(opts.requesteeProfileId),
     connection_type: opts.connectionType || 'partner',
     status: opts.status,
     notes: opts.notes || null,
+    message: opts.notes || null,
     metadata: opts.metadata || {},
     updated_at: now,
+    requested_at: now,
   };
   if (opts.status === 'accepted') {
     payload.responded_at = now;
+    payload.accepted_at = now;
+    payload.approved_at = now;
   }
 
   const { data, error } = await supabase

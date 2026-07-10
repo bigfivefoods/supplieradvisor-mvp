@@ -5,25 +5,38 @@ import { logActivity } from '@/lib/customers/access';
 import {
   ensureSrmBookEntry,
   findConnectionBetween,
+  loadProfileLite,
   syncBooksOnAccept,
   upsertNetworkConnection,
   userOwnsBothCompanies,
 } from '@/lib/connections/sync';
 
 /**
- * POST — connect to an on-platform supplier (or add to book + request).
- * Body: companyId, privyUserId, targetProfileId, trading_name?, mode: 'request'|'accept'|'add_and_connect'
+ * POST — connection request / accept / connect between platform companies.
  *
- * Creates srm_suppliers book entry + business_connections edge (supplier type).
- * Same-owner multi-company: auto-accepts so owners can trade across their companies immediately.
- * On accept: bidirectional SRM + CRM books so both sides can PO, invoice, and pay.
+ * Body: {
+ *   companyId, privyUserId, targetProfileId, trading_name?,
+ *   mode: 'request' | 'accept' | 'add_and_connect',
+ *   message?
+ * }
+ *
+ * Secure ecosystem handshake:
+ *  - request  → pending edge (recipient must accept)
+ *  - accept   → only requestee can accept; books sync both ways
+ *  - add_and_connect → instant accept only when same user owns both companies
+ *
+ * After accepted: trade POs, invoices, pricing, docs, optional on-chain settlement.
  */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const companyId = Number(body.companyId);
     const targetProfileId = Number(body.targetProfileId);
-    let mode = String(body.mode || 'add_and_connect');
+    let mode = String(body.mode || 'request').toLowerCase();
+    const message =
+      typeof body.message === 'string' && body.message.trim()
+        ? body.message.trim().slice(0, 500)
+        : null;
 
     if (!Number.isFinite(companyId) || !Number.isFinite(targetProfileId)) {
       return NextResponse.json(
@@ -38,33 +51,27 @@ export async function POST(request: NextRequest) {
     const mem = await assertCompanyMember(body.privyUserId, companyId);
     if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
 
-    const supabase = getSupabaseServer();
-    const { data: target, error: tErr } = await supabase
-      .from('profiles')
-      .select(
-        'id, trading_name, legal_name, email, phone, contact_phone, contact_name, industry, sub_industry, city, country, province, continent, certifications, wallet_address, website, bee_level, verification_status, is_verified, trust_score, otifef_average'
-      )
-      .eq('id', targetProfileId)
-      .maybeSingle();
-
-    if (tErr || !target) {
-      return NextResponse.json({ error: 'Target supplier profile not found' }, { status: 404 });
+    const target = await loadProfileLite(targetProfileId);
+    if (!target) {
+      return NextResponse.json({ error: 'Target company profile not found' }, { status: 404 });
     }
 
-    // Same owner of both companies → auto-accept (no second login hop)
     const sameOwner = await userOwnsBothCompanies(
       body.privyUserId,
       companyId,
       targetProfileId
     );
-    if (sameOwner && mode === 'request') {
-      mode = 'add_and_connect';
+
+    // Instant connect only when explicitly requested AND same owner.
+    // Different companies always need accept (even same human owner can switch company to accept).
+    if (mode === 'add_and_connect' && !sameOwner) {
+      mode = 'request';
     }
 
-    // Existing edge in either direction
     const existingEdge = await findConnectionBetween(companyId, targetProfileId);
+
+    // Already connected
     if (existingEdge && String(existingEdge.status) === 'accepted') {
-      // Already connected — ensure books exist and return
       await syncBooksOnAccept({
         requesterId: Number(existingEdge.requester_profile_id),
         requesteeId: Number(existingEdge.requestee_profile_id),
@@ -90,9 +97,100 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Ensure book entry early (pending or accepted)
+    // Incoming pending → accept (we are requestee)
+    if (
+      existingEdge &&
+      String(existingEdge.status) === 'pending' &&
+      Number(existingEdge.requestee_profile_id) === companyId &&
+      (mode === 'accept' || mode === 'add_and_connect' || mode === 'request')
+    ) {
+      const supabase = getSupabaseServer();
+      const now = new Date().toISOString();
+      const { data: updated, error: upErr } = await supabase
+        .from('business_connections')
+        .update({
+          status: 'accepted',
+          connection_type: existingEdge.connection_type || 'supplier',
+          responded_at: now,
+          accepted_at: now,
+          approved_at: now,
+          updated_at: now,
+          metadata: {
+            ...(typeof existingEdge.metadata === 'object' && existingEdge.metadata
+              ? (existingEdge.metadata as object)
+              : {}),
+            accepted_by: mem.userId,
+            accepted_at: now,
+            accepted_via: 'connect_api',
+          },
+        })
+        .eq('id', existingEdge.id)
+        .select('*')
+        .single();
+
+      if (upErr) {
+        return NextResponse.json({ error: upErr.message }, { status: 500 });
+      }
+
+      const connectionId = Number(existingEdge.id);
+      await syncBooksOnAccept({
+        requesterId: Number(existingEdge.requester_profile_id),
+        requesteeId: Number(existingEdge.requestee_profile_id),
+        connectionId,
+        connectionType: String(updated.connection_type || 'supplier'),
+        userId: mem.userId,
+      });
+
+      const supplierId = await ensureSrmBookEntry({
+        buyerProfileId: companyId,
+        supplierProfileId: targetProfileId,
+        connectionId,
+        inviteStatus: 'accepted',
+        userId: mem.userId,
+        peer: target,
+      });
+
+      await logActivity({
+        profile_id: companyId,
+        actor_user_id: mem.userId,
+        action: 'network.accept',
+        entity_type: 'business_connections',
+        entity_id: String(connectionId),
+        summary: `Accepted connection from ${target.trading_name}`,
+        metadata: { targetProfileId, connectionId },
+      });
+
+      return NextResponse.json({
+        success: true,
+        supplierId,
+        connectionId,
+        status: 'accepted',
+        acceptedIncoming: true,
+        sameOwner,
+      });
+    }
+
+    // Outgoing pending already exists
+    if (
+      existingEdge &&
+      String(existingEdge.status) === 'pending' &&
+      Number(existingEdge.requester_profile_id) === companyId
+    ) {
+      return NextResponse.json({
+        success: true,
+        connectionId: Number(existingEdge.id),
+        status: 'pending',
+        alreadyPending: true,
+        message: 'Connection request already sent — waiting for them to accept',
+      });
+    }
+
+    // Declined/cancelled → allow new request by creating fresh pending
+    const supabase = getSupabaseServer();
+
+    // Book entry (prospect until accepted)
     const inviteStatus =
-      mode === 'request' && !sameOwner ? 'invited' : 'accepted';
+      mode === 'add_and_connect' && sameOwner ? 'accepted' : 'invited';
     const supplierId = await ensureSrmBookEntry({
       buyerProfileId: companyId,
       supplierProfileId: targetProfileId,
@@ -105,45 +203,17 @@ export async function POST(request: NextRequest) {
     let connectionId: number | null = null;
     let finalStatus: 'pending' | 'accepted' = 'pending';
 
-    if (mode === 'request' && !sameOwner) {
-      const up = await upsertNetworkConnection({
-        requesterProfileId: companyId,
-        requesteeProfileId: targetProfileId,
-        connectionType: 'supplier',
-        status: 'pending',
-        notes: body.message || 'Supplier connection request',
-        metadata: {
-          source: 'srm_discover',
-          onchain_tx: body.onchainTx || null,
-        },
-      });
-      if (!up.ok) {
-        console.error('connect pending upsert:', up.error);
-      } else {
-        connectionId = up.connectionId;
-        await supabase
-          .from('srm_suppliers')
-          .update({
-            connection_id: connectionId,
-            invite_status: 'invited',
-            updated_at: new Date().toISOString(),
-          })
-          .eq('profile_id', companyId)
-          .eq('linked_profile_id', targetProfileId);
-      }
-      finalStatus = 'pending';
-    } else {
-      // Direct connect / accept / same-owner path
+    if (mode === 'add_and_connect' && sameOwner) {
       const up = await upsertNetworkConnection({
         requesterProfileId: companyId,
         requesteeProfileId: targetProfileId,
         connectionType: body.connectionType || 'supplier',
         status: 'accepted',
-        notes: body.message || 'Supplier SRM connection',
+        notes: message || 'Same-owner company connection',
         metadata: {
-          source: sameOwner ? 'srm_same_owner' : 'srm_connect',
+          source: 'srm_same_owner',
+          same_owner_auto_accept: true,
           onchain_tx: body.onchainTx || null,
-          same_owner_auto_accept: sameOwner,
         },
       });
       if (!up.ok) {
@@ -151,8 +221,6 @@ export async function POST(request: NextRequest) {
       }
       connectionId = up.connectionId;
       finalStatus = 'accepted';
-
-      // Bidirectional books so both companies can invoice, PO, and pay each other
       await syncBooksOnAccept({
         requesterId: companyId,
         requesteeId: targetProfileId,
@@ -160,16 +228,30 @@ export async function POST(request: NextRequest) {
         connectionType: body.connectionType || 'supplier',
         userId: mem.userId,
       });
+    } else {
+      // Standard secure handshake: pending request
+      const up = await upsertNetworkConnection({
+        requesterProfileId: companyId,
+        requesteeProfileId: targetProfileId,
+        connectionType: body.connectionType || 'supplier',
+        status: 'pending',
+        notes: message || 'Connection request from SupplierAdvisor network',
+        metadata: {
+          source: 'srm_discover',
+          onchain_tx: body.onchainTx || null,
+        },
+      });
+      if (!up.ok) {
+        return NextResponse.json({ error: up.error }, { status: 500 });
+      }
+      connectionId = up.connectionId;
+      finalStatus = 'pending';
 
       await supabase
         .from('srm_suppliers')
         .update({
           connection_id: connectionId,
-          invite_status: 'accepted',
-          invite_accepted_at: new Date().toISOString(),
-          status: 'active',
-          linked_profile_id: targetProfileId,
-          onchain_tx: body.onchainTx || null,
+          invite_status: 'invited',
           updated_at: new Date().toISOString(),
         })
         .eq('profile_id', companyId)
@@ -181,17 +263,13 @@ export async function POST(request: NextRequest) {
       actor_user_id: mem.userId,
       action:
         finalStatus === 'pending' ? 'supplier.connect_request' : 'supplier.connect',
-      entity_type: 'srm_suppliers',
-      entity_id: String(supplierId || ''),
-      summary: `${
-        finalStatus === 'pending' ? 'Requested connection to' : 'Connected with'
-      } ${target.trading_name}${sameOwner ? ' (same owner auto-accept)' : ''}`,
-      metadata: {
-        targetProfileId,
-        connectionId,
-        onchainTx: body.onchainTx || null,
-        sameOwner,
-      },
+      entity_type: 'business_connections',
+      entity_id: String(connectionId || ''),
+      summary:
+        finalStatus === 'pending'
+          ? `Requested connection to ${target.trading_name}`
+          : `Connected with ${target.trading_name}`,
+      metadata: { targetProfileId, connectionId, sameOwner, mode },
     });
 
     return NextResponse.json({
@@ -200,7 +278,8 @@ export async function POST(request: NextRequest) {
       connectionId,
       status: finalStatus,
       sameOwner,
-      autoAccepted: sameOwner && body.mode === 'request',
+      autoAccepted: finalStatus === 'accepted' && sameOwner,
+      peerName: target.trading_name,
     });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Error' }, { status: 500 });
@@ -208,14 +287,14 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * PATCH — accept / decline / suspend supplier connection
- * Body: companyId, privyUserId, connectionId | targetProfileId, action: accept|decline|suspend|unsuspend
+ * PATCH — accept | decline | cancel | suspend | unsuspend
+ * Body: companyId, privyUserId, connectionId | targetProfileId, action
  */
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
     const companyId = Number(body.companyId);
-    const action = String(body.action || '');
+    const action = String(body.action || '').toLowerCase();
     const mem = await assertCompanyMember(body.privyUserId, companyId);
     if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
 
@@ -235,7 +314,9 @@ export async function PATCH(request: NextRequest) {
 
     const { data: conn, error } = await supabase
       .from('business_connections')
-      .select('id, metadata, status, requestee_profile_id, requester_profile_id, connection_type')
+      .select(
+        'id, metadata, status, requestee_profile_id, requester_profile_id, connection_type'
+      )
       .eq('id', connectionId)
       .maybeSingle();
     if (error || !conn) {
@@ -254,16 +335,22 @@ export async function PATCH(request: NextRequest) {
         : {};
     const now = new Date().toISOString();
     const updates: Record<string, unknown> = { updated_at: now };
+    const status = String(conn.status || '');
 
     if (action === 'accept') {
       if (requesteeId !== companyId) {
         return NextResponse.json(
-          { error: 'Only the recipient can accept a connection request' },
+          { error: 'Only the recipient company can accept this request' },
           { status: 403 }
         );
       }
+      if (status !== 'pending') {
+        return NextResponse.json({ error: 'Connection is not pending' }, { status: 400 });
+      }
       updates.status = 'accepted';
       updates.responded_at = now;
+      updates.accepted_at = now;
+      updates.approved_at = now;
       if (!conn.connection_type) updates.connection_type = 'supplier';
       meta.accepted_by = mem.userId;
       meta.accepted_at = now;
@@ -271,24 +358,52 @@ export async function PATCH(request: NextRequest) {
     } else if (action === 'decline') {
       if (requesteeId !== companyId) {
         return NextResponse.json(
-          { error: 'Only the recipient can decline a connection request' },
+          { error: 'Only the recipient company can decline this request' },
           { status: 403 }
         );
+      }
+      if (status !== 'pending') {
+        return NextResponse.json({ error: 'Connection is not pending' }, { status: 400 });
       }
       updates.status = 'declined';
       updates.responded_at = now;
       meta.declined_by = mem.userId;
       updates.metadata = meta;
+    } else if (action === 'cancel') {
+      if (requesterId !== companyId) {
+        return NextResponse.json(
+          { error: 'Only the requester can cancel a pending request' },
+          { status: 403 }
+        );
+      }
+      if (status !== 'pending') {
+        return NextResponse.json({ error: 'Connection is not pending' }, { status: 400 });
+      }
+      updates.status = 'cancelled';
+      updates.responded_at = now;
+      meta.cancelled_by = mem.userId;
+      updates.metadata = meta;
     } else if (action === 'suspend') {
+      if (status !== 'accepted') {
+        return NextResponse.json(
+          { error: 'Only accepted connections can be suspended' },
+          { status: 400 }
+        );
+      }
       meta.suspended = true;
       meta.suspended_at = now;
+      meta.suspended_by = mem.userId;
       updates.metadata = meta;
     } else if (action === 'unsuspend') {
       meta.suspended = false;
       meta.unsuspended_at = now;
+      meta.unsuspended_by = mem.userId;
       updates.metadata = meta;
     } else {
-      return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'action must be accept|decline|cancel|suspend|unsuspend' },
+        { status: 400 }
+      );
     }
 
     const { data: updated, error: upErr } = await supabase
@@ -309,7 +424,6 @@ export async function PATCH(request: NextRequest) {
       });
     }
 
-    // Mirror invite_status on book for the buyer side of a supplier edge
     if (action === 'accept' || action === 'suspend' || action === 'unsuspend' || action === 'decline') {
       const inviteStatus =
         action === 'accept'
@@ -319,7 +433,6 @@ export async function PATCH(request: NextRequest) {
             : action === 'unsuspend'
               ? 'accepted'
               : 'declined';
-      // Update books owned by either party that reference this edge
       await supabase
         .from('srm_suppliers')
         .update({
@@ -333,6 +446,16 @@ export async function PATCH(request: NextRequest) {
           `and(profile_id.eq.${requesterId},linked_profile_id.eq.${requesteeId}),and(profile_id.eq.${requesteeId},linked_profile_id.eq.${requesterId})`
         );
     }
+
+    await logActivity({
+      profile_id: companyId,
+      actor_user_id: mem.userId,
+      action: `network.${action}`,
+      entity_type: 'business_connections',
+      entity_id: String(connectionId),
+      summary: `Connection ${action}`,
+      metadata: { connectionId, action },
+    });
 
     return NextResponse.json({ success: true, connection: updated });
   } catch (e: unknown) {

@@ -12,9 +12,11 @@ import {
   Link2,
   CheckCircle2,
 } from 'lucide-react';
+import Link from 'next/link';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
+import { getCanonicalUserId } from '@/lib/auth/identity';
 import {
   SUPPLIER_CERTIFICATIONS,
   SUPPLIER_INDUSTRIES,
@@ -38,7 +40,7 @@ export default function DiscoverSuppliersPage() {
 function DiscoverInner() {
   const companyId = getSelectedCompanyId()!;
   const { user } = usePrivy();
-  const privyUserId = user?.id || '';
+  const privyUserId = getCanonicalUserId(user?.id) || '';
 
   const [q, setQ] = useState('');
   const [country, setCountry] = useState('');
@@ -120,7 +122,10 @@ function DiscoverInner() {
     setCerts((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
   };
 
-  const connect = async (s: DiscoverSupplier, mode: 'request' | 'add_and_connect') => {
+  const connect = async (
+    s: DiscoverSupplier,
+    mode: 'request' | 'add_and_connect' | 'accept'
+  ) => {
     if (!privyUserId) {
       toast.error('Sign in to connect');
       return;
@@ -136,24 +141,41 @@ function DiscoverInner() {
           targetProfileId: s.id,
           trading_name: s.trading_name,
           mode,
+          message:
+            mode === 'request'
+              ? `Connection request from company #${companyId} on SupplierAdvisor`
+              : undefined,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Connect failed');
       if (data.alreadyConnected) {
-        toast.success(`Already connected with ${s.trading_name}`);
-      } else if (data.autoAccepted || data.sameOwner) {
+        toast.success(`Already connected with ${s.trading_name} — ready to trade`);
+      } else if (data.acceptedIncoming || data.status === 'accepted') {
         toast.success(
-          `Connected with ${s.trading_name} — books synced on both companies (same owner)`
+          `Connected with ${s.trading_name} — you can now raise POs, invoice, and settle on-chain`,
+          {
+            action: {
+              label: 'Open network',
+              onClick: () => {
+                window.location.href = '/dashboard/connections';
+              },
+            },
+          }
         );
-      } else if (data.status === 'accepted') {
-        toast.success(
-          `Connected with ${s.trading_name} — you can now PO, invoice, and trade`
-        );
-      } else if (mode === 'request') {
-        toast.success(`Connection request sent to ${s.trading_name}`);
+      } else if (data.alreadyPending || data.status === 'pending') {
+        toast.success(`Request sent to ${s.trading_name}`, {
+          description:
+            'They will see it under Network → Incoming. Once accepted, trade unlocks.',
+          action: {
+            label: 'View sent',
+            onClick: () => {
+              window.location.href = '/dashboard/connections';
+            },
+          },
+        });
       } else {
-        toast.success(`Added ${s.trading_name} to your network`);
+        toast.success(`Updated connection with ${s.trading_name}`);
       }
       void load();
     } catch (e: unknown) {
@@ -168,7 +190,12 @@ function DiscoverInner() {
       <SuppliersHeader
         title="Discover"
         titleAccent="suppliers"
-        description="Search every business registered on SupplierAdvisor — including your other companies — by name, location, industry, certifications, BEE, trust, and OTIFEF. Connect to unlock pricing, POs, invoices, and on-chain settlement."
+        description="Search every business on SupplierAdvisor. Send a connection request — they accept or decline under Network → Incoming. Once accepted, trade securely: pricing, POs, invoices, and on-chain settlement."
+        action={
+          <Link href="/dashboard/connections" className="btn-secondary !py-2.5 !px-5 text-sm">
+            <Link2 className="w-4 h-4" /> Network hub
+          </Link>
+        }
       />
 
       <div className="grid lg:grid-cols-12 gap-6">
@@ -434,35 +461,85 @@ function DiscoverInner() {
                       </div>
                       <div className="flex flex-col gap-2 sm:items-end flex-shrink-0">
                         {s.already_connected ? (
-                          <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200">
-                            <CheckCircle2 className="w-3.5 h-3.5" /> Ready to trade
-                          </span>
+                          <div className="flex flex-col gap-1.5 sm:items-end">
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200">
+                              <CheckCircle2 className="w-3.5 h-3.5" /> Connected
+                            </span>
+                            <Link
+                              href="/dashboard/suppliers/po"
+                              className="text-[11px] font-semibold text-[#0077b6] hover:underline"
+                            >
+                              Raise PO →
+                            </Link>
+                          </div>
                         ) : s.connection_pending_out ? (
-                          <span className="text-xs font-semibold text-sky-700 px-3 py-1.5 rounded-full bg-sky-50 border border-sky-200">
-                            Request sent
-                          </span>
+                          <div className="flex flex-col gap-1.5 sm:items-end">
+                            <span className="text-xs font-semibold text-sky-700 px-3 py-1.5 rounded-full bg-sky-50 border border-sky-200">
+                              Request sent
+                            </span>
+                            <Link
+                              href="/dashboard/connections"
+                              className="text-[11px] font-semibold text-neutral-500 hover:underline"
+                            >
+                              View in Network →
+                            </Link>
+                          </div>
                         ) : s.connection_pending_in ? (
-                          <button
-                            type="button"
-                            disabled={connecting === s.id}
-                            onClick={() => void connect(s, 'add_and_connect')}
-                            className="btn-primary !py-2 !px-4 text-xs"
-                          >
-                            {connecting === s.id ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                              <>
-                                <CheckCircle2 className="w-3.5 h-3.5" /> Accept request
-                              </>
-                            )}
-                          </button>
+                          <div className="flex flex-col gap-2 sm:items-end">
+                            <button
+                              type="button"
+                              disabled={connecting === s.id}
+                              onClick={() => void connect(s, 'accept')}
+                              className="btn-primary !py-2 !px-4 text-xs"
+                            >
+                              {connecting === s.id ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <>
+                                  <CheckCircle2 className="w-3.5 h-3.5" /> Accept request
+                                </>
+                              )}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={connecting === s.id}
+                              onClick={async () => {
+                                if (!privyUserId) return;
+                                setConnecting(s.id);
+                                try {
+                                  const res = await fetch('/api/suppliers/connect', {
+                                    method: 'PATCH',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                      companyId,
+                                      privyUserId,
+                                      targetProfileId: s.id,
+                                      action: 'decline',
+                                    }),
+                                  });
+                                  const data = await res.json();
+                                  if (!res.ok) throw new Error(data.error || 'Decline failed');
+                                  toast.message(`Declined ${s.trading_name}`);
+                                  void load();
+                                } catch (e: unknown) {
+                                  toast.error(e instanceof Error ? e.message : 'Failed');
+                                } finally {
+                                  setConnecting(null);
+                                }
+                              }}
+                              className="btn-secondary !py-2 !px-4 text-xs text-red-600 border-red-200"
+                            >
+                              Decline
+                            </button>
+                          </div>
                         ) : (
-                          <>
+                          <div className="flex flex-col gap-2 sm:items-end">
                             <button
                               type="button"
                               disabled={connecting === s.id}
                               onClick={() => void connect(s, 'request')}
                               className="btn-primary !py-2 !px-4 text-xs"
+                              title="Send a request — they accept or decline in Network"
                             >
                               {connecting === s.id ? (
                                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -472,18 +549,16 @@ function DiscoverInner() {
                                 </>
                               )}
                             </button>
-                            {!s.in_my_book && (
-                              <button
-                                type="button"
-                                disabled={connecting === s.id}
-                                onClick={() => void connect(s, 'add_and_connect')}
-                                className="btn-secondary !py-2 !px-4 text-xs"
-                                title="Add to book and connect immediately (auto-accepts when you own both companies)"
-                              >
-                                <UserPlus className="w-3.5 h-3.5" /> Connect now
-                              </button>
-                            )}
-                          </>
+                            <button
+                              type="button"
+                              disabled={connecting === s.id}
+                              onClick={() => void connect(s, 'add_and_connect')}
+                              className="btn-secondary !py-2 !px-4 text-xs"
+                              title="Instant connect only if you own both companies; otherwise sends a request"
+                            >
+                              <UserPlus className="w-3.5 h-3.5" /> Connect now
+                            </button>
+                          </div>
                         )}
                       </div>
                     </div>

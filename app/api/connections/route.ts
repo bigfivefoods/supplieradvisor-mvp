@@ -83,7 +83,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const list = rows || [];
+    // Only company-scoped edges (ignore legacy user-DID rows with null profile ids)
+    const list = (rows || []).filter((r) => {
+      const a = Number(r.requester_profile_id);
+      const b = Number(r.requestee_profile_id);
+      return Number.isFinite(a) && a > 0 && Number.isFinite(b) && b > 0;
+    });
     const peerIds = new Set<number>();
     for (const r of list) {
       const a = Number(r.requester_profile_id);
@@ -407,6 +412,8 @@ export async function PATCH(request: NextRequest) {
       }
       updates.status = 'accepted';
       updates.responded_at = now;
+      updates.accepted_at = now;
+      updates.approved_at = now;
       meta.accepted_by = mem.userId;
       meta.accepted_at = now;
       updates.metadata = meta;
