@@ -161,6 +161,44 @@ export async function PATCH(request: NextRequest) {
     if (updates.iso_certifications != null && updates.certifications === undefined) {
       updates.certifications = updates.iso_certifications;
     }
+    // Dual-write business_type ↔ category (legacy alias)
+    if (updates.business_type != null && updates.category === undefined) {
+      updates.category = updates.business_type;
+    }
+    if (updates.category != null && updates.business_type === undefined) {
+      updates.business_type = updates.category;
+    }
+    // Normalize structured certs + keep name arrays aligned (preserve file_url always)
+    if (Array.isArray(updates.uploaded_certificates)) {
+      const normalized = (updates.uploaded_certificates as Array<Record<string, unknown>>)
+        .filter((c) => c && typeof c === 'object')
+        .map((c) => {
+          const fileUrl = c.file_url ? String(c.file_url) : null;
+          const name = String(c.name || '').trim() || (fileUrl ? 'Certificate' : '');
+          return {
+            name,
+            awarded_date: c.awarded_date ? String(c.awarded_date) : null,
+            expiry_date: c.expiry_date ? String(c.expiry_date) : null,
+            file_url: fileUrl,
+          };
+        })
+        .filter((c) => c.name || c.file_url);
+      updates.uploaded_certificates = normalized;
+      const names = normalized.map((c) => c.name).filter(Boolean);
+      if (updates.certifications === undefined) updates.certifications = names;
+      if (updates.iso_certifications === undefined) updates.iso_certifications = names;
+    }
+    // Normalize export licenses JSON (preserve file_url)
+    if (Array.isArray(updates.export_licenses)) {
+      updates.export_licenses = (updates.export_licenses as Array<Record<string, unknown>>)
+        .filter((e) => e && typeof e === 'object')
+        .map((e) => ({
+          country: String(e.country || '').trim(),
+          license_number: e.license_number ? String(e.license_number) : null,
+          file_url: e.file_url ? String(e.file_url) : null,
+        }))
+        .filter((e) => e.country);
+    }
     if (updates.industry != null && updates.industries === undefined) {
       updates.industries = [String(updates.industry)];
     }

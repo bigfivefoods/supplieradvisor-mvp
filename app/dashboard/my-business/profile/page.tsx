@@ -38,10 +38,7 @@ import {
   COMPANY_INDUSTRIES,
   subIndustriesFor,
 } from '@/lib/business/industries';
-import {
-  uploadCompanyDocument,
-  uploadCompanyLogo,
-} from '@/lib/business/uploadCompanyAssets';
+import { uploadCompanyAssetServerFirst } from '@/lib/business/uploadCompanyAssets';
 
 const LocationMap = dynamic(() => import('@/components/LocationMap'), {
   ssr: false,
@@ -78,6 +75,25 @@ const BEE = [
   'Level 8',
   'Non-compliant',
 ];
+
+/** Identity → business type dropdown (values stored on profiles.business_type). */
+const BUSINESS_TYPE_OPTIONS = [
+  'Private Company (Pty Ltd)',
+  'Public Company (Ltd)',
+  'Close Corporation (CC)',
+  'Sole Proprietor',
+  'Partnership',
+  'Non-Profit Company (NPC)',
+  'Trust',
+  'Cooperative',
+  'Government entity',
+  'School / Education',
+  'Association / Industry body',
+  'NGO / Impact',
+  'Supplier',
+  'Business',
+  'Other',
+] as const;
 
 const VERIFY_AMOUNT_ZAR = 69;
 const VERIFY_AMOUNT_CENTS = VERIFY_AMOUNT_ZAR * 100;
@@ -361,21 +377,176 @@ function ProfileInner() {
     setExportLicenses((prev) => prev.filter((_, i) => i !== idx));
   };
 
+  /** Build a full PATCH body so every profile field + certs sync to Supabase. */
+  const buildSavePayload = (overrides: Record<string, unknown> = {}) => {
+    const phone = form.contact_phone || form.contact_number || form.phone || null;
+    const street = form.street || form.address || null;
+    const description =
+      form.description || form.short_description || form.about || null;
+
+    // Keep certificates that have a name OR a uploaded file (never drop file URLs)
+    const cleanCerts = certEntries
+      .map((c) => ({
+        name: String(c.name || '').trim() || (c.file_url ? 'Certificate' : ''),
+        awarded_date: c.awarded_date || null,
+        expiry_date: c.expiry_date || null,
+        file_url: c.file_url || null,
+      }))
+      .filter((c) => c.name || c.file_url);
+    const certNames = cleanCerts.map((c) => c.name).filter(Boolean);
+
+    const cleanExports = exportLicenses
+      .map((e) => ({
+        country: String(e.country || '').trim(),
+        license_number: e.license_number || null,
+        file_url: e.file_url || null,
+      }))
+      .filter((e) => e.country);
+
+    const firstExport = cleanExports[0];
+    const wallet = form.wallet_address || loginWallet || null;
+    const businessType = String(form.business_type || form.category || '').trim() || null;
+
+    return {
+      companyId,
+      privyUserId,
+      // Explicit field list — do not rely only on ...form (avoids dropping state edges)
+      trading_name: form.trading_name ?? null,
+      legal_name: form.legal_name ?? null,
+      registration_number: form.registration_number ?? null,
+      registration_certificate_url: form.registration_certificate_url ?? null,
+      vat_number: form.vat_number ?? null,
+      vat_certificate_url: form.vat_certificate_url ?? null,
+      tax_number: form.tax_number ?? null,
+      business_type: businessType,
+      category: businessType,
+      logo_url: form.logo_url ?? null,
+      email: form.email ?? null,
+      contact_name: form.contact_name ?? null,
+      website: form.website ?? null,
+      wallet_address: wallet,
+      bee_level: form.bee_level ?? null,
+      bee_certificate_url: form.bee_certificate_url ?? null,
+      bank_name: form.bank_name ?? null,
+      account_name: form.account_name ?? null,
+      account_number: form.account_number ?? null,
+      iban: form.iban ?? null,
+      swift: form.swift ?? null,
+      bank_confirmation_url: form.bank_confirmation_url ?? null,
+      director_id_number: form.director_id_number ?? null,
+      import_license_number: form.import_license_number ?? null,
+      import_license_url: form.import_license_url ?? null,
+      continent: geo.continent || form.continent || null,
+      country: geo.country || form.country || null,
+      province: geo.province || form.province || null,
+      region: geo.province || form.region || null,
+      city: geo.city || form.city || null,
+      postal_code: form.postal_code ?? null,
+      contact_phone: phone,
+      contact_number: phone,
+      phone,
+      street,
+      address: street,
+      description,
+      short_description: description,
+      about: description,
+      industries: selectedIndustries,
+      industry: selectedIndustries[0] || form.industry || null,
+      sub_industries: selectedSubIndustries,
+      sub_industry: selectedSubIndustries[0] || form.sub_industry || null,
+      certifications: certNames,
+      iso_certifications: certNames,
+      uploaded_certificates: cleanCerts,
+      export_licenses: cleanExports,
+      export_license_number: firstExport?.license_number || form.export_license_number || null,
+      export_license_url: firstExport?.file_url || form.export_license_url || null,
+      latitude: form.latitude ?? form.lat ?? null,
+      longitude: form.longitude ?? form.lng ?? null,
+      lat: form.latitude ?? form.lat ?? null,
+      lng: form.longitude ?? form.lng ?? null,
+      ...overrides,
+    };
+  };
+
+  const applySavedProfile = (profile: Partial<CompanyProfile> | undefined | null) => {
+    if (!profile) return;
+    setForm((prev) => ({ ...prev, ...profile }));
+    if (Array.isArray(profile.uploaded_certificates)) {
+      setCertEntries(profile.uploaded_certificates as CertificationEntry[]);
+    }
+    if (Array.isArray(profile.export_licenses)) {
+      setExportLicenses(profile.export_licenses as ExportLicenseEntry[]);
+    }
+    if (Array.isArray(profile.industries)) {
+      setSelectedIndustries(profile.industries.map(String));
+    }
+    if (Array.isArray(profile.sub_industries)) {
+      setSelectedSubIndustries(profile.sub_industries.map(String));
+    }
+  };
+
+  /** Immediately sync one or more fields to Supabase (used after file uploads). */
+  const persistPartial = async (patch: Record<string, unknown>) => {
+    const res = await fetch('/api/business/profile', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        companyId,
+        privyUserId,
+        ...patch,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not sync to Supabase');
+    applySavedProfile(data.profile);
+    if (data.completeness) setCompleteness(data.completeness);
+    return data;
+  };
+
   const handleUpload = async (
     file: File | null,
     kind: string,
-    onUrl: (url: string) => void
+    onUrl: (url: string) => void,
+    /** When set, auto-PATCH this column so the file URL lands in Supabase without a full Save. */
+    persistField?: string
   ) => {
     if (!file) return;
     setUploading(kind);
     try {
-      const isLogo = kind === 'logo';
-      const result = isLogo
-        ? await uploadCompanyLogo(file, companyId)
-        : await uploadCompanyDocument(file, companyId, kind);
+      const result = await uploadCompanyAssetServerFirst({
+        file,
+        companyId,
+        kind,
+        privyUserId,
+        profileField: persistField || null,
+      });
       if (!result.url) throw new Error(result.error || 'Upload failed');
+
+      // Always update local form state with the public URL
       onUrl(result.url);
-      toast.success('File uploaded');
+      if (persistField) {
+        setForm((prev) => ({ ...prev, [persistField]: result.url }));
+      }
+
+      // Server may have already written the profiles column
+      if (result.profileSynced && result.profile) {
+        applySavedProfile(result.profile as Partial<CompanyProfile>);
+        toast.success('File uploaded and saved to Supabase');
+      } else if (persistField) {
+        // Ensure profiles row has the URL even if server profile write skipped
+        try {
+          await persistPartial({ [persistField]: result.url });
+          toast.success('File uploaded and saved to Supabase');
+        } catch (syncErr: unknown) {
+          toast.error(
+            syncErr instanceof Error
+              ? `File stored but profile URL not saved: ${syncErr.message}`
+              : 'File stored — click Save profile to link it'
+          );
+        }
+      } else {
+        toast.success('File uploaded — certificate list will sync on Save (or next cert update)');
+      }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Upload failed');
     } finally {
@@ -390,81 +561,14 @@ function ProfileInner() {
     }
     setSaving(true);
     try {
-      const phone = form.contact_phone || form.contact_number || form.phone || null;
-      const street = form.street || form.address || null;
-      const description =
-        form.description || form.short_description || form.about || null;
-
-      const cleanCerts = certEntries
-        .map((c) => ({
-          name: String(c.name || '').trim(),
-          awarded_date: c.awarded_date || null,
-          expiry_date: c.expiry_date || null,
-          file_url: c.file_url || null,
-        }))
-        .filter((c) => c.name);
-      const certNames = cleanCerts.map((c) => c.name);
-
-      const cleanExports = exportLicenses
-        .map((e) => ({
-          country: String(e.country || '').trim(),
-          license_number: e.license_number || null,
-          file_url: e.file_url || null,
-        }))
-        .filter((e) => e.country);
-
-      // Keep legacy single export fields in sync with first entry
-      const firstExport = cleanExports[0];
-
-      const wallet =
-        form.wallet_address || loginWallet || null;
-
       const res = await fetch('/api/business/profile', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          companyId,
-          privyUserId,
-          ...form,
-          continent: geo.continent || form.continent,
-          country: geo.country || form.country,
-          province: geo.province || form.province,
-          region: geo.province || form.region,
-          city: geo.city || form.city,
-          contact_phone: phone,
-          contact_number: phone,
-          phone,
-          street,
-          address: street,
-          description,
-          short_description: description,
-          about: description,
-          industries: selectedIndustries,
-          industry: selectedIndustries[0] || form.industry || null,
-          sub_industries: selectedSubIndustries,
-          sub_industry: selectedSubIndustries[0] || form.sub_industry || null,
-          certifications: certNames,
-          iso_certifications: certNames,
-          uploaded_certificates: cleanCerts,
-          export_licenses: cleanExports,
-          export_license_number: firstExport?.license_number || form.export_license_number || null,
-          export_license_url: firstExport?.file_url || form.export_license_url || null,
-          wallet_address: wallet,
-          latitude: form.latitude ?? form.lat ?? null,
-          longitude: form.longitude ?? form.lng ?? null,
-          lat: form.latitude ?? form.lat ?? null,
-          lng: form.longitude ?? form.lng ?? null,
-        }),
+        body: JSON.stringify(buildSavePayload()),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Save failed');
-      setForm(data.profile || form);
-      if (Array.isArray(data.profile?.uploaded_certificates)) {
-        setCertEntries(data.profile.uploaded_certificates);
-      }
-      if (Array.isArray(data.profile?.export_licenses)) {
-        setExportLicenses(data.profile.export_licenses);
-      }
+      applySavedProfile(data.profile);
       setCompleteness(data.completeness || null);
       toast.success('Profile saved to Supabase');
     } catch (e: unknown) {
@@ -989,6 +1093,37 @@ function ProfileInner() {
                 onChange={(e) => set('legal_name', e.target.value)}
               />
             </Field>
+            <Field label="Business type">
+              <select
+                className="input w-full !p-3 !text-sm"
+                value={form.business_type || form.category || ''}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  set('business_type', v);
+                  set('category', v);
+                }}
+              >
+                <option value="">Select business type…</option>
+                {/* Preserve legacy free-text values not in the list */}
+                {(() => {
+                  const current = String(form.business_type || form.category || '');
+                  if (
+                    current &&
+                    !BUSINESS_TYPE_OPTIONS.includes(
+                      current as (typeof BUSINESS_TYPE_OPTIONS)[number]
+                    )
+                  ) {
+                    return <option value={current}>{current}</option>;
+                  }
+                  return null;
+                })()}
+                {BUSINESS_TYPE_OPTIONS.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </Field>
             <Field label="Registration no.">
               <input
                 className="input w-full !p-3 !text-sm"
@@ -1001,11 +1136,17 @@ function ProfileInner() {
               url={form.registration_certificate_url}
               uploading={uploading === 'registration'}
               onFile={(f) =>
-                void handleUpload(f, 'registration', (url) =>
-                  set('registration_certificate_url', url)
+                void handleUpload(
+                  f,
+                  'registration',
+                  (url) => set('registration_certificate_url', url),
+                  'registration_certificate_url'
                 )
               }
-              onClear={() => set('registration_certificate_url', null)}
+              onClear={() => {
+                set('registration_certificate_url', null);
+                void persistPartial({ registration_certificate_url: null }).catch(() => undefined);
+              }}
             />
             <Field label="VAT number">
               <input
@@ -1019,9 +1160,17 @@ function ProfileInner() {
               url={form.vat_certificate_url}
               uploading={uploading === 'vat'}
               onFile={(f) =>
-                void handleUpload(f, 'vat', (url) => set('vat_certificate_url', url))
+                void handleUpload(
+                  f,
+                  'vat',
+                  (url) => set('vat_certificate_url', url),
+                  'vat_certificate_url'
+                )
               }
-              onClear={() => set('vat_certificate_url', null)}
+              onClear={() => {
+                set('vat_certificate_url', null);
+                void persistPartial({ vat_certificate_url: null }).catch(() => undefined);
+              }}
             />
             <Field label="About / short description">
               <textarea
@@ -1040,9 +1189,12 @@ function ProfileInner() {
               uploading={uploading === 'logo'}
               previewImage
               onFile={(f) =>
-                void handleUpload(f, 'logo', (url) => set('logo_url', url))
+                void handleUpload(f, 'logo', (url) => set('logo_url', url), 'logo_url')
               }
-              onClear={() => set('logo_url', null)}
+              onClear={() => {
+                set('logo_url', null);
+                void persistPartial({ logo_url: null }).catch(() => undefined);
+              }}
             />
           </div>
         </Panel>
@@ -1237,17 +1389,13 @@ function ProfileInner() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Business type">
-                <input
-                  className="input w-full !p-3 !text-sm"
-                  value={form.business_type || form.category || ''}
-                  onChange={(e) => {
-                    set('business_type', e.target.value);
-                    set('category', e.target.value);
-                  }}
-                />
-              </Field>
+          </div>
+        </Panel>
+
+        {/* Certifications */}
+        <Panel title="Certifications & other">
+          <div className="p-5 space-y-4">
+            <div className="grid sm:grid-cols-2 gap-3">
               <Field label="B-BBEE level">
                 <select
                   className="input w-full !p-3 !text-sm"
@@ -1262,23 +1410,27 @@ function ProfileInner() {
                   ))}
                 </select>
               </Field>
+              <div className="sm:pt-0">
+                <FileUploadField
+                  label="BEE certificate"
+                  url={form.bee_certificate_url}
+                  uploading={uploading === 'bee'}
+                  onFile={(f) =>
+                    void handleUpload(
+                      f,
+                      'bee',
+                      (url) => set('bee_certificate_url', url),
+                      'bee_certificate_url'
+                    )
+                  }
+                  onClear={() => {
+                    set('bee_certificate_url', null);
+                    void persistPartial({ bee_certificate_url: null }).catch(() => undefined);
+                  }}
+                />
+              </div>
             </div>
 
-            <FileUploadField
-              label="BEE certificate"
-              url={form.bee_certificate_url}
-              uploading={uploading === 'bee'}
-              onFile={(f) =>
-                void handleUpload(f, 'bee', (url) => set('bee_certificate_url', url))
-              }
-              onClear={() => set('bee_certificate_url', null)}
-            />
-          </div>
-        </Panel>
-
-        {/* Certifications */}
-        <Panel title="Certifications & other">
-          <div className="p-5 space-y-4">
             <SectionLabel>Quick select</SectionLabel>
             <div className="flex flex-wrap gap-1.5">
               {CERTS_PRESET.map((c) => (
@@ -1359,11 +1511,63 @@ function ProfileInner() {
                     compact
                     uploading={uploading === `cert-${idx}`}
                     onFile={(f) =>
-                      void handleUpload(f, `cert-${idx}`, (url) =>
-                        updateCert(idx, { file_url: url })
-                      )
+                      void handleUpload(f, `cert-${idx}`, (url) => {
+                        setCertEntries((prev) => {
+                          const next = prev.map((entry, i) =>
+                            i === idx ? { ...entry, file_url: url } : entry
+                          );
+                          const cleanCerts = next
+                            .map((entry) => ({
+                              name:
+                                String(entry.name || '').trim() ||
+                                (entry.file_url ? 'Certificate' : ''),
+                              awarded_date: entry.awarded_date || null,
+                              expiry_date: entry.expiry_date || null,
+                              file_url: entry.file_url || null,
+                            }))
+                            .filter((entry) => entry.name || entry.file_url);
+                          const names = cleanCerts.map((entry) => entry.name).filter(Boolean);
+                          void persistPartial({
+                            uploaded_certificates: cleanCerts,
+                            certifications: names,
+                            iso_certifications: names,
+                          })
+                            .then(() => toast.success('Certificate file saved to Supabase'))
+                            .catch((err: unknown) =>
+                              toast.error(
+                                err instanceof Error
+                                  ? err.message
+                                  : 'Could not sync certificate file — click Save'
+                              )
+                            );
+                          return next;
+                        });
+                      })
                     }
-                    onClear={() => updateCert(idx, { file_url: null })}
+                    onClear={() => {
+                      setCertEntries((prev) => {
+                        const next = prev.map((entry, i) =>
+                          i === idx ? { ...entry, file_url: null } : entry
+                        );
+                        const cleanCerts = next
+                          .map((entry) => ({
+                            name:
+                              String(entry.name || '').trim() ||
+                              (entry.file_url ? 'Certificate' : ''),
+                            awarded_date: entry.awarded_date || null,
+                            expiry_date: entry.expiry_date || null,
+                            file_url: entry.file_url || null,
+                          }))
+                          .filter((entry) => entry.name || entry.file_url);
+                        const names = cleanCerts.map((entry) => entry.name).filter(Boolean);
+                        void persistPartial({
+                          uploaded_certificates: cleanCerts,
+                          certifications: names,
+                          iso_certifications: names,
+                        }).catch(() => undefined);
+                        return next;
+                      });
+                    }}
                   />
                 </div>
               ))}
@@ -1416,9 +1620,17 @@ function ProfileInner() {
               url={form.bank_confirmation_url}
               uploading={uploading === 'bank'}
               onFile={(f) =>
-                void handleUpload(f, 'bank', (url) => set('bank_confirmation_url', url))
+                void handleUpload(
+                  f,
+                  'bank',
+                  (url) => set('bank_confirmation_url', url),
+                  'bank_confirmation_url'
+                )
               }
-              onClear={() => set('bank_confirmation_url', null)}
+              onClear={() => {
+                set('bank_confirmation_url', null);
+                void persistPartial({ bank_confirmation_url: null }).catch(() => undefined);
+              }}
             />
           </div>
         </Panel>
@@ -1446,9 +1658,17 @@ function ProfileInner() {
               url={form.import_license_url}
               uploading={uploading === 'import'}
               onFile={(f) =>
-                void handleUpload(f, 'import', (url) => set('import_license_url', url))
+                void handleUpload(
+                  f,
+                  'import',
+                  (url) => set('import_license_url', url),
+                  'import_license_url'
+                )
               }
-              onClear={() => set('import_license_url', null)}
+              onClear={() => {
+                set('import_license_url', null);
+                void persistPartial({ import_license_url: null }).catch(() => undefined);
+              }}
             />
 
             <div className="flex items-center justify-between pt-1">
@@ -1505,11 +1725,49 @@ function ProfileInner() {
                     compact
                     uploading={uploading === `export-${idx}`}
                     onFile={(f) =>
-                      void handleUpload(f, `export-${idx}`, (url) =>
-                        updateExport(idx, { file_url: url })
-                      )
+                      void handleUpload(f, `export-${idx}`, (url) => {
+                        setExportLicenses((prev) => {
+                          const next = prev.map((entry, i) =>
+                            i === idx ? { ...entry, file_url: url } : entry
+                          );
+                          const cleanExports = next
+                            .map((entry) => ({
+                              country: String(entry.country || '').trim(),
+                              license_number: entry.license_number || null,
+                              file_url: entry.file_url || null,
+                            }))
+                            .filter((entry) => entry.country);
+                          const first = cleanExports[0];
+                          void persistPartial({
+                            export_licenses: cleanExports,
+                            export_license_number: first?.license_number || null,
+                            export_license_url: first?.file_url || null,
+                          }).catch(() => undefined);
+                          return next;
+                        });
+                      })
                     }
-                    onClear={() => updateExport(idx, { file_url: null })}
+                    onClear={() => {
+                      setExportLicenses((prev) => {
+                        const next = prev.map((entry, i) =>
+                          i === idx ? { ...entry, file_url: null } : entry
+                        );
+                        const cleanExports = next
+                          .map((entry) => ({
+                            country: String(entry.country || '').trim(),
+                            license_number: entry.license_number || null,
+                            file_url: entry.file_url || null,
+                          }))
+                          .filter((entry) => entry.country);
+                        const first = cleanExports[0];
+                        void persistPartial({
+                          export_licenses: cleanExports,
+                          export_license_number: first?.license_number || null,
+                          export_license_url: first?.file_url || null,
+                        }).catch(() => undefined);
+                        return next;
+                      });
+                    }}
                   />
                 </div>
               ))}
