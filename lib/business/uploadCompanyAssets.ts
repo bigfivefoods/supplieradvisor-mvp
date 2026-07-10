@@ -1,14 +1,16 @@
 import { createClient } from '@/utils/supabase/client';
-
-const IMAGE_BUCKETS = ['company-documents', 'product-images', 'container-photos'];
-const DOC_BUCKETS = ['company-documents', 'product-documents', 'contractor-documents'];
+import {
+  COMPANY_DOC_BUCKETS,
+  COMPANY_IMAGE_BUCKETS,
+} from '@/lib/business/documentFields';
 
 async function uploadToBuckets(
   file: File,
   filePath: string,
-  buckets: string[]
-): Promise<{ url: string | null; error?: string }> {
+  buckets: readonly string[]
+): Promise<{ url: string | null; error?: string; bucket?: string }> {
   const supabase = createClient();
+  const errors: string[] = [];
   for (const bucket of buckets) {
     const { error } = await supabase.storage.from(bucket).upload(filePath, file, {
       cacheControl: '3600',
@@ -17,12 +19,13 @@ async function uploadToBuckets(
     });
     if (!error) {
       const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
-      return { url: data.publicUrl };
+      return { url: data.publicUrl, bucket };
     }
+    errors.push(`${bucket}: ${error.message}`);
   }
   return {
     url: null,
-    error: `Upload failed. Create a public Storage bucket: ${buckets[0]} (or company-documents).`,
+    error: `Upload failed (${errors.join('; ') || 'no buckets'}). Need public bucket company-documents or certificates.`,
   };
 }
 
@@ -31,7 +34,8 @@ function safeName(name?: string) {
 }
 
 /**
- * Preferred path: server upload with service role (bypasses Storage RLS).
+ * Preferred path: server upload with service role (bypasses Storage RLS)
+ * and dual-writes document URL onto production column names.
  * Falls back to browser Supabase client if the API is unavailable.
  */
 export async function uploadCompanyAssetServerFirst(opts: {
@@ -39,7 +43,7 @@ export async function uploadCompanyAssetServerFirst(opts: {
   companyId: number | string;
   kind: string;
   privyUserId?: string | null;
-  /** When set, server also PATCHes this profiles column with the new URL. */
+  /** App field e.g. registration_certificate_url — server maps to real DB columns. */
   profileField?: string | null;
 }): Promise<{
   url: string | null;
@@ -47,6 +51,9 @@ export async function uploadCompanyAssetServerFirst(opts: {
   error?: string;
   profileSynced?: boolean;
   profile?: Record<string, unknown> | null;
+  columnsWritten?: string[];
+  bucket?: string;
+  details?: unknown;
 }> {
   const { file, companyId, kind, privyUserId, profileField } = opts;
 
@@ -67,16 +74,25 @@ export async function uploadCompanyAssetServerFirst(opts: {
         fileName: data.fileName || file.name,
         profileSynced: Boolean(data.profileSynced),
         profile: data.profile || null,
+        columnsWritten: data.columnsWritten || [],
+        bucket: data.bucket,
+        details: data.profileError || data.details,
       };
     }
-    // If server returned a useful error and no fallback is likely better, surface it
-    // but still try client fallback for transient issues.
-    console.warn('Server upload failed, trying client:', data.error || res.status);
+    console.warn('Server upload failed, trying client:', data.error || res.status, data);
+    // If server explicitly failed storage, still try client buckets
+    if (res.status === 401 || res.status === 403) {
+      return {
+        url: null,
+        error: data.error || 'Not authorized to upload for this company',
+        details: data,
+      };
+    }
   } catch (e) {
     console.warn('Server upload network error, trying client:', e);
   }
 
-  // 2) Client fallback
+  // 2) Client fallback (storage only — caller must PATCH profile URL)
   const isLogo = kind === 'logo' || profileField === 'logo_url';
   if (isLogo) {
     const r = await uploadCompanyLogo(file, companyId);
@@ -90,7 +106,7 @@ export async function uploadCompanyAssetServerFirst(opts: {
 export async function uploadCompanyLogo(
   file: File,
   companyId: number | string
-): Promise<{ url: string | null; error?: string }> {
+): Promise<{ url: string | null; error?: string; bucket?: string }> {
   if (!file.type.startsWith('image/')) {
     return { url: null, error: 'Please choose an image file (JPG, PNG, WebP)' };
   }
@@ -99,7 +115,7 @@ export async function uploadCompanyLogo(
   }
   const ext = file.name.split('.').pop()?.toLowerCase() || 'png';
   const filePath = `${companyId}/profile/logo-${Date.now()}.${ext}`;
-  return uploadToBuckets(file, filePath, IMAGE_BUCKETS);
+  return uploadToBuckets(file, filePath, COMPANY_IMAGE_BUCKETS);
 }
 
 /** Generic company document (PDF/image) — reg, VAT, BEE, bank letter, licenses. */
@@ -107,7 +123,7 @@ export async function uploadCompanyDocument(
   file: File,
   companyId: number | string,
   kind: string
-): Promise<{ url: string | null; fileName?: string; error?: string }> {
+): Promise<{ url: string | null; fileName?: string; error?: string; bucket?: string }> {
   const allowed = [
     'application/pdf',
     'image/jpeg',
@@ -125,6 +141,6 @@ export async function uploadCompanyDocument(
   }
   const ext = file.name.split('.').pop()?.toLowerCase() || 'pdf';
   const filePath = `${companyId}/profile/${safeName(kind)}-${Date.now()}.${ext}`;
-  const result = await uploadToBuckets(file, filePath, DOC_BUCKETS);
+  const result = await uploadToBuckets(file, filePath, COMPANY_DOC_BUCKETS);
   return { ...result, fileName: file.name };
 }

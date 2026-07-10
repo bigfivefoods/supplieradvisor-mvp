@@ -59,9 +59,13 @@ export type CompanyProfile = {
   bee_level?: string | null;
   bee_certificate_url?: string | null;
   registration_number?: string | null;
+  /** App canonical — dual-reads registration_document_url in production */
   registration_certificate_url?: string | null;
+  /** Legacy production column */
+  registration_document_url?: string | null;
   vat_number?: string | null;
   tax_number?: string | null;
+  tax_document_url?: string | null;
   certifications?: string[] | null;
   iso_certifications?: string[] | null;
   /** Structured certs: { name, awarded_date?, expiry_date?, file_url? }[] */
@@ -87,11 +91,19 @@ export type CompanyProfile = {
   swift?: string | null;
   bank_confirmation_url?: string | null;
   vat_certificate_url?: string | null;
+  /** Legacy production column */
+  vat_document_url?: string | null;
   director_id_number?: string | null;
   export_license_number?: string | null;
   import_license_number?: string | null;
+  /** App canonical — dual-reads export_document_url */
   export_license_url?: string | null;
+  /** Legacy production column */
+  export_document_url?: string | null;
+  /** App canonical — dual-reads import_document_url */
   import_license_url?: string | null;
+  /** Legacy production column */
+  import_document_url?: string | null;
   /** Per-country export licenses: { country, license_number?, file_url? }[] */
   export_licenses?: ExportLicenseEntry[] | unknown;
   latitude?: number | string | null;
@@ -201,9 +213,12 @@ export const PROFILE_EDITABLE_FIELDS = [
   'bee_level',
   'bee_certificate_url',
   'registration_number',
+  // App + production aliases for registration docs
   'registration_certificate_url',
+  'registration_document_url',
   'vat_number',
   'tax_number',
+  'tax_document_url',
   'certifications',
   'iso_certifications',
   'uploaded_certificates',
@@ -220,11 +235,15 @@ export const PROFILE_EDITABLE_FIELDS = [
   'swift',
   'bank_confirmation_url',
   'vat_certificate_url',
+  'vat_document_url',
   'director_id_number',
   'export_license_number',
   'import_license_number',
+  // App + production aliases for licenses
   'export_license_url',
+  'export_document_url',
   'import_license_url',
+  'import_document_url',
   'export_licenses',
   'metadata',
 ] as const;
@@ -391,13 +410,55 @@ export function normalizeProfileRow(row: Record<string, unknown>): CompanyProfil
     certifications: certs.length ? certs : uploaded.map((c) => c.name),
     iso_certifications: certs.length ? certs : uploaded.map((c) => c.name),
     uploaded_certificates: uploaded,
-    export_licenses: normalizeExportLicenses(row.export_licenses),
     // Business type aliases
     business_type:
       (row.business_type as string) || (row.category as string) || null,
     category: (row.category as string) || (row.business_type as string) || null,
     bee_level: (row.bee_level as string) || null,
     bee_certificate_url: (row.bee_certificate_url as string) || null,
+    // Document URL dual-read: production uses *_document_url for reg/import/export
+    registration_certificate_url:
+      (row.registration_certificate_url as string) ||
+      (row.registration_document_url as string) ||
+      null,
+    registration_document_url:
+      (row.registration_document_url as string) ||
+      (row.registration_certificate_url as string) ||
+      null,
+    vat_certificate_url:
+      (row.vat_certificate_url as string) ||
+      (row.vat_document_url as string) ||
+      null,
+    vat_document_url:
+      (row.vat_document_url as string) ||
+      (row.vat_certificate_url as string) ||
+      null,
+    import_license_url:
+      (row.import_license_url as string) ||
+      (row.import_document_url as string) ||
+      null,
+    import_document_url:
+      (row.import_document_url as string) ||
+      (row.import_license_url as string) ||
+      null,
+    export_license_url:
+      (row.export_license_url as string) ||
+      (row.export_document_url as string) ||
+      null,
+    export_document_url:
+      (row.export_document_url as string) ||
+      (row.export_license_url as string) ||
+      null,
+    bank_confirmation_url: (row.bank_confirmation_url as string) || null,
+    logo_url: (row.logo_url as string) || null,
+    tax_document_url: (row.tax_document_url as string) || null,
+    // export_licenses may live only in metadata when column missing
+    export_licenses: normalizeExportLicenses(
+      row.export_licenses ??
+        (row.metadata && typeof row.metadata === 'object'
+          ? (row.metadata as { export_licenses?: unknown }).export_licenses
+          : null)
+    ),
     latitude: lat as number | string | null,
     longitude: lng as number | string | null,
     lat: lat as number | string | null,
