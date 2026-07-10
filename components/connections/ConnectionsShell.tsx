@@ -8,16 +8,17 @@ import {
   type NavItem,
 } from '@/components/relationship/RelationshipChrome';
 
+/**
+ * Lean network nav — one place per job.
+ * Discover / invite live here; SRM book & CRM accounts stay under Suppliers / Customers.
+ */
 export const CONNECTIONS_NAV: readonly NavItem[] = [
-  { href: '/dashboard/connections', label: 'Network', exact: true },
+  { href: '/dashboard/connections', label: 'Graph', exact: true },
+  { href: '/dashboard/suppliers/discover', label: 'Discover' },
   { href: '/dashboard/connections/pricing', label: 'Pricing' },
   { href: '/dashboard/connections/marketplace', label: 'Marketplace' },
   { href: '/dashboard/connections/marketplace/sell', label: 'Sell' },
-  { href: '/dashboard/suppliers/discover', label: 'Find suppliers' },
-  { href: '/dashboard/customers/onboard', label: 'Add customer' },
-  { href: '/dashboard/invite-business', label: 'Invite company' },
-  { href: '/dashboard/suppliers/network', label: 'SRM book' },
-  { href: '/dashboard/customers/profiles', label: 'CRM accounts' },
+  { href: '/dashboard/invite-business', label: 'Invite' },
 ] as const;
 
 export function CompanyRequired({ children }: { children: React.ReactNode }) {
@@ -44,7 +45,7 @@ export function ConnectionsHeader({
       nav={<ConnectionsNav />}
       backHref="/dashboard"
       backLabel="Dashboard"
-      eyebrow="Integrated supply chain network"
+      eyebrow="Company network"
       title={title}
       titleAccent={titleAccent}
       description={description}

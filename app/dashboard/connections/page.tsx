@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
-  Network,
   Handshake,
   Inbox,
   Send,
@@ -21,10 +20,9 @@ import {
   FileText,
   ShoppingCart,
   Star,
-  AlertTriangle,
   ArrowRight,
-  Link2,
   CreditCard,
+  Building2,
 } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
@@ -60,16 +58,14 @@ type Tab =
   | 'customers'
   | 'suspended';
 
+/** Single linear lifecycle — one place for each step (no duplicate paths). */
 const PROCESS = [
   { label: 'Discover', href: '/dashboard/suppliers/discover' },
-  { label: 'Invite', href: '/dashboard/invite-business' },
   { label: 'Connect', href: '/dashboard/connections' },
   { label: 'Pricing', href: '/dashboard/connections/pricing' },
-  { label: 'Market', href: '/dashboard/connections/marketplace' },
   { label: 'Trade', href: '/dashboard/suppliers/po' },
-  { label: 'Docs', href: '/dashboard/customers/quotes' },
-  { label: 'Rate', href: '/dashboard/suppliers/ratings' },
-  { label: 'RIAD', href: '/dashboard/suppliers/riad-log' },
+  { label: 'Invoice', href: '/dashboard/accounting/accounts-receivable' },
+  { label: 'Market', href: '/dashboard/connections/marketplace' },
 ];
 
 const EMPTY_SUMMARY: NetworkSummary = {
@@ -129,6 +125,13 @@ function HubInner() {
     return () => clearTimeout(t);
   }, [load]);
 
+  // Surface incoming first when there are pending requests
+  useEffect(() => {
+    if (!loading && summary.pendingIn > 0 && tab === 'all') {
+      // soft highlight only — don't force tab
+    }
+  }, [loading, summary.pendingIn, tab]);
+
   const filtered = useMemo(() => {
     return edges.filter((e) => {
       if (tab === 'all') return true;
@@ -172,12 +175,13 @@ function HubInner() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Action failed');
+      const peerName = peerDisplayName(edge);
       const labels: Record<string, string> = {
-        accept: 'Connected — you can trade, share docs, and log RIAD together',
-        decline: 'Request declined',
-        cancel: 'Request cancelled',
-        suspend: 'Collaboration suspended',
-        unsuspend: 'Collaboration restored',
+        accept: `Connected with ${peerName} — trade is unlocked`,
+        decline: `Declined ${peerName}`,
+        cancel: `Cancelled request to ${peerName}`,
+        suspend: `Suspended ${peerName}`,
+        unsuspend: `Restored ${peerName}`,
       };
       toast.success(labels[action] || 'Updated');
       void load();
@@ -202,23 +206,23 @@ function HubInner() {
     <ConnectionsPage>
       <RelationshipHeader
         nav={<ConnectionsNav />}
-        eyebrow="Integrated supply chain network"
-        title="Companies you"
-        titleAccent="connect"
-        description="Accepted edges unlock seamless trade: purchase orders, invoices, shared documents, peer ratings, and RIAD — with optional on-chain settlement. Pending requests show who is waiting to join your graph."
+        eyebrow="Company network"
+        title="Connection"
+        titleAccent="graph"
+        description="One graph for every company you trade with. Request → accept → pricing, POs, invoices, and on-chain settlement in a secure ecosystem."
         action={
           <>
             <Link
-              href="/dashboard/connections/marketplace"
+              href="/dashboard/suppliers/discover"
               className="btn-primary !py-2.5 !px-5 text-sm"
             >
-              <Search className="w-4 h-4" /> Marketplace
+              <Search className="w-4 h-4" /> Find companies
             </Link>
             <Link
               href="/dashboard/invite-business"
               className="btn-secondary !py-2.5 !px-5 text-sm"
             >
-              <Send className="w-4 h-4" /> Invite company
+              <Send className="w-4 h-4" /> Invite off-platform
             </Link>
           </>
         }
@@ -227,111 +231,80 @@ function HubInner() {
       {warning && (
         <AlertBanner>
           {warning}
-          <span className="block text-xs mt-1 opacity-80">
-            Membership soft-warning — data still shown when possible.
-          </span>
         </AlertBanner>
       )}
 
-      <SectionLabel>Integration lifecycle</SectionLabel>
+      {summary.pendingIn > 0 && (
+        <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="text-sm text-amber-900">
+            <strong>{summary.pendingIn}</strong> incoming connection
+            {summary.pendingIn === 1 ? ' request' : ' requests'} waiting for your decision.
+          </div>
+          <button
+            type="button"
+            onClick={() => setTab('pending_in')}
+            className="btn-primary !py-2 !px-4 text-xs"
+          >
+            Review incoming
+          </button>
+        </div>
+      )}
+
+      <SectionLabel>Lifecycle</SectionLabel>
       <ProcessRail steps={PROCESS} />
 
-      <SectionLabel>Network pulse</SectionLabel>
-      <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3 sm:gap-4 mb-8">
-        <KpiCard
-          icon={Network}
-          label="Total edges"
-          value={summary.total}
-          loading={loading}
-          href="/dashboard/connections"
-        />
-        <KpiCard
-          icon={Handshake}
-          label="Connected"
-          value={summary.accepted}
-          tone="emerald"
-          loading={loading}
-        />
-        <KpiCard
-          icon={Inbox}
-          label="Incoming"
-          value={summary.pendingIn}
-          tone={summary.pendingIn > 0 ? 'amber' : 'neutral'}
-          loading={loading}
-        />
-        <KpiCard
-          icon={Send}
-          label="Sent"
-          value={summary.pendingOut}
-          tone="cyan"
-          loading={loading}
-        />
-        <KpiCard
-          icon={Truck}
-          label="Suppliers"
-          value={summary.suppliers}
-          href="/dashboard/suppliers/network"
-          loading={loading}
-        />
-        <KpiCard
-          icon={Users}
-          label="Customers"
-          value={summary.customers}
-          href="/dashboard/customers/profiles"
-          loading={loading}
-        />
-        <KpiCard
-          icon={PauseCircle}
-          label="Suspended"
-          value={summary.suspended}
-          tone={summary.suspended > 0 ? 'amber' : 'neutral'}
-          loading={loading}
-        />
+      <SectionLabel>Pulse</SectionLabel>
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4 mb-8">
+        <button type="button" className="text-left" onClick={() => setTab('accepted')}>
+          <KpiCard
+            icon={Handshake}
+            label="Connected"
+            value={summary.accepted}
+            tone="emerald"
+            loading={loading}
+          />
+        </button>
+        <button type="button" className="text-left" onClick={() => setTab('pending_in')}>
+          <KpiCard
+            icon={Inbox}
+            label="Incoming"
+            value={summary.pendingIn}
+            tone={summary.pendingIn > 0 ? 'amber' : 'neutral'}
+            loading={loading}
+          />
+        </button>
+        <button type="button" className="text-left" onClick={() => setTab('pending_out')}>
+          <KpiCard
+            icon={Send}
+            label="Sent"
+            value={summary.pendingOut}
+            tone="cyan"
+            loading={loading}
+          />
+        </button>
+        <button type="button" className="text-left" onClick={() => setTab('suppliers')}>
+          <KpiCard icon={Truck} label="Suppliers" value={summary.suppliers} loading={loading} />
+        </button>
+        <button type="button" className="text-left" onClick={() => setTab('customers')}>
+          <KpiCard icon={Users} label="Customers" value={summary.customers} loading={loading} />
+        </button>
+        <button type="button" className="text-left" onClick={() => setTab('suspended')}>
+          <KpiCard
+            icon={PauseCircle}
+            label="Suspended"
+            value={summary.suspended}
+            tone={summary.suspended > 0 ? 'amber' : 'neutral'}
+            loading={loading}
+          />
+        </button>
       </div>
 
-      {/* Why connect */}
-      <Panel className="mb-8" title="Why connect matters">
-        <div className="px-5 py-5 grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 text-sm">
-          <Why
-            icon={Link2}
-            title="Invitations"
-            body="Request connect from Discover, or invite off-platform companies. Same-owner companies auto-accept."
-          />
-          <Why
-            icon={ShoppingCart}
-            title="POs & trade"
-            body="Raise purchase orders against connected suppliers — both books stay in sync."
-          />
-          <Why
-            icon={FileText}
-            title="Pricing agreements"
-            body="Share price lists and commercial terms in the document vault once the edge is accepted."
-          />
-          <Why
-            icon={Wallet}
-            title="Invoice & pay"
-            body="AR/AP invoices mirror to the connected counterparty so both companies settle the same bill."
-          />
-          <Why
-            icon={Star}
-            title="Ratings & trust"
-            body="Post-PO peer reviews and OTIFEF scorecards attach to the live connection."
-          />
-          <Why
-            icon={AlertTriangle}
-            title="Joint RIAD"
-            body="Risks, issues, actions, and decisions span the relationship — one control log."
-          />
-        </div>
-      </Panel>
-
-      {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <div className="relative flex-1 max-w-md">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
           <input
             className="input w-full !py-2.5 !pl-10 !text-sm"
-            placeholder="Search company, city, industry…"
+            placeholder="Search by trading name, city, industry…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
@@ -364,7 +337,7 @@ function HubInner() {
         ))}
       </div>
 
-      <Panel title="Connection graph">
+      <Panel title="Your companies">
         {loading ? (
           <div className="py-20 flex justify-center">
             <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
@@ -372,23 +345,31 @@ function HubInner() {
         ) : filtered.length === 0 ? (
           <div className="p-12 text-center">
             <div className="mx-auto mb-4 w-12 h-12 rounded-2xl bg-[#00b4d8]/10 flex items-center justify-center">
-              <Link2 className="w-6 h-6 text-[#00b4d8]" />
+              <Building2 className="w-6 h-6 text-[#00b4d8]" />
             </div>
-            <p className="text-sm font-semibold text-slate-800 mb-1">No connections here yet</p>
+            <p className="text-sm font-semibold text-slate-800 mb-1">
+              {tab === 'all' ? 'No connections yet' : 'Nothing in this filter'}
+            </p>
             <p className="text-xs text-neutral-500 max-w-md mx-auto mb-6">
-              Discover suppliers, invite customers to the platform, or send a business invite.
-              Accepted edges power POs, invoices, ratings, and RIAD across the chain.
+              Find a company on SupplierAdvisor and send a connection request. When they accept,
+              you can set pricing, raise POs, and settle on-chain.
             </p>
             <div className="flex flex-wrap justify-center gap-2">
-              <Link href="/dashboard/suppliers/discover" className="btn-primary !py-2.5 !px-5 text-sm">
-                Discover suppliers
-              </Link>
               <Link
-                href="/dashboard/customers/invites"
-                className="btn-secondary !py-2.5 !px-5 text-sm"
+                href="/dashboard/suppliers/discover"
+                className="btn-primary !py-2.5 !px-5 text-sm"
               >
-                Customer invites
+                Find companies
               </Link>
+              {tab !== 'all' && (
+                <button
+                  type="button"
+                  onClick={() => setTab('all')}
+                  className="btn-secondary !py-2.5 !px-5 text-sm"
+                >
+                  Show all
+                </button>
+              )}
             </div>
           </div>
         ) : (
@@ -407,32 +388,41 @@ function HubInner() {
 
       <div className="mt-8 grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <QuickLink
+          href="/dashboard/suppliers/discover"
+          icon={Search}
+          label="Discover companies"
+          desc="Search the platform & request connect"
+        />
+        <QuickLink
           href="/dashboard/connections/pricing"
           icon={FileText}
           label="Pricing agreements"
-          desc="List prices between your companies"
-        />
-        <QuickLink
-          href="/dashboard/connections/marketplace"
-          icon={Search}
-          label="Browse marketplace"
-          desc="Goods & services on the network"
-        />
-        <QuickLink
-          href="/dashboard/connections/marketplace/sell"
-          icon={FileText}
-          label="Sell inventory"
-          desc="List products from your catalogue"
+          desc="List prices between connected companies"
         />
         <QuickLink
           href="/dashboard/suppliers/po"
           icon={ShoppingCart}
-          label="Raise supplier PO"
-          desc="Trade with connected suppliers"
+          label="Purchase orders"
+          desc="Trade with accepted suppliers"
+        />
+        <QuickLink
+          href="/dashboard/accounting/accounts-receivable"
+          icon={Wallet}
+          label="Invoice & pay"
+          desc="AR/AP with network counterparties"
         />
       </div>
     </ConnectionsPage>
   );
+}
+
+function peerDisplayName(edge: NetworkEdge): string {
+  const peer = edge.peer;
+  const name =
+    (peer.trading_name && String(peer.trading_name).trim()) ||
+    (peer.legal_name && String(peer.legal_name).trim()) ||
+    '';
+  return name || `Company ${peer.id}`;
 }
 
 function EdgeRow({
@@ -448,9 +438,10 @@ function EdgeRow({
   ) => void;
 }) {
   const peer = edge.peer;
-  const name = peer.trading_name || peer.legal_name || `Company #${peer.id}`;
+  const name = peerDisplayName(edge);
   const verified =
-    peer.is_verified === true || peer.verification_status === 'verified';
+    peer.is_verified === true ||
+    String(peer.verification_status || '').toLowerCase() === 'verified';
   const pendingIn = edge.status === 'pending' && edge.direction === 'received';
   const pendingOut = edge.status === 'pending' && edge.direction === 'sent';
   const connected = edge.status === 'accepted';
@@ -459,7 +450,7 @@ function EdgeRow({
     <li className="px-5 py-4 flex flex-col lg:flex-row lg:items-center gap-4 justify-between">
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2 mb-1">
-          <span className="font-semibold text-slate-800 truncate">{name}</span>
+          <span className="font-semibold text-slate-800 truncate text-base">{name}</span>
           <span
             className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${roleBadgeClass(edge.role)}`}
           >
@@ -482,7 +473,8 @@ function EdgeRow({
           )}
         </div>
         <div className="text-xs text-neutral-500">
-          {[peer.industry, peer.city, peer.country].filter(Boolean).join(' · ') || '—'}
+          {[peer.industry, peer.city, peer.country].filter(Boolean).join(' · ') ||
+            'Registered on SupplierAdvisor'}
           {peer.email ? ` · ${peer.email}` : ''}
         </div>
         {edge.message && (
@@ -491,38 +483,28 @@ function EdgeRow({
           </p>
         )}
         <div className="text-[10px] text-neutral-400 mt-1.5">
-          {edge.direction === 'sent' ? 'You sent' : 'They sent'} ·{' '}
+          {edge.direction === 'sent' ? 'You requested' : 'They requested'} ·{' '}
           {edge.requested_at
             ? new Date(edge.requested_at).toLocaleDateString()
             : '—'}
-          {edge.connection_type ? ` · type ${edge.connection_type}` : ''}
         </div>
 
-        {/* Commerce shortcuts when connected */}
         {connected && !edge.suspended && (
           <div className="flex flex-wrap gap-2 mt-3">
-            <Link
-              href={edge.hrefs.primary}
-              className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-[#00b4d8]/25 bg-[#00b4d8]/10 text-[#0077b6] hover:bg-[#00b4d8]/15"
-            >
-              Open workspace <ArrowRight className="w-3 h-3" />
-            </Link>
             {edge.hrefs.po && (
               <Link
                 href={edge.hrefs.po}
-                className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-neutral-200 text-neutral-600 hover:border-[#00b4d8]/40"
+                className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-[#00b4d8]/25 bg-[#00b4d8]/10 text-[#0077b6] hover:bg-[#00b4d8]/15"
               >
-                <ShoppingCart className="w-3 h-3 text-[#00b4d8]" /> POs
+                <ShoppingCart className="w-3 h-3" /> POs
               </Link>
             )}
-            {edge.hrefs.documents && (
-              <Link
-                href={edge.hrefs.documents}
-                className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-neutral-200 text-neutral-600 hover:border-[#00b4d8]/40"
-              >
-                <FileText className="w-3 h-3 text-[#00b4d8]" /> Docs / pricing
-              </Link>
-            )}
+            <Link
+              href="/dashboard/connections/pricing"
+              className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-neutral-200 text-neutral-600 hover:border-[#00b4d8]/40"
+            >
+              <FileText className="w-3 h-3 text-[#00b4d8]" /> Pricing
+            </Link>
             <Link
               href="/dashboard/accounting/accounts-receivable"
               className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-neutral-200 text-neutral-600 hover:border-[#00b4d8]/40"
@@ -535,26 +517,12 @@ function EdgeRow({
             >
               <CreditCard className="w-3 h-3 text-violet-600" /> Pay
             </Link>
-            <Link
-              href="/dashboard/connections/marketplace"
-              className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-neutral-200 text-neutral-600 hover:border-[#00b4d8]/40"
-            >
-              <Search className="w-3 h-3 text-[#00b4d8]" /> Market
-            </Link>
             {edge.hrefs.ratings && (
               <Link
                 href={edge.hrefs.ratings}
                 className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-neutral-200 text-neutral-600 hover:border-[#00b4d8]/40"
               >
                 <Star className="w-3 h-3 text-amber-500" /> Rate
-              </Link>
-            )}
-            {edge.hrefs.riad && (
-              <Link
-                href={edge.hrefs.riad}
-                className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-neutral-200 text-neutral-600 hover:border-[#00b4d8]/40"
-              >
-                <AlertTriangle className="w-3 h-3 text-amber-600" /> RIAD
               </Link>
             )}
           </div>
@@ -603,8 +571,7 @@ function EdgeRow({
             type="button"
             disabled={busy}
             onClick={() => void onAct(edge, 'suspend')}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-full border border-amber-200 text-amber-800 hover:bg-amber-50 cursor-pointer disabled:opacity-50"
-            title="Block new POs and shares"
+            className="btn-secondary !py-2 !px-4 text-xs"
           >
             <PauseCircle className="w-3.5 h-3.5" /> Suspend
           </button>
@@ -614,35 +581,21 @@ function EdgeRow({
             type="button"
             disabled={busy}
             onClick={() => void onAct(edge, 'unsuspend')}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-full border border-emerald-200 text-emerald-800 hover:bg-emerald-50 cursor-pointer disabled:opacity-50"
+            className="btn-primary !py-2 !px-4 text-xs"
           >
             <PlayCircle className="w-3.5 h-3.5" /> Restore
           </button>
         )}
+        {connected && !edge.suspended && (
+          <Link
+            href={edge.hrefs.primary}
+            className="inline-flex items-center gap-1 text-xs font-semibold text-[#0077b6] hover:underline px-2"
+          >
+            Workspace <ArrowRight className="w-3 h-3" />
+          </Link>
+        )}
       </div>
     </li>
-  );
-}
-
-function Why({
-  icon: Icon,
-  title,
-  body,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  title: string;
-  body: string;
-}) {
-  return (
-    <div className="flex gap-3">
-      <div className="w-9 h-9 rounded-2xl bg-[#00b4d8]/10 flex items-center justify-center shrink-0">
-        <Icon className="w-4 h-4 text-[#00b4d8]" />
-      </div>
-      <div>
-        <div className="font-semibold text-slate-800 text-sm mb-0.5">{title}</div>
-        <p className="text-xs text-neutral-500 leading-relaxed">{body}</p>
-      </div>
-    </div>
   );
 }
 
@@ -660,18 +613,13 @@ function QuickLink({
   return (
     <Link
       href={href}
-      className="flex items-center gap-3 rounded-3xl border border-neutral-200 bg-white px-4 py-3.5 hover:border-[#00b4d8] hover:shadow-md transition-all group"
+      className="rounded-2xl border border-neutral-200 bg-white p-4 hover:border-[#00b4d8]/40 transition-colors group"
     >
-      <div className="p-2 rounded-xl bg-[#00b4d8]/10 text-[#00b4d8]">
-        <Icon className="w-4 h-4" />
+      <Icon className="w-5 h-5 text-[#00b4d8] mb-2" />
+      <div className="text-sm font-semibold text-slate-800 group-hover:text-[#0077b6]">
+        {label}
       </div>
-      <div className="min-w-0">
-        <div className="text-sm font-semibold text-slate-800 group-hover:text-[#0077b6]">
-          {label}
-        </div>
-        <div className="text-[11px] text-neutral-500">{desc}</div>
-      </div>
-      <ArrowRight className="w-4 h-4 text-neutral-300 ml-auto group-hover:text-[#00b4d8]" />
+      <div className="text-xs text-neutral-500 mt-0.5">{desc}</div>
     </Link>
   );
 }

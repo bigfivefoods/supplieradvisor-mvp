@@ -17,12 +17,15 @@ import {
   userOwnsBothCompanies,
 } from '@/lib/connections/sync';
 
+/** Production-safe profile columns (no is_verified — that column does not exist). */
 const PROFILE_SELECT =
-  'id, trading_name, legal_name, email, city, country, industry, verification_status, is_verified, wallet_address, logo_url, trust_score';
+  'id, trading_name, legal_name, email, city, country, industry, verification_status, wallet_address, logo_url, trust_score';
+const PROFILE_SELECT_MINIMAL =
+  'id, trading_name, legal_name, email, city, country, industry, verification_status, wallet_address';
 
 /**
  * GET ?companyId=&privyUserId=&status=&type=&q=
- * Company-scoped network edges (business_connections) with peer profiles.
+ * Company-scoped network edges (business_connections) with peer trading names.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -51,7 +54,7 @@ export async function GET(request: NextRequest) {
       .from('business_connections')
       .select(
         `id, requester_profile_id, requestee_profile_id, status, connection_type,
-         notes, metadata, requested_at, responded_at, created_at, updated_at`
+         notes, message, metadata, requested_at, responded_at, created_at, updated_at`
       )
       .or(`requester_profile_id.eq.${companyId},requestee_profile_id.eq.${companyId}`)
       .order('updated_at', { ascending: false })
@@ -97,16 +100,7 @@ export async function GET(request: NextRequest) {
       if (b && b !== companyId) peerIds.add(b);
     }
 
-    const peerMap = new Map<number, PeerProfile>();
-    if (peerIds.size > 0) {
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select(PROFILE_SELECT)
-        .in('id', Array.from(peerIds));
-      for (const p of profiles || []) {
-        peerMap.set(Number(p.id), p as PeerProfile);
-      }
-    }
+    const peerMap = await loadPeerProfiles(Array.from(peerIds));
 
     const edges: NetworkEdge[] = [];
     for (const r of list) {
@@ -122,8 +116,17 @@ export async function GET(request: NextRequest) {
       );
       const peer = peerMap.get(peerId) || {
         id: peerId,
-        trading_name: `Company #${peerId}`,
+        trading_name: null,
+        legal_name: null,
       };
+      // Always prefer trading name; never show bare "Company #id" when name exists
+      const displayName =
+        (peer.trading_name && String(peer.trading_name).trim()) ||
+        (peer.legal_name && String(peer.legal_name).trim()) ||
+        null;
+      if (displayName) {
+        peer.trading_name = displayName;
+      }
       const suspended = isSuspendedMeta(r.metadata);
       const status = String(r.status || 'pending');
 
@@ -152,11 +155,16 @@ export async function GET(request: NextRequest) {
         if (!hay.includes(q)) continue;
       }
 
+      const msg =
+        (typeof r.notes === 'string' && r.notes.trim()) ||
+        (typeof r.message === 'string' && r.message.trim()) ||
+        null;
+
       edges.push({
         id: Number(r.id),
         status,
         connection_type: r.connection_type || 'partner',
-        message: r.notes || null,
+        message: msg,
         notes: r.notes,
         requested_at: r.requested_at || r.created_at,
         responded_at: r.responded_at,
@@ -169,12 +177,35 @@ export async function GET(request: NextRequest) {
         suspended,
         direction,
         role,
-        peer,
+        peer: {
+          ...peer,
+          id: peerId,
+          trading_name: displayName || peer.trading_name,
+          is_verified:
+            String(peer.verification_status || '').toLowerCase() === 'verified',
+        },
         requester_profile_id: requesterId,
         requestee_profile_id: requesteeId,
         hrefs: edgeHrefs(role, peerId),
       });
     }
+
+    // Prefer accepted + named peers first for a polished graph
+    edges.sort((a, b) => {
+      const rank = (e: NetworkEdge) =>
+        e.status === 'pending' && e.direction === 'received'
+          ? 0
+          : e.status === 'accepted'
+            ? 1
+            : e.status === 'pending'
+              ? 2
+              : 3;
+      const d = rank(a) - rank(b);
+      if (d !== 0) return d;
+      const an = String(a.peer.trading_name || a.peer.legal_name || '');
+      const bn = String(b.peer.trading_name || b.peer.legal_name || '');
+      return an.localeCompare(bn);
+    });
 
     const summary = computeSummary(edges);
 
@@ -190,6 +221,32 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+async function loadPeerProfiles(ids: number[]): Promise<Map<number, PeerProfile>> {
+  const peerMap = new Map<number, PeerProfile>();
+  if (!ids.length) return peerMap;
+  const supabase = getSupabaseServer();
+  for (const select of [PROFILE_SELECT, PROFILE_SELECT_MINIMAL, 'id, trading_name, legal_name']) {
+    const { data, error } = await supabase.from('profiles').select(select).in('id', ids);
+    if (!error && data) {
+      for (const p of data) {
+        const row = p as unknown as PeerProfile;
+        row.is_verified =
+          String(row.verification_status || '').toLowerCase() === 'verified';
+        peerMap.set(Number(row.id), row);
+      }
+      break;
+    }
+    console.warn('connections peer select failed:', error?.message);
+  }
+  // Ensure every requested id has at least a stub so UI can show something intentional
+  for (const id of ids) {
+    if (!peerMap.has(id)) {
+      peerMap.set(id, { id, trading_name: null, legal_name: null });
+    }
+  }
+  return peerMap;
 }
 
 /**
