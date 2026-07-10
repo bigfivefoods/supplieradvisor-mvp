@@ -67,9 +67,15 @@ export default function SalesEarningsPage() {
         <Stat label="Paid" value={formatZarPrecise(k.paidCommission)} />
       </div>
 
-      <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 sm:p-6">
-        <h2 className="font-bold text-white mb-4">Trend</h2>
-        <div className="h-72">
+      <div className="rounded-3xl border border-white/15 bg-slate-900/70 p-5 sm:p-6">
+        <h2 className="font-bold text-white mb-1">Trend</h2>
+        <p className="text-xs text-slate-300 mb-4">
+          <span className="text-amber-300 font-semibold">Projected</span>
+          {' · '}
+          <span className="text-emerald-300 font-semibold">Earned</span>
+          {' · commission 3.5% → 5.5%'}
+        </p>
+        <div className="h-72 rounded-2xl bg-slate-950/60 border border-white/10 p-2 sm:p-3">
           <EarningsTrendChart
             labels={summary.pipelineByMonth.map((m) => m.month)}
             projected={summary.pipelineByMonth.map((m) => m.projected)}
@@ -78,9 +84,9 @@ export default function SalesEarningsPage() {
         </div>
       </div>
 
-      <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 sm:p-6">
+      <div className="rounded-3xl border border-white/15 bg-slate-900/70 p-5 sm:p-6">
         <h2 className="font-bold text-white mb-2">Deal calculator</h2>
-        <p className="text-xs text-slate-400 mb-4">
+        <p className="text-xs text-slate-300 mb-4">
           Drag to simulate commission on a quote or invoice total
         </p>
         <input
@@ -144,16 +150,16 @@ function Stat({
 }) {
   return (
     <div
-      className={`rounded-3xl border p-5 ${
+      className={`rounded-3xl border p-5 shadow-lg ${
         highlight
-          ? 'border-amber-400/40 bg-amber-500/10'
-          : 'border-white/10 bg-white/[0.03]'
+          ? 'border-amber-400/50 bg-gradient-to-br from-amber-500/30 to-slate-900'
+          : 'border-white/15 bg-slate-900/70'
       }`}
     >
-      <div className="text-[11px] uppercase tracking-wide text-slate-400 font-semibold">
+      <div className="text-[11px] uppercase tracking-wide text-slate-200 font-bold">
         {label}
       </div>
-      <div className="text-2xl font-black text-white mt-1">{value}</div>
+      <div className="text-2xl font-black text-white mt-1 drop-shadow-sm">{value}</div>
     </div>
   );
 }

@@ -105,8 +105,8 @@ export default function SalesCommandCentre() {
             <p className="mt-4 text-slate-300 max-w-xl text-sm sm:text-base leading-relaxed">
               Your independent contractor workspace for leads, customers, and closed deals. All CRM
               records belong to <strong className="text-white">{summary.companyName}</strong> —
-              you earn progressive commission from <strong className="text-amber-300">3%</strong> up
-              to <strong className="text-amber-300">5%</strong> as deals get bigger.
+              you earn progressive commission from <strong className="text-amber-200">3.5%</strong> up
+              to <strong className="text-amber-200">5.5%</strong> as deals get bigger.
             </p>
           </div>
           <div className="flex flex-col sm:flex-row gap-3">
@@ -196,17 +196,22 @@ export default function SalesCommandCentre() {
       </section>
 
       <section className="grid lg:grid-cols-5 gap-4">
-        <div className="lg:col-span-3 rounded-3xl border border-white/10 bg-white/[0.03] p-5 sm:p-6">
+        <div className="lg:col-span-3 rounded-3xl border border-white/15 bg-slate-900/70 p-5 sm:p-6 shadow-inner">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="font-bold text-white text-lg">Commission momentum</h2>
-              <p className="text-xs text-slate-400">Last 6 months · projected vs earned</p>
+              <p className="text-xs text-slate-300 mt-0.5">
+                Last 6 months ·{' '}
+                <span className="text-amber-300 font-semibold">projected</span>
+                {' · '}
+                <span className="text-emerald-300 font-semibold">earned</span>
+              </p>
             </div>
-            <Link href="/sales/earnings" className="text-xs font-semibold text-amber-300">
+            <Link href="/sales/earnings" className="text-xs font-semibold text-amber-200 hover:text-amber-100">
               Earnings →
             </Link>
           </div>
-          <div className="h-64 sm:h-72">
+          <div className="h-64 sm:h-72 rounded-2xl bg-slate-950/60 border border-white/10 p-2 sm:p-3">
             <EarningsTrendChart
               labels={summary.pipelineByMonth.map((m) => m.month)}
               projected={summary.pipelineByMonth.map((m) => m.projected)}
@@ -215,21 +220,21 @@ export default function SalesCommandCentre() {
           </div>
         </div>
 
-        <div className="lg:col-span-2 rounded-3xl border border-white/10 bg-white/[0.03] p-5 sm:p-6">
+        <div className="lg:col-span-2 rounded-3xl border border-white/15 bg-slate-900/70 p-5 sm:p-6">
           <h2 className="font-bold text-white text-lg mb-1">What you could make</h2>
-          <p className="text-xs text-slate-400 mb-4">
-            Bigger deals → higher rate (3% → 5%)
+          <p className="text-xs text-slate-300 mb-4">
+            Bigger deals → higher rate <span className="text-amber-200 font-semibold">(3.5% → 5.5%)</span>
           </p>
           <ul className="space-y-2.5">
             {summary.commissionPreview.samples.map((s) => (
               <li
                 key={s.amount}
-                className="flex items-center justify-between rounded-2xl bg-black/30 border border-white/5 px-3 py-2.5"
+                className="flex items-center justify-between rounded-2xl bg-slate-950/70 border border-amber-400/20 px-3 py-2.5"
               >
-                <span className="text-sm text-slate-300">{formatZar(s.amount)} deal</span>
-                <span className="text-sm font-bold text-amber-300">
+                <span className="text-sm text-slate-200 font-medium">{formatZar(s.amount)} deal</span>
+                <span className="text-sm font-bold text-amber-200">
                   {formatZarPrecise(s.commission)}
-                  <span className="text-[10px] font-medium text-slate-500 ml-1">
+                  <span className="text-[10px] font-semibold text-slate-400 ml-1">
                     ~{s.effectiveRatePct}%
                   </span>
                 </span>
@@ -291,36 +296,36 @@ export default function SalesCommandCentre() {
       </section>
 
       {/* Top deals */}
-      <section className="rounded-3xl border border-white/10 bg-white/[0.03] overflow-hidden">
-        <div className="px-5 sm:px-6 py-4 border-b border-white/10 flex items-center justify-between">
+      <section className="rounded-3xl border border-white/15 bg-slate-900/70 overflow-hidden">
+        <div className="px-5 sm:px-6 py-4 border-b border-white/10 flex items-center justify-between bg-slate-950/40">
           <h2 className="font-bold text-white">Highest-value opportunities</h2>
           <Link
             href="/dashboard/customers/leads"
-            className="text-xs font-semibold text-amber-300"
+            className="text-xs font-semibold text-amber-200 hover:text-amber-100"
           >
             Open pipeline →
           </Link>
         </div>
         {summary.topDeals.length === 0 ? (
-          <p className="p-8 text-center text-sm text-slate-500">
+          <p className="p-8 text-center text-sm text-slate-400">
             No open deals yet — capture a lead to start earning.
           </p>
         ) : (
-          <ul className="divide-y divide-white/5">
+          <ul className="divide-y divide-white/10">
             {summary.topDeals.map((d) => (
               <li
                 key={`${d.type}-${d.id}`}
-                className="px-5 sm:px-6 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                className="px-5 sm:px-6 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-white/[0.03]"
               >
                 <div>
-                  <div className="font-semibold text-slate-100">{d.name}</div>
-                  <div className="text-[11px] text-slate-500 uppercase tracking-wide">
+                  <div className="font-semibold text-white">{d.name}</div>
+                  <div className="text-[11px] text-slate-400 uppercase tracking-wide font-medium">
                     {d.type} · {d.stage}
                   </div>
                 </div>
                 <div className="text-right">
                   <div className="font-bold text-white">{formatZar(d.amount)}</div>
-                  <div className="text-xs text-amber-300">
+                  <div className="text-xs font-semibold text-amber-200">
                     You could earn {formatZarPrecise(d.commission)}
                   </div>
                 </div>
@@ -347,19 +352,21 @@ function Kpi({
   accent: 'amber' | 'emerald' | 'sky' | 'violet';
 }) {
   const tones = {
-    amber: 'from-amber-500/20 to-orange-500/5 text-amber-300',
-    emerald: 'from-emerald-500/20 to-teal-500/5 text-emerald-300',
-    sky: 'from-sky-500/20 to-cyan-500/5 text-sky-300',
-    violet: 'from-violet-500/20 to-purple-500/5 text-violet-300',
+    amber: 'border-amber-400/40 bg-gradient-to-br from-amber-500/25 to-slate-900 text-amber-200',
+    emerald:
+      'border-emerald-400/40 bg-gradient-to-br from-emerald-500/25 to-slate-900 text-emerald-200',
+    sky: 'border-sky-400/40 bg-gradient-to-br from-sky-500/25 to-slate-900 text-sky-200',
+    violet:
+      'border-violet-400/40 bg-gradient-to-br from-violet-500/25 to-slate-900 text-violet-200',
   };
   return (
-    <div
-      className={`rounded-3xl border border-white/10 bg-gradient-to-br ${tones[accent]} p-4 sm:p-5`}
-    >
-      <Icon className="w-5 h-5 mb-3 opacity-90" />
-      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</div>
-      <div className="text-xl sm:text-2xl font-black text-white mt-1 tracking-tight">{value}</div>
-      <div className="text-[11px] text-slate-500 mt-1">{hint}</div>
+    <div className={`rounded-3xl border p-4 sm:p-5 shadow-lg ${tones[accent]}`}>
+      <Icon className="w-5 h-5 mb-3" />
+      <div className="text-[11px] font-bold uppercase tracking-wide text-slate-200/90">{label}</div>
+      <div className="text-xl sm:text-2xl font-black text-white mt-1 tracking-tight drop-shadow-sm">
+        {value}
+      </div>
+      <div className="text-[11px] text-slate-300 mt-1">{hint}</div>
     </div>
   );
 }

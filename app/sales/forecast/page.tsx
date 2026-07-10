@@ -60,22 +60,28 @@ export default function SalesForecastPage() {
       </div>
 
       <div className="grid sm:grid-cols-2 gap-3">
-        <div className="rounded-3xl border border-white/10 bg-sky-500/10 p-5">
-          <div className="text-xs uppercase text-slate-400 font-semibold">Weighted revenue</div>
+        <div className="rounded-3xl border border-sky-400/40 bg-gradient-to-br from-sky-500/25 to-slate-900 p-5 shadow-lg">
+          <div className="text-xs uppercase text-sky-100 font-bold">Weighted revenue</div>
           <div className="text-2xl font-black text-white mt-1">{formatZar(totalAmt)}</div>
         </div>
-        <div className="rounded-3xl border border-amber-400/30 bg-amber-500/10 p-5">
-          <div className="text-xs uppercase text-slate-400 font-semibold">
+        <div className="rounded-3xl border border-amber-400/50 bg-gradient-to-br from-amber-500/30 to-slate-900 p-5 shadow-lg">
+          <div className="text-xs uppercase text-amber-100 font-bold">
             Est. commission (90 days)
           </div>
-          <div className="text-2xl font-black text-amber-200 mt-1">
+          <div className="text-2xl font-black text-amber-100 mt-1">
             {formatZarPrecise(totalComm)}
           </div>
         </div>
       </div>
 
-      <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 sm:p-6">
-        <div className="h-80">
+      <div className="rounded-3xl border border-white/15 bg-slate-900/70 p-5 sm:p-6">
+        <p className="text-xs text-slate-300 mb-3">
+          <span className="text-sky-300 font-semibold">Pipeline</span>
+          {' · '}
+          <span className="text-orange-300 font-semibold">Commission</span>
+          {' · by expected close week'}
+        </p>
+        <div className="h-80 rounded-2xl bg-slate-950/60 border border-white/10 p-2 sm:p-3">
           <ForecastBarChart
             labels={summary.forecastNext90.map((w) => w.week)}
             amounts={summary.forecastNext90.map((w) => w.amount)}

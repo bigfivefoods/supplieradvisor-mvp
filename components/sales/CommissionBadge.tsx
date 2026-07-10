@@ -57,17 +57,17 @@ export default function CommissionBadge({
 
   return (
     <div
-      className={`inline-flex items-center gap-2 rounded-2xl border border-amber-400/30 bg-gradient-to-r from-amber-500/15 to-orange-500/10 px-3 py-2 text-amber-100 ${className}`}
+      className={`inline-flex items-center gap-2 rounded-2xl border-2 border-amber-500/60 bg-gradient-to-r from-amber-500/25 to-orange-500/20 px-3 py-2 shadow-sm ${className}`}
     >
-      <Wallet className="w-4 h-4 text-amber-300" />
+      <Wallet className="w-4 h-4 text-amber-600 shrink-0" />
       <div className="text-xs sm:text-sm">
-        <span className="text-amber-200/80">Your commission </span>
-        <span className="font-black text-amber-50">{formatZarPrecise(commission)}</span>
+        <span className="text-amber-900/80 font-medium">Your commission </span>
+        <span className="font-black text-amber-950">{formatZarPrecise(commission)}</span>
         {rate != null && (
-          <span className="text-amber-200/70"> · ~{rate.toFixed(2)}% eff.</span>
+          <span className="text-amber-800/90 font-semibold"> · ~{rate.toFixed(2)}% eff.</span>
         )}
       </div>
-      <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+      <Sparkles className="w-3.5 h-3.5 text-amber-600 shrink-0" />
     </div>
   );
 }

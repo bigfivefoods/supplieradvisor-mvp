@@ -214,7 +214,7 @@ export const TEAM_ROLE_OPTIONS: ReadonlyArray<{
     value: 'sales_contractor',
     label: 'Sales contractor',
     description:
-      'Independent sales contractors on your customer sales team. Portal with agreement, R199/mo 6-month sub, commission 3%–5% on deals. Customers CRM R/W — no full ERP.',
+      'Independent sales contractors on your customer sales team. Portal with agreement, R199/mo 6-month sub, commission 3.5%–5.5% on deals. Customers CRM R/W — no full ERP.',
     rights: 'Sales portal + Customers R/W',
   },
 ] as const;
