@@ -9,7 +9,6 @@ import {
 } from '@/components/relationship/RelationshipChrome';
 
 export const CUSTOMERS_NAV: readonly NavItem[] = [
-  { href: '/sales', label: 'Sales portal' },
   { href: '/dashboard/customers', label: 'Overview', exact: true },
   { href: '/dashboard/customers/leads', label: 'Pipeline' },
   { href: '/dashboard/customers/profiles', label: 'Profiles' },
@@ -25,6 +24,8 @@ export const CUSTOMERS_NAV: readonly NavItem[] = [
   { href: '/dashboard/customers/contracts', label: 'Contracts' },
   { href: '/dashboard/customers/portal', label: 'Ops' },
   { href: '/dashboard/customers/riad-log', label: 'RIAD' },
+  // Dedicated contractor hub (own layout) — keep last, exact match only
+  { href: '/sales', label: 'Sales portal', exact: true },
 ] as const;
 
 export function CompanyRequired({ children }: { children: React.ReactNode }) {

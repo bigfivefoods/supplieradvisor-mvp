@@ -246,16 +246,24 @@ export default function Sidebar() {
     setExpandedModules((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  // Auto-expand the module matching the current route
+  // Auto-expand the module matching the current route.
+  // Only update state when the module is not already expanded — otherwise we
+  // create a new object every time and can re-render forever (frozen UI).
   useEffect(() => {
     if (!pathname) return;
     const active = visibleModules.find((mod) => {
       if (mod.href === '/dashboard') return pathname === '/dashboard';
+      // /sales lives outside /dashboard — match by id / prefix
+      if (mod.href === '/sales') {
+        return pathname === '/sales' || pathname.startsWith('/sales/');
+      }
       return pathname === mod.href || pathname.startsWith(`${mod.href}/`);
     });
-    if (active && active.sub.length > 0) {
-      setExpandedModules((prev) => ({ ...prev, [active.id]: true }));
-    }
+    if (!active || active.sub.length === 0) return;
+    setExpandedModules((prev) => {
+      if (prev[active.id]) return prev; // same reference → no re-render
+      return { ...prev, [active.id]: true };
+    });
   }, [pathname, visibleModules]);
 
   const isModuleActive = (href: string) => {

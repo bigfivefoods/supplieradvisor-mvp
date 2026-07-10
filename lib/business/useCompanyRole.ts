@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
@@ -37,7 +37,21 @@ export type CompanyRoleState = {
 export function useCompanyRole(): CompanyRoleState {
   const { user } = usePrivy();
   const privyUserId = getCanonicalUserId(user?.id);
-  const companyId = typeof window !== 'undefined' ? getSelectedCompanyId() : null;
+  const [companyId, setCompanyId] = useState<number | null>(() =>
+    typeof window !== 'undefined' ? getSelectedCompanyId() : null
+  );
+
+  // Stay in sync when user switches company without full remount
+  useEffect(() => {
+    const sync = () => setCompanyId(getSelectedCompanyId());
+    sync();
+    window.addEventListener('sa:company-changed', sync);
+    window.addEventListener('storage', sync);
+    return () => {
+      window.removeEventListener('sa:company-changed', sync);
+      window.removeEventListener('storage', sync);
+    };
+  }, []);
 
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<TeamRole | null>(null);
@@ -83,6 +97,22 @@ export function useCompanyRole(): CompanyRoleState {
 
   const ready = !loading && (!companyId || role != null || !privyUserId);
 
+  const canViewModule = useCallback(
+    (resource: PermissionResource) => (role ? canView(role, resource) : true),
+    [role]
+  );
+  const canWriteModule = useCallback(
+    (resource: PermissionResource) => (role ? canWrite(role, resource) : true),
+    [role]
+  );
+  const canAccessRoute = useCallback(
+    (pathname: string | null | undefined) =>
+      role ? canAccessPath(role, pathname, 'view') : true,
+    [role]
+  );
+
+  const homePath = useMemo(() => defaultHomePathForRole(role), [role]);
+
   return {
     loading,
     role,
@@ -91,10 +121,10 @@ export function useCompanyRole(): CompanyRoleState {
     memberId,
     canManageTeam,
     ready,
-    canViewModule: (resource) => (role ? canView(role, resource) : true),
-    canWriteModule: (resource) => (role ? canWrite(role, resource) : true),
-    canAccessRoute: (pathname) => (role ? canAccessPath(role, pathname, 'view') : true),
-    homePath: defaultHomePathForRole(role),
+    canViewModule,
+    canWriteModule,
+    canAccessRoute,
+    homePath,
     refresh,
   };
 }
