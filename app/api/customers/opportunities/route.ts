@@ -149,6 +149,7 @@ export async function POST(request: NextRequest) {
       lost_reason: body.lost_reason || null,
       source: body.source || null,
       priority: body.priority || 'medium',
+      sales_rep_user_id: body.sales_rep_user_id || body.privyUserId || null,
       updated_at: now,
     };
 

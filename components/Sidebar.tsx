@@ -22,11 +22,15 @@ const modules = [
     href: '/sales',
     sub: [
       { name: 'Command centre', href: '/sales' },
-      { name: 'Agreement', href: '/sales/agreement' },
+      { name: 'Pipeline', href: '/sales/pipeline' },
+      { name: 'Customers', href: '/sales/customers' },
+      { name: 'Quotes', href: '/sales/quotes' },
+      { name: 'Orders', href: '/sales/orders' },
+      { name: 'Invoices', href: '/sales/invoices' },
       { name: 'Earnings', href: '/sales/earnings' },
       { name: 'Forecast', href: '/sales/forecast' },
-      { name: 'Pipeline (CRM)', href: '/dashboard/customers/leads' },
-      { name: 'Quotes', href: '/dashboard/customers/quotes' },
+      { name: 'Agreement', href: '/sales/agreement' },
+      { name: 'Subscribe', href: '/sales/subscribe' },
     ],
   },
 
@@ -230,13 +234,15 @@ export default function Sidebar() {
   const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({});
   const { role, canViewModule, homePath, roleLabel, rights, loading } = useCompanyRole();
 
-  /** Only modules the current company role can view (sales_contractor → Customers only). */
+  /** Role-filtered modules. Sales contractors only ever see the Sales portal entry. */
   const visibleModules = useMemo(() => {
+    if (role === 'sales_contractor') {
+      return modules.filter((mod) => mod.id === 'sales-portal');
+    }
     return modules.filter((mod) => {
       const resource = SIDEBAR_MODULE_RESOURCE[mod.id];
       if (!resource) return true;
       // Until role loads, show all to avoid flash-empty sidebar for full-access users.
-      // Once role is known, enforce strictly.
       if (!role) return true;
       return canViewModule(resource);
     });

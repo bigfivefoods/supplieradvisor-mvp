@@ -150,12 +150,13 @@ export const ROLE_PERMISSIONS: Record<TeamRole, Record<PermissionResource, Acces
     invites: 'none',
   },
   /**
-   * Independent sales contractors selling on behalf of the company:
-   * Sales portal + Customers module R/W — no My Business, Suppliers, Containers, etc.
+   * Independent sales contractors: ONLY the /sales portal UI.
+   * `customers: write` keeps CRM APIs available for portal tools;
+   * canAccessPath blocks all /dashboard/* routes for this role.
    */
   sales_contractor: {
     ...fill('none'),
-    customers: 'write',
+    customers: 'write', // API / data only — not dashboard UI
     sales_portal: 'write',
     dashboard: 'none',
     buyer: 'none',
@@ -214,8 +215,8 @@ export const TEAM_ROLE_OPTIONS: ReadonlyArray<{
     value: 'sales_contractor',
     label: 'Sales contractor',
     description:
-      'Independent sales contractors on your customer sales team. Portal with agreement, R199/mo 6-month sub, commission 3.5%–5.5% on deals. Customers CRM R/W — no full ERP.',
-    rights: 'Sales portal + Customers R/W',
+      'Independent sales contractors: Sales portal only (not the main ERP). Agreement, R199×6 sub, commission 3.5%–5.5%. Company owns all CRM data.',
+    rights: 'Sales portal only',
   },
 ] as const;
 
@@ -361,6 +362,18 @@ export function canAccessPath(
   pathname: string | null | undefined,
   need: AccessLevel = 'view'
 ): boolean {
+  if (!pathname) return true;
+  const r = normalizeTeamRole(role);
+
+  // Sales contractors never use the main dashboard ERP — only /sales portal
+  if (r === 'sales_contractor') {
+    if (pathname.startsWith('/dashboard/select-company')) return true;
+    if (pathname.startsWith('/sales')) return canAccess(role, 'sales_portal', need);
+    // Block every other dashboard / app module path
+    if (pathname.startsWith('/dashboard')) return false;
+    return false;
+  }
+
   const resource = resourceForPath(pathname);
   if (!resource) return true;
   return canAccess(role, resource, need);

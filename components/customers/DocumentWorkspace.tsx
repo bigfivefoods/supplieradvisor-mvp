@@ -72,19 +72,31 @@ const CONFIG: Record<
 export default function DocumentWorkspace({
   type,
   beforeHeader,
+  variant = 'default',
 }: {
   type: DocType;
   /** Optional content rendered above CustomersHeader (e.g. Sales | Inbound tabs) */
   beforeHeader?: ReactNode;
+  /** `sales` = dark sales-portal chrome (no main CRM shell) */
+  variant?: 'default' | 'sales';
 }) {
   return (
     <CompanyRequired>
-      <DocInner type={type} beforeHeader={beforeHeader} />
+      <DocInner type={type} beforeHeader={beforeHeader} variant={variant} />
     </CompanyRequired>
   );
 }
 
-function DocInner({ type, beforeHeader }: { type: DocType; beforeHeader?: ReactNode }) {
+function DocInner({
+  type,
+  beforeHeader,
+  variant = 'default',
+}: {
+  type: DocType;
+  beforeHeader?: ReactNode;
+  variant?: 'default' | 'sales';
+}) {
+  const sales = variant === 'sales';
   const companyId = getSelectedCompanyId()!;
   const { user } = usePrivy();
   const privyUserId = getCanonicalUserId(user?.id);
@@ -297,27 +309,63 @@ function DocInner({ type, beforeHeader }: { type: DocType; beforeHeader?: ReactN
     }
   };
 
+  const newBtn = (
+    <button
+      type="button"
+      onClick={() => setShowForm((v) => !v)}
+      className={
+        sales
+          ? 'inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-bold shadow-lg shadow-orange-500/20'
+          : 'btn-primary !py-2.5 !px-5 text-sm'
+      }
+    >
+      <Plus className="w-4 h-4" /> New {type}
+    </button>
+  );
+
   return (
-    <div className="px-2 md:px-4 max-w-screen-2xl mx-auto pb-12">
+    <div
+      className={
+        sales
+          ? 'pb-8 space-y-5'
+          : 'px-2 md:px-4 max-w-screen-2xl mx-auto pb-12'
+      }
+    >
       {beforeHeader}
-      <CustomersHeader
-        title={cfg.title}
-        description={cfg.description}
-        action={
-          <button
-            type="button"
-            onClick={() => setShowForm((v) => !v)}
-            className="btn-primary !py-2.5 !px-5 text-sm"
-          >
-            <Plus className="w-4 h-4" /> New {type}
-          </button>
-        }
-      />
+      {sales ? (
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+              {cfg.title}
+            </h1>
+            <p className="text-sm text-slate-300 mt-1 max-w-xl">{cfg.description}</p>
+            <p className="text-[11px] text-slate-500 mt-1">
+              Records are saved under your company · commission 3.5%–5.5%
+            </p>
+          </div>
+          {newBtn}
+        </div>
+      ) : (
+        <CustomersHeader
+          title={cfg.title}
+          description={cfg.description}
+          action={newBtn}
+        />
+      )}
 
       {showForm && (
-        <div className="bg-white border rounded-3xl p-5 mb-6 space-y-4">
-          <h2 className="font-bold flex items-center gap-2">
-            <Package className="w-4 h-4 text-[#00b4d8]" /> Build {type} — select products & services
+        <div
+          className={
+            sales
+              ? 'bg-slate-900/80 border border-white/15 rounded-3xl p-5 mb-2 space-y-4 text-slate-100'
+              : 'bg-white border rounded-3xl p-5 mb-6 space-y-4'
+          }
+        >
+          <h2
+            className={`font-bold flex items-center gap-2 ${sales ? 'text-white' : ''}`}
+          >
+            <Package className={`w-4 h-4 ${sales ? 'text-amber-300' : 'text-[#00b4d8]'}`} />{' '}
+            Build {type} — select products & services
           </h2>
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <div className="lg:col-span-2">
@@ -455,18 +503,43 @@ function DocInner({ type, beforeHeader }: { type: DocType; beforeHeader?: ReactN
             onChange={(e) => setNotes(e.target.value)}
           />
 
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3">
-            <div className="text-sm space-y-2">
+          <div
+            className={`flex flex-wrap items-center justify-between gap-3 border-t pt-3 ${
+              sales ? 'border-white/10' : ''
+            }`}
+          >
+            <div className={`text-sm space-y-2 ${sales ? 'text-slate-100' : ''}`}>
               <div>Subtotal {formatMoney(totals.subtotal)}</div>
-              <div className="text-neutral-500">Tax {formatMoney(totals.tax_amount)}</div>
-              <div className="text-lg font-black">Total {formatMoney(totals.total_amount)}</div>
+              <div className={sales ? 'text-slate-400' : 'text-neutral-500'}>
+                Tax {formatMoney(totals.tax_amount)}
+              </div>
+              <div className={`text-lg font-black ${sales ? 'text-white' : ''}`}>
+                Total {formatMoney(totals.total_amount)}
+              </div>
               <CommissionBadge amount={Number(totals.total_amount || 0)} />
             </div>
             <div className="flex gap-2">
-              <button type="button" className="btn-secondary !py-2.5 !px-4" onClick={() => setShowForm(false)}>
+              <button
+                type="button"
+                className={
+                  sales
+                    ? 'px-4 py-2.5 rounded-2xl border border-white/20 text-slate-200 text-sm font-semibold hover:bg-white/5'
+                    : 'btn-secondary !py-2.5 !px-4'
+                }
+                onClick={() => setShowForm(false)}
+              >
                 Cancel
               </button>
-              <button type="button" disabled={saving} className="btn-primary !py-2.5 !px-5" onClick={() => void create()}>
+              <button
+                type="button"
+                disabled={saving}
+                className={
+                  sales
+                    ? 'inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-bold disabled:opacity-50'
+                    : 'btn-primary !py-2.5 !px-5'
+                }
+                onClick={() => void create()}
+              >
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : `Create ${type}`}
               </button>
             </div>
@@ -476,7 +549,11 @@ function DocInner({ type, beforeHeader }: { type: DocType; beforeHeader?: ReactN
 
       <div className="flex flex-wrap gap-2 mb-4">
         <select
-          className="input !py-2 !px-3 !text-sm"
+          className={
+            sales
+              ? 'rounded-2xl bg-slate-950/80 border border-white/15 text-slate-100 text-sm px-3 py-2'
+              : 'input !py-2 !px-3 !text-sm'
+          }
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
         >
@@ -487,26 +564,43 @@ function DocInner({ type, beforeHeader }: { type: DocType; beforeHeader?: ReactN
         </select>
       </div>
 
-      <div className="bg-white border rounded-3xl overflow-hidden">
+      <div
+        className={
+          sales
+            ? 'bg-slate-900/80 border border-white/15 rounded-3xl overflow-hidden'
+            : 'bg-white border rounded-3xl overflow-hidden'
+        }
+      >
         {loading ? (
           <div className="p-16 flex justify-center">
-            <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
+            <Loader2
+              className={`w-8 h-8 animate-spin ${sales ? 'text-amber-400' : 'text-[#00b4d8]'}`}
+            />
           </div>
         ) : docs.length === 0 ? (
-          <div className="p-16 text-center text-neutral-500 text-sm">
+          <div
+            className={`p-16 text-center text-sm ${sales ? 'text-slate-400' : 'text-neutral-500'}`}
+          >
             No {cfg.title.toLowerCase()} yet. Create one and pick products from your catalogue.
           </div>
         ) : (
-          <ul className="divide-y">
+          <ul className={sales ? 'divide-y divide-white/10' : 'divide-y'}>
             {docs.map((d) => {
               const num = String(d[cfg.numberField] || d.id);
               const itemCount = Array.isArray(d.items) ? d.items.length : 0;
               const isShared = (d.visibility || 'seller_only') === 'shared';
               return (
-                <li key={d.id} className="px-5 py-4 flex flex-wrap items-center justify-between gap-3 text-sm">
+                <li
+                  key={d.id}
+                  className={`px-5 py-4 flex flex-wrap items-center justify-between gap-3 text-sm ${
+                    sales ? 'text-slate-100' : ''
+                  }`}
+                >
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-bold font-mono">{num}</span>
+                      <span className={`font-bold font-mono ${sales ? 'text-white' : ''}`}>
+                        {num}
+                      </span>
                       <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${statusBadgeClass(d.status)}`}>
                         {d.status}
                       </span>
@@ -525,7 +619,9 @@ function DocInner({ type, beforeHeader }: { type: DocType; beforeHeader?: ReactN
                         {isShared ? 'Shared' : 'Seller only'}
                       </span>
                     </div>
-                    <div className="text-xs text-neutral-500 mt-0.5">
+                    <div
+                      className={`text-xs mt-0.5 ${sales ? 'text-slate-400' : 'text-neutral-500'}`}
+                    >
                       {d.customer_name || 'No customer'} · {itemCount} line{itemCount === 1 ? '' : 's'}
                       {d.created_at ? ` · ${String(d.created_at).slice(0, 10)}` : ''}
                     </div>

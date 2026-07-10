@@ -5,7 +5,11 @@ import Sidebar from '@/components/Sidebar';
 import AuthGate from '@/components/AuthGate';
 import ModuleAccessGate from '@/components/ModuleAccessGate';
 import { Menu, X } from 'lucide-react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { usePrivy } from '@privy-io/react-auth';
+import { getSelectedCompanyId } from '@/lib/containers/company';
+import { getCanonicalUserId } from '@/lib/auth/identity';
+import { normalizeTeamRole } from '@/lib/business/permissions';
 
 /**
  * Dashboard shell — structure is intentionally simple so no layer can sit on top
@@ -14,7 +18,37 @@ import { usePathname } from 'next/navigation';
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
+  const { user } = usePrivy();
+  const privyUserId = getCanonicalUserId(user?.id);
   const hideChrome = pathname === '/dashboard/select-company';
+
+  // Sales contractors must never use the main ERP shell — only /sales portal
+  useEffect(() => {
+    if (!pathname || hideChrome || !privyUserId) return;
+    const companyId = getSelectedCompanyId();
+    if (!companyId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const params = new URLSearchParams({
+          companyId: String(companyId),
+          privyUserId,
+        });
+        const res = await fetch(`/api/business/membership?${params}`);
+        const data = await res.json();
+        if (cancelled || !res.ok) return;
+        if (normalizeTeamRole(data.membership?.role) === 'sales_contractor') {
+          router.replace('/sales');
+        }
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname, hideChrome, privyUserId, router]);
 
   // Always close drawer on navigation so an open overlay never blocks the page
   useEffect(() => {

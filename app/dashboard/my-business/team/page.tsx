@@ -422,12 +422,10 @@ function TeamInner() {
           <div className="flex items-start gap-2 text-sm text-neutral-600">
             <Shield className="w-4 h-4 text-[#00b4d8] mt-0.5 shrink-0" />
             <p>
-              Access is enforced in the UI and on APIs. Invite <strong>Sales contractor</strong> to
-              send a branded “join the customer sales team” email. They sign an Independent Sales
-              Contractor Agreement (commission <strong>3.5% → 5.5%</strong> as deals grow), subscribe at{' '}
-              <strong>R199/month for 6 months</strong>, then use <strong>/sales</strong>.{' '}
-              <strong>Owners and finance</strong> have free full access to the sales portal (no
-              subscription). CRM data stays under your company.
+              Invite <strong>Sales contractor</strong> for a branded sales-team email. They only
+              access the dedicated <strong>/sales</strong> portal (not the main ERP) — agreement,
+              commission <strong>3.5% → 5.5%</strong>, R199×6 sub. <strong>Owners and finance</strong>{' '}
+              get free full sales portal access. All CRM data stays under your company.
             </p>
           </div>
 

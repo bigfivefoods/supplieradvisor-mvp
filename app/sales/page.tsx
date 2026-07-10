@@ -120,7 +120,7 @@ export default function SalesCommandCentre() {
               </Link>
             )}
             <Link
-              href="/dashboard/customers/leads"
+              href="/sales/pipeline"
               className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold text-sm shadow-xl shadow-orange-500/25"
             >
               Capture a lead
@@ -254,23 +254,23 @@ export default function SalesCommandCentre() {
       <section className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {[
           {
-            href: '/dashboard/customers/leads',
+            href: '/sales/pipeline',
             icon: Target,
             title: 'Pipeline',
             desc: 'Leads & opportunities',
             meta: `${k.openPipeline} open`,
           },
           {
-            href: '/dashboard/customers/quotes',
+            href: '/sales/quotes',
             icon: FileText,
             title: 'Quotes',
             desc: 'Preview commission live',
             meta: formatZar(k.quotesValue),
           },
           {
-            href: '/dashboard/customers/onboard',
+            href: '/sales/customers',
             icon: Users,
-            title: 'Add customer',
+            title: 'Customers',
             desc: 'Saved to company CRM',
             meta: `${k.myCustomers} accounts`,
           },
@@ -300,7 +300,7 @@ export default function SalesCommandCentre() {
         <div className="px-5 sm:px-6 py-4 border-b border-white/10 flex items-center justify-between bg-slate-950/40">
           <h2 className="font-bold text-white">Highest-value opportunities</h2>
           <Link
-            href="/dashboard/customers/leads"
+            href="/sales/pipeline"
             className="text-xs font-semibold text-amber-200 hover:text-amber-100"
           >
             Open pipeline →

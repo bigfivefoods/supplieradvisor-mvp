@@ -80,6 +80,7 @@ export async function POST(request: NextRequest) {
       notes: body.notes || null,
       product_interest: body.product_interest || null,
       last_contacted_at: body.last_contacted_at || null,
+      sales_rep_user_id: body.sales_rep_user_id || body.privyUserId || null,
       updated_at: now,
     };
 
