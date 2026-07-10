@@ -20,7 +20,6 @@ import { getSelectedCompanyId } from '@/lib/containers/company';
 import { formatMoney } from '@/lib/customers/types';
 import {
   CompanyRequired,
-  CustomersNav,
   CustomersPage,
 } from '@/components/customers/CustomersShell';
 import {
@@ -28,8 +27,6 @@ import {
   KpiCard,
   ModuleGrid,
   Panel,
-  ProcessLifecycle,
-  ProcessRail,
   RelationshipHeader,
   SectionLabel,
   type ModuleCard,
@@ -222,7 +219,6 @@ function HubInner() {
   return (
     <CustomersPage>
       <RelationshipHeader
-        nav={<CustomersNav />}
         eyebrow="Customer relationship management"
         title="Customers you can"
         titleAccent="grow"
@@ -237,12 +233,6 @@ function HubInner() {
             </Link>
           </>
         }
-      />
-
-      <ProcessLifecycle
-        title="Customer lifecycle"
-        intro="Lead → opportunity → quote → order → invoice → loyalty, with RIAD for issues that need a closed loop."
-        steps={PROCESS}
       />
 
       <SectionLabel>Pulse</SectionLabel>

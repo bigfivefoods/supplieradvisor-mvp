@@ -26,7 +26,6 @@ import {
 } from '@/components/operations/OperationsShell';
 import {
   OperatingPrinciples,
-  ProcessLifecycle,
 } from '@/components/relationship/RelationshipChrome';
 
 type Summary = {
@@ -247,47 +246,6 @@ function CommandInner() {
         </div>
       ) : (
         <>
-          <ProcessLifecycle
-            title="Value stream lifecycle"
-            intro="Procure → receive → store → make → ship → fulfill. Each stage is a live workbench — click through to execute."
-            steps={[
-              {
-                label: 'Procure',
-                href: '/dashboard/operations/supplier-orders',
-                desc: 'Raise and track supplier POs that feed materials.',
-              },
-              {
-                label: 'Inbound',
-                href: '/dashboard/operations/inbound',
-                desc: 'Plan and track goods into your network.',
-              },
-              {
-                label: 'Warehouse',
-                href: '/dashboard/operations/warehouse',
-                desc: 'Put-away, stock, transfers, and counts.',
-              },
-              {
-                label: 'Make',
-                href: '/dashboard/operations/production',
-                desc: 'Work orders, BOMs, MPS, and MRP.',
-              },
-              {
-                label: 'Outbound',
-                href: '/dashboard/operations/outbound',
-                desc: 'Dispatch finished goods on any mode.',
-              },
-              {
-                label: 'Fulfill',
-                href: '/dashboard/operations/customer-orders',
-                desc: 'Close customer orders with POD proof.',
-              },
-              {
-                label: 'Exceptions',
-                href: '/dashboard/operations/exceptions',
-                desc: 'Clear holds that block the stream.',
-              },
-            ]}
-          />
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
             <TelemetryCard

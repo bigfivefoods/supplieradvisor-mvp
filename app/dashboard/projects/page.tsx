@@ -77,37 +77,6 @@ export default function ProjectsHub() {
       title="Projects"
       titleAccent="delivery"
       description="Plan and deliver initiatives with milestones, risk, and audit-friendly status — same light chrome as Operations."
-      lifecycle={{
-        title: 'Delivery lifecycle',
-        intro: 'From portfolio intent to execution boards, gates, and reported outcomes.',
-        steps: [
-          {
-            label: 'Portfolio',
-            href: '/dashboard/projects/portfolio',
-            desc: 'Choose which initiatives get capacity.',
-          },
-          {
-            label: 'Plan',
-            href: '/dashboard/projects/kanban-boards',
-            desc: 'Break work into boards and work packages.',
-          },
-          {
-            label: 'Execute',
-            href: '/dashboard/projects/milestones',
-            desc: 'Hit gates with clear done criteria.',
-          },
-          {
-            label: 'Risk',
-            href: '/dashboard/projects/risk-register',
-            desc: 'Own and mitigate threats as you go.',
-          },
-          {
-            label: 'Report',
-            href: '/dashboard/projects/reporting',
-            desc: 'Status packs stakeholders can trust.',
-          },
-        ],
-      }}
       principles={[
         {
           title: 'Outcomes over activity',

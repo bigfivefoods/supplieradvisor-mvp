@@ -19,13 +19,15 @@ export const BUSINESS_NAV: readonly NavItem[] = [
   { href: '/dashboard/my-business/riad-log', label: 'RIAD' },
 ] as const;
 
-export function CompanyRequired({ children }: { children: React.ReactNode }) {
-  return <CompanyGate noun="My Business">{children}</CompanyGate>;
-}
 
 export function BusinessNav() {
   return <RelationshipNav items={BUSINESS_NAV} />;
 }
+
+export function CompanyRequired({ children }: { children: React.ReactNode }) {
+  return <CompanyGate noun="My Business">{children}</CompanyGate>;
+}
+
 
 export function BusinessHeader({
   title,
@@ -40,7 +42,6 @@ export function BusinessHeader({
 }) {
   return (
     <RelationshipHeader
-      nav={<BusinessNav />}
       backHref="/dashboard/my-business"
       backLabel="My Business overview"
       eyebrow="Company workspace"

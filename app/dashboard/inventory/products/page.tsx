@@ -40,7 +40,6 @@ import {
   uploadProductImage,
   uploadProductSpecSheet,
 } from '@/lib/inventory/uploadProductAssets';
-import { InventoryProcessNav } from '@/components/inventory/InventoryShell';
 
 type CategoryRow = {
   id: number;
@@ -438,7 +437,6 @@ function ProductsInner() {
 
   return (
     <div className="px-2 md:px-4 max-w-screen-2xl mx-auto pb-12">
-      <InventoryProcessNav />
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-6">
         <div>
           <h1 className="text-3xl sm:text-4xl font-black tracking-[-2px] text-[#00b4d8]">

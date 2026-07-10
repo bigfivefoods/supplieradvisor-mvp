@@ -29,7 +29,6 @@ import {
 import InviteCustomerButton from '@/components/customers/InviteCustomerButton';
 import {
   Panel,
-  ProcessRail,
   SectionLabel,
 } from '@/components/relationship/RelationshipChrome';
 
@@ -241,9 +240,6 @@ function OnboardInner() {
           description="Offline CRM profile is ready. Optionally invite them onto the platform so you can share docs and trade on a connected edge."
         />
 
-        <SectionLabel>Lifecycle</SectionLabel>
-        <ProcessRail steps={PROCESS} />
-
         <div className="max-w-2xl">
           <Panel>
             <div className="p-6 sm:p-8 space-y-5">
@@ -336,8 +332,6 @@ function OnboardInner() {
 
       {!editId && (
         <>
-          <SectionLabel>Lifecycle</SectionLabel>
-          <ProcessRail steps={PROCESS} />
         </>
       )}
 

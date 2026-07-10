@@ -25,7 +25,6 @@ import {
 } from '@/components/distribution/DistributionShell';
 import {
   OperatingPrinciples,
-  ProcessLifecycle,
 } from '@/components/relationship/RelationshipChrome';
 
 type Summary = {
@@ -249,43 +248,6 @@ function CommandInner() {
               icon={Users}
             />
           </div>
-
-          <ProcessLifecycle
-            title="Distribution lifecycle"
-            intro="From carrier setup through inbound and outbound legs to live tracking and POD — every stage is a click into the workbench."
-            steps={[
-              {
-                label: 'Carriers',
-                href: '/dashboard/distribution/carriers',
-                desc: 'Onboard 3PL, ocean, air, and last-mile partners.',
-              },
-              {
-                label: 'Fleet',
-                href: '/dashboard/distribution/fleet-drivers',
-                desc: 'Own vehicles and drivers for regional runs.',
-              },
-              {
-                label: 'Inbound',
-                href: '/dashboard/distribution/inbound',
-                desc: 'Plan supplier → DC legs and log events.',
-              },
-              {
-                label: 'Outbound',
-                href: '/dashboard/distribution/outbound',
-                desc: 'Dispatch FG to customers on any mode.',
-              },
-              {
-                label: 'Track',
-                href: '/dashboard/distribution/tracking',
-                desc: 'Control-tower events from pickup to POD.',
-              },
-              {
-                label: 'Incoterms',
-                href: '/dashboard/distribution/incoterms',
-                desc: 'Assign commercial risk before the move.',
-              },
-            ]}
-          />
 
           <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4 mb-8">
             {MODULES.map((m) => {

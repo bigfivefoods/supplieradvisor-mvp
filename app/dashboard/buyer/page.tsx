@@ -23,7 +23,6 @@ import {
 } from '@/components/buyer/BuyerShell';
 import {
   OperatingPrinciples,
-  ProcessLifecycle,
 } from '@/components/relationship/RelationshipChrome';
 
 type WorkspaceSupplier = {
@@ -171,33 +170,6 @@ function BuyerHubInner() {
           </div>
         </Link>
       </div>
-
-      <ProcessLifecycle
-        title="Buyer lifecycle"
-        intro="See who you can buy from, raise POs, track open orders, and read shared commercial documents."
-        steps={[
-          {
-            label: 'Suppliers',
-            href: '/dashboard/buyer/suppliers',
-            desc: 'Connected sellers that invited you.',
-          },
-          {
-            label: 'Raise PO',
-            href: '/dashboard/buyer/pos',
-            desc: 'Create purchase orders against active edges.',
-          },
-          {
-            label: 'Track',
-            href: '/dashboard/buyer/pos',
-            desc: 'Follow status through accept and ship.',
-          },
-          {
-            label: 'Documents',
-            href: '/dashboard/buyer/documents',
-            desc: 'Quotes, invoices, and contracts shared with you.',
-          },
-        ]}
-      />
 
       {/* Module cards */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-10">

@@ -25,17 +25,8 @@ import {
 } from '@/components/connections/ConnectionsShell';
 import {
   Panel,
-  ProcessRail,
   SectionLabel,
 } from '@/components/relationship/RelationshipChrome';
-
-const PROCESS = [
-  { label: 'Invite', href: '/dashboard/invite-business' },
-  { label: 'Claim', href: '/dashboard/connections' },
-  { label: 'Connect', href: '/dashboard/connections' },
-  { label: 'Market', href: '/dashboard/connections/marketplace' },
-  { label: 'Trade', href: '/dashboard/suppliers/po' },
-];
 
 const RELATIONSHIP_TYPES = [
   {
@@ -178,9 +169,6 @@ function InviteInner() {
           </Link>
         }
       />
-
-      <SectionLabel>Lifecycle</SectionLabel>
-      <ProcessRail steps={PROCESS} />
 
       {!result ? (
         <div className="grid lg:grid-cols-5 gap-4 sm:gap-5">

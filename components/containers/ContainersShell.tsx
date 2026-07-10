@@ -19,13 +19,15 @@ export const CONTAINERS_NAV: readonly NavItem[] = [
   { href: '/dashboard/containers/metrics', label: 'Metrics' },
 ] as const;
 
-export function CompanyRequired({ children }: { children: React.ReactNode }) {
-  return <CompanyGate noun="Containers">{children}</CompanyGate>;
-}
 
 export function ContainersNav() {
   return <RelationshipNav items={CONTAINERS_NAV} />;
 }
+
+export function CompanyRequired({ children }: { children: React.ReactNode }) {
+  return <CompanyGate noun="Containers">{children}</CompanyGate>;
+}
+
 
 export function ContainersHeader({
   title,
@@ -40,7 +42,6 @@ export function ContainersHeader({
 }) {
   return (
     <RelationshipHeader
-      nav={<ContainersNav />}
       backHref="/dashboard/containers"
       backLabel="Containers overview"
       eyebrow="Container retail network"

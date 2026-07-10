@@ -21,13 +21,15 @@ export const CONNECTIONS_NAV: readonly NavItem[] = [
   { href: '/dashboard/invite-business', label: 'Invite' },
 ] as const;
 
-export function CompanyRequired({ children }: { children: React.ReactNode }) {
-  return <CompanyGate noun="Network connections">{children}</CompanyGate>;
-}
 
 export function ConnectionsNav() {
   return <RelationshipNav items={CONNECTIONS_NAV} />;
 }
+
+export function CompanyRequired({ children }: { children: React.ReactNode }) {
+  return <CompanyGate noun="Network connections">{children}</CompanyGate>;
+}
+
 
 export function ConnectionsHeader({
   title,
@@ -42,7 +44,6 @@ export function ConnectionsHeader({
 }) {
   return (
     <RelationshipHeader
-      nav={<ConnectionsNav />}
       backHref="/dashboard"
       backLabel="Dashboard"
       eyebrow="Company network"

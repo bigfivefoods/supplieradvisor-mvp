@@ -22,7 +22,6 @@ import { getCanonicalUserId } from '@/lib/auth/identity';
 import { formatMoney, type AccountingSummary } from '@/lib/accounting/types';
 import {
   CompanyRequired,
-  AccountingNav,
   AccountingPage,
 } from '@/components/accounting/AccountingShell';
 import {
@@ -30,8 +29,6 @@ import {
   KpiCard,
   ModuleGrid,
   Panel,
-  ProcessLifecycle,
-  ProcessRail,
   RelationshipHeader,
   SectionLabel,
   type ModuleCard,
@@ -208,7 +205,6 @@ function HubInner() {
   return (
     <AccountingPage>
       <RelationshipHeader
-        nav={<AccountingNav />}
         eyebrow="Financial control"
         title="Accounting,"
         titleAccent="balanced"
@@ -247,12 +243,6 @@ function HubInner() {
           )}
         </AlertBanner>
       )}
-
-      <ProcessLifecycle
-        title="Ledger lifecycle"
-        intro="Chart of accounts → journals → AR/AP → payments → bank match → management accounts. One books, membership-scoped."
-        steps={PROCESS}
-      />
 
       <SectionLabel>Pulse</SectionLabel>
       <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3 sm:gap-4 mb-8">

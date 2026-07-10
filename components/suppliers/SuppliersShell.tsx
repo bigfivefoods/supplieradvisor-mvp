@@ -24,13 +24,15 @@ export const SUPPLIERS_NAV: readonly NavItem[] = [
   { href: '/dashboard/suppliers/riad-log', label: 'RIAD' },
 ] as const;
 
-export function CompanyRequired({ children }: { children: React.ReactNode }) {
-  return <CompanyGate noun="Suppliers SRM">{children}</CompanyGate>;
-}
 
 export function SuppliersNav() {
   return <RelationshipNav items={SUPPLIERS_NAV} />;
 }
+
+export function CompanyRequired({ children }: { children: React.ReactNode }) {
+  return <CompanyGate noun="Suppliers SRM">{children}</CompanyGate>;
+}
+
 
 export function SuppliersHeader({
   title,
@@ -45,7 +47,6 @@ export function SuppliersHeader({
 }) {
   return (
     <RelationshipHeader
-      nav={<SuppliersNav />}
       backHref="/dashboard/suppliers"
       backLabel="Suppliers overview"
       eyebrow="Supplier relationship management"

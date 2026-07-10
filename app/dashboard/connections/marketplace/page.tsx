@@ -25,25 +25,15 @@ import {
 } from '@/lib/marketplace/types';
 import {
   CompanyRequired,
-  ConnectionsNav,
   ConnectionsPage,
 } from '@/components/connections/ConnectionsShell';
 import {
   AlertBanner,
   KpiCard,
   Panel,
-  ProcessRail,
   RelationshipHeader,
   SectionLabel,
 } from '@/components/relationship/RelationshipChrome';
-
-const PROCESS = [
-  { label: 'List', href: '/dashboard/connections/marketplace/sell' },
-  { label: 'Browse', href: '/dashboard/connections/marketplace' },
-  { label: 'Inquire', href: '/dashboard/connections/marketplace' },
-  { label: 'Connect', href: '/dashboard/connections' },
-  { label: 'Trade', href: '/dashboard/suppliers/po' },
-];
 
 export default function MarketplaceBrowsePage() {
   return (
@@ -156,7 +146,6 @@ function BrowseInner() {
   return (
     <ConnectionsPage>
       <RelationshipHeader
-        nav={<ConnectionsNav />}
         eyebrow="Network marketplace"
         title="Market"
         titleAccent="place"
@@ -189,7 +178,6 @@ function BrowseInner() {
       )}
 
       <SectionLabel>Trade flow</SectionLabel>
-      <ProcessRail steps={PROCESS} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8">
         <KpiCard

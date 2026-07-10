@@ -20,7 +20,6 @@ import { getSelectedCompanyId } from '@/lib/containers/company';
 import { otifefBand, trustBand } from '@/lib/suppliers/types';
 import {
   CompanyRequired,
-  SuppliersNav,
   SuppliersPage,
 } from '@/components/suppliers/SuppliersShell';
 import {
@@ -29,8 +28,6 @@ import {
   MetricHero,
   ModuleGrid,
   Panel,
-  ProcessLifecycle,
-  ProcessRail,
   RelationshipHeader,
   SectionLabel,
   type ModuleCard,
@@ -220,7 +217,6 @@ function HubInner() {
   return (
     <SuppliersPage>
       <RelationshipHeader
-        nav={<SuppliersNav />}
         eyebrow="Supplier relationship management"
         title="Suppliers you can"
         titleAccent="trust"
@@ -247,12 +243,6 @@ function HubInner() {
           )}
         </AlertBanner>
       )}
-
-      <ProcessLifecycle
-        title="Supplier lifecycle"
-        intro="Discover → invite → connect → PO → escrow when needed → OTIFEF → rate. Every step is a live workspace."
-        steps={PROCESS}
-      />
 
       <SectionLabel>Pulse</SectionLabel>
       <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3 sm:gap-4 mb-8">

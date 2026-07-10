@@ -130,7 +130,7 @@ export function InventoryHeader({
   description,
   backHref = '/dashboard/inventory',
   action,
-  showProcessNav = true,
+  showProcessNav = false,
 }: {
   title: string;
   description?: string;

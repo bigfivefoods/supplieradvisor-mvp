@@ -38,8 +38,6 @@ import {
   ModuleGrid,
   OperatingPrinciples,
   Panel,
-  ProcessLifecycle,
-  ProcessRail,
   RelationshipHeader,
   RelationshipPage,
   SectionLabel,
@@ -483,48 +481,6 @@ export default function DashboardHome() {
           </Link>
         </div>
       )}
-
-      <ProcessLifecycle
-        title="Trade lifecycle"
-        intro="How value moves on SupplierAdvisor — from discovery through connection, commercial terms, order, invoice, and stock."
-        steps={[
-          {
-            label: 'Discover',
-            href: '/dashboard/suppliers/discover',
-            desc: 'Find companies by trust and capability.',
-          },
-          {
-            label: 'Connect',
-            href: '/dashboard/connections',
-            desc: 'Handshake unlocks trade tools.',
-          },
-          {
-            label: 'Pricing',
-            href: '/dashboard/connections/pricing',
-            desc: 'Agreed prices between companies.',
-          },
-          {
-            label: 'Quote',
-            href: '/dashboard/customers/quotes',
-            desc: 'Offer to customers with multi-currency.',
-          },
-          {
-            label: 'PO',
-            href: '/dashboard/suppliers/po',
-            desc: 'Commit demand with optional escrow.',
-          },
-          {
-            label: 'Invoice',
-            href: '/dashboard/accounting/accounts-receivable',
-            desc: 'Bill and collect on the same ledger.',
-          },
-          {
-            label: 'Inventory',
-            href: '/dashboard/inventory/products',
-            desc: 'Stock master that fulfills the order.',
-          },
-        ]}
-      />
 
       {/* Hero metrics */}
       <SectionLabel>Workspace pulse</SectionLabel>

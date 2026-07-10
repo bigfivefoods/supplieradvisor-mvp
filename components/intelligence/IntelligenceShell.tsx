@@ -18,13 +18,15 @@ export const INTELLIGENCE_NAV: readonly NavItem[] = [
   { href: '/dashboard/intelligence/leadership-development', label: 'Leadership' },
 ] as const;
 
-export function CompanyRequired({ children }: { children: React.ReactNode }) {
-  return <CompanyGate noun="Intelligence">{children}</CompanyGate>;
-}
 
 export function IntelligenceNav() {
   return <RelationshipNav items={INTELLIGENCE_NAV} />;
 }
+
+export function CompanyRequired({ children }: { children: React.ReactNode }) {
+  return <CompanyGate noun="Intelligence">{children}</CompanyGate>;
+}
+
 
 export function IntelligenceHeader({
   title,
@@ -39,7 +41,6 @@ export function IntelligenceHeader({
 }) {
   return (
     <RelationshipHeader
-      nav={<IntelligenceNav />}
       backHref="/dashboard/intelligence"
       backLabel="Intelligence"
       eyebrow="Business intelligence"

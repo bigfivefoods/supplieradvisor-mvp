@@ -20,13 +20,15 @@ export const OPERATIONS_NAV: readonly NavItem[] = [
   { href: '/dashboard/operations/exceptions', label: 'Exceptions' },
 ] as const;
 
-export function CompanyRequired({ children }: { children: React.ReactNode }) {
-  return <CompanyGate noun="Operations">{children}</CompanyGate>;
-}
 
 export function OperationsNav() {
   return <RelationshipNav items={OPERATIONS_NAV} />;
 }
+
+export function CompanyRequired({ children }: { children: React.ReactNode }) {
+  return <CompanyGate noun="Operations">{children}</CompanyGate>;
+}
+
 
 export function OperationsHeader({
   title,
@@ -41,7 +43,6 @@ export function OperationsHeader({
 }) {
   return (
     <RelationshipHeader
-      nav={<OperationsNav />}
       backHref="/dashboard/operations"
       backLabel="Command center"
       eyebrow="Operations control tower"

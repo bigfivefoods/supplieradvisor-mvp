@@ -26,13 +26,15 @@ export const CUSTOMERS_NAV: readonly NavItem[] = [
   { href: '/dashboard/customers/riad-log', label: 'RIAD' },
 ] as const;
 
-export function CompanyRequired({ children }: { children: React.ReactNode }) {
-  return <CompanyGate noun="Customers CRM">{children}</CompanyGate>;
-}
 
 export function CustomersNav() {
   return <RelationshipNav items={CUSTOMERS_NAV} />;
 }
+
+export function CompanyRequired({ children }: { children: React.ReactNode }) {
+  return <CompanyGate noun="Customers CRM">{children}</CompanyGate>;
+}
+
 
 export function CustomersHeader({
   title,
@@ -47,7 +49,6 @@ export function CustomersHeader({
 }) {
   return (
     <RelationshipHeader
-      nav={<CustomersNav />}
       backHref="/dashboard/customers"
       backLabel="Customers overview"
       eyebrow="Customer relationship management"

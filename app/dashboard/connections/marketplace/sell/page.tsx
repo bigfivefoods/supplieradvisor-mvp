@@ -29,7 +29,6 @@ import {
 } from '@/lib/marketplace/types';
 import {
   CompanyRequired,
-  ConnectionsNav,
   ConnectionsPage,
 } from '@/components/connections/ConnectionsShell';
 import {
@@ -227,7 +226,6 @@ function SellInner() {
   return (
     <ConnectionsPage>
       <RelationshipHeader
-        nav={<ConnectionsNav />}
         eyebrow="Seller workspace"
         title="Sell on"
         titleAccent="marketplace"

@@ -20,15 +20,12 @@ import { getSelectedCompanyId } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
 import {
   CompanyRequired,
-  BusinessNav,
   BusinessPage,
 } from '@/components/business/BusinessShell';
 import {
   KpiCard,
   ModuleGrid,
   Panel,
-  ProcessLifecycle,
-  ProcessRail,
   RelationshipHeader,
   SectionLabel,
   type ModuleCard,
@@ -171,7 +168,6 @@ function HubInner() {
   return (
     <BusinessPage>
       <RelationshipHeader
-        nav={<BusinessNav />}
         eyebrow="Company workspace"
         title="My business,"
         titleAccent="mastered"
@@ -192,12 +188,6 @@ function HubInner() {
             </Link>
           </>
         }
-      />
-
-      <ProcessLifecycle
-        title="Company operating lifecycle"
-        intro="Identity → legal → team → settings → documents → RIAD. Complete the company so every module inherits trust."
-        steps={PROCESS}
       />
 
       <SectionLabel>Pulse</SectionLabel>

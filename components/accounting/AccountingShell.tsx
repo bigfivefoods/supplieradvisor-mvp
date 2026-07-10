@@ -24,13 +24,15 @@ export const ACCOUNTING_NAV: readonly NavItem[] = [
   { href: '/dashboard/accounting/settings', label: 'Settings' },
 ] as const;
 
-export function CompanyRequired({ children }: { children: React.ReactNode }) {
-  return <CompanyGate noun="Accounting">{children}</CompanyGate>;
-}
 
 export function AccountingNav() {
   return <RelationshipNav items={ACCOUNTING_NAV} />;
 }
+
+export function CompanyRequired({ children }: { children: React.ReactNode }) {
+  return <CompanyGate noun="Accounting">{children}</CompanyGate>;
+}
+
 
 export function AccountingHeader({
   title,
@@ -45,7 +47,6 @@ export function AccountingHeader({
 }) {
   return (
     <RelationshipHeader
-      nav={<AccountingNav />}
       backHref="/dashboard/accounting"
       backLabel="Accounting overview"
       eyebrow="Financial control"

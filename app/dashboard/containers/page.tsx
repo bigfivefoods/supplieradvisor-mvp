@@ -21,15 +21,12 @@ import {
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import {
   CompanyRequired,
-  ContainersNav,
   ContainersPage,
 } from '@/components/containers/ContainersShell';
 import {
   KpiCard,
   ModuleGrid,
   Panel,
-  ProcessLifecycle,
-  ProcessRail,
   RelationshipHeader,
   SectionLabel,
   type ModuleCard,
@@ -222,7 +219,6 @@ function HubInner() {
   return (
     <ContainersPage>
       <RelationshipHeader
-        nav={<ContainersNav />}
         eyebrow="Container retail network"
         title="Containers you can"
         titleAccent="operate"
@@ -243,12 +239,6 @@ function HubInner() {
             </Link>
           </>
         }
-      />
-
-      <ProcessLifecycle
-        title="Container lifecycle"
-        intro="Locate → map → appoint → train → stock → RIAD → metrics. Every outlet is a node in the live network."
-        steps={PROCESS}
       />
 
       <SectionLabel>Pulse</SectionLabel>

@@ -37,7 +37,6 @@ import {
 } from '@/lib/connections/types';
 import {
   CompanyRequired,
-  ConnectionsNav,
   ConnectionsPage,
 } from '@/components/connections/ConnectionsShell';
 import {
@@ -45,8 +44,6 @@ import {
   KpiCard,
   OperatingPrinciples,
   Panel,
-  ProcessLifecycle,
-  ProcessRail,
   RelationshipHeader,
   SectionLabel,
 } from '@/components/relationship/RelationshipChrome';
@@ -231,7 +228,6 @@ function HubInner() {
   return (
     <ConnectionsPage>
       <RelationshipHeader
-        nav={<ConnectionsNav />}
         eyebrow="Company network"
         title="Connection"
         titleAccent="graph"
@@ -275,12 +271,6 @@ function HubInner() {
           </button>
         </div>
       )}
-
-      <ProcessLifecycle
-        title="Network lifecycle"
-        intro="Discover → connect → price → trade → invoice. Marketplace is optional reach on top of the secure graph."
-        steps={PROCESS}
-      />
 
       <SectionLabel>Pulse</SectionLabel>
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4 mb-8">

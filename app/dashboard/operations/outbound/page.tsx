@@ -26,7 +26,6 @@ import {
   TelemetryCard,
   WorkbenchLink,
 } from '@/components/operations/OperationsShell';
-import { ProcessLifecycle } from '@/components/relationship/RelationshipChrome';
 
 type Shipment = {
   id: number;
@@ -151,33 +150,6 @@ function Inner() {
           desc="Link outbound to fulfillment promises."
         />
       </div>
-
-      <ProcessLifecycle
-        title="Outbound lifecycle"
-        intro="Confirm demand, allocate stock, book the leg, then track to POD."
-        steps={[
-          {
-            label: 'Customer order',
-            href: '/dashboard/operations/customer-orders',
-            desc: 'Confirm what must ship and when.',
-          },
-          {
-            label: 'Allocate stock',
-            href: '/dashboard/inventory/stock',
-            desc: 'Pick finished goods that are free to ship.',
-          },
-          {
-            label: 'Book leg',
-            href: '/dashboard/distribution/outbound',
-            desc: 'Assign carrier, fleet, mode, and Incoterms.',
-          },
-          {
-            label: 'Track → POD',
-            href: '/dashboard/distribution/tracking',
-            desc: 'Events from dock to customer door.',
-          },
-        ]}
-      />
 
       {loading ? (
         <div className="py-16 flex justify-center">

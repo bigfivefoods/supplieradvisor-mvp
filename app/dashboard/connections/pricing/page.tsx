@@ -27,7 +27,6 @@ import {
 import { formatMoney } from '@/lib/inventory/types';
 import {
   CompanyRequired,
-  ConnectionsNav,
   ConnectionsPage,
 } from '@/components/connections/ConnectionsShell';
 import {
@@ -365,7 +364,6 @@ function PricingInner() {
   return (
     <ConnectionsPage>
       <RelationshipHeader
-        nav={<ConnectionsNav />}
         eyebrow="Network commercial terms"
         title="Pricing"
         titleAccent="agreements"

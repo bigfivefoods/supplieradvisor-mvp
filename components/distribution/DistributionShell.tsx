@@ -18,13 +18,15 @@ export const DISTRIBUTION_NAV: readonly NavItem[] = [
   { href: '/dashboard/distribution/incoterms', label: 'Incoterms' },
 ] as const;
 
-export function CompanyRequired({ children }: { children: React.ReactNode }) {
-  return <CompanyGate noun="Distribution">{children}</CompanyGate>;
-}
 
 export function DistributionNav() {
   return <RelationshipNav items={DISTRIBUTION_NAV} />;
 }
+
+export function CompanyRequired({ children }: { children: React.ReactNode }) {
+  return <CompanyGate noun="Distribution">{children}</CompanyGate>;
+}
+
 
 export function DistributionHeader({
   title,
@@ -39,7 +41,6 @@ export function DistributionHeader({
 }) {
   return (
     <RelationshipHeader
-      nav={<DistributionNav />}
       backHref="/dashboard/distribution"
       backLabel="Command center"
       eyebrow="Distribution & logistics"

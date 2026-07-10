@@ -25,7 +25,6 @@ import {
   TelemetryCard,
   WorkbenchLink,
 } from '@/components/operations/OperationsShell';
-import { ProcessLifecycle } from '@/components/relationship/RelationshipChrome';
 
 type Shipment = {
   id: number;
@@ -134,38 +133,6 @@ function Inner() {
           desc="Move received goods between warehouses and containers."
         />
       </div>
-
-      <ProcessLifecycle
-        title="Inbound lifecycle"
-        intro="From purchase order through logistics legs to warehouse put-away and quality release."
-        steps={[
-          {
-            label: 'Supplier PO',
-            href: '/dashboard/operations/supplier-orders',
-            desc: 'Demand that triggers the inbound plan.',
-          },
-          {
-            label: 'Plan leg',
-            href: '/dashboard/distribution/inbound',
-            desc: 'Create inbound shipment and assign carrier.',
-          },
-          {
-            label: 'Track',
-            href: '/dashboard/distribution/tracking',
-            desc: 'Pickup → hub → destination events.',
-          },
-          {
-            label: 'Receive',
-            href: '/dashboard/inventory/scan',
-            desc: 'Scan into on-hand with lot pedigree.',
-          },
-          {
-            label: 'Quality',
-            href: '/dashboard/quality/inspections',
-            desc: 'Inspect before stock is free to use.',
-          },
-        ]}
-      />
 
       {loading ? (
         <div className="py-16 flex justify-center">

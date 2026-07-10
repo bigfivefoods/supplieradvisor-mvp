@@ -49,37 +49,6 @@ export default function SustainabilityHub() {
       title="Sustainability"
       titleAccent="impact"
       description="Measure what matters — carbon, water, ethics, and regenerative outcomes tied to trade."
-      lifecycle={{
-        title: 'Impact lifecycle',
-        intro: 'Measure the chain, improve sourcing, certify claims, and report outcomes.',
-        steps: [
-          {
-            label: 'Measure',
-            href: '/dashboard/sustainability/carbon-tracking',
-            desc: 'Track carbon and resource intensity.',
-          },
-          {
-            label: 'Source ethically',
-            href: '/dashboard/sustainability/ethical-sourcing',
-            desc: 'Align suppliers with ethics and SDGs.',
-          },
-          {
-            label: 'Certify',
-            href: '/dashboard/sustainability/green-certificates',
-            desc: 'Hold evidence for claims you make.',
-          },
-          {
-            label: 'Regenerate',
-            href: '/dashboard/sustainability/regenerative-dashboard',
-            desc: 'View regenerative outcomes together.',
-          },
-          {
-            label: 'Report',
-            href: '/dashboard/sustainability/reports',
-            desc: 'Stakeholder and compliance packs.',
-          },
-        ],
-      }}
       principles={[
         {
           title: 'Impact follows trade',

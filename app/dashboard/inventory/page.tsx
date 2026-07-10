@@ -19,10 +19,9 @@ import {
   Navigation,
 } from 'lucide-react';
 import { getSelectedCompanyId } from '@/lib/containers/company';
-import { InventoryProcessNav, INVENTORY_TOOLS } from '@/components/inventory/InventoryShell';
+import { INVENTORY_TOOLS } from '@/components/inventory/InventoryShell';
 import {
   OperatingPrinciples,
-  ProcessLifecycle,
 } from '@/components/relationship/RelationshipChrome';
 
 type Summary = {
@@ -116,7 +115,6 @@ export default function InventoryHub() {
 
   return (
     <div className="px-2 md:px-4 max-w-screen-2xl mx-auto pb-12">
-      <InventoryProcessNav />
 
       <div className="mb-8">
         <p className="text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-1">
@@ -163,43 +161,6 @@ export default function InventoryHub() {
           />
         </div>
       )}
-
-      <ProcessLifecycle
-        title="Inventory lifecycle"
-        intro="Master data → locations → live stock → receive → move → count. Every step writes stock truth in Supabase."
-        steps={[
-          {
-            label: 'Products',
-            href: '/dashboard/inventory/products',
-            desc: 'SKU master for raw materials and finished goods.',
-          },
-          {
-            label: 'Locations',
-            href: '/dashboard/inventory/warehouses',
-            desc: 'DCs, plants, supplier and customer sites.',
-          },
-          {
-            label: 'Live stock',
-            href: '/dashboard/inventory/stock',
-            desc: 'On-hand by product and location in real time.',
-          },
-          {
-            label: 'Receive',
-            href: '/dashboard/inventory/scan',
-            desc: 'Scan QR / GS1 into on-hand with lot pedigree.',
-          },
-          {
-            label: 'Transfer',
-            href: '/dashboard/inventory/stock-transfers',
-            desc: 'Move stock with driver GPS when needed.',
-          },
-          {
-            label: 'Count',
-            href: '/dashboard/inventory/counts',
-            desc: 'Physical stock take and variance posting.',
-          },
-        ]}
-      />
 
       {/* Module cards */}
       <div className="mb-3 flex items-center justify-between">

@@ -22,7 +22,6 @@ import {
 } from '@/components/manufacturing/ManufacturingShell';
 import {
   OperatingPrinciples,
-  ProcessLifecycle,
 } from '@/components/relationship/RelationshipChrome';
 
 type Summary = {
@@ -277,43 +276,6 @@ function CommandInner() {
               <div className="text-lg font-black tabular-nums text-slate-800">{s?.quality ?? 0}%</div>
             </div>
           </div>
-
-          <ProcessLifecycle
-            title="Manufacturing lifecycle"
-            intro="Demand is firmed on the MPS, materials are netted by MRP through active BOMs, then work orders run on cells until quality ships."
-            steps={[
-              {
-                label: 'MPS',
-                href: '/dashboard/manufacturing/master-production-schedules',
-                desc: 'Firm weekly demand on the master schedule.',
-              },
-              {
-                label: 'MRP',
-                href: '/dashboard/manufacturing/mrp',
-                desc: 'Net gross requirements against stock and receipts.',
-              },
-              {
-                label: 'BOM',
-                href: '/dashboard/manufacturing/bills-of-materials',
-                desc: 'Explode components, scrap, and yield.',
-              },
-              {
-                label: 'Work orders',
-                href: '/dashboard/manufacturing/production-orders',
-                desc: 'Release, run, hold, and complete production.',
-              },
-              {
-                label: 'Cells',
-                href: '/dashboard/manufacturing/work-centers',
-                desc: 'Assign capacity and track WIP load.',
-              },
-              {
-                label: 'Quality',
-                href: '/dashboard/quality',
-                desc: 'Hold release until inspections pass.',
-              },
-            ]}
-          />
 
           <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4 mb-8">
             {MODULES.map((m) => {

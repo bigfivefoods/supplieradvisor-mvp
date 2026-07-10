@@ -19,13 +19,15 @@ export const MANUFACTURING_NAV: readonly NavItem[] = [
   { href: '/dashboard/manufacturing/work-centers', label: 'Cells' },
 ] as const;
 
-export function CompanyRequired({ children }: { children: React.ReactNode }) {
-  return <CompanyGate noun="Manufacturing">{children}</CompanyGate>;
-}
 
 export function ManufacturingNav() {
   return <RelationshipNav items={MANUFACTURING_NAV} />;
 }
+
+export function CompanyRequired({ children }: { children: React.ReactNode }) {
+  return <CompanyGate noun="Manufacturing">{children}</CompanyGate>;
+}
+
 
 export function ManufacturingHeader({
   title,
@@ -40,7 +42,6 @@ export function ManufacturingHeader({
 }) {
   return (
     <RelationshipHeader
-      nav={<ManufacturingNav />}
       backHref="/dashboard/manufacturing"
       backLabel="Command center"
       eyebrow="Manufacturing systems"

@@ -5,9 +5,7 @@ import { ArrowLeft } from 'lucide-react';
 import { ReactNode } from 'react';
 import {
   OperatingPrinciples,
-  ProcessLifecycle,
   type OperatingPrincipleItem,
-  type ProcessStep,
 } from '@/components/relationship/RelationshipChrome';
 
 interface ModuleHubProps {
@@ -20,17 +18,11 @@ interface ModuleHubProps {
   children: ReactNode;
   /** Three (or more) operating principles — same panel as Suppliers hub */
   principles?: readonly OperatingPrincipleItem[];
-  /** Explicit process lifecycle steps (linked into the module) */
-  lifecycle?: {
-    title?: string;
-    intro?: string;
-    steps: readonly ProcessStep[];
-  };
 }
 
 /**
  * Canonical light hub shell for module overview pages.
- * Matches RelationshipChrome / Operations / Distribution language.
+ * Process navigation lives in the sticky ModuleProcessBar only.
  */
 export default function ModuleHub({
   title,
@@ -41,7 +33,6 @@ export default function ModuleHub({
   action,
   children,
   principles,
-  lifecycle,
 }: ModuleHubProps) {
   return (
     <div className="sa-page">
@@ -79,14 +70,6 @@ export default function ModuleHub({
           </div>
           {action && <div className="flex flex-wrap gap-2 shrink-0">{action}</div>}
         </div>
-
-        {lifecycle && lifecycle.steps.length > 0 && (
-          <ProcessLifecycle
-            title={lifecycle.title || 'Process lifecycle'}
-            intro={lifecycle.intro}
-            steps={lifecycle.steps}
-          />
-        )}
 
         <div className="space-y-8">{children}</div>
 
