@@ -171,10 +171,12 @@ const modules = [
     icon: Factory, 
     href: '/dashboard/manufacturing',
     sub: [
-      { name: 'Production Orders', href: '/dashboard/manufacturing/production-orders' },
+      { name: 'Command Center', href: '/dashboard/manufacturing' },
+      { name: 'Work Orders', href: '/dashboard/manufacturing/production-orders' },
       { name: 'Bills of Materials', href: '/dashboard/manufacturing/bills-of-materials' },
-      { name: 'Master Production Schedules', href: '/dashboard/manufacturing/master-production-schedules' },
+      { name: 'Master Schedule (MPS)', href: '/dashboard/manufacturing/master-production-schedules' },
       { name: 'MRP', href: '/dashboard/manufacturing/mrp' },
+      { name: 'Work Cells', href: '/dashboard/manufacturing/work-centers' },
     ]
   },
 
