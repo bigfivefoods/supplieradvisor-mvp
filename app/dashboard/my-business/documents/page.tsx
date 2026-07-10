@@ -39,6 +39,7 @@ function DocsInner() {
   const privyUserId = getCanonicalUserId(user?.id);
 
   const [docs, setDocs] = useState<DocRow[]>([]);
+  const [profileDocs, setProfileDocs] = useState<DocRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ name: '', url: '', category: 'Other' });
@@ -51,12 +52,56 @@ function DocsInner() {
       const res = await fetch(`/api/business/profile?${params}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
-      const meta = data.profile?.metadata;
+      const profile = data.profile || {};
+      const meta = profile.metadata;
       const list =
         meta && typeof meta === 'object' && Array.isArray((meta as { documents?: unknown }).documents)
           ? ((meta as { documents: DocRow[] }).documents as DocRow[])
           : [];
       setDocs(list);
+
+      // Profile-attached formal documents (from Identity / Banking / Licenses)
+      const attached: DocRow[] = [];
+      const push = (name: string, url: unknown, category: string) => {
+        if (url && String(url).trim()) {
+          attached.push({ name, url: String(url), category });
+        }
+      };
+      push(
+        'Company registration',
+        profile.registration_certificate_url || profile.registration_document_url,
+        'Legal'
+      );
+      push(
+        'VAT certificate',
+        profile.vat_certificate_url || profile.vat_document_url,
+        'Financial'
+      );
+      push('B-BBEE certificate', profile.bee_certificate_url, 'Legal');
+      push('Bank confirmation', profile.bank_confirmation_url, 'Financial');
+      push(
+        'Import license',
+        profile.import_license_url || profile.import_document_url,
+        'Legal'
+      );
+      push(
+        'Export license',
+        profile.export_license_url || profile.export_document_url,
+        'Legal'
+      );
+      push('Company logo', profile.logo_url, 'Other');
+      push('Tax document', profile.tax_document_url, 'Financial');
+      if (Array.isArray(profile.uploaded_certificates)) {
+        for (const c of profile.uploaded_certificates as Array<{
+          name?: string;
+          file_url?: string;
+        }>) {
+          if (c?.file_url) {
+            push(c.name || 'Certificate', c.file_url, 'Certificates');
+          }
+        }
+      }
+      setProfileDocs(attached);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Load failed');
     } finally {
@@ -136,6 +181,32 @@ function DocsInner() {
         description="Vault of policies, contracts, and certificates. Stored on the company profile metadata and readable by your team."
       />
 
+      {profileDocs.length > 0 && (
+        <Panel title="Profile documents (synced from Profile)" className="mb-5">
+          <ul className="divide-y divide-neutral-100">
+            {profileDocs.map((d) => (
+              <li
+                key={`profile-${d.name}-${d.url}`}
+                className="px-5 py-3 flex flex-wrap items-center justify-between gap-3 text-sm"
+              >
+                <div>
+                  <div className="font-semibold text-slate-900">{d.name}</div>
+                  <div className="text-xs text-neutral-500">{d.category} · from company profile</div>
+                </div>
+                <a
+                  href={d.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn-secondary !py-1.5 !px-3 text-xs"
+                >
+                  <ExternalLink className="w-3 h-3" /> Open
+                </a>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      )}
+
       <div className="grid lg:grid-cols-5 gap-4">
         <Panel title="Add document" className="lg:col-span-2">
           <div className="p-5 space-y-3">
@@ -147,7 +218,7 @@ function DocsInner() {
             />
             <input
               className="input w-full !p-3 !text-sm"
-              placeholder="File URL * (upload to storage, paste link)"
+              placeholder="File URL * (upload on Profile, or paste public link)"
               value={form.url}
               onChange={(e) => setForm({ ...form, url: e.target.value })}
             />
@@ -170,6 +241,11 @@ function DocsInner() {
             >
               {saving ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Add to vault'}
             </button>
+            <p className="text-[11px] text-neutral-500 leading-relaxed">
+              Registration, VAT, BEE, bank letters and licenses are uploaded on the{' '}
+              <strong>Profile</strong> page and saved to Supabase Storage + profiles columns
+              automatically.
+            </p>
           </div>
         </Panel>
 
@@ -181,7 +257,7 @@ function DocsInner() {
           ) : docs.length === 0 ? (
             <div className="p-12 text-center text-sm text-neutral-500">
               <FileText className="w-8 h-8 text-neutral-300 mx-auto mb-2" />
-              No documents yet
+              No vault documents yet
             </div>
           ) : (
             <ul className="divide-y divide-neutral-100">

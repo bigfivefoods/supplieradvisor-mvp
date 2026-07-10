@@ -7,6 +7,7 @@ import {
   normalizeProfileRow,
 } from '@/lib/business/types';
 import { computeDetailedCompleteness } from '@/lib/business/completeness';
+import { expandDocumentUrlWrites } from '@/lib/business/documentFields';
 
 /**
  * GET ?companyId=&privyUserId=
@@ -236,40 +237,99 @@ export async function PATCH(request: NextRequest) {
       updates.longitude = updates.lng;
     }
 
-    if (Object.keys(updates).length <= 1) {
+    // Critical: expand registration_certificate_url → registration_document_url etc.
+    // Production schema uses *_document_url for several company files.
+    const expanded = expandDocumentUrlWrites(updates);
+
+    if (Object.keys(expanded).length <= 1) {
       return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
     }
 
     const supabase = getSupabaseServer();
 
-    // First attempt: full update
+    // Load existing row first so we only write columns that exist (prevents full-update failure
+    // from dropping document URLs when an unknown alias is present).
+    const { data: existing, error: loadErr } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', companyId)
+      .maybeSingle();
+
+    if (loadErr) {
+      return NextResponse.json({ error: loadErr.message }, { status: 500 });
+    }
+    if (!existing) {
+      return NextResponse.json({ error: 'Company not found' }, { status: 404 });
+    }
+
+    const existingKeys = new Set(Object.keys(existing));
+    const safe: Record<string, unknown> = {};
+    const dropped: string[] = [];
+    for (const [k, v] of Object.entries(expanded)) {
+      if (existingKeys.has(k) || k === 'updated_at') {
+        safe[k] = v;
+      } else {
+        dropped.push(k);
+      }
+    }
+
+    // export_licenses column may be missing — park in metadata
+    if (
+      expanded.export_licenses !== undefined &&
+      !existingKeys.has('export_licenses') &&
+      existingKeys.has('metadata')
+    ) {
+      const metaBase =
+        existing.metadata && typeof existing.metadata === 'object' && !Array.isArray(existing.metadata)
+          ? (existing.metadata as Record<string, unknown>)
+          : {};
+      safe.metadata = {
+        ...metaBase,
+        ...(typeof safe.metadata === 'object' && safe.metadata
+          ? (safe.metadata as object)
+          : {}),
+        export_licenses: expanded.export_licenses,
+      };
+    }
+
+    // Dual-write first export file URL onto export_document_url when licenses array provided
+    if (Array.isArray(expanded.export_licenses) && existingKeys.has('export_document_url')) {
+      const first = (expanded.export_licenses as Array<{ file_url?: string | null }>)[0];
+      if (first?.file_url && safe.export_document_url === undefined) {
+        safe.export_document_url = first.file_url;
+      }
+    }
+
+    if (Object.keys(safe).length <= 1) {
+      return NextResponse.json(
+        {
+          error: 'No writable fields matched the profiles schema',
+          dropped,
+        },
+        { status: 400 }
+      );
+    }
+
     let { data, error } = await supabase
       .from('profiles')
-      .update(updates)
+      .update(safe)
       .eq('id', companyId)
       .select('*')
       .single();
 
-    // If unknown columns, strip them and retry remaining
-    if (error && /column|schema cache|does not exist/i.test(error.message || '')) {
-      console.warn('business/profile PATCH retry stripping unknown cols:', error.message);
-      // Load existing row, only update keys that exist
-      const { data: existing } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', companyId)
-        .maybeSingle();
-      if (!existing) {
-        return NextResponse.json({ error: 'Company not found' }, { status: 404 });
-      }
-      const existingKeys = new Set(Object.keys(existing));
-      const safe: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(updates)) {
-        if (existingKeys.has(k) || k === 'updated_at') safe[k] = v;
+    if (error) {
+      console.warn('business/profile PATCH safe update failed, retry minimal:', error.message);
+      // Last resort: drop arrays/json and retry scalar fields only
+      const scalars: Record<string, unknown> = { updated_at: expanded.updated_at };
+      for (const [k, v] of Object.entries(safe)) {
+        if (k === 'updated_at') continue;
+        if (v === null || typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
+          scalars[k] = v;
+        }
       }
       const retry = await supabase
         .from('profiles')
-        .update(safe)
+        .update(scalars)
         .eq('id', companyId)
         .select('*')
         .single();
@@ -298,7 +358,8 @@ export async function PATCH(request: NextRequest) {
       entity_id: String(companyId),
       summary: 'Company profile updated',
       metadata: {
-        fields: Object.keys(updates).filter((k) => k !== 'updated_at'),
+        fields: Object.keys(safe).filter((k) => k !== 'updated_at'),
+        droppedAliases: dropped,
       },
     });
 
@@ -306,6 +367,8 @@ export async function PATCH(request: NextRequest) {
       success: true,
       profile,
       completeness: computeDetailedCompleteness(profile as Record<string, unknown>),
+      written: Object.keys(safe).filter((k) => k !== 'updated_at'),
+      droppedAliases: dropped,
     });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Error' }, { status: 500 });

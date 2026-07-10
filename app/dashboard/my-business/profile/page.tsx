@@ -415,8 +415,12 @@ function ProfileInner() {
       legal_name: form.legal_name ?? null,
       registration_number: form.registration_number ?? null,
       registration_certificate_url: form.registration_certificate_url ?? null,
+      // Production column name (critical dual-write)
+      registration_document_url:
+        form.registration_certificate_url ?? form.registration_document_url ?? null,
       vat_number: form.vat_number ?? null,
       vat_certificate_url: form.vat_certificate_url ?? null,
+      vat_document_url: form.vat_certificate_url ?? form.vat_document_url ?? null,
       tax_number: form.tax_number ?? null,
       business_type: businessType,
       category: businessType,
@@ -436,6 +440,7 @@ function ProfileInner() {
       director_id_number: form.director_id_number ?? null,
       import_license_number: form.import_license_number ?? null,
       import_license_url: form.import_license_url ?? null,
+      import_document_url: form.import_license_url ?? form.import_document_url ?? null,
       continent: geo.continent || form.continent || null,
       country: geo.country || form.country || null,
       province: geo.province || form.province || null,
@@ -460,6 +465,8 @@ function ProfileInner() {
       export_licenses: cleanExports,
       export_license_number: firstExport?.license_number || form.export_license_number || null,
       export_license_url: firstExport?.file_url || form.export_license_url || null,
+      export_document_url:
+        firstExport?.file_url || form.export_license_url || form.export_document_url || null,
       latitude: form.latitude ?? form.lat ?? null,
       longitude: form.longitude ?? form.lng ?? null,
       lat: form.latitude ?? form.lat ?? null,
@@ -507,7 +514,7 @@ function ProfileInner() {
     file: File | null,
     kind: string,
     onUrl: (url: string) => void,
-    /** When set, auto-PATCH this column so the file URL lands in Supabase without a full Save. */
+    /** App field (e.g. registration_certificate_url) — dual-written to production columns. */
     persistField?: string
   ) => {
     if (!file) return;
@@ -520,27 +527,68 @@ function ProfileInner() {
         privyUserId,
         profileField: persistField || null,
       });
-      if (!result.url) throw new Error(result.error || 'Upload failed');
-
-      // Always update local form state with the public URL
-      onUrl(result.url);
-      if (persistField) {
-        setForm((prev) => ({ ...prev, [persistField]: result.url }));
+      if (!result.url) {
+        throw new Error(
+          result.error ||
+            (typeof result.details === 'string' ? result.details : null) ||
+            'Upload failed'
+        );
       }
 
-      // Server may have already written the profiles column
+      // Always update local form state with the public URL (+ legacy aliases)
+      onUrl(result.url);
+      if (persistField) {
+        setForm((prev) => {
+          const next: Partial<CompanyProfile> = {
+            ...prev,
+            [persistField]: result.url,
+          };
+          // Mirror onto known production column names for immediate UI consistency
+          if (persistField === 'registration_certificate_url') {
+            next.registration_document_url = result.url;
+          }
+          if (persistField === 'vat_certificate_url') {
+            next.vat_document_url = result.url;
+          }
+          if (persistField === 'import_license_url') {
+            next.import_document_url = result.url;
+          }
+          if (persistField === 'export_license_url') {
+            next.export_document_url = result.url;
+          }
+          return next;
+        });
+      }
+
       if (result.profileSynced && result.profile) {
         applySavedProfile(result.profile as Partial<CompanyProfile>);
-        toast.success('File uploaded and saved to Supabase');
+        toast.success(
+          result.columnsWritten?.length
+            ? `File saved to Supabase (${result.columnsWritten.join(', ')})`
+            : 'File uploaded and saved to Supabase'
+        );
       } else if (persistField) {
-        // Ensure profiles row has the URL even if server profile write skipped
+        // Server stored the file but profile URL write may have missed — dual-write via PATCH
         try {
-          await persistPartial({ [persistField]: result.url });
-          toast.success('File uploaded and saved to Supabase');
+          const patch: Record<string, unknown> = { [persistField]: result.url };
+          if (persistField === 'registration_certificate_url') {
+            patch.registration_document_url = result.url;
+          }
+          if (persistField === 'vat_certificate_url') {
+            patch.vat_document_url = result.url;
+          }
+          if (persistField === 'import_license_url') {
+            patch.import_document_url = result.url;
+          }
+          if (persistField === 'export_license_url') {
+            patch.export_document_url = result.url;
+          }
+          await persistPartial(patch);
+          toast.success('File uploaded and linked on company profile');
         } catch (syncErr: unknown) {
           toast.error(
             syncErr instanceof Error
-              ? `File stored but profile URL not saved: ${syncErr.message}`
+              ? `File in storage but profile link failed: ${syncErr.message}`
               : 'File stored — click Save profile to link it'
           );
         }

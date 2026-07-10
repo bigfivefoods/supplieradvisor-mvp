@@ -1,31 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { assertCompanyMember } from '@/lib/customers/access';
+import { normalizeProfileRow } from '@/lib/business/types';
+import {
+  COMPANY_DOC_BUCKETS,
+  COMPANY_IMAGE_BUCKETS,
+  dbColumnsForAppField,
+  APP_DOCUMENT_FIELDS,
+} from '@/lib/business/documentFields';
 
 /**
  * POST multipart — upload a company document via service-role Supabase storage,
- * then optionally persist the URL onto the profiles row.
+ * then persist the URL onto all matching profiles columns (app + legacy names).
  *
  * Form fields:
  *  - file (required)
  *  - companyId (required)
  *  - privyUserId (required)
  *  - kind (optional, path segment e.g. registration | vat | bee | logo)
- *  - profileField (optional, column to PATCH e.g. bee_certificate_url)
+ *  - profileField (optional, app column e.g. registration_certificate_url)
  */
-const DOC_BUCKETS = ['company-documents', 'product-documents', 'contractor-documents'];
-const IMAGE_BUCKETS = ['company-documents', 'product-images', 'container-photos'];
-
-const PROFILE_URL_FIELDS = new Set([
-  'logo_url',
-  'registration_certificate_url',
-  'vat_certificate_url',
-  'bee_certificate_url',
-  'bank_confirmation_url',
-  'import_license_url',
-  'export_license_url',
-]);
-
 function safeName(name?: string) {
   return (name || 'file').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40);
 }
@@ -65,7 +59,7 @@ export async function POST(request: NextRequest) {
 
     const ext = file.name.split('.').pop()?.toLowerCase() || (isLogo ? 'png' : 'pdf');
     const filePath = `${companyId}/profile/${safeName(kind)}-${Date.now()}.${ext}`;
-    const buckets = isLogo ? IMAGE_BUCKETS : DOC_BUCKETS;
+    const buckets = isLogo ? [...COMPANY_IMAGE_BUCKETS] : [...COMPANY_DOC_BUCKETS];
     const buffer = Buffer.from(await file.arrayBuffer());
     const contentType = file.type || 'application/octet-stream';
 
@@ -93,38 +87,106 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error: 'Storage upload failed',
-          hint: `Create a public bucket "${buckets[0]}" in Supabase Storage (or allow service-role uploads).`,
+          hint:
+            'Ensure Supabase Storage has a public bucket "company-documents" (or "certificates"). Service role must be able to upload.',
           details: errors,
+          bucketsTried: buckets,
         },
         { status: 502 }
       );
     }
 
+    // Persist URL onto all alias columns that exist on profiles
     let profile: Record<string, unknown> | null = null;
-    if (profileField && PROFILE_URL_FIELDS.has(profileField)) {
+    let profileSynced = false;
+    let columnsWritten: string[] = [];
+    let profileError: string | undefined;
+
+    if (profileField) {
+      const cols = dbColumnsForAppField(profileField);
+      // Also always include the app field name
+      const wantCols = Array.from(new Set([profileField, ...cols]));
       const now = new Date().toISOString();
-      const { data, error } = await supabase
+
+      // Discover which columns exist on this row
+      const { data: existing } = await supabase
         .from('profiles')
-        .update({ [profileField]: publicUrl, updated_at: now })
-        .eq('id', companyId)
         .select('*')
+        .eq('id', companyId)
         .maybeSingle();
 
-      if (error) {
-        // Column may not exist yet — still return URL so client can save via full PATCH
-        console.warn('business/upload profile field update failed:', error.message);
-        return NextResponse.json({
-          success: true,
-          url: publicUrl,
-          bucket: usedBucket,
-          fileName: file.name,
-          profileField,
-          profileSynced: false,
-          profileError: error.message,
-          hint: 'URL uploaded; click Save profile if the column is missing or failed to update.',
-        });
+      if (!existing) {
+        return NextResponse.json(
+          {
+            success: true,
+            url: publicUrl,
+            bucket: usedBucket,
+            fileName: file.name,
+            profileField,
+            profileSynced: false,
+            profileError: 'Company profile not found for URL write',
+          },
+          { status: 200 }
+        );
       }
-      profile = (data as Record<string, unknown>) || null;
+
+      const existingKeys = new Set(Object.keys(existing));
+      const patch: Record<string, unknown> = { updated_at: now };
+      for (const col of wantCols) {
+        if (existingKeys.has(col)) {
+          patch[col] = publicUrl;
+          columnsWritten.push(col);
+        }
+      }
+
+      // Fallback: if nothing matched, try well-known legacy names by kind
+      if (columnsWritten.length === 0) {
+        const kindFallbacks: Record<string, string[]> = {
+          registration: ['registration_document_url', 'registration_certificate_url'],
+          vat: ['vat_certificate_url', 'vat_document_url'],
+          bee: ['bee_certificate_url'],
+          bank: ['bank_confirmation_url'],
+          logo: ['logo_url'],
+          import: ['import_document_url', 'import_license_url'],
+          export: ['export_document_url', 'export_license_url'],
+        };
+        const fb = kindFallbacks[kind] || kindFallbacks[kind.split('-')[0]] || [];
+        for (const col of fb) {
+          if (existingKeys.has(col)) {
+            patch[col] = publicUrl;
+            columnsWritten.push(col);
+          }
+        }
+      }
+
+      if (columnsWritten.length > 0) {
+        const { data, error } = await supabase
+          .from('profiles')
+          .update(patch)
+          .eq('id', companyId)
+          .select('*')
+          .maybeSingle();
+
+        if (error) {
+          console.warn('business/upload profile field update failed:', error.message);
+          profileError = error.message;
+        } else {
+          profile = (data as Record<string, unknown>) || null;
+          profileSynced = true;
+
+          // Verify the written column actually has the URL
+          const verified = columnsWritten.some(
+            (c) => profile && String(profile[c] || '') === publicUrl
+          );
+          if (!verified) {
+            profileSynced = false;
+            profileError =
+              'Update returned but document URL not present on profile — check RLS or column names';
+          }
+        }
+      } else {
+        profileError = `No matching document columns found for field "${profileField}". Existing keys sample: ${Array.from(existingKeys).filter((k) => /url|doc|cert|license|logo/i.test(k)).join(', ')}`;
+      }
     }
 
     return NextResponse.json({
@@ -133,8 +195,11 @@ export async function POST(request: NextRequest) {
       bucket: usedBucket,
       fileName: file.name,
       profileField: profileField || null,
-      profileSynced: Boolean(profileField && profile),
-      profile,
+      profileSynced,
+      columnsWritten,
+      profileError,
+      profile: profile ? normalizeProfileRow(profile) : null,
+      appDocumentFields: APP_DOCUMENT_FIELDS,
     });
   } catch (e: unknown) {
     console.error('business/upload error:', e);
