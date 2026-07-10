@@ -325,6 +325,57 @@ export function normalizeProductPrices(
   return out;
 }
 
+/** Prices array for a product (handles legacy single-currency rows). */
+export function productPriceList(p: {
+  prices?: ProductPriceRow[] | null;
+  base_currency?: string | null;
+  cost_price?: number | null;
+  sell_price?: number | null;
+}): ProductPriceRow[] {
+  if (Array.isArray(p.prices) && p.prices.length) {
+    return normalizeProductPrices(p.prices);
+  }
+  return normalizeProductPrices([
+    {
+      currency: p.base_currency || 'ZAR',
+      cost_price: p.cost_price ?? 0,
+      sell_price: p.sell_price ?? 0,
+    },
+  ]);
+}
+
+/**
+ * Pick display rows for catalogue.
+ * - preferredCurrency: show that currency first when present
+ * - dual: also return a second currency row when available
+ */
+export function pickDisplayPrices(
+  p: {
+    prices?: ProductPriceRow[] | null;
+    base_currency?: string | null;
+    cost_price?: number | null;
+    sell_price?: number | null;
+  },
+  preferredCurrency?: string | null,
+  dual = true
+): ProductPriceRow[] {
+  const list = productPriceList(p);
+  const pref = preferredCurrency
+    ? String(preferredCurrency).trim().toUpperCase()
+    : null;
+
+  let ordered = list;
+  if (pref) {
+    const hit = list.find((r) => r.currency === pref);
+    if (hit) {
+      ordered = [hit, ...list.filter((r) => r.currency !== pref)];
+    }
+  }
+
+  if (!dual) return [ordered[0]];
+  return ordered.slice(0, 2);
+}
+
 export function formatMoney(amount: number | null | undefined, currency = 'ZAR') {
   const n = Number(amount) || 0;
   try {

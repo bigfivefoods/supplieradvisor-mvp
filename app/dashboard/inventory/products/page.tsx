@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -32,6 +32,8 @@ import {
   formatMoney,
   normalizeProductPrices,
   onchainStatusClass,
+  pickDisplayPrices,
+  productPriceList,
   type ProductRecord,
 } from '@/lib/inventory/types';
 import {
@@ -115,6 +117,10 @@ function ProductsInner() {
   const [showNewCategory, setShowNewCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [savingCategory, setSavingCategory] = useState(false);
+  /** Catalogue display currency — empty = product primary */
+  const [displayCurrency, setDisplayCurrency] = useState('');
+  /** Always try to show two currencies when product has them */
+  const [showDualCurrency, setShowDualCurrency] = useState(true);
 
   const loadCategories = useCallback(async () => {
     if (!companyId) return;
@@ -154,6 +160,19 @@ function ProductsInner() {
   useEffect(() => {
     void loadCategories();
   }, [loadCategories]);
+
+  /** Currencies available across the catalogue (for the display picker). */
+  const catalogueCurrencies = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of products) {
+      for (const row of productPriceList(p)) {
+        if (row.currency) set.add(row.currency);
+      }
+    }
+    // Always offer common options even if catalogue only has one yet
+    for (const c of COMMON_CURRENCIES) set.add(c);
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [products]);
 
   const setType = (value: string) => {
     setTypeFilter(value);
@@ -464,14 +483,43 @@ function ProductsInner() {
         ))}
       </div>
 
-      <div className="relative mb-4 max-w-md">
-        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
-        <input
-          className="input w-full !pl-10 !py-2.5 !text-sm"
-          placeholder="Search name, SKU, barcode…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
+        <div className="relative flex-1 max-w-md">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+          <input
+            className="input w-full !pl-10 !py-2.5 !text-sm"
+            placeholder="Search name, SKU, barcode…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="text-xs font-semibold text-neutral-500 whitespace-nowrap">
+            Price currency
+          </label>
+          <select
+            className="input !py-2 !px-3 !text-sm !w-auto min-w-[8.5rem]"
+            value={displayCurrency}
+            onChange={(e) => setDisplayCurrency(e.target.value)}
+            title="Preferred currency for the price column"
+          >
+            <option value="">Product primary</option>
+            {catalogueCurrencies.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+          <label className="inline-flex items-center gap-1.5 text-xs font-medium text-neutral-600 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              className="rounded border-neutral-300"
+              checked={showDualCurrency}
+              onChange={(e) => setShowDualCurrency(e.target.checked)}
+            />
+            Show 2 currencies
+          </label>
+        </div>
       </div>
 
       <div className="bg-white border rounded-3xl overflow-hidden">
@@ -499,7 +547,19 @@ function ProductsInner() {
                   <th className="px-5 py-3 font-semibold">Product</th>
                   <th className="px-4 py-3 font-semibold">SKU</th>
                   <th className="px-4 py-3 font-semibold">Type</th>
-                  <th className="px-4 py-3 font-semibold text-right">Price</th>
+                  <th className="px-4 py-3 font-semibold text-right">
+                    Price
+                    {displayCurrency ? (
+                      <span className="block text-[10px] font-medium text-neutral-400 normal-case">
+                        prefer {displayCurrency}
+                        {showDualCurrency ? ' + 2nd' : ''}
+                      </span>
+                    ) : showDualCurrency ? (
+                      <span className="block text-[10px] font-medium text-neutral-400 normal-case">
+                        up to 2 currencies
+                      </span>
+                    ) : null}
+                  </th>
                   <th className="px-4 py-3 font-semibold text-right">On hand</th>
                   <th className="px-4 py-3 font-semibold">On-chain</th>
                   <th className="px-5 py-3 font-semibold text-right">Actions</th>
@@ -507,17 +567,17 @@ function ProductsInner() {
               </thead>
               <tbody className="divide-y">
                 {products.map((p) => {
-                  const prices = normalizeProductPrices(
-                    Array.isArray(p.prices) && p.prices.length
-                      ? p.prices
-                      : [
-                          {
-                            currency: p.base_currency || 'ZAR',
-                            cost_price: p.cost_price ?? 0,
-                            sell_price: p.sell_price ?? 0,
-                          },
-                        ]
+                  const allPrices = productPriceList(p);
+                  const display = pickDisplayPrices(
+                    p,
+                    displayCurrency || null,
+                    showDualCurrency
                   );
+                  const primary = display[0];
+                  const secondary = display[1] || null;
+                  const missingPreferred =
+                    Boolean(displayCurrency) &&
+                    !allPrices.some((r) => r.currency === displayCurrency);
                   return (
                   <tr
                     key={p.id}
@@ -586,14 +646,35 @@ function ProductsInner() {
                     </td>
                     <td className="px-4 py-4 text-right text-xs">
                       <div className="font-semibold text-slate-900">
-                        {formatMoney(prices[0].sell_price, prices[0].currency)}
+                        {formatMoney(primary.sell_price, primary.currency)}
+                        <span className="ml-1 text-[10px] font-bold text-neutral-400">
+                          {primary.currency}
+                        </span>
                       </div>
                       <div className="text-neutral-500">
-                        cost {formatMoney(prices[0].cost_price, prices[0].currency)}
+                        cost {formatMoney(primary.cost_price, primary.currency)}
                       </div>
-                      {prices.length > 1 && (
+                      {secondary && (
+                        <div className="mt-1.5 pt-1.5 border-t border-neutral-100">
+                          <div className="font-semibold text-slate-700">
+                            {formatMoney(secondary.sell_price, secondary.currency)}
+                            <span className="ml-1 text-[10px] font-bold text-neutral-400">
+                              {secondary.currency}
+                            </span>
+                          </div>
+                          <div className="text-neutral-500">
+                            cost {formatMoney(secondary.cost_price, secondary.currency)}
+                          </div>
+                        </div>
+                      )}
+                      {missingPreferred && (
+                        <div className="text-[10px] text-amber-700 mt-1">
+                          No {displayCurrency} price
+                        </div>
+                      )}
+                      {allPrices.length > 2 && (
                         <div className="text-neutral-400 mt-0.5">
-                          +{prices.length - 1} currency{prices.length > 2 ? 's' : ''}
+                          +{allPrices.length - (secondary ? 2 : 1)} more
                         </div>
                       )}
                     </td>
