@@ -51,6 +51,7 @@ function DiscoverInner() {
   const [certs, setCerts] = useState<string[]>([]);
   const [bee, setBee] = useState('');
   const [rows, setRows] = useState<DiscoverSupplier[]>([]);
+  const [total, setTotal] = useState(0);
   const [facets, setFacets] = useState<{
     countries: string[];
     continents: string[];
@@ -65,7 +66,10 @@ function DiscoverInner() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ companyId: String(companyId) });
+      const params = new URLSearchParams({
+        companyId: String(companyId),
+        limit: '200',
+      });
       if (q) params.set('q', q);
       if (country) params.set('country', country);
       if (continent) params.set('continent', continent);
@@ -81,10 +85,15 @@ function DiscoverInner() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Search failed');
       setRows(data.suppliers || []);
+      setTotal(Number(data.total || (data.suppliers || []).length));
       setFacets(data.facets || null);
+      if (data.warning) {
+        toast.message('Discover note', { description: data.warning });
+      }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Search failed');
       setRows([]);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
@@ -159,7 +168,7 @@ function DiscoverInner() {
       <SuppliersHeader
         title="Discover"
         titleAccent="suppliers"
-        description="Search every discoverable company on SupplierAdvisor — including your other entities — by location, industry, certifications, BEE, trust, and OTIFEF. Connect to unlock shared books, pricing, POs, invoices, and on-chain settlement."
+        description="Search every business registered on SupplierAdvisor — including your other companies — by name, location, industry, certifications, BEE, trust, and OTIFEF. Connect to unlock pricing, POs, invoices, and on-chain settlement."
       />
 
       <div className="grid lg:grid-cols-12 gap-6">
@@ -308,7 +317,13 @@ function DiscoverInner() {
             />
           </div>
           <p className="text-xs text-neutral-500 mb-3">
-            {loading ? 'Searching…' : `${rows.length} suppliers match your trust criteria`}
+            {loading
+              ? 'Searching all registered companies…'
+              : `${rows.length} of ${total} companies on SupplierAdvisor${
+                  country || continent || province || industry || q || verifiedOnly || certs.length || trustMin || otifefMin || bee
+                    ? ' (filters applied — clear filters to see everyone)'
+                    : ''
+                }`}
           </p>
 
           {loading ? (
@@ -318,14 +333,32 @@ function DiscoverInner() {
           ) : rows.length === 0 ? (
             <div className="bg-white border rounded-3xl p-16 text-center">
               <Search className="w-10 h-10 text-neutral-300 mx-auto mb-3" />
-              <p className="font-medium text-neutral-700">No suppliers match</p>
+              <p className="font-medium text-neutral-700">No companies match</p>
               <p className="text-sm text-neutral-500 mt-1">
-                Broaden filters — or{' '}
+                Clear location / trust filters to list every registered business — or{' '}
                 <a href="/dashboard/suppliers/add" className="text-[#00b4d8] underline">
                   invite a supplier
                 </a>{' '}
                 not yet on SupplierAdvisor.
               </p>
+              <button
+                type="button"
+                className="btn-secondary !py-2 !px-4 text-xs mt-4"
+                onClick={() => {
+                  setQ('');
+                  setCountry('');
+                  setContinent('');
+                  setProvince('');
+                  setIndustry('');
+                  setTrustMin(0);
+                  setOtifefMin(0);
+                  setVerifiedOnly(false);
+                  setCerts([]);
+                  setBee('');
+                }}
+              >
+                Clear all filters
+              </button>
             </div>
           ) : (
             <ul className="space-y-3">
