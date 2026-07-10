@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { getResend } from '@/lib/resend';
+import { getResend, getResendFrom } from '@/lib/resend';
 import { INVITE_EXPIRY_DAYS } from '@/lib/auth/identity';
 import {
   assertCompanyMember,
@@ -206,7 +206,7 @@ export async function POST(request: NextRequest) {
     try {
       const resend = getResend();
       const { error: emailError } = await resend.emails.send({
-        from: 'SupplierAdvisor <onboarding@resend.dev>',
+        from: getResendFrom(),
         to: email,
         subject: `${sellerCompanyName} invited ${customerName} to SupplierAdvisor`,
         html: customerInviteEmailHtml({

@@ -63,15 +63,15 @@ const MODULES: ModuleCard[] = [
   {
     href: '/dashboard/my-business/profile',
     icon: Building2,
-    title: 'Company profile',
+    title: 'Profile',
     desc: 'Trading name, contacts, industry, location, certifications, wallet',
     badge: 'Core',
   },
   {
     href: '/dashboard/my-business/team',
     icon: Users,
-    title: 'Team & roles',
-    desc: 'Invite members, assign roles, manage access',
+    title: 'Team',
+    desc: 'Invite members, assign roles, manage access rights',
     badge: 'Core',
   },
   {
@@ -84,7 +84,7 @@ const MODULES: ModuleCard[] = [
   {
     href: '/dashboard/my-business/legal',
     icon: ShieldCheck,
-    title: 'Legal & compliance',
+    title: 'Legal',
     desc: 'Registration, B-BBEE, tax, regulatory posture',
   },
   {
@@ -102,7 +102,7 @@ const MODULES: ModuleCard[] = [
   {
     href: '/dashboard/my-business/riad-log',
     icon: Scale,
-    title: 'Company RIAD',
+    title: 'RIAD',
     desc: 'Internal risks, issues, actions, and decisions',
   },
 ];

@@ -1,14 +1,14 @@
 /** My Business — company workspace types */
 
-export const TEAM_ROLES = [
-  { value: 'owner', label: 'Owner' },
-  { value: 'admin', label: 'Admin' },
-  { value: 'member', label: 'Member' },
-  { value: 'viewer', label: 'Viewer' },
-  { value: 'finance', label: 'Finance' },
-  { value: 'operations', label: 'Operations' },
-  { value: 'sales', label: 'Sales' },
-] as const;
+import { TEAM_ROLE_OPTIONS } from '@/lib/business/permissions';
+
+/** @deprecated Prefer TEAM_ROLE_OPTIONS from permissions — kept for existing imports */
+export const TEAM_ROLES = TEAM_ROLE_OPTIONS.map((r) => ({
+  value: r.value,
+  label: r.label,
+  description: r.description,
+  rights: r.rights,
+}));
 
 export const TIMEZONES = [
   'Africa/Johannesburg',

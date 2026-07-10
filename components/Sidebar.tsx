@@ -19,13 +19,14 @@ const modules = [
     icon: Building2, 
     href: '/dashboard/my-business',
     sub: [
-      { name: 'Company profile', href: '/dashboard/my-business/profile' },
-      { name: 'Team & roles', href: '/dashboard/my-business/team' },
+      { name: 'Overview', href: '/dashboard/my-business' },
+      { name: 'Profile', href: '/dashboard/my-business/profile' },
+      { name: 'Team', href: '/dashboard/my-business/team' },
       { name: 'Settings', href: '/dashboard/my-business/settings' },
-      { name: 'Legal & compliance', href: '/dashboard/my-business/legal' },
+      { name: 'Legal', href: '/dashboard/my-business/legal' },
       { name: 'Documents', href: '/dashboard/my-business/documents' },
       { name: 'Projects', href: '/dashboard/my-business/projects' },
-      { name: 'Company RIAD', href: '/dashboard/my-business/riad-log' },
+      { name: 'RIAD', href: '/dashboard/my-business/riad-log' },
     ]
   },
 
