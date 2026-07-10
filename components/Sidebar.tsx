@@ -5,17 +5,31 @@ import Image from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { toast } from 'sonner';
-import { 
-  Home, Building2, Users, Truck, Factory, Package, 
-  Calculator, Brain, ChevronDown, ArrowLeftRight, Sparkles,
-  ShieldCheck, Leaf, FolderKanban
+import {
+  Home,
+  Building2,
+  Users,
+  Truck,
+  Factory,
+  Package,
+  Calculator,
+  Brain,
+  ChevronDown,
+  ArrowLeftRight,
+  Sparkles,
+  ShieldCheck,
+  Leaf,
+  FolderKanban,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 import { useCompanyRole } from '@/lib/business/useCompanyRole';
 import { SIDEBAR_MODULE_RESOURCE } from '@/lib/business/permissions';
 import SystemHealthBadge from '@/components/system/SystemHealthBadge';
+import { useSidebarChrome } from '@/components/chrome/SidebarContext';
 
 const modules = [
-  { id: 'home', name: 'Dashboard', icon: Home, href: '/dashboard', sub: [] },
+  { id: 'home', name: 'Dashboard', icon: Home, href: '/dashboard', sub: [] as { name: string; href: string }[] },
 
   {
     id: 'sales-portal',
@@ -36,10 +50,10 @@ const modules = [
     ],
   },
 
-  { 
-    id: 'my-business', 
-    name: 'My Business', 
-    icon: Building2, 
+  {
+    id: 'my-business',
+    name: 'My Business',
+    icon: Building2,
     href: '/dashboard/my-business',
     sub: [
       { name: 'Overview', href: '/dashboard/my-business' },
@@ -50,14 +64,13 @@ const modules = [
       { name: 'Documents', href: '/dashboard/my-business/documents' },
       { name: 'Projects', href: '/dashboard/my-business/projects' },
       { name: 'RIAD', href: '/dashboard/my-business/riad-log' },
-    ]
+    ],
   },
 
-  // ==================== NETWORK ====================
-  { 
-    id: 'network', 
-    name: 'Network', 
-    icon: Users, 
+  {
+    id: 'network',
+    name: 'Network',
+    icon: Users,
     href: '/dashboard/connections',
     sub: [
       { name: 'Connection graph', href: '/dashboard/connections' },
@@ -66,14 +79,13 @@ const modules = [
       { name: 'Marketplace', href: '/dashboard/connections/marketplace' },
       { name: 'Sell on marketplace', href: '/dashboard/connections/marketplace/sell' },
       { name: 'Invite company', href: '/dashboard/invite-business' },
-    ]
+    ],
   },
 
-  // ==================== SUPPLIERS ====================
-  {  
-    id: 'suppliers', 
-    name: 'Suppliers', 
-    icon: Truck, 
+  {
+    id: 'suppliers',
+    name: 'Suppliers',
+    icon: Truck,
     href: '/dashboard/suppliers',
     sub: [
       { name: 'Discover (trust search)', href: '/dashboard/suppliers/discover' },
@@ -87,14 +99,13 @@ const modules = [
       { name: 'Ops board', href: '/dashboard/suppliers/portal' },
       { name: 'Contracts', href: '/dashboard/suppliers/contracts' },
       { name: 'Supplier RIAD', href: '/dashboard/suppliers/riad-log' },
-    ]
+    ],
   },
 
-  // ==================== CUSTOMERS (UPDATED) ====================
-  { 
-    id: 'customers', 
-    name: 'Customers', 
-    icon: Users, 
+  {
+    id: 'customers',
+    name: 'Customers',
+    icon: Users,
     href: '/dashboard/customers',
     sub: [
       { name: 'Overview', href: '/dashboard/customers' },
@@ -113,14 +124,13 @@ const modules = [
       { name: 'Portal', href: '/dashboard/customers/portal' },
       { name: 'Buyer POs', href: '/dashboard/buyer/pos' },
       { name: 'Buyer reviews', href: '/dashboard/buyer/reviews' },
-    ]
+    ],
   },
 
-  // ==================== CONTAINERS ====================
-  { 
-    id: 'containers', 
-    name: 'Containers', 
-    icon: Package, 
+  {
+    id: 'containers',
+    name: 'Containers',
+    icon: Package,
     href: '/dashboard/containers',
     sub: [
       { name: 'Overview', href: '/dashboard/containers' },
@@ -131,13 +141,13 @@ const modules = [
       { name: 'Training hub', href: '/dashboard/containers/training' },
       { name: 'Container RIAD', href: '/dashboard/containers/riad-log' },
       { name: 'Metrics', href: '/dashboard/containers/metrics' },
-    ]
+    ],
   },
 
-  { 
-    id: 'inventory', 
-    name: 'Inventory', 
-    icon: Package, 
+  {
+    id: 'inventory',
+    name: 'Inventory',
+    icon: Package,
     href: '/dashboard/inventory',
     sub: [
       { name: 'Overview', href: '/dashboard/inventory' },
@@ -150,13 +160,13 @@ const modules = [
       { name: 'Counts', href: '/dashboard/inventory/counts' },
       { name: 'Lots & serials', href: '/dashboard/inventory/lots' },
       { name: 'GS1 & EDI', href: '/dashboard/inventory/edi' },
-    ]
+    ],
   },
 
-  { 
-    id: 'operations', 
-    name: 'Operations', 
-    icon: Truck, 
+  {
+    id: 'operations',
+    name: 'Operations',
+    icon: Truck,
     href: '/dashboard/operations',
     sub: [
       { name: 'Command Center', href: '/dashboard/operations' },
@@ -167,13 +177,13 @@ const modules = [
       { name: 'Outbound', href: '/dashboard/operations/outbound' },
       { name: 'Customer Fulfillment', href: '/dashboard/operations/customer-orders' },
       { name: 'Exceptions', href: '/dashboard/operations/exceptions' },
-    ]
+    ],
   },
 
-  { 
-    id: 'manufacturing', 
-    name: 'Manufacturing', 
-    icon: Factory, 
+  {
+    id: 'manufacturing',
+    name: 'Manufacturing',
+    icon: Factory,
     href: '/dashboard/manufacturing',
     sub: [
       { name: 'Command Center', href: '/dashboard/manufacturing' },
@@ -182,13 +192,13 @@ const modules = [
       { name: 'Master Schedule (MPS)', href: '/dashboard/manufacturing/master-production-schedules' },
       { name: 'MRP', href: '/dashboard/manufacturing/mrp' },
       { name: 'Work Cells', href: '/dashboard/manufacturing/work-centers' },
-    ]
+    ],
   },
 
-  { 
-    id: 'distribution', 
-    name: 'Distribution', 
-    icon: Truck, 
+  {
+    id: 'distribution',
+    name: 'Distribution',
+    icon: Truck,
     href: '/dashboard/distribution',
     sub: [
       { name: 'Command Center', href: '/dashboard/distribution' },
@@ -198,13 +208,13 @@ const modules = [
       { name: 'Carriers', href: '/dashboard/distribution/carriers' },
       { name: 'Fleet & Drivers', href: '/dashboard/distribution/fleet-drivers' },
       { name: 'Incoterms 2020', href: '/dashboard/distribution/incoterms' },
-    ]
+    ],
   },
 
-  { 
-    id: 'accounting', 
-    name: 'Accounting', 
-    icon: Calculator, 
+  {
+    id: 'accounting',
+    name: 'Accounting',
+    icon: Calculator,
     href: '/dashboard/accounting',
     sub: [
       { name: 'Overview', href: '/dashboard/accounting' },
@@ -216,7 +226,7 @@ const modules = [
       { name: 'Reports', href: '/dashboard/accounting/reports' },
       { name: 'Tax', href: '/dashboard/accounting/tax' },
       { name: 'Settings', href: '/dashboard/accounting/settings' },
-    ]
+    ],
   },
 
   {
@@ -257,10 +267,10 @@ const modules = [
     ],
   },
 
-  { 
-    id: 'intelligence', 
-    name: 'Intelligence', 
-    icon: Brain, 
+  {
+    id: 'intelligence',
+    name: 'Intelligence',
+    icon: Brain,
     href: '/dashboard/intelligence',
     sub: [
       { name: 'Overview', href: '/dashboard/intelligence' },
@@ -269,16 +279,17 @@ const modules = [
       { name: 'Forecasts', href: '/dashboard/intelligence/predictive-forecasts' },
       { name: 'Scorecards', href: '/dashboard/intelligence/custom-scorecards' },
       { name: 'Leadership Super-Cube®', href: '/dashboard/intelligence/leadership-development' },
-    ]
+    ],
   },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boolean }) {
   const pathname = usePathname();
+  const { collapsed, toggle, setCollapsed } = useSidebarChrome();
+  const isCollapsed = forceExpanded ? false : collapsed;
   const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({});
   const { role, canViewModule, homePath, roleLabel, rights, loading } = useCompanyRole();
 
-  /** Role-filtered modules. Sales contractors only ever see the Sales portal entry. */
   const visibleModules = useMemo(() => {
     if (role === 'sales_contractor') {
       return modules.filter((mod) => mod.id === 'sales-portal');
@@ -286,7 +297,6 @@ export default function Sidebar() {
     return modules.filter((mod) => {
       const resource = SIDEBAR_MODULE_RESOURCE[mod.id];
       if (!resource) return true;
-      // Until role loads, show all to avoid flash-empty sidebar for full-access users.
       if (!role) return true;
       return canViewModule(resource);
     });
@@ -296,14 +306,10 @@ export default function Sidebar() {
     setExpandedModules((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  // Auto-expand the module matching the current route.
-  // Only update state when the module is not already expanded — otherwise we
-  // create a new object every time and can re-render forever (frozen UI).
   useEffect(() => {
     if (!pathname) return;
     const active = visibleModules.find((mod) => {
       if (mod.href === '/dashboard') return pathname === '/dashboard';
-      // /sales lives outside /dashboard — match by id / prefix
       if (mod.href === '/sales') {
         return pathname === '/sales' || pathname.startsWith('/sales/');
       }
@@ -311,7 +317,7 @@ export default function Sidebar() {
     });
     if (!active || active.sub.length === 0) return;
     setExpandedModules((prev) => {
-      if (prev[active.id]) return prev; // same reference → no re-render
+      if (prev[active.id]) return prev;
       return { ...prev, [active.id]: true };
     });
   }, [pathname, visibleModules]);
@@ -319,26 +325,126 @@ export default function Sidebar() {
   const isModuleActive = (href: string) => {
     if (!pathname) return false;
     if (href === '/dashboard') return pathname === '/dashboard';
+    if (href === '/sales') return pathname === '/sales' || pathname.startsWith('/sales/');
+    // Network uses /dashboard/connections
+    if (href === '/dashboard/connections') {
+      return (
+        pathname === '/dashboard/connections' ||
+        pathname.startsWith('/dashboard/connections/') ||
+        pathname.startsWith('/dashboard/invite-business')
+      );
+    }
     return pathname === href || pathname.startsWith(`${href}/`);
   };
 
+  /** Icon-only rail (desktop collapsed) */
+  if (isCollapsed) {
+    return (
+      <div className="flex flex-col h-full bg-white">
+        <div className="p-3 border-b border-neutral-100 flex flex-col items-center gap-2">
+          <Link href={homePath || '/dashboard'} title="Dashboard" className="block">
+            <Image
+              src="/sa-logo.png"
+              alt="SupplierAdvisor"
+              width={36}
+              height={36}
+              className="rounded-xl"
+              priority
+            />
+          </Link>
+          <button
+            type="button"
+            onClick={toggle}
+            className="p-2 rounded-xl border border-neutral-200 text-neutral-500 hover:border-[#00b4d8] hover:text-[#00b4d8] transition-colors"
+            title="Expand sidebar"
+            aria-label="Expand sidebar"
+          >
+            <PanelLeftOpen className="w-4 h-4" />
+          </button>
+        </div>
+
+        <nav className="flex-1 p-2 overflow-y-auto flex flex-col items-center gap-1">
+          {visibleModules.map((mod) => {
+            const Icon = mod.icon;
+            const isActive = isModuleActive(mod.href);
+            return (
+              <Link
+                key={mod.id}
+                href={mod.href}
+                title={mod.name}
+                onClick={() => {
+                  // Expanding makes sub-nav usable after landing in the module
+                  if (mod.sub.length > 0) {
+                    setCollapsed(false);
+                    setExpandedModules((prev) => ({ ...prev, [mod.id]: true }));
+                  }
+                }}
+                className={`w-11 h-11 flex items-center justify-center rounded-2xl transition-all ${
+                  isActive
+                    ? 'bg-[#00b4d8] text-white shadow-sm'
+                    : 'text-slate-600 hover:bg-neutral-100 hover:text-[#0077b6]'
+                }`}
+              >
+                <Icon className="w-5 h-5" />
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="p-2 border-t border-neutral-100 flex flex-col items-center gap-2">
+          <Link
+            href="/dashboard/select-company"
+            title="Switch company"
+            className="w-11 h-11 flex items-center justify-center rounded-2xl text-neutral-500 hover:bg-neutral-100 hover:text-[#00b4d8]"
+          >
+            <ArrowLeftRight className="w-4 h-4" />
+          </Link>
+          <button
+            type="button"
+            title="Ask Grok"
+            className="w-11 h-11 flex items-center justify-center rounded-2xl bg-[#00b4d8] text-white hover:bg-[#0096c7]"
+            onClick={() =>
+              toast.message('Grok AI Assistant', {
+                description: 'Context-aware help across CRM, SRM, inventory, and operations.',
+              })
+            }
+          >
+            <Brain className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full bg-white">
-      {/* Header */}
-      <div className="p-6 border-b border-neutral-100">
-        <Link href={homePath || '/dashboard'} className="flex items-center gap-3">
-          <Image
-            src="/sa-logo.png"
-            alt="SupplierAdvisor"
-            width={40}
-            height={40}
-            className="rounded-xl"
-            priority
-          />
-          <div className="font-black text-xl tracking-[-1px] leading-none text-slate-900">
-            SupplierAdvisor®
-          </div>
-        </Link>
+      <div className="p-5 border-b border-neutral-100">
+        <div className="flex items-start justify-between gap-2">
+          <Link href={homePath || '/dashboard'} className="flex items-center gap-3 min-w-0">
+            <Image
+              src="/sa-logo.png"
+              alt="SupplierAdvisor"
+              width={40}
+              height={40}
+              className="rounded-xl shrink-0"
+              priority
+            />
+            <div className="font-black text-lg tracking-[-1px] leading-none text-slate-900 truncate">
+              SupplierAdvisor®
+            </div>
+          </Link>
+          {!forceExpanded && (
+            <button
+              type="button"
+              onClick={toggle}
+              className="p-2 rounded-xl border border-neutral-200 text-neutral-500 hover:border-[#00b4d8] hover:text-[#00b4d8] shrink-0"
+              title="Collapse sidebar"
+              aria-label="Collapse sidebar"
+            >
+              <PanelLeftClose className="w-4 h-4" />
+            </button>
+          )}
+        </div>
         <Link
           href="/dashboard/select-company"
           className="mt-4 flex items-center gap-2 text-sm text-neutral-500 hover:text-[#00b4d8] transition-colors"
@@ -354,8 +460,7 @@ export default function Sidebar() {
         )}
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 p-4 overflow-y-auto">
+      <nav className="flex-1 p-3 overflow-y-auto">
         {visibleModules.map((mod) => {
           const Icon = mod.icon;
           const isActive = isModuleActive(mod.href);
@@ -364,13 +469,13 @@ export default function Sidebar() {
           return (
             <div key={mod.id} className="mb-1">
               <div
-                className={`flex items-center justify-between px-5 py-3.5 rounded-3xl transition-all ${
+                className={`flex items-center justify-between px-3 py-2.5 rounded-2xl transition-all ${
                   isActive ? 'bg-[#00b4d8] text-white' : 'hover:bg-neutral-100 text-slate-800'
                 }`}
               >
                 <Link href={mod.href} className="flex items-center gap-3 flex-1 min-w-0">
                   <Icon className="w-5 h-5 flex-shrink-0" />
-                  <span className="font-semibold truncate">{mod.name}</span>
+                  <span className="font-semibold truncate text-sm">{mod.name}</span>
                 </Link>
 
                 {mod.sub.length > 0 && (
@@ -381,25 +486,25 @@ export default function Sidebar() {
                       e.stopPropagation();
                       toggleModule(mod.id);
                     }}
-                    className="p-2 -mr-2 rounded-xl hover:bg-white/20 transition-colors"
+                    className="p-1.5 -mr-1 rounded-xl hover:bg-white/20 transition-colors"
                     aria-label={`Toggle ${mod.name} submenu`}
                   >
                     <ChevronDown
-                      className={`w-5 h-5 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                      className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
                     />
                   </button>
                 )}
               </div>
 
               {mod.sub.length > 0 && isExpanded && (
-                <div className="ml-7 mt-1 space-y-0.5">
+                <div className="ml-5 mt-0.5 space-y-0.5 border-l border-neutral-100 pl-2">
                   {mod.sub.map((sub, index) => (
                     <Link
                       key={index}
                       href={sub.href}
-                      className={`block px-5 py-2.5 rounded-3xl text-sm transition-all ${
+                      className={`block px-3 py-2 rounded-xl text-xs transition-all ${
                         pathname === sub.href
-                          ? 'text-[#00b4d8] bg-blue-50 font-medium'
+                          ? 'text-[#00b4d8] bg-sky-50 font-semibold'
                           : 'text-slate-600 hover:text-slate-900 hover:bg-neutral-50'
                       }`}
                     >
@@ -413,12 +518,11 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* Bottom — health + AI */}
-      <div className="p-4 border-t border-neutral-100 space-y-3">
+      <div className="p-3 border-t border-neutral-100 space-y-2">
         <SystemHealthBadge />
         <button
           type="button"
-          className="w-full bg-[#00b4d8] text-white py-3 rounded-2xl flex items-center justify-center gap-2 font-medium hover:bg-[#0096c7] transition-colors shadow-sm cursor-pointer"
+          className="w-full bg-[#00b4d8] text-white py-2.5 rounded-2xl flex items-center justify-center gap-2 font-medium hover:bg-[#0096c7] transition-colors shadow-sm cursor-pointer text-sm"
           title="AI assistant"
           onClick={() =>
             toast.message('Grok AI Assistant', {
@@ -426,7 +530,7 @@ export default function Sidebar() {
             })
           }
         >
-          <Brain className="w-5 h-5" />
+          <Brain className="w-4 h-4" />
           Ask Grok
         </button>
         <p className="text-[10px] text-center text-neutral-400 font-medium">
