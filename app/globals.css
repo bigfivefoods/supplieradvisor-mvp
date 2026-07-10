@@ -19,6 +19,11 @@
     color: #0f172a;
   }
 
+  /* Never leave the whole app non-interactive (bad overlay cleanup, etc.) */
+  html, body {
+    pointer-events: auto !important;
+  }
+
   /* Brand headings by default; allow local overrides without !important wars */
   h1, h2, h3 {
     color: #00b4d8;
@@ -26,6 +31,38 @@
 
   h4, h5, h6 {
     color: #0f172a;
+  }
+
+  /* Interactive controls must always receive clicks / focus / typing */
+  a,
+  button,
+  input,
+  textarea,
+  select,
+  label,
+  summary,
+  [role='button'],
+  [role='link'],
+  [role='tab'],
+  [role='menuitem'],
+  [contenteditable='true'] {
+    pointer-events: auto !important;
+  }
+
+  input:not([disabled]):not([readonly]),
+  textarea:not([disabled]):not([readonly]),
+  select:not([disabled]) {
+    cursor: text;
+  }
+
+  select:not([disabled]) {
+    cursor: pointer;
+  }
+
+  button:not([disabled]),
+  a,
+  [role='button'] {
+    cursor: pointer;
   }
 }
 
@@ -39,11 +76,11 @@
   }
 
   .btn-primary {
-    @apply bg-[#00b4d8] hover:bg-[#0099b8] active:scale-95 text-white font-semibold py-4 px-10 rounded-3xl transition-all duration-200 inline-flex items-center justify-center;
+    @apply bg-[#00b4d8] hover:bg-[#0099b8] active:scale-95 text-white font-semibold py-4 px-10 rounded-3xl transition-all duration-200 inline-flex items-center justify-center gap-2 cursor-pointer;
   }
 
   .btn-secondary {
-    @apply bg-white hover:bg-neutral-50 active:scale-95 text-slate-900 font-semibold py-4 px-10 rounded-3xl border border-neutral-200 transition-all duration-200 inline-flex items-center justify-center;
+    @apply bg-white hover:bg-neutral-50 active:scale-95 text-slate-900 font-semibold py-4 px-10 rounded-3xl border border-neutral-200 transition-all duration-200 inline-flex items-center justify-center gap-2 cursor-pointer;
   }
 
   .input {

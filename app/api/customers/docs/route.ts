@@ -8,6 +8,10 @@ import {
   LOYALTY_EARN_RATE,
   type DocLineItem,
 } from '@/lib/customers/documents';
+import {
+  assertCompanyMember,
+  assertSellerCustomerNotSuspended,
+} from '@/lib/customers/access';
 
 type DocKind = 'quote' | 'order' | 'invoice';
 
@@ -389,6 +393,7 @@ export async function PATCH(request: NextRequest) {
 
     const supabase = getSupabaseServer();
     const table = TABLES[kind];
+    const docId = Number(body.id);
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
 
     if (body.status !== undefined) updates.status = body.status;
@@ -407,12 +412,99 @@ export async function PATCH(request: NextRequest) {
       Object.assign(updates, totals);
     }
 
-    const { data, error } = await supabase
-      .from(table)
-      .update(updates)
-      .eq('id', Number(body.id))
-      .select('*')
-      .single();
+    // Share-related fields: visibility and/or customer reassignment while shared.
+    // New share + reassignment while shared → membership + suspend check.
+    // Unshare (seller_only) always allowed without suspend gate.
+    const changingVisibility = body.visibility !== undefined;
+    const changingCustomer = body.customer_id !== undefined;
+
+    if (changingVisibility || changingCustomer) {
+      const companyId = Number(body.companyId);
+      // Load existing (scoped when companyId present)
+      let existingQ = supabase
+        .from(table)
+        .select('id, profile_id, customer_id, visibility')
+        .eq('id', docId);
+      if (Number.isFinite(companyId) && companyId > 0) {
+        existingQ = existingQ.eq('profile_id', companyId);
+      }
+      const { data: existing, error: loadErr } = await existingQ.maybeSingle();
+      if (loadErr) {
+        return NextResponse.json({ error: loadErr.message }, { status: 500 });
+      }
+      if (!existing) {
+        return NextResponse.json({ error: 'Document not found for this company' }, { status: 404 });
+      }
+
+      const wasShared = (existing.visibility || 'seller_only') === 'shared';
+      const nextVisibility = changingVisibility
+        ? body.visibility === 'shared' || body.visibility === true
+          ? 'shared'
+          : 'seller_only'
+        : wasShared
+          ? 'shared'
+          : 'seller_only';
+      // Prefer body.customer_id when present (align with contracts share path)
+      const nextCustomerId = Number(
+        body.customer_id !== undefined ? body.customer_id : existing.customer_id
+      );
+      const customerChanged =
+        changingCustomer &&
+        Number(body.customer_id || 0) !== Number(existing.customer_id || 0);
+      const willBeShared = nextVisibility === 'shared';
+
+      // Auth when becoming shared, re-asserting shared, or reassigning customer while shared
+      const needsShareAuth =
+        willBeShared &&
+        (changingVisibility || // explicit visibility write to shared (or re-assert)
+          (wasShared && customerChanged));
+
+      if (needsShareAuth) {
+        if (!Number.isFinite(companyId) || companyId <= 0) {
+          return NextResponse.json(
+            { error: 'companyId required when sharing or reassigning a shared document' },
+            { status: 400 }
+          );
+        }
+        const member = await assertCompanyMember(body.privyUserId, companyId);
+        if (!member.ok) {
+          return NextResponse.json({ error: member.error }, { status: member.status });
+        }
+        if (!Number.isFinite(nextCustomerId) || nextCustomerId <= 0) {
+          return NextResponse.json(
+            { error: 'Assign a customer before sharing this document with the buyer' },
+            { status: 400 }
+          );
+        }
+        const notSuspended = await assertSellerCustomerNotSuspended(companyId, nextCustomerId);
+        if (!notSuspended.ok) {
+          return NextResponse.json(
+            { error: notSuspended.error },
+            { status: notSuspended.status }
+          );
+        }
+      } else if (changingVisibility && nextVisibility === 'seller_only') {
+        // Unshare: membership when companyId/privy provided (tighten access while suspended OK)
+        if (Number.isFinite(companyId) && companyId > 0) {
+          const member = await assertCompanyMember(body.privyUserId, companyId);
+          if (!member.ok) {
+            return NextResponse.json({ error: member.error }, { status: member.status });
+          }
+        }
+      }
+
+      if (changingVisibility) {
+        updates.visibility = nextVisibility;
+      }
+    }
+
+    let q = supabase.from(table).update(updates).eq('id', docId);
+    // Scope ownership when companyId provided (required for share; optional for other fields)
+    if (body.companyId != null && Number.isFinite(Number(body.companyId))) {
+      q = q.eq('profile_id', Number(body.companyId));
+    }
+
+    const { data, error } = await q.select('*').single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ success: true, document: data, type: kind });
   } catch (e: unknown) {

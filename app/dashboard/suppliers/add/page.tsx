@@ -1,259 +1,277 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
-import { ArrowLeft, CheckCircle, Link as LinkIcon } from 'lucide-react';
-import { useWriteContract, useAccount } from 'wagmi';
-import { SupplierRegistryABI } from '@/lib/contracts/SupplierRegistryABI';
+import { useRouter } from 'next/navigation';
+import { Loader2, UserPlus } from 'lucide-react';
+import { usePrivy } from '@privy-io/react-auth';
+import { toast } from 'sonner';
+import { getSelectedCompanyId } from '@/lib/containers/company';
+import { getCanonicalUserId } from '@/lib/auth/identity';
+import { SUPPLIER_CERTIFICATIONS, SUPPLIER_INDUSTRIES } from '@/lib/suppliers/types';
+import {
+  CompanyRequired,
+  SuppliersHeader,
+  SuppliersPage
+} from '@/components/suppliers/SuppliersShell';
 
-const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_SUPPLIER_REGISTRY_ADDRESS as `0x${string}`;
+export default function AddSupplierPage() {
+  return (
+    <CompanyRequired>
+      <AddInner />
+    </CompanyRequired>
+  );
+}
 
-export default function AddNewSupplier() {
-  const { address: connectedWallet } = useAccount();
-  const [formData, setFormData] = useState({
+function AddInner() {
+  const companyId = getSelectedCompanyId()!;
+  const { user } = usePrivy();
+  const privyUserId = getCanonicalUserId(user?.id);
+  const router = useRouter();
+  const [saving, setSaving] = useState(false);
+  const [sendInvite, setSendInvite] = useState(true);
+  const [form, setForm] = useState({
     trading_name: '',
     legal_name: '',
-    registration_number: '',
-    category: '',
     contact_name: '',
     contact_email: '',
     contact_phone: '',
-    contact_position: '',
     website: '',
+    industry: '',
+    category: '',
+    city: '',
+    country: 'South Africa',
     notes: '',
+    certifications: [] as string[],
   });
 
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [error, setError] = useState('');
-  const [onchainRegistered, setOnchainRegistered] = useState(false);
-
-  const { writeContractAsync } = useWriteContract();
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+  const toggleCert = (c: string) => {
+    setForm((f) => ({
+      ...f,
+      certifications: f.certifications.includes(c)
+        ? f.certifications.filter((x) => x !== c)
+        : [...f.certifications, c],
+    }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-
+  const submit = async () => {
+    if (!form.trading_name.trim()) {
+      toast.error('Trading name required');
+      return;
+    }
+    if (sendInvite && !form.contact_email.trim()) {
+      toast.error('Email required to invite');
+      return;
+    }
+    setSaving(true);
     try {
-      // ✅ Improved: Professional default instead of "Your Business"
-      const invitedBy = localStorage.getItem('selectedCompanyName') || 'A SupplierAdvisor partner';
-      const inviterProfileId = localStorage.getItem('selectedCompanyId');
-
-      const response = await fetch('/api/send-supplier-invite', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          trading_name: formData.trading_name,
-          contact_name: formData.contact_name,
-          contact_email: formData.contact_email,
-          invitedBy: invitedBy,
-          category: formData.category,
-          contact_phone: formData.contact_phone,
-          website: formData.website,
-          inviterProfileId,
-        }),
-      });
-
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Failed to send invitation');
-
-      setSuccess(true);
-    } catch (err: any) {
-      console.error(err);
-      setError(err.message || 'Something went wrong. Please try again.');
+      if (sendInvite) {
+        const res = await fetch('/api/suppliers/invites', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyId,
+            privyUserId,
+            trading_name: form.trading_name,
+            legal_name: form.legal_name || form.trading_name,
+            contact_name: form.contact_name,
+            contact_email: form.contact_email,
+            contact_phone: form.contact_phone,
+            website: form.website,
+            industry: form.industry,
+            category: form.category,
+            city: form.city,
+            country: form.country,
+            invitedBy: form.contact_name || 'Buyer',
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Invite failed');
+        toast.success(
+          data.warning
+            ? 'Supplier added — share invite link manually (email failed)'
+            : 'Invitation sent — supplier can claim and take over'
+        );
+        if (data.inviteLink) {
+          try {
+            await navigator.clipboard.writeText(data.inviteLink);
+            toast.message('Invite link copied to clipboard');
+          } catch {
+            /* ignore */
+          }
+        }
+      } else {
+        const res = await fetch('/api/suppliers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyId,
+            privyUserId,
+            ...form,
+            email: form.contact_email,
+            phone: form.contact_phone,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Create failed');
+        toast.success('Supplier added to your book');
+      }
+      router.push('/dashboard/suppliers/network');
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
-
-  // Onchain registration (unchanged)
-  const handleRegisterOnchain = async () => {
-    if (!connectedWallet) {
-      alert("Please connect your wallet first (top right)");
-      return;
-    }
-
-    if (!formData.trading_name) {
-      alert("Trading Name is required for onchain registration");
-      return;
-    }
-
-    try {
-      const tx = await writeContractAsync({
-        address: CONTRACT_ADDRESS,
-        abi: SupplierRegistryABI,
-        functionName: 'registerSupplier',
-        args: [
-          formData.trading_name,
-          formData.legal_name || formData.trading_name,
-          formData.category || 'General',
-        ],
-      });
-
-      setOnchainRegistered(true);
-      alert(`✅ Successfully registered onchain!\n\nTransaction: ${tx}\n\nThis supplier can now appear as "Verified Onchain" in the directory.`);
-    } catch (error: any) {
-      console.error(error);
-      alert("Onchain registration failed. Check console for details.");
-    }
-  };
-
-  if (success) {
-    return (
-      <div className="max-w-2xl mx-auto px-6 py-16 text-center">
-        <div className="mx-auto w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mb-8">
-          <CheckCircle className="w-10 h-10 text-emerald-600" />
-        </div>
-        <h1 className="font-black text-4xl tracking-tight mb-4">Invitation Sent</h1>
-        <p className="text-xl text-neutral-600 mb-4">
-          We've sent an invitation to <span className="font-semibold">{formData.contact_email}</span>.
-        </p>
-        <p className="text-neutral-600 mb-10">
-          {formData.trading_name} will receive a professional email with a secure claim link.
-        </p>
-
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Link href="/dashboard/suppliers/directory" className="btn-primary px-8 py-3">
-            View Supplier Directory
-          </Link>
-          <Link href="/dashboard/suppliers/add" className="btn-secondary px-8 py-3" onClick={() => window.location.reload()}>
-            Invite Another Supplier
-          </Link>
-        </div>
-      </div>
-    );
-  }
 
   return (
-    <div className="max-w-4xl mx-auto px-6 py-10">
-      <div className="mb-10">
-        <Link href="/dashboard/suppliers" className="flex items-center gap-2 text-sm text-neutral-600 hover:text-neutral-900 mb-4">
-          <ArrowLeft className="w-4 h-4" /> Back to Suppliers
-        </Link>
-        <h1 className="font-black text-5xl tracking-[-2px]">Add New Supplier</h1>
-        <p className="text-xl text-neutral-600 mt-3">
-          Invite a supplier to join SupplierAdvisor. They will receive a professional invitation from your business.
-        </p>
-      </div>
+    <SuppliersPage>
+    <div className="pb-8">
+      <SuppliersHeader
+        title="Add or invite supplier"
+        description="Add a supplier to your book immediately. Invite them to SupplierAdvisor so they claim the profile, complete verification, and take over their own data — while your connection stays live."
+      />
 
-      <form onSubmit={handleSubmit} className="space-y-10">
-        {/* Company Details */}
-        <div className="bg-white rounded-3xl border border-neutral-200 p-8">
-          <h3 className="font-bold text-2xl tracking-tight mb-6">Company Details</h3>
-          
-          <div className="grid md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium mb-2">Trading Name *</label>
-              <input type="text" name="trading_name" value={formData.trading_name} onChange={handleChange} required
-                className="w-full px-5 py-3.5 bg-neutral-50 border border-neutral-200 rounded-2xl focus:outline-none focus:border-[#00b4d8]" placeholder="Acme Fresh Produce" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">Legal Name</label>
-              <input type="text" name="legal_name" value={formData.legal_name} onChange={handleChange}
-                className="w-full px-5 py-3.5 bg-neutral-50 border border-neutral-200 rounded-2xl focus:outline-none focus:border-[#00b4d8]" placeholder="Acme Fresh Produce (Pty) Ltd" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">Registration Number</label>
-              <input type="text" name="registration_number" value={formData.registration_number} onChange={handleChange}
-                className="w-full px-5 py-3.5 bg-neutral-50 border border-neutral-200 rounded-2xl focus:outline-none focus:border-[#00b4d8]" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">Category / Industry</label>
-              <input type="text" name="category" value={formData.category} onChange={handleChange}
-                className="w-full px-5 py-3.5 bg-neutral-50 border border-neutral-200 rounded-2xl focus:outline-none focus:border-[#00b4d8]" placeholder="Fresh Produce, Logistics..." />
-            </div>
+      <div className="max-w-2xl bg-white border rounded-3xl p-6 space-y-4">
+        <label className="flex items-center gap-2 text-sm font-medium cursor-pointer p-3 rounded-2xl bg-sky-50 border border-sky-100">
+          <input
+            type="checkbox"
+            checked={sendInvite}
+            onChange={(e) => setSendInvite(e.target.checked)}
+          />
+          Send platform invite (recommended) — they take over their company profile
+        </label>
+
+        <div className="grid sm:grid-cols-2 gap-3">
+          <div className="sm:col-span-2">
+            <label className="text-xs font-medium">Trading name *</label>
+            <input
+              className="input mt-1 w-full !p-3 !text-sm"
+              value={form.trading_name}
+              onChange={(e) => setForm({ ...form, trading_name: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium">Legal name</label>
+            <input
+              className="input mt-1 w-full !p-3 !text-sm"
+              value={form.legal_name}
+              onChange={(e) => setForm({ ...form, legal_name: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium">Contact name</label>
+            <input
+              className="input mt-1 w-full !p-3 !text-sm"
+              value={form.contact_name}
+              onChange={(e) => setForm({ ...form, contact_name: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium">Email {sendInvite ? '*' : ''}</label>
+            <input
+              type="email"
+              className="input mt-1 w-full !p-3 !text-sm"
+              value={form.contact_email}
+              onChange={(e) => setForm({ ...form, contact_email: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium">Phone</label>
+            <input
+              className="input mt-1 w-full !p-3 !text-sm"
+              value={form.contact_phone}
+              onChange={(e) => setForm({ ...form, contact_phone: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium">Industry</label>
+            <select
+              className="input mt-1 w-full !p-3 !text-sm"
+              value={form.industry}
+              onChange={(e) => setForm({ ...form, industry: e.target.value })}
+            >
+              <option value="">Select…</option>
+              {SUPPLIER_INDUSTRIES.map((i) => (
+                <option key={i} value={i}>
+                  {i}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-medium">Category</label>
+            <input
+              className="input mt-1 w-full !p-3 !text-sm"
+              value={form.category}
+              onChange={(e) => setForm({ ...form, category: e.target.value })}
+              placeholder="e.g. Dairy ingredients"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium">City</label>
+            <input
+              className="input mt-1 w-full !p-3 !text-sm"
+              value={form.city}
+              onChange={(e) => setForm({ ...form, city: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium">Country</label>
+            <input
+              className="input mt-1 w-full !p-3 !text-sm"
+              value={form.country}
+              onChange={(e) => setForm({ ...form, country: e.target.value })}
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="text-xs font-medium">Website</label>
+            <input
+              className="input mt-1 w-full !p-3 !text-sm"
+              value={form.website}
+              onChange={(e) => setForm({ ...form, website: e.target.value })}
+            />
           </div>
         </div>
 
-        {/* Primary Contact */}
-        <div className="bg-white rounded-3xl border border-neutral-200 p-8">
-          <h3 className="font-bold text-2xl tracking-tight mb-6">Primary Contact Person</h3>
-          <div className="grid md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium mb-2">Full Name *</label>
-              <input type="text" name="contact_name" value={formData.contact_name} onChange={handleChange} required
-                className="w-full px-5 py-3.5 bg-neutral-50 border border-neutral-200 rounded-2xl focus:outline-none focus:border-[#00b4d8]" placeholder="John Dlamini" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">Position / Title</label>
-              <input type="text" name="contact_position" value={formData.contact_position} onChange={handleChange}
-                className="w-full px-5 py-3.5 bg-neutral-50 border border-neutral-200 rounded-2xl focus:outline-none focus:border-[#00b4d8]" placeholder="Procurement Manager" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">Email Address *</label>
-              <input type="email" name="contact_email" value={formData.contact_email} onChange={handleChange} required
-                className="w-full px-5 py-3.5 bg-neutral-50 border border-neutral-200 rounded-2xl focus:outline-none focus:border-[#00b4d8]" placeholder="john@acmefresh.co.za" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">Phone Number</label>
-              <input type="tel" name="contact_phone" value={formData.contact_phone} onChange={handleChange}
-                className="w-full px-5 py-3.5 bg-neutral-50 border border-neutral-200 rounded-2xl focus:outline-none focus:border-[#00b4d8]" placeholder="+27 82 123 4567" />
+        {!sendInvite && (
+          <div>
+            <label className="text-xs font-medium">Known certifications</label>
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {SUPPLIER_CERTIFICATIONS.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => toggleCert(c)}
+                  className={`text-[10px] font-semibold px-2 py-1 rounded-full border ${
+                    form.certifications.includes(c)
+                      ? 'border-[#00b4d8] bg-[#00b4d8]/10'
+                      : 'border-neutral-200'
+                  }`}
+                >
+                  {c}
+                </button>
+              ))}
             </div>
           </div>
-        </div>
-
-        {/* Additional Information */}
-        <div className="bg-white rounded-3xl border border-neutral-200 p-8">
-          <h3 className="font-bold text-2xl tracking-tight mb-6">Additional Information</h3>
-          <div className="grid md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium mb-2">Website</label>
-              <input type="url" name="website" value={formData.website} onChange={handleChange}
-                className="w-full px-5 py-3.5 bg-neutral-50 border border-neutral-200 rounded-2xl focus:outline-none focus:border-[#00b4d8]" placeholder="https://www.acmefresh.co.za" />
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium mb-2">Internal Notes</label>
-              <textarea name="notes" value={formData.notes} onChange={handleChange} rows={4}
-                className="w-full px-5 py-3.5 bg-neutral-50 border border-neutral-200 rounded-2xl focus:outline-none focus:border-[#00b4d8] resize-y" placeholder="Any internal notes..." />
-            </div>
-          </div>
-        </div>
-
-        {error && <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-2xl text-sm">{error}</div>}
-
-        {/* Submit Button */}
-        <div className="flex justify-end pt-4">
-          <button type="submit" disabled={loading || !formData.trading_name || !formData.contact_email}
-            className="btn-primary px-10 py-4 text-base disabled:opacity-60 flex items-center gap-2">
-            {loading ? 'Sending Invitation...' : 'Send Invitation to Supplier'}
-          </button>
-        </div>
-      </form>
-
-      {/* Onchain Registration Section */}
-      <div className="mt-12 bg-white rounded-3xl border border-neutral-200 p-8">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="p-2 bg-emerald-100 rounded-xl">
-            <LinkIcon className="w-5 h-5 text-emerald-600" />
-          </div>
-          <h3 className="font-bold text-2xl tracking-tight">Also Register Onchain (Recommended)</h3>
-        </div>
-        
-        <p className="text-neutral-600 mb-6">
-          Register this supplier on Base Sepolia blockchain. This enables verified badges, onchain reputation, and future smart contract features.
-        </p>
+        )}
 
         <button
-          onClick={handleRegisterOnchain}
-          disabled={!formData.trading_name || onchainRegistered}
-          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-semibold disabled:opacity-60 flex items-center justify-center gap-2"
+          type="button"
+          disabled={saving}
+          onClick={() => void submit()}
+          className="btn-primary w-full !py-3"
         >
-          {onchainRegistered ? (
-            <>✅ Successfully Registered Onchain</>
+          {saving ? (
+            <Loader2 className="w-4 h-4 animate-spin mx-auto" />
           ) : (
-            <>Register "{formData.trading_name || 'Supplier'}" Onchain</>
+            <>
+              <UserPlus className="w-4 h-4" />
+              {sendInvite ? 'Add & send invite' : 'Add to my book only'}
+            </>
           )}
         </button>
-
-        <p className="text-xs text-center text-neutral-500 mt-3">
-          This calls the live SupplierRegistry contract • {CONTRACT_ADDRESS?.slice(0, 6)}...{CONTRACT_ADDRESS?.slice(-4)}
-        </p>
       </div>
     </div>
+    </SuppliersPage>
   );
 }

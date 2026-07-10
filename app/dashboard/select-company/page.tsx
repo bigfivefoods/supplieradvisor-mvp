@@ -127,6 +127,8 @@ export default function SelectCompanyPage() {
     try {
       localStorage.setItem('selectedCompanyId', companyId);
       if (tradingName) localStorage.setItem('selectedCompanyName', tradingName);
+      // Notify open tabs / CompanyGate listeners
+      window.dispatchEvent(new Event('sa:company-changed'));
     } catch {
       // private mode / blocked storage — still navigate
     }

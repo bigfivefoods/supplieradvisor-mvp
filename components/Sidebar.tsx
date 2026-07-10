@@ -4,6 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
+import { toast } from 'sonner';
 import { 
   Home, Building2, Users, Truck, Factory, Package, 
   Calculator, Brain, ChevronDown, ArrowLeftRight
@@ -18,13 +19,13 @@ const modules = [
     icon: Building2, 
     href: '/dashboard/my-business',
     sub: [
-      { name: 'Company Profile', href: '/dashboard/my-business/profile' },
-      { name: 'Team & Roles', href: '/dashboard/my-business/team' },
-      { name: 'Projects', href: '/dashboard/my-business/projects' },
-      { name: 'Legal & Compliance', href: '/dashboard/my-business/legal' },
-      { name: 'Documents', href: '/dashboard/my-business/documents' },
-      { name: 'My Business RIAD Log', href: '/dashboard/my-business/riad-log' },
+      { name: 'Company profile', href: '/dashboard/my-business/profile' },
+      { name: 'Team & roles', href: '/dashboard/my-business/team' },
       { name: 'Settings', href: '/dashboard/my-business/settings' },
+      { name: 'Legal & compliance', href: '/dashboard/my-business/legal' },
+      { name: 'Documents', href: '/dashboard/my-business/documents' },
+      { name: 'Projects', href: '/dashboard/my-business/projects' },
+      { name: 'Company RIAD', href: '/dashboard/my-business/riad-log' },
     ]
   },
 
@@ -33,10 +34,14 @@ const modules = [
     id: 'network', 
     name: 'Network', 
     icon: Users, 
-    href: '/dashboard/network',
+    href: '/dashboard/connections',
     sub: [
-      { name: 'My Connections', href: '/dashboard/network' },
-      { name: 'Invite Company', href: '/dashboard/invite-business' },
+      { name: 'Connections hub', href: '/dashboard/connections' },
+      { name: 'Marketplace', href: '/dashboard/connections/marketplace' },
+      { name: 'Sell on marketplace', href: '/dashboard/connections/marketplace/sell' },
+      { name: 'Find suppliers', href: '/dashboard/suppliers/discover' },
+      { name: 'Customer invites', href: '/dashboard/customers/invites' },
+      { name: 'Invite company', href: '/dashboard/invite-business' },
     ]
   },
 
@@ -47,13 +52,17 @@ const modules = [
     icon: Truck, 
     href: '/dashboard/suppliers',
     sub: [
-      { name: 'Supplier Profiles', href: '/dashboard/suppliers/profiles' },
-      { name: 'Supplier Performance', href: '/dashboard/suppliers/performance' },
-      { name: 'Add New Supplier', href: '/dashboard/suppliers/add' },
-      { name: 'Sent Supplier Invitations', href: '/dashboard/suppliers/invites' },
-      { name: 'Purchase Orders', href: '/dashboard/suppliers/po' },
-      { name: 'Supplier Contracts', href: '/dashboard/suppliers/contracts' },
-      { name: 'Supplier RIAD Log', href: '/dashboard/suppliers/riad-log' },
+      { name: 'Discover (trust search)', href: '/dashboard/suppliers/discover' },
+      { name: 'My network', href: '/dashboard/suppliers/network' },
+      { name: 'Add / invite', href: '/dashboard/suppliers/add' },
+      { name: 'Invitations', href: '/dashboard/suppliers/invites' },
+      { name: 'OTIFEF performance', href: '/dashboard/suppliers/performance' },
+      { name: 'Ratings', href: '/dashboard/suppliers/ratings' },
+      { name: 'Documents', href: '/dashboard/suppliers/documents' },
+      { name: 'Purchase orders', href: '/dashboard/suppliers/po' },
+      { name: 'Ops board', href: '/dashboard/suppliers/portal' },
+      { name: 'Contracts', href: '/dashboard/suppliers/contracts' },
+      { name: 'Supplier RIAD', href: '/dashboard/suppliers/riad-log' },
     ]
   },
 
@@ -68,14 +77,18 @@ const modules = [
       { name: 'Leads & opportunities', href: '/dashboard/customers/leads' },
       { name: 'Profiles', href: '/dashboard/customers/profiles' },
       { name: 'Add customer', href: '/dashboard/customers/onboard' },
+      { name: 'Platform invites', href: '/dashboard/customers/invites' },
       { name: 'Quotes', href: '/dashboard/customers/quotes' },
       { name: 'Orders', href: '/dashboard/customers/orders' },
       { name: 'Invoices', href: '/dashboard/customers/invoices' },
+      { name: 'Peer reviews', href: '/dashboard/customers/reviews' },
       { name: 'Loyalty', href: '/dashboard/customers/loyalty' },
       { name: 'Claims', href: '/dashboard/customers/claims' },
       { name: 'Contracts', href: '/dashboard/customers/contracts' },
       { name: 'Customer RIAD', href: '/dashboard/customers/riad-log' },
       { name: 'Portal', href: '/dashboard/customers/portal' },
+      { name: 'Buyer POs', href: '/dashboard/buyer/pos' },
+      { name: 'Buyer reviews', href: '/dashboard/buyer/reviews' },
     ]
   },
 
@@ -87,12 +100,12 @@ const modules = [
     href: '/dashboard/containers',
     sub: [
       { name: 'Overview', href: '/dashboard/containers' },
-      { name: 'Manage Containers', href: '/dashboard/containers/manage' },
+      { name: 'Manage containers', href: '/dashboard/containers/manage' },
       { name: 'Map', href: '/dashboard/containers/map' },
-      { name: 'Add Container', href: '/dashboard/containers/add' },
+      { name: 'Add container', href: '/dashboard/containers/add' },
       { name: 'Contractors', href: '/dashboard/containers/contractors' },
-      { name: 'Training Hub', href: '/dashboard/containers/training' },
-      { name: 'Container RIAD Log', href: '/dashboard/containers/riad-log' },
+      { name: 'Training hub', href: '/dashboard/containers/training' },
+      { name: 'Container RIAD', href: '/dashboard/containers/riad-log' },
       { name: 'Metrics', href: '/dashboard/containers/metrics' },
     ]
   },
@@ -308,8 +321,13 @@ export default function Sidebar() {
       <div className="p-4 border-t space-y-3">
         <button
           type="button"
-          className="w-full bg-slate-900 text-white py-3 rounded-2xl flex items-center justify-center gap-2 font-medium hover:bg-neutral-800 transition-colors"
+          className="w-full bg-[#00b4d8] text-white py-3 rounded-2xl flex items-center justify-center gap-2 font-medium hover:bg-[#0096c7] transition-colors shadow-sm cursor-pointer"
           title="AI assistant coming soon"
+          onClick={() =>
+            toast.message('Grok AI Assistant', {
+              description: 'Context-aware help is coming soon for CRM, SRM, and inventory.',
+            })
+          }
         >
           <Brain className="w-5 h-5" />
           Ask Grok AI Assistant

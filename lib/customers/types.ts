@@ -114,6 +114,131 @@ export type OpportunityRecord = {
   weighted_amount?: number;
 };
 
+/** Denormalized platform-invite phase on the seller CRM customer row (not invitation attempt status). */
+export const CUSTOMER_INVITE_STATUSES = [
+  { value: 'not_invited', label: 'Not invited' },
+  { value: 'invited', label: 'Invited' },
+  { value: 'accepted', label: 'Accepted' },
+  { value: 'suspended', label: 'Suspended' },
+  { value: 'declined', label: 'Declined' },
+  { value: 'expired', label: 'Expired' },
+] as const;
+
+/** Lifecycle of a single customer_invitations row. */
+export const CUSTOMER_INVITATION_STATUSES = [
+  { value: 'pending', label: 'Pending' },
+  { value: 'claiming', label: 'Claiming' },
+  { value: 'accepted', label: 'Accepted' },
+  { value: 'declined', label: 'Declined' },
+  { value: 'expired', label: 'Expired' },
+  { value: 'revoked', label: 'Revoked' },
+] as const;
+
+export type CustomerInviteStatus = (typeof CUSTOMER_INVITE_STATUSES)[number]['value'];
+export type CustomerInvitationStatus = (typeof CUSTOMER_INVITATION_STATUSES)[number]['value'];
+
+/**
+ * Resolve CRM connection phase for UI badges.
+ * Prefer linked_profile_id → Connected when not suspended (handles lagging invite_status).
+ */
+export function resolveCustomerConnectionPhase(c: {
+  invite_status?: string | null;
+  linked_profile_id?: number | null;
+}): string {
+  const s = (c.invite_status || 'not_invited').toLowerCase();
+  if (s === 'suspended') return 'suspended';
+  if (c.linked_profile_id) return 'accepted';
+  return s;
+}
+
+/** UI label for CRM connection phase. accepted → "Connected". */
+export function customerInviteStatusLabel(
+  status?: string | null,
+  linkedProfileId?: number | null
+): string {
+  const phase = resolveCustomerConnectionPhase({
+    invite_status: status,
+    linked_profile_id: linkedProfileId,
+  });
+  switch (phase) {
+    case 'accepted':
+      return 'Connected';
+    case 'invited':
+      return 'Invited';
+    case 'suspended':
+      return 'Suspended';
+    case 'declined':
+      return 'Declined';
+    case 'expired':
+      return 'Expired';
+    case 'not_invited':
+    default:
+      return 'Not invited';
+  }
+}
+
+export function customerInviteStatusClass(
+  status?: string | null,
+  linkedProfileId?: number | null
+): string {
+  const phase = resolveCustomerConnectionPhase({
+    invite_status: status,
+    linked_profile_id: linkedProfileId,
+  });
+  switch (phase) {
+    case 'accepted':
+      return 'bg-emerald-50 text-emerald-800';
+    case 'invited':
+      return 'bg-amber-50 text-amber-800';
+    case 'suspended':
+      return 'bg-red-50 text-red-800';
+    case 'declined':
+      return 'bg-neutral-100 text-neutral-600';
+    case 'expired':
+      return 'bg-orange-50 text-orange-800';
+    case 'not_invited':
+    default:
+      return 'bg-neutral-100 text-neutral-600';
+  }
+}
+
+/** Profiles / list action label: first invite vs resend. */
+export function customerInviteActionLabel(c: {
+  invite_status?: string | null;
+}): string {
+  const s = (c.invite_status || 'not_invited').toLowerCase();
+  if (s === 'invited' || s === 'declined' || s === 'expired') return 'Resend invite';
+  return 'Invite';
+}
+
+export function invitationAttemptStatusClass(status?: string | null): string {
+  switch ((status || '').toLowerCase()) {
+    case 'pending':
+    case 'claiming':
+      return 'bg-amber-50 text-amber-800';
+    case 'accepted':
+      return 'bg-emerald-50 text-emerald-800';
+    case 'declined':
+      return 'bg-neutral-100 text-neutral-600';
+    case 'expired':
+      return 'bg-orange-50 text-orange-800';
+    case 'revoked':
+      return 'bg-red-50 text-red-700';
+    default:
+      return 'bg-neutral-100 text-neutral-600';
+  }
+}
+
+/** Whether the seller can send/resend a platform invite for this CRM row. */
+export function canInviteCustomer(c: {
+  invite_status?: string | null;
+  linked_profile_id?: number | null;
+}): boolean {
+  if (c.linked_profile_id) return false;
+  const s = (c.invite_status || 'not_invited').toLowerCase();
+  return s !== 'accepted' && s !== 'suspended';
+}
+
 export type CustomerRecord = {
   id: number;
   profile_id?: number | null;
@@ -142,6 +267,36 @@ export type CustomerRecord = {
   owner_name?: string | null;
   notes?: string | null;
   rating?: number | null;
+  /** Linked buyer company profile after invite accept. */
+  linked_profile_id?: number | null;
+  /** business_connections id for the customer edge (type=customer). */
+  connection_id?: number | null;
+  invite_status?: CustomerInviteStatus | null;
+  invite_token?: string | null;
+  invited_at?: string | null;
+  invite_accepted_at?: string | null;
+  invited_email?: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type CustomerInvitationRecord = {
+  id: number;
+  /** Present on create/resend responses only — list GET never returns token. */
+  token?: string | null;
+  profile_id: number;
+  customer_id: number;
+  email: string;
+  full_name?: string | null;
+  status?: CustomerInvitationStatus | null;
+  invited_by?: string | null;
+  company_name?: string | null;
+  customer_name?: string | null;
+  target_profile_id?: number | null;
+  message?: string | null;
+  user_id?: string | null;
+  expires_at?: string | null;
+  accepted_at?: string | null;
   created_at?: string;
   updated_at?: string;
 };

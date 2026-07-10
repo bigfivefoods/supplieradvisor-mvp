@@ -1,98 +1,85 @@
 'use client';
 
-export const dynamic = 'force-dynamic';
-
-import { useEffect, useState, Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
-import { createClient } from '@/utils/supabase/client';
-import { toast } from 'sonner';
+import { useCallback, useEffect, useState } from 'react';
+import { Loader2, UserPlus, Trash2 } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
-import { Users, UserPlus, Mail } from 'lucide-react';
+import { toast } from 'sonner';
+import { getSelectedCompanyId } from '@/lib/containers/company';
+import { getCanonicalUserId } from '@/lib/auth/identity';
+import {
+  TEAM_ROLES,
+  memberStatusClass,
+  roleBadgeClass,
+  type TeamMember,
+} from '@/lib/business/types';
+import {
+  CompanyRequired,
+  BusinessHeader,
+  BusinessPage,
+} from '@/components/business/BusinessShell';
+import { KpiCard, Panel } from '@/components/relationship/RelationshipChrome';
 
-function TeamContent() {
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const { user } = usePrivy();
-
-  const urlCompanyId = searchParams.get('companyId');
-  const [companyId, setCompanyId] = useState<string | null>(
-    urlCompanyId || localStorage.getItem('selectedCompanyId')
+export default function BusinessTeamPage() {
+  return (
+    <CompanyRequired>
+      <TeamInner />
+    </CompanyRequired>
   );
+}
 
-  const [teamMembers, setTeamMembers] = useState<any[]>([]);
+function TeamInner() {
+  const companyId = getSelectedCompanyId()!;
+  const { user } = usePrivy();
+  const privyUserId = getCanonicalUserId(user?.id);
+
+  const [members, setMembers] = useState<TeamMember[]>([]);
   const [companyName, setCompanyName] = useState('');
+  const [counts, setCounts] = useState({ total: 0, active: 0, invited: 0, owners: 0 });
   const [loading, setLoading] = useState(true);
   const [inviting, setInviting] = useState(false);
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const [form, setForm] = useState({ name: '', email: '', role: 'member' });
 
-  const [newTeamMember, setNewTeamMember] = useState({
-    name: '',
-    email: '',
-    role: ''
-  });
-
-  // Create Supabase client (modern pattern)
-  const supabase = createClient();
-
-  // Save companyId to localStorage
-  useEffect(() => {
-    if (urlCompanyId) {
-      localStorage.setItem('selectedCompanyId', urlCompanyId);
-      setCompanyId(urlCompanyId);
-    }
-  }, [urlCompanyId]);
-
-  // Load company + team members
-  useEffect(() => {
-    const loadData = async () => {
-      if (!companyId) {
-        setLoading(false);
-        return;
-      }
-
-      setLoading(true);
-
-      const { data: company } = await supabase
-        .from('profiles')
-        .select('trading_name, legal_name')
-        .eq('id', Number(companyId))
-        .single();
-
-      if (company) {
-        setCompanyName(company.trading_name || company.legal_name || 'Your Company');
-      }
-
-      const { data: members } = await supabase
-        .from('business_users')
-        .select('*')
-        .eq('profile_id', Number(companyId))
-        .order('created_at', { ascending: false });
-
-      if (members) setTeamMembers(members);
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ companyId: String(companyId) });
+      if (privyUserId) params.set('privyUserId', privyUserId);
+      const res = await fetch(`/api/business/team?${params}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to load');
+      setMembers(data.members || []);
+      setCounts(data.counts || counts);
+      setCompanyName(
+        data.company?.trading_name || data.company?.legal_name || 'Your company'
+      );
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Load failed');
+    } finally {
       setLoading(false);
-    };
+    }
+  }, [companyId, privyUserId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    loadData();
-  }, [companyId, supabase]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
-  // Invite new team member (with better error handling)
-  const addTeamMember = async () => {
-    if (!newTeamMember.email || !companyId) {
-      toast.error('Email and company are required');
+  const invite = async () => {
+    if (!form.email.trim()) {
+      toast.error('Email required');
       return;
     }
-
     setInviting(true);
-
     try {
-      const response = await fetch('/api/invite-team-member', {
+      const res = await fetch('/api/invite-team-member', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          companyId: Number(companyId),
-          name: newTeamMember.name,
-          email: newTeamMember.email,
-          role: newTeamMember.role || 'member',
-          companyName: companyName,
+          companyId,
+          name: form.name,
+          email: form.email.trim().toLowerCase(),
+          role: form.role || 'member',
+          companyName,
           invitedBy: user?.id,
           inviterName:
             user?.email?.address ||
@@ -100,197 +87,180 @@ function TeamContent() {
             'Your teammate',
         }),
       });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        // Show the real error from the server
-        const errorMessage = result.details || result.error || 'Failed to create invitation';
-        console.error('Server error details:', result);
-        toast.error('Failed to send invitation', {
-          description: errorMessage,
-        });
-        return;
-      }
-
-      toast.success(`Invitation sent to ${newTeamMember.email}`);
-
-      // Refresh the team list
-      const { data: members } = await supabase
-        .from('business_users')
-        .select('*')
-        .eq('profile_id', Number(companyId))
-        .order('created_at', { ascending: false });
-
-      if (members) setTeamMembers(members);
-      setNewTeamMember({ name: '', email: '', role: '' });
-
-    } catch (err: any) {
-      console.error('Invite error:', err);
-      toast.error('Failed to send invitation', {
-        description: err.message,
-      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Invite failed');
+      toast.success(data.warning || 'Invitation sent');
+      setForm({ name: '', email: '', role: 'member' });
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Invite failed');
     } finally {
       setInviting(false);
     }
   };
 
-  // Status badge helper
-  const getStatusBadge = (status: string) => {
-    const isPending = status === 'invited' || status === 'pending';
-
-    return (
-      <div
-        className={`text-xs px-4 py-1.5 rounded-3xl font-medium self-start md:self-auto ${
-          isPending 
-            ? 'bg-yellow-100 text-yellow-700' 
-            : 'bg-emerald-100 text-emerald-700'
-        }`}
-      >
-        {isPending ? 'Pending' : 'Active'}
-      </div>
-    );
+  const updateRole = async (memberId: number, role: string) => {
+    setBusyId(memberId);
+    try {
+      const res = await fetch('/api/business/team', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyId, privyUserId, memberId, role }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Update failed');
+      toast.success('Role updated');
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setBusyId(null);
+    }
   };
 
-  if (!companyId) {
-    return (
-      <div className="px-4 md:px-8 lg:pr-12 py-12 max-w-md mx-auto text-center">
-        <h2 className="text-2xl font-bold mb-4">No Company Selected</h2>
-        <p className="text-neutral-600 mb-6">
-          Please select a company first to manage your team.
-        </p>
-        <button 
-          onClick={() => router.push('/dashboard/select-company')}
-          className="btn-primary px-8 py-3"
-        >
-          Select Company
-        </button>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return <div className="p-12 text-center">Loading team members...</div>;
-  }
+  const remove = async (memberId: number) => {
+    if (!confirm('Remove this team member?')) return;
+    setBusyId(memberId);
+    try {
+      const params = new URLSearchParams({
+        companyId: String(companyId),
+        memberId: String(memberId),
+      });
+      if (privyUserId) params.set('privyUserId', privyUserId);
+      const res = await fetch(`/api/business/team?${params}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Remove failed');
+      toast.success('Member removed');
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setBusyId(null);
+    }
+  };
 
   return (
-    <div className="px-4 md:px-8 lg:pr-12 py-8 lg:py-12 max-w-screen-2xl mx-auto">
-      
-      {/* Header */}
-      <div className="mb-10">
-        <h1 className="font-black text-4xl md:text-5xl tracking-[-2px]">Team &amp; Roles</h1>
-        <p className="text-xl text-neutral-600 mt-2">Manage your team members and send invitations</p>
+    <BusinessPage>
+      <BusinessHeader
+        title="Team &"
+        titleAccent="roles"
+        description={`People with access to ${companyName}. Invites go through Resend; membership is membership-checked on every action.`}
+      />
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
+        <KpiCard label="Total" value={counts.total} loading={loading} />
+        <KpiCard label="Active" value={counts.active} tone="emerald" loading={loading} />
+        <KpiCard label="Invited" value={counts.invited} tone="amber" loading={loading} />
+        <KpiCard label="Owners" value={counts.owners} tone="cyan" loading={loading} />
       </div>
 
-      {/* Current Team Members */}
-      <div className="bg-white rounded-3xl border border-neutral-200 p-8 mb-8">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="p-3 bg-[#00b4d8]/10 rounded-2xl">
-            <Users className="w-6 h-6 text-[#00b4d8]" />
-          </div>
-          <h2 className="text-2xl font-bold">Current Team Members</h2>
-        </div>
-
-        {teamMembers.length > 0 ? (
-          <div className="space-y-3">
-            {teamMembers.map((member, index) => {
-              const isPending = member.status === 'invited' || member.status === 'pending';
-
-              return (
-                <div 
-                  key={index} 
-                  className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-neutral-50 p-5 rounded-2xl"
-                >
-                  <div>
-                    <div className="font-semibold text-lg">
-                      {member.invited_email || member.email || 'Team Member'}
-                    </div>
-                    <div className="text-sm text-neutral-500 mt-0.5">
-                      {member.invited_email || member.email} • {member.role || 'member'}
-                    </div>
-                    {isPending && member.created_at && (
-                      <div className="text-xs text-neutral-400 mt-1">
-                        Invited {new Date(member.created_at).toLocaleDateString()}
-                      </div>
-                    )}
-                  </div>
-
-                  {getStatusBadge(member.status)}
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="text-center py-8 text-neutral-500">
-            No team members added yet. Invite your first team member below.
-          </div>
-        )}
-      </div>
-
-      {/* Invite New Team Member */}
-      <div className="bg-white rounded-3xl border border-neutral-200 p-8">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="p-3 bg-emerald-100 rounded-2xl">
-            <UserPlus className="w-6 h-6 text-emerald-600" />
-          </div>
-          <h2 className="text-2xl font-bold">Invite New Team Member</h2>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div>
-            <label className="text-sm font-medium text-neutral-600">Full Name</label>
-            <input 
-              type="text" 
-              className="input w-full mt-1" 
-              placeholder="John Doe" 
-              value={newTeamMember.name} 
-              onChange={e => setNewTeamMember({ ...newTeamMember, name: e.target.value })} 
+      <div className="grid lg:grid-cols-5 gap-4 sm:gap-5">
+        <Panel title="Invite member" className="lg:col-span-2">
+          <div className="p-5 space-y-3">
+            <input
+              className="input w-full !p-3 !text-sm"
+              placeholder="Full name"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
             />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-neutral-600">Email Address</label>
-            <input 
-              type="email" 
-              className="input w-full mt-1" 
-              placeholder="john@company.com" 
-              value={newTeamMember.email} 
-              onChange={e => setNewTeamMember({ ...newTeamMember, email: e.target.value })} 
+            <input
+              type="email"
+              className="input w-full !p-3 !text-sm"
+              placeholder="Email *"
+              value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
             />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-neutral-600">Position / Role</label>
-            <select 
-              className="input w-full mt-1" 
-              value={newTeamMember.role} 
-              onChange={e => setNewTeamMember({ ...newTeamMember, role: e.target.value })}
+            <select
+              className="input w-full !p-3 !text-sm"
+              value={form.role}
+              onChange={(e) => setForm({ ...form, role: e.target.value })}
             >
-              <option value="member">Team member</option>
-              <option value="admin">Admin</option>
-              <option value="manager">Manager</option>
-              <option value="operations">Operations</option>
-              <option value="finance">Finance</option>
-              <option value="viewer">Viewer</option>
+              {TEAM_ROLES.map((r) => (
+                <option key={r.value} value={r.value}>
+                  {r.label}
+                </option>
+              ))}
             </select>
+            <button
+              type="button"
+              disabled={inviting}
+              onClick={() => void invite()}
+              className="btn-primary w-full !py-3 text-sm"
+            >
+              {inviting ? (
+                <Loader2 className="w-4 h-4 animate-spin mx-auto" />
+              ) : (
+                <>
+                  <UserPlus className="w-4 h-4" /> Send invite
+                </>
+              )}
+            </button>
           </div>
-        </div>
+        </Panel>
 
-        <button 
-          onClick={addTeamMember} 
-          disabled={inviting}
-          className="btn-primary w-full py-4 text-lg flex items-center justify-center gap-2 disabled:opacity-70"
-        >
-          <Mail className="w-5 h-5" />
-          {inviting ? 'Sending Invitation...' : 'Add Team Member & Send Invitation Email'}
-        </button>
+        <Panel title="Members" className="lg:col-span-3">
+          {loading ? (
+            <div className="p-16 flex justify-center">
+              <Loader2 className="w-7 h-7 animate-spin text-[#00b4d8]" />
+            </div>
+          ) : members.length === 0 ? (
+            <div className="p-12 text-center text-sm text-neutral-500">No team members yet.</div>
+          ) : (
+            <ul className="divide-y divide-neutral-100">
+              {members
+                .filter((m) => m.status !== 'removed')
+                .map((m) => (
+                  <li
+                    key={m.id}
+                    className="px-5 py-4 flex flex-wrap items-center justify-between gap-3"
+                  >
+                    <div className="min-w-0">
+                      <div className="font-semibold text-slate-900 truncate">
+                        {m.name || m.email || m.invited_email || 'Member'}
+                      </div>
+                      <div className="text-xs text-neutral-500 truncate">
+                        {m.email || m.invited_email || '—'}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${memberStatusClass(m.status)}`}
+                      >
+                        {m.status || 'active'}
+                      </span>
+                      <select
+                        className="input !py-1.5 !px-2 !text-xs !w-auto"
+                        value={m.role || 'member'}
+                        disabled={busyId === m.id}
+                        onChange={(e) => void updateRole(m.id, e.target.value)}
+                      >
+                        {TEAM_ROLES.map((r) => (
+                          <option key={r.value} value={r.value}>
+                            {r.label}
+                          </option>
+                        ))}
+                      </select>
+                      <span
+                        className={`hidden sm:inline text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${roleBadgeClass(m.role)}`}
+                      >
+                        {m.role}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={busyId === m.id}
+                        onClick={() => void remove(m.id)}
+                        className="p-2 text-red-500 hover:bg-red-50 rounded-xl"
+                        title="Remove"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </li>
+                ))}
+            </ul>
+          )}
+        </Panel>
       </div>
-    </div>
-  );
-}
-
-export default function TeamAndRoles() {
-  return (
-    <Suspense fallback={<div className="p-12 text-center">Loading team...</div>}>
-      <TeamContent />
-    </Suspense>
+    </BusinessPage>
   );
 }

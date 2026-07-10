@@ -1,9 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 // useEffect used for load
-import { Loader2, Plus, Trash2, Package, ArrowRight } from 'lucide-react';
+import { Loader2, Plus, Trash2, Package, ArrowRight, Share2, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
+import { usePrivy } from '@privy-io/react-auth';
+import { getCanonicalUserId } from '@/lib/auth/identity';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import {
   calcDocTotals,
@@ -27,6 +29,8 @@ type DocRecord = Record<string, unknown> & {
   total_amount?: number;
   currency?: string;
   notes?: string | null;
+  /** seller_only (default) | shared — buyer reads only when shared via server API */
+  visibility?: string | null;
 };
 
 const CONFIG: Record<
@@ -64,16 +68,25 @@ const CONFIG: Record<
   },
 };
 
-export default function DocumentWorkspace({ type }: { type: DocType }) {
+export default function DocumentWorkspace({
+  type,
+  beforeHeader,
+}: {
+  type: DocType;
+  /** Optional content rendered above CustomersHeader (e.g. Sales | Inbound tabs) */
+  beforeHeader?: ReactNode;
+}) {
   return (
     <CompanyRequired>
-      <DocInner type={type} />
+      <DocInner type={type} beforeHeader={beforeHeader} />
     </CompanyRequired>
   );
 }
 
-function DocInner({ type }: { type: DocType }) {
+function DocInner({ type, beforeHeader }: { type: DocType; beforeHeader?: ReactNode }) {
   const companyId = getSelectedCompanyId()!;
+  const { user } = usePrivy();
+  const privyUserId = getCanonicalUserId(user?.id);
   const cfg = CONFIG[type];
   const [docs, setDocs] = useState<DocRecord[]>([]);
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
@@ -234,9 +247,44 @@ function DocInner({ type }: { type: DocType }) {
     const res = await fetch('/api/customers/docs', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type, id, status }),
+      body: JSON.stringify({ type, id, status, companyId }),
     });
     if (res.ok) void load();
+  };
+
+  /** Toggle visibility=shared | seller_only. New share blocked while customer suspended (409). */
+  const toggleShare = async (doc: DocRecord) => {
+    if (!privyUserId) {
+      toast.error('Sign in required to share documents');
+      return;
+    }
+    const currentlyShared = (doc.visibility || 'seller_only') === 'shared';
+    if (!currentlyShared && !doc.customer_id) {
+      toast.error('Assign a customer before sharing with the buyer');
+      return;
+    }
+    setBusyId(doc.id);
+    try {
+      const res = await fetch('/api/customers/docs', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type,
+          id: doc.id,
+          companyId,
+          privyUserId,
+          visibility: currentlyShared ? 'seller_only' : 'shared',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Share update failed');
+      toast.success(currentlyShared ? 'Unshared — seller only' : 'Shared with connected buyer');
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setBusyId(null);
+    }
   };
 
   const remove = async (id: number) => {
@@ -250,6 +298,7 @@ function DocInner({ type }: { type: DocType }) {
 
   return (
     <div className="px-2 md:px-4 max-w-screen-2xl mx-auto pb-12">
+      {beforeHeader}
       <CustomersHeader
         title={cfg.title}
         description={cfg.description}
@@ -450,6 +499,7 @@ function DocInner({ type }: { type: DocType }) {
             {docs.map((d) => {
               const num = String(d[cfg.numberField] || d.id);
               const itemCount = Array.isArray(d.items) ? d.items.length : 0;
+              const isShared = (d.visibility || 'seller_only') === 'shared';
               return (
                 <li key={d.id} className="px-5 py-4 flex flex-wrap items-center justify-between gap-3 text-sm">
                   <div className="min-w-0">
@@ -457,6 +507,20 @@ function DocInner({ type }: { type: DocType }) {
                       <span className="font-bold font-mono">{num}</span>
                       <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${statusBadgeClass(d.status)}`}>
                         {d.status}
+                      </span>
+                      <span
+                        className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                          isShared
+                            ? 'bg-violet-100 text-violet-800'
+                            : 'bg-neutral-100 text-neutral-600'
+                        }`}
+                        title={
+                          isShared
+                            ? 'Visible to connected buyer via server API'
+                            : 'Seller only — not shared with buyer'
+                        }
+                      >
+                        {isShared ? 'Shared' : 'Seller only'}
                       </span>
                     </div>
                     <div className="text-xs text-neutral-500 mt-0.5">
@@ -468,6 +532,31 @@ function DocInner({ type }: { type: DocType }) {
                     <div className="font-bold text-base tabular-nums mr-2">
                       {formatMoney(Number(d.total_amount || 0), String(d.currency || 'ZAR'))}
                     </div>
+                    <button
+                      type="button"
+                      disabled={busyId === d.id}
+                      onClick={() => void toggleShare(d)}
+                      className={`btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1 ${
+                        isShared ? 'border-violet-300 text-violet-800' : ''
+                      }`}
+                      title={
+                        isShared
+                          ? 'Unshare (allowed while connection suspended)'
+                          : 'Share with connected buyer (blocked if suspended)'
+                      }
+                    >
+                      {busyId === d.id ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : isShared ? (
+                        <>
+                          <EyeOff className="w-3.5 h-3.5" /> Unshare
+                        </>
+                      ) : (
+                        <>
+                          <Share2 className="w-3.5 h-3.5" /> Share
+                        </>
+                      )}
+                    </button>
                     {cfg.convertAction && d.status !== 'converted' && d.status !== 'invoiced' && (
                       <button
                         type="button"

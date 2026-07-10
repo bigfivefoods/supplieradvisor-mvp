@@ -8,13 +8,18 @@ import Link from 'next/link';
 
 /**
  * /invite?token= or /invite?invite=
- * Unified entry for team invites (also supports business tokens via kind query).
+ * Unified entry for team / business / customer invites via kind query.
  */
 function InviteRouter() {
   const searchParams = useSearchParams();
   const token = searchParams.get('token') || searchParams.get('invite');
   const kindParam = searchParams.get('kind');
-  const kind = kindParam === 'business' ? 'business' : 'team';
+  const kind =
+    kindParam === 'business'
+      ? 'business'
+      : kindParam === 'customer'
+        ? 'customer'
+        : 'team';
 
   if (!token) {
     return (

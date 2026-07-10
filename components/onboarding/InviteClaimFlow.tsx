@@ -19,7 +19,7 @@ import {
 import { toast } from 'sonner';
 import { extractEmailFromPrivyUser, getCanonicalUserId } from '@/lib/auth/identity';
 
-type InviteKind = 'business' | 'team';
+type InviteKind = 'business' | 'team' | 'customer';
 
 interface InviteClaimFlowProps {
   token: string;
@@ -44,6 +44,19 @@ type TeamInvite = {
   profileId: string | number;
 };
 
+type CustomerInvite = {
+  email: string;
+  fullName?: string | null;
+  contactName?: string | null;
+  customerName?: string | null;
+  sellerName?: string | null;
+  companyName?: string | null;
+  targetProfileId?: number | null;
+  customerId?: number;
+  sellerProfileId?: number;
+  invitedBy?: string | null;
+};
+
 export default function InviteClaimFlow({ token, kind }: InviteClaimFlowProps) {
   const router = useRouter();
   const { ready, authenticated, user, login } = usePrivy();
@@ -54,6 +67,7 @@ export default function InviteClaimFlow({ token, kind }: InviteClaimFlowProps) {
   const [success, setSuccess] = useState(false);
   const [businessInvite, setBusinessInvite] = useState<BusinessInvite | null>(null);
   const [teamInvite, setTeamInvite] = useState<TeamInvite | null>(null);
+  const [customerInvite, setCustomerInvite] = useState<CustomerInvite | null>(null);
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -73,6 +87,9 @@ export default function InviteClaimFlow({ token, kind }: InviteClaimFlowProps) {
       if (kind === 'team') {
         setTeamInvite(data.invitation);
         setName(data.invitation.name || '');
+      } else if (kind === 'customer') {
+        setCustomerInvite(data.invitation);
+        setName(data.invitation.contactName || data.invitation.fullName || '');
       } else {
         setBusinessInvite(data.invitation);
         setName(data.invitation.contactName || '');
@@ -90,7 +107,13 @@ export default function InviteClaimFlow({ token, kind }: InviteClaimFlowProps) {
   }, [validate]);
 
   const expectedEmail =
-    kind === 'team' ? teamInvite?.email : businessInvite?.email;
+    kind === 'team'
+      ? teamInvite?.email
+      : kind === 'customer'
+        ? customerInvite?.email
+        : businessInvite?.email;
+
+  const hasInviteMeta = Boolean(businessInvite || teamInvite || customerInvite);
 
   const claim = useCallback(async () => {
     if (!authenticated || !user) return;
@@ -102,7 +125,20 @@ export default function InviteClaimFlow({ token, kind }: InviteClaimFlowProps) {
     }
 
     const sessionEmail = extractEmailFromPrivyUser(user);
-    if (expectedEmail && sessionEmail && sessionEmail !== expectedEmail.toLowerCase()) {
+
+    // Hard email match for customer invites (client-side guard; server also enforces)
+    if (kind === 'customer') {
+      if (!sessionEmail) {
+        setError('Sign in with the invited email to accept this customer invitation.');
+        return;
+      }
+      if (expectedEmail && sessionEmail !== expectedEmail.toLowerCase()) {
+        setError(
+          `Please sign in with the invited email (${expectedEmail}). You are currently signed in as ${sessionEmail}.`
+        );
+        return;
+      }
+    } else if (expectedEmail && sessionEmail && sessionEmail !== expectedEmail.toLowerCase()) {
       setError(
         `Please sign in with the invited email (${expectedEmail}). You are currently signed in as ${sessionEmail}.`
       );
@@ -133,8 +169,9 @@ export default function InviteClaimFlow({ token, kind }: InviteClaimFlowProps) {
         return;
       }
 
-      if (data.profileId) {
-        localStorage.setItem('selectedCompanyId', String(data.profileId));
+      const companyId = data.buyerProfileId ?? data.profileId;
+      if (companyId) {
+        localStorage.setItem('selectedCompanyId', String(companyId));
       }
 
       setSuccess(true);
@@ -158,10 +195,9 @@ export default function InviteClaimFlow({ token, kind }: InviteClaimFlowProps) {
     await claim();
   };
 
-  // After Privy login, prompt claim (user must confirm profile fields first)
+  // After Privy login, prefill name from Privy if empty
   useEffect(() => {
-    if (ready && authenticated && user && (businessInvite || teamInvite) && !success && !claiming) {
-      // Prefill name from Privy if empty
+    if (ready && authenticated && user && hasInviteMeta && !success && !claiming) {
       if (!name) {
         const fromPrivy =
           (user as { google?: { name?: string } }).google?.name ||
@@ -170,7 +206,7 @@ export default function InviteClaimFlow({ token, kind }: InviteClaimFlowProps) {
         if (fromPrivy) setName(fromPrivy);
       }
     }
-  }, [ready, authenticated, user, businessInvite, teamInvite, success, claiming, name]);
+  }, [ready, authenticated, user, hasInviteMeta, success, claiming, name]);
 
   if (loading || !ready) {
     return (
@@ -195,7 +231,7 @@ export default function InviteClaimFlow({ token, kind }: InviteClaimFlowProps) {
     );
   }
 
-  if (error && !businessInvite && !teamInvite) {
+  if (error && !hasInviteMeta) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] px-6">
         <div className="max-w-md text-center bg-white border border-neutral-200 rounded-3xl p-10">
@@ -218,12 +254,28 @@ export default function InviteClaimFlow({ token, kind }: InviteClaimFlowProps) {
   const title =
     kind === 'team'
       ? `Join ${teamInvite?.companyName || 'the team'}`
-      : `Claim ${businessInvite?.tradingName || 'your business'}`;
+      : kind === 'customer'
+        ? `Connect with ${customerInvite?.sellerName || customerInvite?.companyName || 'your supplier'}`
+        : `Claim ${businessInvite?.tradingName || 'your business'}`;
 
   const subtitle =
     kind === 'team'
       ? `You've been invited as ${teamInvite?.role || 'a team member'}. Sign in securely to accept.`
-      : `Complete secure sign-in to activate ${businessInvite?.tradingName || 'this company'} on SupplierAdvisor.`;
+      : kind === 'customer'
+        ? `Accept the invitation for ${customerInvite?.customerName || 'your company'} to collaborate with ${customerInvite?.sellerName || 'your supplier'} on SupplierAdvisor.`
+        : `Complete secure sign-in to activate ${businessInvite?.tradingName || 'this company'} on SupplierAdvisor.`;
+
+  const showPhone = kind === 'business' || kind === 'customer';
+
+  const contextLabel =
+    kind === 'team' ? 'Your role' : kind === 'customer' ? 'Your company' : 'Invited by';
+
+  const contextValue =
+    kind === 'team'
+      ? teamInvite?.role || 'Team member'
+      : kind === 'customer'
+        ? customerInvite?.customerName || 'Customer'
+        : businessInvite?.invitedBy || 'SupplierAdvisor network';
 
   return (
     <div className="min-h-screen bg-[#f8fafc]">
@@ -262,6 +314,11 @@ export default function InviteClaimFlow({ token, kind }: InviteClaimFlowProps) {
                   <p className="text-sm text-neutral-600 mt-1 break-all">
                     {expectedEmail || '—'}
                   </p>
+                  {kind === 'customer' && (
+                    <p className="text-xs text-amber-700 mt-1">
+                      You must sign in with this exact email to accept.
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="flex items-start gap-3">
@@ -271,14 +328,8 @@ export default function InviteClaimFlow({ token, kind }: InviteClaimFlowProps) {
                   <Building2 className="w-5 h-5 text-[#00b4d8] mt-0.5" />
                 )}
                 <div>
-                  <div className="font-semibold text-slate-900">
-                    {kind === 'team' ? 'Your role' : 'Invited by'}
-                  </div>
-                  <p className="text-sm text-neutral-600 mt-1">
-                    {kind === 'team'
-                      ? teamInvite?.role || 'Team member'
-                      : businessInvite?.invitedBy || 'SupplierAdvisor network'}
-                  </p>
+                  <div className="font-semibold text-slate-900">{contextLabel}</div>
+                  <p className="text-sm text-neutral-600 mt-1">{contextValue}</p>
                 </div>
               </div>
             </div>
@@ -308,7 +359,7 @@ export default function InviteClaimFlow({ token, kind }: InviteClaimFlowProps) {
                     required
                   />
                 </div>
-                {kind === 'business' && (
+                {showPhone && (
                   <div>
                     <label className="block text-sm font-medium text-neutral-700 mb-2">Phone (optional)</label>
                     <input
