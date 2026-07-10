@@ -70,7 +70,20 @@ export async function GET(request: NextRequest) {
         tq = tq.eq('allocation_status', allocationStatus);
       }
       const { data: txns } = await tq;
-      transactions = txns || [];
+      // Normalize legacy columns (tx_date) for the UI
+      transactions = (txns || []).map((t: Record<string, unknown>) => {
+        const txn_date =
+          t.txn_date ||
+          (t.tx_date ? String(t.tx_date).slice(0, 10) : null) ||
+          null;
+        return {
+          ...t,
+          txn_date,
+          status: t.status || 'unreconciled',
+          allocation_status: t.allocation_status || 'unallocated',
+          currency: t.currency || 'ZAR',
+        };
+      });
     }
 
     // Allocation pulse
@@ -206,8 +219,16 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'reconcile' || action === 'unreconcile') {
-      const id = Number(body.id || body.transaction_id);
-      if (!Number.isFinite(id)) {
+      const rawId = body.id ?? body.transaction_id;
+      const id =
+        rawId == null || rawId === ''
+          ? null
+          : typeof rawId === 'number'
+            ? rawId
+            : /^\d+$/.test(String(rawId))
+              ? Number(rawId)
+              : String(rawId);
+      if (id == null || id === '' || (typeof id === 'number' && !Number.isFinite(id))) {
         return NextResponse.json({ error: 'transaction id required' }, { status: 400 });
       }
       const status = action === 'reconcile' ? 'reconciled' : 'unreconciled';

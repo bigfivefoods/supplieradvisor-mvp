@@ -40,7 +40,7 @@ export async function resolveBankGlAccountId(
 
 export type AllocateParams = {
   profileId: number;
-  bankTxnId: number;
+  bankTxnId: number | string;
   glAccountId: number;
   privyUserId?: string | null;
   taxAmount?: number;
@@ -236,7 +236,7 @@ export async function allocateBankTransaction(params: AllocateParams): Promise<
  */
 export async function matchBankToInvoice(params: {
   profileId: number;
-  bankTxnId: number;
+  bankTxnId: number | string;
   invoiceId: number;
   privyUserId?: string | null;
   method?: string;
@@ -252,6 +252,10 @@ export async function matchBankToInvoice(params: {
     .eq('profile_id', params.profileId)
     .maybeSingle();
   if (!txn) return { ok: false, error: 'Bank transaction not found', status: 404 };
+  const txnDate =
+    (txn.txn_date as string | null) ||
+    (txn.tx_date ? String(txn.tx_date).slice(0, 10) : null) ||
+    new Date().toISOString().slice(0, 10);
 
   const { data: inv } = await supabase
     .from('invoices')
@@ -283,7 +287,7 @@ export async function matchBankToInvoice(params: {
       currency: txn.currency || inv.currency || 'ZAR',
       method: params.method || 'eft',
       reference: txn.reference || null,
-      paid_at: `${txn.txn_date}T12:00:00.000Z`,
+      paid_at: `${txnDate}T12:00:00.000Z`,
       status: 'completed',
       counterparty_name: inv.counterparty_name || txn.counterparty_name || null,
       bank_account_id: txn.bank_account_id,

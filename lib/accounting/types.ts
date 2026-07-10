@@ -175,10 +175,13 @@ export type BankAccount = {
 };
 
 export type BankTransaction = {
-  id: number;
+  /** Production legacy table uses UUID ids; newer envs may use bigint. */
+  id: number | string;
   profile_id?: number | null;
   bank_account_id: number;
   txn_date: string;
+  /** Legacy column name — normalized to txn_date on read when present. */
+  tx_date?: string | null;
   description?: string | null;
   reference?: string | null;
   amount: number;

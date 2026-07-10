@@ -98,6 +98,25 @@ function isNoiseLine(line: string): boolean {
 }
 
 /**
+ * Some extractors collapse page text into one long line. Split so each
+ * date-led transaction can start on its own line.
+ */
+function ensureTransactionLines(text: string): string {
+  const raw = text.replace(/\r\n/g, '\n');
+  const lines = raw.split('\n').map(cleanLine).filter(Boolean);
+  const dated = lines.filter((l) =>
+    /^(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}|\d{4}-\d{2}-\d{2}|\d{1,2}\s+[A-Za-z]{3})/.test(l)
+  );
+  if (dated.length >= 2) return raw;
+
+  // Insert newlines before date tokens that look like txn starts
+  return raw.replace(
+    /(?<=\S)\s+(?=(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}|\d{4}-\d{2}-\d{2})\s+)/g,
+    '\n'
+  );
+}
+
+/**
  * Parse plain text extracted from a bank statement PDF into transaction lines.
  */
 export function parseBankStatementText(text: string): ParseResult {
@@ -114,8 +133,8 @@ export function parseBankStatementText(text: string): ParseResult {
     };
   }
 
-  // Normalize: sometimes PDFs put amount on next line
-  const rawLines = text
+  // Normalize: sometimes PDFs put amount on next line; sometimes all on one line
+  const rawLines = ensureTransactionLines(text)
     .split(/\r?\n/)
     .map(cleanLine)
     .filter(Boolean);
@@ -267,28 +286,51 @@ export function linesToCsv(lines: ParsedBankLine[]): string {
 }
 
 /**
- * Server-side: extract text from PDF buffer using pdf-parse.
+ * Server-side: extract text from a PDF buffer.
+ *
+ * Primary: `unpdf` (modern pdf.js) — handles current bank statement PDFs.
+ * Fallback: `pdf-parse/lib/pdf-parse.js` (never the package root — root index
+ * runs a debug open of `./test/data/05-versions-space.pdf` when bundled).
  */
 export async function extractPdfText(buffer: Buffer): Promise<{
   text: string;
   pages?: number;
   error?: string;
 }> {
+  const errors: string[] = [];
+
   try {
-    // pdf-parse v1 default export
+    const { extractText, getDocumentProxy } = await import('unpdf');
+    const pdf = await getDocumentProxy(new Uint8Array(buffer));
+    const result = await extractText(pdf, { mergePages: false });
+    const pages = result.totalPages || 0;
+    const text = Array.isArray(result.text)
+      ? result.text.join('\n')
+      : String(result.text || '');
+    if (text.trim()) {
+      return { text, pages };
+    }
+    errors.push('unpdf returned empty text');
+  } catch (e) {
+    errors.push(e instanceof Error ? e.message : 'unpdf failed');
+  }
+
+  try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const pdfParse = require('pdf-parse') as (
+    const pdfParse = require('pdf-parse/lib/pdf-parse.js') as (
       data: Buffer,
       opts?: { max?: number }
     ) => Promise<{ text: string; numpages: number }>;
     const result = await pdfParse(buffer, { max: 50 });
     return { text: result.text || '', pages: result.numpages };
   } catch (e) {
-    return {
-      text: '',
-      error: e instanceof Error ? e.message : 'PDF parse failed',
-    };
+    errors.push(e instanceof Error ? e.message : 'pdf-parse failed');
   }
+
+  return {
+    text: '',
+    error: errors.join(' · ') || 'PDF parse failed',
+  };
 }
 
 export async function parseBankPdfBuffer(buffer: Buffer): Promise<

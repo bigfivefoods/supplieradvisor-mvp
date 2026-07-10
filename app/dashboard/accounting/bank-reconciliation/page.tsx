@@ -90,8 +90,10 @@ function Inner() {
     csv: '',
     pdfBase64: '',
     filename: '',
-    kind: 'csv' as 'csv' | 'pdf',
+    kind: 'pdf' as 'csv' | 'pdf',
   });
+  /** Keep raw File for multipart PDF upload (more reliable than base64 JSON). */
+  const [importFile, setImportFile] = useState<File | null>(null);
   const [importPreview, setImportPreview] = useState<Record<string, unknown> | null>(null);
 
   const [allocForm, setAllocForm] = useState({
@@ -100,7 +102,7 @@ function Inner() {
     tax_amount: '',
   });
   const [matchInvoiceId, setMatchInvoiceId] = useState('');
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [selectedIds, setSelectedIds] = useState<Set<string | number>>(new Set());
   const [bulkGl, setBulkGl] = useState('');
 
   const load = useCallback(async () => {
@@ -190,43 +192,85 @@ function Inner() {
     }
   }
 
-  function importPayload(dryRun: boolean) {
-    const base = {
-      companyId,
-      privyUserId,
-      bank_account_id: Number(importForm.bank_account_id),
-      format: importForm.format,
-      filename: importForm.filename || null,
-      dryRun,
-    };
-    if (importForm.kind === 'pdf' && importForm.pdfBase64) {
-      return { ...base, pdfBase64: importForm.pdfBase64 };
+  function buildImportRequest(dryRun: boolean): { init: RequestInit; error?: string } {
+    if (!importForm.bank_account_id) {
+      return { init: {}, error: 'Select a bank account' };
     }
-    return { ...base, csv: importForm.csv };
+    if (importForm.kind === 'pdf') {
+      if (!importFile && !importForm.pdfBase64) {
+        return { init: {}, error: 'Upload a PDF statement' };
+      }
+      // Prefer multipart with the raw File — avoids base64 body-size issues
+      if (importFile) {
+        const form = new FormData();
+        form.set('companyId', String(companyId));
+        if (privyUserId) form.set('privyUserId', privyUserId);
+        form.set('bank_account_id', String(importForm.bank_account_id));
+        form.set('format', importForm.format || 'auto');
+        form.set('filename', importForm.filename || importFile.name);
+        form.set('dryRun', dryRun ? 'true' : 'false');
+        form.set('file', importFile);
+        return { init: { method: 'POST', body: form } };
+      }
+      return {
+        init: {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyId,
+            privyUserId,
+            bank_account_id: Number(importForm.bank_account_id),
+            format: importForm.format,
+            filename: importForm.filename || null,
+            dryRun,
+            pdfBase64: importForm.pdfBase64,
+          }),
+        },
+      };
+    }
+    if (!importForm.csv.trim()) {
+      return { init: {}, error: 'Paste or upload CSV' };
+    }
+    return {
+      init: {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          bank_account_id: Number(importForm.bank_account_id),
+          format: importForm.format,
+          filename: importForm.filename || null,
+          dryRun,
+          csv: importForm.csv,
+        }),
+      },
+    };
+  }
+
+  function importErrorMessage(data: Record<string, unknown>, fallback: string): string {
+    const base = String(data.error || fallback);
+    const warnings = Array.isArray(data.warnings)
+      ? (data.warnings as string[]).filter(Boolean).slice(0, 2)
+      : [];
+    if (warnings.length) return `${base} — ${warnings.join(' ')}`;
+    return base;
   }
 
   async function dryRunImport() {
-    if (!importForm.bank_account_id) {
-      toast.error('Select a bank account');
-      return;
-    }
-    if (importForm.kind === 'pdf' && !importForm.pdfBase64) {
-      toast.error('Upload a PDF statement');
-      return;
-    }
-    if (importForm.kind === 'csv' && !importForm.csv.trim()) {
-      toast.error('Paste or upload CSV');
+    const { init, error } = buildImportRequest(true);
+    if (error) {
+      toast.error(error);
       return;
     }
     setSaving(true);
     try {
-      const res = await fetch('/api/accounting/bank/import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(importPayload(true)),
-      });
+      const res = await fetch('/api/accounting/bank/import', init);
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Parse failed');
+      if (!res.ok) {
+        setImportPreview(data);
+        throw new Error(importErrorMessage(data, 'Parse failed'));
+      }
       setImportPreview(data);
       toast.success(
         `Preview: ${data.wouldImport} new · ${data.duplicates} duplicates${
@@ -241,41 +285,33 @@ function Inner() {
   }
 
   async function runImport() {
-    if (!importForm.bank_account_id) {
-      toast.error('Select a bank account');
-      return;
-    }
-    if (importForm.kind === 'pdf' && !importForm.pdfBase64) {
-      toast.error('Upload a PDF statement');
-      return;
-    }
-    if (importForm.kind === 'csv' && !importForm.csv.trim()) {
-      toast.error('Paste or upload CSV');
+    const { init, error } = buildImportRequest(false);
+    if (error) {
+      toast.error(error);
       return;
     }
     setSaving(true);
     try {
-      const res = await fetch('/api/accounting/bank/import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(importPayload(false)),
-      });
+      const res = await fetch('/api/accounting/bank/import', init);
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Import failed');
-      toast.success(`Imported ${data.imported} lines (${data.duplicates} duplicates skipped)`);
-      if (data.csv && data.source === 'pdf') {
-        // keep converted CSV in preview state for optional download
+      if (!res.ok) {
         setImportPreview(data);
+        throw new Error(importErrorMessage(data, 'Import failed'));
+      }
+      toast.success(`Imported ${data.imported} lines (${data.duplicates} duplicates skipped)`);
+      if (data.statement?.url) {
+        toast.message('Statement PDF saved', { description: 'Stored with this import batch' });
       }
       setShowImport(false);
       setImportPreview(null);
+      setImportFile(null);
       setImportForm({
         bank_account_id: '',
         format: 'auto',
         csv: '',
         pdfBase64: '',
         filename: '',
-        kind: 'csv',
+        kind: 'pdf',
       });
       setAllocFilter('unallocated');
       void load();
@@ -308,6 +344,8 @@ function Inner() {
       file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
     setImportPreview(null);
     if (isPdf) {
+      setImportFile(file);
+      // Also keep a data-URL fallback for environments that only send JSON
       const reader = new FileReader();
       reader.onload = () => {
         const result = String(reader.result || '');
@@ -319,9 +357,19 @@ function Inner() {
           csv: '',
         }));
       };
+      reader.onerror = () => {
+        setImportForm((f) => ({
+          ...f,
+          filename: file.name,
+          kind: 'pdf',
+          pdfBase64: '',
+          csv: '',
+        }));
+      };
       reader.readAsDataURL(file);
       return;
     }
+    setImportFile(null);
     const reader = new FileReader();
     reader.onload = () => {
       setImportForm((f) => ({
@@ -444,7 +492,7 @@ function Inner() {
     }
   }
 
-  async function exclude(id: number) {
+  async function exclude(id: string | number) {
     try {
       const res = await fetch('/api/accounting/bank/allocate', {
         method: 'POST',
@@ -465,7 +513,7 @@ function Inner() {
     }
   }
 
-  async function reconcile(id: number, action: 'reconcile' | 'unreconcile') {
+  async function reconcile(id: string | number, action: 'reconcile' | 'unreconcile') {
     try {
       const res = await fetch('/api/accounting/bank', {
         method: 'POST',
@@ -480,7 +528,7 @@ function Inner() {
     }
   }
 
-  function toggleSelect(id: number) {
+  function toggleSelect(id: string | number) {
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -505,7 +553,7 @@ function Inner() {
       <AccountingHeader
         title="Bank &"
         titleAccent="allocation"
-        description="Import FNB/RMB CSV statements, allocate income and expenses to the GL, match AR/AP, and feed management accounts."
+        description="Import FNB/RMB PDF or CSV statements, allocate income and expenses to the GL, match AR/AP, and feed management accounts."
         action={
           <>
             <Link
@@ -524,18 +572,25 @@ function Inner() {
             <button
               type="button"
               onClick={() => {
+                if (accounts.length === 0) {
+                  toast.error('Add a bank account first, then import your statement PDF');
+                  setShowAccount(true);
+                  return;
+                }
                 setImportForm((f) => ({
                   ...f,
+                  kind: 'pdf',
                   bank_account_id: selectedAccount
                     ? String(selectedAccount)
                     : accounts[0]
                       ? String(accounts[0].id)
                       : '',
                 }));
+                setImportFile(null);
+                setImportPreview(null);
                 setShowImport(true);
               }}
               className="btn-primary !py-2.5 !px-5 text-sm"
-              disabled={accounts.length === 0}
             >
               <Upload className="w-4 h-4" /> Import PDF/CSV
             </button>
@@ -587,8 +642,18 @@ function Inner() {
         </div>
       ) : accounts.length === 0 ? (
         <Panel className="mb-8">
-          <div className="px-6 py-12 text-center text-sm text-neutral-500">
-            Add your FNB/RMB operating account, then import a CSV statement to start allocating.
+          <div className="px-6 py-12 text-center text-sm text-neutral-500 space-y-3">
+            <p>
+              Add your FNB/RMB operating account, then import a bank statement PDF to start
+              allocating for management accounts.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowAccount(true)}
+              className="btn-primary !py-2 !px-4 text-sm inline-flex"
+            >
+              <Plus className="w-4 h-4" /> Add bank account
+            </button>
           </div>
         </Panel>
       ) : (
@@ -896,9 +961,10 @@ function Inner() {
                     ? 'border-[#00b4d8] bg-[#00b4d8] text-white'
                     : 'border-neutral-200 bg-white text-neutral-600'
                 }`}
-                onClick={() =>
-                  setImportForm((f) => ({ ...f, kind: 'csv', pdfBase64: '' }))
-                }
+                onClick={() => {
+                  setImportFile(null);
+                  setImportForm((f) => ({ ...f, kind: 'csv', pdfBase64: '' }));
+                }}
               >
                 CSV
               </button>
@@ -988,33 +1054,52 @@ function Inner() {
                 />
               </Field>
             )}
-            {importForm.kind === 'pdf' && !importForm.pdfBase64 && (
+            {importForm.kind === 'pdf' && !importFile && !importForm.pdfBase64 && (
               <div className="rounded-2xl border border-dashed border-neutral-200 px-4 py-8 text-center text-xs text-neutral-500">
-                Choose a .pdf bank statement (max ~12MB)
+                Choose a .pdf bank statement (max ~12MB). Text-based FNB/RMB PDFs work best.
               </div>
             )}
-            {importForm.kind === 'pdf' && importForm.pdfBase64 && (
+            {importForm.kind === 'pdf' && (importFile || importForm.pdfBase64) && (
               <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 px-4 py-3 text-xs text-emerald-900">
-                PDF loaded ({Math.round((importForm.pdfBase64.length * 0.75) / 1024)} KB approx).
-                Run <strong>Preview</strong> to extract transactions.
+                PDF ready
+                {importFile
+                  ? ` · ${importFile.name} (${Math.round(importFile.size / 1024)} KB)`
+                  : ` (${Math.round((importForm.pdfBase64.length * 0.75) / 1024)} KB approx)`}
+                . Run <strong>Preview</strong> to extract transactions, then <strong>Import</strong> to
+                save them for allocation and management accounts.
               </div>
             )}
             {importPreview && (
               <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-xs space-y-1">
+                {importPreview.error != null && (
+                  <div className="text-red-700 font-semibold">
+                    {String(importPreview.error)}
+                  </div>
+                )}
                 <div>
                   Source: <strong>{String(importPreview.source || importForm.kind)}</strong>
                   {importPreview.pages != null ? ` · ${String(importPreview.pages)} pages` : ''}
                 </div>
-                <div>
-                  Would import: <strong>{String(importPreview.wouldImport)}</strong> · Duplicates:{' '}
-                  {String(importPreview.duplicates)} · Skipped: {String(importPreview.skipped)}
-                </div>
+                {importPreview.wouldImport != null && (
+                  <div>
+                    Would import: <strong>{String(importPreview.wouldImport)}</strong> · Duplicates:{' '}
+                    {String(importPreview.duplicates)} · Skipped: {String(importPreview.skipped)}
+                  </div>
+                )}
                 {Array.isArray(importPreview.warnings) &&
                   (importPreview.warnings as string[]).map((w) => (
                     <div key={w} className="text-amber-800">
                       {w}
                     </div>
                   ))}
+                {typeof importPreview.textPreview === 'string' &&
+                  importPreview.textPreview &&
+                  !importPreview.preview && (
+                    <div className="mt-2 max-h-24 overflow-y-auto border-t border-neutral-200 pt-2 font-mono text-[10px] text-neutral-500 whitespace-pre-wrap">
+                      Extracted text sample:{'\n'}
+                      {String(importPreview.textPreview).slice(0, 400)}
+                    </div>
+                  )}
                 {Array.isArray(importPreview.preview) &&
                   (importPreview.preview as Array<{ txn_date: string; description: string; amount: number }>).length >
                     0 && (

@@ -31,9 +31,22 @@ export async function POST(request: NextRequest) {
       if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
     }
 
+    /** Accept UUID or numeric bank_transaction ids (production uses UUID). */
+    const parseTxnId = (raw: unknown): string | number | null => {
+      if (raw == null || raw === '') return null;
+      if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
+      const s = String(raw).trim();
+      if (!s) return null;
+      if (/^\d+$/.test(s)) {
+        const n = Number(s);
+        return Number.isFinite(n) ? n : s;
+      }
+      return s;
+    };
+
     if (action === 'exclude') {
-      const id = Number(body.bank_transaction_id || body.id);
-      if (!Number.isFinite(id)) {
+      const id = parseTxnId(body.bank_transaction_id || body.id);
+      if (id == null) {
         return NextResponse.json({ error: 'bank_transaction_id required' }, { status: 400 });
       }
       const supabase = getSupabaseServer();
@@ -53,7 +66,10 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'unexclude') {
-      const id = Number(body.bank_transaction_id || body.id);
+      const id = parseTxnId(body.bank_transaction_id || body.id);
+      if (id == null) {
+        return NextResponse.json({ error: 'bank_transaction_id required' }, { status: 400 });
+      }
       const supabase = getSupabaseServer();
       const { data, error } = await supabase
         .from('bank_transactions')
@@ -71,9 +87,9 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'match_invoice') {
-      const id = Number(body.bank_transaction_id || body.id);
+      const id = parseTxnId(body.bank_transaction_id || body.id);
       const invoiceId = Number(body.invoice_id);
-      if (!Number.isFinite(id) || !Number.isFinite(invoiceId)) {
+      if (id == null || !Number.isFinite(invoiceId)) {
         return NextResponse.json(
           { error: 'bank_transaction_id and invoice_id required' },
           { status: 400 }
@@ -93,8 +109,8 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'bulk_allocate') {
-      const ids: number[] = Array.isArray(body.ids)
-        ? body.ids.map(Number).filter((n: number) => Number.isFinite(n))
+      const ids: Array<string | number> = Array.isArray(body.ids)
+        ? body.ids.map(parseTxnId).filter((n: string | number | null): n is string | number => n != null)
         : [];
       const glAccountId = Number(body.gl_account_id);
       if (!ids.length || !Number.isFinite(glAccountId)) {
@@ -103,7 +119,12 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
-      const results: Array<{ id: number; ok: boolean; error?: string; journalId?: number }> = [];
+      const results: Array<{
+        id: string | number;
+        ok: boolean;
+        error?: string;
+        journalId?: number;
+      }> = [];
       for (const id of ids) {
         const r = await allocateBankTransaction({
           profileId: companyId,
@@ -127,9 +148,9 @@ export async function POST(request: NextRequest) {
     }
 
     // default: allocate single
-    const id = Number(body.bank_transaction_id || body.id);
+    const id = parseTxnId(body.bank_transaction_id || body.id);
     const glAccountId = Number(body.gl_account_id);
-    if (!Number.isFinite(id) || !Number.isFinite(glAccountId)) {
+    if (id == null || !Number.isFinite(glAccountId)) {
       return NextResponse.json(
         { error: 'bank_transaction_id and gl_account_id required' },
         { status: 400 }
