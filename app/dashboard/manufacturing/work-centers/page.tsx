@@ -215,7 +215,7 @@ function WorkCentersInner() {
             >
               <div className="flex items-start justify-between gap-2 mb-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-slate-900 text-white flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-cyan-50 to-sky-100 border border-cyan-100 text-[#0077b6] flex items-center justify-center">
                     <Workflow className="w-5 h-5" />
                   </div>
                   <div>

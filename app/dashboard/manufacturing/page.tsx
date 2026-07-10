@@ -149,49 +149,49 @@ function CommandInner() {
 
       <SchemaHint message={warning} />
 
-      {/* Hero strip */}
-      <section className="relative overflow-hidden rounded-[2rem] border border-slate-200 bg-gradient-to-br from-slate-900 via-slate-800 to-[#003d5c] text-white p-6 sm:p-8 mb-8 shadow-xl">
+      {/* Light hero */}
+      <section className="relative overflow-hidden rounded-[2rem] border border-cyan-100 bg-gradient-to-br from-white via-sky-50/90 to-cyan-50 p-6 sm:p-8 mb-8 shadow-sm">
         <div
-          className="pointer-events-none absolute inset-0 opacity-[0.07]"
-          style={{
-            backgroundImage:
-              'linear-gradient(rgba(255,255,255,.4) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.4) 1px, transparent 1px)',
-            backgroundSize: '28px 28px',
-          }}
+          className="pointer-events-none absolute -right-10 -top-10 h-48 w-48 rounded-full bg-[#00b4d8]/10 blur-3xl"
+          aria-hidden
+        />
+        <div
+          className="pointer-events-none absolute left-1/4 bottom-0 h-32 w-32 rounded-full bg-violet-200/25 blur-3xl"
+          aria-hidden
         />
         <div className="relative flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
           <div className="max-w-xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest mb-4">
+            <div className="inline-flex items-center gap-2 rounded-full border border-cyan-200/80 bg-white/90 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-[#0077b6] mb-4 shadow-sm">
               <span className="relative flex h-1.5 w-1.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-400" />
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
               </span>
               Systems live · manufacturing OS
             </div>
-            <h2 className="text-2xl sm:text-3xl font-black tracking-tight mb-2">
+            <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 mb-2">
               Factory physics, not spreadsheets.
             </h2>
-            <p className="text-sm text-white/70 leading-relaxed">
+            <p className="text-sm text-slate-600 leading-relaxed">
               Plan demand on the MPS. Explode materials through BOMs. Net against inventory.
               Release work orders to cells. Measure OEE-style throughput every refresh.
             </p>
           </div>
           <div className="grid grid-cols-3 gap-3 min-w-[280px]">
-            <div className="rounded-2xl bg-white/10 border border-white/10 px-3 py-3 text-center backdrop-blur">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-white/50">OEE</div>
-              <div className="text-2xl font-black tabular-nums text-emerald-300">
+            <div className="rounded-2xl bg-white border border-cyan-100 px-3 py-3 text-center shadow-sm">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">OEE</div>
+              <div className="text-2xl font-black tabular-nums text-emerald-600">
                 {loading ? '—' : `${s?.oee ?? 0}%`}
               </div>
             </div>
-            <div className="rounded-2xl bg-white/10 border border-white/10 px-3 py-3 text-center backdrop-blur">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-white/50">WIP</div>
-              <div className="text-2xl font-black tabular-nums text-cyan-300">
+            <div className="rounded-2xl bg-white border border-cyan-100 px-3 py-3 text-center shadow-sm">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">WIP</div>
+              <div className="text-2xl font-black tabular-nums text-[#00b4d8]">
                 {loading ? '—' : s?.ordersInProgress ?? 0}
               </div>
             </div>
-            <div className="rounded-2xl bg-white/10 border border-white/10 px-3 py-3 text-center backdrop-blur">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-white/50">Yield</div>
-              <div className="text-2xl font-black tabular-nums text-amber-200">
+            <div className="rounded-2xl bg-white border border-cyan-100 px-3 py-3 text-center shadow-sm">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Yield</div>
+              <div className="text-2xl font-black tabular-nums text-amber-600">
                 {loading ? '—' : `${s?.yieldPct ?? 100}%`}
               </div>
             </div>

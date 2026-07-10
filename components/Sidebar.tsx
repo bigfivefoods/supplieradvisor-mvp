@@ -186,12 +186,13 @@ const modules = [
     icon: Truck, 
     href: '/dashboard/distribution',
     sub: [
-      { name: 'Carriers', href: '/dashboard/distribution/carriers' },
-      { name: 'Fleet & Drivers', href: '/dashboard/distribution/fleet-drivers' },
+      { name: 'Command Center', href: '/dashboard/distribution' },
       { name: 'Inbound Logistics', href: '/dashboard/distribution/inbound' },
       { name: 'Outbound Logistics', href: '/dashboard/distribution/outbound' },
-      { name: 'Tracking & Visibility', href: '/dashboard/distribution/tracking' },
-      { name: 'Incoterms', href: '/dashboard/distribution/incoterms' },
+      { name: 'Live Tracking', href: '/dashboard/distribution/tracking' },
+      { name: 'Carriers', href: '/dashboard/distribution/carriers' },
+      { name: 'Fleet & Drivers', href: '/dashboard/distribution/fleet-drivers' },
+      { name: 'Incoterms 2020', href: '/dashboard/distribution/incoterms' },
     ]
   },
 

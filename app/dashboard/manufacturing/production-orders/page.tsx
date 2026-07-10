@@ -239,8 +239,8 @@ function OrdersInner() {
             onClick={() => setFilter(f.id)}
             className={`text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-full border transition-all ${
               filter === f.id
-                ? 'border-slate-900 bg-slate-900 text-white'
-                : 'border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300'
+                ? 'border-[#00b4d8] bg-[#00b4d8] text-white shadow-sm'
+                : 'border-neutral-200 bg-white text-neutral-600 hover:border-[#00b4d8]/40'
             }`}
           >
             {f.label}
@@ -278,7 +278,7 @@ function OrdersInner() {
               >
                 <div className="flex flex-col lg:flex-row lg:items-center gap-4">
                   <div className="flex items-start gap-3 min-w-0 flex-1">
-                    <div className="w-11 h-11 rounded-2xl bg-slate-900 text-white flex items-center justify-center shrink-0">
+                    <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-cyan-50 to-sky-100 border border-cyan-100 text-[#0077b6] flex items-center justify-center shrink-0">
                       <Factory className="w-5 h-5" />
                     </div>
                     <div className="min-w-0">

@@ -168,15 +168,15 @@ function MrpInner() {
 
       <SchemaHint message={warning} />
 
-      {/* Explainer */}
-      <div className="rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-900 to-slate-800 text-white p-5 sm:p-6 mb-6">
+      {/* Explainer — light */}
+      <div className="rounded-3xl border border-cyan-100 bg-gradient-to-br from-white via-sky-50/80 to-cyan-50 p-5 sm:p-6 mb-6 shadow-sm">
         <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center shrink-0">
-            <Layers className="w-5 h-5 text-cyan-300" />
+          <div className="w-10 h-10 rounded-2xl bg-white border border-cyan-100 flex items-center justify-center shrink-0 shadow-sm">
+            <Layers className="w-5 h-5 text-[#00b4d8]" />
           </div>
           <div>
-            <h3 className="font-black text-lg mb-1">How this engine works</h3>
-            <ol className="text-sm text-white/75 space-y-1 list-decimal list-inside leading-relaxed">
+            <h3 className="font-black text-lg text-slate-800 mb-1">How this engine works</h3>
+            <ol className="text-sm text-slate-600 space-y-1 list-decimal list-inside leading-relaxed">
               <li>Pull independent demand from active MPS firm/forecast + open work orders</li>
               <li>Explode finished goods through active BOMs (qty × scrap factor)</li>
               <li>Net gross requirements against on-hand stock and released receipts</li>
@@ -289,7 +289,7 @@ function MrpInner() {
                     onClick={() => setFilter(f)}
                     className={`text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-full border ${
                       filter === f
-                        ? 'border-slate-900 bg-slate-900 text-white'
+                        ? 'border-[#00b4d8] bg-[#00b4d8] text-white'
                         : 'border-neutral-200 bg-white text-neutral-600'
                     }`}
                   >

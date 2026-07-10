@@ -1,13 +1,32 @@
 'use client';
 
-import ComingSoon from '@/components/ComingSoon';
+import { getSelectedCompanyId } from '@/lib/containers/company';
+import { ShipmentBoard } from '@/components/distribution/ShipmentBoard';
+import {
+  CompanyRequired,
+  DistributionHeader,
+  DistributionPage,
+} from '@/components/distribution/DistributionShell';
 
-export default function Page() {
+export default function OutboundPage() {
   return (
-    <ComingSoon
-      title="Outbound Logistics"
-      description="Manage outbound shipments, order fulfillment, and final-mile delivery."
-      backHref="/dashboard/distribution"
-    />
+    <CompanyRequired>
+      <OutboundInner />
+    </CompanyRequired>
+  );
+}
+
+function OutboundInner() {
+  const companyId = getSelectedCompanyId()!;
+
+  return (
+    <DistributionPage>
+      <DistributionHeader
+        title="Outbound"
+        titleAccent="logistics"
+        description="Fulfilment to the world — last-mile vans to ocean containers. Dispatch, track, and prove delivery with event-level POD."
+      />
+      <ShipmentBoard companyId={companyId} direction="outbound" titleNoun="Outbound" />
+    </DistributionPage>
   );
 }
