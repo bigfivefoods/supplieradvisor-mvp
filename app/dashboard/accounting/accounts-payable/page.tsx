@@ -1,13 +1,14 @@
 'use client';
 
-import ComingSoon from '@/components/ComingSoon';
+import InvoiceWorkspace from '@/components/accounting/InvoiceWorkspace';
 
-export default function Page() {
+export default function AccountsPayablePage() {
   return (
-    <ComingSoon
-      title="Accounts Payable"
-      description="Manage supplier invoices, bills, credit notes, approvals, and payment runs."
-      backHref="/dashboard/accounting"
+    <InvoiceWorkspace
+      direction="payable"
+      title="Accounts"
+      titleAccent="payable"
+      description="Supplier bills, credit notes, and payment runs — track what you owe and clear it cleanly."
     />
   );
 }

@@ -235,10 +235,23 @@ Customer-type edges: `connection_type = 'customer'`, seller = `requester`, buyer
 ### Finance / accounting
 | Table | Purpose |
 |-------|---------|
-| `chart_of_accounts` | GL accounts |
+| `chart_of_accounts` | GL accounts (seedable IFRS starter set) |
 | `journal_entries` / `journal_lines` | Double-entry books |
-| `invoices` | AR/AP invoices |
-| `payments` | Payment records |
+| `invoices` | AR/AP invoices (`direction`: receivable \| payable) |
+| `payments` | Payment records (inbound/outbound; apply to invoices) |
+| `accounting_entities` | Legal entities / branches |
+| `accounting_periods` | Open / closed fiscal periods |
+| `accounting_settings` | Currency, prefixes, document sequences, lock date |
+| `bank_accounts` | Operating banks, wallets, gateways |
+| `bank_transactions` | Statement lines for reconciliation |
+| `tax_rates` | VAT / tax codes |
+| `fixed_assets` | Asset register + depreciation |
+
+Migration: `supabase/migrations/20260710_accounting_module.sql`
+
+Dashboard: `/dashboard/accounting` (hub + CoA, journals, AR, AP, payments, bank, reports, tax, assets, entities, settings).
+
+APIs under `/api/accounting/*` — membership-checked via `accounting` permission.
 
 ### People / HR
 | Table | Purpose |

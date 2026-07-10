@@ -1,13 +1,14 @@
 'use client';
 
-import ComingSoon from '@/components/ComingSoon';
+import InvoiceWorkspace from '@/components/accounting/InvoiceWorkspace';
 
-export default function Page() {
+export default function AccountsReceivablePage() {
   return (
-    <ComingSoon
-      title="Accounts Receivable"
-      description="Manage customer invoices, credit notes, collections, and aging reports."
-      backHref="/dashboard/accounting"
+    <InvoiceWorkspace
+      direction="receivable"
+      title="Accounts"
+      titleAccent="receivable"
+      description="Customer invoices, collections, partial payments, and overdue balances — one AR ledger."
     />
   );
 }
