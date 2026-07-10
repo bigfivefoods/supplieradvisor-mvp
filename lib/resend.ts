@@ -16,14 +16,18 @@ export function getResend(): Resend {
 
 /**
  * Verified Resend "from" address.
- * Prefer RESEND_FROM_EMAIL; fall back to the verified supplieradvisor.co.za domain
- * (onboarding@resend.dev only delivers to the Resend account owner).
+ * Prefer RESEND_FROM_EMAIL. Default uses supplieradvisor.com (verified on Resend).
+ * Do NOT use supplieradvisor.co.za — that domain is not verified on Resend.
  */
 export function getResendFrom(): string {
   const from =
     process.env.RESEND_FROM_EMAIL ||
     process.env.EMAIL_FROM ||
-    'SupplierAdvisor <invites@supplieradvisor.co.za>';
+    'SupplierAdvisor <invites@supplieradvisor.com>';
+  // Guard against the wrong domain that was previously hard-coded
+  if (/@supplieradvisor\.co\.za\b/i.test(from)) {
+    return 'SupplierAdvisor <invites@supplieradvisor.com>';
+  }
   return from.trim();
 }
 
