@@ -8,7 +8,6 @@ import {
   ShieldCheck,
   AlertTriangle,
   Upload,
-  ExternalLink,
   MapPin,
   Plus,
   Trash2,
@@ -16,6 +15,8 @@ import {
   FileText,
   X,
   Wallet,
+  Building2,
+  CheckCircle2,
 } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
@@ -140,6 +141,13 @@ function ProfileInner() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState<string | null>(null);
   const [paying, setPaying] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [verifyConsent, setVerifyConsent] = useState(false);
+  const [verifyResult, setVerifyResult] = useState<{
+    status?: string;
+    message?: string;
+    verification?: Record<string, unknown>;
+  } | null>(null);
 
   const subIndustryOptions = useMemo(
     () => subIndustriesFor(selectedIndustries),
@@ -204,6 +212,35 @@ function ProfileInner() {
 
       setCompleteness(data.completeness || null);
       setWarning(typeof data.warning === 'string' ? data.warning : null);
+
+      // Restore last VerifyNow CIPC snapshot from metadata (no external navigation)
+      const meta =
+        profile.metadata && typeof profile.metadata === 'object'
+          ? (profile.metadata as { verification?: Record<string, unknown> })
+          : null;
+      if (meta?.verification && typeof meta.verification === 'object') {
+        const v = meta.verification;
+        setVerifyResult({
+          status: String(v.status || profile.verification_status || ''),
+          message: v.company_name
+            ? `Last CIPC check: ${String(v.company_name)}`
+            : undefined,
+          verification: {
+            companyName: v.company_name,
+            tradeName: v.trade_name,
+            registrationNumber: v.registration_number,
+            companyStatus: v.company_status,
+            companyType: v.company_type,
+            physicalAddress: v.physical_address,
+            vatNumber: v.vat_number,
+            taxNumber: v.tax_number,
+            directorCount: v.director_count,
+            nameMatch: v.name_match,
+            requestId: v.request_id,
+            statusText: v.company_status,
+          },
+        });
+      }
 
       // Auto-fill wallet from login if profile empty
       if (!profile.wallet_address && loginWallet) {
@@ -437,7 +474,101 @@ function ProfileInner() {
     }
   };
 
+  const registrationForVerify = String(form.registration_number || '').trim();
+  const vatForVerify = String(form.vat_number || '').trim();
+
+  const applyVerifyResponse = (data: {
+    message?: string;
+    status?: string;
+    profile?: Partial<CompanyProfile>;
+    verification?: Record<string, unknown>;
+  }) => {
+    setVerifyResult({
+      status: data.status,
+      message: data.message,
+      verification: data.verification,
+    });
+    if (data.profile) {
+      setForm((prev) => ({
+        ...prev,
+        ...data.profile,
+        verification_status:
+          data.profile?.verification_status || data.status || prev.verification_status,
+        is_verified:
+          data.profile?.is_verified ??
+          (data.status === 'verified' ? true : prev.is_verified),
+        verified_at: data.profile?.verified_at || prev.verified_at,
+        verification_payment_ref:
+          data.profile?.verification_payment_ref || prev.verification_payment_ref,
+        metadata: data.profile?.metadata || prev.metadata,
+      }));
+    } else if (data.status) {
+      setForm((prev) => ({
+        ...prev,
+        verification_status: data.status,
+        is_verified: data.status === 'verified',
+        verified_at:
+          data.status === 'verified' ? new Date().toISOString() : prev.verified_at,
+      }));
+    }
+  };
+
+  /** Pure in-page VerifyNow CIPC call (server proxy — API key never leaves the server). */
+  const runVerifyNow = async (opts?: { paystackReference?: string }) => {
+    if (!registrationForVerify && !vatForVerify) {
+      toast.error('Add a CIPC registration number (or VAT number) first, then save.');
+      return;
+    }
+    if (!verifyConsent) {
+      toast.error('Confirm consent to run a CIPC company check via VerifyNow.');
+      return;
+    }
+
+    setVerifying(true);
+    toast.loading('Verifying company with VerifyNow (CIPC)…', { id: 'vn-company' });
+    try {
+      const res = await fetch('/api/business/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          registrationNumber: registrationForVerify || undefined,
+          vatNumber: vatForVerify || undefined,
+          paystackReference: opts?.paystackReference,
+          consent: true,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || data.hint || 'VerifyNow verification failed');
+      }
+      applyVerifyResponse(data);
+      toast.success(data.message || 'Company verified via VerifyNow', { id: 'vn-company' });
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Verification failed', {
+        id: 'vn-company',
+      });
+    } finally {
+      setVerifying(false);
+      setPaying(false);
+    }
+  };
+
+  /**
+   * Optional Paystack fee (R69) stays on-page via iframe, then runs VerifyNow CIPC.
+   * Users never leave SupplierAdvisor for VerifyNow.
+   */
   const startVerifyPayment = () => {
+    if (!registrationForVerify && !vatForVerify) {
+      toast.error('Add a CIPC registration number (or VAT number) before paying.');
+      return;
+    }
+    if (!verifyConsent) {
+      toast.error('Confirm consent before paying for verification.');
+      return;
+    }
+
     const email = String(form.email || user?.email?.address || '').trim();
     if (!email) {
       toast.error('Add a company email before paying for verification');
@@ -445,7 +576,8 @@ function ProfileInner() {
     }
     const key = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY;
     if (!key) {
-      toast.error('Paystack public key is not configured');
+      // No Paystack — fall through to pure API verification using platform credits
+      void runVerifyNow();
       return;
     }
     if (!window.PaystackPop) {
@@ -477,34 +609,7 @@ function ProfileInner() {
           ],
         },
         callback: (response: { reference?: string }) => {
-          void (async () => {
-            try {
-              const res = await fetch('/api/business/verify', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  companyId,
-                  privyUserId,
-                  paystackReference: response.reference || ref,
-                  email,
-                }),
-              });
-              const data = await res.json();
-              if (!res.ok) throw new Error(data.error || 'Could not record verification');
-              toast.success(data.message || 'Company verified');
-              setForm((prev) => ({
-                ...prev,
-                verification_status: 'verified',
-                is_verified: true,
-                verified_at: new Date().toISOString(),
-                verification_payment_ref: response.reference || ref,
-              }));
-            } catch (e: unknown) {
-              toast.error(e instanceof Error ? e.message : 'Verification record failed');
-            } finally {
-              setPaying(false);
-            }
-          })();
+          void runVerifyNow({ paystackReference: response.reference || ref });
         },
         onClose: () => {
           setPaying(false);
@@ -529,6 +634,64 @@ function ProfileInner() {
 
   const isVerified =
     form.is_verified || form.verification_status === 'verified';
+  const verificationStatus = String(form.verification_status || '').toLowerCase();
+  const metaVerification =
+    form.metadata &&
+    typeof form.metadata === 'object' &&
+    (form.metadata as { verification?: Record<string, unknown> }).verification
+      ? ((form.metadata as { verification: Record<string, unknown> }).verification)
+      : null;
+  type DisplayVerification = {
+    companyName?: string;
+    tradeName?: string;
+    registrationNumber?: string;
+    companyStatus?: string;
+    companyType?: string;
+    physicalAddress?: string;
+    vatNumber?: string;
+    taxNumber?: string;
+    directorCount?: string;
+    nameMatch?: string;
+    requestId?: string;
+    statusText?: string;
+  };
+
+  const asDisplayField = (v: unknown): string | undefined => {
+    if (v == null || v === '') return undefined;
+    return String(v);
+  };
+
+  const displayVerification: DisplayVerification | null = verifyResult?.verification
+    ? {
+        companyName: asDisplayField(verifyResult.verification.companyName),
+        tradeName: asDisplayField(verifyResult.verification.tradeName),
+        registrationNumber: asDisplayField(verifyResult.verification.registrationNumber),
+        companyStatus: asDisplayField(verifyResult.verification.companyStatus),
+        companyType: asDisplayField(verifyResult.verification.companyType),
+        physicalAddress: asDisplayField(verifyResult.verification.physicalAddress),
+        vatNumber: asDisplayField(verifyResult.verification.vatNumber),
+        taxNumber: asDisplayField(verifyResult.verification.taxNumber),
+        directorCount: asDisplayField(verifyResult.verification.directorCount),
+        nameMatch: asDisplayField(verifyResult.verification.nameMatch),
+        requestId: asDisplayField(verifyResult.verification.requestId),
+        statusText: asDisplayField(verifyResult.verification.statusText),
+      }
+    : metaVerification
+      ? {
+          companyName: asDisplayField(metaVerification.company_name),
+          tradeName: asDisplayField(metaVerification.trade_name),
+          registrationNumber: asDisplayField(metaVerification.registration_number),
+          companyStatus: asDisplayField(metaVerification.company_status),
+          companyType: asDisplayField(metaVerification.company_type),
+          physicalAddress: asDisplayField(metaVerification.physical_address),
+          vatNumber: asDisplayField(metaVerification.vat_number),
+          taxNumber: asDisplayField(metaVerification.tax_number),
+          directorCount: asDisplayField(metaVerification.director_count),
+          nameMatch: asDisplayField(metaVerification.name_match),
+          requestId: asDisplayField(metaVerification.request_id),
+          statusText: asDisplayField(metaVerification.company_status),
+        }
+      : null;
 
   return (
     <BusinessPage>
@@ -616,63 +779,190 @@ function ProfileInner() {
         )}
       </div>
 
-      {/* VerifyNow + Paystack */}
+      {/* VerifyNow CIPC — pure in-page API integration (no external navigation) */}
       <Panel className="mb-6" title="Company verification">
-        <div className="p-5 space-y-3">
+        <div className="p-5 space-y-4">
           <p className="text-sm text-neutral-600 leading-relaxed">
-            Verify this company with{' '}
-            <a
-              href="https://www.verifynow.co.za/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[#00b4d8] font-semibold inline-flex items-center gap-1 hover:underline"
-            >
-              VerifyNow <ExternalLink className="w-3 h-3" />
-            </a>
-            . Cost is <strong>R{VERIFY_AMOUNT_ZAR}</strong> per verification, payable securely via{' '}
-            <a
-              href="https://dashboard.paystack.com/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[#00b4d8] font-semibold inline-flex items-center gap-1 hover:underline"
-            >
-              Paystack <ExternalLink className="w-3 h-3" />
-            </a>
-            .
+            Run a live <strong>CIPC company check</strong> through VerifyNow without leaving
+            SupplierAdvisor. We call their API from our server using your registration number
+            (or VAT number). Optional fee: <strong>R{VERIFY_AMOUNT_ZAR}</strong> via secure
+            on-page Paystack checkout.
           </p>
-          <div className="flex flex-wrap items-center gap-2">
-            {isVerified ? (
-              <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full bg-emerald-100 text-emerald-800">
-                <ShieldCheck className="w-3.5 h-3.5" /> Verified
-                {form.verified_at
-                  ? ` · ${new Date(String(form.verified_at)).toLocaleDateString()}`
-                  : ''}
-              </span>
-            ) : (
-              <button
-                type="button"
-                disabled={paying}
-                onClick={startVerifyPayment}
-                className="btn-primary !py-2.5 !px-5 text-sm"
-              >
-                {paying ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <>
-                    <ShieldCheck className="w-4 h-4" /> Pay R{VERIFY_AMOUNT_ZAR} &amp; verify
-                  </>
+
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div className="rounded-xl border border-neutral-200 bg-neutral-50/80 px-3 py-2.5">
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
+                Registration no.
+              </div>
+              <div className="text-sm font-mono text-slate-800 mt-0.5 truncate">
+                {registrationForVerify || (
+                  <span className="text-amber-700 font-sans text-xs">
+                    Fill Identity → Registration no. first
+                  </span>
                 )}
-              </button>
-            )}
-            <a
-              href="https://www.verifynow.co.za/"
-              target="_blank"
-              rel="noopener noreferrer"
+              </div>
+            </div>
+            <div className="rounded-xl border border-neutral-200 bg-neutral-50/80 px-3 py-2.5">
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
+                Status
+              </div>
+              <div className="mt-0.5">
+                {isVerified ? (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-emerald-700">
+                    <ShieldCheck className="w-3.5 h-3.5" /> Verified
+                    {form.verified_at
+                      ? ` · ${new Date(String(form.verified_at)).toLocaleDateString()}`
+                      : ''}
+                  </span>
+                ) : verificationStatus === 'mismatch' ? (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-amber-700">
+                    <AlertTriangle className="w-3.5 h-3.5" /> Name mismatch — review
+                  </span>
+                ) : verificationStatus === 'failed' ? (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-red-700">
+                    <AlertTriangle className="w-3.5 h-3.5" /> Failed
+                  </span>
+                ) : verificationStatus === 'pending' ? (
+                  <span className="text-xs font-semibold text-sky-700">Pending…</span>
+                ) : (
+                  <span className="text-xs font-semibold text-neutral-500">Unverified</span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <label className="flex items-start gap-2.5 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              className="mt-1 rounded border-neutral-300 text-[#00b4d8] focus:ring-[#00b4d8]"
+              checked={verifyConsent}
+              onChange={(e) => setVerifyConsent(e.target.checked)}
+            />
+            <span className="text-xs text-neutral-600 leading-relaxed">
+              I confirm this company authorises a CIPC registration check via VerifyNow (data
+              processed for KYB / FICA-style business verification). The check runs on this page
+              — you will not be redirected.
+            </span>
+          </label>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={verifying || paying || !verifyConsent}
+              onClick={() => void runVerifyNow()}
+              className="btn-primary !py-2.5 !px-5 text-sm"
+            >
+              {verifying ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <>
+                  <ShieldCheck className="w-4 h-4" />{' '}
+                  {isVerified ? 'Re-verify with VerifyNow' : 'Verify with VerifyNow'}
+                </>
+              )}
+            </button>
+            <button
+              type="button"
+              disabled={verifying || paying || !verifyConsent}
+              onClick={startVerifyPayment}
               className="btn-secondary !py-2.5 !px-4 text-sm"
             >
-              Open VerifyNow
-            </a>
+              {paying ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <>Pay R{VERIFY_AMOUNT_ZAR} &amp; verify</>
+              )}
+            </button>
           </div>
+
+          {displayVerification &&
+            (displayVerification.companyName || displayVerification.registrationNumber) && (
+              <div className="rounded-2xl border border-emerald-200/80 bg-emerald-50/50 p-4 space-y-2">
+                <div className="flex items-center gap-2 text-sm font-bold text-emerald-900">
+                  <Building2 className="w-4 h-4" />
+                  CIPC result
+                  {verifyResult?.status === 'verified' || isVerified ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  ) : null}
+                </div>
+                <dl className="grid sm:grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+                  {displayVerification.companyName ? (
+                    <>
+                      <dt className="text-neutral-500">Legal name</dt>
+                      <dd className="font-semibold text-slate-800">
+                        {String(displayVerification.companyName)}
+                      </dd>
+                    </>
+                  ) : null}
+                  {displayVerification.tradeName ? (
+                    <>
+                      <dt className="text-neutral-500">Trade name</dt>
+                      <dd className="text-slate-700">{String(displayVerification.tradeName)}</dd>
+                    </>
+                  ) : null}
+                  {displayVerification.registrationNumber ? (
+                    <>
+                      <dt className="text-neutral-500">Registration</dt>
+                      <dd className="font-mono text-slate-800">
+                        {String(displayVerification.registrationNumber)}
+                      </dd>
+                    </>
+                  ) : null}
+                  {displayVerification.companyStatus ? (
+                    <>
+                      <dt className="text-neutral-500">CIPC status</dt>
+                      <dd className="font-semibold text-slate-800">
+                        {String(displayVerification.companyStatus)}
+                      </dd>
+                    </>
+                  ) : null}
+                  {displayVerification.companyType ? (
+                    <>
+                      <dt className="text-neutral-500">Type</dt>
+                      <dd className="text-slate-700">{String(displayVerification.companyType)}</dd>
+                    </>
+                  ) : null}
+                  {displayVerification.physicalAddress ? (
+                    <>
+                      <dt className="text-neutral-500">Registered address</dt>
+                      <dd className="text-slate-700">
+                        {String(displayVerification.physicalAddress)}
+                      </dd>
+                    </>
+                  ) : null}
+                  {displayVerification.directorCount ? (
+                    <>
+                      <dt className="text-neutral-500">Directors</dt>
+                      <dd className="text-slate-700">{String(displayVerification.directorCount)}</dd>
+                    </>
+                  ) : null}
+                  {displayVerification.nameMatch &&
+                  displayVerification.nameMatch !== 'unknown' ? (
+                    <>
+                      <dt className="text-neutral-500">Name match</dt>
+                      <dd
+                        className={
+                          displayVerification.nameMatch === 'mismatch'
+                            ? 'font-semibold text-amber-800'
+                            : 'text-slate-700'
+                        }
+                      >
+                        {String(displayVerification.nameMatch)}
+                      </dd>
+                    </>
+                  ) : null}
+                </dl>
+                {verifyResult?.message && (
+                  <p className="text-[11px] text-emerald-900/80 pt-1">{verifyResult.message}</p>
+                )}
+                {displayVerification.requestId ? (
+                  <p className="text-[10px] text-neutral-400 font-mono pt-1">
+                    requestId: {String(displayVerification.requestId)}
+                  </p>
+                ) : null}
+              </div>
+            )}
+
           {form.verification_payment_ref && (
             <p className="text-[11px] text-neutral-400 font-mono">
               Payment ref: {String(form.verification_payment_ref)}
