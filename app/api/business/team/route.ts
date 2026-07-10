@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { assertCompanyMember, logActivity } from '@/lib/customers/access';
+import { logActivity } from '@/lib/customers/access';
+import { assertCanManageTeam, getCompanyMembership } from '@/lib/business/access';
+import { canView, normalizeTeamRole } from '@/lib/business/permissions';
 
 /**
  * GET ?companyId=&privyUserId=
@@ -13,8 +15,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
     if (privyUserId) {
-      const mem = await assertCompanyMember(privyUserId, companyId);
+      const mem = await getCompanyMembership(privyUserId, companyId);
       if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
+      if (!canView(mem.role, 'team')) {
+        return NextResponse.json(
+          { error: 'Your role cannot view the team page' },
+          { status: 403 }
+        );
+      }
     }
 
     const supabase = getSupabaseServer();
@@ -73,7 +81,7 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     const companyId = Number(body.companyId);
     const memberId = Number(body.memberId || body.id);
-    const mem = await assertCompanyMember(body.privyUserId, companyId);
+    const mem = await assertCanManageTeam(body.privyUserId, companyId);
     if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
     if (!Number.isFinite(memberId)) {
       return NextResponse.json({ error: 'memberId required' }, { status: 400 });
@@ -82,7 +90,16 @@ export async function PATCH(request: NextRequest) {
     const updates: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
     };
-    if (body.role != null) updates.role = String(body.role);
+    if (body.role != null) {
+      const nextRole = normalizeTeamRole(body.role);
+      if (nextRole === 'owner' && mem.role !== 'owner') {
+        return NextResponse.json(
+          { error: 'Only an owner can assign the owner role' },
+          { status: 403 }
+        );
+      }
+      updates.role = nextRole;
+    }
     if (body.status != null) updates.status = String(body.status);
     if (body.name != null) updates.name = String(body.name);
 
@@ -123,7 +140,7 @@ export async function DELETE(request: NextRequest) {
     const companyId = Number(sp.get('companyId'));
     const memberId = Number(sp.get('memberId'));
     const privyUserId = sp.get('privyUserId');
-    const mem = await assertCompanyMember(privyUserId, companyId);
+    const mem = await assertCanManageTeam(privyUserId, companyId);
     if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
     if (!Number.isFinite(memberId)) {
       return NextResponse.json({ error: 'memberId required' }, { status: 400 });
@@ -143,6 +160,9 @@ export async function DELETE(request: NextRequest) {
         { error: 'Owners cannot remove themselves. Transfer ownership first.' },
         { status: 400 }
       );
+    }
+    if (String(target.role) === 'owner' && mem.role !== 'owner') {
+      return NextResponse.json({ error: 'Only an owner can remove another owner' }, { status: 403 });
     }
 
     const { error } = await supabase

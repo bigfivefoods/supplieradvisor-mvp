@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { assertCompanyMember, logActivity } from '@/lib/customers/access';
+import { assertCompanyPermission } from '@/lib/business/access';
 import { DEFAULT_SETTINGS, type CompanySettings } from '@/lib/business/types';
 
 /**
@@ -46,7 +47,12 @@ export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
     const companyId = Number(body.companyId);
-    const mem = await assertCompanyMember(body.privyUserId, companyId);
+    const mem = await assertCompanyPermission(
+      body.privyUserId,
+      companyId,
+      'settings',
+      'write'
+    );
     if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
 
     const supabase = getSupabaseServer();
