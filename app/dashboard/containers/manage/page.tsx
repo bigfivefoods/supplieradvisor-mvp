@@ -10,6 +10,11 @@ import AddContainerForm from '@/components/AddContainerForm';
 import EditContainerForm, { Container } from '@/components/EditContainerForm';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import type { ContainerRecord } from '@/lib/containers/types';
+import {
+  CompanyRequired,
+  ContainersHeader,
+  ContainersPage,
+} from '@/components/containers/ContainersShell';
 
 function toEditContainer(c: ContainerRecord): Container {
   return {
@@ -37,24 +42,25 @@ function toEditContainer(c: ContainerRecord): Container {
 }
 
 export default function ManageContainersPage() {
+  return (
+    <CompanyRequired>
+      <ManageInner />
+    </CompanyRequired>
+  );
+}
+
+function ManageInner() {
   const [containers, setContainers] = useState<ContainerRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState<Container | null>(null);
   const [search, setSearch] = useState('');
-  const [companyId, setCompanyId] = useState<number | null>(null);
+  const companyId = getSelectedCompanyId()!;
 
   const load = useCallback(async () => {
-    const id = getSelectedCompanyId();
-    setCompanyId(id);
-    if (!id) {
-      setContainers([]);
-      setLoading(false);
-      return;
-    }
     setLoading(true);
     try {
-      const res = await fetch(`/api/containers?companyId=${id}`);
+      const res = await fetch(`/api/containers?companyId=${companyId}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to load');
       setContainers(data.containers || []);
@@ -63,7 +69,7 @@ export default function ManageContainersPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [companyId]);
 
   useEffect(() => {
     void load();
@@ -91,46 +97,30 @@ export default function ManageContainersPage() {
     void load();
   };
 
-  if (!companyId && !loading) {
-    return (
-      <div className="max-w-md mx-auto py-16 text-center px-4">
-        <Package className="w-12 h-12 text-neutral-300 mx-auto mb-4" />
-        <h2 className="text-2xl font-bold mb-3">Select a company</h2>
-        <p className="text-neutral-600 mb-6">Choose a company workspace to manage its retail containers.</p>
-        <Link href="/dashboard/select-company" className="btn-primary px-8 py-3 inline-block">
-          Select company
-        </Link>
-      </div>
-    );
-  }
-
   return (
-    <div className="px-2 md:px-4 max-w-screen-2xl mx-auto">
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8">
-        <div>
-          <h1 className="text-3xl sm:text-4xl font-black tracking-[-2px] text-[#00b4d8]">
-            Manage containers
-          </h1>
-          <p className="text-neutral-600 mt-1">
-            Retail outlets · contractors · locations · inventory
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link href="/dashboard/containers/map" className="btn-secondary !py-3 !px-5 text-sm">
-            <MapPin className="w-4 h-4" /> Map
-          </Link>
-          <button type="button" onClick={() => void load()} className="btn-secondary !py-3 !px-5 text-sm">
-            <RefreshCw className="w-4 h-4" /> Refresh
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowAdd(true)}
-            className="btn-primary !py-3 !px-5 text-sm"
-          >
-            <Plus className="w-4 h-4" /> Add container
-          </button>
-        </div>
-      </div>
+    <ContainersPage>
+      <ContainersHeader
+        title="Manage"
+        titleAccent="containers"
+        description="Retail outlets · contractors · locations · inventory — full CRUD for every container."
+        action={
+          <>
+            <Link href="/dashboard/containers/map" className="btn-secondary !py-2.5 !px-5 text-sm">
+              <MapPin className="w-4 h-4" /> Map
+            </Link>
+            <button type="button" onClick={() => void load()} className="btn-secondary !py-2.5 !px-5 text-sm">
+              <RefreshCw className="w-4 h-4" /> Refresh
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowAdd(true)}
+              className="btn-primary !py-2.5 !px-5 text-sm"
+            >
+              <Plus className="w-4 h-4" /> Add container
+            </button>
+          </>
+        }
+      />
 
       <div className="relative mb-6 max-w-md">
         <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400" />
@@ -145,13 +135,13 @@ export default function ManageContainersPage() {
       <div className="bg-white rounded-3xl border border-neutral-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[720px]">
-            <thead className="bg-neutral-50 border-b">
+            <thead className="bg-neutral-50 border-b border-neutral-100">
               <tr>
-                <th className="text-left px-5 py-4 text-sm font-semibold text-neutral-600">Outlet</th>
-                <th className="text-left px-5 py-4 text-sm font-semibold text-neutral-600">Location</th>
-                <th className="text-left px-5 py-4 text-sm font-semibold text-neutral-600">Status</th>
-                <th className="text-left px-5 py-4 text-sm font-semibold text-neutral-600">Contractor</th>
-                <th className="text-right px-5 py-4 text-sm font-semibold text-neutral-600">Actions</th>
+                <th className="text-left px-5 py-4 text-xs font-semibold uppercase tracking-wide text-neutral-500">Outlet</th>
+                <th className="text-left px-5 py-4 text-xs font-semibold uppercase tracking-wide text-neutral-500">Location</th>
+                <th className="text-left px-5 py-4 text-xs font-semibold uppercase tracking-wide text-neutral-500">Status</th>
+                <th className="text-left px-5 py-4 text-xs font-semibold uppercase tracking-wide text-neutral-500">Contractor</th>
+                <th className="text-right px-5 py-4 text-xs font-semibold uppercase tracking-wide text-neutral-500">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -175,7 +165,7 @@ export default function ManageContainersPage() {
                   <tr key={c.id} className="hover:bg-neutral-50/80">
                     <td className="px-5 py-4">
                       <Link href={`/dashboard/containers/${c.id}`} className="group">
-                        <div className="font-semibold text-slate-900 group-hover:text-[#00b4d8]">
+                        <div className="font-semibold text-slate-800 group-hover:text-[#0077b6]">
                           {c.name}
                         </div>
                         <div className="text-xs font-mono text-neutral-500">{c.container_code}</div>
@@ -260,6 +250,6 @@ export default function ManageContainersPage() {
           }}
         />
       )}
-    </div>
+    </ContainersPage>
   );
 }

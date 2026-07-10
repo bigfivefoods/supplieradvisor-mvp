@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
-  ArrowLeft,
   Loader2,
   Plus,
   Trash2,
@@ -22,6 +21,11 @@ import { getSelectedCompanyId, getSelectedCompanyName } from '@/lib/containers/c
 import type { ContractorRecord, ContainerRecord } from '@/lib/containers/types';
 import { uploadContractorIdDocument } from '@/lib/containers/uploadIdDocument';
 import { isValidSaIdNumber } from '@/lib/verifynow/client';
+import {
+  CompanyRequired,
+  ContainersHeader,
+  ContainersPage,
+} from '@/components/containers/ContainersShell';
 
 const TRAINING = ['pending', 'in_progress', 'certified', 'expired'] as const;
 
@@ -36,6 +40,14 @@ function verificationBadge(status?: string | null) {
 }
 
 export default function ContractorsPage() {
+  return (
+    <CompanyRequired>
+      <ContractorsInner />
+    </CompanyRequired>
+  );
+}
+
+function ContractorsInner() {
   const [contractors, setContractors] = useState<ContractorRecord[]>([]);
   const [containers, setContainers] = useState<ContainerRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,7 +68,7 @@ export default function ContractorsPage() {
     consent_identity_check: false,
   });
 
-  const companyId = getSelectedCompanyId();
+  const companyId = getSelectedCompanyId()!;
 
   const load = useCallback(async () => {
     if (!companyId) {
@@ -292,30 +304,13 @@ export default function ContractorsPage() {
     }
   };
 
-  if (!companyId) {
-    return (
-      <div className="text-center py-16">
-        <Link href="/dashboard/select-company" className="btn-primary px-6 py-3">
-          Select company
-        </Link>
-      </div>
-    );
-  }
-
   return (
-    <div className="px-2 md:px-4 max-w-screen-2xl mx-auto">
-      <Link
-        href="/dashboard/containers"
-        className="inline-flex items-center gap-2 text-sm text-neutral-500 mb-4"
-      >
-        <ArrowLeft className="w-4 h-4" /> Containers
-      </Link>
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8">
-        <div>
-          <h1 className="text-3xl sm:text-4xl font-black tracking-[-2px] text-[#00b4d8] mb-2">
-            Independent contractors
-          </h1>
-          <p className="text-neutral-600 max-w-2xl">
+    <ContainersPage>
+      <ContainersHeader
+        title="Independent"
+        titleAccent="contractors"
+        description={
+          <>
             Appoint operators, attach SA ID documents, verify identity via{' '}
             <a
               href="https://www.verifynow.co.za/"
@@ -326,16 +321,16 @@ export default function ContractorsPage() {
               VerifyNow <ExternalLink className="w-3 h-3" />
             </a>
             , then invite them to their allocated container portal.
-          </p>
-        </div>
-      </div>
+          </>
+        }
+      />
 
-      <div className="grid lg:grid-cols-5 gap-6">
+      <div className="grid lg:grid-cols-5 gap-4 sm:gap-5">
         <form
           onSubmit={appoint}
           className="lg:col-span-2 bg-white border border-neutral-200 rounded-3xl p-6 space-y-4 h-fit"
         >
-          <h2 className="font-bold text-xl text-slate-900 flex items-center gap-2">
+          <h2 className="font-bold text-lg text-slate-800 flex items-center gap-2">
             <Plus className="w-5 h-5 text-[#00b4d8]" /> Appoint contractor
           </h2>
           <div>
@@ -652,6 +647,6 @@ export default function ContractorsPage() {
           )}
         </div>
       </div>
-    </div>
+    </ContainersPage>
   );
 }
