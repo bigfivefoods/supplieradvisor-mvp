@@ -53,6 +53,8 @@ export const SUPPLIER_INDUSTRIES = [
 
 export const DOC_TYPES = [
   { value: 'contract', label: 'Contract' },
+  { value: 'pricing_agreement', label: 'Pricing agreement' },
+  { value: 'price_list', label: 'Price list' },
   { value: 'cert', label: 'Certificate' },
   { value: 'sla', label: 'SLA' },
   { value: 'nda', label: 'NDA' },
@@ -134,8 +136,11 @@ export type DiscoverSupplier = {
   website?: string | null;
   public_id?: string | null;
   relationship_type?: string | null;
+  is_discoverable?: boolean | null;
   already_connected?: boolean;
   in_my_book?: boolean;
+  connection_pending_out?: boolean;
+  connection_pending_in?: boolean;
   srm_supplier_id?: number | null;
 };
 

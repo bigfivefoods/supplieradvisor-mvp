@@ -24,6 +24,7 @@ import {
   AlertTriangle,
   ArrowRight,
   Link2,
+  CreditCard,
 } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
@@ -63,6 +64,7 @@ const PROCESS = [
   { label: 'Discover', href: '/dashboard/suppliers/discover' },
   { label: 'Invite', href: '/dashboard/invite-business' },
   { label: 'Connect', href: '/dashboard/connections' },
+  { label: 'Pricing', href: '/dashboard/connections/pricing' },
   { label: 'Market', href: '/dashboard/connections/marketplace' },
   { label: 'Trade', href: '/dashboard/suppliers/po' },
   { label: 'Docs', href: '/dashboard/customers/quotes' },
@@ -289,16 +291,26 @@ function HubInner() {
 
       {/* Why connect */}
       <Panel className="mb-8" title="Why connect matters">
-        <div className="px-5 py-5 grid sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+        <div className="px-5 py-5 grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 text-sm">
+          <Why
+            icon={Link2}
+            title="Invitations"
+            body="Request connect from Discover, or invite off-platform companies. Same-owner companies auto-accept."
+          />
           <Why
             icon={ShoppingCart}
-            title="Direct POs & invoices"
-            body="Raise commercial docs only with connected counterparties — seller and buyer share the same edge."
+            title="POs & trade"
+            body="Raise purchase orders against connected suppliers — both books stay in sync."
           />
           <Why
             icon={FileText}
-            title="Shared documents"
-            body="Quotes, contracts, and certs share in real time once the platform edge is accepted."
+            title="Pricing agreements"
+            body="Share price lists and commercial terms in the document vault once the edge is accepted."
+          />
+          <Why
+            icon={Wallet}
+            title="Invoice & pay"
+            body="AR/AP invoices mirror to the connected counterparty so both companies settle the same bill."
           />
           <Why
             icon={Star}
@@ -395,6 +407,12 @@ function HubInner() {
 
       <div className="mt-8 grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <QuickLink
+          href="/dashboard/connections/pricing"
+          icon={FileText}
+          label="Pricing agreements"
+          desc="List prices between your companies"
+        />
+        <QuickLink
           href="/dashboard/connections/marketplace"
           icon={Search}
           label="Browse marketplace"
@@ -411,12 +429,6 @@ function HubInner() {
           icon={ShoppingCart}
           label="Raise supplier PO"
           desc="Trade with connected suppliers"
-        />
-        <QuickLink
-          href="/dashboard/suppliers/ratings"
-          icon={Star}
-          label="Ratings & trust"
-          desc="Score connected partners"
         />
       </div>
     </ConnectionsPage>
@@ -508,9 +520,27 @@ function EdgeRow({
                 href={edge.hrefs.documents}
                 className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-neutral-200 text-neutral-600 hover:border-[#00b4d8]/40"
               >
-                <FileText className="w-3 h-3 text-[#00b4d8]" /> Docs
+                <FileText className="w-3 h-3 text-[#00b4d8]" /> Docs / pricing
               </Link>
             )}
+            <Link
+              href="/dashboard/accounting/accounts-receivable"
+              className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-neutral-200 text-neutral-600 hover:border-[#00b4d8]/40"
+            >
+              <Wallet className="w-3 h-3 text-emerald-600" /> Invoice
+            </Link>
+            <Link
+              href="/dashboard/accounting/accounts-payable"
+              className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-neutral-200 text-neutral-600 hover:border-[#00b4d8]/40"
+            >
+              <CreditCard className="w-3 h-3 text-violet-600" /> Pay
+            </Link>
+            <Link
+              href="/dashboard/connections/marketplace"
+              className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-neutral-200 text-neutral-600 hover:border-[#00b4d8]/40"
+            >
+              <Search className="w-3 h-3 text-[#00b4d8]" /> Market
+            </Link>
             {edge.hrefs.ratings && (
               <Link
                 href={edge.hrefs.ratings}

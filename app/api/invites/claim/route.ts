@@ -7,6 +7,7 @@ import {
 } from '@/lib/auth/identity';
 import { isCustomerInvitesEnabled, logActivity } from '@/lib/customers/access';
 import { upsertSupplierConnection } from '@/lib/suppliers/access';
+import { syncBooksOnAccept } from '@/lib/connections/sync';
 
 /** Stuck claiming lease — only same-user restore after this age (matches design reaper window). */
 const CLAIMING_STALE_MS = 5 * 60 * 1000;
@@ -185,6 +186,7 @@ export async function POST(request: NextRequest) {
         email: normalizedEmail || profile.email,
         invite_token: null,
         user_id: userId,
+        is_discoverable: profile.is_discoverable !== false,
       })
       .eq('id', profile.id)
       .eq('invite_token', token);
@@ -280,6 +282,15 @@ export async function POST(request: NextRequest) {
           notes: 'Supplier claimed platform invite',
           metadata: { source: 'supplier_invite_claim', token_claimed: true },
         });
+        if (conn.ok) {
+          await syncBooksOnAccept({
+            requesterId: buyerId,
+            requesteeId: Number(profile.id),
+            connectionId: conn.connectionId,
+            connectionType: 'supplier',
+            userId,
+          });
+        }
         await supabase
           .from('srm_suppliers')
           .update({
@@ -322,6 +333,46 @@ export async function POST(request: NextRequest) {
       console.error('SRM link after business claim soft-fail:', srmErr);
     }
 
+    // Accept pending network edges from invite-business (or any pending requestee=this profile)
+    let networkAccepted: number | null = null;
+    try {
+      const { data: pendingEdges } = await supabase
+        .from('business_connections')
+        .select('id, requester_profile_id, requestee_profile_id, connection_type, status')
+        .eq('requestee_profile_id', profile.id)
+        .eq('status', 'pending')
+        .limit(20);
+
+      for (const edge of pendingEdges || []) {
+        const { error: acceptErr } = await supabase
+          .from('business_connections')
+          .update({
+            status: 'accepted',
+            responded_at: now,
+            updated_at: now,
+            metadata: {
+              accepted_via: 'business_invite_claim',
+              accepted_at: now,
+            },
+          })
+          .eq('id', edge.id);
+        if (acceptErr) {
+          console.warn('accept pending edge soft-fail:', acceptErr.message);
+          continue;
+        }
+        networkAccepted = Number(edge.id);
+        await syncBooksOnAccept({
+          requesterId: Number(edge.requester_profile_id),
+          requesteeId: Number(edge.requestee_profile_id),
+          connectionId: Number(edge.id),
+          connectionType: String(edge.connection_type || 'partner'),
+          userId,
+        });
+      }
+    } catch (netErr) {
+      console.error('Network accept after business claim soft-fail:', netErr);
+    }
+
     return NextResponse.json({
       success: true,
       kind: 'business',
@@ -329,6 +380,7 @@ export async function POST(request: NextRequest) {
       role: 'owner',
       message: 'Business profile claimed successfully!',
       srm: srmLinked,
+      networkConnectionId: networkAccepted,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Claim failed';

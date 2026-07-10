@@ -8,6 +8,8 @@ import { INVITE_EXPIRY_DAYS } from '@/lib/auth/identity';
 /**
  * POST /api/invite-business
  * Invite a new business/partner to claim a profile and complete onboarding.
+ * When inviterProfileId is set, also creates a pending partner edge so accept
+ * lands in the network hub for both sides.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -22,6 +24,7 @@ export async function POST(request: NextRequest) {
       invitedBy = 'SupplierAdvisor',
       relationship_type = 'business',
       inviterProfileId,
+      message,
     } = body;
 
     if (!contact_email || !trading_name) {
@@ -37,6 +40,11 @@ export async function POST(request: NextRequest) {
     const now = new Date().toISOString();
     const email = String(contact_email).toLowerCase().trim();
 
+    // Map invite relationship → connection_type for the network edge
+    const rt = String(relationship_type || 'business').toLowerCase();
+    const connectionType =
+      rt === 'supplier' ? 'supplier' : rt === 'customer' ? 'customer' : 'partner';
+
     const { data: newProfile, error: insertError } = await supabase
       .from('profiles')
       .insert({
@@ -49,6 +57,7 @@ export async function POST(request: NextRequest) {
         category: category || null,
         relationship_type,
         supplier_status: 'invited',
+        is_discoverable: true,
         invite_token: inviteToken,
         invited_by: invitedBy,
         invited_at: now,
@@ -68,11 +77,41 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    let connectionId: number | null = null;
+    const inviterId = inviterProfileId ? Number(inviterProfileId) : null;
+    if (inviterId && Number.isFinite(inviterId) && newProfile?.id) {
+      // Pending network edge so the inviter sees the request in Connections hub
+      const { data: conn, error: connErr } = await supabase
+        .from('business_connections')
+        .upsert(
+          {
+            requester_profile_id: inviterId,
+            requestee_profile_id: newProfile.id,
+            connection_type: connectionType,
+            status: 'pending',
+            notes: message || `${invitedBy} invited ${trading_name} to the network`,
+            metadata: {
+              source: 'invite_business',
+              invite_token: inviteToken,
+            },
+            updated_at: now,
+          },
+          { onConflict: 'requester_profile_id,requestee_profile_id' }
+        )
+        .select('id')
+        .single();
+      if (connErr) {
+        console.warn('invite-business connection soft-fail:', connErr.message);
+      } else if (conn?.id) {
+        connectionId = Number(conn.id);
+      }
+    }
+
     const inviteLink = buildBusinessInviteLink(inviteToken);
 
     const { error: emailError } = await resend.emails.send({
       from: getResendFrom(),
-        replyTo: getResendReplyTo(),
+      replyTo: getResendReplyTo(),
       to: email,
       subject: `${invitedBy} invited ${trading_name} to SupplierAdvisor`,
       html: businessInviteEmailHtml({
@@ -89,6 +128,7 @@ export async function POST(request: NextRequest) {
         success: true,
         warning: 'Invitation created but email failed to send. Share the link manually.',
         profileId: newProfile?.id,
+        connectionId,
         inviteLink,
         inviteToken,
         expiresInDays: INVITE_EXPIRY_DAYS,
@@ -100,6 +140,7 @@ export async function POST(request: NextRequest) {
       success: true,
       message: 'Invitation sent successfully',
       profileId: newProfile?.id,
+      connectionId,
       inviteLink,
       inviteToken,
       expiresInDays: INVITE_EXPIRY_DAYS,

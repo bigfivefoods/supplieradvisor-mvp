@@ -59,6 +59,7 @@ export async function POST(request: NextRequest) {
         short_description: short_description || null,
         supplier_status: 'active',
         relationship_type: business_type === 'supplier' ? 'supplier' : 'business',
+        is_discoverable: true,
         user_id: userId,
         created_at: now,
         claimed_at: now,

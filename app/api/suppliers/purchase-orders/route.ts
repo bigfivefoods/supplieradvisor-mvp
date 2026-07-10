@@ -149,14 +149,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Prefer accepted supplier connection; allow book-only with linked profile
-    const { data: conn } = await supabase
+    // Prefer accepted connection in either direction; allow book-only with linked profile
+    const { data: connRows } = await supabase
       .from('business_connections')
       .select('id, status, metadata, connection_type')
-      .eq('requester_profile_id', companyId)
-      .eq('requestee_profile_id', supplierProfileId)
+      .or(
+        `and(requester_profile_id.eq.${companyId},requestee_profile_id.eq.${supplierProfileId}),and(requester_profile_id.eq.${supplierProfileId},requestee_profile_id.eq.${companyId})`
+      )
       .eq('status', 'accepted')
-      .maybeSingle();
+      .limit(1);
+    const conn = connRows?.[0] || null;
 
     const meta =
       conn?.metadata && typeof conn.metadata === 'object' && !Array.isArray(conn.metadata)

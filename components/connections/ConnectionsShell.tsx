@@ -10,6 +10,7 @@ import {
 
 export const CONNECTIONS_NAV: readonly NavItem[] = [
   { href: '/dashboard/connections', label: 'Network', exact: true },
+  { href: '/dashboard/connections/pricing', label: 'Pricing' },
   { href: '/dashboard/connections/marketplace', label: 'Marketplace' },
   { href: '/dashboard/connections/marketplace/sell', label: 'Sell' },
   { href: '/dashboard/suppliers/discover', label: 'Find suppliers' },

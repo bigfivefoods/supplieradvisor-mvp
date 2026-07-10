@@ -131,11 +131,21 @@ function DiscoverInner() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Connect failed');
-      toast.success(
-        mode === 'request'
-          ? `Connection request sent to ${s.trading_name}`
-          : `Added ${s.trading_name} to your network`
-      );
+      if (data.alreadyConnected) {
+        toast.success(`Already connected with ${s.trading_name}`);
+      } else if (data.autoAccepted || data.sameOwner) {
+        toast.success(
+          `Connected with ${s.trading_name} — books synced on both companies (same owner)`
+        );
+      } else if (data.status === 'accepted') {
+        toast.success(
+          `Connected with ${s.trading_name} — you can now PO, invoice, and trade`
+        );
+      } else if (mode === 'request') {
+        toast.success(`Connection request sent to ${s.trading_name}`);
+      } else {
+        toast.success(`Added ${s.trading_name} to your network`);
+      }
       void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed');
@@ -149,7 +159,7 @@ function DiscoverInner() {
       <SuppliersHeader
         title="Discover"
         titleAccent="suppliers"
-        description="Search the SupplierAdvisor network by location, industry, certifications, BEE, trust score, and OTIFEF — then connect on-chain ready companies to your book."
+        description="Search every discoverable company on SupplierAdvisor — including your other entities — by location, industry, certifications, BEE, trust, and OTIFEF. Connect to unlock shared books, pricing, POs, invoices, and on-chain settlement."
       />
 
       <div className="grid lg:grid-cols-12 gap-6">
@@ -390,7 +400,30 @@ function DiscoverInner() {
                         </div>
                       </div>
                       <div className="flex flex-col gap-2 sm:items-end flex-shrink-0">
-                        {!s.already_connected && (
+                        {s.already_connected ? (
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200">
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Ready to trade
+                          </span>
+                        ) : s.connection_pending_out ? (
+                          <span className="text-xs font-semibold text-sky-700 px-3 py-1.5 rounded-full bg-sky-50 border border-sky-200">
+                            Request sent
+                          </span>
+                        ) : s.connection_pending_in ? (
+                          <button
+                            type="button"
+                            disabled={connecting === s.id}
+                            onClick={() => void connect(s, 'add_and_connect')}
+                            className="btn-primary !py-2 !px-4 text-xs"
+                          >
+                            {connecting === s.id ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <>
+                                <CheckCircle2 className="w-3.5 h-3.5" /> Accept request
+                              </>
+                            )}
+                          </button>
+                        ) : (
                           <>
                             <button
                               type="button"
@@ -412,8 +445,9 @@ function DiscoverInner() {
                                 disabled={connecting === s.id}
                                 onClick={() => void connect(s, 'add_and_connect')}
                                 className="btn-secondary !py-2 !px-4 text-xs"
+                                title="Add to book and connect immediately (auto-accepts when you own both companies)"
                               >
-                                <UserPlus className="w-3.5 h-3.5" /> Add to book
+                                <UserPlus className="w-3.5 h-3.5" /> Connect now
                               </button>
                             )}
                           </>

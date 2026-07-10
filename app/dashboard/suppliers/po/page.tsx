@@ -166,6 +166,17 @@ function PoInner() {
   const [lineItems, setLineItems] = useState<PoLineItem[]>([
     { product_id: null, item_name: '', quantity: 1, unit_price: 0, uom: 'ea' },
   ]);
+  const [priceList, setPriceList] = useState<
+    Array<{
+      id?: number;
+      product_name: string;
+      sku?: string | null;
+      list_price: number;
+      uom?: string | null;
+      seller_product_id?: number | null;
+      currency?: string | null;
+    }>
+  >([]);
 
   const [deliveryPo, setDeliveryPo] = useState<PurchaseOrder | null>(null);
   const [deliveryForm, setDeliveryForm] = useState({
@@ -182,6 +193,58 @@ function PoInner() {
   );
 
   const selectedSupplier = suppliers.find((s) => s.id === selectedSrmId) || null;
+
+  // Load active list prices when a linked supplier is selected
+  useEffect(() => {
+    const sellerId = selectedSupplier?.linked_profile_id
+      ? Number(selectedSupplier.linked_profile_id)
+      : null;
+    if (!sellerId || !companyId) {
+      setPriceList([]);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/pricing/lookup?companyId=${companyId}&sellerProfileId=${sellerId}&catalogue=1`
+        );
+        const data = await res.json();
+        if (!cancelled) setPriceList(data.lines || []);
+      } catch {
+        if (!cancelled) setPriceList([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedSupplier?.linked_profile_id, companyId]);
+
+  const applyPriceListLine = (line: {
+    product_name: string;
+    sku?: string | null;
+    list_price: number;
+    uom?: string | null;
+    seller_product_id?: number | null;
+  }) => {
+    setLineItems((prev) => {
+      const emptyIdx = prev.findIndex((i) => !i.item_name && !i.unit_price);
+      const row: PoLineItem = {
+        product_id: line.seller_product_id ? Number(line.seller_product_id) : null,
+        item_name: line.product_name,
+        quantity: 1,
+        unit_price: Number(line.list_price) || 0,
+        uom: line.uom || 'ea',
+      };
+      if (emptyIdx >= 0) {
+        const next = [...prev];
+        next[emptyIdx] = row;
+        return next;
+      }
+      return [...prev, row];
+    });
+    toast.success(`Added ${line.product_name} at list price`);
+  };
 
   const load = useCallback(async () => {
     if (!privyUserId) {
@@ -721,6 +784,44 @@ function PoInner() {
                   or{' '}
                   <Link href="/dashboard/suppliers/add" className="text-[#00b4d8] underline">
                     invite
+                  </Link>
+                  .
+                </p>
+              )}
+              {selectedSupplier?.linked_profile_id && priceList.length > 0 && (
+                <div className="mt-3 p-3 rounded-2xl border border-[#00b4d8]/20 bg-[#00b4d8]/5">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-[#0077b6] mb-2">
+                    Agreed list prices ({priceList.length})
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
+                    {priceList.map((l) => (
+                      <button
+                        key={l.id || `${l.sku}-${l.product_name}`}
+                        type="button"
+                        onClick={() => applyPriceListLine(l)}
+                        className="text-[11px] font-semibold px-2.5 py-1 rounded-full border border-[#00b4d8]/30 bg-white text-slate-700 hover:bg-[#00b4d8]/10"
+                        title="Add line at list price"
+                      >
+                        {l.product_name}
+                        <span className="text-neutral-400 font-normal ml-1">
+                          @ {Number(l.list_price).toFixed(2)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-neutral-500 mt-2">
+                    From active pricing agreements ·{' '}
+                    <Link href="/dashboard/connections/pricing" className="text-[#00b4d8] underline">
+                      manage
+                    </Link>
+                  </p>
+                </div>
+              )}
+              {selectedSupplier?.linked_profile_id && priceList.length === 0 && (
+                <p className="text-[11px] text-neutral-500 mt-2">
+                  No active price list with this supplier yet.{' '}
+                  <Link href="/dashboard/connections/pricing" className="text-[#00b4d8] underline">
+                    Create or import pricing
                   </Link>
                   .
                 </p>

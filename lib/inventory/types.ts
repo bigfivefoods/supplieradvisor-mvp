@@ -27,6 +27,14 @@ export type ProductRecord = {
   primary_image_url?: string | null;
   specs_sheet_url?: string | null;
   specs_sheet_name?: string | null;
+  /** Upstream manufacturer sheet (preserved when sales co replaces local sheet) */
+  upstream_specs_sheet_url?: string | null;
+  upstream_specs_sheet_name?: string | null;
+  /** Pedigree when imported from a connected seller / pricing agreement */
+  source_profile_id?: number | null;
+  source_product_id?: number | null;
+  source_agreement_id?: number | null;
+  source_agreement_line_id?: number | null;
   track_lot?: boolean | null;
   track_serial?: boolean | null;
   is_sellable?: boolean | null;

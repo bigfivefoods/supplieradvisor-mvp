@@ -59,6 +59,7 @@ const modules = [
     href: '/dashboard/connections',
     sub: [
       { name: 'Connections hub', href: '/dashboard/connections' },
+      { name: 'Pricing agreements', href: '/dashboard/connections/pricing' },
       { name: 'Marketplace', href: '/dashboard/connections/marketplace' },
       { name: 'Sell on marketplace', href: '/dashboard/connections/marketplace/sell' },
       { name: 'Find suppliers', href: '/dashboard/suppliers/discover' },

@@ -37,6 +37,7 @@ type Props = {
 
 const emptyForm = {
   counterparty_name: '',
+  counterparty_profile_id: '' as string,
   invoice_number: '',
   issue_date: new Date().toISOString().slice(0, 10),
   due_date: '',
@@ -47,6 +48,12 @@ const emptyForm = {
   unit_price: '',
   notes: '',
   status: 'draft',
+};
+
+type NetworkPeer = {
+  id: number;
+  trading_name: string;
+  role?: string;
 };
 
 export default function InvoiceWorkspace({
@@ -77,6 +84,7 @@ function Inner({ direction, title, titleAccent, description }: Props) {
   const [payRef, setPayRef] = useState('');
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(emptyForm);
+  const [peers, setPeers] = useState<NetworkPeer[]>([]);
 
   const noun = direction === 'receivable' ? 'invoice' : 'bill';
   const counterpartyLabel = direction === 'receivable' ? 'Customer' : 'Supplier';
@@ -102,10 +110,47 @@ function Inner({ direction, title, titleAccent, description }: Props) {
     }
   }, [companyId, direction, privyUserId, statusFilter, q]);
 
+  const loadPeers = useCallback(async () => {
+    try {
+      const params = new URLSearchParams({ companyId: String(companyId) });
+      if (privyUserId) params.set('privyUserId', privyUserId);
+      const res = await fetch(`/api/connections?${params}`);
+      const data = await res.json();
+      const edges = (data.edges || []) as Array<{
+        status: string;
+        suspended?: boolean;
+        role?: string;
+        peer?: { id?: number; trading_name?: string | null; legal_name?: string | null };
+      }>;
+      const list: NetworkPeer[] = [];
+      const seen = new Set<number>();
+      for (const e of edges) {
+        if (e.status !== 'accepted' || e.suspended) continue;
+        const id = Number(e.peer?.id);
+        if (!id || seen.has(id)) continue;
+        seen.add(id);
+        list.push({
+          id,
+          trading_name:
+            e.peer?.trading_name || e.peer?.legal_name || `Company #${id}`,
+          role: e.role,
+        });
+      }
+      list.sort((a, b) => a.trading_name.localeCompare(b.trading_name));
+      setPeers(list);
+    } catch {
+      setPeers([]);
+    }
+  }, [companyId, privyUserId]);
+
   useEffect(() => {
     const t = setTimeout(() => void load(), 200);
     return () => clearTimeout(t);
   }, [load]);
+
+  useEffect(() => {
+    if (showModal) void loadPeers();
+  }, [showModal, loadPeers]);
 
   const totals = useMemo(() => {
     const open = invoices.filter(
@@ -142,6 +187,9 @@ function Inner({ direction, title, titleAccent, description }: Props) {
               },
             ]
           : [];
+      const counterpartyProfileId = form.counterparty_profile_id
+        ? Number(form.counterparty_profile_id)
+        : null;
       const res = await fetch('/api/accounting/invoices', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -150,6 +198,7 @@ function Inner({ direction, title, titleAccent, description }: Props) {
           privyUserId,
           direction,
           counterparty_name: form.counterparty_name,
+          counterparty_profile_id: counterpartyProfileId || undefined,
           invoice_number: form.invoice_number || undefined,
           issue_date: form.issue_date,
           due_date: form.due_date || null,
@@ -164,7 +213,11 @@ function Inner({ direction, title, titleAccent, description }: Props) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
-      toast.success(`${noun[0].toUpperCase()}${noun.slice(1)} created`);
+      toast.success(
+        data.mirroredInvoiceId
+          ? `${noun[0].toUpperCase()}${noun.slice(1)} created and mirrored to connected company`
+          : `${noun[0].toUpperCase()}${noun.slice(1)} created`
+      );
       setShowModal(false);
       setForm(emptyForm);
       void load();
@@ -391,11 +444,53 @@ function Inner({ direction, title, titleAccent, description }: Props) {
       {showModal && (
         <Modal title={`New ${noun}`} onClose={() => setShowModal(false)}>
           <form onSubmit={createInvoice} className="space-y-4">
+            {peers.length > 0 && (
+              <Field label={`Network ${counterpartyLabel.toLowerCase()}`}>
+                <select
+                  className="field"
+                  value={form.counterparty_profile_id}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    const peer = peers.find((p) => String(p.id) === id);
+                    setForm({
+                      ...form,
+                      counterparty_profile_id: id,
+                      counterparty_name: peer?.trading_name || form.counterparty_name,
+                    });
+                  }}
+                >
+                  <option value="">Manual entry / free text…</option>
+                  {peers.map((p) => (
+                    <option key={p.id} value={String(p.id)}>
+                      {p.trading_name}
+                      {p.role ? ` (${p.role})` : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-neutral-500 mt-1">
+                  Connected companies sync this {noun} to their books automatically.
+                </p>
+              </Field>
+            )}
             <Field label={counterpartyLabel} required>
               <input
                 required
                 value={form.counterparty_name}
-                onChange={(e) => setForm({ ...form, counterparty_name: e.target.value })}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    counterparty_name: e.target.value,
+                    // free-text edit clears network link unless name still matches
+                    counterparty_profile_id:
+                      peers.some(
+                        (p) =>
+                          String(p.id) === form.counterparty_profile_id &&
+                          p.trading_name === e.target.value
+                      )
+                        ? form.counterparty_profile_id
+                        : '',
+                  })
+                }
                 className="field"
                 placeholder={direction === 'receivable' ? 'Customer name' : 'Supplier name'}
               />

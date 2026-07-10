@@ -23,6 +23,7 @@ import {
   Pencil,
   PlusCircle,
   MinusCircle,
+  Download,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -425,17 +426,25 @@ function ProductsInner() {
             Products
           </h1>
           <p className="text-neutral-600 mt-1">
-            Raw materials, finished goods, and more — one catalogue with QR passports. (Former
-            separate raw/FG pages redirect here.)
+            Catalogue with QR passports, multi-currency cost/sell, and spec sheets. Sales companies
+            import SKUs from network pricing agreements, then set higher on-sell prices.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => openCreate(typeFilter)}
-          className="btn-primary !py-3 !px-5"
-        >
-          <Plus className="w-4 h-4" /> Add product
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/dashboard/connections/pricing"
+            className="btn-secondary !py-3 !px-5 text-sm"
+          >
+            <Download className="w-4 h-4" /> Import from price lists
+          </Link>
+          <button
+            type="button"
+            onClick={() => openCreate(typeFilter)}
+            className="btn-primary !py-3 !px-5"
+          >
+            <Plus className="w-4 h-4" /> Add product
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2 mb-4">
@@ -536,18 +545,38 @@ function ProductsInner() {
                               {p.short_description}
                             </div>
                           )}
-                          {p.specs_sheet_url && (
-                            <a
-                              href={p.specs_sheet_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-[11px] text-[#00b4d8] inline-flex items-center gap-1 mt-0.5 hover:underline"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <FileText className="w-3 h-3" />
-                              Specs
-                            </a>
-                          )}
+                          <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                            {p.specs_sheet_url && (
+                              <a
+                                href={p.specs_sheet_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[11px] text-[#00b4d8] inline-flex items-center gap-1 hover:underline"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <FileText className="w-3 h-3" />
+                                Specs
+                              </a>
+                            )}
+                            {p.upstream_specs_sheet_url &&
+                              p.upstream_specs_sheet_url !== p.specs_sheet_url && (
+                                <a
+                                  href={p.upstream_specs_sheet_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-[11px] text-violet-700 inline-flex items-center gap-1 hover:underline"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <FileText className="w-3 h-3" />
+                                  Manufacturer
+                                </a>
+                              )}
+                            {p.source_profile_id && (
+                              <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-800 border border-violet-100">
+                                Network import
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -678,7 +707,7 @@ function ProductsInner() {
                   </div>
                   <div>
                     <label className="text-xs font-medium flex items-center gap-1.5 mb-1.5">
-                      <FileText className="w-3.5 h-3.5 text-[#00b4d8]" /> Specifications sheet
+                      <FileText className="w-3.5 h-3.5 text-[#00b4d8]" /> Specs / sales sheet
                     </label>
                     <label className="flex flex-col items-center justify-center border-2 border-dashed border-neutral-200 rounded-2xl p-5 cursor-pointer hover:border-[#00b4d8]/50 transition-colors min-h-[120px]">
                       <FileText className="w-6 h-6 text-neutral-400 mb-1" />
@@ -687,7 +716,7 @@ function ProductsInner() {
                           ? specFile.name
                           : existingSpecName || existingSpecUrl
                             ? existingSpecName || 'Current specs sheet'
-                            : 'PDF / Word · max 15MB'}
+                            : 'PDF / Word · max 15MB — sales cos can add their sheet'}
                       </span>
                       <input
                         type="file"
@@ -721,6 +750,19 @@ function ProductsInner() {
                         </button>
                       </div>
                     )}
+                    {editingId &&
+                      products.find((x) => x.id === editingId)?.upstream_specs_sheet_url && (
+                        <a
+                          href={
+                            products.find((x) => x.id === editingId)!.upstream_specs_sheet_url!
+                          }
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[11px] text-violet-700 hover:underline inline-flex items-center gap-1 mt-1.5"
+                        >
+                          <ExternalLink className="w-3 h-3" /> Manufacturer sheet (upstream)
+                        </a>
+                      )}
                   </div>
                 </div>
 

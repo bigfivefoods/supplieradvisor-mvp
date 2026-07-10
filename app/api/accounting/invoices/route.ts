@@ -119,17 +119,40 @@ export async function POST(request: NextRequest) {
       (await nextDocumentNumber(companyId, direction === 'payable' ? 'ap' : 'ar'));
 
     const supabase = getSupabaseServer();
+    const counterpartyProfileId = body.counterparty_profile_id
+      ? Number(body.counterparty_profile_id)
+      : null;
+    let counterpartyName = body.counterparty_name || null;
+
+    // Resolve counterparty name from network profile when only id is given
+    if (counterpartyProfileId && !counterpartyName) {
+      const { data: peer } = await supabase
+        .from('profiles')
+        .select('id, trading_name, legal_name')
+        .eq('id', counterpartyProfileId)
+        .maybeSingle();
+      if (peer) {
+        counterpartyName = peer.trading_name || peer.legal_name || `Company #${counterpartyProfileId}`;
+      }
+    }
+
+    const status = body.status || 'draft';
+    const metaBase =
+      body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)
+        ? { ...(body.metadata as Record<string, unknown>) }
+        : {};
+
     const { data, error } = await supabase
       .from('invoices')
       .insert({
         profile_id: companyId,
         direction,
-        counterparty_name: body.counterparty_name || null,
-        counterparty_profile_id: body.counterparty_profile_id || null,
+        counterparty_name: counterpartyName,
+        counterparty_profile_id: counterpartyProfileId,
         customer_id: body.customer_id || null,
         supplier_id: body.supplier_id || null,
         invoice_number: invoiceNumber,
-        status: body.status || 'draft',
+        status,
         issue_date: body.issue_date || new Date().toISOString().slice(0, 10),
         due_date: body.due_date || null,
         currency: body.currency || 'ZAR',
@@ -146,15 +169,105 @@ export async function POST(request: NextRequest) {
         bill_to_email: body.bill_to_email || null,
         billing_address: body.billing_address || null,
         entity_id: body.entity_id || null,
-        metadata: body.metadata || {},
+        metadata: metaBase,
       })
       .select('*')
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+    // Mirror to connected counterparty so both companies see the same commercial document
+    let mirroredInvoiceId: number | null = null;
+    if (
+      counterpartyProfileId &&
+      Number.isFinite(counterpartyProfileId) &&
+      counterpartyProfileId !== companyId &&
+      body.skipMirror !== true
+    ) {
+      try {
+        // Only mirror when there is an accepted network edge
+        const { data: edges } = await supabase
+          .from('business_connections')
+          .select('id, status, metadata')
+          .or(
+            `and(requester_profile_id.eq.${companyId},requestee_profile_id.eq.${counterpartyProfileId}),and(requester_profile_id.eq.${counterpartyProfileId},requestee_profile_id.eq.${companyId})`
+          )
+          .eq('status', 'accepted')
+          .limit(1);
+        const edge = edges?.[0];
+        const meta =
+          edge?.metadata && typeof edge.metadata === 'object' && !Array.isArray(edge.metadata)
+            ? (edge.metadata as Record<string, unknown>)
+            : {};
+        const suspended = meta.suspended === true || meta.suspended === 'true';
+
+        if (edge && !suspended) {
+          // Resolve issuer name for counterparty view
+          const { data: issuer } = await supabase
+            .from('profiles')
+            .select('trading_name, legal_name')
+            .eq('id', companyId)
+            .maybeSingle();
+          const issuerName =
+            issuer?.trading_name || issuer?.legal_name || `Company #${companyId}`;
+          const mirrorDirection = direction === 'receivable' ? 'payable' : 'receivable';
+          const mirrorNumber = await nextDocumentNumber(
+            counterpartyProfileId,
+            mirrorDirection === 'payable' ? 'ap' : 'ar'
+          );
+          const { data: mirrored } = await supabase
+            .from('invoices')
+            .insert({
+              profile_id: counterpartyProfileId,
+              direction: mirrorDirection,
+              counterparty_name: issuerName,
+              counterparty_profile_id: companyId,
+              invoice_number: mirrorNumber,
+              status: status === 'draft' ? 'draft' : status,
+              issue_date: body.issue_date || new Date().toISOString().slice(0, 10),
+              due_date: body.due_date || null,
+              currency: body.currency || 'ZAR',
+              subtotal: totals.subtotal,
+              tax_rate: totals.tax_rate,
+              tax_amount: totals.tax_amount,
+              total_amount: totals.total_amount,
+              amount_paid: Number(body.amount_paid || 0),
+              po_id: body.po_id || null,
+              notes: body.notes || null,
+              items,
+              bill_to_email: body.bill_to_email || null,
+              billing_address: body.billing_address || null,
+              metadata: {
+                mirrored_from_invoice_id: data.id,
+                mirrored_from_profile_id: companyId,
+                network_sync: true,
+              },
+            })
+            .select('id')
+            .single();
+          if (mirrored?.id) {
+            mirroredInvoiceId = Number(mirrored.id);
+            await supabase
+              .from('invoices')
+              .update({
+                metadata: {
+                  ...metaBase,
+                  mirrored_invoice_id: mirroredInvoiceId,
+                  mirrored_to_profile_id: counterpartyProfileId,
+                },
+              })
+              .eq('id', data.id);
+          }
+        }
+      } catch (mirrorErr) {
+        console.warn('invoice mirror soft-fail:', mirrorErr);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       invoice: { ...data, balance_due: invoiceBalance(data) },
+      mirroredInvoiceId,
     });
   } catch (e: unknown) {
     return NextResponse.json(

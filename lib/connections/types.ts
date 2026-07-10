@@ -116,7 +116,7 @@ export function edgeHrefs(
   if (role === 'supplier') {
     return {
       primary: '/dashboard/suppliers/network',
-      po: '/dashboard/suppliers/po',
+      po: `/dashboard/suppliers/po?supplierProfileId=${peerId}`,
       documents: '/dashboard/suppliers/documents',
       riad: '/dashboard/suppliers/riad-log',
       ratings: '/dashboard/suppliers/ratings',
@@ -143,12 +143,18 @@ export function edgeHrefs(
     // They sell to us
     return {
       primary: '/dashboard/suppliers/network',
-      po: '/dashboard/suppliers/po',
+      po: `/dashboard/suppliers/po?supplierProfileId=${peerId}`,
+      documents: '/dashboard/suppliers/documents',
       riad: '/dashboard/suppliers/riad-log',
     };
   }
+  // Partner — either side can open trade surfaces
   return {
     primary: '/dashboard/connections',
+    po: '/dashboard/suppliers/po',
+    documents: '/dashboard/suppliers/documents',
+    ratings: '/dashboard/suppliers/ratings',
+    riad: '/dashboard/suppliers/riad-log',
   };
 }
 

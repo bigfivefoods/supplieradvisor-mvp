@@ -9,6 +9,13 @@ import {
   type NetworkSummary,
   type PeerProfile,
 } from '@/lib/connections/types';
+import {
+  findConnectionBetween,
+  softSyncSuspend,
+  syncBooksOnAccept,
+  upsertNetworkConnection,
+  userOwnsBothCompanies,
+} from '@/lib/connections/sync';
 
 const PROFILE_SELECT =
   'id, trading_name, legal_name, email, city, country, industry, verification_status, is_verified, wallet_address, logo_url, trust_score';
@@ -181,6 +188,170 @@ export async function GET(request: NextRequest) {
 }
 
 /**
+ * POST — request or accept a network connection between two platform companies.
+ * Body: {
+ *   companyId, privyUserId, targetProfileId,
+ *   connectionType?: 'supplier'|'customer'|'partner',
+ *   mode?: 'request'|'connect'  (connect = accepted / same-owner auto),
+ *   message?: string
+ * }
+ *
+ * Same-owner multi-company: auto-accepts so owners can link their 5 companies immediately.
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const companyId = Number(body.companyId);
+    const targetProfileId = Number(body.targetProfileId);
+    const connectionType = String(body.connectionType || 'partner').toLowerCase();
+    let mode = String(body.mode || 'request').toLowerCase();
+
+    if (!Number.isFinite(companyId) || !Number.isFinite(targetProfileId)) {
+      return NextResponse.json(
+        { error: 'companyId and targetProfileId required' },
+        { status: 400 }
+      );
+    }
+    if (companyId === targetProfileId) {
+      return NextResponse.json({ error: 'Cannot connect to your own company' }, { status: 400 });
+    }
+
+    const mem = await assertCompanyMember(body.privyUserId, companyId);
+    if (!mem.ok) {
+      return NextResponse.json({ error: mem.error }, { status: mem.status });
+    }
+
+    const sameOwner = await userOwnsBothCompanies(
+      body.privyUserId,
+      companyId,
+      targetProfileId
+    );
+    if (sameOwner) mode = 'connect';
+
+    const existing = await findConnectionBetween(companyId, targetProfileId);
+    if (existing && String(existing.status) === 'accepted') {
+      await syncBooksOnAccept({
+        requesterId: Number(existing.requester_profile_id),
+        requesteeId: Number(existing.requestee_profile_id),
+        connectionId: Number(existing.id),
+        connectionType: String(existing.connection_type || connectionType),
+        userId: mem.userId,
+      });
+      return NextResponse.json({
+        success: true,
+        connectionId: Number(existing.id),
+        status: 'accepted',
+        alreadyConnected: true,
+        sameOwner,
+      });
+    }
+
+    // If they already sent us a pending request, accept it instead of creating reverse
+    if (
+      existing &&
+      String(existing.status) === 'pending' &&
+      Number(existing.requestee_profile_id) === companyId
+    ) {
+      const supabase = getSupabaseServer();
+      const now = new Date().toISOString();
+      const { data: updated, error: upErr } = await supabase
+        .from('business_connections')
+        .update({
+          status: 'accepted',
+          responded_at: now,
+          updated_at: now,
+          connection_type: existing.connection_type || connectionType,
+          metadata: {
+            ...(typeof existing.metadata === 'object' && existing.metadata
+              ? (existing.metadata as object)
+              : {}),
+            accepted_by: mem.userId,
+            accepted_at: now,
+          },
+        })
+        .eq('id', existing.id)
+        .select('*')
+        .single();
+      if (upErr) {
+        return NextResponse.json({ error: upErr.message }, { status: 500 });
+      }
+      await syncBooksOnAccept({
+        requesterId: Number(existing.requester_profile_id),
+        requesteeId: Number(existing.requestee_profile_id),
+        connectionId: Number(existing.id),
+        connectionType: String(updated.connection_type || connectionType),
+        userId: mem.userId,
+      });
+      return NextResponse.json({
+        success: true,
+        connectionId: Number(existing.id),
+        status: 'accepted',
+        acceptedIncoming: true,
+        sameOwner,
+      });
+    }
+
+    const status = mode === 'connect' ? 'accepted' : 'pending';
+    const up = await upsertNetworkConnection({
+      requesterProfileId: companyId,
+      requesteeProfileId: targetProfileId,
+      connectionType:
+        connectionType === 'supplier' || connectionType === 'customer'
+          ? connectionType
+          : 'partner',
+      status,
+      notes: body.message || 'Network connection',
+      metadata: {
+        source: 'network_hub',
+        same_owner_auto_accept: sameOwner,
+      },
+    });
+    if (!up.ok) {
+      return NextResponse.json({ error: up.error }, { status: 500 });
+    }
+
+    if (status === 'accepted') {
+      await syncBooksOnAccept({
+        requesterId: companyId,
+        requesteeId: targetProfileId,
+        connectionId: up.connectionId,
+        connectionType:
+          connectionType === 'supplier' || connectionType === 'customer'
+            ? connectionType
+            : 'partner',
+        userId: mem.userId,
+      });
+    }
+
+    await logActivity({
+      profile_id: companyId,
+      actor_user_id: mem.userId,
+      action: status === 'accepted' ? 'network.connect' : 'network.request',
+      entity_type: 'business_connections',
+      entity_id: String(up.connectionId),
+      summary:
+        status === 'accepted'
+          ? `Connected with company #${targetProfileId}`
+          : `Requested connection to company #${targetProfileId}`,
+      metadata: { targetProfileId, sameOwner, connectionType },
+    });
+
+    return NextResponse.json({
+      success: true,
+      connectionId: up.connectionId,
+      status,
+      sameOwner,
+      autoAccepted: sameOwner,
+    });
+  } catch (e: unknown) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : 'Error' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
  * PATCH — accept | decline | cancel | suspend | unsuspend
  * Body: { companyId, privyUserId, connectionId, action }
  */
@@ -298,10 +469,9 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: upErr.message }, { status: 500 });
     }
 
-    // Side effects: keep SRM / CRM books in sync on accept
+    // Side effects: keep SRM / CRM books in sync on accept (both directions)
     if (action === 'accept') {
       await syncBooksOnAccept({
-        companyId,
         requesterId,
         requesteeId,
         connectionId,
@@ -312,7 +482,6 @@ export async function PATCH(request: NextRequest) {
 
     if (action === 'suspend' || action === 'unsuspend') {
       await softSyncSuspend({
-        companyId,
         requesterId,
         requesteeId,
         connectionType: String(conn.connection_type || 'partner'),
@@ -372,161 +541,4 @@ function computeSummary(edges: NetworkEdge[]): NetworkSummary {
     }
   }
   return s;
-}
-
-async function syncBooksOnAccept(opts: {
-  companyId: number;
-  requesterId: number;
-  requesteeId: number;
-  connectionId: number;
-  connectionType: string;
-  userId: string;
-}) {
-  const supabase = getSupabaseServer();
-  const type = opts.connectionType.toLowerCase();
-  const now = new Date().toISOString();
-
-  try {
-    if (type === 'supplier') {
-      // buyer=requester, supplier=requestee
-      const buyerId = opts.requesterId;
-      const supplierProfileId = opts.requesteeId;
-      // Ensure buyer's SRM book has linked row
-      const { data: existing } = await supabase
-        .from('srm_suppliers')
-        .select('id')
-        .eq('profile_id', buyerId)
-        .eq('linked_profile_id', supplierProfileId)
-        .maybeSingle();
-
-      const { data: peer } = await supabase
-        .from('profiles')
-        .select('id, trading_name, legal_name, email, phone, contact_phone, industry, city, country')
-        .eq('id', supplierProfileId)
-        .maybeSingle();
-
-      if (existing?.id) {
-        await supabase
-          .from('srm_suppliers')
-          .update({
-            connection_id: opts.connectionId,
-            invite_status: 'accepted',
-            invite_accepted_at: now,
-            status: 'active',
-            linked_profile_id: supplierProfileId,
-            updated_at: now,
-          })
-          .eq('id', existing.id);
-      } else if (peer) {
-        await supabase.from('srm_suppliers').insert({
-          profile_id: buyerId,
-          trading_name: peer.trading_name || 'Supplier',
-          legal_name: peer.legal_name || peer.trading_name,
-          email: peer.email,
-          phone: peer.phone || peer.contact_phone,
-          industry: peer.industry,
-          city: peer.city,
-          country: peer.country,
-          linked_profile_id: supplierProfileId,
-          connection_id: opts.connectionId,
-          invite_status: 'accepted',
-          invite_accepted_at: now,
-          status: 'active',
-          created_by: opts.userId,
-          updated_at: now,
-        });
-      }
-    }
-
-    if (type === 'customer') {
-      // seller=requester, buyer=requestee
-      const sellerId = opts.requesterId;
-      const buyerProfileId = opts.requesteeId;
-      const { data: existing } = await supabase
-        .from('customers')
-        .select('id')
-        .eq('profile_id', sellerId)
-        .eq('linked_profile_id', buyerProfileId)
-        .maybeSingle();
-
-      if (existing?.id) {
-        await supabase
-          .from('customers')
-          .update({
-            connection_id: opts.connectionId,
-            invite_status: 'accepted',
-            status: 'active',
-            updated_at: now,
-          })
-          .eq('id', existing.id);
-      } else {
-        const { data: peer } = await supabase
-          .from('profiles')
-          .select('id, trading_name, legal_name, email, contact_name, phone, contact_phone, industry, city, country')
-          .eq('id', buyerProfileId)
-          .maybeSingle();
-        if (peer) {
-          await supabase.from('customers').insert({
-            profile_id: sellerId,
-            trading_name: peer.trading_name || 'Customer',
-            legal_name: peer.legal_name,
-            email: peer.email,
-            contact_name: peer.contact_name,
-            phone: peer.phone || peer.contact_phone,
-            industry: peer.industry,
-            city: peer.city,
-            country: peer.country,
-            linked_profile_id: buyerProfileId,
-            connection_id: opts.connectionId,
-            invite_status: 'accepted',
-            status: 'active',
-            updated_at: now,
-          });
-        }
-      }
-    }
-  } catch (e) {
-    console.warn('syncBooksOnAccept soft-fail:', e);
-  }
-}
-
-async function softSyncSuspend(opts: {
-  companyId: number;
-  requesterId: number;
-  requesteeId: number;
-  connectionType: string;
-  suspended: boolean;
-}) {
-  const supabase = getSupabaseServer();
-  const type = opts.connectionType.toLowerCase();
-  const now = new Date().toISOString();
-  try {
-    if (type === 'customer') {
-      const sellerId = opts.requesterId;
-      const buyerId = opts.requesteeId;
-      await supabase
-        .from('customers')
-        .update({
-          invite_status: opts.suspended ? 'suspended' : 'accepted',
-          updated_at: now,
-        })
-        .eq('profile_id', sellerId)
-        .eq('linked_profile_id', buyerId);
-    }
-    if (type === 'supplier') {
-      const buyerId = opts.requesterId;
-      const supplierId = opts.requesteeId;
-      // no dedicated suspend column — connection metadata is source of truth
-      await supabase
-        .from('srm_suppliers')
-        .update({
-          status: opts.suspended ? 'blocked' : 'active',
-          updated_at: now,
-        })
-        .eq('profile_id', buyerId)
-        .eq('linked_profile_id', supplierId);
-    }
-  } catch (e) {
-    console.warn('softSyncSuspend soft-fail:', e);
-  }
 }
