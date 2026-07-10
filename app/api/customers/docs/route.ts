@@ -9,7 +9,7 @@ import {
   type DocLineItem,
 } from '@/lib/customers/documents';
 import {
-  assertCompanyMember,
+  assertCustomersAccess,
   assertSellerCustomerNotSuspended,
 } from '@/lib/customers/access';
 
@@ -466,7 +466,7 @@ export async function PATCH(request: NextRequest) {
             { status: 400 }
           );
         }
-        const member = await assertCompanyMember(body.privyUserId, companyId);
+        const member = await assertCustomersAccess(body.privyUserId, companyId, 'write');
         if (!member.ok) {
           return NextResponse.json({ error: member.error }, { status: member.status });
         }
@@ -486,7 +486,7 @@ export async function PATCH(request: NextRequest) {
       } else if (changingVisibility && nextVisibility === 'seller_only') {
         // Unshare: membership when companyId/privy provided (tighten access while suspended OK)
         if (Number.isFinite(companyId) && companyId > 0) {
-          const member = await assertCompanyMember(body.privyUserId, companyId);
+          const member = await assertCustomersAccess(body.privyUserId, companyId, 'write');
           if (!member.ok) {
             return NextResponse.json({ error: member.error }, { status: member.status });
           }

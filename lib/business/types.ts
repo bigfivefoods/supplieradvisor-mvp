@@ -467,7 +467,8 @@ export function normalizeProfileRow(row: Record<string, unknown>): CompanyProfil
 }
 
 export function roleBadgeClass(role?: string | null) {
-  switch (String(role || '').toLowerCase()) {
+  const r = String(role || '').toLowerCase().replace(/[\s-]+/g, '_');
+  switch (r) {
     case 'owner':
       return 'bg-[#00b4d8] text-white';
     case 'admin':
@@ -478,6 +479,9 @@ export function roleBadgeClass(role?: string | null) {
       return 'bg-violet-100 text-violet-800';
     case 'sales':
       return 'bg-amber-100 text-amber-900';
+    case 'sales_contractor':
+    case 'salescontractor':
+      return 'bg-orange-100 text-orange-900 border border-orange-200';
     case 'viewer':
       return 'bg-neutral-100 text-neutral-600';
     default:

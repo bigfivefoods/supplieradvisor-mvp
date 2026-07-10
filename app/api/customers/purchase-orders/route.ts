@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { assertCompanyMember, logActivity } from '@/lib/customers/access';
+import { assertCustomersAccess, logActivity } from '@/lib/customers/access';
 import {
   isSellerTransitionAllowed,
   SELLER_PO_TRANSITIONS,
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'companyId is required' }, { status: 400 });
     }
 
-    const member = await assertCompanyMember(privyUserId, companyId);
+    const member = await assertCustomersAccess(privyUserId, companyId, 'view');
     if (!member.ok) {
       return NextResponse.json({ error: member.error }, { status: member.status });
     }
@@ -83,7 +83,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'status is required' }, { status: 400 });
     }
 
-    const member = await assertCompanyMember(privyUserId, companyId);
+    const member = await assertCustomersAccess(privyUserId, companyId, 'write');
     if (!member.ok) {
       return NextResponse.json({ error: member.error }, { status: member.status });
     }

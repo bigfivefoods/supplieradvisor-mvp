@@ -422,8 +422,11 @@ function TeamInner() {
           <div className="flex items-start gap-2 text-sm text-neutral-600">
             <Shield className="w-4 h-4 text-[#00b4d8] mt-0.5 shrink-0" />
             <p>
-              Access is enforced server-side. <strong>View only</strong> members can open pages
-              but cannot save, invite, or change settings. Owners/admins manage the team.
+              Access is enforced in the UI and on APIs. <strong>View only</strong> members can open
+              pages but cannot save or change settings. Use <strong>Sales contractor</strong> for
+              independent sellers who should only use the Customers module (read &amp; write) — no
+              My Business, Suppliers, Containers, or other ERP modules. Owners/admins manage the
+              team.
             </p>
           </div>
 
@@ -453,6 +456,13 @@ function TeamInner() {
                     'banking',
                     'verification',
                     'invites',
+                    'customers',
+                    'suppliers',
+                    'containers',
+                    'network',
+                    'inventory',
+                    'operations',
+                    'accounting',
                   ] as PermissionResource[]
                 ).map((resource) => (
                   <tr key={resource} className="border-b border-neutral-100">

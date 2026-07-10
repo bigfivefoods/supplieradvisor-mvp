@@ -4,7 +4,7 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
 import { INVITE_EXPIRY_DAYS } from '@/lib/auth/identity';
 import {
-  assertCompanyMember,
+  assertCustomersAccess,
   checkCustomerInviteRateLimits,
   CUSTOMER_INVITATION_LIST_COLUMNS,
   isCustomerInvitesEnabled,
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const member = await assertCompanyMember(privyUserId, companyId);
+    const member = await assertCustomersAccess(privyUserId, companyId, 'write');
     if (!member.ok) {
       return NextResponse.json({ error: member.error }, { status: member.status });
     }
@@ -287,7 +287,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'companyId is required' }, { status: 400 });
     }
 
-    const member = await assertCompanyMember(privyUserId, companyId);
+    const member = await assertCustomersAccess(privyUserId, companyId, 'view');
     if (!member.ok) {
       return NextResponse.json({ error: member.error }, { status: member.status });
     }

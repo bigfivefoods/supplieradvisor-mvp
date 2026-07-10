@@ -17,7 +17,9 @@ import {
   Handshake,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { usePrivy } from '@privy-io/react-auth';
 import { getSelectedCompanyId } from '@/lib/containers/company';
+import { getCanonicalUserId } from '@/lib/auth/identity';
 import { LEAD_SOURCES } from '@/lib/customers/types';
 import {
   CompanyRequired,
@@ -117,6 +119,8 @@ function OnboardInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const editId = searchParams.get('id');
+  const { user } = usePrivy();
+  const privyUserId = getCanonicalUserId(user?.id);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(!!editId);
   const [createdCustomer, setCreatedCustomer] = useState<{
@@ -187,6 +191,7 @@ function OnboardInner() {
     try {
       const payload = {
         companyId,
+        privyUserId: privyUserId || undefined,
         ...form,
         credit_limit: Number(form.credit_limit) || 0,
       };

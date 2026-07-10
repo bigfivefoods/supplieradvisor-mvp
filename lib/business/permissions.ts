@@ -1,11 +1,11 @@
 /**
- * Company team roles & access control for My Business workspace.
+ * Company team roles & module access control.
  *
  * Access levels (ordered):
  *   none  — no access
- *   view  — read-only (see data, no mutations)
- *   write — create/update content
- *   admin — manage team, roles, critical settings
+ *   view  — read-only
+ *   write — create/update
+ *   admin — manage team / critical settings
  */
 
 export type TeamRole =
@@ -15,11 +15,15 @@ export type TeamRole =
   | 'viewer'
   | 'finance'
   | 'operations'
-  | 'sales';
+  | 'sales'
+  /** Independent sales contractors — Customers module only (R/W), no full ERP. */
+  | 'sales_contractor';
 
 export type AccessLevel = 'none' | 'view' | 'write' | 'admin';
 
+/** Workspace areas + full dashboard modules */
 export type PermissionResource =
+  | 'dashboard'
   | 'overview'
   | 'profile'
   | 'team'
@@ -30,9 +34,21 @@ export type PermissionResource =
   | 'riad'
   | 'banking'
   | 'verification'
-  | 'invites';
+  | 'invites'
+  | 'customers'
+  | 'suppliers'
+  | 'containers'
+  | 'network'
+  | 'inventory'
+  | 'operations'
+  | 'manufacturing'
+  | 'distribution'
+  | 'accounting'
+  | 'intelligence'
+  | 'buyer';
 
 const ALL_RESOURCES: PermissionResource[] = [
+  'dashboard',
   'overview',
   'profile',
   'team',
@@ -44,6 +60,17 @@ const ALL_RESOURCES: PermissionResource[] = [
   'banking',
   'verification',
   'invites',
+  'customers',
+  'suppliers',
+  'containers',
+  'network',
+  'inventory',
+  'operations',
+  'manufacturing',
+  'distribution',
+  'accounting',
+  'intelligence',
+  'buyer',
 ];
 
 const LEVEL_RANK: Record<AccessLevel, number> = {
@@ -59,74 +86,74 @@ function fill(level: AccessLevel): Record<PermissionResource, AccessLevel> {
   return out;
 }
 
-/** Default matrix — can be overridden per-member via business_users.permissions jsonb later. */
+function fullAccess(level: AccessLevel): Record<PermissionResource, AccessLevel> {
+  return fill(level);
+}
+
+/** Default matrix — can be overridden later via business_users.permissions jsonb. */
 export const ROLE_PERMISSIONS: Record<TeamRole, Record<PermissionResource, AccessLevel>> = {
-  owner: fill('admin'),
+  owner: fullAccess('admin'),
   admin: {
-    ...fill('write'),
+    ...fullAccess('write'),
     team: 'admin',
     invites: 'admin',
     settings: 'admin',
     verification: 'admin',
   },
   member: {
-    overview: 'view',
-    profile: 'write',
+    ...fullAccess('write'),
     team: 'view',
     settings: 'view',
-    legal: 'write',
-    documents: 'write',
-    projects: 'write',
-    riad: 'write',
     banking: 'view',
     verification: 'view',
     invites: 'none',
+    accounting: 'view',
   },
   viewer: {
-    ...fill('view'),
+    ...fullAccess('view'),
     invites: 'none',
-    team: 'view',
     banking: 'view',
     verification: 'view',
   },
   finance: {
-    overview: 'view',
-    profile: 'view',
-    team: 'view',
-    settings: 'view',
-    legal: 'view',
+    ...fullAccess('view'),
     documents: 'write',
-    projects: 'view',
-    riad: 'view',
     banking: 'write',
-    verification: 'view',
+    accounting: 'write',
+    customers: 'view',
     invites: 'none',
   },
   operations: {
-    overview: 'view',
-    profile: 'view',
-    team: 'view',
-    settings: 'view',
-    legal: 'view',
+    ...fullAccess('view'),
     documents: 'write',
     projects: 'write',
     riad: 'write',
-    banking: 'view',
-    verification: 'view',
+    inventory: 'write',
+    operations: 'write',
+    containers: 'write',
+    manufacturing: 'write',
+    distribution: 'write',
     invites: 'none',
   },
   sales: {
-    overview: 'view',
-    profile: 'view',
-    team: 'view',
-    settings: 'view',
-    legal: 'view',
+    ...fullAccess('view'),
+    customers: 'write',
     documents: 'write',
-    projects: 'view',
-    riad: 'view',
+    network: 'view',
     banking: 'none',
-    verification: 'view',
+    accounting: 'none',
     invites: 'none',
+  },
+  /**
+   * Independent sales contractors selling on behalf of the company:
+   * full R/W in Customers only — no My Business, Suppliers, Containers, etc.
+   */
+  sales_contractor: {
+    ...fill('none'),
+    customers: 'write',
+    // Minimal so select-company / deep links into customer sub-routes work
+    dashboard: 'none',
+    buyer: 'none',
   },
 };
 
@@ -134,7 +161,6 @@ export const TEAM_ROLE_OPTIONS: ReadonlyArray<{
   value: TeamRole;
   label: string;
   description: string;
-  /** Short rights summary for UI */
   rights: string;
 }> = [
   {
@@ -152,7 +178,7 @@ export const TEAM_ROLE_OPTIONS: ReadonlyArray<{
   {
     value: 'member',
     label: 'Member',
-    description: 'Standard collaborator — edit profile, docs, projects, and RIAD.',
+    description: 'Standard collaborator across the workspace.',
     rights: 'Write content · view team',
   },
   {
@@ -164,26 +190,32 @@ export const TEAM_ROLE_OPTIONS: ReadonlyArray<{
   {
     value: 'finance',
     label: 'Finance',
-    description: 'Banking and financial documents; view rest of workspace.',
-    rights: 'Write banking · view rest',
+    description: 'Banking, accounting, and financial documents.',
+    rights: 'Write finance · view rest',
   },
   {
     value: 'operations',
     label: 'Operations',
-    description: 'Projects, documents, and RIAD operations.',
+    description: 'Inventory, containers, production, and logistics.',
     rights: 'Write ops · view rest',
   },
   {
     value: 'sales',
     label: 'Sales',
-    description: 'Documents and commercial visibility; no banking.',
-    rights: 'Write docs · no banking',
+    description: 'Customers plus broader commercial visibility across the workspace.',
+    rights: 'Write customers · view rest',
+  },
+  {
+    value: 'sales_contractor',
+    label: 'Sales contractor',
+    description:
+      'Independent sales contractors selling for your company. Access limited to the Customers module only (read & write). No ERP, My Business, or other modules.',
+    rights: 'Customers R/W only',
   },
 ] as const;
 
 export function normalizeTeamRole(role?: string | null): TeamRole {
-  const r = String(role || 'member').toLowerCase().trim();
-  // Canonical values
+  const r = String(role || 'member').toLowerCase().trim().replace(/[\s-]+/g, '_');
   if (r === 'owner') return 'owner';
   if (r === 'admin') return 'admin';
   if (r === 'member') return 'member';
@@ -192,27 +224,41 @@ export function normalizeTeamRole(role?: string | null): TeamRole {
   }
   if (r === 'finance' || r === 'cfo' || r === 'accountant') return 'finance';
   if (r === 'operations' || r === 'ops' || r === 'coo') return 'operations';
+  if (
+    r === 'sales_contractor' ||
+    r === 'salescontractor' ||
+    r === 'customer_sales' ||
+    r === 'independent_sales' ||
+    r === 'field_sales'
+  ) {
+    return 'sales_contractor';
+  }
   if (r === 'sales' || r === 'commercial') return 'sales';
 
-  // Legacy free-text titles (onboarding historically stored job titles as "role")
+  const raw = String(role || '').toLowerCase();
   if (
-    /\b(owner|ceo|founder|co-founder|managing director|\bmd\b|proprietor|principal)\b/.test(r)
+    /\b(sales\s*contractor|independent\s*sales|field\s*sales|customer\s*rep)\b/.test(raw)
+  ) {
+    return 'sales_contractor';
+  }
+  if (
+    /\b(owner|ceo|founder|co-founder|managing director|\bmd\b|proprietor|principal)\b/.test(raw)
   ) {
     return 'owner';
   }
-  if (/\b(admin|administrator|director|head of)\b/.test(r)) {
+  if (/\b(admin|administrator|director|head of)\b/.test(raw)) {
     return 'admin';
   }
-  if (/\b(view only|read only|readonly|observer|guest)\b/.test(r)) {
+  if (/\b(view only|read only|readonly|observer|guest)\b/.test(raw)) {
     return 'viewer';
   }
-  if (/\b(finance|cfo|accounts|accountant|bookkeep)\b/.test(r)) {
+  if (/\b(finance|cfo|accounts|accountant|bookkeep)\b/.test(raw)) {
     return 'finance';
   }
-  if (/\b(operations|ops|logistics|warehouse|production)\b/.test(r)) {
+  if (/\b(operations|ops|logistics|warehouse|production)\b/.test(raw)) {
     return 'operations';
   }
-  if (/\b(sales|bdm|business development|commercial)\b/.test(r)) {
+  if (/\b(sales|bdm|business development|commercial)\b/.test(raw)) {
     return 'sales';
   }
   return 'member';
@@ -246,9 +292,80 @@ export function canAdmin(role: string | null | undefined, resource: PermissionRe
   return canAccess(role, resource, 'admin');
 }
 
-/** True if role can manage team invites / change roles. */
 export function canManageTeam(role?: string | null) {
   return canAdmin(role, 'team') || canAdmin(role, 'invites');
+}
+
+/** Sidebar module id → permission resource */
+export const SIDEBAR_MODULE_RESOURCE: Record<string, PermissionResource> = {
+  home: 'dashboard',
+  'my-business': 'profile',
+  network: 'network',
+  suppliers: 'suppliers',
+  customers: 'customers',
+  containers: 'containers',
+  inventory: 'inventory',
+  operations: 'operations',
+  manufacturing: 'manufacturing',
+  distribution: 'distribution',
+  accounting: 'accounting',
+  intelligence: 'intelligence',
+};
+
+/**
+ * Map a dashboard path to the permission resource that guards it.
+ */
+export function resourceForPath(pathname: string | null | undefined): PermissionResource | null {
+  if (!pathname) return null;
+  if (pathname === '/dashboard' || pathname === '/dashboard/') return 'dashboard';
+  if (pathname.startsWith('/dashboard/select-company')) return null; // always allowed
+  if (pathname.startsWith('/dashboard/my-business')) {
+    if (pathname.includes('/team')) return 'team';
+    if (pathname.includes('/settings')) return 'settings';
+    if (pathname.includes('/legal')) return 'legal';
+    if (pathname.includes('/documents')) return 'documents';
+    if (pathname.includes('/projects')) return 'projects';
+    if (pathname.includes('/riad')) return 'riad';
+    if (pathname.includes('/profile')) return 'profile';
+    return 'overview';
+  }
+  if (pathname.startsWith('/dashboard/customers') || pathname.startsWith('/dashboard/buyer')) {
+    return 'customers';
+  }
+  if (pathname.startsWith('/dashboard/suppliers')) return 'suppliers';
+  if (pathname.startsWith('/dashboard/containers')) return 'containers';
+  if (pathname.startsWith('/dashboard/connections') || pathname.startsWith('/dashboard/network')) {
+    return 'network';
+  }
+  if (pathname.startsWith('/dashboard/inventory')) return 'inventory';
+  if (pathname.startsWith('/dashboard/operations')) return 'operations';
+  if (pathname.startsWith('/dashboard/manufacturing')) return 'manufacturing';
+  if (pathname.startsWith('/dashboard/distribution')) return 'distribution';
+  if (pathname.startsWith('/dashboard/accounting') || pathname.startsWith('/dashboard/finance')) {
+    return 'accounting';
+  }
+  if (pathname.startsWith('/dashboard/intelligence')) return 'intelligence';
+  if (pathname.startsWith('/dashboard/invite-business')) return 'network';
+  return 'dashboard';
+}
+
+export function canAccessPath(
+  role: string | null | undefined,
+  pathname: string | null | undefined,
+  need: AccessLevel = 'view'
+): boolean {
+  const resource = resourceForPath(pathname);
+  if (!resource) return true;
+  return canAccess(role, resource, need);
+}
+
+/** Landing path after login / when denied another module */
+export function defaultHomePathForRole(role?: string | null): string {
+  const r = normalizeTeamRole(role);
+  if (r === 'sales_contractor') return '/dashboard/customers';
+  if (r === 'finance') return '/dashboard/accounting';
+  if (r === 'operations') return '/dashboard/operations';
+  return '/dashboard';
 }
 
 export function accessLabel(level: AccessLevel): string {
@@ -266,7 +383,8 @@ export function accessLabel(level: AccessLevel): string {
 
 export function resourceLabel(resource: PermissionResource): string {
   const map: Record<PermissionResource, string> = {
-    overview: 'Overview',
+    dashboard: 'Dashboard',
+    overview: 'My Business overview',
     profile: 'Profile',
     team: 'Team',
     settings: 'Settings',
@@ -277,6 +395,17 @@ export function resourceLabel(resource: PermissionResource): string {
     banking: 'Banking',
     verification: 'Verification',
     invites: 'Invites',
+    customers: 'Customers',
+    suppliers: 'Suppliers',
+    containers: 'Containers',
+    network: 'Network',
+    inventory: 'Inventory',
+    operations: 'Operations',
+    manufacturing: 'Manufacturing',
+    distribution: 'Distribution',
+    accounting: 'Accounting',
+    intelligence: 'Intelligence',
+    buyer: 'Buyer portal',
   };
   return map[resource];
 }

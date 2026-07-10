@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import {
-  assertCompanyMember,
+  assertCustomersAccess,
   isCustomerInvitesEnabled,
   logActivity,
 } from '@/lib/customers/access';
@@ -118,9 +118,10 @@ async function runExpire(request: NextRequest) {
           { status: 401 }
         );
       }
-      const member = await assertCompanyMember(
+      const member = await assertCustomersAccess(
         body.privyUserId as string | undefined,
-        cid
+        cid,
+        'write'
       );
       if (!member.ok) {
         return NextResponse.json({ error: member.error }, { status: member.status });
