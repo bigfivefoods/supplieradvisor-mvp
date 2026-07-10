@@ -14,21 +14,33 @@ export function getResend(): Resend {
   return resendClient;
 }
 
+const VERIFIED_FROM = 'SupplierAdvisor <invites@supplieradvisor.com>';
+
 /**
- * Verified Resend "from" address.
- * Prefer RESEND_FROM_EMAIL. Default uses supplieradvisor.com (verified on Resend).
- * Do NOT use supplieradvisor.co.za — that domain is not verified on Resend.
+ * Verified Resend "from" address — always supplieradvisor.com (verified on Resend).
+ * Ignores empty env values and any supplieradvisor.co.za address (not verified).
  */
 export function getResendFrom(): string {
-  const from =
-    process.env.RESEND_FROM_EMAIL ||
-    process.env.EMAIL_FROM ||
-    'SupplierAdvisor <invites@supplieradvisor.com>';
-  // Guard against the wrong domain that was previously hard-coded
-  if (/@supplieradvisor\.co\.za\b/i.test(from)) {
-    return 'SupplierAdvisor <invites@supplieradvisor.com>';
+  const candidates = [
+    process.env.RESEND_FROM_EMAIL,
+    process.env.EMAIL_FROM,
+    process.env.FROM_EMAIL,
+  ];
+  for (const raw of candidates) {
+    const from = String(raw || '').trim().replace(/^["']|["']$/g, '');
+    if (!from) continue;
+    // Never use the unverified .co.za domain
+    if (/@supplieradvisor\.co\.za\b/i.test(from)) continue;
+    // Prefer / require supplieradvisor.com when a custom from is set
+    if (/@supplieradvisor\.com\b/i.test(from) || /@resend\.dev\b/i.test(from)) {
+      return from;
+    }
+    // Other custom domains: allow if explicitly configured (enterprise)
+    if (from.includes('@') && !/@supplieradvisor\.co\.za\b/i.test(from)) {
+      return from;
+    }
   }
-  return from.trim();
+  return VERIFIED_FROM;
 }
 
 export function getAppUrl(): string {
