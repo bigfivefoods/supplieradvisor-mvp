@@ -21,12 +21,14 @@ import {
   type AccountingInvoice,
   type InvoiceDirection,
 } from '@/lib/accounting/types';
+import { COMMON_CURRENCIES } from '@/lib/inventory/types';
 import {
   AccountingHeader,
   AccountingPage,
   CompanyRequired,
 } from '@/components/accounting/AccountingShell';
 import { Panel } from '@/components/relationship/RelationshipChrome';
+import FxRateStrip from '@/components/fx/FxRateStrip';
 
 type Props = {
   direction: InvoiceDirection;
@@ -49,6 +51,8 @@ const emptyForm = {
   notes: '',
   status: 'draft',
 };
+
+const INVOICE_CURRENCIES = [...COMMON_CURRENCIES];
 
 type NetworkPeer = {
   id: number;
@@ -297,6 +301,8 @@ function Inner({ direction, title, titleAccent, description }: Props) {
         }
       />
 
+      <FxRateStrip currency={form.currency || 'ZAR'} className="mb-6" />
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         <MiniKpi label="Total" value={totals.count} />
         <MiniKpi label="Open" value={totals.open} sub={formatMoney(totals.openAmount)} />
@@ -513,6 +519,23 @@ function Inner({ direction, title, titleAccent, description }: Props) {
                 />
               </Field>
             </div>
+            <Field label="Currency *">
+              <select
+                className="field font-semibold"
+                value={form.currency}
+                onChange={(e) => setForm({ ...form, currency: e.target.value })}
+              >
+                {INVOICE_CURRENCIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-neutral-500 mt-1">
+                Invoice total and payments in this currency. Live USD reference above.
+              </p>
+            </Field>
+            <FxRateStrip currency={form.currency} compact className="mb-1" />
             <Field label="Line description">
               <input
                 value={form.description}
@@ -532,7 +555,7 @@ function Inner({ direction, title, titleAccent, description }: Props) {
                   className="field"
                 />
               </Field>
-              <Field label="Unit price" required>
+              <Field label={`Unit price (${form.currency})`} required>
                 <input
                   required
                   type="number"

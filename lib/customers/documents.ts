@@ -12,6 +12,8 @@ export type DocLineItem = {
   unit_price: number;
   uom?: string | null;
   line_total: number;
+  /** Currency of unit_price when multi-currency catalogue is used */
+  currency?: string | null;
 };
 
 export type DocTotals = {
@@ -51,6 +53,7 @@ export function normalizeItems(raw: unknown): DocLineItem[] {
         unit_price,
         uom: row.uom != null ? String(row.uom) : 'unit',
         line_total: calcLineTotal(quantity, unit_price),
+        currency: row.currency != null ? String(row.currency) : null,
       };
     })
     .filter((i) => i.name);

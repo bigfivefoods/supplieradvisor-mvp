@@ -41,6 +41,8 @@ import {
   SuppliersHeader,
   SuppliersPage,
 } from '@/components/suppliers/SuppliersShell';
+import FxRateStrip from '@/components/fx/FxRateStrip';
+import { COMMON_CURRENCIES } from '@/lib/inventory/types';
 
 const PO_ESCROW_ADDRESS = CONTRACTS.POEscrowV2.address;
 /** Demo ZAR→ETH rate for fundPO msg.value — replace with oracle in production */
@@ -161,6 +163,7 @@ function PoInner() {
   const [description, setDescription] = useState('');
   const [promisedDate, setPromisedDate] = useState('');
   const [paymentTerms, setPaymentTerms] = useState('Net 30');
+  const [poCurrency, setPoCurrency] = useState('ZAR');
   const [useEscrow, setUseEscrow] = useState(false);
   const [supplierWallet, setSupplierWallet] = useState('');
   const [lineItems, setLineItems] = useState<PoLineItem[]>([
@@ -555,6 +558,7 @@ function PoInner() {
           description,
           promised_date: promisedDate || null,
           payment_terms: paymentTerms || null,
+          currency: poCurrency || 'ZAR',
           useEscrow: wantEscrow,
           supplier_wallet: supplierWallet || null,
           status: asDraft ? 'draft' : 'sent',
@@ -804,7 +808,8 @@ function PoInner() {
                       >
                         {l.product_name}
                         <span className="text-neutral-400 font-normal ml-1">
-                          @ {Number(l.list_price).toFixed(2)}
+                          @ {Number(l.list_price).toFixed(2)}{' '}
+                          {l.currency || poCurrency}
                         </span>
                       </button>
                     ))}
@@ -828,7 +833,7 @@ function PoInner() {
               )}
             </div>
 
-            <div className="grid sm:grid-cols-2 gap-3">
+            <div className="grid sm:grid-cols-3 gap-3">
               <div>
                 <label className="text-xs font-medium">Promised delivery date</label>
                 <input
@@ -849,7 +854,23 @@ function PoInner() {
                   onChange={(e) => setPaymentTerms(e.target.value)}
                 />
               </div>
+              <div>
+                <label className="text-xs font-medium">PO currency *</label>
+                <select
+                  className="input mt-1 w-full !p-3 !text-sm font-semibold"
+                  value={poCurrency}
+                  onChange={(e) => setPoCurrency(e.target.value)}
+                >
+                  {COMMON_CURRENCIES.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
+
+            <FxRateStrip currency={poCurrency} />
 
             <div>
               <label className="text-xs font-medium">Description / notes</label>
@@ -1019,7 +1040,8 @@ function PoInner() {
                 Order total
               </div>
               <div className="text-4xl font-black tracking-tighter mt-1 text-slate-800">
-                R{totalAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                {poCurrency}{' '}
+                {totalAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
               </div>
               {useEscrow && (
                 <div className="text-sm text-[#0077b6] mt-2 font-medium">

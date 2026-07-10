@@ -16,8 +16,14 @@ import {
 } from '@/lib/customers/documents';
 import type { CustomerRecord } from '@/lib/customers/types';
 import type { ProductRecord } from '@/lib/inventory/types';
+import { COMMON_CURRENCIES, productPriceList } from '@/lib/inventory/types';
+import {
+  priceForCurrency,
+  productPriceLabel,
+} from '@/lib/inventory/priceForCurrency';
 import { CompanyRequired, CustomersHeader } from '@/components/customers/CustomersShell';
 import CommissionBadge from '@/components/sales/CommissionBadge';
+import FxRateStrip from '@/components/fx/FxRateStrip';
 
 type DocType = 'quote' | 'order' | 'invoice';
 
@@ -111,14 +117,18 @@ function DocInner({
   const [statusFilter, setStatusFilter] = useState('all');
 
   const [customerId, setCustomerId] = useState('');
+  const [docCurrency, setDocCurrency] = useState('ZAR');
   const [taxRate, setTaxRate] = useState('15');
   const [notes, setNotes] = useState('');
   const [validUntil, setValidUntil] = useState('');
   const [promisedDate, setPromisedDate] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [lines, setLines] = useState<DocLineItem[]>([
-    { name: '', quantity: 1, unit_price: 0, line_total: 0, uom: 'unit' },
+    { name: '', quantity: 1, unit_price: 0, line_total: 0, uom: 'unit', currency: 'ZAR' },
   ]);
+  /** When product has multiple currencies, pick which price to apply */
+  const [pendingProductId, setPendingProductId] = useState('');
+  const [pendingProductCurrency, setPendingProductCurrency] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -148,10 +158,52 @@ function DocInner({
     [lines, taxRate]
   );
 
-  const addProductLine = (productId: string) => {
+  const catalogueCurrencies = useMemo(() => {
+    const set = new Set<string>([...COMMON_CURRENCIES, docCurrency]);
+    for (const p of products) {
+      for (const r of productPriceList(p)) set.add(r.currency);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [products, docCurrency]);
+
+  const pendingProduct = useMemo(
+    () => products.find((x) => String(x.id) === pendingProductId) || null,
+    [products, pendingProductId]
+  );
+
+  const pendingCurrencies = useMemo(() => {
+    if (!pendingProduct) return [] as string[];
+    return productPriceList(pendingProduct).map((r) => r.currency);
+  }, [pendingProduct]);
+
+  const addProductLine = (productId: string, currencyOverride?: string) => {
     const p = products.find((x) => String(x.id) === productId);
     if (!p) return;
-    const unit_price = Number(p.sell_price || 0);
+    const prices = productPriceList(p);
+    const preferred = (currencyOverride || docCurrency || 'ZAR').toUpperCase();
+
+    // Multi-currency product: if no explicit override and doc currency missing, open picker
+    if (!currencyOverride && prices.length > 1) {
+      const hasDoc = prices.some((r) => r.currency === preferred);
+      if (!hasDoc) {
+        setPendingProductId(productId);
+        setPendingProductCurrency(prices[0].currency);
+        return;
+      }
+    }
+
+    const priced = priceForCurrency(p, preferred);
+    const unit_price = priced.unit_price;
+    const lineCurrency = priced.currency;
+
+    if (!priced.matched && currencyOverride) {
+      toast.message(`Using ${lineCurrency} price (requested currency not on product)`);
+    } else if (!priced.matched) {
+      toast.message(
+        `${p.name} has no ${preferred} price — using ${lineCurrency}. Change document currency or edit the line.`
+      );
+    }
+
     setLines((prev) => [
       ...prev.filter((l) => l.name || l.product_id),
       {
@@ -162,8 +214,30 @@ function DocInner({
         unit_price,
         uom: p.uom || 'unit',
         line_total: unit_price,
+        currency: lineCurrency,
       },
     ]);
+    setPendingProductId('');
+    setPendingProductCurrency('');
+  };
+
+  /** When document currency changes, re-price lines that have product_id from catalogue */
+  const applyDocCurrency = (next: string) => {
+    setDocCurrency(next);
+    setLines((prev) =>
+      prev.map((l) => {
+        if (!l.product_id) return { ...l, currency: next };
+        const p = products.find((x) => Number(x.id) === Number(l.product_id));
+        if (!p) return { ...l, currency: next };
+        const priced = priceForCurrency(p, next);
+        return {
+          ...l,
+          unit_price: priced.unit_price,
+          currency: priced.currency,
+          line_total: calcLineTotal(Number(l.quantity), priced.unit_price),
+        };
+      })
+    );
   };
 
   const updateLine = (idx: number, patch: Partial<DocLineItem>) => {
@@ -188,6 +262,7 @@ function DocInner({
         companyId,
         type,
         customer_id: customerId || null,
+        currency: docCurrency || 'ZAR',
         tax_rate: Number(taxRate) || 0,
         notes: notes || null,
         items: valid,
@@ -204,11 +279,21 @@ function DocInner({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || data.hint || 'Failed');
-      toast.success(`${cfg.title.slice(0, -1)} created`);
+      toast.success(`${cfg.title.slice(0, -1)} created (${docCurrency})`);
       setShowForm(false);
-      setLines([{ name: '', quantity: 1, unit_price: 0, line_total: 0, uom: 'unit' }]);
+      setLines([
+        {
+          name: '',
+          quantity: 1,
+          unit_price: 0,
+          line_total: 0,
+          uom: 'unit',
+          currency: docCurrency,
+        },
+      ]);
       setNotes('');
       setCustomerId('');
+      setPendingProductId('');
       void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed');
@@ -365,9 +450,12 @@ function DocInner({
             className={`font-bold flex items-center gap-2 ${sales ? 'text-slate-900' : ''}`}
           >
             <Package className={`w-4 h-4 ${sales ? 'text-[#00b4d8]' : 'text-[#00b4d8]'}`} />{' '}
-            Build {type} — select products & services
+            Build {type} — multi-currency catalogue
           </h2>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+
+          <FxRateStrip currency={docCurrency} />
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3">
             <div className="lg:col-span-2">
               <label className="text-xs font-medium text-neutral-500">Customer</label>
               <select
@@ -380,6 +468,25 @@ function DocInner({
                   <option key={c.id} value={c.id}>{c.trading_name}</option>
                 ))}
               </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-neutral-500">
+                Document currency *
+              </label>
+              <select
+                className="input mt-1 w-full !p-3 !text-sm font-semibold"
+                value={docCurrency}
+                onChange={(e) => applyDocCurrency(e.target.value)}
+              >
+                {catalogueCurrencies.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[10px] text-neutral-400 mt-0.5">
+                Lines re-price from catalogue when currency changes
+              </p>
             </div>
             <div>
               <label className="text-xs font-medium text-neutral-500">Tax %</label>
@@ -437,24 +544,74 @@ function DocInner({
               <option value="">Select product / service…</option>
               {products.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.name}
-                  {p.sku ? ` (${p.sku})` : ''} · {formatMoney(Number(p.sell_price || 0), p.base_currency || 'ZAR')}
+                  {productPriceLabel(p, docCurrency)}
                 </option>
               ))}
             </select>
             {products.length === 0 && (
               <p className="text-[11px] text-amber-700 mt-1">
-                No products yet — add them under Inventory → Products first.
+                No products yet — add them under Inventory → Products (with multi-currency prices).
               </p>
             )}
           </div>
 
+          {pendingProduct && pendingCurrencies.length > 1 && (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 flex flex-col sm:flex-row sm:items-end gap-3">
+              <div className="flex-1">
+                <div className="text-xs font-bold text-amber-900 mb-1">
+                  Choose price currency for {pendingProduct.name}
+                </div>
+                <p className="text-[11px] text-amber-800 mb-2">
+                  This product has no {docCurrency} list price. Pick which catalogue currency to use
+                  on this line (or change document currency above).
+                </p>
+                <select
+                  className="input w-full !p-2.5 !text-sm bg-white"
+                  value={pendingProductCurrency}
+                  onChange={(e) => setPendingProductCurrency(e.target.value)}
+                >
+                  {pendingCurrencies.map((c) => {
+                    const row = productPriceList(pendingProduct).find((r) => r.currency === c);
+                    return (
+                      <option key={c} value={c}>
+                        {c} · sell {row ? formatMoney(row.sell_price, c) : '—'}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  className="btn-secondary !py-2 !px-3 text-xs"
+                  onClick={() => {
+                    setPendingProductId('');
+                    setPendingProductCurrency('');
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary !py-2 !px-3 text-xs"
+                  onClick={() =>
+                    addProductLine(pendingProductId, pendingProductCurrency)
+                  }
+                >
+                  Add line
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="space-y-2">
-            <div className="text-xs font-semibold text-neutral-500">Lines</div>
+            <div className="text-xs font-semibold text-neutral-500">
+              Lines · {docCurrency}
+            </div>
             {lines.map((l, idx) => (
               <div key={idx} className="grid grid-cols-12 gap-2 items-center">
                 <input
-                  className="input !p-2 !text-sm col-span-5"
+                  className="input !p-2 !text-sm col-span-4"
                   placeholder="Item name"
                   value={l.name}
                   onChange={(e) => updateLine(idx, { name: e.target.value })}
@@ -473,8 +630,11 @@ function DocInner({
                   value={l.unit_price}
                   onChange={(e) => updateLine(idx, { unit_price: Number(e.target.value) })}
                 />
+                <div className="col-span-1 text-[10px] font-bold text-neutral-400 text-center">
+                  {l.currency || docCurrency}
+                </div>
                 <div className="col-span-2 text-right text-sm font-semibold tabular-nums">
-                  {formatMoney(l.line_total)}
+                  {formatMoney(l.line_total, l.currency || docCurrency)}
                 </div>
                 <button
                   type="button"
@@ -489,7 +649,17 @@ function DocInner({
               type="button"
               className="text-xs font-semibold text-[#00b4d8]"
               onClick={() =>
-                setLines([...lines, { name: '', quantity: 1, unit_price: 0, line_total: 0, uom: 'unit' }])
+                setLines([
+                  ...lines,
+                  {
+                    name: '',
+                    quantity: 1,
+                    unit_price: 0,
+                    line_total: 0,
+                    uom: 'unit',
+                    currency: docCurrency,
+                  },
+                ])
               }
             >
               + Custom line
@@ -509,13 +679,14 @@ function DocInner({
             }`}
           >
             <div className={`text-sm space-y-2 ${sales ? 'text-slate-800' : ''}`}>
-              <div>Subtotal {formatMoney(totals.subtotal)}</div>
+              <div>Subtotal {formatMoney(totals.subtotal, docCurrency)}</div>
               <div className={sales ? 'text-neutral-500' : 'text-neutral-500'}>
-                Tax {formatMoney(totals.tax_amount)}
+                Tax {formatMoney(totals.tax_amount, docCurrency)}
               </div>
               <div className={`text-lg font-black ${sales ? 'text-slate-900' : ''}`}>
-                Total {formatMoney(totals.total_amount)}
+                Total {formatMoney(totals.total_amount, docCurrency)}
               </div>
+              <FxRateStrip currency={docCurrency} compact />
               <CommissionBadge amount={Number(totals.total_amount || 0)} />
             </div>
             <div className="flex gap-2">
