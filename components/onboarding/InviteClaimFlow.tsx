@@ -172,12 +172,28 @@ export default function InviteClaimFlow({ token, kind }: InviteClaimFlowProps) {
       const companyId = data.buyerProfileId ?? data.profileId;
       if (companyId) {
         localStorage.setItem('selectedCompanyId', String(companyId));
+        try {
+          window.dispatchEvent(new Event('sa:company-changed'));
+        } catch {
+          /* ignore */
+        }
       }
 
       setSuccess(true);
-      toast.success(data.message || 'Invitation accepted');
+      const role = String(data.role || '').toLowerCase();
+      const isSalesContractor =
+        role === 'sales_contractor' || role.includes('sales contractor');
+      toast.success(
+        isSalesContractor
+          ? 'Welcome to the customer sales team!'
+          : data.message || 'Invitation accepted'
+      );
       setTimeout(() => {
-        router.push('/dashboard/select-company');
+        if (isSalesContractor && companyId) {
+          router.push('/sales/agreement');
+        } else {
+          router.push('/dashboard/select-company');
+        }
       }, 1400);
     } catch {
       setError('Something went wrong while accepting the invitation.');

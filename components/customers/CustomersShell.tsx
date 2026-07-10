@@ -9,6 +9,7 @@ import {
 } from '@/components/relationship/RelationshipChrome';
 
 export const CUSTOMERS_NAV: readonly NavItem[] = [
+  { href: '/sales', label: 'Sales portal' },
   { href: '/dashboard/customers', label: 'Overview', exact: true },
   { href: '/dashboard/customers/leads', label: 'Pipeline' },
   { href: '/dashboard/customers/profiles', label: 'Profiles' },

@@ -17,6 +17,7 @@ import {
 import type { CustomerRecord } from '@/lib/customers/types';
 import type { ProductRecord } from '@/lib/inventory/types';
 import { CompanyRequired, CustomersHeader } from '@/components/customers/CustomersShell';
+import CommissionBadge from '@/components/sales/CommissionBadge';
 
 type DocType = 'quote' | 'order' | 'invoice';
 
@@ -455,10 +456,11 @@ function DocInner({ type, beforeHeader }: { type: DocType; beforeHeader?: ReactN
           />
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3">
-            <div className="text-sm">
+            <div className="text-sm space-y-2">
               <div>Subtotal {formatMoney(totals.subtotal)}</div>
               <div className="text-neutral-500">Tax {formatMoney(totals.tax_amount)}</div>
               <div className="text-lg font-black">Total {formatMoney(totals.total_amount)}</div>
+              <CommissionBadge amount={Number(totals.total_amount || 0)} />
             </div>
             <div className="flex gap-2">
               <button type="button" className="btn-secondary !py-2.5 !px-4" onClick={() => setShowForm(false)}>

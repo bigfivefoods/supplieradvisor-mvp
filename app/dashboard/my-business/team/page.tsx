@@ -422,11 +422,12 @@ function TeamInner() {
           <div className="flex items-start gap-2 text-sm text-neutral-600">
             <Shield className="w-4 h-4 text-[#00b4d8] mt-0.5 shrink-0" />
             <p>
-              Access is enforced in the UI and on APIs. <strong>View only</strong> members can open
-              pages but cannot save or change settings. Use <strong>Sales contractor</strong> for
-              independent sellers who should only use the Customers module (read &amp; write) — no
-              My Business, Suppliers, Containers, or other ERP modules. Owners/admins manage the
-              team.
+              Access is enforced in the UI and on APIs. Invite <strong>Sales contractor</strong> to
+              send a branded “join the customer sales team” email. They sign an Independent Sales
+              Contractor Agreement (commission grows with deal size up to 5%), subscribe to the
+              portal at <strong>R199/month for 6 months</strong>, then use{' '}
+              <strong>/sales</strong> for pipeline, earnings, and forecasts — CRM data stays under
+              your company.
             </p>
           </div>
 

@@ -7,13 +7,28 @@ import { usePathname } from 'next/navigation';
 import { toast } from 'sonner';
 import { 
   Home, Building2, Users, Truck, Factory, Package, 
-  Calculator, Brain, ChevronDown, ArrowLeftRight
+  Calculator, Brain, ChevronDown, ArrowLeftRight, Sparkles
 } from 'lucide-react';
 import { useCompanyRole } from '@/lib/business/useCompanyRole';
 import { SIDEBAR_MODULE_RESOURCE } from '@/lib/business/permissions';
 
 const modules = [
   { id: 'home', name: 'Dashboard', icon: Home, href: '/dashboard', sub: [] },
+
+  {
+    id: 'sales-portal',
+    name: 'Sales portal',
+    icon: Sparkles,
+    href: '/sales',
+    sub: [
+      { name: 'Command centre', href: '/sales' },
+      { name: 'Agreement', href: '/sales/agreement' },
+      { name: 'Earnings', href: '/sales/earnings' },
+      { name: 'Forecast', href: '/sales/forecast' },
+      { name: 'Pipeline (CRM)', href: '/dashboard/customers/leads' },
+      { name: 'Quotes', href: '/dashboard/customers/quotes' },
+    ],
+  },
 
   { 
     id: 'my-business', 

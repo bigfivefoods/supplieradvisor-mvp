@@ -45,7 +45,9 @@ export type PermissionResource =
   | 'distribution'
   | 'accounting'
   | 'intelligence'
-  | 'buyer';
+  | 'buyer'
+  /** Independent sales contractor portal (/sales) */
+  | 'sales_portal';
 
 const ALL_RESOURCES: PermissionResource[] = [
   'dashboard',
@@ -71,6 +73,7 @@ const ALL_RESOURCES: PermissionResource[] = [
   'accounting',
   'intelligence',
   'buyer',
+  'sales_portal',
 ];
 
 const LEVEL_RANK: Record<AccessLevel, number> = {
@@ -138,6 +141,7 @@ export const ROLE_PERMISSIONS: Record<TeamRole, Record<PermissionResource, Acces
   sales: {
     ...fullAccess('view'),
     customers: 'write',
+    sales_portal: 'write',
     documents: 'write',
     network: 'view',
     banking: 'none',
@@ -146,12 +150,12 @@ export const ROLE_PERMISSIONS: Record<TeamRole, Record<PermissionResource, Acces
   },
   /**
    * Independent sales contractors selling on behalf of the company:
-   * full R/W in Customers only — no My Business, Suppliers, Containers, etc.
+   * Sales portal + Customers module R/W — no My Business, Suppliers, Containers, etc.
    */
   sales_contractor: {
     ...fill('none'),
     customers: 'write',
-    // Minimal so select-company / deep links into customer sub-routes work
+    sales_portal: 'write',
     dashboard: 'none',
     buyer: 'none',
   },
@@ -209,8 +213,8 @@ export const TEAM_ROLE_OPTIONS: ReadonlyArray<{
     value: 'sales_contractor',
     label: 'Sales contractor',
     description:
-      'Independent sales contractors selling for your company. Access limited to the Customers module only (read & write). No ERP, My Business, or other modules.',
-    rights: 'Customers R/W only',
+      'Independent sales contractors on your customer sales team. Portal with agreement, R199/mo 6-month sub, commission up to 5% on bigger deals. Customers CRM R/W — no full ERP.',
+    rights: 'Sales portal + Customers R/W',
   },
 ] as const;
 
@@ -303,6 +307,7 @@ export const SIDEBAR_MODULE_RESOURCE: Record<string, PermissionResource> = {
   network: 'network',
   suppliers: 'suppliers',
   customers: 'customers',
+  'sales-portal': 'sales_portal',
   containers: 'containers',
   inventory: 'inventory',
   operations: 'operations',
@@ -317,6 +322,7 @@ export const SIDEBAR_MODULE_RESOURCE: Record<string, PermissionResource> = {
  */
 export function resourceForPath(pathname: string | null | undefined): PermissionResource | null {
   if (!pathname) return null;
+  if (pathname.startsWith('/sales')) return 'sales_portal';
   if (pathname === '/dashboard' || pathname === '/dashboard/') return 'dashboard';
   if (pathname.startsWith('/dashboard/select-company')) return null; // always allowed
   if (pathname.startsWith('/dashboard/my-business')) {
@@ -362,7 +368,7 @@ export function canAccessPath(
 /** Landing path after login / when denied another module */
 export function defaultHomePathForRole(role?: string | null): string {
   const r = normalizeTeamRole(role);
-  if (r === 'sales_contractor') return '/dashboard/customers';
+  if (r === 'sales_contractor') return '/sales';
   if (r === 'finance') return '/dashboard/accounting';
   if (r === 'operations') return '/dashboard/operations';
   return '/dashboard';
@@ -406,6 +412,7 @@ export function resourceLabel(resource: PermissionResource): string {
     accounting: 'Accounting',
     intelligence: 'Intelligence',
     buyer: 'Buyer portal',
+    sales_portal: 'Sales contractor portal',
   };
   return map[resource];
 }

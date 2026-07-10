@@ -10,6 +10,7 @@ import {
   TEAM_ROLE_OPTIONS,
 } from '@/lib/business/permissions';
 import { logActivity } from '@/lib/customers/access';
+import { salesContractorInviteEmailHtml } from '@/lib/sales-contractor/agreement';
 
 /**
  * POST /api/invite-team-member
@@ -185,21 +186,34 @@ export async function POST(request: NextRequest) {
       String(body.inviterName || '').trim() || mem.name || 'Your team';
 
     let emailId: string | null = null;
-    try {
-      const { data: emailData, error: emailError } = await resend.emails.send({
-        from: getResendFrom(),
-        replyTo: getResendReplyTo(),
-        to: normalizedEmail,
-        subject: `Join ${displayCompany} on SupplierAdvisor`,
-        html: teamInviteEmailHtml({
+    const isSalesContractor = role === 'sales_contractor';
+    const emailHtml = isSalesContractor
+      ? salesContractorInviteEmailHtml({
+          inviteeName: name || null,
+          companyName: displayCompany,
+          invitedBy: inviterName,
+          inviteLink,
+        })
+      : teamInviteEmailHtml({
           inviteeName: name || null,
           companyName: displayCompany,
           role: roleLabel,
           invitedBy: inviterName,
           inviteLink,
-        }),
+        });
+    const emailSubject = isSalesContractor
+      ? `Join the ${displayCompany} customer sales team — earn up to 5% commission`
+      : `Join ${displayCompany} on SupplierAdvisor`;
+
+    try {
+      const { data: emailData, error: emailError } = await resend.emails.send({
+        from: getResendFrom(),
+        replyTo: getResendReplyTo(),
+        to: normalizedEmail,
+        subject: emailSubject,
+        html: emailHtml,
         tags: [
-          { name: 'type', value: 'team_invite' },
+          { name: 'type', value: isSalesContractor ? 'sales_contractor_invite' : 'team_invite' },
           { name: 'company_id', value: String(companyId) },
         ],
       });

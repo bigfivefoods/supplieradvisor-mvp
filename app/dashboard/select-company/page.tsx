@@ -311,11 +311,9 @@ export default function SelectCompanyPage() {
                     <span className="text-sm text-neutral-500">
                       {String(company.role || '')
                         .toLowerCase()
-                        .includes('sales_contractor') ||
-                      String(company.role || '')
-                        .toLowerCase()
-                        .includes('sales contractor')
-                        ? 'Open Customers'
+                        .replace(/[\s-]+/g, '_')
+                        .includes('sales_contractor')
+                        ? 'Open sales portal'
                         : 'Open dashboard'}
                     </span>
                     <ArrowRight className="w-5 h-5 text-[#00b4d8] group-hover:translate-x-1 transition-transform" />
