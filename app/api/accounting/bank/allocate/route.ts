@@ -108,41 +108,115 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, paymentId: result.paymentId });
     }
 
-    if (action === 'bulk_allocate') {
-      const ids: Array<string | number> = Array.isArray(body.ids)
-        ? body.ids.map(parseTxnId).filter((n: string | number | null): n is string | number => n != null)
-        : [];
-      const glAccountId = Number(body.gl_account_id);
-      if (!ids.length || !Number.isFinite(glAccountId)) {
+    if (action === 'bulk_allocate' || action === 'mass_allocate') {
+      /**
+       * bulk_allocate: { ids[], gl_account_id }
+       * mass_allocate: { assignments: [{ ids[], gl_account_id, memo? }] }
+       *                or same shape as bulk_allocate
+       */
+      type Assignment = {
+        ids: Array<string | number>;
+        gl_account_id: number;
+        memo?: string | null;
+      };
+
+      let assignments: Assignment[] = [];
+
+      if (Array.isArray(body.assignments) && body.assignments.length) {
+        for (const raw of body.assignments as Array<Record<string, unknown>>) {
+          const ids = (Array.isArray(raw.ids) ? raw.ids : [])
+            .map(parseTxnId)
+            .filter((n): n is string | number => n != null);
+          const glAccountId = Number(raw.gl_account_id);
+          if (ids.length && Number.isFinite(glAccountId)) {
+            assignments.push({
+              ids,
+              gl_account_id: glAccountId,
+              memo: (raw.memo as string) || body.memo || null,
+            });
+          }
+        }
+      } else {
+        const ids: Array<string | number> = Array.isArray(body.ids)
+          ? body.ids
+              .map(parseTxnId)
+              .filter((n: string | number | null): n is string | number => n != null)
+          : [];
+        const glAccountId = Number(body.gl_account_id);
+        if (ids.length && Number.isFinite(glAccountId)) {
+          assignments = [{ ids, gl_account_id: glAccountId, memo: body.memo || null }];
+        }
+      }
+
+      if (!assignments.length) {
         return NextResponse.json(
-          { error: 'ids[] and gl_account_id required' },
+          {
+            error:
+              'Provide ids[] + gl_account_id, or assignments: [{ ids[], gl_account_id }]',
+          },
           { status: 400 }
         );
       }
+
+      // Cap to protect serverless timeouts (each allocation posts a journal)
+      const maxIds = 400;
+      let totalQueued = 0;
+      for (const a of assignments) totalQueued += a.ids.length;
+      if (totalQueued > maxIds) {
+        return NextResponse.json(
+          {
+            error: `Too many lines in one request (max ${maxIds}). Split into smaller batches.`,
+            queued: totalQueued,
+          },
+          { status: 400 }
+        );
+      }
+
       const results: Array<{
         id: string | number;
         ok: boolean;
         error?: string;
         journalId?: number;
+        gl_account_id?: number;
       }> = [];
-      for (const id of ids) {
-        const r = await allocateBankTransaction({
-          profileId: companyId,
-          bankTxnId: id,
-          glAccountId,
-          privyUserId,
-          taxAmount: body.tax_amount != null ? Number(body.tax_amount) : 0,
-          taxGlAccountId: body.tax_gl_account_id ? Number(body.tax_gl_account_id) : null,
-          memo: body.memo || null,
-          markReconciled: body.mark_reconciled !== false,
-        });
-        if (r.ok) results.push({ id, ok: true, journalId: r.journalId });
-        else results.push({ id, ok: false, error: r.error });
+
+      for (const assignment of assignments) {
+        for (const id of assignment.ids) {
+          const r = await allocateBankTransaction({
+            profileId: companyId,
+            bankTxnId: id,
+            glAccountId: assignment.gl_account_id,
+            privyUserId,
+            taxAmount: body.tax_amount != null ? Number(body.tax_amount) : 0,
+            taxGlAccountId: body.tax_gl_account_id
+              ? Number(body.tax_gl_account_id)
+              : null,
+            memo: assignment.memo || null,
+            markReconciled: body.mark_reconciled !== false,
+          });
+          if (r.ok) {
+            results.push({
+              id,
+              ok: true,
+              journalId: r.journalId,
+              gl_account_id: assignment.gl_account_id,
+            });
+          } else {
+            results.push({
+              id,
+              ok: false,
+              error: r.error,
+              gl_account_id: assignment.gl_account_id,
+            });
+          }
+        }
       }
+
       return NextResponse.json({
         success: true,
         allocated: results.filter((r) => r.ok).length,
         failed: results.filter((r) => !r.ok).length,
+        groups: assignments.length,
         results,
       });
     }

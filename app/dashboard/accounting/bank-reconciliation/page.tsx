@@ -15,6 +15,8 @@ import {
   Ban,
   Link2,
   Download,
+  Layers,
+  Sparkles,
 } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
@@ -29,6 +31,10 @@ import {
   type AccountingInvoice,
 } from '@/lib/accounting/types';
 import { UNIVERSAL_CSV_TEMPLATE } from '@/lib/accounting/csv';
+import {
+  groupTransactionsForMassAlloc,
+  type MassAllocGroup,
+} from '@/lib/accounting/mass-allocate';
 import {
   AccountingHeader,
   AccountingPage,
@@ -68,10 +74,20 @@ function Inner() {
 
   const [showAccount, setShowAccount] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [showMassAlloc, setShowMassAlloc] = useState(false);
   const [showAllocate, setShowAllocate] = useState<BankTransaction | null>(null);
   const [showMatch, setShowMatch] = useState<BankTransaction | null>(null);
   const [invoices, setInvoices] = useState<AccountingInvoice[]>([]);
   const [saving, setSaving] = useState(false);
+  /** All unallocated rows for mass-allocate (not limited by table filter). */
+  const [massTxns, setMassTxns] = useState<BankTransaction[]>([]);
+  const [massLoading, setMassLoading] = useState(false);
+  const [massSearch, setMassSearch] = useState('');
+  const [massDirection, setMassDirection] = useState<'all' | 'in' | 'out'>('all');
+  /** groupKey → selected */
+  const [massSelected, setMassSelected] = useState<Set<string>>(new Set());
+  /** groupKey → gl account id string */
+  const [massGlByGroup, setMassGlByGroup] = useState<Record<string, string>>({});
 
   const [accForm, setAccForm] = useState({
     name: '',
@@ -435,6 +451,183 @@ function Inner() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
       toast.success(`Allocated ${data.allocated}, failed ${data.failed}`);
+      if (data.failed > 0 && Array.isArray(data.results)) {
+        const firstErr = data.results.find((r: { ok: boolean; error?: string }) => !r.ok);
+        if (firstErr?.error) toast.message('Some failed', { description: firstErr.error });
+      }
+      setSelectedIds(new Set());
+      void load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function openMassAllocate() {
+    setShowMassAlloc(true);
+    setMassLoading(true);
+    setMassSearch('');
+    setMassDirection('all');
+    try {
+      let coaRows = coa;
+
+      // Ensure CoA exists for suggestions + journals
+      if (incomeExpenseAccounts.length === 0) {
+        const seedParams = new URLSearchParams({
+          companyId: String(companyId),
+          seed: '1',
+        });
+        if (privyUserId) seedParams.set('privyUserId', privyUserId);
+        const seedRes = await fetch(`/api/accounting/chart-of-accounts?${seedParams}`);
+        const seedData = await seedRes.json();
+        if (seedData.accounts?.length) {
+          coaRows = (seedData.accounts as CoaAccount[]).filter(
+            (a) => !a.is_header && a.is_active !== false
+          );
+          setCoa(coaRows);
+          if (seedData.seeded) {
+            toast.message('Chart of accounts seeded', {
+              description: 'Default GL accounts created for allocation',
+            });
+          }
+        }
+      }
+
+      const params = new URLSearchParams({
+        companyId: String(companyId),
+        include: 'transactions',
+        allocation_status: 'unallocated',
+        limit: '1000',
+      });
+      if (privyUserId) params.set('privyUserId', privyUserId);
+      if (selectedAccount) params.set('accountId', String(selectedAccount));
+      const res = await fetch(`/api/accounting/bank?${params}`);
+      const data = await res.json();
+      const rows = (data.transactions || []) as BankTransaction[];
+      setMassTxns(rows);
+
+      const groups = groupTransactionsForMassAlloc(rows, coaRows);
+      setMassSelected(new Set(groups.map((g) => g.key)));
+      const glMap: Record<string, string> = {};
+      for (const g of groups) {
+        if (g.suggestedGlId) glMap[g.key] = String(g.suggestedGlId);
+      }
+      setMassGlByGroup(glMap);
+
+      if (!rows.length) {
+        toast.message('Nothing to allocate', {
+          description: 'Import a bank statement first',
+        });
+      }
+    } catch {
+      setMassTxns([]);
+      toast.error('Could not load unallocated transactions');
+    } finally {
+      setMassLoading(false);
+    }
+  }
+
+  const massGroups: MassAllocGroup[] = useMemo(() => {
+    let rows = massTxns;
+    if (massDirection === 'in') rows = rows.filter((t) => Number(t.amount) > 0);
+    if (massDirection === 'out') rows = rows.filter((t) => Number(t.amount) < 0);
+    if (massSearch.trim()) {
+      const q = massSearch.trim().toLowerCase();
+      rows = rows.filter((t) => String(t.description || '').toLowerCase().includes(q));
+    }
+    return groupTransactionsForMassAlloc(rows, coa);
+  }, [massTxns, massSearch, massDirection, coa]);
+
+  const massStats = useMemo(() => {
+    let lines = 0;
+    let withGl = 0;
+    for (const g of massGroups) {
+      if (!massSelected.has(g.key)) continue;
+      lines += g.count;
+      if (massGlByGroup[g.key]) withGl += g.count;
+    }
+    return { groups: massSelected.size, lines, withGl };
+  }, [massGroups, massSelected, massGlByGroup]);
+
+  function applyAllSuggestions() {
+    const next = { ...massGlByGroup };
+    const sel = new Set(massSelected);
+    for (const g of massGroups) {
+      if (g.suggestedGlId) {
+        next[g.key] = String(g.suggestedGlId);
+        sel.add(g.key);
+      }
+    }
+    setMassGlByGroup(next);
+    setMassSelected(sel);
+    toast.success('Applied suggested GL accounts to matching groups');
+  }
+
+  async function runMassAllocate() {
+    const assignments: Array<{ ids: Array<string | number>; gl_account_id: number }> = [];
+    for (const g of massGroups) {
+      if (!massSelected.has(g.key)) continue;
+      const gl = Number(massGlByGroup[g.key]);
+      if (!Number.isFinite(gl) || gl <= 0) continue;
+      assignments.push({ ids: g.ids, gl_account_id: gl });
+    }
+    if (!assignments.length) {
+      toast.error('Select groups and choose a GL account for each');
+      return;
+    }
+    const total = assignments.reduce((s, a) => s + a.ids.length, 0);
+    setSaving(true);
+    try {
+      // Chunk assignments if many lines
+      let allocated = 0;
+      let failed = 0;
+      let firstError = '';
+      const chunkSize = 80;
+      // Flatten into chunks of ids with same gl
+      const flat: Array<{ id: string | number; gl: number }> = [];
+      for (const a of assignments) {
+        for (const id of a.ids) flat.push({ id, gl: a.gl_account_id });
+      }
+      for (let i = 0; i < flat.length; i += chunkSize) {
+        const slice = flat.slice(i, i + chunkSize);
+        // group slice by gl
+        const byGl = new Map<number, Array<string | number>>();
+        for (const row of slice) {
+          const list = byGl.get(row.gl) || [];
+          list.push(row.id);
+          byGl.set(row.gl, list);
+        }
+        const chunkAssignments = [...byGl.entries()].map(([gl_account_id, ids]) => ({
+          ids,
+          gl_account_id,
+        }));
+        const res = await fetch('/api/accounting/bank/allocate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyId,
+            privyUserId,
+            action: 'mass_allocate',
+            assignments: chunkAssignments,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Mass allocate failed');
+        allocated += Number(data.allocated || 0);
+        failed += Number(data.failed || 0);
+        if (!firstError && Array.isArray(data.results)) {
+          const err = data.results.find((r: { ok: boolean; error?: string }) => !r.ok);
+          if (err?.error) firstError = err.error;
+        }
+      }
+      toast.success(`Mass allocated ${allocated} of ${total} lines`);
+      if (failed > 0) {
+        toast.message(`${failed} failed`, {
+          description: firstError || 'Check chart of accounts / bank GL link',
+        });
+      }
+      setShowMassAlloc(false);
       setSelectedIds(new Set());
       void load();
     } catch (err) {
@@ -568,6 +761,20 @@ function Inner() {
               className="btn-secondary !py-2.5 !px-5 text-sm"
             >
               <Plus className="w-4 h-4" /> Account
+            </button>
+            <button
+              type="button"
+              onClick={() => void openMassAllocate()}
+              className="btn-secondary !py-2.5 !px-5 text-sm"
+              disabled={!pulse?.unallocated}
+              title={
+                pulse?.unallocated
+                  ? 'Allocate many transactions at once by group'
+                  : 'No unallocated transactions'
+              }
+            >
+              <Layers className="w-4 h-4" /> Mass allocate
+              {(pulse?.unallocated || 0) > 0 ? ` (${pulse?.unallocated})` : ''}
             </button>
             <button
               type="button"
@@ -716,16 +923,22 @@ function Inner() {
                 className="rounded-2xl border border-neutral-200 px-3 py-2 text-xs bg-white max-w-[200px]"
               >
                 <option value="">Bulk GL account…</option>
-                {incomeExpenseAccounts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.code} · {a.name}
-                  </option>
-                ))}
+                {plAccounts
+                  .filter((a) =>
+                    ['revenue', 'expense', 'cogs', 'liability', 'equity'].includes(
+                      String(a.account_type)
+                    )
+                  )
+                  .map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.code} · {a.name}
+                    </option>
+                  ))}
               </select>
               <button
                 type="button"
                 onClick={() => void bulkAllocate()}
-                disabled={saving}
+                disabled={saving || !bulkGl}
                 className="btn-primary !py-2 !px-3 text-xs"
               >
                 <Tags className="w-3.5 h-3.5" /> Allocate {selectedIds.size}
@@ -739,8 +952,62 @@ function Inner() {
           >
             Select unallocated
           </button>
+          <button
+            type="button"
+            onClick={() => void openMassAllocate()}
+            className="text-xs font-semibold text-[#00b4d8] hover:underline inline-flex items-center gap-1"
+          >
+            <Layers className="w-3.5 h-3.5" /> Mass allocate
+          </button>
         </div>
       </div>
+
+      {selectedIds.size > 0 && (
+        <div className="mb-4 rounded-2xl border border-[#00b4d8]/40 bg-[#00b4d8]/5 px-4 py-3 flex flex-wrap items-center gap-3 text-sm">
+          <span className="font-semibold text-slate-800">
+            {selectedIds.size} line{selectedIds.size === 1 ? '' : 's'} selected
+          </span>
+          <select
+            value={bulkGl}
+            onChange={(e) => setBulkGl(e.target.value)}
+            className="rounded-2xl border border-neutral-200 px-3 py-2 text-xs bg-white min-w-[200px]"
+          >
+            <option value="">Choose GL account…</option>
+            {plAccounts
+              .filter((a) =>
+                ['revenue', 'expense', 'cogs', 'liability', 'equity'].includes(
+                  String(a.account_type)
+                )
+              )
+              .map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.code} · {a.name}
+                </option>
+              ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => void bulkAllocate()}
+            disabled={saving || !bulkGl}
+            className="btn-primary !py-2 !px-4 text-xs"
+          >
+            {saving ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <>
+                <Tags className="w-3.5 h-3.5" /> Allocate selected
+              </>
+            )}
+          </button>
+          <button
+            type="button"
+            className="text-xs font-semibold text-neutral-500 hover:underline"
+            onClick={() => setSelectedIds(new Set())}
+          >
+            Clear selection
+          </button>
+        </div>
+      )}
 
       <Panel>
         {loading ? (
@@ -928,6 +1195,184 @@ function Inner() {
               </button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {/* Mass allocate modal */}
+      {showMassAlloc && (
+        <Modal
+          title="Mass allocate"
+          onClose={() => setShowMassAlloc(false)}
+          wide
+        >
+          <div className="space-y-4">
+            <p className="text-xs text-neutral-500 leading-relaxed">
+              Similar bank lines are grouped (e.g. all Shell fuel, all Tapngo). Pick a GL
+              account per group — or apply suggestions — then allocate everything in one go.
+              Journals are posted for management accounts.
+            </p>
+
+            <div className="flex flex-wrap gap-2 items-center">
+              <input
+                value={massSearch}
+                onChange={(e) => setMassSearch(e.target.value)}
+                placeholder="Filter description…"
+                className="input !py-2 text-xs max-w-[220px]"
+              />
+              <select
+                value={massDirection}
+                onChange={(e) =>
+                  setMassDirection(e.target.value as 'all' | 'in' | 'out')
+                }
+                className="rounded-2xl border border-neutral-200 px-3 py-2 text-xs bg-white"
+              >
+                <option value="all">In + out</option>
+                <option value="out">Money out only</option>
+                <option value="in">Money in only</option>
+              </select>
+              <button
+                type="button"
+                onClick={applyAllSuggestions}
+                className="btn-secondary !py-2 !px-3 text-xs"
+              >
+                <Sparkles className="w-3.5 h-3.5" /> Apply suggestions
+              </button>
+              <button
+                type="button"
+                className="text-xs font-semibold text-[#00b4d8] hover:underline"
+                onClick={() => setMassSelected(new Set(massGroups.map((g) => g.key)))}
+              >
+                Select all groups
+              </button>
+              <button
+                type="button"
+                className="text-xs font-semibold text-neutral-500 hover:underline"
+                onClick={() => setMassSelected(new Set())}
+              >
+                Clear
+              </button>
+            </div>
+
+            {massLoading ? (
+              <div className="flex justify-center py-12">
+                <Loader2 className="w-7 h-7 animate-spin text-[#00b4d8]" />
+              </div>
+            ) : massGroups.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-neutral-200 px-4 py-10 text-center text-sm text-neutral-500">
+                No unallocated transactions to group.
+              </div>
+            ) : (
+              <div className="max-h-[50vh] overflow-y-auto rounded-2xl border border-neutral-200 divide-y divide-neutral-100">
+                {massGroups.map((g) => {
+                  const checked = massSelected.has(g.key);
+                  return (
+                    <div
+                      key={g.key}
+                      className={`px-3 py-3 flex flex-col sm:flex-row sm:items-center gap-2 ${
+                        checked ? 'bg-white' : 'bg-neutral-50/80 opacity-70'
+                      }`}
+                    >
+                      <label className="flex items-start gap-2 min-w-0 flex-1 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="mt-1"
+                          checked={checked}
+                          onChange={() => {
+                            setMassSelected((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(g.key)) next.delete(g.key);
+                              else next.add(g.key);
+                              return next;
+                            });
+                          }}
+                        />
+                        <span className="min-w-0">
+                          <span className="font-semibold text-sm text-slate-900 block truncate">
+                            {g.label}
+                          </span>
+                          <span className="text-[11px] text-neutral-500">
+                            {g.count} line{g.count === 1 ? '' : 's'}
+                            {g.totalOut > 0 ? ` · Out ${formatMoney(g.totalOut)}` : ''}
+                            {g.totalIn > 0 ? ` · In ${formatMoney(g.totalIn)}` : ''}
+                          </span>
+                          {g.sampleDescriptions[0] && (
+                            <span className="block text-[10px] text-neutral-400 truncate max-w-[280px]">
+                              e.g. {g.sampleDescriptions[0]}
+                            </span>
+                          )}
+                        </span>
+                      </label>
+                      <div className="sm:w-56 flex-shrink-0">
+                        <select
+                          value={massGlByGroup[g.key] || ''}
+                          onChange={(e) => {
+                            setMassGlByGroup((m) => ({ ...m, [g.key]: e.target.value }));
+                            if (e.target.value) {
+                              setMassSelected((prev) => new Set(prev).add(g.key));
+                            }
+                          }}
+                          className="input !py-1.5 text-xs w-full"
+                        >
+                          <option value="">GL account…</option>
+                          {plAccounts
+                            .filter((a) =>
+                              [
+                                'revenue',
+                                'expense',
+                                'cogs',
+                                'liability',
+                                'equity',
+                                'asset',
+                              ].includes(String(a.account_type))
+                            )
+                            .map((a) => (
+                              <option key={a.id} value={a.id}>
+                                {a.code} · {a.name}
+                              </option>
+                            ))}
+                        </select>
+                        {g.suggestedGlLabel && (
+                          <div className="text-[10px] text-emerald-700 mt-0.5 truncate">
+                            Suggested: {g.suggestedGlLabel}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-neutral-100">
+              <div className="text-xs text-neutral-500">
+                {massStats.withGl} of {massStats.lines} selected lines have a GL ·{' '}
+                {massGroups.length} groups
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  className="btn-secondary !py-2 !px-4 text-sm"
+                  onClick={() => setShowMassAlloc(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary !py-2 !px-4 text-sm"
+                  disabled={saving || massStats.withGl === 0}
+                  onClick={() => void runMassAllocate()}
+                >
+                  {saving ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>
+                      <Tags className="w-4 h-4" /> Allocate {massStats.withGl || ''}
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
         </Modal>
       )}
 

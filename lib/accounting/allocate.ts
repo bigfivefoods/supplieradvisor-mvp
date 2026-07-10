@@ -85,14 +85,25 @@ export async function allocateBankTransaction(params: AllocateParams): Promise<
     return { ok: false, error: 'Zero-amount transaction cannot be allocated', status: 400 };
   }
 
-  const bankGlId = await resolveBankGlAccountId(
-    params.profileId,
-    Number(txn.bank_account_id)
-  );
+  let bankAccountId = Number(txn.bank_account_id);
+  if (!Number.isFinite(bankAccountId) || bankAccountId <= 0) {
+    // Legacy rows without bank_account_id: use company default / first bank
+    const { data: fallbackBank } = await supabase
+      .from('bank_accounts')
+      .select('id')
+      .eq('profile_id', params.profileId)
+      .order('is_default', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    bankAccountId = fallbackBank ? Number(fallbackBank.id) : 0;
+  }
+
+  const bankGlId = await resolveBankGlAccountId(params.profileId, bankAccountId);
   if (!bankGlId) {
     return {
       ok: false,
-      error: 'No bank GL account found. Seed Chart of Accounts or set GL on the bank account.',
+      error:
+        'No bank GL account found. Open Chart of Accounts and seed defaults, or set a GL cash account on the bank account.',
       status: 400,
     };
   }
@@ -166,12 +177,16 @@ export async function allocateBankTransaction(params: AllocateParams): Promise<
   }
 
   const entryNumber = await nextDocumentNumber(params.profileId, 'journal');
+  const entryDate =
+    (txn.txn_date as string | null) ||
+    (txn.tx_date ? String(txn.tx_date).slice(0, 10) : null) ||
+    new Date().toISOString().slice(0, 10);
   const { data: entry, error: jeErr } = await supabase
     .from('journal_entries')
     .insert({
       profile_id: params.profileId,
       entry_number: entryNumber,
-      entry_date: txn.txn_date,
+      entry_date: entryDate,
       memo,
       status: 'posted',
       source: 'bank_allocation',
