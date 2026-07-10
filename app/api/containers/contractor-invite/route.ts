@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { getResend, getResendFrom } from '@/lib/resend';
+import { getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
 import { buildContractorInviteLink } from '@/lib/invites/email';
 import {
   CONTRACTOR_CONTRACT_VERSION,
@@ -150,6 +150,7 @@ export async function POST(request: NextRequest) {
       const resend = getResend();
       await resend.emails.send({
         from: getResendFrom(),
+        replyTo: getResendReplyTo(),
         to: email,
         subject: `Operate ${containerName} — Independent contractor invitation`,
         html: contractorInviteEmailHtml({

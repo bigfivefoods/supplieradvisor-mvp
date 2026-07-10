@@ -14,11 +14,49 @@ export function getResend(): Resend {
   return resendClient;
 }
 
-const VERIFIED_FROM = 'SupplierAdvisor <invites@supplieradvisor.com>';
+/** Default transactional sender — domain must be verified in Resend. */
+const DEFAULT_FROM = 'SupplierAdvisor <invites@supplieradvisor.com>';
+/** Optional reply destination so recipients can respond to a real inbox. */
+const DEFAULT_REPLY_TO = 'connect@supplieradvisor.com';
 
 /**
- * Verified Resend "from" address — always supplieradvisor.com (verified on Resend).
- * Ignores empty env values and any supplieradvisor.co.za address (not verified).
+ * Normalize a From header to a verified supplieradvisor.com address.
+ * Accepts "Name <user@domain>" or bare "user@domain".
+ */
+function normalizeSupplierAdvisorFrom(raw: string | undefined | null): string | null {
+  const from = String(raw || '')
+    .trim()
+    .replace(/^["']|["']$/g, '');
+  if (!from) return null;
+  // Never use unverified .co.za
+  if (/@supplieradvisor\.co\.za\b/i.test(from)) return null;
+
+  // Already a full From with @supplieradvisor.com
+  if (/@supplieradvisor\.com\b/i.test(from)) {
+    // Ensure display name is present for legitimacy
+    if (from.includes('<') && from.includes('>')) return from;
+    return `SupplierAdvisor <${from.replace(/^.*\s/, '').replace(/[<>]/g, '')}>`;
+  }
+
+  // Bare local-part like "invites" or "team" → map onto verified domain
+  if (/^[a-z0-9._+-]+$/i.test(from)) {
+    return `SupplierAdvisor <${from.toLowerCase()}@supplieradvisor.com>`;
+  }
+
+  // resend.dev sandbox only (dev)
+  if (/@resend\.dev\b/i.test(from)) return from;
+
+  return null;
+}
+
+/**
+ * Verified Resend "from" address — always @supplieradvisor.com when possible.
+ *
+ * Once supplieradvisor.com is verified in Resend, any mailbox on that domain
+ * can send (invites@, team@, noreply@, etc.) — you do not need a full inbox
+ * provider unless you want people to reply.
+ *
+ * Env (optional): RESEND_FROM_EMAIL=SupplierAdvisor <invites@supplieradvisor.com>
  */
 export function getResendFrom(): string {
   const candidates = [
@@ -27,20 +65,32 @@ export function getResendFrom(): string {
     process.env.FROM_EMAIL,
   ];
   for (const raw of candidates) {
-    const from = String(raw || '').trim().replace(/^["']|["']$/g, '');
-    if (!from) continue;
-    // Never use the unverified .co.za domain
-    if (/@supplieradvisor\.co\.za\b/i.test(from)) continue;
-    // Prefer / require supplieradvisor.com when a custom from is set
-    if (/@supplieradvisor\.com\b/i.test(from) || /@resend\.dev\b/i.test(from)) {
-      return from;
-    }
-    // Other custom domains: allow if explicitly configured (enterprise)
-    if (from.includes('@') && !/@supplieradvisor\.co\.za\b/i.test(from)) {
-      return from;
-    }
+    const normalized = normalizeSupplierAdvisorFrom(raw);
+    if (normalized) return normalized;
   }
-  return VERIFIED_FROM;
+  return DEFAULT_FROM;
+}
+
+/**
+ * Reply-To for transactional mail so replies land in a real inbox.
+ * Env (optional): RESEND_REPLY_TO=connect@supplieradvisor.com
+ */
+export function getResendReplyTo(): string {
+  const raw = String(process.env.RESEND_REPLY_TO || DEFAULT_REPLY_TO)
+    .trim()
+    .replace(/^["']|["']$/g, '');
+  if (raw && /@supplieradvisor\.com\b/i.test(raw) && !/@supplieradvisor\.co\.za\b/i.test(raw)) {
+    return raw.includes('<') ? raw : raw;
+  }
+  return DEFAULT_REPLY_TO;
+}
+
+/** Shared options for all Resend send calls (from + reply_to). */
+export function getResendSendDefaults(): { from: string; replyTo: string } {
+  return {
+    from: getResendFrom(),
+    replyTo: getResendReplyTo(),
+  };
 }
 
 export function getAppUrl(): string {
