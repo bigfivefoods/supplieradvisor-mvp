@@ -7,7 +7,6 @@ import {
   Truck,
   Package,
   AlertTriangle,
-  ArrowRight,
   Network,
   FileText,
   RefreshCw,
@@ -32,6 +31,15 @@ import {
   RelationshipPage,
 } from '@/components/relationship/RelationshipChrome';
 import FxRateStrip from '@/components/fx/FxRateStrip';
+import {
+  HubHero,
+  HubModuleGrid,
+  HubPrinciples,
+  HubTelemetryGrid,
+  TelemetryCard,
+  type HubModule,
+  type TelemetryAccent,
+} from '@/components/chrome/CommandHubChrome';
 
 type CompanyData = {
   id: number;
@@ -138,43 +146,7 @@ type SnapCard = {
   sub?: string;
   href: string;
   icon: LucideIcon;
-  tone?: 'cyan' | 'emerald' | 'amber' | 'rose' | 'slate' | 'violet';
-};
-
-const TONE: Record<
-  NonNullable<SnapCard['tone']>,
-  { ring: string; icon: string; glow: string }
-> = {
-  cyan: {
-    ring: 'border-cyan-100 hover:border-[#00b4d8]',
-    icon: 'bg-cyan-50 text-[#0077b6]',
-    glow: 'from-cyan-50/80 to-white',
-  },
-  emerald: {
-    ring: 'border-emerald-100 hover:border-emerald-400',
-    icon: 'bg-emerald-50 text-emerald-700',
-    glow: 'from-emerald-50/80 to-white',
-  },
-  amber: {
-    ring: 'border-amber-100 hover:border-amber-400',
-    icon: 'bg-amber-50 text-amber-800',
-    glow: 'from-amber-50/80 to-white',
-  },
-  rose: {
-    ring: 'border-rose-100 hover:border-rose-300',
-    icon: 'bg-rose-50 text-rose-700',
-    glow: 'from-rose-50/80 to-white',
-  },
-  slate: {
-    ring: 'border-slate-200 hover:border-slate-400',
-    icon: 'bg-slate-100 text-slate-700',
-    glow: 'from-slate-50 to-white',
-  },
-  violet: {
-    ring: 'border-violet-100 hover:border-violet-400',
-    icon: 'bg-violet-50 text-violet-700',
-    glow: 'from-violet-50/80 to-white',
-  },
+  accent?: TelemetryAccent;
 };
 
 export default function DashboardCommandCenter() {
@@ -291,6 +263,8 @@ export default function DashboardCommandCenter() {
     (crm?.riadOpen ?? 0) +
     (srm?.riadOpen ?? 0) +
     (ops?.exceptions ?? 0);
+  const inMotion =
+    (ops?.workOrdersInFlight ?? 0) + (ops?.shipmentsInMotion ?? 0);
 
   const cards: SnapCard[] = useMemo(() => {
     const networkAccepted = network?.accepted ?? kpis?.networkAccepted ?? 0;
@@ -304,7 +278,7 @@ export default function DashboardCommandCenter() {
             : `${network?.pendingOut ?? kpis?.networkPendingOut ?? 0} sent`,
         href: '/dashboard/connections',
         icon: Network,
-        tone: pendingIn > 0 ? 'amber' : 'emerald',
+        accent: pendingIn > 0 ? 'amber' : 'emerald',
       },
       {
         label: 'Supplier book',
@@ -312,7 +286,7 @@ export default function DashboardCommandCenter() {
         sub: `${srm?.verified ?? kpis?.srmVerified ?? 0} verified`,
         href: '/dashboard/suppliers',
         icon: Truck,
-        tone: 'violet',
+        accent: 'violet',
       },
       {
         label: 'Open POs',
@@ -320,7 +294,7 @@ export default function DashboardCommandCenter() {
         sub: `${trade?.onchainPos ?? srm?.onchainPos ?? 0} on-chain`,
         href: '/dashboard/suppliers/po',
         icon: ShoppingCart,
-        tone: openPos > 0 ? 'cyan' : 'slate',
+        accent: openPos > 0 ? 'cyan' : 'slate',
       },
       {
         label: 'Customers',
@@ -328,7 +302,7 @@ export default function DashboardCommandCenter() {
         sub: `${crm?.leadsOpen ?? kpis?.leadsOpen ?? 0} open leads`,
         href: '/dashboard/customers',
         icon: Users,
-        tone: 'cyan',
+        accent: 'sky',
       },
       {
         label: 'Pipeline',
@@ -336,7 +310,7 @@ export default function DashboardCommandCenter() {
         sub: `${crm?.opportunitiesOpen ?? kpis?.opportunitiesOpen ?? 0} deals`,
         href: '/dashboard/customers/leads',
         icon: TrendingUp,
-        tone: 'emerald',
+        accent: 'emerald',
       },
       {
         label: 'Open quotes',
@@ -344,7 +318,7 @@ export default function DashboardCommandCenter() {
         sub: money(trade?.quotesValue ?? kpis?.quotesValue ?? 0, baseCcy),
         href: '/dashboard/customers/quotes',
         icon: FileText,
-        tone: 'slate',
+        accent: 'slate',
       },
       {
         label: 'AR open',
@@ -352,7 +326,7 @@ export default function DashboardCommandCenter() {
         sub: `${trade?.arOpen ?? kpis?.arOpen ?? 0} invoices`,
         href: '/dashboard/accounting/accounts-receivable',
         icon: Wallet,
-        tone: 'emerald',
+        accent: 'emerald',
       },
       {
         label: 'AP open',
@@ -360,7 +334,7 @@ export default function DashboardCommandCenter() {
         sub: `${trade?.apOpen ?? kpis?.apOpen ?? 0} bills`,
         href: '/dashboard/accounting/accounts-payable',
         icon: CreditCard,
-        tone: 'amber',
+        accent: 'amber',
       },
       {
         label: 'Products',
@@ -371,7 +345,7 @@ export default function DashboardCommandCenter() {
             : `${inventory?.warehouses ?? 0} locations`,
         href: '/dashboard/inventory',
         icon: Package,
-        tone: lowStock > 0 ? 'amber' : 'cyan',
+        accent: lowStock > 0 ? 'amber' : 'cyan',
       },
       {
         label: 'Units on hand',
@@ -382,7 +356,7 @@ export default function DashboardCommandCenter() {
         sub: 'Live inventory',
         href: '/dashboard/inventory/stock',
         icon: Boxes,
-        tone: 'slate',
+        accent: 'slate',
       },
       {
         label: 'OTIFEF',
@@ -390,16 +364,15 @@ export default function DashboardCommandCenter() {
         sub: `Trust ${Number(srm?.avgTrust ?? kpis?.srmAvgTrust ?? 0).toFixed(0)}`,
         href: '/dashboard/suppliers/performance',
         icon: Handshake,
-        tone: 'emerald',
+        accent: 'emerald',
       },
       {
         label: 'In motion',
-        value:
-          (ops?.workOrdersInFlight ?? 0) + (ops?.shipmentsInMotion ?? 0),
+        value: inMotion,
         sub: `${ops?.workOrdersInFlight ?? 0} WO · ${ops?.shipmentsInMotion ?? 0} ship`,
         href: '/dashboard/operations',
         icon: Factory,
-        tone: 'violet',
+        accent: 'violet',
       },
       {
         label: 'Containers',
@@ -407,7 +380,7 @@ export default function DashboardCommandCenter() {
         sub: `${kpis?.containersTotal ?? 0} total`,
         href: '/dashboard/containers',
         icon: Container,
-        tone: 'cyan',
+        accent: 'cyan',
       },
       {
         label: 'Team',
@@ -417,7 +390,7 @@ export default function DashboardCommandCenter() {
             ? `${business?.teamInvited ?? kpis?.teamInvited} invited`
             : 'Active members',
         href: '/dashboard/my-business/team',
-        tone: (business?.teamInvited ?? kpis?.teamInvited ?? 0) > 0 ? 'amber' : 'slate',
+        accent: (business?.teamInvited ?? kpis?.teamInvited ?? 0) > 0 ? 'amber' : 'slate',
         icon: Users,
       },
       {
@@ -432,7 +405,7 @@ export default function DashboardCommandCenter() {
             ? alerts[0].href
             : '/dashboard/operations/exceptions',
         icon: AlertTriangle,
-        tone: attention > 0 ? 'rose' : 'emerald',
+        accent: attention > 0 ? 'rose' : 'emerald',
       },
       {
         label: 'Shipments live',
@@ -440,7 +413,7 @@ export default function DashboardCommandCenter() {
         sub: 'Distribution in transit',
         href: '/dashboard/distribution/tracking',
         icon: Ship,
-        tone: (ops?.shipmentsInMotion ?? 0) > 0 ? 'cyan' : 'slate',
+        accent: (ops?.shipmentsInMotion ?? 0) > 0 ? 'sky' : 'slate',
       },
     ];
   }, [
@@ -458,7 +431,97 @@ export default function DashboardCommandCenter() {
     attention,
     alerts,
     baseCcy,
+    inMotion,
   ]);
+
+  const modules: HubModule[] = [
+    {
+      href: '/dashboard/operations',
+      icon: Factory,
+      code: 'OPS',
+      title: 'Operations tower',
+      desc: 'Procure → inbound → warehouse → make → outbound → fulfill.',
+      accent: 'from-cyan-50 to-white border-cyan-100',
+      metric: inMotion,
+      metricLabel: 'in motion',
+    },
+    {
+      href: '/dashboard/suppliers',
+      icon: Truck,
+      code: 'SRM',
+      title: 'Suppliers',
+      desc: 'Discover, connect, PO, OTIFEF — trust you can measure.',
+      accent: 'from-violet-50 to-white border-violet-100',
+      metric: srm?.book ?? kpis?.srmBookTotal ?? 0,
+      metricLabel: 'in book',
+    },
+    {
+      href: '/dashboard/customers',
+      icon: Users,
+      code: 'CRM',
+      title: 'Customers',
+      desc: 'Lead → quote → order → invoice → loyalty on one tower.',
+      accent: 'from-sky-50 to-white border-sky-100',
+      metric: crm?.customers ?? kpis?.customersTotal ?? 0,
+      metricLabel: 'accounts',
+    },
+    {
+      href: '/dashboard/inventory',
+      icon: Package,
+      code: 'INV',
+      title: 'Inventory',
+      desc: 'Master data, stock, receive, transfer, and counts.',
+      accent: 'from-emerald-50 to-white border-emerald-100',
+      metric: inventory?.products ?? kpis?.products ?? 0,
+      metricLabel: 'SKUs',
+    },
+    {
+      href: '/dashboard/manufacturing',
+      icon: Factory,
+      code: 'MFG',
+      title: 'Manufacturing',
+      desc: 'BOMs, MPS, MRP, and work-order execution.',
+      accent: 'from-amber-50 to-white border-amber-100',
+      metric: ops?.workOrdersInFlight ?? 0,
+      metricLabel: 'WOs live',
+    },
+    {
+      href: '/dashboard/distribution',
+      icon: Ship,
+      code: 'DST',
+      title: 'Distribution',
+      desc: 'Inbound, outbound, fleet, carriers, live tracking.',
+      accent: 'from-rose-50 to-white border-rose-100',
+      metric: ops?.shipmentsInMotion ?? 0,
+      metricLabel: 'in transit',
+    },
+    {
+      href: '/dashboard/accounting',
+      icon: Wallet,
+      code: 'FIN',
+      title: 'Accounting',
+      desc: 'Double-entry books, AR/AP, bank, and reports.',
+      accent: 'from-violet-50 to-white border-violet-100',
+    },
+    {
+      href: '/dashboard/intelligence',
+      icon: TrendingUp,
+      code: 'BI',
+      title: 'Intelligence',
+      desc: 'Pulse, insights, forecasts, and Super-Cube® leadership.',
+      accent: 'from-sky-50 to-white border-sky-100',
+    },
+    {
+      href: '/dashboard/connections',
+      icon: Network,
+      code: 'NET',
+      title: 'Network',
+      desc: 'Company graph — request, accept, price, trade.',
+      accent: 'from-cyan-50 to-white border-cyan-100',
+      metric: network?.accepted ?? kpis?.networkAccepted ?? 0,
+      metricLabel: 'connected',
+    },
+  ];
 
   if (!companyId) {
     return (
@@ -536,50 +599,49 @@ export default function DashboardCommandCenter() {
         </div>
       )}
 
+      <HubHero
+        pill="Live command · network → fulfill"
+        title="One company. Zero blind spots."
+        description="Key metrics across network, suppliers, customers, money, inventory, and operations — the same light tower language as every specialist module."
+        stats={[
+          {
+            label: 'Network',
+            value: loading ? '—' : network?.accepted ?? kpis?.networkAccepted ?? 0,
+            valueClass: 'text-[#00b4d8]',
+          },
+          {
+            label: 'In motion',
+            value: loading ? '—' : inMotion,
+            valueClass: 'text-emerald-600',
+          },
+          {
+            label: 'Attention',
+            value: loading ? '—' : attention,
+            valueClass: 'text-amber-600',
+          },
+        ]}
+      />
+
       {loading && !kpis ? (
         <div className="py-24 flex justify-center">
           <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
         </div>
       ) : (
         <>
-          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-neutral-400 mb-3">
-            Business snapshot
-          </p>
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 mb-8">
-            {cards.map((c) => {
-              const Icon = c.icon;
-              const tone = TONE[c.tone || 'cyan'];
-              return (
-                <Link
-                  key={c.label}
-                  href={c.href}
-                  className={`group relative overflow-hidden rounded-3xl border bg-gradient-to-br ${tone.glow} ${tone.ring} p-4 sm:p-5 shadow-sm hover:shadow-md transition-all`}
-                >
-                  <div className="flex items-start justify-between gap-2 mb-3">
-                    <div
-                      className={`w-9 h-9 rounded-2xl flex items-center justify-center ${tone.icon}`}
-                    >
-                      <Icon className="w-4 h-4" />
-                    </div>
-                    <ArrowRight className="w-3.5 h-3.5 text-neutral-300 opacity-0 group-hover:opacity-100 group-hover:text-[#00b4d8] transition-all" />
-                  </div>
-                  <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-neutral-400 mb-1">
-                    {c.label}
-                  </div>
-                  <div className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 tabular-nums leading-none">
-                    {c.value}
-                  </div>
-                  {c.sub && (
-                    <div className="text-[11px] text-neutral-500 mt-2 font-medium leading-snug">
-                      {c.sub}
-                    </div>
-                  )}
-                </Link>
-              );
-            })}
-          </div>
+          <HubTelemetryGrid className="mb-8">
+            {cards.map((c) => (
+              <TelemetryCard
+                key={c.label}
+                label={c.label}
+                value={c.value}
+                sub={c.sub}
+                accent={c.accent}
+                icon={c.icon}
+                href={c.href}
+              />
+            ))}
+          </HubTelemetryGrid>
 
-          {/* Attention only when needed */}
           {alerts.length > 0 && (
             <div className="rounded-3xl border border-neutral-200 bg-white shadow-sm mb-8 overflow-hidden">
               <div className="px-5 py-3.5 border-b border-neutral-100 flex items-center justify-between">
@@ -610,7 +672,6 @@ export default function DashboardCommandCenter() {
                           {a.detail}
                         </div>
                       </div>
-                      <ArrowRight className="w-4 h-4 text-neutral-300 shrink-0 self-center" />
                     </Link>
                   </li>
                 ))}
@@ -618,8 +679,9 @@ export default function DashboardCommandCenter() {
             </div>
           )}
 
-          {/* Minimal jump links */}
-          <div className="flex flex-wrap gap-2">
+          <HubModuleGrid modules={modules} />
+
+          <div className="flex flex-wrap gap-2 mb-8">
             {[
               { href: '/dashboard/suppliers/discover', icon: Search, label: 'Discover' },
               { href: '/dashboard/connections/pricing', icon: Tag, label: 'Pricing' },
@@ -638,6 +700,23 @@ export default function DashboardCommandCenter() {
               </Link>
             ))}
           </div>
+
+          <HubPrinciples
+            items={[
+              {
+                title: 'One command surface',
+                body: 'Dashboard is the snapshot; specialist modules own deep work. Same light chrome everywhere so operators never relearn the UI.',
+              },
+              {
+                title: 'Exceptions surface first',
+                body: 'Connection requests, low stock, open RIAD, and ops holds appear before vanity metrics.',
+              },
+              {
+                title: 'Trade is company-scoped',
+                body: 'Every number is membership-checked against your selected company — multi-entity safe by design.',
+              },
+            ]}
+          />
         </>
       )}
     </RelationshipPage>

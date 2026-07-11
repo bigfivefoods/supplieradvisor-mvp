@@ -15,6 +15,7 @@ import {
   Settings,
   Globe,
   Plus,
+  RefreshCw,
 } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -26,137 +27,16 @@ import {
 } from '@/components/accounting/AccountingShell';
 import {
   AlertBanner,
-  KpiCard,
-  ModuleGrid,
-  Panel,
   RelationshipHeader,
-  SectionLabel,
-  type ModuleCard,
 } from '@/components/relationship/RelationshipChrome';
-
-const PROCESS = [
-  {
-    label: 'CoA',
-    href: '/dashboard/accounting/chart-of-accounts',
-    desc: 'Define the ledger structure first.',
-  },
-  {
-    label: 'Journal',
-    href: '/dashboard/accounting/journal-entries',
-    desc: 'Post balanced double-entry journals.',
-  },
-  {
-    label: 'AR',
-    href: '/dashboard/accounting/accounts-receivable',
-    desc: 'Invoice customers and collect.',
-  },
-  {
-    label: 'AP',
-    href: '/dashboard/accounting/accounts-payable',
-    desc: 'Capture supplier bills to pay.',
-  },
-  {
-    label: 'Pay',
-    href: '/dashboard/accounting/payments',
-    desc: 'Run payment batches against open items.',
-  },
-  {
-    label: 'Bank',
-    href: '/dashboard/accounting/bank-reconciliation',
-    desc: 'Import and match bank activity.',
-  },
-  {
-    label: 'Allocate',
-    href: '/dashboard/accounting/bank-reconciliation',
-    desc: 'Allocate cash to invoices and bills.',
-  },
-  {
-    label: 'Mgmt',
-    href: '/dashboard/accounting/management',
-    desc: 'Management accounts from one ledger.',
-  },
-];
-
-const MODULES: ModuleCard[] = [
-  {
-    href: '/dashboard/accounting/chart-of-accounts',
-    icon: BookOpen,
-    title: 'Chart of Accounts',
-    desc: 'Flexible multi-type CoA with balances — seed a full IFRS starter set',
-    badge: 'Core',
-  },
-  {
-    href: '/dashboard/accounting/journal-entries',
-    icon: FileText,
-    title: 'Journal entries',
-    desc: 'Double-entry journals — draft, post, void with balance checks',
-    badge: 'Core',
-  },
-  {
-    href: '/dashboard/accounting/accounts-receivable',
-    icon: ArrowDownCircle,
-    title: 'Accounts receivable',
-    desc: 'Customer invoices, collections, overdue tracking',
-    badge: 'AR',
-  },
-  {
-    href: '/dashboard/accounting/accounts-payable',
-    icon: ArrowUpCircle,
-    title: 'Accounts payable',
-    desc: 'Supplier bills, credit notes, payment runs',
-    badge: 'AP',
-  },
-  {
-    href: '/dashboard/accounting/payments',
-    icon: CreditCard,
-    title: 'Payments',
-    desc: 'Inbound receipts and outbound supplier payments',
-  },
-  {
-    href: '/dashboard/accounting/bank-reconciliation',
-    icon: Landmark,
-    title: 'Bank import & allocation',
-    desc: 'CSV from FNB/RMB → allocate income/expense → journals',
-    badge: 'Core',
-  },
-  {
-    href: '/dashboard/accounting/management',
-    icon: BarChart3,
-    title: 'Management accounts',
-    desc: 'Period P&L from allocated books — revenue, costs, profit',
-    badge: 'Live',
-  },
-  {
-    href: '/dashboard/accounting/reports',
-    icon: BarChart3,
-    title: 'Reports & analytics',
-    desc: 'Trial balance, P&L, balance sheet, aging, cash flow',
-  },
-  {
-    href: '/dashboard/accounting/tax',
-    icon: Receipt,
-    title: 'Tax & compliance',
-    desc: 'VAT rates, output/input summary, multi-code setup',
-  },
-  {
-    href: '/dashboard/accounting/fixed-assets',
-    icon: Building2,
-    title: 'Fixed assets',
-    desc: 'Asset register, straight-line depreciation, disposals',
-  },
-  {
-    href: '/dashboard/accounting/entities',
-    icon: Globe,
-    title: 'Legal entities',
-    desc: 'Companies, branches, multi-currency entities',
-  },
-  {
-    href: '/dashboard/accounting/settings',
-    icon: Settings,
-    title: 'Settings',
-    desc: 'Periods, currencies, document prefixes, lock date',
-  },
-];
+import {
+  HubHero,
+  HubModuleGrid,
+  HubPrinciples,
+  HubTelemetryGrid,
+  TelemetryCard,
+  type HubModule,
+} from '@/components/chrome/CommandHubChrome';
 
 export default function AccountingHub() {
   return (
@@ -201,29 +81,139 @@ function HubInner() {
   }, [load]);
 
   const cur = summary?.currency || 'ZAR';
+  const s = summary;
+
+  const modules: HubModule[] = [
+    {
+      href: '/dashboard/accounting/chart-of-accounts',
+      icon: BookOpen,
+      code: '01',
+      title: 'Chart of Accounts',
+      desc: 'Flexible multi-type CoA with balances — seed a full IFRS starter set.',
+      accent: 'from-violet-50 to-white border-violet-100',
+      metric: s?.coaActive ?? '—',
+      metricLabel: 'active',
+    },
+    {
+      href: '/dashboard/accounting/journal-entries',
+      icon: FileText,
+      code: '02',
+      title: 'Journal entries',
+      desc: 'Double-entry journals — draft, post, void with balance checks.',
+      accent: 'from-sky-50 to-white border-sky-100',
+      metric: s?.journalsPosted ?? '—',
+      metricLabel: 'posted',
+    },
+    {
+      href: '/dashboard/accounting/accounts-receivable',
+      icon: ArrowDownCircle,
+      code: '03',
+      title: 'Accounts receivable',
+      desc: 'Customer invoices, collections, overdue tracking.',
+      accent: 'from-cyan-50 to-white border-cyan-100',
+      metric: s?.arOpen ?? '—',
+      metricLabel: 'open',
+    },
+    {
+      href: '/dashboard/accounting/accounts-payable',
+      icon: ArrowUpCircle,
+      code: '04',
+      title: 'Accounts payable',
+      desc: 'Supplier bills, credit notes, payment runs.',
+      accent: 'from-emerald-50 to-white border-emerald-100',
+      metric: s?.apOpen ?? '—',
+      metricLabel: 'open',
+    },
+    {
+      href: '/dashboard/accounting/payments',
+      icon: CreditCard,
+      code: '05',
+      title: 'Payments',
+      desc: 'Inbound receipts and outbound supplier payments.',
+      accent: 'from-amber-50 to-white border-amber-100',
+    },
+    {
+      href: '/dashboard/accounting/bank-reconciliation',
+      icon: Landmark,
+      code: '06',
+      title: 'Bank import & allocation',
+      desc: 'CSV from FNB/RMB → allocate income/expense → journals.',
+      accent: 'from-rose-50 to-white border-rose-100',
+    },
+    {
+      href: '/dashboard/accounting/management',
+      icon: BarChart3,
+      code: '07',
+      title: 'Management accounts',
+      desc: 'Period P&L from allocated books — revenue, costs, profit.',
+      accent: 'from-violet-50 to-white border-violet-100',
+    },
+    {
+      href: '/dashboard/accounting/reports',
+      icon: BarChart3,
+      code: '08',
+      title: 'Reports & analytics',
+      desc: 'Trial balance, P&L, balance sheet, aging, cash flow.',
+      accent: 'from-sky-50 to-white border-sky-100',
+    },
+    {
+      href: '/dashboard/accounting/tax',
+      icon: Receipt,
+      code: '09',
+      title: 'Tax & compliance',
+      desc: 'VAT rates, output/input summary, multi-code setup.',
+      accent: 'from-slate-50 to-white border-slate-200',
+    },
+    {
+      href: '/dashboard/accounting/fixed-assets',
+      icon: Building2,
+      code: '10',
+      title: 'Fixed assets',
+      desc: 'Asset register, straight-line depreciation, disposals.',
+      accent: 'from-emerald-50 to-white border-emerald-100',
+    },
+    {
+      href: '/dashboard/accounting/entities',
+      icon: Globe,
+      code: '11',
+      title: 'Legal entities',
+      desc: 'Companies, branches, multi-currency entities.',
+      accent: 'from-amber-50 to-white border-amber-100',
+    },
+    {
+      href: '/dashboard/accounting/settings',
+      icon: Settings,
+      code: '12',
+      title: 'Settings',
+      desc: 'Periods, currencies, document prefixes, lock date.',
+      accent: 'from-cyan-50 to-white border-cyan-100',
+    },
+  ];
 
   return (
     <AccountingPage>
       <RelationshipHeader
         eyebrow="Financial control"
-        title="Accounting,"
-        titleAccent="balanced"
-        description="Full double-entry books: chart of accounts, journals, AR/AP, payments, bank reconciliation, tax, fixed assets, and live financial statements — one precision ledger for your company."
+        title="Accounting"
+        titleAccent="Command"
+        description="Full double-entry books: chart of accounts, journals, AR/AP, payments, bank reconciliation, tax, fixed assets, and live financial statements."
         action={
-          <>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void load()}
+              className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-2"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
             <Link
               href="/dashboard/accounting/journal-entries"
               className="btn-primary !py-2.5 !px-5 text-sm"
             >
               <Plus className="w-4 h-4" /> New journal
             </Link>
-            <Link
-              href="/dashboard/accounting/accounts-receivable"
-              className="btn-secondary !py-2.5 !px-5 text-sm"
-            >
-              <ArrowDownCircle className="w-4 h-4" /> AR
-            </Link>
-          </>
+          </div>
         }
       />
 
@@ -244,135 +234,114 @@ function HubInner() {
         </AlertBanner>
       )}
 
-      <SectionLabel>Pulse</SectionLabel>
-      <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3 sm:gap-4 mb-8">
-        <KpiCard
-          icon={BookOpen}
+      <HubHero
+        pill="Live ledger · CoA → reports"
+        title="One ledger of truth."
+        description="Double-entry always. AR and AP close the loop from sales and purchasing. Bank, tax, assets, and reports read the same books."
+        stats={[
+          {
+            label: 'AR open',
+            value: loading ? '—' : formatMoney(s?.arOpenAmount ?? 0, cur),
+            valueClass: 'text-[#00b4d8]',
+          },
+          {
+            label: 'AP open',
+            value: loading ? '—' : formatMoney(s?.apOpenAmount ?? 0, cur),
+            valueClass: 'text-emerald-600',
+          },
+          {
+            label: 'Bank',
+            value: loading ? '—' : formatMoney(s?.bankBalance ?? 0, cur),
+            valueClass: 'text-amber-600',
+          },
+        ]}
+      />
+
+      <HubTelemetryGrid>
+        <TelemetryCard
           label="GL accounts"
-          value={summary?.coaActive ?? 0}
-          sub={`${summary?.coaCount ?? 0} total`}
+          value={s?.coaActive ?? 0}
+          sub={`${s?.coaCount ?? 0} total`}
+          accent="violet"
+          icon={BookOpen}
           href="/dashboard/accounting/chart-of-accounts"
-          loading={loading}
         />
-        <KpiCard
-          icon={FileText}
+        <TelemetryCard
           label="Journals posted"
-          value={summary?.journalsPosted ?? 0}
-          sub={`${summary?.journalsDraft ?? 0} draft`}
+          value={s?.journalsPosted ?? 0}
+          sub={`${s?.journalsDraft ?? 0} draft`}
+          accent="sky"
+          icon={FileText}
           href="/dashboard/accounting/journal-entries"
-          tone="cyan"
-          loading={loading}
         />
-        <KpiCard
-          icon={ArrowDownCircle}
+        <TelemetryCard
           label="AR open"
-          value={loading ? '—' : formatMoney(summary?.arOpenAmount ?? 0, cur)}
-          sub={`${summary?.arOpen ?? 0} invoices`}
-          href="/dashboard/accounting/accounts-receivable"
-          loading={loading}
-        />
-        <KpiCard
-          icon={ArrowUpCircle}
-          label="AP open"
-          value={loading ? '—' : formatMoney(summary?.apOpenAmount ?? 0, cur)}
-          sub={`${summary?.apOpen ?? 0} bills`}
-          href="/dashboard/accounting/accounts-payable"
-          loading={loading}
-        />
-        <KpiCard
-          icon={Landmark}
-          label="Bank balance"
-          value={loading ? '—' : formatMoney(summary?.bankBalance ?? 0, cur)}
-          sub={`${summary?.bankAccounts ?? 0} accounts · ${summary?.unreconciled ?? 0} unreconciled`}
-          href="/dashboard/accounting/bank-reconciliation"
-          tone="emerald"
-          loading={loading}
-        />
-        <KpiCard
-          icon={CreditCard}
-          label="Payments MTD"
-          value={summary?.paymentsThisMonth ?? 0}
-          sub={formatMoney(summary?.paymentsThisMonthAmount ?? 0, cur)}
-          href="/dashboard/accounting/payments"
-          loading={loading}
-        />
-      </div>
-
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-10">
-        <KpiCard
+          value={loading ? '—' : formatMoney(s?.arOpenAmount ?? 0, cur)}
+          sub={`${s?.arOpen ?? 0} invoices`}
+          accent="cyan"
           icon={ArrowDownCircle}
-          label="AR overdue"
-          value={loading ? '—' : formatMoney(summary?.arOverdueAmount ?? 0, cur)}
-          sub={`${summary?.arOverdue ?? 0} invoices`}
           href="/dashboard/accounting/accounts-receivable"
-          tone={(summary?.arOverdue || 0) > 0 ? 'amber' : 'neutral'}
-          loading={loading}
         />
-        <KpiCard
+        <TelemetryCard
+          label="AP open"
+          value={loading ? '—' : formatMoney(s?.apOpenAmount ?? 0, cur)}
+          sub={`${s?.apOpen ?? 0} bills`}
+          accent="emerald"
           icon={ArrowUpCircle}
-          label="AP overdue"
-          value={loading ? '—' : formatMoney(summary?.apOverdueAmount ?? 0, cur)}
-          sub={`${summary?.apOverdue ?? 0} bills`}
           href="/dashboard/accounting/accounts-payable"
-          tone={(summary?.apOverdue || 0) > 0 ? 'amber' : 'neutral'}
-          loading={loading}
         />
-        <KpiCard
-          icon={Building2}
+        <TelemetryCard
+          label="Bank balance"
+          value={loading ? '—' : formatMoney(s?.bankBalance ?? 0, cur)}
+          sub={`${s?.bankAccounts ?? 0} accts · ${s?.unreconciled ?? 0} unreconciled`}
+          accent="amber"
+          icon={Landmark}
+          href="/dashboard/accounting/bank-reconciliation"
+        />
+        <TelemetryCard
+          label="Payments MTD"
+          value={s?.paymentsThisMonth ?? 0}
+          sub={formatMoney(s?.paymentsThisMonthAmount ?? 0, cur)}
+          accent="slate"
+          icon={CreditCard}
+          href="/dashboard/accounting/payments"
+        />
+        <TelemetryCard
+          label="AR overdue"
+          value={loading ? '—' : formatMoney(s?.arOverdueAmount ?? 0, cur)}
+          sub={`${s?.arOverdue ?? 0} invoices`}
+          accent={(s?.arOverdue || 0) > 0 ? 'rose' : 'slate'}
+          icon={ArrowDownCircle}
+          href="/dashboard/accounting/accounts-receivable"
+        />
+        <TelemetryCard
           label="Fixed assets BV"
-          value={loading ? '—' : formatMoney(summary?.assetsBookValue ?? 0, cur)}
-          sub={`${summary?.assets ?? 0} active assets`}
+          value={loading ? '—' : formatMoney(s?.assetsBookValue ?? 0, cur)}
+          sub={`${s?.assets ?? 0} active assets`}
+          accent="violet"
+          icon={Building2}
           href="/dashboard/accounting/fixed-assets"
-          tone="violet"
-          loading={loading}
         />
-      </div>
+      </HubTelemetryGrid>
 
-      <SectionLabel
-        action={
-          <Link
-            href="/dashboard/accounting/reports"
-            className="text-xs font-semibold text-[#00b4d8] hover:underline"
-          >
-            Open reports →
-          </Link>
-        }
-      >
-        Workspace
-      </SectionLabel>
-      <ModuleGrid modules={MODULES} />
+      <HubModuleGrid modules={modules} />
 
-      <div className="mt-10">
-        <Panel title="Operating principle">
-          <div className="px-5 py-6 sm:px-8 sm:py-8 grid sm:grid-cols-3 gap-6 text-sm">
-            <Principle
-              n="01"
-              title="Double-entry always"
-              body="Every journal balances debits and credits. Posting is blocked when the entry does not balance."
-            />
-            <Principle
-              n="02"
-              title="AR and AP close the loop"
-              body="Invoices flow from sales and purchasing into collections and payment runs with live balances."
-            />
-            <Principle
-              n="03"
-              title="One ledger of truth"
-              body="Bank, tax, assets, and reports read the same books — membership-checked against your company."
-            />
-          </div>
-        </Panel>
-      </div>
+      <HubPrinciples
+        items={[
+          {
+            title: 'Double-entry always',
+            body: 'Every journal balances debits and credits. Posting is blocked when the entry does not balance.',
+          },
+          {
+            title: 'AR and AP close the loop',
+            body: 'Invoices flow from sales and purchasing into collections and payment runs with live balances.',
+          },
+          {
+            title: 'One ledger of truth',
+            body: 'Bank, tax, assets, and reports read the same books — membership-checked against your company.',
+          },
+        ]}
+      />
     </AccountingPage>
-  );
-}
-
-function Principle({ n, title, body }: { n: string; title: string; body: string }) {
-  return (
-    <div>
-      <div className="text-[10px] font-black tracking-[0.2em] text-[#00b4d8] mb-2">{n}</div>
-      <div className="font-bold text-slate-900 mb-1.5">{title}</div>
-      <p className="text-xs text-neutral-500 leading-relaxed">{body}</p>
-    </div>
   );
 }

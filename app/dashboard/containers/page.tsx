@@ -16,21 +16,22 @@ import {
   MapPin,
   UserCheck,
   AlertTriangle,
-  ArrowRight,
+  RefreshCw,
 } from 'lucide-react';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import {
   CompanyRequired,
   ContainersPage,
 } from '@/components/containers/ContainersShell';
+import { RelationshipHeader } from '@/components/relationship/RelationshipChrome';
 import {
-  KpiCard,
-  ModuleGrid,
-  Panel,
-  RelationshipHeader,
-  SectionLabel,
-  type ModuleCard,
-} from '@/components/relationship/RelationshipChrome';
+  HubHero,
+  HubModuleGrid,
+  HubPrinciples,
+  HubTelemetryGrid,
+  TelemetryCard,
+  type HubModule,
+} from '@/components/chrome/CommandHubChrome';
 
 type Summary = {
   total: number;
@@ -43,104 +44,6 @@ type Summary = {
   trainingCertified: number;
   trainingPending: number;
 };
-
-const PROCESS = [
-  {
-    label: 'Add',
-    href: '/dashboard/containers/add',
-    desc: 'Onboard a retail outlet to the network.',
-  },
-  {
-    label: 'Map',
-    href: '/dashboard/containers/map',
-    desc: 'Pin GPS so stock and sales attach to a place.',
-  },
-  {
-    label: 'Contractors',
-    href: '/dashboard/containers/contractors',
-    desc: 'Appoint independent operators.',
-  },
-  {
-    label: 'Train',
-    href: '/dashboard/containers/training',
-    desc: 'Certify operators before go-live.',
-  },
-  {
-    label: 'Stock',
-    href: '/dashboard/containers/manage',
-    desc: 'Order, receive, and manage outlet inventory.',
-  },
-  {
-    label: 'RIAD',
-    href: '/dashboard/containers/riad-log',
-    desc: 'Log risk, issues, actions, decisions.',
-  },
-  {
-    label: 'Metrics',
-    href: '/dashboard/containers/metrics',
-    desc: 'Performance of the outlet network.',
-  },
-];
-
-const MODULES: ModuleCard[] = [
-  {
-    href: '/dashboard/containers/manage',
-    icon: Edit3,
-    title: 'Manage containers',
-    desc: 'Create, edit, search, and delete retail outlets — full CRUD',
-    badge: 'Core',
-  },
-  {
-    href: '/dashboard/containers/map',
-    icon: Map,
-    title: 'Live map',
-    desc: 'Every outlet on a map with GPS pins and contractor status',
-    badge: 'Live',
-  },
-  {
-    href: '/dashboard/containers/add',
-    icon: Plus,
-    title: 'Add container',
-    desc: 'Onboard a new retail container and pin its location',
-  },
-  {
-    href: '/dashboard/containers/contractors',
-    icon: Users,
-    title: 'Contractors',
-    desc: 'Appoint operators, VerifyNow ID checks, banking, and invites',
-    badge: 'Core',
-  },
-  {
-    href: '/dashboard/containers/training',
-    icon: GraduationCap,
-    title: 'Training hub',
-    desc: 'Monitor contractor training and certification status',
-  },
-  {
-    href: '/dashboard/containers/manage',
-    icon: Boxes,
-    title: 'Inventory & orders',
-    desc: 'Open an outlet to order, receive, and track stock',
-  },
-  {
-    href: '/dashboard/containers/riad-log',
-    icon: Scale,
-    title: 'Container RIAD',
-    desc: 'Risks, issues, actions & decisions — shared with operators',
-  },
-  {
-    href: '/dashboard/containers/metrics',
-    icon: BarChart3,
-    title: 'Network metrics',
-    desc: 'Pulse across outlets, contractors, and coverage',
-  },
-  {
-    href: '/dashboard/containers/contractors',
-    icon: ShieldCheck,
-    title: 'Verify contractors',
-    desc: 'SA ID documents and VerifyNow Home Affairs checks',
-  },
-];
 
 export default function ContainersHub() {
   return (
@@ -216,132 +119,207 @@ function HubInner() {
     void load();
   }, [load]);
 
+  const s = summary;
+
+  const modules: HubModule[] = [
+    {
+      href: '/dashboard/containers/manage',
+      icon: Edit3,
+      code: '01',
+      title: 'Manage containers',
+      desc: 'Create, edit, search, and delete retail outlets — full CRUD.',
+      accent: 'from-violet-50 to-white border-violet-100',
+      metric: s?.total ?? '—',
+      metricLabel: 'outlets',
+    },
+    {
+      href: '/dashboard/containers/map',
+      icon: Map,
+      code: '02',
+      title: 'Live map',
+      desc: 'Every outlet on a map with GPS pins and contractor status.',
+      accent: 'from-sky-50 to-white border-sky-100',
+      metric: s?.mapped ?? '—',
+      metricLabel: 'mapped',
+    },
+    {
+      href: '/dashboard/containers/add',
+      icon: Plus,
+      code: '03',
+      title: 'Add container',
+      desc: 'Onboard a new retail container and pin its location.',
+      accent: 'from-cyan-50 to-white border-cyan-100',
+    },
+    {
+      href: '/dashboard/containers/contractors',
+      icon: Users,
+      code: '04',
+      title: 'Contractors',
+      desc: 'Appoint operators, VerifyNow ID checks, banking, and invites.',
+      accent: 'from-emerald-50 to-white border-emerald-100',
+      metric: s?.contractors ?? '—',
+      metricLabel: 'operators',
+    },
+    {
+      href: '/dashboard/containers/training',
+      icon: GraduationCap,
+      code: '05',
+      title: 'Training hub',
+      desc: 'Monitor contractor training and certification status.',
+      accent: 'from-amber-50 to-white border-amber-100',
+      metric: s?.trainingCertified ?? '—',
+      metricLabel: 'certified',
+    },
+    {
+      href: '/dashboard/containers/manage',
+      icon: Boxes,
+      code: '06',
+      title: 'Inventory & orders',
+      desc: 'Open an outlet to order, receive, and track stock.',
+      accent: 'from-rose-50 to-white border-rose-100',
+    },
+    {
+      href: '/dashboard/containers/riad-log',
+      icon: Scale,
+      code: '07',
+      title: 'Container RIAD',
+      desc: 'Risks, issues, actions & decisions — shared with operators.',
+      accent: 'from-violet-50 to-white border-violet-100',
+    },
+    {
+      href: '/dashboard/containers/metrics',
+      icon: BarChart3,
+      code: '08',
+      title: 'Network metrics',
+      desc: 'Pulse across outlets, contractors, and coverage.',
+      accent: 'from-slate-50 to-white border-slate-200',
+    },
+    {
+      href: '/dashboard/containers/contractors',
+      icon: ShieldCheck,
+      code: '09',
+      title: 'Verify contractors',
+      desc: 'SA ID documents and VerifyNow Home Affairs checks.',
+      accent: 'from-sky-50 to-white border-sky-100',
+    },
+  ];
+
   return (
     <ContainersPage>
       <RelationshipHeader
         eyebrow="Container retail network"
-        title="Containers you can"
-        titleAccent="operate"
-        description="Retail outlets run by independent contractors — map locations, appoint & train operators, order and receive stock, RIAD register, and manage payouts in one light command surface."
+        title="Containers"
+        titleAccent="Command"
+        description="Retail outlets run by independent contractors — map locations, appoint & train operators, order and receive stock, RIAD, and payouts."
         action={
-          <>
-            <Link
-              href="/dashboard/containers/add"
-              className="btn-primary !py-2.5 !px-5 text-sm"
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void load()}
+              className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-2"
             >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+            <Link href="/dashboard/containers/add" className="btn-primary !py-2.5 !px-5 text-sm">
               <Plus className="w-4 h-4" /> Add container
             </Link>
-            <Link
-              href="/dashboard/containers/manage"
-              className="btn-secondary !py-2.5 !px-5 text-sm"
-            >
-              <Edit3 className="w-4 h-4" /> Manage
-            </Link>
-          </>
+          </div>
         }
       />
 
-      <SectionLabel>Pulse</SectionLabel>
-      <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3 sm:gap-4 mb-8">
-        <KpiCard
-          icon={Package}
+      <HubHero
+        pill="Live retail · map → operate"
+        title="Locate every outlet."
+        description="GPS-mapped containers are the foundation of stock, sales, and contractor allocation. Independent operators claim, train, and run day-to-day sales with clear verification."
+        stats={[
+          {
+            label: 'Outlets',
+            value: loading ? '—' : s?.total ?? 0,
+            valueClass: 'text-[#00b4d8]',
+          },
+          {
+            label: 'Mapped',
+            value: loading ? '—' : s?.mapped ?? 0,
+            valueClass: 'text-emerald-600',
+          },
+          {
+            label: 'Staffed',
+            value: loading ? '—' : s?.withContractor ?? 0,
+            valueClass: 'text-amber-600',
+          },
+        ]}
+      />
+
+      <HubTelemetryGrid>
+        <TelemetryCard
           label="Outlets"
-          value={summary?.total ?? 0}
-          sub={`${summary?.active ?? 0} active`}
+          value={s?.total ?? 0}
+          sub={`${s?.active ?? 0} active`}
+          accent="cyan"
+          icon={Package}
           href="/dashboard/containers/manage"
-          loading={loading}
-          tone="cyan"
         />
-        <KpiCard
-          icon={MapPin}
+        <TelemetryCard
           label="Mapped"
-          value={summary?.mapped ?? 0}
-          sub={`${summary?.unmapped ?? 0} need GPS`}
+          value={s?.mapped ?? 0}
+          sub={`${s?.unmapped ?? 0} need GPS`}
+          accent={(s?.unmapped || 0) > 0 ? 'amber' : 'emerald'}
+          icon={MapPin}
           href="/dashboard/containers/map"
-          loading={loading}
-          tone={(summary?.unmapped || 0) > 0 ? 'amber' : 'emerald'}
         />
-        <KpiCard
-          icon={Users}
+        <TelemetryCard
           label="Contractors"
-          value={summary?.contractors ?? 0}
-          sub={`${summary?.contractorsVerified ?? 0} verified`}
+          value={s?.contractors ?? 0}
+          sub={`${s?.contractorsVerified ?? 0} verified`}
+          accent="violet"
+          icon={Users}
           href="/dashboard/containers/contractors"
-          loading={loading}
         />
-        <KpiCard
-          icon={UserCheck}
+        <TelemetryCard
           label="Staffed outlets"
-          value={summary?.withContractor ?? 0}
+          value={s?.withContractor ?? 0}
           sub="Have an operator"
+          accent="emerald"
+          icon={UserCheck}
           href="/dashboard/containers/contractors"
-          loading={loading}
-          tone="emerald"
         />
-        <KpiCard
-          icon={GraduationCap}
+        <TelemetryCard
           label="Certified"
-          value={summary?.trainingCertified ?? 0}
-          sub={`${summary?.trainingPending ?? 0} pending train`}
+          value={s?.trainingCertified ?? 0}
+          sub={`${s?.trainingPending ?? 0} pending train`}
+          accent="sky"
+          icon={GraduationCap}
           href="/dashboard/containers/training"
-          loading={loading}
-          tone="violet"
         />
-        <KpiCard
-          icon={AlertTriangle}
+        <TelemetryCard
           label="RIAD register"
           value="Open"
           sub="Risks · issues · actions"
+          accent="amber"
+          icon={AlertTriangle}
           href="/dashboard/containers/riad-log"
-          tone="amber"
         />
-      </div>
+      </HubTelemetryGrid>
 
-      <SectionLabel
-        action={
-          <Link
-            href="/dashboard/containers/map"
-            className="text-xs font-semibold text-[#00b4d8] hover:underline inline-flex items-center gap-1"
-          >
-            Open map <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
-        }
-      >
-        Workspace
-      </SectionLabel>
-      <ModuleGrid modules={MODULES} />
+      <HubModuleGrid modules={modules} />
 
-      <div className="mt-10">
-        <Panel title="Operating principle">
-          <div className="px-5 py-6 sm:px-8 sm:py-8 grid sm:grid-cols-3 gap-6 text-sm">
-            <Principle
-              n="01"
-              title="Locate every outlet"
-              body="GPS-mapped containers are the foundation of stock, sales, and contractor allocation."
-            />
-            <Principle
-              n="02"
-              title="Operator ownership"
-              body="Independent contractors claim outlets, train, and run day-to-day sales with clear verification."
-            />
-            <Principle
-              n="03"
-              title="Close the loop"
-              body="RIAD, training, and metrics keep the network visible — one language with CRM and SRM."
-            />
-          </div>
-        </Panel>
-      </div>
+      <HubPrinciples
+        items={[
+          {
+            title: 'Locate every outlet',
+            body: 'GPS-mapped containers are the foundation of stock, sales, and contractor allocation.',
+          },
+          {
+            title: 'Operator ownership',
+            body: 'Independent contractors claim outlets, train, and run day-to-day sales with clear verification.',
+          },
+          {
+            title: 'Close the loop',
+            body: 'RIAD, training, and metrics keep the network visible — one language with CRM and SRM.',
+          },
+        ]}
+      />
     </ContainersPage>
-  );
-}
-
-function Principle({ n, title, body }: { n: string; title: string; body: string }) {
-  return (
-    <div>
-      <div className="text-[10px] font-black tracking-[0.2em] text-[#00b4d8] mb-2">{n}</div>
-      <div className="font-bold text-slate-800 mb-1.5">{title}</div>
-      <p className="text-xs text-neutral-500 leading-relaxed">{body}</p>
-    </div>
   );
 }

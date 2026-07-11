@@ -14,6 +14,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   Globe,
+  RefreshCw,
 } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -22,14 +23,15 @@ import {
   CompanyRequired,
   BusinessPage,
 } from '@/components/business/BusinessShell';
+import { RelationshipHeader } from '@/components/relationship/RelationshipChrome';
 import {
-  KpiCard,
-  ModuleGrid,
-  Panel,
-  RelationshipHeader,
-  SectionLabel,
-  type ModuleCard,
-} from '@/components/relationship/RelationshipChrome';
+  HubHero,
+  HubModuleGrid,
+  HubPrinciples,
+  HubTelemetryGrid,
+  TelemetryCard,
+  type HubModule,
+} from '@/components/chrome/CommandHubChrome';
 
 type Summary = {
   trading_name: string;
@@ -47,87 +49,6 @@ type Summary = {
   profileCompleteness: number;
   completeness: Record<string, boolean>;
 };
-
-const PROCESS = [
-  {
-    label: 'Profile',
-    href: '/dashboard/my-business/profile',
-    desc: 'Trading identity the network trusts.',
-  },
-  {
-    label: 'Legal',
-    href: '/dashboard/my-business/legal',
-    desc: 'Registration, tax, and regulatory posture.',
-  },
-  {
-    label: 'Team',
-    href: '/dashboard/my-business/team',
-    desc: 'Invite with roles and least privilege.',
-  },
-  {
-    label: 'Settings',
-    href: '/dashboard/my-business/settings',
-    desc: 'Currency, timezone, discoverability.',
-  },
-  {
-    label: 'Documents',
-    href: '/dashboard/my-business/documents',
-    desc: 'Company vault for proofs and packs.',
-  },
-  {
-    label: 'RIAD',
-    href: '/dashboard/my-business/riad-log',
-    desc: 'Company-level risk and decision log.',
-  },
-];
-
-const MODULES: ModuleCard[] = [
-  {
-    href: '/dashboard/my-business/profile',
-    icon: Building2,
-    title: 'Profile',
-    desc: 'Trading name, contacts, industry, location, certifications, wallet',
-    badge: 'Core',
-  },
-  {
-    href: '/dashboard/my-business/team',
-    icon: Users,
-    title: 'Team',
-    desc: 'Invite members, assign roles, manage access rights',
-    badge: 'Core',
-  },
-  {
-    href: '/dashboard/my-business/settings',
-    icon: Settings,
-    title: 'Settings',
-    desc: 'Timezone, currency, notifications, discoverability',
-    badge: 'Core',
-  },
-  {
-    href: '/dashboard/my-business/legal',
-    icon: ShieldCheck,
-    title: 'Legal',
-    desc: 'Registration, B-BBEE, tax, regulatory posture',
-  },
-  {
-    href: '/dashboard/my-business/documents',
-    icon: FileText,
-    title: 'Documents',
-    desc: 'Company files, policies, and contracts vault',
-  },
-  {
-    href: '/dashboard/my-business/projects',
-    icon: FolderOpen,
-    title: 'Projects',
-    desc: 'Strategic initiatives and internal workstreams',
-  },
-  {
-    href: '/dashboard/my-business/riad-log',
-    icon: Scale,
-    title: 'RIAD',
-    desc: 'Internal risks, issues, actions, and decisions',
-  },
-];
 
 export default function MyBusinessHub() {
   return (
@@ -164,16 +85,92 @@ function HubInner() {
   }, [load]);
 
   const pct = summary?.profileCompleteness ?? 0;
+  const s = summary;
+
+  const modules: HubModule[] = [
+    {
+      href: '/dashboard/my-business/profile',
+      icon: Building2,
+      code: '01',
+      title: 'Profile',
+      desc: 'Trading name, contacts, industry, location, certifications, wallet.',
+      accent: 'from-violet-50 to-white border-violet-100',
+      metric: loading ? '—' : `${pct}%`,
+      metricLabel: 'complete',
+    },
+    {
+      href: '/dashboard/my-business/team',
+      icon: Users,
+      code: '02',
+      title: 'Team',
+      desc: 'Invite members, assign roles, manage access rights.',
+      accent: 'from-sky-50 to-white border-sky-100',
+      metric: s?.teamActive ?? '—',
+      metricLabel: 'active',
+    },
+    {
+      href: '/dashboard/my-business/settings',
+      icon: Settings,
+      code: '03',
+      title: 'Settings',
+      desc: 'Timezone, currency, notifications, discoverability.',
+      accent: 'from-cyan-50 to-white border-cyan-100',
+    },
+    {
+      href: '/dashboard/my-business/legal',
+      icon: ShieldCheck,
+      code: '04',
+      title: 'Legal',
+      desc: 'Registration, B-BBEE, tax, regulatory posture.',
+      accent: 'from-emerald-50 to-white border-emerald-100',
+    },
+    {
+      href: '/dashboard/my-business/documents',
+      icon: FileText,
+      code: '05',
+      title: 'Documents',
+      desc: 'Company files, policies, and contracts vault.',
+      accent: 'from-amber-50 to-white border-amber-100',
+      metric: s?.documents ?? '—',
+      metricLabel: 'files',
+    },
+    {
+      href: '/dashboard/my-business/projects',
+      icon: FolderOpen,
+      code: '06',
+      title: 'Projects',
+      desc: 'Strategic initiatives and internal workstreams.',
+      accent: 'from-rose-50 to-white border-rose-100',
+    },
+    {
+      href: '/dashboard/my-business/riad-log',
+      icon: Scale,
+      code: '07',
+      title: 'RIAD',
+      desc: 'Internal risks, issues, actions, and decisions.',
+      accent: 'from-slate-50 to-white border-slate-200',
+      metric: s?.openRiads ?? '—',
+      metricLabel: 'open',
+    },
+  ];
 
   return (
     <BusinessPage>
       <RelationshipHeader
         eyebrow="Company workspace"
-        title="My business,"
-        titleAccent="mastered"
-        description="One precision control room for identity, team, compliance, documents, and settings — every change membership-checked and synced to Supabase."
+        title="My business"
+        titleAccent="Command"
+        description="One precision control room for identity, team, compliance, documents, and settings — membership-checked and synced to Supabase."
         action={
-          <>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void load()}
+              className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-2"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
             <Link
               href="/dashboard/my-business/profile"
               className="btn-primary !py-2.5 !px-5 text-sm"
@@ -186,138 +183,145 @@ function HubInner() {
             >
               <UserPlus className="w-4 h-4" /> Invite team
             </Link>
-          </>
+          </div>
         }
       />
 
-      <SectionLabel>Pulse</SectionLabel>
-      <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3 sm:gap-4 mb-8">
-        <KpiCard
-          icon={CheckCircle2}
+      <HubHero
+        pill="Live identity · profile → team"
+        title={s?.trading_name || 'Your company, mastered.'}
+        description="A complete, verified profile is the foundation of trust across CRM, SRM, and on-chain flows. Invite with roles. Every change writes through to Supabase."
+        stats={[
+          {
+            label: 'Profile',
+            value: loading ? '—' : `${pct}%`,
+            valueClass: 'text-[#00b4d8]',
+          },
+          {
+            label: 'Team',
+            value: loading ? '—' : s?.teamActive ?? 0,
+            valueClass: 'text-emerald-600',
+          },
+          {
+            label: 'Open RIAD',
+            value: loading ? '—' : s?.openRiads ?? 0,
+            valueClass: 'text-amber-600',
+          },
+        ]}
+      />
+
+      <HubTelemetryGrid>
+        <TelemetryCard
           label="Profile complete"
           value={loading ? '—' : `${pct}%`}
           sub={pct >= 80 ? 'World class' : pct >= 50 ? 'Building' : 'Needs attention'}
+          accent={pct >= 80 ? 'emerald' : pct >= 50 ? 'cyan' : 'amber'}
+          icon={CheckCircle2}
           href="/dashboard/my-business/profile"
-          tone={pct >= 80 ? 'emerald' : pct >= 50 ? 'cyan' : 'amber'}
-          loading={loading}
         />
-        <KpiCard
-          icon={Users}
+        <TelemetryCard
           label="Team active"
-          value={summary?.teamActive ?? 0}
-          sub={`${summary?.teamInvited ?? 0} invited · ${summary?.teamTotal ?? 0} total`}
+          value={s?.teamActive ?? 0}
+          sub={`${s?.teamInvited ?? 0} invited · ${s?.teamTotal ?? 0} total`}
+          accent="sky"
+          icon={Users}
           href="/dashboard/my-business/team"
-          loading={loading}
         />
-        <KpiCard
-          icon={ShieldCheck}
+        <TelemetryCard
           label="Verification"
-          value={summary?.is_verified ? 'Verified' : 'Pending'}
-          sub={summary?.verification_status || 'unverified'}
+          value={s?.is_verified ? 'Verified' : 'Pending'}
+          sub={s?.verification_status || 'unverified'}
+          accent={s?.is_verified ? 'emerald' : 'amber'}
+          icon={ShieldCheck}
           href="/dashboard/my-business/profile"
-          tone={summary?.is_verified ? 'emerald' : 'amber'}
-          loading={loading}
         />
-        <KpiCard
-          icon={Globe}
+        <TelemetryCard
           label="Discoverable"
-          value={summary?.is_discoverable === false ? 'Off' : 'On'}
+          value={s?.is_discoverable === false ? 'Off' : 'On'}
           sub="Network visibility"
+          accent="cyan"
+          icon={Globe}
           href="/dashboard/my-business/settings"
-          tone="cyan"
-          loading={loading}
         />
-        <KpiCard
-          icon={FileText}
+        <TelemetryCard
           label="Documents"
-          value={summary?.documents ?? 0}
+          value={s?.documents ?? 0}
           sub="Company vault"
+          accent="violet"
+          icon={FileText}
           href="/dashboard/my-business/documents"
-          loading={loading}
         />
-        <KpiCard
-          icon={AlertTriangle}
+        <TelemetryCard
           label="Open RIADs"
-          value={summary?.openRiads ?? 0}
+          value={s?.openRiads ?? 0}
           sub="Company risks"
+          accent={(s?.openRiads || 0) > 0 ? 'amber' : 'slate'}
+          icon={AlertTriangle}
           href="/dashboard/my-business/riad-log"
-          tone={(summary?.openRiads || 0) > 0 ? 'amber' : 'neutral'}
-          loading={loading}
         />
-      </div>
+      </HubTelemetryGrid>
 
       {/* Completeness checklist */}
-      <SectionLabel>Profile integrity</SectionLabel>
-      <Panel className="mb-10">
-        <div className="px-5 py-5 sm:px-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <div className="font-bold text-slate-900 tracking-tight">
-                {summary?.trading_name || 'Your company'}
-              </div>
-              <div className="text-xs text-neutral-500 mt-0.5">
-                {summary?.primary_currency || 'ZAR'} · {summary?.timezone || 'Africa/Johannesburg'}
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="text-3xl font-black tracking-tighter text-slate-900 tabular-nums">
-                {pct}%
-              </div>
-              <div className="text-[10px] uppercase tracking-wider text-neutral-400 font-semibold">
-                complete
-              </div>
+      <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-sm font-black text-slate-800">Profile integrity</h3>
+            <div className="text-xs text-neutral-500 mt-0.5">
+              {s?.primary_currency || 'ZAR'} · {s?.timezone || 'Africa/Johannesburg'}
             </div>
           </div>
-          <div className="h-2 rounded-full bg-neutral-100 overflow-hidden mb-5">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-[#00b4d8] to-[#0077b6] transition-all duration-500"
-              style={{ width: `${pct}%` }}
-            />
-          </div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-2">
-            {Object.entries(summary?.completeness || {}).map(([k, ok]) => (
-              <div
-                key={k}
-                className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-medium ${
-                  ok
-                    ? 'border-emerald-100 bg-emerald-50/50 text-emerald-900'
-                    : 'border-neutral-100 bg-neutral-50 text-neutral-500'
-                }`}
-              >
-                <span
-                  className={`h-1.5 w-1.5 rounded-full ${ok ? 'bg-emerald-500' : 'bg-neutral-300'}`}
-                />
-                {labelFor(k)}
-              </div>
-            ))}
+          <div className="text-right">
+            <div className="text-3xl font-black tracking-tighter text-slate-900 tabular-nums">
+              {pct}%
+            </div>
+            <div className="text-[10px] uppercase tracking-wider text-neutral-400 font-semibold">
+              complete
+            </div>
           </div>
         </div>
-      </Panel>
-
-      <SectionLabel>Workspace</SectionLabel>
-      <ModuleGrid modules={MODULES} />
-
-      <div className="mt-10">
-        <Panel title="Operating principle">
-          <div className="px-5 py-6 sm:px-8 sm:py-8 grid sm:grid-cols-3 gap-6 text-sm">
-            <Principle
-              n="01"
-              title="Identity first"
-              desc="A complete, verified profile is the foundation of trust across CRM, SRM, and on-chain flows."
-            />
-            <Principle
-              n="02"
-              title="Least privilege team"
-              desc="Invite with roles. Every member is membership-checked against company scope."
-            />
-            <Principle
-              n="03"
-              title="Synced always"
-              desc="Profile, settings, and team changes write through APIs to Supabase — no local-only drift."
-            />
-          </div>
-        </Panel>
+        <div className="h-2 rounded-full bg-neutral-100 overflow-hidden mb-5">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-[#00b4d8] to-[#0077b6] transition-all duration-500"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-2">
+          {Object.entries(s?.completeness || {}).map(([k, ok]) => (
+            <div
+              key={k}
+              className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-medium ${
+                ok
+                  ? 'border-emerald-100 bg-emerald-50/50 text-emerald-900'
+                  : 'border-neutral-100 bg-neutral-50 text-neutral-500'
+              }`}
+            >
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${ok ? 'bg-emerald-500' : 'bg-neutral-300'}`}
+              />
+              {labelFor(k)}
+            </div>
+          ))}
+        </div>
       </div>
+
+      <HubModuleGrid modules={modules} />
+
+      <HubPrinciples
+        items={[
+          {
+            title: 'Identity first',
+            body: 'A complete, verified profile is the foundation of trust across CRM, SRM, and on-chain flows.',
+          },
+          {
+            title: 'Least privilege team',
+            body: 'Invite with roles. Every member is membership-checked against company scope.',
+          },
+          {
+            title: 'Synced always',
+            body: 'Profile, settings, and team changes write through APIs to Supabase — no local-only drift.',
+          },
+        ]}
+      />
     </BusinessPage>
   );
 }
@@ -336,14 +340,4 @@ function labelFor(k: string) {
     wallet: 'Wallet',
   };
   return map[k] || k;
-}
-
-function Principle({ n, title, desc }: { n: string; title: string; desc: string }) {
-  return (
-    <div>
-      <div className="text-[10px] font-black tracking-[0.2em] text-[#00b4d8] mb-2">{n}</div>
-      <div className="font-bold text-slate-900 mb-1.5">{title}</div>
-      <p className="text-xs text-neutral-500 leading-relaxed">{desc}</p>
-    </div>
-  );
 }

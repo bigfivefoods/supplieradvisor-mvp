@@ -15,6 +15,7 @@ import {
   TrendingUp,
   Handshake,
   Star,
+  RefreshCw,
 } from 'lucide-react';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { formatMoney } from '@/lib/customers/types';
@@ -22,15 +23,15 @@ import {
   CompanyRequired,
   CustomersPage,
 } from '@/components/customers/CustomersShell';
+import { RelationshipHeader } from '@/components/relationship/RelationshipChrome';
 import {
-  AlertBanner,
-  KpiCard,
-  ModuleGrid,
-  Panel,
-  RelationshipHeader,
-  SectionLabel,
-  type ModuleCard,
-} from '@/components/relationship/RelationshipChrome';
+  HubHero,
+  HubModuleGrid,
+  HubPrinciples,
+  HubTelemetryGrid,
+  TelemetryCard,
+  type HubModule,
+} from '@/components/chrome/CommandHubChrome';
 
 type Summary = {
   customers: number;
@@ -48,143 +49,6 @@ type Summary = {
   inviteAccepted?: number;
   inviteSuspended?: number;
 };
-
-const PROCESS = [
-  {
-    label: 'Lead',
-    href: '/dashboard/customers/leads',
-    desc: 'Capture and score demand early.',
-  },
-  {
-    label: 'Opportunity',
-    href: '/dashboard/customers/leads?tab=pipeline',
-    desc: 'Qualify and weight the pipeline.',
-  },
-  {
-    label: 'Quote',
-    href: '/dashboard/customers/quotes',
-    desc: 'Commercial offer with multi-currency prices.',
-  },
-  {
-    label: 'Order',
-    href: '/dashboard/customers/orders',
-    desc: 'Convert to a fulfillable customer order.',
-  },
-  {
-    label: 'Invoice',
-    href: '/dashboard/customers/invoices',
-    desc: 'Bill and collect through AR.',
-  },
-  {
-    label: 'Loyalty',
-    href: '/dashboard/customers/loyalty',
-    desc: 'Retain and reward after the sale.',
-  },
-  {
-    label: 'RIAD',
-    href: '/dashboard/customers/riad-log',
-    desc: 'Log risk, issues, actions, decisions.',
-  },
-];
-
-const MODULES: ModuleCard[] = [
-  {
-    href: '/dashboard/customers/leads',
-    icon: Target,
-    title: 'Leads & opportunities',
-    desc: 'Capture, score, and convert — full pipeline with weighted value',
-    badge: 'Core',
-  },
-  {
-    href: '/dashboard/customers/profiles',
-    icon: Users,
-    title: 'Customer profiles',
-    desc: 'Account master — contacts, credit, industry, addresses',
-  },
-  {
-    href: '/dashboard/customers/onboard',
-    icon: UserPlus,
-    title: 'Add customer',
-    desc: 'Onboard from a lead or create a clean account from scratch',
-  },
-  {
-    href: '/dashboard/customers/invites',
-    icon: Handshake,
-    title: 'Platform invites',
-    desc: 'Connect buyers on SupplierAdvisor — claim, suspend, expire',
-    badge: 'Connect',
-  },
-  {
-    href: '/dashboard/connections',
-    icon: Globe,
-    title: 'Network connections',
-    desc: 'Accepted edges unlock POs, docs, ratings, and RIAD',
-    badge: 'Network',
-  },
-  {
-    href: '/dashboard/customers/quotes',
-    icon: FileText,
-    title: 'Quotes',
-    desc: 'Catalogue lines, price, send, convert to order',
-    badge: 'Sell',
-  },
-  {
-    href: '/dashboard/customers/orders',
-    icon: ShoppingCart,
-    title: 'Sales orders',
-    desc: 'Confirmed demand — convert quotes or build from inventory',
-    badge: 'Sell',
-  },
-  {
-    href: '/dashboard/customers/invoices',
-    icon: FileText,
-    title: 'Invoices',
-    desc: 'Bill, mark paid, auto-earn loyalty points',
-    badge: 'Sell',
-  },
-  {
-    href: '/dashboard/customers/loyalty',
-    icon: Award,
-    title: 'Loyalty',
-    desc: 'Points and bronze → platinum tiers',
-  },
-  {
-    href: '/dashboard/customers/claims',
-    icon: AlertTriangle,
-    title: 'Claims',
-    desc: 'Quality, delivery, damage — investigate and resolve',
-  },
-  {
-    href: '/dashboard/customers/contracts',
-    icon: Handshake,
-    title: 'Contracts',
-    desc: 'Agreements, SLAs, renewals, share with connected buyers',
-  },
-  {
-    href: '/dashboard/customers/reviews',
-    icon: Star,
-    title: 'Peer reviews',
-    desc: 'Bilateral post-PO ratings that build trust',
-  },
-  {
-    href: '/dashboard/customers/portal',
-    icon: Globe,
-    title: 'Ops board',
-    desc: 'Seller command center for the full customer lifecycle',
-  },
-  {
-    href: '/dashboard/customers/search',
-    icon: Search,
-    title: 'Search',
-    desc: 'Find customers, leads, and deals instantly',
-  },
-  {
-    href: '/dashboard/customers/riad-log',
-    icon: AlertTriangle,
-    title: 'Customer RIAD',
-    desc: 'Risks, issues, actions, decisions — relationship control',
-  },
-];
 
 export default function CustomersHub() {
   return (
@@ -216,139 +80,245 @@ function HubInner() {
     void load();
   }, [load]);
 
+  const s = summary;
+
+  const modules: HubModule[] = [
+    {
+      href: '/dashboard/customers/leads',
+      icon: Target,
+      code: '01',
+      title: 'Leads & opportunities',
+      desc: 'Capture, score, and convert — full pipeline with weighted value.',
+      accent: 'from-violet-50 to-white border-violet-100',
+      metric: s?.leadsOpen ?? '—',
+      metricLabel: 'open leads',
+    },
+    {
+      href: '/dashboard/customers/profiles',
+      icon: Users,
+      code: '02',
+      title: 'Customer profiles',
+      desc: 'Account master — contacts, credit, industry, addresses.',
+      accent: 'from-sky-50 to-white border-sky-100',
+      metric: s?.customers ?? '—',
+      metricLabel: 'accounts',
+    },
+    {
+      href: '/dashboard/customers/onboard',
+      icon: UserPlus,
+      code: '03',
+      title: 'Add customer',
+      desc: 'Onboard from a lead or create a clean account from scratch.',
+      accent: 'from-cyan-50 to-white border-cyan-100',
+    },
+    {
+      href: '/dashboard/customers/invites',
+      icon: Handshake,
+      code: '04',
+      title: 'Platform invites',
+      desc: 'Connect buyers on SupplierAdvisor — claim, suspend, expire.',
+      accent: 'from-emerald-50 to-white border-emerald-100',
+      metric: s?.invitePending ?? '—',
+      metricLabel: 'pending',
+    },
+    {
+      href: '/dashboard/customers/quotes',
+      icon: FileText,
+      code: '05',
+      title: 'Quotes',
+      desc: 'Catalogue lines, price, send, convert to order.',
+      accent: 'from-amber-50 to-white border-amber-100',
+    },
+    {
+      href: '/dashboard/customers/orders',
+      icon: ShoppingCart,
+      code: '06',
+      title: 'Sales orders',
+      desc: 'Confirmed demand — convert quotes or build from inventory.',
+      accent: 'from-rose-50 to-white border-rose-100',
+    },
+    {
+      href: '/dashboard/customers/invoices',
+      icon: FileText,
+      code: '07',
+      title: 'Invoices',
+      desc: 'Bill, mark paid, auto-earn loyalty points.',
+      accent: 'from-violet-50 to-white border-violet-100',
+    },
+    {
+      href: '/dashboard/customers/loyalty',
+      icon: Award,
+      code: '08',
+      title: 'Loyalty',
+      desc: 'Points and bronze → platinum tiers after the sale.',
+      accent: 'from-sky-50 to-white border-sky-100',
+    },
+    {
+      href: '/dashboard/customers/claims',
+      icon: AlertTriangle,
+      code: '09',
+      title: 'Claims',
+      desc: 'Quality, delivery, damage — investigate and resolve.',
+      accent: 'from-amber-50 to-white border-amber-100',
+    },
+    {
+      href: '/dashboard/customers/contracts',
+      icon: Handshake,
+      code: '10',
+      title: 'Contracts',
+      desc: 'Agreements, SLAs, renewals with connected buyers.',
+      accent: 'from-slate-50 to-white border-slate-200',
+    },
+    {
+      href: '/dashboard/customers/reviews',
+      icon: Star,
+      code: '11',
+      title: 'Peer reviews',
+      desc: 'Bilateral post-PO ratings that build trust.',
+      accent: 'from-emerald-50 to-white border-emerald-100',
+    },
+    {
+      href: '/dashboard/customers/riad-log',
+      icon: AlertTriangle,
+      code: '12',
+      title: 'Customer RIAD',
+      desc: 'Risks, issues, actions, decisions — relationship control.',
+      accent: 'from-rose-50 to-white border-rose-100',
+    },
+  ];
+
   return (
     <CustomersPage>
       <RelationshipHeader
         eyebrow="Customer relationship management"
-        title="Customers you can"
-        titleAccent="grow"
+        title="Customers"
+        titleAccent="Command"
         description="One precision system: lead → opportunity → quote → order → invoice → loyalty. Invites connect buyers on-platform. Claims, contracts, and RIAD keep every relationship under control."
         action={
-          <>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void load()}
+              className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-2"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
             <Link href="/dashboard/customers/onboard" className="btn-primary !py-2.5 !px-5 text-sm">
               <UserPlus className="w-4 h-4" /> Add customer
             </Link>
-            <Link href="/dashboard/customers/leads" className="btn-secondary !py-2.5 !px-5 text-sm">
-              <Target className="w-4 h-4" /> Pipeline
-            </Link>
-          </>
+          </div>
         }
       />
 
-      <SectionLabel>Pulse</SectionLabel>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4">
-        <KpiCard
-          icon={Users}
+      <HubHero
+        pill="Live CRM · lead → loyalty"
+        title="Customers you can grow."
+        description="Pipeline, quotes, orders, and invoices on one tower. Platform invites turn CRM rows into live buyer edges with shared documents."
+        stats={[
+          {
+            label: 'Customers',
+            value: loading ? '—' : s?.customers ?? 0,
+            valueClass: 'text-[#00b4d8]',
+          },
+          {
+            label: 'Pipeline',
+            value: loading ? '—' : formatMoney(s?.pipelineValue ?? 0),
+            valueClass: 'text-emerald-600',
+          },
+          {
+            label: 'Open leads',
+            value: loading ? '—' : s?.leadsOpen ?? 0,
+            valueClass: 'text-amber-600',
+          },
+        ]}
+      />
+
+      <HubTelemetryGrid>
+        <TelemetryCard
           label="Customers"
-          value={summary?.customers ?? 0}
-          sub={`${summary?.customersActive ?? 0} active`}
+          value={s?.customers ?? 0}
+          sub={`${s?.customersActive ?? 0} active`}
+          accent="violet"
+          icon={Users}
           href="/dashboard/customers/profiles"
-          loading={loading}
         />
-        <KpiCard
-          icon={Target}
+        <TelemetryCard
           label="Open leads"
-          value={summary?.leadsOpen ?? 0}
-          sub={`${summary?.leads ?? 0} total · ${summary?.overdueFollowups ?? 0} overdue`}
+          value={s?.leadsOpen ?? 0}
+          sub={`${s?.leads ?? 0} total · ${s?.overdueFollowups ?? 0} overdue`}
+          accent={(s?.overdueFollowups || 0) > 0 ? 'amber' : 'sky'}
+          icon={Target}
           href="/dashboard/customers/leads"
-          tone={(summary?.overdueFollowups || 0) > 0 ? 'amber' : 'neutral'}
-          loading={loading}
         />
-        <KpiCard
-          icon={TrendingUp}
+        <TelemetryCard
           label="Open pipeline"
-          value={formatMoney(summary?.pipelineValue ?? 0)}
-          sub={`${summary?.opportunitiesOpen ?? 0} deals · wtd ${formatMoney(summary?.weightedPipeline ?? 0)}`}
+          value={formatMoney(s?.pipelineValue ?? 0)}
+          sub={`${s?.opportunitiesOpen ?? 0} deals · wtd ${formatMoney(s?.weightedPipeline ?? 0)}`}
+          accent="cyan"
+          icon={TrendingUp}
           href="/dashboard/customers/leads?tab=pipeline"
-          tone="cyan"
-          loading={loading}
         />
-        <KpiCard
-          icon={Award}
+        <TelemetryCard
           label="Won value"
-          value={formatMoney(summary?.wonValue ?? 0)}
-          sub={`${summary?.wonCount ?? 0} closed won`}
+          value={formatMoney(s?.wonValue ?? 0)}
+          sub={`${s?.wonCount ?? 0} closed won`}
+          accent="emerald"
+          icon={Award}
           href="/dashboard/customers/leads?tab=pipeline"
-          tone="emerald"
-          loading={loading}
         />
-      </div>
-
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-10">
-        <KpiCard
-          icon={Handshake}
+        <TelemetryCard
           label="Pending invites"
-          value={summary?.invitePending ?? 0}
+          value={s?.invitePending ?? 0}
           sub="Awaiting buyer claim"
+          accent={(s?.invitePending || 0) > 0 ? 'amber' : 'slate'}
+          icon={Handshake}
           href="/dashboard/customers/invites"
-          tone={(summary?.invitePending || 0) > 0 ? 'amber' : 'neutral'}
-          loading={loading}
         />
-        <KpiCard
-          icon={Globe}
+        <TelemetryCard
           label="Connected"
-          value={summary?.inviteAccepted ?? 0}
+          value={s?.inviteAccepted ?? 0}
           sub="Platform buyers linked"
+          accent="sky"
+          icon={Globe}
           href="/dashboard/customers/invites"
-          tone="cyan"
-          loading={loading}
         />
-        <KpiCard
-          icon={AlertTriangle}
+        <TelemetryCard
           label="Suspended"
-          value={summary?.inviteSuspended ?? 0}
+          value={s?.inviteSuspended ?? 0}
           sub="Collaboration frozen"
+          accent={(s?.inviteSuspended || 0) > 0 ? 'rose' : 'slate'}
+          icon={AlertTriangle}
           href="/dashboard/customers/invites"
-          tone={(summary?.inviteSuspended || 0) > 0 ? 'amber' : 'neutral'}
-          loading={loading}
         />
-      </div>
+        <TelemetryCard
+          label="Search"
+          value="Find"
+          sub="Customers, leads, deals"
+          accent="violet"
+          icon={Search}
+          href="/dashboard/customers/search"
+        />
+      </HubTelemetryGrid>
 
-      <SectionLabel
-        action={
-          <Link
-            href="/dashboard/customers/portal"
-            className="text-xs font-semibold text-[#00b4d8] hover:underline"
-          >
-            Open ops board →
-          </Link>
-        }
-      >
-        Workspace
-      </SectionLabel>
-      <ModuleGrid modules={MODULES} />
+      <HubModuleGrid modules={modules} />
 
-      <div className="mt-10">
-        <Panel title="Operating principle">
-          <div className="px-5 py-6 sm:px-8 sm:py-8 grid sm:grid-cols-3 gap-6 text-sm">
-            <Principle
-              n="01"
-              title="Single source of truth"
-              body="Every stage lives on Supabase — no spreadsheet drift between sales and fulfilment."
-            />
-            <Principle
-              n="02"
-              title="Connect, then collaborate"
-              body="Platform invites turn CRM rows into live buyer edges with shared documents."
-            />
-            <Principle
-              n="03"
-              title="Close the loop"
-              body="Reviews, loyalty, claims, and RIAD keep performance visible after the sale."
-            />
-          </div>
-        </Panel>
-      </div>
+      <HubPrinciples
+        items={[
+          {
+            title: 'Single source of truth',
+            body: 'Every stage lives on Supabase — no spreadsheet drift between sales and fulfilment.',
+          },
+          {
+            title: 'Connect, then collaborate',
+            body: 'Platform invites turn CRM rows into live buyer edges with shared documents.',
+          },
+          {
+            title: 'Close the loop',
+            body: 'Reviews, loyalty, claims, and RIAD keep performance visible after the sale.',
+          },
+        ]}
+      />
     </CustomersPage>
-  );
-}
-
-function Principle({ n, title, body }: { n: string; title: string; body: string }) {
-  return (
-    <div>
-      <div className="text-[10px] font-black tracking-[0.2em] text-[#00b4d8] mb-2">{n}</div>
-      <div className="font-bold text-slate-900 mb-1.5">{title}</div>
-      <p className="text-xs text-neutral-500 leading-relaxed">{body}</p>
-    </div>
   );
 }

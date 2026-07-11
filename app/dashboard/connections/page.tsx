@@ -41,12 +41,15 @@ import {
 } from '@/components/connections/ConnectionsShell';
 import {
   AlertBanner,
-  KpiCard,
   OperatingPrinciples,
   Panel,
   RelationshipHeader,
-  SectionLabel,
 } from '@/components/relationship/RelationshipChrome';
+import {
+  HubHero,
+  HubTelemetryGrid,
+  TelemetryCard,
+} from '@/components/chrome/CommandHubChrome';
 
 type Tab =
   | 'all'
@@ -229,8 +232,8 @@ function HubInner() {
     <ConnectionsPage>
       <RelationshipHeader
         eyebrow="Company network"
-        title="Connection"
-        titleAccent="graph"
+        title="Connections"
+        titleAccent="Command"
         description="One graph for every company you trade with. Request → accept → pricing, POs, invoices, and on-chain settlement in a secure ecosystem."
         action={
           <>
@@ -256,6 +259,29 @@ function HubInner() {
         </AlertBanner>
       )}
 
+      <HubHero
+        pill="Live network · discover → trade"
+        title="One graph. Secure handshakes."
+        description="Request, accept, and manage every company edge. Pricing, POs, and invoices unlock only when the connection is live."
+        stats={[
+          {
+            label: 'Connected',
+            value: loading ? '—' : summary.accepted,
+            valueClass: 'text-emerald-600',
+          },
+          {
+            label: 'Incoming',
+            value: loading ? '—' : summary.pendingIn,
+            valueClass: 'text-amber-600',
+          },
+          {
+            label: 'Suppliers',
+            value: loading ? '—' : summary.suppliers,
+            valueClass: 'text-[#00b4d8]',
+          },
+        ]}
+      />
+
       {summary.pendingIn > 0 && (
         <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
           <div className="text-sm text-amber-900">
@@ -272,51 +298,46 @@ function HubInner() {
         </div>
       )}
 
-      <SectionLabel>Pulse</SectionLabel>
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4 mb-8">
-        <button type="button" className="text-left" onClick={() => setTab('accepted')}>
-          <KpiCard
+      <HubTelemetryGrid className="mb-8">
+        <button type="button" className="text-left w-full" onClick={() => setTab('accepted')}>
+          <TelemetryCard
             icon={Handshake}
             label="Connected"
             value={summary.accepted}
-            tone="emerald"
-            loading={loading}
+            accent="emerald"
           />
         </button>
-        <button type="button" className="text-left" onClick={() => setTab('pending_in')}>
-          <KpiCard
+        <button type="button" className="text-left w-full" onClick={() => setTab('pending_in')}>
+          <TelemetryCard
             icon={Inbox}
             label="Incoming"
             value={summary.pendingIn}
-            tone={summary.pendingIn > 0 ? 'amber' : 'neutral'}
-            loading={loading}
+            accent={summary.pendingIn > 0 ? 'amber' : 'slate'}
           />
         </button>
-        <button type="button" className="text-left" onClick={() => setTab('pending_out')}>
-          <KpiCard
+        <button type="button" className="text-left w-full" onClick={() => setTab('pending_out')}>
+          <TelemetryCard
             icon={Send}
             label="Sent"
             value={summary.pendingOut}
-            tone="cyan"
-            loading={loading}
+            accent="cyan"
           />
         </button>
-        <button type="button" className="text-left" onClick={() => setTab('suppliers')}>
-          <KpiCard icon={Truck} label="Suppliers" value={summary.suppliers} loading={loading} />
+        <button type="button" className="text-left w-full" onClick={() => setTab('suppliers')}>
+          <TelemetryCard icon={Truck} label="Suppliers" value={summary.suppliers} accent="violet" />
         </button>
-        <button type="button" className="text-left" onClick={() => setTab('customers')}>
-          <KpiCard icon={Users} label="Customers" value={summary.customers} loading={loading} />
+        <button type="button" className="text-left w-full" onClick={() => setTab('customers')}>
+          <TelemetryCard icon={Users} label="Customers" value={summary.customers} accent="sky" />
         </button>
-        <button type="button" className="text-left" onClick={() => setTab('suspended')}>
-          <KpiCard
+        <button type="button" className="text-left w-full" onClick={() => setTab('suspended')}>
+          <TelemetryCard
             icon={PauseCircle}
             label="Suspended"
             value={summary.suspended}
-            tone={summary.suspended > 0 ? 'amber' : 'neutral'}
-            loading={loading}
+            accent={summary.suspended > 0 ? 'amber' : 'slate'}
           />
         </button>
-      </div>
+      </HubTelemetryGrid>
 
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <div className="relative flex-1 max-w-md">

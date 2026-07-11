@@ -9,8 +9,8 @@ import {
   Loader2,
   ShoppingCart,
   Truck,
-  ArrowRight,
   AlertTriangle,
+  RefreshCw,
 } from 'lucide-react';
 import { getCanonicalUserId } from '@/lib/auth/identity';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -22,8 +22,17 @@ import {
   supplierDisplayName,
 } from '@/components/buyer/BuyerShell';
 import {
-  OperatingPrinciples,
+  RelationshipHeader,
+  RelationshipPage,
 } from '@/components/relationship/RelationshipChrome';
+import {
+  HubHero,
+  HubModuleGrid,
+  HubPrinciples,
+  HubTelemetryGrid,
+  TelemetryCard,
+  type HubModule,
+} from '@/components/chrome/CommandHubChrome';
 
 type WorkspaceSupplier = {
   connectionId: number;
@@ -42,27 +51,6 @@ type WorkspaceCounts = {
   active: number;
   suspended: number;
 };
-
-const HUB_MODULES = [
-  {
-    href: '/dashboard/buyer/suppliers',
-    icon: Truck,
-    title: 'Connected suppliers',
-    desc: 'Suppliers that invited you — raise POs when not suspended',
-  },
-  {
-    href: '/dashboard/buyer/pos',
-    icon: ShoppingCart,
-    title: 'Purchase orders',
-    desc: 'Raise and track POs against connected suppliers',
-  },
-  {
-    href: '/dashboard/buyer/documents',
-    icon: FileText,
-    title: 'Shared documents',
-    desc: 'Quotes, orders, invoices, and contracts shared with you',
-  },
-] as const;
 
 export default function BuyerHubPage() {
   return (
@@ -122,72 +110,119 @@ function BuyerHubInner() {
     void load();
   }, [ready, load]);
 
+  const modules: HubModule[] = [
+    {
+      href: '/dashboard/buyer/suppliers',
+      icon: Truck,
+      code: '01',
+      title: 'Connected suppliers',
+      desc: 'Suppliers that invited you — raise POs when not suspended.',
+      accent: 'from-violet-50 to-white border-violet-100',
+      metric: counts.total,
+      metricLabel: 'suppliers',
+    },
+    {
+      href: '/dashboard/buyer/pos',
+      icon: ShoppingCart,
+      code: '02',
+      title: 'Purchase orders',
+      desc: 'Raise and track POs against connected suppliers.',
+      accent: 'from-sky-50 to-white border-sky-100',
+    },
+    {
+      href: '/dashboard/buyer/documents',
+      icon: FileText,
+      code: '03',
+      title: 'Shared documents',
+      desc: 'Quotes, orders, invoices, and contracts shared with you.',
+      accent: 'from-cyan-50 to-white border-cyan-100',
+    },
+  ];
+
   return (
-    <>
+    <RelationshipPage>
       <BuyerNav />
 
-      <div className="mb-8">
-        <p className="text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-1">
-          Buyer workspace
-        </p>
-        <h1 className="text-3xl sm:text-4xl font-black tracking-[-2px] text-[#00b4d8]">
-          Your suppliers
-        </h1>
-        <p className="text-neutral-600 mt-2 max-w-2xl text-sm">
-          Company-scoped portal for connected suppliers. Raise POs, read shared commercial
-          documents, and track open purchase orders. Suspended connections stay visible but
-          block new collaboration.
-        </p>
-      </div>
-
-      {/* Summary strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
-        <div className="bg-white border rounded-2xl p-4">
-          <div className="text-xs text-neutral-500 font-medium">Suppliers</div>
-          <div className="text-2xl font-black text-slate-900 mt-1">
-            {loading ? '—' : counts.total}
-          </div>
-        </div>
-        <div className="bg-white border rounded-2xl p-4">
-          <div className="text-xs text-neutral-500 font-medium">Active</div>
-          <div className="text-2xl font-black text-emerald-700 mt-1">
-            {loading ? '—' : counts.active}
-          </div>
-        </div>
-        <div className="bg-white border rounded-2xl p-4">
-          <div className="text-xs text-neutral-500 font-medium">Suspended</div>
-          <div className="text-2xl font-black text-amber-700 mt-1">
-            {loading ? '—' : counts.suspended}
-          </div>
-        </div>
-        <Link
-          href="/dashboard/buyer/pos"
-          className="bg-white border rounded-2xl p-4 hover:border-[#00b4d8] transition-all group"
-        >
-          <div className="text-xs text-neutral-500 font-medium">Open POs</div>
-          <div className="text-sm font-semibold text-[#00b4d8] mt-2 flex items-center gap-1 group-hover:gap-2 transition-all">
-            View purchase orders <ArrowRight className="w-4 h-4" />
-          </div>
-        </Link>
-      </div>
-
-      {/* Module cards */}
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-10">
-        {HUB_MODULES.map((m) => (
-          <Link
-            key={m.href}
-            href={m.href}
-            className="bg-white border rounded-3xl p-6 hover:border-[#00b4d8] transition-all"
+      <RelationshipHeader
+        backHref="/dashboard"
+        backLabel="Dashboard"
+        eyebrow="Buyer workspace"
+        title="Buyer"
+        titleAccent="Command"
+        description="Company-scoped portal for connected suppliers. Raise POs, read shared commercial documents, and track open purchase orders."
+        action={
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-2"
           >
-            <m.icon className="w-7 h-7 text-[#00b4d8] mb-3" />
-            <div className="font-bold text-lg">{m.title}</div>
-            <div className="text-sm text-neutral-500 mt-1">{m.desc}</div>
-          </Link>
-        ))}
-      </div>
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        }
+      />
 
-      <OperatingPrinciples
-        className="!mt-0 mb-10"
+      <HubHero
+        pill="Live buy · connect → settle"
+        title="Buy from partners you trust."
+        description="You buy from companies that invited you and you accepted. Suspended edges block new POs while historical documents remain readable."
+        stats={[
+          {
+            label: 'Suppliers',
+            value: loading ? '—' : counts.total,
+            valueClass: 'text-[#00b4d8]',
+          },
+          {
+            label: 'Active',
+            value: loading ? '—' : counts.active,
+            valueClass: 'text-emerald-600',
+          },
+          {
+            label: 'Suspended',
+            value: loading ? '—' : counts.suspended,
+            valueClass: 'text-amber-600',
+          },
+        ]}
+      />
+
+      <HubTelemetryGrid>
+        <TelemetryCard
+          label="Suppliers"
+          value={counts.total}
+          sub="Connected edges"
+          accent="violet"
+          icon={Truck}
+          href="/dashboard/buyer/suppliers"
+        />
+        <TelemetryCard
+          label="Active"
+          value={counts.active}
+          sub="Ready to trade"
+          accent="emerald"
+          icon={ShoppingCart}
+          href="/dashboard/buyer/suppliers"
+        />
+        <TelemetryCard
+          label="Suspended"
+          value={counts.suspended}
+          sub="Collaboration paused"
+          accent={counts.suspended > 0 ? 'amber' : 'slate'}
+          icon={AlertTriangle}
+          href="/dashboard/buyer/suppliers"
+        />
+        <TelemetryCard
+          label="Purchase orders"
+          value="Open"
+          sub="Raise & track"
+          accent="cyan"
+          icon={FileText}
+          href="/dashboard/buyer/pos"
+        />
+      </HubTelemetryGrid>
+
+      <HubModuleGrid modules={modules} />
+
+      <HubPrinciples
         items={[
           {
             title: 'Connected suppliers only',
@@ -204,14 +239,13 @@ function BuyerHubInner() {
         ]}
       />
 
-      {/* Connected suppliers preview */}
       <div className="mb-4 flex items-center justify-between gap-3">
-        <h2 className="text-lg font-bold text-slate-900">Connected suppliers</h2>
+        <h2 className="text-sm font-black text-slate-800">Connected suppliers</h2>
         <Link
           href="/dashboard/buyer/suppliers"
-          className="text-sm font-semibold text-[#00b4d8] hover:underline inline-flex items-center gap-1"
+          className="text-xs font-bold text-[#00b4d8]"
         >
-          View all <ArrowRight className="w-4 h-4" />
+          View all →
         </Link>
       </div>
 
@@ -224,11 +258,11 @@ function BuyerHubInner() {
           {error}
         </div>
       ) : suppliers.length === 0 ? (
-        <div className="bg-white border rounded-3xl p-10 text-center">
+        <div className="rounded-3xl border border-dashed border-cyan-200 bg-gradient-to-br from-white to-sky-50/60 px-8 py-14 text-center">
           <Building2 className="w-10 h-10 mx-auto mb-3 text-neutral-300" />
           <p className="text-neutral-600 text-sm max-w-md mx-auto">
-            No connected suppliers yet. When a seller invites your company as a customer and
-            you accept, they appear here.
+            No connected suppliers yet. When a seller invites your company as a customer and you
+            accept, they appear here.
           </p>
         </div>
       ) : (
@@ -239,7 +273,7 @@ function BuyerHubInner() {
             return (
               <div
                 key={s.connectionId}
-                className="bg-white border rounded-2xl p-4 flex flex-col gap-3"
+                className="rounded-2xl border border-neutral-200 bg-white p-4 flex flex-col gap-3 shadow-sm"
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
@@ -285,6 +319,6 @@ function BuyerHubInner() {
           })}
         </div>
       )}
-    </>
+    </RelationshipPage>
   );
 }

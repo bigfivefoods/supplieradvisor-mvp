@@ -1,7 +1,5 @@
 'use client';
 
-import ModuleHub from '@/components/ModuleHub';
-import HubCard from '@/components/HubCard';
 import {
   AlertTriangle,
   BarChart3,
@@ -13,96 +11,170 @@ import {
   Target,
   Users,
 } from 'lucide-react';
+import {
+  RelationshipHeader,
+  RelationshipPage,
+} from '@/components/relationship/RelationshipChrome';
+import {
+  HubHero,
+  HubModuleGrid,
+  HubPrinciples,
+  HubTelemetryGrid,
+  TelemetryCard,
+  type HubModule,
+} from '@/components/chrome/CommandHubChrome';
 
-const NODES = [
+const MODULES: HubModule[] = [
   {
-    name: 'Portfolio',
     href: '/dashboard/projects/portfolio',
     icon: FolderTree,
-    desc: 'All initiatives in one portfolio view.',
+    code: '01',
+    title: 'Portfolio',
+    desc: 'All initiatives in one portfolio view — outcomes over activity.',
+    accent: 'from-violet-50 to-white border-violet-100',
   },
   {
-    name: 'Kanban',
     href: '/dashboard/projects/kanban-boards',
     icon: Columns3,
-    desc: 'Board-based execution for teams.',
+    code: '02',
+    title: 'Kanban',
+    desc: 'Board-based execution for teams with clear WIP limits.',
+    accent: 'from-sky-50 to-white border-sky-100',
   },
   {
-    name: 'Gantt',
     href: '/dashboard/projects/gantt',
     icon: Calendar,
-    desc: 'Timeline planning and dependencies.',
+    code: '03',
+    title: 'Gantt',
+    desc: 'Timeline planning and dependencies across work packages.',
+    accent: 'from-cyan-50 to-white border-cyan-100',
   },
   {
-    name: 'Resources',
     href: '/dashboard/projects/resource-allocation',
     icon: Users,
-    desc: 'Who is on what — capacity awareness.',
+    code: '04',
+    title: 'Resources',
+    desc: 'Who is on what — capacity awareness for leadership.',
+    accent: 'from-emerald-50 to-white border-emerald-100',
   },
   {
-    name: 'Milestones',
     href: '/dashboard/projects/milestones',
     icon: Target,
-    desc: 'Gate reviews and on-chain checkpoints.',
+    code: '05',
+    title: 'Milestones',
+    desc: 'Gate reviews and on-chain checkpoints that define done.',
+    accent: 'from-amber-50 to-white border-amber-100',
   },
   {
-    name: 'Budgeting',
     href: '/dashboard/projects/budgeting',
     icon: DollarSign,
-    desc: 'Cost control against plan.',
+    code: '06',
+    title: 'Budgeting',
+    desc: 'Cost control against plan with variance visibility.',
+    accent: 'from-rose-50 to-white border-rose-100',
   },
   {
-    name: 'Risk register',
     href: '/dashboard/projects/risk-register',
     icon: AlertTriangle,
-    desc: 'Risks, owners, and mitigations.',
+    code: '07',
+    title: 'Risk register',
+    desc: 'Risks, owners, and mitigations — silent risk is unmanaged risk.',
+    accent: 'from-violet-50 to-white border-violet-100',
   },
   {
-    name: 'Timesheets',
     href: '/dashboard/projects/timesheets',
     icon: Clock,
-    desc: 'Time capture against work packages.',
+    code: '08',
+    title: 'Timesheets',
+    desc: 'Time capture against work packages for audit-friendly progress.',
+    accent: 'from-slate-50 to-white border-slate-200',
   },
   {
-    name: 'Reporting',
     href: '/dashboard/projects/reporting',
     icon: BarChart3,
-    desc: 'Status packs for stakeholders.',
+    code: '09',
+    title: 'Reporting',
+    desc: 'Status packs for stakeholders — membership-scoped truth.',
+    accent: 'from-sky-50 to-white border-sky-100',
   },
-] as const;
+];
 
 export default function ProjectsHub() {
   return (
-    <ModuleHub
-      title="Projects"
-      titleAccent="delivery"
-      description="Plan and deliver initiatives with milestones, risk, and audit-friendly status — same light chrome as Operations."
-      principles={[
-        {
-          title: 'Outcomes over activity',
-          body: 'Milestones and portfolio views force clarity on what done means — not just busy boards.',
-        },
-        {
-          title: 'Risk is owned',
-          body: 'Every material risk has an owner and a mitigation. Silent risk is unmanaged risk.',
-        },
-        {
-          title: 'Audit-friendly progress',
-          body: 'Status, budget, and time capture stay membership-scoped so leadership can trust the narrative.',
-        },
-      ]}
-    >
-      <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
-        {NODES.map((n) => (
-          <HubCard
-            key={n.href}
-            title={n.name}
-            description={n.desc}
-            href={n.href}
-            icon={n.icon}
-          />
-        ))}
-      </div>
-    </ModuleHub>
+    <RelationshipPage>
+      <RelationshipHeader
+        backHref="/dashboard"
+        backLabel="Dashboard"
+        eyebrow="Project delivery"
+        title="Projects"
+        titleAccent="Command"
+        description="Plan and deliver initiatives with milestones, risk, and audit-friendly status — same light chrome as Operations."
+      />
+
+      <HubHero
+        pill="Live PMO · portfolio → report"
+        title="Outcomes over activity."
+        description="Milestones force clarity on what done means. Every material risk has an owner. Status, budget, and time stay membership-scoped so leadership can trust the narrative."
+        stats={[
+          { label: 'Views', value: 9, valueClass: 'text-[#00b4d8]' },
+          { label: 'Focus', value: 'Done', valueClass: 'text-emerald-600' },
+          { label: 'Risk', value: 'Owned', valueClass: 'text-amber-600' },
+        ]}
+      />
+
+      <HubTelemetryGrid>
+        <TelemetryCard
+          label="Portfolio"
+          value="All"
+          sub="Initiatives overview"
+          accent="violet"
+          icon={FolderTree}
+          href="/dashboard/projects/portfolio"
+        />
+        <TelemetryCard
+          label="Execution"
+          value="Board"
+          sub="Kanban & Gantt"
+          accent="sky"
+          icon={Columns3}
+          href="/dashboard/projects/kanban-boards"
+        />
+        <TelemetryCard
+          label="Milestones"
+          value="Gates"
+          sub="Define done"
+          accent="emerald"
+          icon={Target}
+          href="/dashboard/projects/milestones"
+        />
+        <TelemetryCard
+          label="Risk"
+          value="Register"
+          sub="Owned mitigations"
+          accent="amber"
+          icon={AlertTriangle}
+          href="/dashboard/projects/risk-register"
+        />
+      </HubTelemetryGrid>
+
+      <HubModuleGrid modules={MODULES} />
+
+      <HubPrinciples
+        items={[
+          {
+            title: 'Outcomes over activity',
+            body: 'Milestones and portfolio views force clarity on what done means — not just busy boards.',
+          },
+          {
+            title: 'Risk is owned',
+            body: 'Every material risk has an owner and a mitigation. Silent risk is unmanaged risk.',
+          },
+          {
+            title: 'Audit-friendly progress',
+            body: 'Status, budget, and time capture stay membership-scoped so leadership can trust the narrative.',
+          },
+        ]}
+      />
+    </RelationshipPage>
   );
 }
