@@ -1,7 +1,7 @@
 'use client';
 
-import { useMemo, type ReactNode } from 'react';
-import { CalendarRange } from 'lucide-react';
+import { useMemo, useState, type ReactNode } from 'react';
+import { CalendarRange, ChevronDown, SlidersHorizontal } from 'lucide-react';
 import {
   fiscalYearLabel,
   fiscalYearMonths,
@@ -109,11 +109,14 @@ type Props = {
   /** Extra block under the slicer (forecast variables, pipeline toggle, etc.) */
   footer?: ReactNode;
   className?: string;
+  /** Start expanded (default collapsed to free vertical space) */
+  defaultOpen?: boolean;
 };
 
 /**
- * Shared accounting period slicer — always shows months + quarters + FY shortcuts.
- * Months and quarters support multi-select (range = earliest → latest selected).
+ * Shared accounting period slicer — expandable slice-and-dice control.
+ * When open: months + quarters + FY shortcuts (multi-select).
+ * Collapsed header always shows active period label and range.
  */
 export default function PeriodSlicer({
   value,
@@ -121,7 +124,9 @@ export default function PeriodSlicer({
   showTrailing = false,
   footer,
   className = 'mb-6',
+  defaultOpen = false,
 }: Props) {
+  const [open, setOpen] = useState(defaultOpen);
   const fyLabel = useMemo(() => fiscalYearLabel(new Date()), []);
   const fyMonths = useMemo(() => fiscalYearMonths(new Date()), []);
   const fyQuarters = useMemo(() => fiscalYearQuarters(new Date()), []);
@@ -251,213 +256,264 @@ export default function PeriodSlicer({
   );
 
   return (
-    <Panel className={className}>
-      <div className="px-5 py-4 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2 text-sm min-w-0">
-            <CalendarRange className="w-4 h-4 text-[#00b4d8] shrink-0" />
-            <span className="font-bold text-slate-900 truncate">{value.label}</span>
-            <span className="text-xs text-neutral-400 tabular-nums whitespace-nowrap">
-              {value.from} → {value.to}
+    <Panel className={`${className} overflow-hidden ${open ? 'ring-1 ring-[#00b4d8]/15 shadow-sm' : ''}`}>
+      {/* Collapsed / expanded header — always visible */}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="w-full flex items-center gap-3 px-4 sm:px-5 py-3.5 sm:py-4 text-left hover:bg-sky-50/40 transition-colors"
+      >
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-cyan-100 bg-gradient-to-br from-sky-50 to-cyan-50 text-[#0077b6]">
+          <SlidersHorizontal className="w-4.5 h-4.5 w-4 h-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[10px] font-black uppercase tracking-[0.14em] text-[#0077b6]">
+              Slice &amp; dice
             </span>
             {value.selectedMonthFroms.length > 1 && (
               <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border border-cyan-100 bg-cyan-50 text-[#0077b6]">
                 {value.selectedMonthFroms.length} months
               </span>
             )}
-          </div>
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
-            FY {fyLabel} · Mar–Feb
-          </div>
-        </div>
-
-        {/* Quick presets — always visible */}
-        <div>
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400 mb-2">
-            Quick presets
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {chip(value.preset === 'this_month' && value.selectedMonthFroms.length <= 1, () => applyPreset('this_month'), 'This month')}
-            {chip(value.preset === 'last_month' && value.selectedMonthFroms.length <= 1, () => applyPreset('last_month'), 'Last month')}
-            {chip(value.preset === 'this_quarter', () => applyPreset('this_quarter'), 'This quarter')}
-            {chip(value.preset === 'last_quarter', () => applyPreset('last_quarter'), 'Last quarter')}
-            {chip(value.preset === 'ytd', () => applyPreset('ytd'), 'YTD')}
-            {chip(value.preset === 'full_fy', () => applyPreset('full_fy'), `Full FY ${fyLabel}`)}
-            {chip(value.label.startsWith('Full FY') && value.preset === 'custom' && value.selectedMonthFroms.length === 0, () => {
-              const currentStart = resolvePeriodPreset('full_fy').from;
-              const [y, m, d] = currentStart.split('-').map(Number);
-              const lastDayPrior = new Date(y, m - 1, d);
-              lastDayPrior.setDate(lastDayPrior.getDate() - 1);
-              const prior = resolvePeriodPreset('full_fy', lastDayPrior);
-              applyCustomRange(prior.from, prior.to, prior.label);
-            }, 'Prior FY')}
-            {chip(value.label.startsWith('Calendar'), () => {
-              const y = new Date().getFullYear();
-              applyCustomRange(`${y}-01-01`, `${y}-12-31`, `Calendar ${y}`);
-            }, `Calendar ${new Date().getFullYear()}`)}
-          </div>
-        </div>
-
-        {/* Months — always visible, multi-select */}
-        <div>
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
-              Months in FY {fyLabel} · multi-select
-            </div>
-            {value.selectedMonthFroms.length > 0 && (
-              <button
-                type="button"
-                onClick={() => applyPreset('this_month')}
-                className="text-[10px] font-semibold text-[#00b4d8] hover:underline"
-              >
-                Clear multi → this month
-              </button>
+            {value.historyMonths != null && showTrailing && (
+              <span className="text-[10px] font-semibold text-neutral-400">
+                · trail {value.historyMonths}m
+              </span>
             )}
           </div>
-          <div className="flex flex-wrap gap-1.5">
-            {fyMonths.map((m) => {
-              const active = value.selectedMonthFroms.includes(m.from);
-              return (
-                <button
-                  key={m.from}
-                  type="button"
-                  onClick={() => toggleMonth(m.from)}
-                  title={`${m.from} → ${m.to} · click to toggle`}
-                  className={`min-w-[3rem] text-xs font-semibold px-2.5 py-1.5 rounded-xl border transition-colors ${
-                    active
-                      ? 'border-[#00b4d8] bg-[#00b4d8]/15 text-[#0077b6] ring-1 ring-[#00b4d8]/30'
-                      : m.isCurrent
-                        ? 'border-emerald-200 bg-emerald-50/50 text-emerald-900'
-                        : 'border-neutral-200 bg-white text-neutral-600 hover:border-[#00b4d8]/40'
-                  }`}
-                >
-                  {m.label}
-                </button>
-              );
-            })}
-          </div>
-          <p className="mt-1.5 text-[11px] text-neutral-400">
-            Click multiple months to combine (e.g. Mar + Apr + May). Range uses earliest → latest.
-          </p>
-        </div>
-
-        {/* Quarters — always visible, multi-select via months */}
-        <div>
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400 mb-2">
-            Quarters in FY {fyLabel} · multi-select
-          </div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-2">
-            {fyQuarters.map((q) => {
-              const active = value.selectedQuarters.includes(q.quarter);
-              const partial =
-                !active &&
-                monthsInQuarter(q.quarter, fyMonths).some((k) =>
-                  value.selectedMonthFroms.includes(k)
-                );
-              return (
-                <button
-                  key={q.quarter}
-                  type="button"
-                  onClick={() => toggleQuarter(q.quarter)}
-                  className={`text-left rounded-2xl border px-3 py-3 transition-colors ${
-                    active
-                      ? 'border-[#00b4d8] bg-[#00b4d8]/10 shadow-sm ring-1 ring-[#00b4d8]/25'
-                      : partial
-                        ? 'border-cyan-200 bg-cyan-50/40'
-                        : q.isCurrent
-                          ? 'border-emerald-200 bg-emerald-50/40'
-                          : 'border-neutral-200 bg-white hover:border-[#00b4d8]/40'
-                  }`}
-                >
-                  <div className="text-xs font-bold text-slate-900">{q.label}</div>
-                  <div className="text-[10px] text-neutral-400 mt-1 tabular-nums">
-                    {q.from} → {q.to}
-                  </div>
-                </button>
-              );
-            })}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5 min-w-0">
+            <CalendarRange className="w-3.5 h-3.5 text-[#00b4d8] shrink-0 hidden sm:inline" />
+            <span className="font-bold text-slate-900 text-sm truncate">{value.label}</span>
+            <span className="text-xs text-neutral-400 tabular-nums whitespace-nowrap">
+              {value.from} → {value.to}
+            </span>
           </div>
         </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="hidden sm:inline text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
+            FY {fyLabel}
+          </span>
+          <span
+            className={`flex h-8 w-8 items-center justify-center rounded-xl border border-neutral-200 bg-white text-neutral-500 transition-transform duration-200 ${
+              open ? 'rotate-180 text-[#00b4d8] border-cyan-200' : ''
+            }`}
+          >
+            <ChevronDown className="w-4 h-4" />
+          </span>
+        </div>
+      </button>
 
-        {/* Trailing history — optional */}
-        {showTrailing && (
+      {open && (
+        <div className="px-5 pb-4 pt-1 space-y-4 border-t border-neutral-100 bg-white/80">
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-3">
+            <p className="text-[11px] text-neutral-500">
+              Expand months / quarters / presets to change the reporting window.
+            </p>
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
+              FY {fyLabel} · Mar–Feb
+            </div>
+          </div>
+
+          {/* Quick presets */}
           <div>
             <div className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400 mb-2">
-              Trailing history (trends & forecast)
+              Quick presets
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {chip(value.preset === 'this_month' && value.selectedMonthFroms.length <= 1, () => applyPreset('this_month'), 'This month')}
+              {chip(value.preset === 'last_month' && value.selectedMonthFroms.length <= 1, () => applyPreset('last_month'), 'Last month')}
+              {chip(value.preset === 'this_quarter', () => applyPreset('this_quarter'), 'This quarter')}
+              {chip(value.preset === 'last_quarter', () => applyPreset('last_quarter'), 'Last quarter')}
+              {chip(value.preset === 'ytd', () => applyPreset('ytd'), 'YTD')}
+              {chip(value.preset === 'full_fy', () => applyPreset('full_fy'), `Full FY ${fyLabel}`)}
+              {chip(value.label.startsWith('Full FY') && value.preset === 'custom' && value.selectedMonthFroms.length === 0, () => {
+                const currentStart = resolvePeriodPreset('full_fy').from;
+                const [y, m, d] = currentStart.split('-').map(Number);
+                const lastDayPrior = new Date(y, m - 1, d);
+                lastDayPrior.setDate(lastDayPrior.getDate() - 1);
+                const prior = resolvePeriodPreset('full_fy', lastDayPrior);
+                applyCustomRange(prior.from, prior.to, prior.label);
+              }, 'Prior FY')}
+              {chip(value.label.startsWith('Calendar'), () => {
+                const y = new Date().getFullYear();
+                applyCustomRange(`${y}-01-01`, `${y}-12-31`, `Calendar ${y}`);
+              }, `Calendar ${new Date().getFullYear()}`)}
+            </div>
+          </div>
+
+          {/* Months — multi-select */}
+          <div>
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
+                Months in FY {fyLabel} · multi-select
+              </div>
+              {value.selectedMonthFroms.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => applyPreset('this_month')}
+                  className="text-[10px] font-semibold text-[#00b4d8] hover:underline"
+                >
+                  Clear multi → this month
+                </button>
+              )}
             </div>
             <div className="flex flex-wrap gap-1.5">
-              {HISTORY_OPTIONS.map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() =>
-                    onChange({
-                      ...value,
-                      historyMonths: n,
-                      preset: 'trailing',
-                      label: `Trailing ${n} months`,
-                    })
-                  }
-                  className={`min-w-[3rem] text-xs font-semibold px-2.5 py-1.5 rounded-xl border transition-colors ${
-                    value.historyMonths === n && value.preset === 'trailing'
-                      ? 'border-[#00b4d8] bg-[#00b4d8]/10 text-[#0077b6]'
-                      : value.historyMonths === n
-                        ? 'border-cyan-200 bg-cyan-50/50 text-[#0077b6]'
-                        : 'border-neutral-200 bg-white text-neutral-600 hover:border-[#00b4d8]/40'
-                  }`}
-                >
-                  {n}m
-                </button>
-              ))}
+              {fyMonths.map((m) => {
+                const active = value.selectedMonthFroms.includes(m.from);
+                return (
+                  <button
+                    key={m.from}
+                    type="button"
+                    onClick={() => toggleMonth(m.from)}
+                    title={`${m.from} → ${m.to} · click to toggle`}
+                    className={`min-w-[3rem] text-xs font-semibold px-2.5 py-1.5 rounded-xl border transition-colors ${
+                      active
+                        ? 'border-[#00b4d8] bg-[#00b4d8]/15 text-[#0077b6] ring-1 ring-[#00b4d8]/30'
+                        : m.isCurrent
+                          ? 'border-emerald-200 bg-emerald-50/50 text-emerald-900'
+                          : 'border-neutral-200 bg-white text-neutral-600 hover:border-[#00b4d8]/40'
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                );
+              })}
             </div>
             <p className="mt-1.5 text-[11px] text-neutral-400">
-              Used by Trends and Forecast as the look-back window (independent of month multi-select).
+              Click multiple months to combine (e.g. Mar + Apr + May). Range uses earliest → latest.
             </p>
           </div>
-        )}
 
-        {/* Custom dates always available */}
-        <div className="flex flex-wrap gap-3 items-end pt-1 border-t border-neutral-100">
-          <label className="text-xs font-semibold text-neutral-600">
-            From
-            <input
-              type="date"
-              value={value.from}
-              onChange={(e) =>
-                onChange({
-                  ...value,
-                  from: e.target.value,
-                  label: 'Custom period',
-                  preset: 'custom',
-                  selectedMonthFroms: [],
-                  selectedQuarters: [],
-                })
-              }
-              className="mt-1 block rounded-xl border border-neutral-200 px-3 py-2 text-sm"
-            />
-          </label>
-          <label className="text-xs font-semibold text-neutral-600">
-            To
-            <input
-              type="date"
-              value={value.to}
-              onChange={(e) =>
-                onChange({
-                  ...value,
-                  to: e.target.value,
-                  label: 'Custom period',
-                  preset: 'custom',
-                  selectedMonthFroms: [],
-                  selectedQuarters: [],
-                })
-              }
-              className="mt-1 block rounded-xl border border-neutral-200 px-3 py-2 text-sm"
-            />
-          </label>
+          {/* Quarters — multi-select */}
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400 mb-2">
+              Quarters in FY {fyLabel} · multi-select
+            </div>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-2">
+              {fyQuarters.map((q) => {
+                const active = value.selectedQuarters.includes(q.quarter);
+                const partial =
+                  !active &&
+                  monthsInQuarter(q.quarter, fyMonths).some((k) =>
+                    value.selectedMonthFroms.includes(k)
+                  );
+                return (
+                  <button
+                    key={q.quarter}
+                    type="button"
+                    onClick={() => toggleQuarter(q.quarter)}
+                    className={`text-left rounded-2xl border px-3 py-3 transition-colors ${
+                      active
+                        ? 'border-[#00b4d8] bg-[#00b4d8]/10 shadow-sm ring-1 ring-[#00b4d8]/25'
+                        : partial
+                          ? 'border-cyan-200 bg-cyan-50/40'
+                          : q.isCurrent
+                            ? 'border-emerald-200 bg-emerald-50/40'
+                            : 'border-neutral-200 bg-white hover:border-[#00b4d8]/40'
+                    }`}
+                  >
+                    <div className="text-xs font-bold text-slate-900">{q.label}</div>
+                    <div className="text-[10px] text-neutral-400 mt-1 tabular-nums">
+                      {q.from} → {q.to}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Trailing history — optional */}
+          {showTrailing && (
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400 mb-2">
+                Trailing history (trends & forecast)
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {HISTORY_OPTIONS.map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() =>
+                      onChange({
+                        ...value,
+                        historyMonths: n,
+                        preset: 'trailing',
+                        label: `Trailing ${n} months`,
+                      })
+                    }
+                    className={`min-w-[3rem] text-xs font-semibold px-2.5 py-1.5 rounded-xl border transition-colors ${
+                      value.historyMonths === n && value.preset === 'trailing'
+                        ? 'border-[#00b4d8] bg-[#00b4d8]/10 text-[#0077b6]'
+                        : value.historyMonths === n
+                          ? 'border-cyan-200 bg-cyan-50/50 text-[#0077b6]'
+                          : 'border-neutral-200 bg-white text-neutral-600 hover:border-[#00b4d8]/40'
+                    }`}
+                  >
+                    {n}m
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1.5 text-[11px] text-neutral-400">
+                Used by Trends and Forecast as the look-back window (independent of month multi-select).
+              </p>
+            </div>
+          )}
+
+          {/* Custom dates */}
+          <div className="flex flex-wrap gap-3 items-end pt-1 border-t border-neutral-100">
+            <label className="text-xs font-semibold text-neutral-600">
+              From
+              <input
+                type="date"
+                value={value.from}
+                onChange={(e) =>
+                  onChange({
+                    ...value,
+                    from: e.target.value,
+                    label: 'Custom period',
+                    preset: 'custom',
+                    selectedMonthFroms: [],
+                    selectedQuarters: [],
+                  })
+                }
+                className="mt-1 block rounded-xl border border-neutral-200 px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="text-xs font-semibold text-neutral-600">
+              To
+              <input
+                type="date"
+                value={value.to}
+                onChange={(e) =>
+                  onChange({
+                    ...value,
+                    to: e.target.value,
+                    label: 'Custom period',
+                    preset: 'custom',
+                    selectedMonthFroms: [],
+                    selectedQuarters: [],
+                  })
+                }
+                className="mt-1 block rounded-xl border border-neutral-200 px-3 py-2 text-sm"
+              />
+            </label>
+          </div>
+
+          {footer}
+
+          <div className="flex justify-end pt-1">
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="text-xs font-semibold text-neutral-500 hover:text-[#0077b6] px-3 py-1.5 rounded-full border border-neutral-200 bg-white hover:border-[#00b4d8]/40"
+            >
+              Collapse slicer
+            </button>
+          </div>
         </div>
-
-        {footer}
-      </div>
+      )}
     </Panel>
   );
 }
