@@ -69,7 +69,44 @@ export const DEFAULT_CHART_OF_ACCOUNTS: CoaSeed[] = [
 ];
 
 export const DEFAULT_TAX_RATES = [
-  { code: 'VAT15', name: 'Standard VAT 15%', rate: 15, tax_type: 'vat', is_default: true, country: 'ZA' },
-  { code: 'VAT0', name: 'Zero-rated VAT', rate: 0, tax_type: 'vat', is_default: false, country: 'ZA' },
-  { code: 'EXEMPT', name: 'VAT exempt', rate: 0, tax_type: 'vat', is_default: false, country: 'ZA' },
+  {
+    code: 'VAT15',
+    name: 'Standard VAT 15%',
+    rate: 15,
+    tax_type: 'vat',
+    is_default: true,
+    is_recoverable: true,
+    country: 'ZA',
+    category: 'standard',
+  },
+  {
+    code: 'VAT0',
+    name: 'Zero-rated VAT',
+    rate: 0,
+    tax_type: 'vat',
+    is_default: false,
+    is_recoverable: true,
+    country: 'ZA',
+    category: 'zero_rated',
+  },
+  {
+    code: 'EXEMPT',
+    name: 'VAT exempt',
+    rate: 0,
+    tax_type: 'vat',
+    is_default: false,
+    is_recoverable: false,
+    country: 'ZA',
+    category: 'exempt',
+  },
+  {
+    code: 'OUT',
+    name: 'Out of scope (non-supply)',
+    rate: 0,
+    tax_type: 'vat',
+    is_default: false,
+    is_recoverable: false,
+    country: 'ZA',
+    category: 'out_of_scope',
+  },
 ];

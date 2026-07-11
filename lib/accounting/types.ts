@@ -262,12 +262,15 @@ export type TaxRate = {
   rate: number;
   country?: string | null;
   tax_type?: string | null;
+  /** standard | zero_rated | exempt | out_of_scope */
+  category?: string | null;
   is_default?: boolean | null;
   is_recoverable?: boolean | null;
   gl_account_id?: number | null;
   status?: string | null;
   effective_from?: string | null;
   effective_to?: string | null;
+  metadata?: Record<string, unknown> | null;
 };
 
 export type FixedAsset = {

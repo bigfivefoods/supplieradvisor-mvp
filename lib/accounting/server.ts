@@ -183,8 +183,11 @@ export async function ensureDefaultCoa(profileId: number): Promise<{ seeded: num
         rate: t.rate,
         tax_type: t.tax_type,
         is_default: t.is_default,
+        is_recoverable: t.is_recoverable !== false,
         country: t.country,
+        category: t.category || 'standard',
         status: 'active',
+        metadata: { category: t.category || 'standard' },
       }))
     );
   }
