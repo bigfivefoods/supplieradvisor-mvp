@@ -45,6 +45,7 @@ export type IngestResult = {
   batch_id?: number | null;
   sync_run_id?: number | null;
   error_message?: string;
+  auto_matched?: number;
 };
 
 export type LinkSessionResult = {

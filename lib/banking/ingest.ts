@@ -52,6 +52,9 @@ type IngestParams = {
   privyUserId?: string | null;
   /** When true, only report counts */
   dryRun?: boolean;
+  /** After insert, run high-confidence auto-match (default false — opt-in) */
+  autoMatch?: boolean;
+  autoMatchMinConfidence?: number;
 };
 
 /**
@@ -69,6 +72,7 @@ export async function ingestCanonicalTxns(params: IngestParams): Promise<IngestR
     importBatchId = null,
     dryRun = false,
   } = params;
+  // autoMatch / privyUserId read from params later
 
   const result: IngestResult = {
     fetched: txns.length,
@@ -230,6 +234,24 @@ export async function ingestCanonicalTxns(params: IngestParams): Promise<IngestR
       patch.current_balance = round2(Number(bank.current_balance || 0) + delta);
     }
     await supabase.from('bank_accounts').update(patch).eq('id', bankAccountId);
+  }
+
+  // Optional high-confidence auto-match after successful inserts
+  if (params.autoMatch && result.inserted > 0 && !dryRun) {
+    try {
+      const { runAutoMatch } = await import('./match-engine');
+      const match = await runAutoMatch({
+        companyId,
+        bankAccountId,
+        privyUserId: params.privyUserId,
+        minConfidence: params.autoMatchMinConfidence ?? 85,
+        dryRun: false,
+        limit: Math.min(300, result.inserted + 50),
+      });
+      result.auto_matched = match.applied;
+    } catch {
+      // non-fatal — matching can be run manually
+    }
   }
 
   return result;

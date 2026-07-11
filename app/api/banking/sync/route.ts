@@ -128,6 +128,8 @@ export async function POST(request: NextRequest) {
       syncRunId: runId,
       currency: String(conn.currency || 'ZAR'),
       privyUserId,
+      autoMatch: true,
+      autoMatchMinConfidence: 90,
     });
 
     await finishSyncRun(runId, ingest);

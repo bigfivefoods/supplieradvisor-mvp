@@ -62,10 +62,29 @@ Creates `bank_connections`, `bank_sync_runs`, `bank_match_rules`, and provider c
 - **Sync feed** — manual pull
 - **Import PDF/CSV** — still first-class; uses same ingest middleware
 
-## Next steps
+## Auto-match (phase 2)
 
-1. Apply migration in Supabase production.
-2. Create BankLink account + sandbox key; set env on Vercel.
-3. Point a Pulse webhook at `/api/banking/webhooks/banklink`.
-4. Harden match rules UI (table exists; engine can expand).
-5. Add FNB direct / multi-bank adapters behind the same interface.
+| Method | Path | Purpose |
+|--------|------|---------|
+| POST | `/api/banking/auto-match` | Score + optionally apply matches |
+| GET/POST/PATCH/DELETE | `/api/banking/match-rules` | CRUD + seed defaults |
+
+**Scoring (confidence 0–100):**
+- Invoice number in reference/description
+- Amount ≈ balance due / total
+- Counterparty name fuzzy match
+- Date within 3–14 days
+- Company `bank_match_rules` (description/reference/amount/regex → GL or exclude)
+- Built-in keyword heuristics (fuel, fees, etc.)
+
+**Apply threshold:** default **80%** in UI; import/sync auto-apply only **≥90%**.
+
+**UI:** Bank reconciliation → **Auto-match** (preview then apply) and **Match rules**.
+
+## Ops checklist
+
+1. Apply migration `20260711_bank_middleware.sql` in Supabase.
+2. Optional: `BANKLINK_API_KEY` on Vercel for live FNB.
+3. Point BankLink Pulse to `/api/banking/webhooks/banklink`.
+4. Seed CoA so fee/interest rules resolve GL codes.
+5. Later: multi-bank adapters, FNB Integration Channel if contracted.

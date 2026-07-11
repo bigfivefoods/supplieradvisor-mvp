@@ -275,6 +275,9 @@ export async function POST(request: NextRequest) {
       importBatchId: batchId,
       syncRunId: runId,
       privyUserId,
+      // Score + apply only very high-confidence matches after import
+      autoMatch: true,
+      autoMatchMinConfidence: 90,
     });
 
     await finishSyncRun(runId, ingest);
@@ -328,6 +331,7 @@ export async function POST(request: NextRequest) {
       parsed: parsed.lines.length,
       imported: ingest.inserted,
       duplicates: ingest.duplicates,
+      auto_matched: ingest.auto_matched || 0,
       skipped: parsed.skipped,
       warnings: parsed.warnings,
       csv: csvOut,

@@ -20,6 +20,9 @@ import {
   RefreshCw,
   Unplug,
   Wifi,
+  Wand2,
+  ListFilter,
+  Trash2,
 } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
@@ -147,6 +150,32 @@ function Inner() {
   const [connecting, setConnecting] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [showConnect, setShowConnect] = useState(false);
+  const [showAutoMatch, setShowAutoMatch] = useState(false);
+  const [showRules, setShowRules] = useState(false);
+  const [autoMatchPreview, setAutoMatchPreview] = useState<Record<string, unknown> | null>(
+    null
+  );
+  const [autoMatching, setAutoMatching] = useState(false);
+  const [matchRules, setMatchRules] = useState<
+    Array<{
+      id: number;
+      name: string;
+      match_type: string;
+      pattern: string;
+      target_type: string;
+      target_id?: number | null;
+      priority?: number;
+      is_active?: boolean;
+    }>
+  >([]);
+  const [ruleForm, setRuleForm] = useState({
+    name: '',
+    pattern: '',
+    match_type: 'description_contains',
+    target_type: 'gl_account',
+    target_id: '',
+    priority: '50',
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -351,6 +380,149 @@ function Inner() {
     }
   }
 
+  async function runAutoMatchPreview() {
+    setAutoMatching(true);
+    try {
+      const res = await fetch('/api/banking/auto-match', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          dryRun: true,
+          seedRules: true,
+          minConfidence: 70,
+          bank_account_id: selectedAccount || undefined,
+          limit: 200,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Auto-match failed');
+      setAutoMatchPreview(data);
+      toast.success(
+        `Scanned ${data.scanned} · ${data.suggested} suggestions · ${
+          (data.results || []).filter(
+            (r: { confidence?: number }) => (r.confidence || 0) >= 80
+          ).length
+        } ready to apply (≥80%)`
+      );
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Auto-match failed');
+    } finally {
+      setAutoMatching(false);
+    }
+  }
+
+  async function applyAutoMatch() {
+    setAutoMatching(true);
+    try {
+      const res = await fetch('/api/banking/auto-match', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          dryRun: false,
+          apply: true,
+          seedRules: true,
+          minConfidence: 80,
+          bank_account_id: selectedAccount || undefined,
+          limit: 200,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Apply failed');
+      setAutoMatchPreview(data);
+      toast.success(
+        `Applied ${data.applied} matches · ${data.errors || 0} errors · ${data.skipped || 0} skipped`
+      );
+      void load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Apply failed');
+    } finally {
+      setAutoMatching(false);
+    }
+  }
+
+  async function loadMatchRules() {
+    try {
+      const params = new URLSearchParams({
+        companyId: String(companyId),
+        seed: '1',
+      });
+      if (privyUserId) params.set('privyUserId', privyUserId);
+      const res = await fetch(`/api/banking/match-rules?${params}`);
+      const data = await res.json();
+      setMatchRules(data.rules || []);
+      if (data.seeded > 0) {
+        toast.message(`Seeded ${data.seeded} default rules`);
+      }
+    } catch {
+      setMatchRules([]);
+    }
+  }
+
+  async function createMatchRule(e: React.FormEvent) {
+    e.preventDefault();
+    if (!ruleForm.name || !ruleForm.pattern) {
+      toast.error('Name and pattern required');
+      return;
+    }
+    if (ruleForm.target_type === 'gl_account' && !ruleForm.target_id) {
+      toast.error('Select a GL account');
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch('/api/banking/match-rules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          name: ruleForm.name,
+          pattern: ruleForm.pattern,
+          match_type: ruleForm.match_type,
+          target_type: ruleForm.target_type,
+          target_id: ruleForm.target_id ? Number(ruleForm.target_id) : null,
+          priority: Number(ruleForm.priority) || 50,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      toast.success('Rule created');
+      setRuleForm({
+        name: '',
+        pattern: '',
+        match_type: 'description_contains',
+        target_type: 'gl_account',
+        target_id: '',
+        priority: '50',
+      });
+      void loadMatchRules();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteMatchRule(id: number) {
+    try {
+      const res = await fetch('/api/banking/match-rules', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyId, privyUserId, id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      toast.success('Rule deleted');
+      void loadMatchRules();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    }
+  }
+
   const coaById = useMemo(() => {
     const m: Record<number, CoaAccount> = {};
     for (const a of coa) m[a.id] = a;
@@ -507,6 +679,9 @@ function Inner() {
         throw new Error(importErrorMessage(data, 'Import failed'));
       }
       toast.success(`Imported ${data.imported} lines (${data.duplicates} duplicates skipped)`);
+      if (data.auto_matched > 0) {
+        toast.message(`Auto-matched ${data.auto_matched} high-confidence lines`);
+      }
       if (data.statement?.url) {
         toast.message('Statement PDF saved', { description: 'Stored with this import batch' });
       }
@@ -972,6 +1147,29 @@ function Inner() {
                 Sync feed
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => {
+                setAutoMatchPreview(null);
+                setShowAutoMatch(true);
+                void runAutoMatchPreview();
+              }}
+              className="btn-secondary !py-2.5 !px-5 text-sm inline-flex items-center gap-2"
+              disabled={!pulse?.unallocated}
+              title="Score unallocated lines against AR/AP and rules"
+            >
+              <Wand2 className="w-4 h-4" /> Auto-match
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowRules(true);
+                void loadMatchRules();
+              }}
+              className="btn-secondary !py-2.5 !px-5 text-sm inline-flex items-center gap-2"
+            >
+              <ListFilter className="w-4 h-4" /> Match rules
+            </button>
             <button
               type="button"
               onClick={() => void openMassAllocate()}
@@ -1665,6 +1863,225 @@ function Inner() {
                   )}
                 </button>
               </div>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Auto-match modal */}
+      {showAutoMatch && (
+        <Modal title="Auto-match bank lines" onClose={() => setShowAutoMatch(false)} wide>
+          <div className="space-y-4">
+            <p className="text-sm text-slate-600 leading-relaxed">
+              Scores unallocated lines against open AR/AP invoices (reference, amount, date,
+              counterparty), your match rules, and keyword heuristics. Apply only high-confidence
+              matches (≥80%).
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="btn-secondary !py-2 !px-4 text-sm inline-flex items-center gap-2"
+                disabled={autoMatching}
+                onClick={() => void runAutoMatchPreview()}
+              >
+                {autoMatching ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Wand2 className="w-4 h-4" />
+                )}
+                Re-score
+              </button>
+              <button
+                type="button"
+                className="btn-primary !py-2 !px-5 text-sm inline-flex items-center gap-2"
+                disabled={autoMatching}
+                onClick={() => void applyAutoMatch()}
+              >
+                {autoMatching ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="w-4 h-4" />
+                )}
+                Apply ≥80% matches
+              </button>
+            </div>
+            {autoMatchPreview && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+                {[
+                  { l: 'Scanned', v: autoMatchPreview.scanned },
+                  { l: 'Suggestions', v: autoMatchPreview.suggested },
+                  { l: 'Applied', v: autoMatchPreview.applied },
+                  { l: 'Skipped', v: autoMatchPreview.skipped },
+                ].map((c) => (
+                  <div
+                    key={c.l}
+                    className="rounded-2xl border border-neutral-200 bg-white px-3 py-2"
+                  >
+                    <div className="text-lg font-black tabular-nums text-slate-900">
+                      {String(c.v ?? 0)}
+                    </div>
+                    <div className="text-[10px] font-bold uppercase text-neutral-400">{c.l}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {autoMatchPreview && Array.isArray(autoMatchPreview.results) && (
+              <div className="max-h-[45vh] overflow-y-auto rounded-2xl border border-neutral-200 divide-y divide-neutral-100">
+                {(
+                  autoMatchPreview.results as Array<{
+                    bank_transaction_id: string | number;
+                    applied?: boolean;
+                    action?: string;
+                    confidence?: number;
+                    detail?: string;
+                    error?: string;
+                    suggestions?: Array<{ kind: string; confidence: number; reason?: string }>;
+                  }>
+                )
+                  .filter((r) => (r.confidence || 0) >= 50 || r.applied || r.error)
+                  .slice(0, 80)
+                  .map((r) => (
+                    <div
+                      key={String(r.bank_transaction_id)}
+                      className="px-3 py-2.5 text-xs flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3"
+                    >
+                      <span className="font-mono text-neutral-400 shrink-0">
+                        #{String(r.bank_transaction_id).slice(0, 8)}
+                      </span>
+                      <span
+                        className={`font-bold tabular-nums shrink-0 ${
+                          (r.confidence || 0) >= 80
+                            ? 'text-emerald-700'
+                            : (r.confidence || 0) >= 60
+                              ? 'text-amber-700'
+                              : 'text-neutral-500'
+                        }`}
+                      >
+                        {r.confidence != null ? `${r.confidence}%` : '—'}
+                      </span>
+                      <span className="text-slate-700 min-w-0 flex-1">
+                        {r.error || r.detail || r.action || '—'}
+                        {r.applied ? ' ✓' : ''}
+                      </span>
+                    </div>
+                  ))}
+              </div>
+            )}
+            {!autoMatchPreview && autoMatching && (
+              <div className="flex justify-center py-10">
+                <Loader2 className="w-7 h-7 animate-spin text-[#00b4d8]" />
+              </div>
+            )}
+          </div>
+        </Modal>
+      )}
+
+      {/* Match rules modal */}
+      {showRules && (
+        <Modal title="Match rules" onClose={() => setShowRules(false)} wide>
+          <div className="space-y-5">
+            <p className="text-sm text-slate-600">
+              When description/reference matches a pattern, auto-match can allocate to a GL account
+              or exclude the line. Priority runs lowest number first.
+            </p>
+            <form onSubmit={createMatchRule} className="grid sm:grid-cols-2 gap-3 rounded-2xl border border-neutral-200 bg-neutral-50/50 p-4">
+              <Field label="Name" required>
+                <input
+                  className="input"
+                  value={ruleForm.name}
+                  onChange={(e) => setRuleForm({ ...ruleForm, name: e.target.value })}
+                  placeholder="Bank fees"
+                />
+              </Field>
+              <Field label="Pattern" required>
+                <input
+                  className="input"
+                  value={ruleForm.pattern}
+                  onChange={(e) => setRuleForm({ ...ruleForm, pattern: e.target.value })}
+                  placeholder="service fee"
+                />
+              </Field>
+              <Field label="Match type">
+                <select
+                  className="input"
+                  value={ruleForm.match_type}
+                  onChange={(e) => setRuleForm({ ...ruleForm, match_type: e.target.value })}
+                >
+                  <option value="description_contains">Description contains</option>
+                  <option value="reference_equals">Reference equals</option>
+                  <option value="amount_equals">Amount equals</option>
+                  <option value="description_regex">Description regex</option>
+                </select>
+              </Field>
+              <Field label="Action">
+                <select
+                  className="input"
+                  value={ruleForm.target_type}
+                  onChange={(e) => setRuleForm({ ...ruleForm, target_type: e.target.value })}
+                >
+                  <option value="gl_account">Allocate to GL</option>
+                  <option value="exclude">Exclude</option>
+                </select>
+              </Field>
+              {ruleForm.target_type === 'gl_account' && (
+                <Field label="GL account" required>
+                  <select
+                    className="input"
+                    value={ruleForm.target_id}
+                    onChange={(e) => setRuleForm({ ...ruleForm, target_id: e.target.value })}
+                  >
+                    <option value="">Select…</option>
+                    {plAccounts.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.code} · {a.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              )}
+              <Field label="Priority">
+                <input
+                  className="input"
+                  type="number"
+                  value={ruleForm.priority}
+                  onChange={(e) => setRuleForm({ ...ruleForm, priority: e.target.value })}
+                />
+              </Field>
+              <div className="sm:col-span-2 flex justify-end">
+                <button type="submit" className="btn-primary !py-2 !px-5 text-sm" disabled={saving}>
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Add rule'}
+                </button>
+              </div>
+            </form>
+            <div className="rounded-2xl border border-neutral-200 divide-y divide-neutral-100 max-h-[40vh] overflow-y-auto">
+              {matchRules.length === 0 ? (
+                <div className="px-4 py-8 text-center text-sm text-neutral-500">
+                  No rules yet. Defaults seed when you open Auto-match.
+                </div>
+              ) : (
+                matchRules.map((r) => (
+                  <div
+                    key={r.id}
+                    className="px-4 py-3 flex items-start justify-between gap-3 text-sm"
+                  >
+                    <div className="min-w-0">
+                      <div className="font-semibold text-slate-900">{r.name}</div>
+                      <div className="text-xs text-neutral-500 mt-0.5">
+                        {r.match_type} · “{r.pattern}” → {r.target_type}
+                        {r.target_id ? ` #${r.target_id}` : ''} · p{r.priority ?? 100}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="text-neutral-400 hover:text-rose-600 p-1"
+                      onClick={() => void deleteMatchRule(r.id)}
+                      aria-label="Delete rule"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </Modal>
