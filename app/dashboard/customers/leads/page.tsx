@@ -13,7 +13,6 @@ import {
   Trash2,
   UserPlus,
   Briefcase,
-  ChevronRight,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -33,6 +32,7 @@ import {
   type CustomerRecord,
 } from '@/lib/customers/types';
 import { CompanyRequired, CustomersHeader } from '@/components/customers/CustomersShell';
+import OpportunityPipelineBoard from '@/components/sales/OpportunityPipelineBoard';
 
 type Tab = 'leads' | 'pipeline';
 
@@ -526,7 +526,7 @@ function LeadsInner() {
           onCreate={openLeadCreate}
         />
       ) : (
-        <PipelineBoard
+        <OpportunityPipelineBoard
           opportunities={opps}
           onEdit={openOppEdit}
           onMove={moveStage}
@@ -794,98 +794,7 @@ function LeadsTable({
   );
 }
 
-function PipelineBoard({
-  opportunities,
-  onEdit,
-  onMove,
-  onDelete,
-  onCreate,
-}: {
-  opportunities: OpportunityRecord[];
-  onEdit: (o: OpportunityRecord) => void;
-  onMove: (id: number, stage: string) => void;
-  onDelete: (id: number) => void;
-  onCreate: () => void;
-}) {
-  if (!opportunities.length) {
-    return (
-      <div className="bg-white border rounded-3xl p-16 text-center text-neutral-500">
-        <Briefcase className="w-10 h-10 mx-auto mb-3 text-neutral-300" />
-        <p className="mb-4">No opportunities yet. Create a deal or convert a qualified lead.</p>
-        <button type="button" onClick={onCreate} className="btn-primary !py-2.5 !px-5 text-sm">
-          New opportunity
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="overflow-x-auto pb-2">
-      <div className="flex gap-3 min-w-max">
-        {OPPORTUNITY_STAGES.map((stage) => {
-          const cards = opportunities.filter((o) => o.stage === stage.value);
-          const colValue = cards.reduce((s, o) => s + Number(o.amount || 0), 0);
-          return (
-            <div key={stage.value} className="w-[260px] flex-shrink-0 bg-neutral-50 border rounded-3xl overflow-hidden">
-              <div className="px-3 py-3 border-b bg-white">
-                <div className="font-bold text-sm">{stage.label}</div>
-                <div className="text-[11px] text-neutral-500">
-                  {cards.length} · {formatMoney(colValue)} · {stage.probability}%
-                </div>
-              </div>
-              <div className="p-2 space-y-2 max-h-[70vh] overflow-y-auto">
-                {cards.map((o) => (
-                  <div key={o.id} className="bg-white border rounded-2xl p-3 shadow-sm">
-                    <div className="font-semibold text-sm leading-snug">{o.name}</div>
-                    <div className="text-xs text-neutral-500 mt-0.5">
-                      {o.company_name || o.contact_name || '—'}
-                    </div>
-                    <div className="text-sm font-bold text-emerald-700 mt-1">
-                      {formatMoney(o.amount, o.currency || 'ZAR')}
-                    </div>
-                    <div className="text-[10px] text-neutral-400 mt-0.5">
-                      Weighted {formatMoney(o.weighted_amount)} · close {o.expected_close_date || '—'}
-                    </div>
-                    {o.next_step && (
-                      <div className="text-[11px] text-neutral-600 mt-1 flex items-start gap-1">
-                        <ChevronRight className="w-3 h-3 mt-0.5 flex-shrink-0" />
-                        {o.next_step}
-                      </div>
-                    )}
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {OPPORTUNITY_STAGES.filter((s) => s.value !== o.stage).slice(0, 4).map((s) => (
-                        <button
-                          key={s.value}
-                          type="button"
-                          onClick={() => onMove(o.id, s.value)}
-                          className="text-[9px] px-1.5 py-0.5 rounded-full border bg-neutral-50 hover:bg-sky-50 hover:border-sky-200"
-                          title={`Move to ${s.label}`}
-                        >
-                          {s.label.split(' ')[0]}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="flex justify-between mt-2">
-                      <button type="button" onClick={() => onEdit(o)} className="text-[11px] font-semibold text-[#0077b6]">
-                        Edit
-                      </button>
-                      <button type="button" onClick={() => onDelete(o.id)} className="text-[11px] text-red-600">
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                ))}
-                {cards.length === 0 && (
-                  <div className="text-center text-[11px] text-neutral-400 py-6">Empty</div>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
+/* Pipeline board lives in components/sales/OpportunityPipelineBoard (shared with /sales/pipeline) */
 
 function Modal({
   title,
