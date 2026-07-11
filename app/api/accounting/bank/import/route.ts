@@ -9,6 +9,9 @@ import {
   ingestCanonicalTxns,
   startSyncRun,
   finishSyncRun,
+  parseOfxText,
+  isOfxContent,
+  type CanonicalTxn,
 } from '@/lib/banking';
 
 type ImportBody = {
@@ -137,8 +140,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Bank account not found' }, { status: 404 });
     }
 
-    let parsed: ParseResult & { csv?: string; pages?: number; textPreview?: string };
-    let source: 'csv' | 'pdf' = 'csv';
+    let parsed: ParseResult & { csv?: string; pages?: number; textPreview?: string } | null =
+      null;
+    let source: 'csv' | 'pdf' | 'ofx' = 'csv';
+    let canonical: CanonicalTxn[] = [];
+    let parseWarnings: string[] = [];
+    let parseFormat: string = formatHint;
+    let skipped = 0;
+    let pages: number | undefined;
+    let textPreview: string | undefined;
     let statementStorage: {
       storage_path?: string;
       public_url?: string;
@@ -146,56 +156,91 @@ export async function POST(request: NextRequest) {
     } = {};
 
     if (pdfBuffer && pdfBuffer.length > 0) {
-      source = 'pdf';
-      if (pdfBuffer.length < 100) {
-        return NextResponse.json({ error: 'PDF file is empty or invalid' }, { status: 400 });
-      }
-      if (pdfBuffer.length > 12 * 1024 * 1024) {
-        return NextResponse.json({ error: 'PDF too large (max 12MB)' }, { status: 400 });
-      }
-      if (pdfBuffer.subarray(0, 4).toString() !== '%PDF') {
-        return NextResponse.json(
-          { error: 'File does not look like a PDF. Upload a .pdf statement.' },
-          { status: 400 }
-        );
-      }
-      parsed = await parseBankPdfBuffer(pdfBuffer);
-      if (!dryRun) {
-        statementStorage = await storeStatementPdf(
-          companyId,
-          bankAccountId,
-          filename || 'statement.pdf',
-          pdfBuffer
-        );
+      // OFX/QFX sometimes uploaded as multipart "file" (not always application/pdf)
+      const asText = pdfBuffer.toString('utf8');
+      if (isOfxContent(asText, filename)) {
+        source = 'ofx';
+        const ofx = parseOfxText(asText);
+        canonical = ofx.txns;
+        parseWarnings = ofx.warnings;
+        parseFormat = 'ofx';
+      } else {
+        source = 'pdf';
+        if (pdfBuffer.length < 100) {
+          return NextResponse.json({ error: 'PDF file is empty or invalid' }, { status: 400 });
+        }
+        if (pdfBuffer.length > 12 * 1024 * 1024) {
+          return NextResponse.json({ error: 'PDF too large (max 12MB)' }, { status: 400 });
+        }
+        if (pdfBuffer.subarray(0, 4).toString() !== '%PDF') {
+          return NextResponse.json(
+            {
+              error:
+                'File does not look like a PDF or OFX. Upload a .pdf statement, .csv, or .ofx export.',
+            },
+            { status: 400 }
+          );
+        }
+        parsed = await parseBankPdfBuffer(pdfBuffer);
+        pages = parsed.pages;
+        textPreview = parsed.textPreview;
+        parseWarnings = parsed.warnings;
+        parseFormat = 'pdf';
+        skipped = parsed.skipped;
+        canonical = parsed.lines.map((l) => fromParsedLine('pdf', l));
+        if (!dryRun) {
+          statementStorage = await storeStatementPdf(
+            companyId,
+            bankAccountId,
+            filename || 'statement.pdf',
+            pdfBuffer
+          );
+        }
       }
     } else if (body.csv) {
-      parsed = parseBankCsv(String(body.csv), formatHint);
-      parsed.csv = String(body.csv);
+      const text = String(body.csv);
+      if (isOfxContent(text, filename)) {
+        source = 'ofx';
+        const ofx = parseOfxText(text);
+        canonical = ofx.txns;
+        parseWarnings = ofx.warnings;
+        parseFormat = 'ofx';
+      } else {
+        source = 'csv';
+        parsed = parseBankCsv(text, formatHint);
+        parsed.csv = text;
+        parseWarnings = parsed.warnings;
+        parseFormat = parsed.format;
+        skipped = parsed.skipped;
+        canonical = parsed.lines.map((l) => fromParsedLine('csv', l));
+      }
     } else {
       return NextResponse.json(
-        { error: 'Provide a PDF file, pdfBase64, or csv text' },
+        { error: 'Provide a PDF/OFX file, pdfBase64, or csv/ofx text' },
         { status: 400 }
       );
     }
 
-    if (parsed.lines.length === 0) {
+    if (canonical.length === 0) {
       return NextResponse.json(
         {
           success: false,
           error:
-            'No transactions parsed from the statement. Text-based PDFs work best — scanned image-only PDFs need OCR, or export CSV from your bank.',
-          warnings: parsed.warnings,
-          format: parsed.format,
-          skipped: parsed.skipped,
+            'No transactions parsed from the statement. Text-based PDFs work best — scanned image-only PDFs need OCR, or export CSV/OFX from your bank.',
+          warnings: parseWarnings,
+          format: parseFormat,
+          skipped,
           source,
-          textPreview: parsed.textPreview,
+          textPreview,
         },
         { status: 400 }
       );
     }
 
-    const canonical = parsed.lines.map((l) => fromParsedLine(source, l));
-    const csvOut = parsed.csv || linesToCsv(parsed.lines);
+    const csvOut =
+      parsed?.csv ||
+      (parsed?.lines ? linesToCsv(parsed.lines) : undefined) ||
+      undefined;
 
     if (dryRun) {
       const preview = await ingestCanonicalTxns({
@@ -209,14 +254,14 @@ export async function POST(request: NextRequest) {
         success: true,
         dryRun: true,
         source,
-        format: source === 'pdf' ? 'pdf' : parsed.format,
-        pages: parsed.pages,
-        parsed: parsed.lines.length,
+        format: parseFormat,
+        pages,
+        parsed: canonical.length,
         wouldImport: preview.fetched - preview.duplicates,
         duplicates: preview.duplicates,
-        skipped: parsed.skipped,
-        warnings: parsed.warnings,
-        preview: parsed.lines.slice(0, 25),
+        skipped,
+        warnings: parseWarnings,
+        preview: (parsed?.lines || canonical).slice(0, 25),
         csv: csvOut,
         middleware: true,
       });
@@ -229,15 +274,15 @@ export async function POST(request: NextRequest) {
         bank_account_id: bankAccountId,
         source,
         filename: filename || null,
-        format_hint: source === 'pdf' ? 'pdf' : parsed.format,
-        row_count: parsed.lines.length,
+        format_hint: parseFormat,
+        row_count: canonical.length,
         imported_count: 0,
-        skipped_count: parsed.skipped,
+        skipped_count: skipped,
         duplicate_count: 0,
         imported_by: privyUserId || null,
         metadata: {
           format_hint: formatHint,
-          pages: parsed.pages,
+          pages,
           middleware: true,
           ...statementStorage,
         },
@@ -290,7 +335,7 @@ export async function POST(request: NextRequest) {
           duplicate_count: ingest.duplicates,
           metadata: {
             format_hint: formatHint,
-            pages: parsed.pages,
+            pages,
             middleware: true,
             ...statementStorage,
           },
@@ -301,7 +346,7 @@ export async function POST(request: NextRequest) {
     await supabase
       .from('bank_accounts')
       .update({
-        import_format: source === 'pdf' ? 'pdf' : parsed.format,
+        import_format: parseFormat,
         updated_at: new Date().toISOString(),
       })
       .eq('id', bankAccountId);
@@ -326,14 +371,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       source,
-      format: source === 'pdf' ? 'pdf' : parsed.format,
+      format: parseFormat,
       batch_id: batchId,
-      parsed: parsed.lines.length,
+      parsed: canonical.length,
       imported: ingest.inserted,
       duplicates: ingest.duplicates,
       auto_matched: ingest.auto_matched || 0,
-      skipped: parsed.skipped,
-      warnings: parsed.warnings,
+      skipped,
+      warnings: parseWarnings,
       csv: csvOut,
       middleware: true,
       sync_run_id: runId,

@@ -36,7 +36,7 @@ import {
   type CoaAccount,
   type AccountingInvoice,
 } from '@/lib/accounting/types';
-import { UNIVERSAL_CSV_TEMPLATE } from '@/lib/accounting/csv';
+import { BANK_CSV_FORMATS, UNIVERSAL_CSV_TEMPLATE } from '@/lib/accounting/csv';
 import {
   groupTransactionsForMassAlloc,
   type MassAllocGroup,
@@ -723,12 +723,31 @@ function Inner() {
 
   function onFile(file: File | null) {
     if (!file) return;
-    const isPdf =
-      file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    const lower = file.name.toLowerCase();
+    const isPdf = file.type === 'application/pdf' || lower.endsWith('.pdf');
+    const isOfx =
+      lower.endsWith('.ofx') ||
+      lower.endsWith('.qfx') ||
+      file.type.includes('ofx');
     setImportPreview(null);
-    if (isPdf) {
+    if (isPdf || isOfx) {
       setImportFile(file);
-      // Also keep a data-URL fallback for environments that only send JSON
+      // Multipart for binary; also keep text for OFX fallback
+      if (isOfx) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          setImportForm((f) => ({
+            ...f,
+            filename: file.name,
+            kind: 'csv',
+            csv: String(reader.result || ''),
+            pdfBase64: '',
+            format: 'auto',
+          }));
+        };
+        reader.readAsText(file);
+        return;
+      }
       const reader = new FileReader();
       reader.onload = () => {
         const result = String(reader.result || '');
@@ -2230,16 +2249,17 @@ function Inner() {
             </Field>
             <div className="grid grid-cols-2 gap-3">
               {importForm.kind === 'csv' && (
-                <Field label="CSV format hint">
+                <Field label="CSV bank format">
                   <select
                     value={importForm.format}
                     onChange={(e) => setImportForm({ ...importForm, format: e.target.value })}
                     className="input"
                   >
-                    <option value="auto">Auto-detect</option>
-                    <option value="fnb">FNB / Money In-Out</option>
-                    <option value="rmb">RMB</option>
-                    <option value="universal">Universal</option>
+                    {BANK_CSV_FORMATS.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.label}
+                      </option>
+                    ))}
                   </select>
                 </Field>
               )}

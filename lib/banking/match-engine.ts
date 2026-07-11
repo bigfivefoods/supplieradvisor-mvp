@@ -2,6 +2,7 @@
  * Bank match engine — score unallocated bank lines against:
  *  - Open AR/AP invoices (reference, amount, date, counterparty)
  *  - Company bank_match_rules
+ *  - Learned counterparty → GL patterns from history
  *  - Built-in keyword → GL heuristics
  */
 
@@ -13,6 +14,11 @@ import {
 import { DEFAULT_ALLOC_RULES } from '@/lib/accounting/mass-allocate';
 import type { CoaAccount } from '@/lib/accounting/types';
 import { round2 } from '@/lib/accounting/server';
+import {
+  loadLearnedPatterns,
+  learningBoost,
+  type LearnedPattern,
+} from './learning';
 
 export type MatchSuggestion =
   | {
@@ -122,7 +128,8 @@ export function scoreBankTransaction(
   txn: BankTxnLite,
   invoices: InvoiceLite[],
   rules: MatchRuleRow[],
-  coa: CoaAccount[]
+  coa: CoaAccount[],
+  learned?: Map<string, LearnedPattern>
 ): MatchSuggestion[] {
   const suggestions: MatchSuggestion[] = [];
   const amount = Number(txn.amount || 0);
@@ -267,6 +274,23 @@ export function scoreBankTransaction(
         rule_id: rule.id,
       });
       break;
+    }
+  }
+
+  // ── Learned patterns from past allocations ────────────────────────────────
+  if (learned && learned.size) {
+    const boost = learningBoost(desc, txn.counterparty_name, learned);
+    if (boost?.gl_account_id) {
+      const acc = coa.find((c) => Number(c.id) === Number(boost.gl_account_id));
+      suggestions.push({
+        kind: 'gl',
+        confidence: boost.confidence,
+        gl_account_id: boost.gl_account_id,
+        gl_code: acc?.code || null,
+        gl_name: acc?.name || null,
+        reason: boost.reason,
+        rule_id: null,
+      });
     }
   }
 
@@ -426,6 +450,7 @@ export async function runAutoMatch(opts: AutoMatchOptions): Promise<AutoMatchRes
 
   const coa = (coaRows || []) as CoaAccount[];
   const ruleRows = (rules || []) as MatchRuleRow[];
+  const learned = await loadLearnedPatterns(opts.companyId);
 
   const result: AutoMatchResult = {
     scanned: txns.length,
@@ -440,7 +465,7 @@ export async function runAutoMatch(opts: AutoMatchOptions): Promise<AutoMatchRes
   const claimedInvoices = new Set<number>();
 
   for (const txn of txns) {
-    let suggestions = scoreBankTransaction(txn, invoices, ruleRows, coa);
+    let suggestions = scoreBankTransaction(txn, invoices, ruleRows, coa, learned);
     // Drop invoice suggestions already claimed
     suggestions = suggestions.filter(
       (s) => s.kind !== 'invoice' || !claimedInvoices.has(s.invoice_id)

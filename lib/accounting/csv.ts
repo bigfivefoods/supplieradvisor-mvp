@@ -14,12 +14,33 @@ export type ParsedBankLine = {
   raw: Record<string, string>;
 };
 
+export type BankCsvFormat =
+  | 'fnb'
+  | 'rmb'
+  | 'absa'
+  | 'standard_bank'
+  | 'nedbank'
+  | 'capitec'
+  | 'universal'
+  | 'auto';
+
 export type ParseResult = {
-  format: 'fnb' | 'rmb' | 'universal' | 'auto';
+  format: BankCsvFormat;
   lines: ParsedBankLine[];
   warnings: string[];
   skipped: number;
 };
+
+export const BANK_CSV_FORMATS: Array<{ id: BankCsvFormat; label: string }> = [
+  { id: 'auto', label: 'Auto-detect' },
+  { id: 'fnb', label: 'FNB / RMB (Money In-Out)' },
+  { id: 'rmb', label: 'RMB' },
+  { id: 'absa', label: 'Absa' },
+  { id: 'standard_bank', label: 'Standard Bank' },
+  { id: 'nedbank', label: 'Nedbank' },
+  { id: 'capitec', label: 'Capitec Business' },
+  { id: 'universal', label: 'Universal (Date, Description, Amount…)' },
+];
 
 function normalizeHeader(h: string): string {
   return String(h || '')
@@ -175,7 +196,12 @@ function mapColumns(headers: string[]): { map: ColMap; normalized: string[] } {
     'posteddate',
     'valuedate',
     'postingdate',
-    'trandate'
+    'trandate',
+    'procesdate',
+    'processdate',
+    'effectivedate',
+    'accountdate',
+    'statementdate'
   );
   map.description = find(
     'description',
@@ -184,7 +210,11 @@ function mapColumns(headers: string[]): { map: ColMap; normalized: string[] } {
     'transactiondescription',
     'trandesc',
     'memo',
-    'particulars'
+    'particulars',
+    'transactiondetails',
+    'statementdescription',
+    'servicefee',
+    'desc'
   );
   map.reference = find(
     'reference',
@@ -193,9 +223,15 @@ function mapColumns(headers: string[]): { map: ColMap; normalized: string[] } {
     'chequeno',
     'transactionreference',
     'bankreference',
-    'trancode'
+    'trancode',
+    'yourreference',
+    'theirreference',
+    'otherreference',
+    'clientreference',
+    'statementreference',
+    'uniqref'
   );
-  map.amount = find('amount', 'value', 'transactionamount', 'amt');
+  map.amount = find('amount', 'value', 'transactionamount', 'amt', 'zar', 'transactionvalue');
   map.moneyIn = find(
     'moneyin',
     'credit',
@@ -203,7 +239,10 @@ function mapColumns(headers: string[]): { map: ColMap; normalized: string[] } {
     'deposit',
     'credits',
     'amountin',
-    'cr'
+    'cr',
+    'paidin',
+    'receipts',
+    'incoming'
   );
   map.moneyOut = find(
     'moneyout',
@@ -213,16 +252,30 @@ function mapColumns(headers: string[]): { map: ColMap; normalized: string[] } {
     'debits',
     'amountout',
     'dr',
-    'payments'
+    'payments',
+    'paidout',
+    'outgoing',
+    'charge'
   );
-  map.balance = find('balance', 'runningbalance', 'accountbalance', 'closingbalance');
+  map.balance = find(
+    'balance',
+    'runningbalance',
+    'accountbalance',
+    'closingbalance',
+    'availablebalance',
+    'ledgerbalance'
+  );
   map.counterparty = find(
     'counterparty',
     'payee',
     'payer',
     'beneficiary',
     'name',
-    'fromto'
+    'fromto',
+    'accountname',
+    'otherparty',
+    'counterpartyname',
+    'suppliercustomer'
   );
 
   return { map, normalized };
@@ -230,6 +283,24 @@ function mapColumns(headers: string[]): { map: ColMap; normalized: string[] } {
 
 function detectFormat(normalized: string[]): ParseResult['format'] {
   const set = new Set(normalized);
+  const joined = normalized.join(' ');
+
+  // Capitec Business exports often use Process Date / Service Fee columns
+  if (
+    set.has('processdate') ||
+    set.has('procesdate') ||
+    (set.has('servicefee') && set.has('amount'))
+  ) {
+    return 'capitec';
+  }
+  // Absa / Standard often label Credit/Debit separately with Statement Description
+  if (set.has('statementdescription') || set.has('theirreference') || set.has('yourreference')) {
+    if (joined.includes('absa') || set.has('theirreference')) return 'absa';
+    return 'standard_bank';
+  }
+  if (set.has('nedbank') || (set.has('fee') && set.has('vat') && set.has('amount'))) {
+    return 'nedbank';
+  }
   // FNB often: Date, Description, Amount, Balance or Money In / Money Out
   if (
     (set.has('moneyin') || set.has('credit')) &&
@@ -241,6 +312,28 @@ function detectFormat(normalized: string[]): ParseResult['format'] {
     return 'universal';
   }
   return 'auto';
+}
+
+/** Guess counterparty from common SA bank narrative prefixes. */
+export function inferCounterpartyFromDescription(description: string): string | null {
+  const s = String(description || '').trim();
+  if (!s) return null;
+  const patterns = [
+    /^(?:fnb app payment (?:to|from)|internet pmt (?:to|from)|int-banking pmt (?:to|frm|from)|rtc (?:credit|debit)|payshap|magtape credit|eft (?:to|from)|payment (?:to|from)|debit order)\s+(.+)$/i,
+    /^(?:pos purchase|fuel purchase)\s+(.+)$/i,
+    /^(?:card purchase|purchase)\s+(.+)$/i,
+  ];
+  for (const re of patterns) {
+    const m = s.match(re);
+    if (m?.[1]) {
+      return m[1]
+        .replace(/\s+\d{2}[\/\-]\d{2}.*$/i, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim()
+        .slice(0, 200);
+    }
+  }
+  return null;
 }
 
 /**
@@ -274,10 +367,18 @@ export function parseBankCsv(
       headerIdx = i;
       headers = cells;
       colMap = map;
-      format =
-        formatHint === 'fnb' || formatHint === 'rmb' || formatHint === 'universal'
-          ? (formatHint as ParseResult['format'])
-          : detectFormat(normalized);
+      const known: BankCsvFormat[] = [
+        'fnb',
+        'rmb',
+        'absa',
+        'standard_bank',
+        'nedbank',
+        'capitec',
+        'universal',
+      ];
+      format = known.includes(formatHint as BankCsvFormat)
+        ? (formatHint as BankCsvFormat)
+        : detectFormat(normalized);
       break;
     }
   }
@@ -347,7 +448,13 @@ export function parseBankCsv(
 
     const reference = get(colMap.reference) || null;
     const balance_after = colMap.balance ? parseAmount(get(colMap.balance)) : null;
-    const counterparty_name = get(colMap.counterparty) || null;
+    let counterparty_name = get(colMap.counterparty) || null;
+    if (!counterparty_name) {
+      counterparty_name = inferCounterpartyFromDescription(description);
+    }
+
+    // Capitec / some banks put fee amount separate — leave as main amount column
+    // Absa credit/debit: if amount column missing but we got money in/out, already handled
 
     const external_id = hashLine([
       date,
@@ -355,6 +462,7 @@ export function parseBankCsv(
       reference,
       amount,
       balance_after,
+      format,
     ]);
 
     lines.push({
@@ -365,7 +473,7 @@ export function parseBankCsv(
       balance_after,
       counterparty_name: counterparty_name ? counterparty_name.slice(0, 200) : null,
       external_id,
-      raw: row,
+      raw: { ...row, _format: format },
     });
   }
 

@@ -3,6 +3,10 @@
     {
       "path": "/api/customers/invites/expire",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/banking/cron-sync",
+      "schedule": "0 */6 * * *"
     }
   ]
 }

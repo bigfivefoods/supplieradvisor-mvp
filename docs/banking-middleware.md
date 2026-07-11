@@ -81,10 +81,27 @@ Creates `bank_connections`, `bank_sync_runs`, `bank_match_rules`, and provider c
 
 **UI:** Bank reconciliation → **Auto-match** (preview then apply) and **Match rules**.
 
+## Phase 3 — multi-bank files, learning, cron
+
+### Multi-bank CSV / OFX
+- Formats: FNB, RMB, Absa, Standard Bank, Nedbank, Capitec, universal + auto-detect
+- OFX/QFX via `parseOfxText` (import `.ofx` / paste)
+- Counterparty inferred from common SA narrative prefixes
+
+### Counterparty learning
+- `lib/banking/learning.ts` learns merchant_key → GL from past `allocated` rows
+- Auto-match boosts confidence (48% single hit, up to ~82% with repeated consistent allocations)
+
+### Scheduled sync
+- `GET/POST /api/banking/cron-sync` every 6 hours (Vercel Cron)
+- Auth: `Authorization: Bearer $CRON_SECRET`
+- Syncs active `bank_connections`, ingests + high-confidence auto-match
+
 ## Ops checklist
 
 1. Apply migration `20260711_bank_middleware.sql` in Supabase.
 2. Optional: `BANKLINK_API_KEY` on Vercel for live FNB.
-3. Point BankLink Pulse to `/api/banking/webhooks/banklink`.
-4. Seed CoA so fee/interest rules resolve GL codes.
-5. Later: multi-bank adapters, FNB Integration Channel if contracted.
+3. Set `CRON_SECRET` on Vercel for scheduled bank sync.
+4. Point BankLink Pulse to `/api/banking/webhooks/banklink`.
+5. Seed CoA so fee/interest rules resolve GL codes.
+6. Later: FNB Integration Channel direct provider if contracted.
