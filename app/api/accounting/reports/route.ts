@@ -3,10 +3,18 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { assertAccountingAccess } from '@/lib/accounting/access';
 import { parseCompanyId, round2 } from '@/lib/accounting/server';
 import { invoiceBalance } from '@/lib/accounting/types';
+import {
+  buildForecastSeries,
+  emptyBucket,
+  finalizeBuckets,
+  monthKey,
+  trailingMonthKeys,
+  type MonthBucket,
+} from '@/lib/accounting/forecast';
 
 /**
- * GET ?companyId=&report=trial_balance|pnl|balance_sheet|ar_aging|ap_aging|cashflow|management_accounts
- * Optional: from=&to= (YYYY-MM-DD)
+ * GET ?companyId=&report=trial_balance|pnl|balance_sheet|ar_aging|ap_aging|cashflow|management_accounts|trends|forecast
+ * Optional: from=&to= (YYYY-MM-DD), months=12 (for trends/forecast history window)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -281,6 +289,181 @@ export async function GET(request: NextRequest) {
           allocatedCount,
           recentAllocated,
         },
+      });
+    }
+
+    // ── Monthly trends + multi-horizon forecast ──────────────────────────
+    if (report === 'trends' || report === 'forecast') {
+      const monthsParam = Number(request.nextUrl.searchParams.get('months') || 12);
+      const historyMonths = Math.min(24, Math.max(6, Number.isFinite(monthsParam) ? monthsParam : 12));
+      const keys = trailingMonthKeys(historyMonths);
+      const rangeFrom = `${keys[0]}-01`;
+      const lastKey = keys[keys.length - 1];
+      const [ly, lm] = lastKey.split('-').map(Number);
+      const lastDay = new Date(ly, lm, 0).getDate();
+      const rangeTo = `${lastKey}-${String(lastDay).padStart(2, '0')}`;
+
+      const { data: accounts } = await supabase
+        .from('chart_of_accounts')
+        .select('id, account_type, is_header')
+        .eq('profile_id', companyId)
+        .eq('is_active', true);
+
+      const accountType = new Map<number, string>();
+      for (const a of accounts || []) {
+        if (a.is_header) continue;
+        accountType.set(Number(a.id), String(a.account_type || ''));
+      }
+
+      const { data: entries } = await supabase
+        .from('journal_entries')
+        .select('id, entry_date')
+        .eq('profile_id', companyId)
+        .eq('status', 'posted')
+        .gte('entry_date', rangeFrom)
+        .lte('entry_date', rangeTo);
+
+      const entryMonth = new Map<number, string>();
+      for (const e of entries || []) {
+        const d = String(e.entry_date || '').slice(0, 10);
+        if (!d) continue;
+        entryMonth.set(Number(e.id), d.slice(0, 7));
+      }
+      const entryIds = Array.from(entryMonth.keys());
+
+      type LineRow = { journal_entry_id: number; account_id: number; debit: number; credit: number };
+      let lines: LineRow[] = [];
+      // Chunk .in() for large journals
+      const chunk = 200;
+      for (let i = 0; i < entryIds.length; i += chunk) {
+        const slice = entryIds.slice(i, i + chunk);
+        if (!slice.length) break;
+        const { data: lineRows } = await supabase
+          .from('journal_lines')
+          .select('journal_entry_id, account_id, debit, credit')
+          .in('journal_entry_id', slice);
+        for (const l of lineRows || []) {
+          lines.push({
+            journal_entry_id: Number(l.journal_entry_id),
+            account_id: Number(l.account_id),
+            debit: Number(l.debit || 0),
+            credit: Number(l.credit || 0),
+          });
+        }
+      }
+
+      const bucketMap = new Map<string, MonthBucket>();
+      for (const k of keys) bucketMap.set(k, emptyBucket(k));
+
+      const journalsPerMonth = new Map<string, Set<number>>();
+      for (const e of entries || []) {
+        const mk = entryMonth.get(Number(e.id));
+        if (!mk || !bucketMap.has(mk)) continue;
+        if (!journalsPerMonth.has(mk)) journalsPerMonth.set(mk, new Set());
+        journalsPerMonth.get(mk)!.add(Number(e.id));
+      }
+      for (const [mk, set] of journalsPerMonth) {
+        const b = bucketMap.get(mk);
+        if (b) b.journalCount = set.size;
+      }
+
+      for (const l of lines) {
+        const mk = entryMonth.get(l.journal_entry_id);
+        if (!mk) continue;
+        const b = bucketMap.get(mk);
+        if (!b) continue;
+        const type = accountType.get(l.account_id);
+        if (type === 'revenue') b.revenue += l.credit - l.debit;
+        else if (type === 'cogs') b.cogs += l.debit - l.credit;
+        else if (type === 'expense') b.expenses += l.debit - l.credit;
+      }
+
+      // Bank cash movement by month
+      const { data: bankTxns } = await supabase
+        .from('bank_transactions')
+        .select('txn_date, amount')
+        .eq('profile_id', companyId)
+        .gte('txn_date', rangeFrom)
+        .lte('txn_date', rangeTo);
+
+      for (const t of bankTxns || []) {
+        const mk = String(t.txn_date || '').slice(0, 7);
+        const b = bucketMap.get(mk);
+        if (!b) continue;
+        const amt = Number(t.amount || 0);
+        if (amt > 0) b.bankIn += amt;
+        else b.bankOut += Math.abs(amt);
+      }
+
+      // Payments as cashflow fallback / supplement if bank empty
+      const { data: payments } = await supabase
+        .from('payments')
+        .select('paid_at, amount, direction')
+        .eq('profile_id', companyId)
+        .gte('paid_at', `${rangeFrom}T00:00:00`)
+        .lte('paid_at', `${rangeTo}T23:59:59`)
+        .limit(2000);
+
+      // Only fold payments into cash if bank has no rows that month
+      const monthsWithBank = new Set(
+        (bankTxns || []).map((t) => String(t.txn_date || '').slice(0, 7)).filter(Boolean)
+      );
+      for (const p of payments || []) {
+        const mk = String(p.paid_at || '').slice(0, 7);
+        if (!mk || monthsWithBank.has(mk)) continue;
+        const b = bucketMap.get(mk);
+        if (!b) continue;
+        const amt = Number(p.amount || 0);
+        if (p.direction === 'inbound') b.bankIn += amt;
+        else b.bankOut += amt;
+      }
+
+      const history = finalizeBuckets(bucketMap, keys);
+      const totals = {
+        revenue: round2(history.reduce((s, h) => s + h.revenue, 0)),
+        cogs: round2(history.reduce((s, h) => s + h.cogs, 0)),
+        expenses: round2(history.reduce((s, h) => s + h.expenses, 0)),
+        netIncome: round2(history.reduce((s, h) => s + h.netIncome, 0)),
+        bankIn: round2(history.reduce((s, h) => s + h.bankIn, 0)),
+        bankOut: round2(history.reduce((s, h) => s + h.bankOut, 0)),
+        cashNet: round2(history.reduce((s, h) => s + h.cashNet, 0)),
+      };
+
+      if (report === 'trends') {
+        return NextResponse.json({
+          success: true,
+          report: 'trends',
+          period: { from: rangeFrom, to: rangeTo, months: historyMonths },
+          history,
+          totals,
+          labels: history.map((h) => h.label),
+          series: {
+            revenue: history.map((h) => h.revenue),
+            cogs: history.map((h) => h.cogs),
+            expenses: history.map((h) => h.expenses),
+            netIncome: history.map((h) => h.netIncome),
+            bankIn: history.map((h) => h.bankIn),
+            bankOut: history.map((h) => h.bankOut),
+            cashNet: history.map((h) => h.cashNet),
+          },
+        });
+      }
+
+      // forecast
+      const { series, horizons, method } = buildForecastSeries(history);
+      const last = history[history.length - 1] || emptyBucket(monthKey(new Date()));
+
+      return NextResponse.json({
+        success: true,
+        report: 'forecast',
+        period: { from: rangeFrom, to: rangeTo, months: historyMonths },
+        history,
+        totals,
+        lastMonth: last,
+        series,
+        horizons,
+        method,
+        asOf: new Date().toISOString(),
       });
     }
 

@@ -21,6 +21,13 @@ import {
   CompanyRequired,
 } from '@/components/accounting/AccountingShell';
 import { Panel, SectionLabel } from '@/components/relationship/RelationshipChrome';
+import {
+  CashflowChart,
+  ChartCard,
+  MixDoughnut,
+  PeriodWaterfall,
+  PnlTrendChart,
+} from '@/components/accounting/AccountingCharts';
 
 type MgmtSummary = {
   revenue: number;
@@ -75,6 +82,15 @@ function Inner() {
   const [income, setIncome] = useState<LineRow[]>([]);
   const [cogs, setCogs] = useState<LineRow[]>([]);
   const [expenses, setExpenses] = useState<LineRow[]>([]);
+  const [trendLabels, setTrendLabels] = useState<string[]>([]);
+  const [trendSeries, setTrendSeries] = useState<{
+    revenue: number[];
+    expenses: number[];
+    netIncome: number[];
+    bankIn: number[];
+    bankOut: number[];
+    cashNet: number[];
+  } | null>(null);
 
   const fyLabel = useMemo(() => fiscalYearLabel(new Date()), []);
   const fyMonths = useMemo(() => fiscalYearMonths(new Date()), []);
@@ -105,7 +121,18 @@ function Inner() {
         to,
       });
       if (privyUserId) params.set('privyUserId', privyUserId);
-      const res = await fetch(`/api/accounting/reports?${params}`);
+
+      const trendParams = new URLSearchParams({
+        companyId: String(companyId),
+        report: 'trends',
+        months: '12',
+      });
+      if (privyUserId) trendParams.set('privyUserId', privyUserId);
+
+      const [res, trendRes] = await Promise.all([
+        fetch(`/api/accounting/reports?${params}`),
+        fetch(`/api/accounting/reports?${trendParams}`),
+      ]);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
       setSummary(data.summary || null);
@@ -113,6 +140,12 @@ function Inner() {
       setCogs(data.cogs || []);
       setExpenses(data.expenses || []);
       if (data.warning) toast.message(data.warning);
+
+      if (trendRes.ok) {
+        const t = await trendRes.json();
+        setTrendLabels((t.labels as string[]) || []);
+        setTrendSeries((t.series as typeof trendSeries) || null);
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed');
       setSummary(null);
@@ -389,7 +422,7 @@ function Inner() {
             </Link>
           )}
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
             <Kpi label="Revenue" value={formatMoney(summary?.revenue ?? 0)} tone="emerald" />
             <Kpi label="Gross profit" value={formatMoney(summary?.grossProfit ?? 0)} />
             <Kpi label="Expenses" value={formatMoney(summary?.expenses ?? 0)} />
@@ -400,7 +433,7 @@ function Inner() {
             />
           </div>
 
-          <div className="grid lg:grid-cols-3 gap-3 mb-8">
+          <div className="grid lg:grid-cols-3 gap-3 mb-6">
             <Kpi label="Bank in (period)" value={formatMoney(summary?.bankIn ?? 0)} />
             <Kpi label="Bank out (period)" value={formatMoney(summary?.bankOut ?? 0)} />
             <Kpi
@@ -409,6 +442,88 @@ function Inner() {
               sub={`${summary?.allocatedCount ?? 0} bank-allocated`}
             />
           </div>
+
+          {/* Visual analytics */}
+          <SectionLabel>Visual management pack</SectionLabel>
+          <div className="grid lg:grid-cols-2 gap-4 mb-8">
+            <ChartCard
+              title="Period P&L bridge"
+              subtitle={`${periodLabel} — revenue through net`}
+              height={280}
+            >
+              <PeriodWaterfall
+                revenue={summary?.revenue ?? 0}
+                cogs={summary?.cogs ?? 0}
+                expenses={summary?.expenses ?? 0}
+                netIncome={summary?.netIncome ?? 0}
+              />
+            </ChartCard>
+            <ChartCard title="Expense mix" subtitle="Operating accounts this period" height={280}>
+              <MixDoughnut
+                segments={expenses.slice(0, 10).map((r) => ({
+                  label: r.name.slice(0, 22),
+                  value: r.amount,
+                }))}
+                centerLabel="OpEx"
+                centerValue={formatMoney(summary?.expenses ?? 0)}
+              />
+            </ChartCard>
+            {trendSeries && trendLabels.length > 0 && (
+              <>
+                <ChartCard
+                  title="12-month P&L trend"
+                  subtitle="Posted monthly history (context beyond this period)"
+                  height={280}
+                  className="lg:col-span-2"
+                >
+                  <PnlTrendChart
+                    labels={trendLabels}
+                    revenue={trendSeries.revenue}
+                    expenses={trendSeries.expenses}
+                    netIncome={trendSeries.netIncome}
+                  />
+                </ChartCard>
+                <ChartCard
+                  title="12-month cash trend"
+                  subtitle="Bank inflows / outflows · net dashed"
+                  height={260}
+                  className="lg:col-span-2"
+                >
+                  <CashflowChart
+                    labels={trendLabels}
+                    inflow={trendSeries.bankIn}
+                    outflow={trendSeries.bankOut}
+                    net={trendSeries.cashNet}
+                  />
+                </ChartCard>
+              </>
+            )}
+            {income.length > 0 && (
+              <ChartCard title="Income mix" subtitle="Revenue accounts this period" height={280}>
+                <MixDoughnut
+                  segments={income.slice(0, 10).map((r) => ({
+                    label: r.name.slice(0, 22),
+                    value: r.amount,
+                  }))}
+                  centerLabel="Revenue"
+                  centerValue={formatMoney(summary?.revenue ?? 0)}
+                />
+              </ChartCard>
+            )}
+          </div>
+
+          <SectionLabel
+            action={
+              <a
+                href="/dashboard/accounting/reports"
+                className="text-xs font-semibold text-[#00b4d8] hover:underline"
+              >
+                Full reports & 1–12m forecast →
+              </a>
+            }
+          >
+            Account lines
+          </SectionLabel>
 
           <SectionLabel>Income</SectionLabel>
           <AccountTable rows={income} empty="No income posted in this period" />
