@@ -96,17 +96,38 @@ export default function SalesPipelinePage() {
 
   const moveOpp = async (id: number, stage: string) => {
     if (!companyId) return;
+    const stageMeta = OPPORTUNITY_STAGES.find((s) => s.value === stage);
+    const prob = stageMeta?.probability ?? 10;
+    setOpps((prev) =>
+      prev.map((o) =>
+        o.id === id
+          ? {
+              ...o,
+              stage,
+              probability: prob,
+              weighted_amount: Math.round((Number(o.amount || 0) * prob) / 100),
+            }
+          : o
+      )
+    );
     const res = await fetch('/api/customers/opportunities', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ companyId, privyUserId, id, stage }),
+      body: JSON.stringify({
+        companyId,
+        privyUserId,
+        id,
+        stage,
+        probability: prob,
+      }),
     });
     const data = await res.json();
     if (!res.ok) {
       toast.error(data.error || 'Could not move deal');
+      void load();
       return;
     }
-    toast.success(`Moved to ${stage.replace(/_/g, ' ')}`);
+    toast.success(`Moved to ${stageMeta?.label || stage.replace(/_/g, ' ')}`);
     void load();
   };
 

@@ -317,6 +317,8 @@ function LeadsInner() {
     }
     setSaving(true);
     try {
+      // Empty date strings break Postgres date columns — send null instead
+      const emptyToNull = (v: string) => (v && String(v).trim() ? String(v).trim() : null);
       const payload = {
         companyId,
         ...oppForm,
@@ -324,6 +326,8 @@ function LeadsInner() {
         probability: Number(oppForm.probability) || stageProbability(oppForm.stage),
         lead_id: oppForm.lead_id ? Number(oppForm.lead_id) : null,
         customer_id: oppForm.customer_id ? Number(oppForm.customer_id) : null,
+        expected_close_date: emptyToNull(oppForm.expected_close_date),
+        next_step_date: emptyToNull(oppForm.next_step_date),
       };
       const res = await fetch('/api/customers/opportunities', {
         method: editingOpp ? 'PATCH' : 'POST',
@@ -358,10 +362,26 @@ function LeadsInner() {
   };
 
   const moveStage = async (id: number, stage: string) => {
+    // Optimistic UI so drag feels instant
+    setOpps((prev) =>
+      prev.map((o) =>
+        o.id === id
+          ? {
+              ...o,
+              stage,
+              probability: stageProbability(stage),
+              weighted_amount: Math.round(
+                (Number(o.amount || 0) * stageProbability(stage)) / 100
+              ),
+            }
+          : o
+      )
+    );
     const res = await fetch('/api/customers/opportunities', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        companyId,
         id,
         stage,
         probability: stageProbability(stage),
@@ -369,10 +389,13 @@ function LeadsInner() {
     });
     if (!res.ok) {
       const d = await res.json();
-      toast.error(d.error || 'Failed');
+      toast.error(d.error || 'Failed to move deal');
+      void load();
       return;
     }
-    toast.success(`Moved to ${stage.replace(/_/g, ' ')}`);
+    const label =
+      OPPORTUNITY_STAGES.find((s) => s.value === stage)?.label || stage.replace(/_/g, ' ');
+    toast.success(`Moved to ${label}`);
     void load();
   };
 

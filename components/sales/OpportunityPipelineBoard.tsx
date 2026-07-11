@@ -1,7 +1,7 @@
 'use client';
 
-import { useMemo } from 'react';
-import { Briefcase, ChevronRight, Wallet } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Briefcase, ChevronRight, GripVertical, Wallet } from 'lucide-react';
 import {
   OPPORTUNITY_STAGES,
   formatMoney,
@@ -20,11 +20,8 @@ export type OpportunityPipelineBoardProps = {
   onMove?: (id: number, stage: string) => void;
   onDelete?: (id: number) => void;
   onCreate?: () => void;
-  /** Show progressive commission (sales contractor) */
   showCommission?: boolean;
-  /** Optional agreement tiers; defaults to platform 3.5%–5.5% scale */
   commissionTiers?: CommissionTier[] | null;
-  /** Compact cards for dense boards */
   compact?: boolean;
 };
 
@@ -43,9 +40,13 @@ function probabilityPct(o: OpportunityRecord): number {
   return stage?.probability ?? 10;
 }
 
+function isTerminal(stage: string) {
+  return stage === 'closed_won' || stage === 'closed_lost' || stage === 'invoiced';
+}
+
 /**
- * Kanban opportunity map (same layout as Customers → Leads → Opportunity pipeline).
- * Sales portal can pass showCommission for “earn if won” per card.
+ * Kanban opportunity map with drag-and-drop stage moves.
+ * Sales portal: showCommission for earn-if-won per card.
  */
 export default function OpportunityPipelineBoard({
   opportunities,
@@ -58,6 +59,8 @@ export default function OpportunityPipelineBoard({
   compact = false,
 }: OpportunityPipelineBoardProps) {
   const tiers = commissionTiers?.length ? commissionTiers : DEFAULT_COMMISSION_TIERS;
+  const [draggingId, setDraggingId] = useState<number | null>(null);
+  const [overStage, setOverStage] = useState<string | null>(null);
 
   const totals = useMemo(() => {
     let pipeline = 0;
@@ -66,13 +69,13 @@ export default function OpportunityPipelineBoard({
     for (const o of opportunities) {
       if (o.stage === 'closed_lost') continue;
       const amt = dealAmount(o);
-      pipeline += amt;
+      if (o.stage !== 'invoiced' && o.stage !== 'closed_won') pipeline += amt;
       if (showCommission && amt > 0) {
         const c = calculateCommission(amt, { tiers }).commissionAmount;
         commission += c;
-        if (o.stage !== 'closed_won') {
+        if (!isTerminal(o.stage || '')) {
           weightedComm += (c * probabilityPct(o)) / 100;
-        } else {
+        } else if (o.stage !== 'closed_lost') {
           weightedComm += c;
         }
       }
@@ -96,6 +99,12 @@ export default function OpportunityPipelineBoard({
 
   return (
     <div className="space-y-3">
+      <p className="text-xs text-neutral-500">
+        <strong className="text-slate-700">Drag cards</strong> between columns to change stage —
+        or use the quick-move chips. Move to <strong>Won</strong> when the deal is accepted, then{' '}
+        <strong>Invoiced</strong> when billed.
+      </p>
+
       {showCommission && (
         <div className="flex flex-wrap gap-2">
           <div className="rounded-2xl border border-neutral-200 bg-white px-4 py-2.5 text-sm">
@@ -135,11 +144,38 @@ export default function OpportunityPipelineBoard({
                   return s + calculateCommission(amt, { tiers }).commissionAmount;
                 }, 0)
               : 0;
+            const isDropTarget = overStage === stage.value && draggingId != null;
 
             return (
               <div
                 key={stage.value}
-                className="w-[280px] flex-shrink-0 bg-neutral-50 border rounded-3xl overflow-hidden"
+                className={`w-[280px] flex-shrink-0 border rounded-3xl overflow-hidden transition-all ${
+                  isDropTarget
+                    ? 'bg-sky-50 border-[#00b4d8] ring-2 ring-[#00b4d8]/30'
+                    : 'bg-neutral-50 border-neutral-200'
+                }`}
+                onDragOver={(e) => {
+                  if (!onMove) return;
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  setOverStage(stage.value);
+                }}
+                onDragLeave={() => {
+                  setOverStage((cur) => (cur === stage.value ? null : cur));
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const id = Number(
+                    e.dataTransfer.getData('text/opportunity-id') ||
+                      e.dataTransfer.getData('text/plain')
+                  );
+                  setDraggingId(null);
+                  setOverStage(null);
+                  if (!onMove || !Number.isFinite(id) || id <= 0) return;
+                  const card = opportunities.find((o) => o.id === id);
+                  if (!card || card.stage === stage.value) return;
+                  onMove(id, stage.value);
+                }}
               >
                 <div className="px-3 py-3 border-b bg-white">
                   <div className="font-bold text-sm">{stage.label}</div>
@@ -153,7 +189,7 @@ export default function OpportunityPipelineBoard({
                   )}
                 </div>
                 <div
-                  className={`p-2 space-y-2 overflow-y-auto ${
+                  className={`p-2 space-y-2 overflow-y-auto min-h-[120px] ${
                     compact ? 'max-h-[60vh]' : 'max-h-[70vh]'
                   }`}
                 >
@@ -165,20 +201,49 @@ export default function OpportunityPipelineBoard({
                         : null;
                     const prob = probabilityPct(o);
                     const weightedEarn =
-                      comm && o.stage !== 'closed_won' && o.stage !== 'closed_lost'
+                      comm && !isTerminal(o.stage || '')
                         ? (comm.commissionAmount * prob) / 100
                         : comm?.commissionAmount ?? 0;
+                    const isDragging = draggingId === o.id;
 
                     return (
                       <div
                         key={o.id}
-                        className="bg-white border rounded-2xl p-3 shadow-sm hover:border-[#00b4d8]/40 transition-colors"
+                        draggable={Boolean(onMove)}
+                        onDragStart={(e) => {
+                          if (!onMove) return;
+                          e.dataTransfer.setData('text/opportunity-id', String(o.id));
+                          e.dataTransfer.setData('text/plain', String(o.id));
+                          e.dataTransfer.effectAllowed = 'move';
+                          setDraggingId(o.id);
+                        }}
+                        onDragEnd={() => {
+                          setDraggingId(null);
+                          setOverStage(null);
+                        }}
+                        className={`bg-white border rounded-2xl p-3 shadow-sm transition-all ${
+                          onMove ? 'cursor-grab active:cursor-grabbing' : ''
+                        } ${
+                          isDragging
+                            ? 'opacity-40 border-dashed border-[#00b4d8]'
+                            : 'hover:border-[#00b4d8]/40'
+                        }`}
                       >
-                        <div className="font-semibold text-sm leading-snug text-slate-900">
-                          {o.name}
-                        </div>
-                        <div className="text-xs text-neutral-500 mt-0.5">
-                          {o.company_name || o.contact_name || '—'}
+                        <div className="flex items-start gap-1.5">
+                          {onMove && (
+                            <GripVertical
+                              className="w-3.5 h-3.5 text-neutral-300 mt-0.5 shrink-0"
+                              aria-hidden
+                            />
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <div className="font-semibold text-sm leading-snug text-slate-900">
+                              {o.name}
+                            </div>
+                            <div className="text-xs text-neutral-500 mt-0.5">
+                              {o.company_name || o.contact_name || '—'}
+                            </div>
+                          </div>
                         </div>
                         <div className="text-sm font-bold text-emerald-700 mt-1">
                           {formatMoney(amt, o.currency || 'ZAR')}
@@ -200,15 +265,20 @@ export default function OpportunityPipelineBoard({
                                 · ~{comm.effectiveRatePct.toFixed(2)}%
                               </span>
                             </div>
-                            {o.stage !== 'closed_won' && o.stage !== 'closed_lost' && (
+                            {!isTerminal(o.stage || '') && (
                               <div className="text-[10px] text-amber-900/70 mt-0.5">
                                 If stage holds (~{prob}%):{' '}
                                 <strong>{formatZarPrecise(weightedEarn)}</strong>
                               </div>
                             )}
+                            {o.stage === 'invoiced' && (
+                              <div className="text-[10px] font-semibold text-emerald-700 mt-0.5">
+                                Invoiced · deal processed
+                              </div>
+                            )}
                             {o.stage === 'closed_won' && (
                               <div className="text-[10px] font-semibold text-emerald-700 mt-0.5">
-                                Closed-won · earn this amount
+                                Won · drag to Invoiced when billed
                               </div>
                             )}
                           </div>
@@ -223,19 +293,31 @@ export default function OpportunityPipelineBoard({
 
                         {onMove && (
                           <div className="flex flex-wrap gap-1 mt-2">
-                            {OPPORTUNITY_STAGES.filter((s) => s.value !== o.stage)
-                              .slice(0, 4)
-                              .map((s) => (
-                                <button
-                                  key={s.value}
-                                  type="button"
-                                  onClick={() => onMove(o.id, s.value)}
-                                  className="text-[9px] px-1.5 py-0.5 rounded-full border bg-neutral-50 hover:bg-sky-50 hover:border-sky-200"
-                                  title={`Move to ${s.label}`}
-                                >
-                                  {s.label.split(' ')[0]}
-                                </button>
-                              ))}
+                            {/* Priority quick moves toward close / invoice */}
+                            {(
+                              [
+                                'proposal',
+                                'negotiation',
+                                'closed_won',
+                                'invoiced',
+                                'closed_lost',
+                              ] as const
+                            )
+                              .filter((v) => v !== o.stage)
+                              .map((v) => {
+                                const s = OPPORTUNITY_STAGES.find((x) => x.value === v)!;
+                                return (
+                                  <button
+                                    key={s.value}
+                                    type="button"
+                                    onClick={() => onMove(o.id, s.value)}
+                                    className="text-[9px] px-1.5 py-0.5 rounded-full border bg-neutral-50 hover:bg-sky-50 hover:border-sky-200"
+                                    title={`Move to ${s.label}`}
+                                  >
+                                    → {s.label}
+                                  </button>
+                                );
+                              })}
                           </div>
                         )}
 
@@ -267,7 +349,9 @@ export default function OpportunityPipelineBoard({
                     );
                   })}
                   {cards.length === 0 && (
-                    <div className="text-center text-[11px] text-neutral-400 py-6">Empty</div>
+                    <div className="text-center text-[11px] text-neutral-400 py-6">
+                      {isDropTarget ? 'Drop here' : 'Empty — drop cards here'}
+                    </div>
                   )}
                 </div>
               </div>

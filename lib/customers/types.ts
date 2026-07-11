@@ -21,14 +21,19 @@ export const LEAD_SOURCES = [
   'Other',
 ] as const;
 
+/**
+ * CRM / sales pipeline stages (kanban columns).
+ * Move deals left→right: win the deal, then mark Invoiced when billed.
+ */
 export const OPPORTUNITY_STAGES = [
   { value: 'prospecting', label: 'Prospecting', probability: 10 },
   { value: 'qualification', label: 'Qualification', probability: 20 },
   { value: 'needs_analysis', label: 'Needs analysis', probability: 40 },
-  { value: 'proposal', label: 'Proposal', probability: 60 },
+  { value: 'proposal', label: 'Quoted', probability: 60 },
   { value: 'negotiation', label: 'Negotiation', probability: 80 },
-  { value: 'closed_won', label: 'Closed won', probability: 100 },
-  { value: 'closed_lost', label: 'Closed lost', probability: 0 },
+  { value: 'closed_won', label: 'Won', probability: 95 },
+  { value: 'invoiced', label: 'Invoiced', probability: 100 },
+  { value: 'closed_lost', label: 'Lost', probability: 0 },
 ] as const;
 
 export const OPPORTUNITY_TYPES = [

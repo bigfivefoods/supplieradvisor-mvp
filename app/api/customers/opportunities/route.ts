@@ -13,15 +13,37 @@ function normalizeStage(stage?: string | null, status?: string | null) {
     qualification: 'qualification',
     needs_analysis: 'needs_analysis',
     proposal: 'proposal',
+    quoted: 'proposal',
+    quote: 'proposal',
     negotiation: 'negotiation',
     closing: 'negotiation',
     won: 'closed_won',
     closed_won: 'closed_won',
+    invoice: 'invoiced',
+    invoiced: 'invoiced',
+    billed: 'invoiced',
     lost: 'closed_lost',
     closed_lost: 'closed_lost',
   };
   return map[s] || s || 'prospecting';
 }
+
+/** Postgres date columns reject "" — only ISO dates or null */
+function nullIfEmptyDate(v: unknown): string | null {
+  if (v == null) return null;
+  const s = String(v).trim();
+  if (!s) return null;
+  // Accept YYYY-MM-DD or full ISO
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  return null;
+}
+
+const DATE_FIELDS = new Set([
+  'expected_close_date',
+  'estimated_date',
+  'actual_close_date',
+  'next_step_date',
+]);
 
 export async function GET(request: NextRequest) {
   try {
@@ -126,7 +148,11 @@ export async function POST(request: NextRequest) {
     const probability =
       body.probability != null ? Number(body.probability) : stageProbability(stage);
     const status =
-      stage === 'closed_won' ? 'won' : stage === 'closed_lost' ? 'lost' : body.status || 'open';
+      stage === 'closed_won' || stage === 'invoiced'
+        ? 'won'
+        : stage === 'closed_lost'
+          ? 'lost'
+          : body.status || 'open';
 
     const supabase = getSupabaseServer();
     const now = new Date().toISOString();
@@ -146,9 +172,11 @@ export async function POST(request: NextRequest) {
       amount,
       opportunity_size: amount,
       currency: body.currency || 'ZAR',
-      expected_close_date: body.expected_close_date || body.estimated_date || null,
-      estimated_date: body.expected_close_date || body.estimated_date || null,
-      actual_close_date: body.actual_close_date || null,
+      expected_close_date: nullIfEmptyDate(
+        body.expected_close_date || body.estimated_date
+      ),
+      estimated_date: nullIfEmptyDate(body.expected_close_date || body.estimated_date),
+      actual_close_date: nullIfEmptyDate(body.actual_close_date),
       opportunity_type: body.opportunity_type || 'new_business',
       product_interest: body.product_interest || null,
       location: body.location || body.opportunity_location || null,
@@ -156,7 +184,7 @@ export async function POST(request: NextRequest) {
       description: body.description || body.notes || null,
       notes: body.notes || body.description || null,
       next_step: body.next_step || null,
-      next_step_date: body.next_step_date || null,
+      next_step_date: nullIfEmptyDate(body.next_step_date),
       owner_name: body.owner_name || null,
       competitor: body.competitor || null,
       lost_reason: body.lost_reason || null,
@@ -217,6 +245,14 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     if (!body.id) return NextResponse.json({ error: 'id required' }, { status: 400 });
 
+    const companyId = Number(body.companyId);
+    if (Number.isFinite(companyId) && companyId > 0) {
+      const gate = await requireCompanyAccess(request, companyId, {
+        legacyPrivyUserId: legacyPrivyFrom(request, body),
+      });
+      if (!gate.ok) return gate.response;
+    }
+
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
     const fields = [
       'name',
@@ -248,7 +284,15 @@ export async function PATCH(request: NextRequest) {
     ] as const;
 
     for (const f of fields) {
-      if (body[f] !== undefined) updates[f] = body[f];
+      if (body[f] === undefined) continue;
+      if (DATE_FIELDS.has(f)) {
+        updates[f] = nullIfEmptyDate(body[f]);
+      } else if (body[f] === '') {
+        // Empty strings on optional text/id fields → null (safer for Postgres)
+        updates[f] = null;
+      } else {
+        updates[f] = body[f];
+      }
     }
 
     // Keep legacy columns in sync
@@ -256,10 +300,16 @@ export async function PATCH(request: NextRequest) {
       const stage = normalizeStage(body.stage, body.status);
       updates.stage = stage;
       updates.status =
-        stage === 'closed_won' ? 'won' : stage === 'closed_lost' ? 'lost' : body.status || 'open';
+        stage === 'closed_won' || stage === 'invoiced'
+          ? 'won'
+          : stage === 'closed_lost'
+            ? 'lost'
+            : body.status || 'open';
       if (body.probability === undefined) updates.probability = stageProbability(stage);
-      if (stage === 'closed_won' || stage === 'closed_lost') {
-        updates.actual_close_date = body.actual_close_date || new Date().toISOString().slice(0, 10);
+      if (stage === 'closed_won' || stage === 'closed_lost' || stage === 'invoiced') {
+        updates.actual_close_date =
+          nullIfEmptyDate(body.actual_close_date) ||
+          new Date().toISOString().slice(0, 10);
       }
     }
     if (body.amount !== undefined) {
@@ -270,10 +320,20 @@ export async function PATCH(request: NextRequest) {
       updates.amount = Number(body.opportunity_size);
       updates.opportunity_size = Number(body.opportunity_size);
     }
-    if (body.contact_phone !== undefined) updates.contact_number = body.contact_phone;
-    if (body.expected_close_date !== undefined) updates.estimated_date = body.expected_close_date;
-    if (body.location !== undefined) updates.opportunity_location = body.location;
-    if (body.description !== undefined && body.notes === undefined) updates.notes = body.description;
+    if (body.contact_phone !== undefined) updates.contact_number = body.contact_phone || null;
+    if (body.expected_close_date !== undefined) {
+      updates.estimated_date = nullIfEmptyDate(body.expected_close_date);
+    }
+    if (body.location !== undefined) updates.opportunity_location = body.location || null;
+    if (body.description !== undefined && body.notes === undefined) {
+      updates.notes = body.description || null;
+    }
+    // Never send empty strings to date columns
+    for (const key of Object.keys(updates)) {
+      if (DATE_FIELDS.has(key) || key === 'estimated_date') {
+        updates[key] = nullIfEmptyDate(updates[key]);
+      }
+    }
 
     const supabase = getSupabaseServer();
     const { data: before } = await supabase
