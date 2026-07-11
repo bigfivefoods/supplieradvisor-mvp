@@ -103,12 +103,20 @@ export async function loadCommercialDocument(opts: {
     contactEmail: contact.contactEmail,
     contactPhone: contact.contactPhone,
     notes: doc.notes,
+    terms: (doc.terms as string) || null,
+    paymentTerms:
+      (doc.payment_terms as string) ||
+      seller.payment_terms ||
+      seller.default_payment_terms ||
+      null,
     items,
     subtotal: Number(doc.subtotal || 0),
     taxRate: Number(doc.tax_rate || 0),
     taxAmount: Number(doc.tax_amount || 0),
     totalAmount: Number(doc.total_amount || 0),
     seller,
+    companyId,
+    documentId: id,
   };
 
   const html = renderCommercialDocumentHtml(input);

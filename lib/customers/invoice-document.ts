@@ -1,9 +1,15 @@
 /**
- * HTML invoice / quote / order for print-PDF and email.
- * Uses company profile (logo, VAT, reg, bank) + customer contact from CRM.
+ * Beautiful commercial document HTML (invoice / quote / order).
+ * Includes payment terms, legal disclaimers, Powered by SupplierAdvisor®,
+ * and public feedback links/QR (rate OTIFEF + claim/RIAD).
  */
 import { formatMoney, type DocLineItem } from '@/lib/customers/documents';
 import { normalizeProfileRow, type CompanyProfile } from '@/lib/business/types';
+import {
+  buildInvoiceFeedbackToken,
+  invoiceFeedbackUrl,
+  qrImageUrl,
+} from '@/lib/customers/invoice-feedback-token';
 
 export type SellerProfile = {
   trading_name?: string | null;
@@ -31,6 +37,8 @@ export type SellerProfile = {
   logo_url?: string | null;
   is_verified?: boolean;
   verification_status?: string | null;
+  payment_terms?: string | null;
+  default_payment_terms?: string | null;
 };
 
 export type DocRenderInput = {
@@ -46,12 +54,17 @@ export type DocRenderInput = {
   contactEmail?: string | null;
   contactPhone?: string | null;
   notes?: string | null;
+  terms?: string | null;
+  paymentTerms?: string | null;
   items: DocLineItem[];
   subtotal: number;
   taxRate: number;
   taxAmount: number;
   totalAmount: number;
   seller: SellerProfile;
+  /** For feedback QR — required on invoices */
+  companyId?: number;
+  documentId?: number;
 };
 
 const KIND_LABEL: Record<DocRenderInput['kind'], string> = {
@@ -60,12 +73,28 @@ const KIND_LABEL: Record<DocRenderInput['kind'], string> = {
   invoice: 'Tax invoice',
 };
 
+const DEFAULT_PAYMENT_TERMS = `Payment is due by the due date shown on this invoice (or within 30 days of the invoice date if no due date is stated), unless otherwise agreed in writing.
+
+Please pay by electronic funds transfer (EFT) using the banking details below. Use the invoice number as your payment reference so we can allocate your payment correctly.
+
+Goods remain the property of the seller until payment is received in full. Interest may be charged on overdue amounts at the legally permissible rate.`;
+
+const DEFAULT_LEGAL = `This document is issued via SupplierAdvisor®. All amounts are in the currency stated. VAT (where applicable) is charged at the rate shown.
+
+Errors and omissions excepted (E&OE). Prices and availability of goods or services are subject to the parties' commercial agreement, applicable Incoterms (if any), and the laws of the seller's place of business unless otherwise agreed.
+
+By accepting goods or services and/or making payment you acknowledge the commercial terms of this transaction. Nothing in this document limits any non-excludable rights under consumer protection or other mandatory law.`;
+
 function esc(s: unknown): string {
   return String(s ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+function nl2br(s: string): string {
+  return esc(s).replace(/\n/g, '<br/>');
 }
 
 function sellerAddress(s: SellerProfile): string {
@@ -89,26 +118,23 @@ function bankBlock(s: SellerProfile): string {
   if (!filled.length) {
     return `
       <div class="pay-box warn">
-        <strong>Payment details not configured</strong>
-        <p>Add bank details under <em>Company → Profile</em> so customers know how to pay by EFT.</p>
+        <div class="pay-title">Payment details</div>
+        <p>Bank details are not on file for this seller. Please contact them for payment instructions.</p>
       </div>`;
   }
   return `
     <div class="pay-box">
-      <strong>Pay by EFT / bank transfer</strong>
+      <div class="pay-title">Pay by EFT / bank transfer</div>
       <table class="meta">${filled
         .map(
           ([k, v]) =>
             `<tr><td>${esc(k)}</td><td><code>${esc(v)}</code></td></tr>`
         )
         .join('')}</table>
-      <p class="hint">Please use the invoice number as your payment reference.</p>
+      <p class="hint">Use the invoice number as your payment reference.</p>
     </div>`;
 }
 
-/**
- * Map raw profiles row → seller block (logo, VAT, reg, bank, verified).
- */
 export function extractBankFromProfile(row: Record<string, unknown>): SellerProfile {
   const p = normalizeProfileRow(row) as CompanyProfile;
   const meta =
@@ -163,10 +189,11 @@ export function extractBankFromProfile(row: Record<string, unknown>): SellerProf
     logo_url: pick('logo_url', 'company_logo', 'logo'),
     is_verified: verified,
     verification_status: p.verification_status || (verified ? 'verified' : null),
+    payment_terms: pick('payment_terms', 'default_payment_terms'),
+    default_payment_terms: pick('default_payment_terms', 'payment_terms'),
   };
 }
 
-/** Resolve customer display + email from customers row (and aliases). */
 export function resolveCustomerContact(
   customer: Record<string, unknown> | null | undefined,
   doc: Record<string, unknown>
@@ -191,12 +218,7 @@ export function resolveCustomerContact(
       c.company_name,
       c.name
     ),
-    contactName: pick(
-      doc.contact_name,
-      c.contact_name,
-      c.primary_contact,
-      c.name
-    ),
+    contactName: pick(doc.contact_name, c.contact_name, c.primary_contact, c.name),
     contactEmail: pick(
       doc.contact_email,
       c.email,
@@ -223,128 +245,337 @@ export function renderCommercialDocumentHtml(doc: DocRenderInput): string {
     ? `<img class="logo" src="${esc(doc.seller.logo_url)}" alt="${esc(sellerName)}" />`
     : '';
   const verifiedBadge = doc.seller.is_verified
-    ? `<span class="verified">✓ Verified business</span>`
+    ? `<span class="verified">✓ Verified on SupplierAdvisor</span>`
     : '';
+
+  const paymentTermsText =
+    doc.paymentTerms ||
+    doc.seller.payment_terms ||
+    doc.seller.default_payment_terms ||
+    DEFAULT_PAYMENT_TERMS;
+
+  const commercialTerms =
+    doc.terms ||
+    (doc.kind === 'quote'
+      ? 'Prices valid until the date shown (if any). Subject to stock availability and final order confirmation.'
+      : null);
 
   const lines = (doc.items || [])
     .map(
       (l, i) => `
       <tr>
-        <td>${i + 1}</td>
-        <td>${esc(l.name)}${l.sku ? ` <span class="muted">(${esc(l.sku)})</span>` : ''}</td>
-        <td class="num">${esc(l.quantity)} ${esc(l.uom || '')}</td>
+        <td class="idx">${i + 1}</td>
+        <td><div class="item-name">${esc(l.name)}</div>${
+          l.sku ? `<div class="muted sku">${esc(l.sku)}</div>` : ''
+        }</td>
+        <td class="num">${esc(l.quantity)} <span class="uom">${esc(l.uom || '')}</span></td>
         <td class="num">${esc(formatMoney(Number(l.unit_price || 0), ccy))}</td>
-        <td class="num">${esc(formatMoney(Number(l.line_total || 0), ccy))}</td>
+        <td class="num strong">${esc(formatMoney(Number(l.line_total || 0), ccy))}</td>
       </tr>`
     )
     .join('');
 
-  const paySection =
-    doc.kind === 'invoice'
-      ? bankBlock(doc.seller)
-      : doc.kind === 'quote'
-        ? `<p class="muted">This quotation is not a tax invoice. Banking details appear on the invoice when issued.</p>`
-        : '';
+  // Public feedback links + QR (invoices primarily)
+  let feedbackBlock = '';
+  if (
+    doc.kind === 'invoice' &&
+    doc.companyId &&
+    doc.documentId &&
+    Number.isFinite(doc.companyId) &&
+    Number.isFinite(doc.documentId)
+  ) {
+    const token = buildInvoiceFeedbackToken({
+      companyId: doc.companyId,
+      invoiceId: doc.documentId,
+      invoiceNumber: doc.number,
+    });
+    const feedbackUrl = invoiceFeedbackUrl(token);
+    const rateUrl = `${feedbackUrl}?tab=rate`;
+    const claimUrl = `${feedbackUrl}?tab=claim`;
+    const qrRate = qrImageUrl(rateUrl, 128);
+    const qrClaim = qrImageUrl(claimUrl, 128);
+    feedbackBlock = `
+    <div class="feedback">
+      <div class="feedback-head">
+        <div class="feedback-kicker">After delivery</div>
+        <h2>Rate us · log an issue</h2>
+        <p>Your OTIFEF score and claims help keep the SupplierAdvisor® network honest. Scan a QR or open a link — no app install required.</p>
+      </div>
+      <div class="feedback-grid">
+        <a class="feedback-card" href="${esc(rateUrl)}">
+          <img src="${esc(qrRate)}" alt="Rate QR" width="112" height="112" />
+          <div>
+            <div class="fc-title">Rate performance (OTIFEF)</div>
+            <div class="fc-body">Score on-time, in-full, quality &amp; communication for this invoice.</div>
+            <div class="fc-link">Open rating form →</div>
+          </div>
+        </a>
+        <a class="feedback-card" href="${esc(claimUrl)}">
+          <img src="${esc(qrClaim)}" alt="Claim QR" width="112" height="112" />
+          <div>
+            <div class="fc-title">Log a claim / RIAD</div>
+            <div class="fc-body">Raise a risk, issue, action or decision linked to this invoice.</div>
+            <div class="fc-link">Open claim form →</div>
+          </div>
+        </a>
+      </div>
+    </div>`;
+  }
+
+  const paySection = doc.kind === 'invoice' ? bankBlock(doc.seller) : '';
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>${esc(title)} ${esc(doc.number)}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${esc(title)} ${esc(doc.number)} · ${esc(sellerName)}</title>
   <style>
+    :root {
+      --brand: #00b4d8;
+      --brand-deep: #0077b6;
+      --ink: #0f172a;
+      --muted: #64748b;
+      --line: #e2e8f0;
+      --soft: #f8fafc;
+      --ok: #047857;
+    }
     * { box-sizing: border-box; }
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color: #0f172a; margin: 0; padding: 32px; background: #fff; }
-    h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -0.02em; }
-    .brand { color: #0077b6; font-weight: 800; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; }
-    .logo { max-height: 56px; max-width: 180px; object-fit: contain; display: block; margin-bottom: 10px; }
-    .verified { display: inline-block; font-size: 10px; font-weight: 700; color: #047857; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 999px; padding: 2px 8px; margin-left: 6px; vertical-align: middle; }
-    .row { display: flex; justify-content: space-between; gap: 24px; flex-wrap: wrap; margin-bottom: 28px; }
-    .muted { color: #64748b; font-size: 12px; }
-    table.lines { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 13px; }
-    table.lines th { text-align: left; border-bottom: 2px solid #e2e8f0; padding: 8px 6px; font-size: 11px; text-transform: uppercase; color: #64748b; }
-    table.lines td { border-bottom: 1px solid #f1f5f9; padding: 10px 6px; vertical-align: top; }
-    .num { text-align: right; white-space: nowrap; }
-    table.meta { font-size: 13px; }
-    table.meta td { padding: 3px 12px 3px 0; }
-    table.meta td:first-child { color: #64748b; }
-    .totals { margin-left: auto; width: 260px; font-size: 13px; }
-    .totals .line { display: flex; justify-content: space-between; padding: 4px 0; }
-    .totals .grand { font-size: 16px; font-weight: 800; border-top: 2px solid #0f172a; margin-top: 6px; padding-top: 8px; color: #0077b6; }
-    .pay-box { background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 12px; padding: 14px 16px; margin-top: 24px; }
-    .pay-box.warn { background: #fffbeb; border-color: #fde68a; }
-    .pay-box .hint { font-size: 11px; color: #0369a1; margin: 8px 0 0; }
-    .footer { margin-top: 36px; font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 12px; }
+    body {
+      font-family: "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+      color: var(--ink);
+      margin: 0;
+      padding: 0;
+      background: #eef2f7;
+    }
+    .sheet {
+      max-width: 820px;
+      margin: 24px auto;
+      background: #fff;
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 18px 50px rgba(15, 23, 42, 0.08);
+      border: 1px solid #e8eef5;
+    }
+    .topbar {
+      height: 6px;
+      background: linear-gradient(90deg, var(--brand), var(--brand-deep), #48cae4);
+    }
+    .pad { padding: 36px 40px 28px; }
+    .hero {
+      display: flex;
+      justify-content: space-between;
+      gap: 28px;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      margin-bottom: 28px;
+    }
+    .logo { max-height: 64px; max-width: 200px; object-fit: contain; display: block; margin-bottom: 12px; }
+    .doc-type {
+      font-size: 11px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase;
+      color: var(--brand-deep); margin-bottom: 6px;
+    }
+    h1 { font-size: 28px; margin: 0 0 6px; letter-spacing: -0.03em; line-height: 1.15; }
+    .verified {
+      display: inline-block; font-size: 10px; font-weight: 700; color: var(--ok);
+      background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 999px;
+      padding: 3px 10px; margin-left: 8px; vertical-align: middle;
+    }
+    .muted { color: var(--muted); font-size: 12.5px; line-height: 1.45; }
+    .seller-block { text-align: right; min-width: 200px; }
+    .seller-block .name { font-weight: 800; font-size: 15px; margin-bottom: 4px; }
+    .parties {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 20px;
+      margin-bottom: 28px;
+    }
+    @media (max-width: 640px) {
+      .parties { grid-template-columns: 1fr; }
+      .pad { padding: 24px 18px; }
+      .seller-block { text-align: left; }
+    }
+    .card {
+      background: var(--soft);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 16px 18px;
+    }
+    .card-label {
+      font-size: 10px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 8px;
+    }
+    .card .who { font-weight: 800; font-size: 15px; margin-bottom: 2px; }
+    table.meta { width: 100%; font-size: 13px; border-collapse: collapse; }
+    table.meta td { padding: 4px 0; vertical-align: top; }
+    table.meta td:first-child { color: var(--muted); width: 42%; }
+    table.lines { width: 100%; border-collapse: collapse; margin: 8px 0 20px; font-size: 13px; }
+    table.lines th {
+      text-align: left; border-bottom: 2px solid var(--ink); padding: 10px 8px;
+      font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted);
+    }
+    table.lines td { border-bottom: 1px solid var(--line); padding: 12px 8px; vertical-align: top; }
+    table.lines tr:last-child td { border-bottom: none; }
+    .idx { color: var(--muted); width: 28px; }
+    .item-name { font-weight: 600; }
+    .sku, .uom { font-size: 11px; color: var(--muted); }
+    .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .strong { font-weight: 700; }
+    .totals-wrap { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+    .totals {
+      width: 280px; background: linear-gradient(160deg, #f0f9ff, #fff);
+      border: 1px solid #bae6fd; border-radius: 16px; padding: 14px 16px; font-size: 13px;
+    }
+    .totals .line { display: flex; justify-content: space-between; padding: 5px 0; color: #334155; }
+    .totals .grand {
+      display: flex; justify-content: space-between; font-size: 17px; font-weight: 900;
+      border-top: 2px solid var(--brand-deep); margin-top: 8px; padding-top: 10px; color: var(--brand-deep);
+    }
+    .pay-box {
+      background: linear-gradient(145deg, #ecfeff, #f0f9ff);
+      border: 1px solid #7dd3fc; border-radius: 16px; padding: 16px 18px; margin: 20px 0;
+    }
+    .pay-box.warn { background: #fffbeb; border-color: #fcd34d; }
+    .pay-title { font-weight: 800; font-size: 13px; color: var(--brand-deep); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.06em; }
+    .pay-box .hint { font-size: 11px; color: #0369a1; margin: 10px 0 0; }
+    .section {
+      margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line);
+    }
+    .section h3 {
+      margin: 0 0 8px; font-size: 12px; font-weight: 800; letter-spacing: 0.1em;
+      text-transform: uppercase; color: var(--brand-deep);
+    }
+    .section p, .section .body { font-size: 12.5px; line-height: 1.55; color: #334155; margin: 0; }
+    .feedback {
+      margin-top: 28px;
+      background: linear-gradient(145deg, #0c4a6e 0%, #0077b6 55%, #00b4d8 100%);
+      color: #fff; border-radius: 18px; padding: 22px 20px;
+    }
+    .feedback-kicker { font-size: 10px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.85; }
+    .feedback h2 { margin: 6px 0 8px; font-size: 18px; letter-spacing: -0.02em; }
+    .feedback > .feedback-head p { margin: 0 0 16px; font-size: 13px; line-height: 1.5; opacity: 0.92; }
+    .feedback-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 640px) { .feedback-grid { grid-template-columns: 1fr; } }
+    a.feedback-card {
+      display: flex; gap: 12px; align-items: center; text-decoration: none; color: inherit;
+      background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.25);
+      border-radius: 14px; padding: 12px; backdrop-filter: blur(6px);
+    }
+    a.feedback-card img {
+      width: 96px; height: 96px; border-radius: 10px; background: #fff; padding: 6px; flex-shrink: 0;
+    }
+    .fc-title { font-weight: 800; font-size: 13px; margin-bottom: 4px; }
+    .fc-body { font-size: 11.5px; line-height: 1.4; opacity: 0.9; }
+    .fc-link { font-size: 11px; font-weight: 700; margin-top: 6px; color: #e0f2fe; }
+    .powered {
+      margin-top: 28px; padding: 18px 40px 22px; background: #0f172a; color: #94a3b8;
+      text-align: center; font-size: 11px; line-height: 1.5;
+    }
+    .powered strong { color: #fff; font-weight: 800; letter-spacing: -0.01em; }
+    .powered .reg { color: var(--brand); font-weight: 800; }
+    .powered a { color: #7dd3fc; text-decoration: none; }
     @media print {
-      body { padding: 12px; }
-      .no-print { display: none !important; }
+      body { background: #fff; }
+      .sheet { margin: 0; box-shadow: none; border: none; border-radius: 0; max-width: none; }
+      .powered { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .feedback { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     }
   </style>
 </head>
 <body>
-  <div class="brand">SupplierAdvisor</div>
-  <div class="row">
-    <div>
-      ${logo}
-      <h1>${esc(title)} ${verifiedBadge}</h1>
-      <div class="muted"># ${esc(doc.number)} · Status: ${esc(doc.status || '—')}</div>
-    </div>
-    <div style="text-align:right">
-      <div style="font-weight:700">${esc(sellerName)}</div>
-      ${doc.seller.legal_name && doc.seller.legal_name !== sellerName
-        ? `<div class="muted">${esc(doc.seller.legal_name)}</div>`
-        : ''}
-      <div class="muted">${esc(sellerAddress(doc.seller))}</div>
-      <div class="muted">${esc(doc.seller.email || doc.seller.contact_email || '')}</div>
-      <div class="muted">${esc(doc.seller.contact_phone || doc.seller.phone || '')}</div>
-      ${doc.seller.vat_number ? `<div class="muted"><strong>VAT:</strong> ${esc(doc.seller.vat_number)}</div>` : ''}
-      ${doc.seller.registration_number ? `<div class="muted"><strong>Reg:</strong> ${esc(doc.seller.registration_number)}</div>` : ''}
-    </div>
-  </div>
+  <div class="sheet">
+    <div class="topbar"></div>
+    <div class="pad">
+      <div class="hero">
+        <div>
+          ${logo}
+          <div class="doc-type">${esc(title)}</div>
+          <h1>${esc(doc.number)}${verifiedBadge}</h1>
+          <div class="muted">Status: ${esc(doc.status || '—')}</div>
+        </div>
+        <div class="seller-block">
+          <div class="name">${esc(sellerName)}</div>
+          ${
+            doc.seller.legal_name && doc.seller.legal_name !== sellerName
+              ? `<div class="muted">${esc(doc.seller.legal_name)}</div>`
+              : ''
+          }
+          <div class="muted">${esc(sellerAddress(doc.seller))}</div>
+          <div class="muted">${esc(doc.seller.email || doc.seller.contact_email || '')}</div>
+          <div class="muted">${esc(doc.seller.contact_phone || doc.seller.phone || '')}</div>
+          ${doc.seller.vat_number ? `<div class="muted"><strong>VAT</strong> ${esc(doc.seller.vat_number)}</div>` : ''}
+          ${doc.seller.registration_number ? `<div class="muted"><strong>Reg</strong> ${esc(doc.seller.registration_number)}</div>` : ''}
+        </div>
+      </div>
 
-  <div class="row">
-    <div>
-      <div class="muted" style="text-transform:uppercase;font-weight:700;font-size:10px;letter-spacing:0.06em">Bill to</div>
-      <div style="font-weight:700">${esc(doc.customerName || 'Customer')}</div>
-      <div class="muted">${esc(doc.contactName || '')}</div>
-      <div class="muted">${esc(doc.contactEmail || '')}</div>
-      <div class="muted">${esc(doc.contactPhone || '')}</div>
-    </div>
-    <div>
-      <table class="meta">
-        ${doc.issuedAt ? `<tr><td>Date</td><td>${esc(String(doc.issuedAt).slice(0, 10))}</td></tr>` : ''}
-        ${doc.dueDate ? `<tr><td>Due</td><td>${esc(String(doc.dueDate).slice(0, 10))}</td></tr>` : ''}
-        ${doc.validUntil ? `<tr><td>Valid until</td><td>${esc(String(doc.validUntil).slice(0, 10))}</td></tr>` : ''}
-        <tr><td>Currency</td><td>${esc(ccy)}</td></tr>
+      <div class="parties">
+        <div class="card">
+          <div class="card-label">Bill to</div>
+          <div class="who">${esc(doc.customerName || 'Customer')}</div>
+          <div class="muted">${esc(doc.contactName || '')}</div>
+          <div class="muted">${esc(doc.contactEmail || '')}</div>
+          <div class="muted">${esc(doc.contactPhone || '')}</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Document</div>
+          <table class="meta">
+            ${doc.issuedAt ? `<tr><td>Date</td><td>${esc(String(doc.issuedAt).slice(0, 10))}</td></tr>` : ''}
+            ${doc.dueDate ? `<tr><td>Due date</td><td><strong>${esc(String(doc.dueDate).slice(0, 10))}</strong></td></tr>` : ''}
+            ${doc.validUntil ? `<tr><td>Valid until</td><td>${esc(String(doc.validUntil).slice(0, 10))}</td></tr>` : ''}
+            <tr><td>Currency</td><td>${esc(ccy)}</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <table class="lines">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Description</th>
+            <th class="num">Qty</th>
+            <th class="num">Unit price</th>
+            <th class="num">Amount</th>
+          </tr>
+        </thead>
+        <tbody>${lines || '<tr><td colspan="5" class="muted">No lines</td></tr>'}</tbody>
       </table>
+
+      <div class="totals-wrap">
+        <div class="totals">
+          <div class="line"><span>Subtotal</span><span>${esc(formatMoney(doc.subtotal, ccy))}</span></div>
+          <div class="line"><span>Tax (${esc(doc.taxRate)}%)</span><span>${esc(formatMoney(doc.taxAmount, ccy))}</span></div>
+          <div class="grand"><span>Total due</span><span>${esc(formatMoney(doc.totalAmount, ccy))}</span></div>
+        </div>
+      </div>
+
+      ${paySection}
+
+      ${
+        doc.kind === 'invoice'
+          ? `<div class="section">
+        <h3>Payment terms</h3>
+        <div class="body">${nl2br(paymentTermsText)}</div>
+      </div>`
+          : commercialTerms
+            ? `<div class="section"><h3>Terms</h3><div class="body">${nl2br(commercialTerms)}</div></div>`
+            : ''
+      }
+
+      <div class="section">
+        <h3>Legal &amp; disclaimers</h3>
+        <div class="body">${nl2br(DEFAULT_LEGAL)}</div>
+      </div>
+
+      ${doc.notes ? `<div class="section"><h3>Notes</h3><div class="body">${nl2br(String(doc.notes))}</div></div>` : ''}
+
+      ${feedbackBlock}
     </div>
-  </div>
 
-  <table class="lines">
-    <thead>
-      <tr>
-        <th>#</th>
-        <th>Description</th>
-        <th class="num">Qty</th>
-        <th class="num">Unit</th>
-        <th class="num">Amount</th>
-      </tr>
-    </thead>
-    <tbody>${lines || '<tr><td colspan="5" class="muted">No lines</td></tr>'}</tbody>
-  </table>
-
-  <div class="totals">
-    <div class="line"><span>Subtotal</span><span>${esc(formatMoney(doc.subtotal, ccy))}</span></div>
-    <div class="line"><span>Tax (${esc(doc.taxRate)}%)</span><span>${esc(formatMoney(doc.taxAmount, ccy))}</span></div>
-    <div class="line grand"><span>Total due</span><span>${esc(formatMoney(doc.totalAmount, ccy))}</span></div>
-  </div>
-
-  ${paySection}
-
-  ${doc.notes ? `<p style="margin-top:20px;font-size:13px"><strong>Notes</strong><br/>${esc(doc.notes)}</p>` : ''}
-
-  <div class="footer">
-    ${esc(sellerName)}${doc.seller.vat_number ? ` · VAT ${esc(doc.seller.vat_number)}` : ''}${doc.seller.registration_number ? ` · Reg ${esc(doc.seller.registration_number)}` : ''}
-    · Generated via SupplierAdvisor · Please retain for your records.
+    <div class="powered">
+      <div><strong>Powered by <span class="reg">SupplierAdvisor®</span></strong></div>
+      <div>Trade network · OTIFEF performance · quality &amp; claims</div>
+      <div style="margin-top:6px"><a href="https://www.supplieradvisor.com">www.supplieradvisor.com</a></div>
+    </div>
   </div>
 </body>
 </html>`;
