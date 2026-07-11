@@ -179,14 +179,14 @@ export default function LandingPage() {
   const FeaturedMock = featured.Mock;
 
   return (
-    <div className="min-h-dvh bg-[#f8fafc] text-slate-900 antialiased">
+    <div className="relative z-0 min-h-dvh bg-[#f8fafc] text-slate-900 antialiased">
       <LandingNav />
 
       {/* ─── HERO ─── */}
       {/* Note: spacer for fixed nav is inside LandingNav — do not double-pad top */}
       <section
         id="platform"
-        className="relative flex min-h-[calc(100svh-4rem)] flex-col justify-center overflow-x-clip sm:min-h-[calc(100svh-4.25rem)]"
+        className="relative z-0 flex min-h-[calc(100svh-4rem)] flex-col justify-center overflow-x-clip sm:min-h-[calc(100svh-4.25rem)]"
       >
         {/* Light space-grade wash */}
         <div
@@ -206,7 +206,7 @@ export default function LandingPage() {
           aria-hidden
         />
 
-        <div className="relative z-10 mx-auto w-full max-w-screen-2xl px-4 py-10 sm:px-6 sm:py-14 lg:px-10 lg:py-20">
+        <div className="relative z-[1] mx-auto w-full max-w-screen-2xl px-4 py-10 sm:px-6 sm:py-14 lg:px-10 lg:py-20">
           <div className="grid items-center gap-8 lg:grid-cols-12 lg:gap-12">
             <div className="text-center lg:col-span-6 lg:text-left">
               <div className="mb-5 inline-flex max-w-full items-center gap-2 rounded-full border border-cyan-200/80 bg-white/90 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-[#0077b6] shadow-sm sm:mb-6 sm:px-3.5 sm:text-xs">
@@ -227,10 +227,10 @@ export default function LandingPage() {
                 — one light, precise workspace. Built for operators who refuse blind spots.
               </p>
 
-              <div className="mb-5 flex w-full flex-col gap-3 sm:mb-6 sm:flex-row sm:justify-center lg:justify-start">
+              <div className="relative z-[2] mb-5 flex w-full flex-col gap-3 sm:mb-6 sm:flex-row sm:justify-center lg:justify-start">
                 <Link
                   href="/onboarding?type=business"
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#00b4d8] px-6 py-3.5 text-base font-semibold text-white shadow-lg shadow-cyan-500/20 transition-all touch-manipulation hover:bg-[#0099b8] sm:w-auto sm:px-8 sm:py-4 sm:text-lg"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#00b4d8] px-6 py-3.5 text-base font-semibold text-white shadow-lg shadow-cyan-500/20 transition-all touch-manipulation hover:bg-[#0099b8] active:scale-[0.99] sm:w-auto sm:px-8 sm:py-4 sm:text-lg"
                 >
                   Start free <ArrowRight className="h-5 w-5 shrink-0" />
                 </Link>
@@ -240,9 +240,9 @@ export default function LandingPage() {
                     const el = document.getElementById('modules');
                     if (!el) return;
                     const y = el.getBoundingClientRect().top + window.scrollY - 72;
-                    window.scrollTo({ top: y, behavior: 'smooth' });
+                    window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
                   }}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-300 bg-white px-6 py-3.5 text-base font-semibold text-slate-800 transition-all touch-manipulation hover:border-[#00b4d8] sm:w-auto sm:px-8 sm:py-4 sm:text-lg"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-300 bg-white px-6 py-3.5 text-base font-semibold text-slate-800 transition-all touch-manipulation hover:border-[#00b4d8] active:scale-[0.99] sm:w-auto sm:px-8 sm:py-4 sm:text-lg"
                 >
                   Explore modules
                 </button>
