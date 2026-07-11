@@ -14,9 +14,12 @@ import {
   Filler,
   type ChartOptions,
   type ChartData,
+  type ScriptableContext,
 } from 'chart.js';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
+import type { LucideIcon } from 'lucide-react';
 import { formatMoney } from '@/lib/accounting/types';
+import type { RatioCard, RatioTone } from '@/lib/accounting/ratios';
 
 ChartJS.register(
   CategoryScale,
@@ -31,36 +34,57 @@ ChartJS.register(
   Filler
 );
 
-const C = {
-  cyan: '#00b4d8',
-  cyanDeep: '#0077b6',
-  cyanSoft: 'rgba(0, 180, 216, 0.18)',
-  emerald: '#059669',
-  emeraldSoft: 'rgba(16, 185, 129, 0.16)',
-  amber: '#d97706',
-  amberSoft: 'rgba(245, 158, 11, 0.18)',
-  violet: '#7c3aed',
-  violetSoft: 'rgba(124, 58, 237, 0.14)',
-  rose: '#e11d48',
-  roseSoft: 'rgba(225, 29, 72, 0.14)',
-  slate: '#64748b',
-  slateSoft: 'rgba(100, 116, 139, 0.14)',
-  grid: 'rgba(148, 163, 184, 0.22)',
+/**
+ * Lucid financial palette — soft, high-contrast on white (board-ready).
+ * Avoid muddy greys; keep series clearly separable.
+ */
+export const C = {
+  // Series
+  revenue: '#0d9488', // teal-600
+  revenueSoft: 'rgba(13, 148, 136, 0.14)',
+  revenueLine: '#0f766e',
+  cogs: '#f59e0b', // amber-500
+  cogsSoft: 'rgba(245, 158, 11, 0.16)',
+  opex: '#f43f5e', // rose-500
+  opexSoft: 'rgba(244, 63, 94, 0.12)',
+  net: '#0284c7', // sky-600
+  netSoft: 'rgba(2, 132, 199, 0.14)',
+  netLine: '#0369a1',
+  cashIn: '#10b981', // emerald-500
+  cashOut: '#64748b', // slate-500
+  cashNet: '#8b5cf6', // violet-500
+  pipeline: '#a855f7',
+  pipelineW: '#6366f1',
+  forecast: '#38bdf8',
+  band: 'rgba(45, 212, 191, 0.12)',
+  // Structure
+  assets: '#06b6d4',
+  liabilities: '#fb7185',
+  equity: '#34d399',
+  // Chrome
+  grid: 'rgba(226, 232, 240, 0.9)',
   tick: '#64748b',
   legend: '#0f172a',
   white: '#ffffff',
-  border: 'rgba(0, 180, 216, 0.4)',
+  border: 'rgba(14, 165, 233, 0.35)',
+  muted: '#94a3b8',
 };
+
+const AGING_COLORS = ['#34d399', '#2dd4bf', '#38bdf8', '#fbbf24', '#fb7185'];
 
 function moneyTick(v: string | number) {
   const n = Number(v);
   const abs = Math.abs(n);
-  if (abs >= 1_000_000) return `${n < 0 ? '-' : ''}R${(abs / 1_000_000).toFixed(1)}m`;
-  if (abs >= 1_000) return `${n < 0 ? '-' : ''}R${(abs / 1_000).toFixed(abs >= 10_000 ? 0 : 1)}k`;
+  const sign = n < 0 ? '-' : '';
+  if (abs >= 1_000_000) return `${sign}R${(abs / 1_000_000).toFixed(1)}m`;
+  if (abs >= 1_000) return `${sign}R${(abs / 1_000).toFixed(abs >= 10_000 ? 0 : 1)}k`;
   return `R${n.toLocaleString('en-ZA')}`;
 }
 
-function moneyLabel(ctx: { dataset: { label?: string }; parsed: { y?: number | null } | number | null }) {
+function moneyLabel(ctx: {
+  dataset: { label?: string };
+  parsed: { y?: number | null } | number | null;
+}) {
   const raw =
     typeof ctx.parsed === 'number'
       ? ctx.parsed
@@ -77,40 +101,46 @@ const basePlugins = {
     align: 'end' as const,
     labels: {
       color: C.legend,
-      boxWidth: 12,
-      boxHeight: 12,
-      padding: 14,
+      boxWidth: 10,
+      boxHeight: 10,
+      padding: 16,
       usePointStyle: true,
       pointStyle: 'circle' as const,
-      font: { size: 11, weight: 600 as const },
+      font: { size: 11, weight: 600 as const, family: 'system-ui, sans-serif' },
     },
   },
   tooltip: {
     backgroundColor: C.white,
     titleColor: C.legend,
-    bodyColor: C.legend,
+    bodyColor: '#334155',
     borderColor: C.border,
     borderWidth: 1,
-    padding: 12,
-    cornerRadius: 12,
+    padding: 14,
+    cornerRadius: 14,
     titleFont: { size: 12, weight: 700 as const },
     bodyFont: { size: 12 },
     displayColors: true,
+    boxPadding: 4,
     callbacks: { label: moneyLabel },
   },
 };
 
 const cartesianScales = {
   x: {
-    ticks: { color: C.tick, maxRotation: 0, font: { size: 10, weight: 500 as const } },
-    grid: { color: C.grid, drawBorder: false },
+    ticks: {
+      color: C.tick,
+      maxRotation: 0,
+      font: { size: 11, weight: 500 as const },
+    },
+    grid: { color: 'transparent', drawBorder: false },
     border: { display: false },
   },
   y: {
     ticks: {
       color: C.tick,
-      font: { size: 10, weight: 500 as const },
+      font: { size: 11, weight: 500 as const },
       callback: moneyTick,
+      padding: 8,
     },
     grid: { color: C.grid, drawBorder: false },
     border: { display: false },
@@ -123,6 +153,10 @@ const lineOptions: ChartOptions<'line'> = {
   interaction: { mode: 'index', intersect: false },
   plugins: basePlugins,
   scales: cartesianScales,
+  elements: {
+    line: { tension: 0.35, borderWidth: 2.5, borderCapStyle: 'round' as const },
+    point: { radius: 0, hoverRadius: 5, hitRadius: 12 },
+  },
 };
 
 const barOptions: ChartOptions<'bar'> = {
@@ -138,25 +172,41 @@ export function ChartCard({
   subtitle,
   children,
   className = '',
-  height = 280,
+  height = 300,
+  icon: Icon,
+  badge,
 }: {
   title: string;
   subtitle?: string;
   children: React.ReactNode;
   className?: string;
   height?: number;
+  icon?: LucideIcon;
+  badge?: string;
 }) {
   return (
     <div
-      className={`rounded-3xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-sm ${className}`}
+      className={`rounded-[1.35rem] border border-slate-200/90 bg-white p-4 sm:p-5 shadow-[0_1px_3px_rgba(15,23,42,0.04)] ${className}`}
     >
       <div className="mb-3 flex items-start justify-between gap-3">
-        <div>
-          <div className="text-sm font-black tracking-tight text-slate-900">{title}</div>
-          {subtitle && (
-            <div className="mt-0.5 text-[11px] text-slate-500 leading-snug">{subtitle}</div>
+        <div className="min-w-0 flex items-start gap-2.5">
+          {Icon && (
+            <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-[#0284c7] border border-sky-100">
+              <Icon className="h-4 w-4" />
+            </span>
           )}
+          <div className="min-w-0">
+            <div className="text-sm font-black tracking-tight text-slate-900">{title}</div>
+            {subtitle && (
+              <div className="mt-0.5 text-[11px] text-slate-500 leading-snug">{subtitle}</div>
+            )}
+          </div>
         </div>
+        {badge && (
+          <span className="shrink-0 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-500">
+            {badge}
+          </span>
+        )}
       </div>
       <div style={{ height }} className="relative w-full">
         {children}
@@ -165,15 +215,23 @@ export function ChartCard({
   );
 }
 
-export function EmptyChartState({ message = 'Post journals to populate this chart' }: { message?: string }) {
+export function EmptyChartState({
+  message = 'Post journals to populate this chart',
+}: {
+  message?: string;
+}) {
   return (
-    <div className="absolute inset-0 flex items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 text-center px-4">
-      <p className="text-xs text-slate-500 max-w-xs">{message}</p>
+    <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-gradient-to-br from-slate-50/90 to-white text-center px-4">
+      <p className="text-xs text-slate-500 max-w-xs leading-relaxed">{message}</p>
     </div>
   );
 }
 
-/** Revenue vs expenses vs net — multi-month line */
+function hasSignal(arr: Array<number | null | undefined>) {
+  return arr.some((v) => v != null && Math.abs(Number(v)) > 0.001);
+}
+
+/** Revenue / expenses / net — lucid multi-line */
 export function PnlTrendChart({
   labels,
   revenue,
@@ -185,53 +243,54 @@ export function PnlTrendChart({
   expenses: number[];
   netIncome: number[];
 }) {
-  const hasData = [...revenue, ...expenses, ...netIncome].some((v) => Math.abs(v) > 0.001);
+  const ok = hasSignal([...revenue, ...expenses, ...netIncome]);
   const data: ChartData<'line'> = {
     labels,
     datasets: [
       {
         label: 'Revenue',
         data: revenue,
-        borderColor: C.emerald,
-        backgroundColor: C.emeraldSoft,
+        borderColor: C.revenueLine,
+        backgroundColor: (ctx: ScriptableContext<'line'>) => {
+          const chart = ctx.chart;
+          const { ctx: c, chartArea } = chart;
+          if (!chartArea) return C.revenueSoft;
+          const g = c.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+          g.addColorStop(0, 'rgba(13, 148, 136, 0.22)');
+          g.addColorStop(1, 'rgba(13, 148, 136, 0.02)');
+          return g;
+        },
         fill: true,
-        tension: 0.35,
-        pointRadius: 3,
-        pointHoverRadius: 5,
-        borderWidth: 2.5,
+        pointHoverBackgroundColor: C.revenue,
       },
       {
         label: 'Expenses',
         data: expenses,
-        borderColor: C.rose,
+        borderColor: C.opex,
         backgroundColor: 'transparent',
-        tension: 0.35,
-        pointRadius: 3,
-        borderWidth: 2,
-        borderDash: [4, 3],
+        borderDash: [5, 4],
+        pointHoverBackgroundColor: C.opex,
       },
       {
         label: 'Net income',
         data: netIncome,
-        borderColor: C.cyanDeep,
-        backgroundColor: C.cyanSoft,
+        borderColor: C.netLine,
+        backgroundColor: C.netSoft,
         fill: true,
-        tension: 0.35,
-        pointRadius: 3,
-        borderWidth: 2.5,
+        pointHoverBackgroundColor: C.net,
       },
     ],
   };
 
   return (
     <div className="relative h-full w-full">
-      {!hasData && <EmptyChartState />}
+      {!ok && <EmptyChartState />}
       <Line data={data} options={lineOptions} />
     </div>
   );
 }
 
-/** Stacked revenue / cogs / opex bars */
+/** Stacked P&L composition */
 export function PnlStackChart({
   labels,
   revenue,
@@ -243,33 +302,33 @@ export function PnlStackChart({
   cogs: number[];
   expenses: number[];
 }) {
-  const hasData = [...revenue, ...cogs, ...expenses].some((v) => Math.abs(v) > 0.001);
+  const ok = hasSignal([...revenue, ...cogs, ...expenses]);
   const data: ChartData<'bar'> = {
     labels,
     datasets: [
       {
         label: 'Revenue',
         data: revenue,
-        backgroundColor: C.emerald,
-        borderRadius: 6,
+        backgroundColor: C.revenue,
+        borderRadius: 8,
         stack: 'pl',
-        maxBarThickness: 28,
+        maxBarThickness: 32,
       },
       {
         label: 'COGS',
         data: cogs.map((v) => -Math.abs(v)),
-        backgroundColor: C.amber,
-        borderRadius: 6,
+        backgroundColor: C.cogs,
+        borderRadius: 8,
         stack: 'pl',
-        maxBarThickness: 28,
+        maxBarThickness: 32,
       },
       {
         label: 'OpEx',
         data: expenses.map((v) => -Math.abs(v)),
-        backgroundColor: C.rose,
-        borderRadius: 6,
+        backgroundColor: C.opex,
+        borderRadius: 8,
         stack: 'pl',
-        maxBarThickness: 28,
+        maxBarThickness: 32,
       },
     ],
   };
@@ -285,7 +344,7 @@ export function PnlStackChart({
 
   return (
     <div className="relative h-full w-full">
-      {!hasData && <EmptyChartState />}
+      {!ok && <EmptyChartState />}
       <Bar data={data} options={options} />
     </div>
   );
@@ -302,49 +361,8 @@ export function CashflowChart({
   outflow: number[];
   net?: number[];
 }) {
-  const hasData = [...inflow, ...outflow].some((v) => Math.abs(v) > 0.001);
-  const data: ChartData<'bar'> = {
-    labels,
-    datasets: [
-      {
-        type: 'bar' as const,
-        label: 'Inflow',
-        data: inflow,
-        backgroundColor: C.emerald,
-        borderRadius: 8,
-        maxBarThickness: 26,
-        order: 2,
-      },
-      {
-        type: 'bar' as const,
-        label: 'Outflow',
-        data: outflow.map((v) => -Math.abs(v)),
-        backgroundColor: C.slate,
-        borderRadius: 8,
-        maxBarThickness: 26,
-        order: 2,
-      },
-      ...(net
-        ? [
-            {
-              type: 'line' as const,
-              label: 'Net cash',
-              data: net,
-              borderColor: C.cyan,
-              backgroundColor: C.cyanSoft,
-              tension: 0.35,
-              borderWidth: 2.5,
-              pointRadius: 3,
-              order: 1,
-              yAxisID: 'y',
-            },
-          ]
-        : []),
-    ] as ChartData<'bar'>['datasets'],
-  };
+  const ok = hasSignal([...inflow, ...outflow]);
 
-  // Use Line chart when net overlay needed — Chart.js mixed charts work with Bar as base in v4 with care.
-  // Simpler: dual dataset bar only if no net, else line for all three.
   if (net) {
     const lineData: ChartData<'line'> = {
       labels,
@@ -352,46 +370,62 @@ export function CashflowChart({
         {
           label: 'Inflow',
           data: inflow,
-          borderColor: C.emerald,
-          backgroundColor: C.emeraldSoft,
+          borderColor: C.cashIn,
+          backgroundColor: 'rgba(16, 185, 129, 0.12)',
           fill: true,
-          tension: 0.3,
-          borderWidth: 2,
-          pointRadius: 2,
         },
         {
           label: 'Outflow',
           data: outflow,
-          borderColor: C.slate,
-          backgroundColor: C.slateSoft,
+          borderColor: C.cashOut,
+          backgroundColor: 'rgba(100, 116, 139, 0.1)',
           fill: true,
-          tension: 0.3,
-          borderWidth: 2,
-          pointRadius: 2,
         },
         {
-          label: 'Net',
+          label: 'Net cash',
           data: net,
-          borderColor: C.cyanDeep,
+          borderColor: C.cashNet,
           backgroundColor: 'transparent',
-          tension: 0.3,
+          borderDash: [6, 3],
           borderWidth: 2.5,
-          pointRadius: 3,
-          borderDash: [5, 3],
         },
       ],
     };
     return (
       <div className="relative h-full w-full">
-        {!hasData && <EmptyChartState message="Import bank lines or record payments for cash charts" />}
+        {!ok && (
+          <EmptyChartState message="Import bank lines or record payments for cash charts" />
+        )}
         <Line data={lineData} options={lineOptions} />
       </div>
     );
   }
 
+  const data: ChartData<'bar'> = {
+    labels,
+    datasets: [
+      {
+        label: 'Inflow',
+        data: inflow,
+        backgroundColor: C.cashIn,
+        borderRadius: 8,
+        maxBarThickness: 28,
+      },
+      {
+        label: 'Outflow',
+        data: outflow.map((v) => -Math.abs(v)),
+        backgroundColor: C.cashOut,
+        borderRadius: 8,
+        maxBarThickness: 28,
+      },
+    ],
+  };
+
   return (
     <div className="relative h-full w-full">
-      {!hasData && <EmptyChartState message="Import bank lines or record payments for cash charts" />}
+      {!ok && (
+        <EmptyChartState message="Import bank lines or record payments for cash charts" />
+      )}
       <Bar data={data} options={barOptions} />
     </div>
   );
@@ -400,12 +434,23 @@ export function CashflowChart({
 export function AgingBarChart({
   buckets,
 }: {
-  buckets: { current: number; d1_30: number; d31_60: number; d61_90: number; d90_plus: number };
+  buckets: {
+    current: number;
+    d1_30: number;
+    d31_60: number;
+    d61_90: number;
+    d90_plus: number;
+  };
 }) {
   const labels = ['Current', '1–30', '31–60', '61–90', '90+'];
-  const values = [buckets.current, buckets.d1_30, buckets.d31_60, buckets.d61_90, buckets.d90_plus];
-  const colors = [C.emerald, C.cyan, C.amber, '#f97316', C.rose];
-  const hasData = values.some((v) => v > 0);
+  const values = [
+    buckets.current,
+    buckets.d1_30,
+    buckets.d31_60,
+    buckets.d61_90,
+    buckets.d90_plus,
+  ];
+  const ok = values.some((v) => v > 0);
 
   const data: ChartData<'bar'> = {
     labels,
@@ -413,9 +458,9 @@ export function AgingBarChart({
       {
         label: 'Balance',
         data: values,
-        backgroundColor: colors,
-        borderRadius: 10,
-        maxBarThickness: 48,
+        backgroundColor: AGING_COLORS,
+        borderRadius: 12,
+        maxBarThickness: 44,
       },
     ],
   };
@@ -423,15 +468,12 @@ export function AgingBarChart({
   const options: ChartOptions<'bar'> = {
     ...barOptions,
     indexAxis: 'y',
-    plugins: {
-      ...basePlugins,
-      legend: { display: false },
-    },
+    plugins: { ...basePlugins, legend: { display: false } },
   };
 
   return (
     <div className="relative h-full w-full">
-      {!hasData && <EmptyChartState message="No open balances in aging buckets" />}
+      {!ok && <EmptyChartState message="No open balances in aging buckets" />}
       <Bar data={data} options={options} />
     </div>
   );
@@ -446,9 +488,18 @@ export function MixDoughnut({
   centerLabel?: string;
   centerValue?: string;
 }) {
-  const palette = [C.cyan, C.emerald, C.violet, C.amber, C.rose, C.slate, C.cyanDeep];
+  const palette = [
+    C.revenue,
+    C.net,
+    C.cashNet,
+    C.cogs,
+    C.opex,
+    C.cashIn,
+    '#38bdf8',
+    '#a78bfa',
+  ];
   const filtered = segments.filter((s) => Math.abs(s.value) > 0.001);
-  const hasData = filtered.length > 0;
+  const ok = filtered.length > 0;
 
   const data: ChartData<'doughnut'> = {
     labels: filtered.map((s) => s.label),
@@ -456,9 +507,9 @@ export function MixDoughnut({
       {
         data: filtered.map((s) => Math.abs(s.value)),
         backgroundColor: filtered.map((s, i) => s.color || palette[i % palette.length]),
-        borderWidth: 2,
+        borderWidth: 3,
         borderColor: '#fff',
-        hoverOffset: 6,
+        hoverOffset: 8,
       },
     ],
   };
@@ -466,7 +517,7 @@ export function MixDoughnut({
   const options: ChartOptions<'doughnut'> = {
     responsive: true,
     maintainAspectRatio: false,
-    cutout: '68%',
+    cutout: '70%',
     plugins: {
       ...basePlugins,
       legend: {
@@ -474,6 +525,7 @@ export function MixDoughnut({
         labels: {
           ...basePlugins.legend.labels,
           font: { size: 10, weight: 600 as const },
+          padding: 10,
         },
       },
       tooltip: {
@@ -491,10 +543,10 @@ export function MixDoughnut({
 
   return (
     <div className="relative h-full w-full">
-      {!hasData && <EmptyChartState />}
+      {!ok && <EmptyChartState />}
       <Doughnut data={data} options={options} />
-      {hasData && centerValue && (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center pr-16 sm:pr-20">
+      {ok && centerValue && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center pr-14 sm:pr-20">
           <div className="text-center">
             {centerLabel && (
               <div className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
@@ -523,9 +575,9 @@ export function BalanceCompositionChart({
   return (
     <MixDoughnut
       segments={[
-        { label: 'Assets', value: Math.max(0, assets), color: C.cyan },
-        { label: 'Liabilities', value: Math.max(0, liabilities), color: C.rose },
-        { label: 'Equity', value: Math.max(0, equity), color: C.emerald },
+        { label: 'Assets', value: Math.max(0, assets), color: C.assets },
+        { label: 'Liabilities', value: Math.max(0, liabilities), color: C.liabilities },
+        { label: 'Equity', value: Math.max(0, equity), color: C.equity },
       ]}
       centerLabel="Assets"
       centerValue={formatMoney(assets)}
@@ -533,7 +585,6 @@ export function BalanceCompositionChart({
   );
 }
 
-/** Historical solid + forecast dashed with revenue confidence band */
 export function ForecastLineChart({
   labels,
   historyCount,
@@ -553,9 +604,8 @@ export function ForecastLineChart({
   revenueLow?: Array<number | null>;
   revenueHigh?: Array<number | null>;
 }) {
-  const hasData =
-    revenue.some((v) => v != null && Math.abs(v) > 0.001) ||
-    revenueForecast.some((v) => v != null && Math.abs(v) > 0.001);
+  const ok =
+    hasSignal(revenue as number[]) || hasSignal(revenueForecast as number[]);
 
   const data: ChartData<'line'> = {
     labels,
@@ -566,65 +616,52 @@ export function ForecastLineChart({
               label: 'Revenue band high',
               data: revenueHigh,
               borderColor: 'transparent',
-              backgroundColor: 'rgba(16, 185, 129, 0.12)',
-              fill: '+1',
+              backgroundColor: C.band,
+              fill: '+1' as const,
               pointRadius: 0,
               borderWidth: 0,
-              tension: 0.3,
+              tension: 0.35,
             },
             {
               label: 'Revenue band low',
               data: revenueLow,
               borderColor: 'transparent',
-              backgroundColor: 'rgba(16, 185, 129, 0.12)',
-              fill: false,
+              backgroundColor: C.band,
+              fill: false as const,
               pointRadius: 0,
               borderWidth: 0,
-              tension: 0.3,
+              tension: 0.35,
             },
           ]
         : []),
       {
         label: 'Revenue (actual)',
         data: revenue,
-        borderColor: C.emerald,
-        backgroundColor: C.emeraldSoft,
-        fill: false,
-        tension: 0.35,
-        pointRadius: 3,
-        borderWidth: 2.5,
+        borderColor: C.revenueLine,
+        backgroundColor: 'transparent',
         spanGaps: false,
       },
       {
         label: 'Revenue (forecast)',
         data: revenueForecast,
-        borderColor: C.emerald,
+        borderColor: C.revenue,
+        borderDash: [7, 4],
         backgroundColor: 'transparent',
-        borderDash: [6, 4],
-        tension: 0.35,
-        pointRadius: 2,
-        borderWidth: 2,
         spanGaps: false,
       },
       {
         label: 'Net (actual)',
         data: netIncome,
-        borderColor: C.cyanDeep,
+        borderColor: C.netLine,
         backgroundColor: 'transparent',
-        tension: 0.35,
-        pointRadius: 3,
-        borderWidth: 2.5,
         spanGaps: false,
       },
       {
         label: 'Net (forecast)',
         data: netForecast,
-        borderColor: C.cyan,
+        borderColor: C.forecast,
+        borderDash: [7, 4],
         backgroundColor: 'transparent',
-        borderDash: [6, 4],
-        tension: 0.35,
-        pointRadius: 2,
-        borderWidth: 2,
         spanGaps: false,
       },
     ],
@@ -646,12 +683,11 @@ export function ForecastLineChart({
 
   return (
     <div className="relative h-full w-full">
-      {!hasData && (
-        <EmptyChartState message="Need posted monthly history to project 1–12 month forecasts" />
+      {!ok && (
+        <EmptyChartState message="Need posted monthly history to project forecasts" />
       )}
-      {/* History / forecast divider hint */}
-      {hasData && historyCount > 0 && historyCount < labels.length && (
-        <div className="absolute right-2 top-0 z-10 rounded-full bg-amber-50 border border-amber-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-700">
+      {ok && historyCount > 0 && historyCount < labels.length && (
+        <div className="absolute right-2 top-0 z-10 rounded-full bg-sky-50 border border-sky-100 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-sky-700">
           Forecast →
         </div>
       )}
@@ -677,23 +713,23 @@ export function HorizonBarsChart({
       {
         label: 'Revenue',
         data: horizons.map((h) => h.revenue),
-        backgroundColor: C.emerald,
-        borderRadius: 8,
-        maxBarThickness: 32,
+        backgroundColor: C.revenue,
+        borderRadius: 10,
+        maxBarThickness: 36,
       },
       {
         label: 'Expenses',
         data: horizons.map((h) => h.expenses),
-        backgroundColor: C.rose,
-        borderRadius: 8,
-        maxBarThickness: 32,
+        backgroundColor: C.opex,
+        borderRadius: 10,
+        maxBarThickness: 36,
       },
       {
         label: 'Net income',
         data: horizons.map((h) => h.netIncome),
-        backgroundColor: C.cyanDeep,
-        borderRadius: 8,
-        maxBarThickness: 32,
+        backgroundColor: C.net,
+        borderRadius: 10,
+        maxBarThickness: 36,
       },
     ],
   };
@@ -705,7 +741,7 @@ export function HorizonBarsChart({
   );
 }
 
-/** Single-period waterfall-style summary as horizontal bars */
+/** Horizontal bridge: Revenue → COGS → OpEx → Net */
 export function PeriodWaterfall({
   revenue,
   cogs,
@@ -719,7 +755,12 @@ export function PeriodWaterfall({
 }) {
   const labels = ['Revenue', 'COGS', 'OpEx', 'Net'];
   const values = [revenue, -Math.abs(cogs), -Math.abs(expenses), netIncome];
-  const colors = [C.emerald, C.amber, C.rose, netIncome >= 0 ? C.cyanDeep : C.rose];
+  const colors = [
+    C.revenue,
+    C.cogs,
+    C.opex,
+    netIncome >= 0 ? C.net : C.opex,
+  ];
 
   const data: ChartData<'bar'> = {
     labels,
@@ -728,8 +769,8 @@ export function PeriodWaterfall({
         label: 'Amount',
         data: values,
         backgroundColor: colors,
-        borderRadius: 10,
-        maxBarThickness: 40,
+        borderRadius: 12,
+        maxBarThickness: 48,
       },
     ],
   };
@@ -740,5 +781,187 @@ export function PeriodWaterfall({
     plugins: { ...basePlugins, legend: { display: false } },
   };
 
+  return <Bar data={data} options={options} />;
+}
+
+/** Gross / net margin % trend */
+export function MarginTrendChart({
+  labels,
+  grossMargin,
+  netMargin,
+}: {
+  labels: string[];
+  grossMargin: number[];
+  netMargin: number[];
+}) {
+  const ok = hasSignal([...grossMargin, ...netMargin]);
+  const data: ChartData<'line'> = {
+    labels,
+    datasets: [
+      {
+        label: 'Gross margin %',
+        data: grossMargin,
+        borderColor: C.revenueLine,
+        backgroundColor: C.revenueSoft,
+        fill: true,
+      },
+      {
+        label: 'Net margin %',
+        data: netMargin,
+        borderColor: C.netLine,
+        backgroundColor: 'transparent',
+        borderDash: [4, 3],
+      },
+    ],
+  };
+
+  const options: ChartOptions<'line'> = {
+    ...lineOptions,
+    scales: {
+      ...cartesianScales,
+      y: {
+        ...cartesianScales.y,
+        ticks: {
+          ...cartesianScales.y.ticks,
+          callback: (v) => `${v}%`,
+        },
+      },
+    },
+    plugins: {
+      ...basePlugins,
+      tooltip: {
+        ...basePlugins.tooltip,
+        callbacks: {
+          label: (ctx) =>
+            `${ctx.dataset.label}: ${Number(ctx.parsed.y ?? 0).toFixed(1)}%`,
+        },
+      },
+    },
+  };
+
+  return (
+    <div className="relative h-full w-full">
+      {!ok && <EmptyChartState message="Need revenue history for margin trends" />}
+      <Line data={data} options={options} />
+    </div>
+  );
+}
+
+function toneStyles(tone: RatioTone) {
+  switch (tone) {
+    case 'good':
+      return 'border-emerald-100 bg-gradient-to-br from-emerald-50/90 to-white';
+    case 'warn':
+      return 'border-amber-100 bg-gradient-to-br from-amber-50/80 to-white';
+    case 'bad':
+      return 'border-rose-100 bg-gradient-to-br from-rose-50/70 to-white';
+    default:
+      return 'border-slate-200/90 bg-white';
+  }
+}
+
+function toneValue(tone: RatioTone) {
+  switch (tone) {
+    case 'good':
+      return 'text-emerald-700';
+    case 'warn':
+      return 'text-amber-700';
+    case 'bad':
+      return 'text-rose-600';
+    default:
+      return 'text-slate-900';
+  }
+}
+
+/** Board-style ratio cards */
+export function RatioGrid({
+  ratios,
+  title = 'Key accounting ratios',
+  subtitle,
+}: {
+  ratios: RatioCard[];
+  title?: string;
+  subtitle?: string;
+}) {
+  if (!ratios.length) return null;
+  return (
+    <div className="mb-6">
+      <div className="mb-3">
+        <h3 className="text-sm font-black tracking-tight text-slate-900">{title}</h3>
+        {subtitle && (
+          <p className="text-[11px] text-slate-500 mt-0.5">{subtitle}</p>
+        )}
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-3">
+        {ratios.map((r) => (
+          <div
+            key={r.id}
+            className={`rounded-2xl border p-3.5 sm:p-4 shadow-sm ${toneStyles(r.tone)}`}
+            title={r.hint}
+          >
+            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+              {r.label}
+            </div>
+            <div
+              className={`text-xl sm:text-2xl font-black tabular-nums tracking-tight ${toneValue(r.tone)}`}
+            >
+              {r.value}
+            </div>
+            <div className="mt-1 text-[10px] text-slate-500 leading-snug line-clamp-2">
+              {r.hint}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Simple horizontal % bar for a single ratio */
+export function RatioBarChart({
+  ratios,
+}: {
+  ratios: Array<{ label: string; value: number | null; max?: number }>;
+}) {
+  const labels = ratios.map((r) => r.label);
+  const values = ratios.map((r) => (r.value == null ? 0 : r.value));
+  const data: ChartData<'bar'> = {
+    labels,
+    datasets: [
+      {
+        label: '%',
+        data: values,
+        backgroundColor: values.map((v) =>
+          v >= 15 ? C.revenue : v >= 5 ? C.cogs : C.opex
+        ),
+        borderRadius: 10,
+        maxBarThickness: 36,
+      },
+    ],
+  };
+  const options: ChartOptions<'bar'> = {
+    ...barOptions,
+    indexAxis: 'y',
+    plugins: {
+      ...basePlugins,
+      legend: { display: false },
+      tooltip: {
+        ...basePlugins.tooltip,
+        callbacks: {
+          label: (ctx) => `${Number(ctx.parsed.x ?? 0).toFixed(1)}%`,
+        },
+      },
+    },
+    scales: {
+      ...cartesianScales,
+      x: {
+        ...cartesianScales.x,
+        ticks: {
+          ...cartesianScales.x.ticks,
+          callback: (v) => `${v}%`,
+        },
+      },
+    },
+  };
   return <Bar data={data} options={options} />;
 }

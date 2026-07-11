@@ -9,6 +9,13 @@ import {
   Info,
   Sparkles,
   Briefcase,
+  Percent,
+  PieChart,
+  Wallet,
+  ArrowDownUp,
+  BarChart3,
+  Activity,
+  Scale,
 } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
@@ -16,6 +23,7 @@ import { getSelectedCompanyId } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
 import { formatMoney } from '@/lib/accounting/types';
 import { horizonsFromMax } from '@/lib/accounting/forecast';
+import { buildAccountingRatios, type RatioCard } from '@/lib/accounting/ratios';
 import {
   AccountingHeader,
   AccountingPage,
@@ -33,14 +41,18 @@ import {
   ChartCard,
   ForecastLineChart,
   HorizonBarsChart,
+  MarginTrendChart,
   MixDoughnut,
   PeriodWaterfall,
   PnlStackChart,
   PnlTrendChart,
+  RatioBarChart,
+  RatioGrid,
 } from '@/components/accounting/AccountingCharts';
 
 const REPORTS = [
   { id: 'forecast', label: 'Forecast', accent: true },
+  { id: 'ratios', label: 'Ratios', accent: true },
   { id: 'trends', label: 'Trends' },
   { id: 'pnl', label: 'Profit & loss' },
   { id: 'balance_sheet', label: 'Balance sheet' },
@@ -100,7 +112,8 @@ function Inner() {
     setCustomHorizon('');
   };
 
-  const isSeriesReport = report === 'trends' || report === 'forecast';
+  const isSeriesReport =
+    report === 'trends' || report === 'forecast' || report === 'ratios';
   const historyMonths = period.historyMonths ?? 12;
   const from = period.from;
   const to = period.to;
@@ -108,37 +121,84 @@ function Inner() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({
-        companyId: String(companyId),
-        report,
-      });
-      if (privyUserId) params.set('privyUserId', privyUserId);
+      const base = new URLSearchParams({ companyId: String(companyId) });
+      if (privyUserId) base.set('privyUserId', privyUserId);
 
-      if (isSeriesReport) {
-        params.set('months', String(historyMonths));
-        params.set('includePipeline', includePipeline ? '1' : '0');
-        // When multi-month range selected, use it; else trailing ends at `to`
+      if (report === 'ratios') {
+        // Composite pack: trends + BS + AR/AP for full ratio set
+        const tParams = new URLSearchParams(base);
+        tParams.set('report', 'trends');
+        tParams.set('months', String(historyMonths));
+        tParams.set('includePipeline', includePipeline ? '1' : '0');
         if (period.selectedMonthFroms.length > 0) {
-          params.set('from', from);
-          params.set('to', to);
-        } else if (to) {
-          params.set('to', to);
-        }
-        if (report === 'forecast') {
-          params.set('horizons', selectedHorizons.join(','));
-          params.set('horizonMonths', String(Math.max(...selectedHorizons, horizonMonths)));
-        }
-      } else if (report !== 'ar_aging' && report !== 'ap_aging') {
-        if (from) params.set('from', from);
-        if (to) params.set('to', to);
-      }
+          tParams.set('from', from);
+          tParams.set('to', to);
+        } else if (to) tParams.set('to', to);
 
-      const res = await fetch(`/api/accounting/reports?${params}`);
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Failed');
-      setData(json);
-      if (json.warning) toast.message(json.warning);
-      if (json.pipeline?.warning) toast.message(`Pipeline: ${json.pipeline.warning}`);
+        const bsParams = new URLSearchParams(base);
+        bsParams.set('report', 'balance_sheet');
+        if (from) bsParams.set('from', from);
+        if (to) bsParams.set('to', to);
+
+        const arParams = new URLSearchParams(base);
+        arParams.set('report', 'ar_aging');
+        const apParams = new URLSearchParams(base);
+        apParams.set('report', 'ap_aging');
+
+        const [tRes, bsRes, arRes, apRes] = await Promise.all([
+          fetch(`/api/accounting/reports?${tParams}`),
+          fetch(`/api/accounting/reports?${bsParams}`),
+          fetch(`/api/accounting/reports?${arParams}`),
+          fetch(`/api/accounting/reports?${apParams}`),
+        ]);
+        const [tJson, bsJson, arJson, apJson] = await Promise.all([
+          tRes.json(),
+          bsRes.json(),
+          arRes.json(),
+          apRes.json(),
+        ]);
+        if (!tRes.ok) throw new Error(tJson.error || 'Failed');
+        setData({
+          ...tJson,
+          report: 'ratios',
+          balanceSheet: bsJson.summary || null,
+          arBuckets: arJson.buckets || null,
+          arTotal: arJson.total || 0,
+          apBuckets: apJson.buckets || null,
+          apTotal: apJson.total || 0,
+        });
+      } else {
+        const params = new URLSearchParams(base);
+        params.set('report', report);
+
+        if (isSeriesReport) {
+          params.set('months', String(historyMonths));
+          params.set('includePipeline', includePipeline ? '1' : '0');
+          if (period.selectedMonthFroms.length > 0) {
+            params.set('from', from);
+            params.set('to', to);
+          } else if (to) {
+            params.set('to', to);
+          }
+          if (report === 'forecast') {
+            params.set('horizons', selectedHorizons.join(','));
+            params.set(
+              'horizonMonths',
+              String(Math.max(...selectedHorizons, horizonMonths))
+            );
+          }
+        } else if (report !== 'ar_aging' && report !== 'ap_aging') {
+          if (from) params.set('from', from);
+          if (to) params.set('to', to);
+        }
+
+        const res = await fetch(`/api/accounting/reports?${params}`);
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || 'Failed');
+        setData(json);
+        if (json.warning) toast.message(json.warning);
+        if (json.pipeline?.warning) toast.message(`Pipeline: ${json.pipeline.warning}`);
+      }
     } catch (err) {
       setData(null);
       toast.error(err instanceof Error ? err.message : 'Failed');
@@ -339,6 +399,10 @@ function ReportBody({
     return <ForecastReport data={data} includePipeline={includePipeline} />;
   }
 
+  if (report === 'ratios') {
+    return <RatiosReport data={data} />;
+  }
+
   if (report === 'trends') {
     return <TrendsReport data={data} includePipeline={includePipeline} />;
   }
@@ -408,6 +472,19 @@ function ReportBody({
       cogs: rows.filter((r) => r.account_type === 'cogs'),
       expense: rows.filter((r) => r.account_type === 'expense'),
     };
+    const ratios = summary
+      ? buildAccountingRatios({
+          revenue: summary.revenue,
+          cogs: summary.cogs,
+          expenses: summary.expenses,
+          grossProfit: summary.grossProfit,
+          netIncome: summary.netIncome,
+        }).filter((r) =>
+          ['gross_margin', 'op_margin', 'net_margin', 'expense_ratio', 'cogs_ratio'].includes(
+            r.id
+          )
+        )
+      : [];
     return (
       <>
         {summary && (
@@ -423,12 +500,21 @@ function ReportBody({
             />
           </div>
         )}
+        {ratios.length > 0 && (
+          <RatioGrid
+            ratios={ratios}
+            title="Profitability ratios"
+            subtitle="Margins and cost structure for the selected period"
+          />
+        )}
         {summary && (
           <div className="grid lg:grid-cols-2 gap-4 mb-6">
             <ChartCard
               title="P&L bridge"
-              subtitle="Revenue → costs → net for selected period"
+              subtitle="Revenue → COGS → OpEx → net"
               height={300}
+              icon={BarChart3}
+              badge="Statement"
             >
               <PeriodWaterfall
                 revenue={summary.revenue}
@@ -437,7 +523,12 @@ function ReportBody({
                 netIncome={summary.netIncome}
               />
             </ChartCard>
-            <ChartCard title="Expense mix" subtitle="Operating expense accounts" height={300}>
+            <ChartCard
+              title="Expense mix"
+              subtitle="Operating expense accounts"
+              height={300}
+              icon={PieChart}
+            >
               <MixDoughnut
                 segments={byType.expense.slice(0, 8).map((r) => ({
                   label: String(r.name).slice(0, 22),
@@ -447,6 +538,35 @@ function ReportBody({
                 centerValue={formatMoney(summary.expenses)}
               />
             </ChartCard>
+            <ChartCard
+              title="Income mix"
+              subtitle="Revenue accounts"
+              height={280}
+              icon={TrendingUp}
+            >
+              <MixDoughnut
+                segments={byType.revenue.slice(0, 8).map((r) => ({
+                  label: String(r.name).slice(0, 22),
+                  value: Number(r.amount),
+                }))}
+                centerLabel="Revenue"
+                centerValue={formatMoney(summary.revenue)}
+              />
+            </ChartCard>
+            {ratios.length > 0 && (
+              <ChartCard
+                title="Margin snapshot"
+                subtitle="Key % ratios for this period"
+                height={280}
+                icon={Percent}
+              >
+                <RatioBarChart
+                  ratios={ratios
+                    .filter((r) => r.raw != null)
+                    .map((r) => ({ label: r.label, value: r.raw }))}
+                />
+              </ChartCard>
+            )}
           </div>
         )}
         <SimpleTable
@@ -480,28 +600,51 @@ function ReportBody({
           </div>
         )}
         {summary && (
-          <div className="grid lg:grid-cols-2 gap-4 mb-6">
-            <ChartCard title="Balance sheet composition" subtitle="Assets · liabilities · equity">
-              <BalanceCompositionChart
-                assets={Number(summary.assets)}
-                liabilities={Number(summary.liabilities)}
-                equity={Number(summary.equity)}
-              />
-            </ChartCard>
-            <ChartCard title="Top asset accounts" subtitle="Largest asset balances">
-              <MixDoughnut
-                segments={rows
-                  .filter((r) => r.account_type === 'asset')
-                  .slice(0, 8)
-                  .map((r) => ({
-                    label: String(r.name).slice(0, 20),
-                    value: Number(r.amount),
-                  }))}
-                centerLabel="Assets"
-                centerValue={formatMoney(Number(summary.assets))}
-              />
-            </ChartCard>
-          </div>
+          <>
+            <RatioGrid
+              ratios={buildAccountingRatios({
+                assets: Number(summary.assets),
+                liabilities: Number(summary.liabilities),
+                equity: Number(summary.equity),
+                netIncome: Number(summary.netIncome || 0),
+              }).filter((r) =>
+                ['current_ratio', 'debt_equity', 'roa', 'roe', 'working_capital'].includes(r.id)
+              )}
+              title="Balance sheet ratios"
+              subtitle="Liquidity, leverage, and returns (period NI rolled into equity)"
+            />
+            <div className="grid lg:grid-cols-2 gap-4 mb-6">
+              <ChartCard
+                title="Balance sheet composition"
+                subtitle="Assets · liabilities · equity"
+                icon={Scale}
+                badge="Equation"
+              >
+                <BalanceCompositionChart
+                  assets={Number(summary.assets)}
+                  liabilities={Number(summary.liabilities)}
+                  equity={Number(summary.equity)}
+                />
+              </ChartCard>
+              <ChartCard
+                title="Top asset accounts"
+                subtitle="Largest asset balances"
+                icon={Wallet}
+              >
+                <MixDoughnut
+                  segments={rows
+                    .filter((r) => r.account_type === 'asset')
+                    .slice(0, 8)
+                    .map((r) => ({
+                      label: String(r.name).slice(0, 20),
+                      value: Number(r.amount),
+                    }))}
+                  centerLabel="Assets"
+                  centerValue={formatMoney(Number(summary.assets))}
+                />
+              </ChartCard>
+            </div>
+          </>
         )}
         <SimpleTable
           headers={['Code', 'Name', 'Type', 'Amount']}
@@ -676,6 +819,176 @@ function PipelineStrip({
   );
 }
 
+function RatiosReport({ data }: { data: Record<string, unknown> }) {
+  const labels = (data.labels as string[]) || [];
+  const series = (data.series as Record<string, number[]>) || {};
+  const totals = (data.totals as Record<string, number>) || {};
+  const history = (data.history as Array<Record<string, unknown>>) || [];
+  const ratios = ratiosFromTrends(data);
+  const margins = marginSeries(history);
+  const marginBars = ratios.filter((r) =>
+    ['gross_margin', 'op_margin', 'net_margin', 'expense_ratio', 'cogs_ratio'].includes(r.id)
+  );
+
+  const groups: Array<{ id: string; title: string; ids: string[] }> = [
+    {
+      id: 'profitability',
+      title: 'Profitability',
+      ids: ['gross_margin', 'op_margin', 'net_margin', 'roa', 'roe'],
+    },
+    {
+      id: 'liquidity',
+      title: 'Liquidity',
+      ids: ['current_ratio', 'quick_ratio', 'working_capital', 'ar_ap'],
+    },
+    {
+      id: 'leverage',
+      title: 'Leverage',
+      ids: ['debt_equity'],
+    },
+    {
+      id: 'efficiency',
+      title: 'Efficiency',
+      ids: ['expense_ratio', 'cogs_ratio'],
+    },
+    {
+      id: 'growth',
+      title: 'Growth',
+      ids: ['rev_growth', 'net_growth'],
+    },
+  ];
+
+  return (
+    <>
+      <div className="mb-5 rounded-[1.5rem] border border-teal-100 bg-gradient-to-br from-white via-teal-50/40 to-sky-50/50 p-5 sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="inline-flex items-center gap-1.5 rounded-full border border-teal-200 bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-teal-700 mb-2">
+              <Percent className="w-3 h-3" />
+              Financial ratio pack
+            </div>
+            <h3 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900">
+              Leading accounting ratios
+            </h3>
+            <p className="mt-1 text-sm text-slate-600 max-w-2xl">
+              Board-style KPIs from posted P&amp;L history, balance sheet, AR/AP, and cash —
+              green = healthy, amber = watch, rose = pressure.
+            </p>
+          </div>
+        </div>
+        <div className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+          <SumCard label="Revenue (window)" value={formatMoney(totals.revenue || 0)} tone="emerald" />
+          <SumCard label="Net income" value={formatMoney(totals.netIncome || 0)} />
+          <SumCard label="Cash net" value={formatMoney(totals.cashNet || 0)} />
+          <SumCard
+            label="AR open"
+            value={formatMoney(Number(data.arTotal || 0))}
+            tone="amber"
+          />
+        </div>
+      </div>
+
+      {groups.map((g) => {
+        const cards = ratios.filter((r) => g.ids.includes(r.id));
+        if (!cards.length) return null;
+        return (
+          <RatioGrid
+            key={g.id}
+            ratios={cards}
+            title={g.title}
+            subtitle={
+              g.id === 'liquidity'
+                ? 'Uses BS + AR/AP when available; otherwise cash/AR proxies'
+                : undefined
+            }
+          />
+        );
+      })}
+
+      <div className="grid lg:grid-cols-2 gap-4 mb-6">
+        <ChartCard
+          title="Margin & cost ratios"
+          subtitle="Gross / net / expense / COGS %"
+          height={300}
+          icon={Percent}
+        >
+          <RatioBarChart
+            ratios={marginBars.map((r) => ({ label: r.label, value: r.raw }))}
+          />
+        </ChartCard>
+        <ChartCard
+          title="Margin trend"
+          subtitle="Gross vs net margin through history"
+          height={300}
+          icon={TrendingUp}
+        >
+          <MarginTrendChart
+            labels={labels}
+            grossMargin={margins.gross}
+            netMargin={margins.net}
+          />
+        </ChartCard>
+        <ChartCard
+          title="P&L trajectory"
+          subtitle="Revenue · expenses · net"
+          height={300}
+          className="lg:col-span-2"
+          icon={Activity}
+        >
+          <PnlTrendChart
+            labels={labels}
+            revenue={series.revenue || []}
+            expenses={series.expenses || []}
+            netIncome={series.netIncome || []}
+          />
+        </ChartCard>
+      </div>
+
+      <p className="text-[11px] text-slate-400 text-center max-w-2xl mx-auto mb-4">
+        Ratios are indicative management metrics. Post complete journals and a balanced balance
+        sheet for the strongest signals. Not a substitute for statutory financial statements.
+      </p>
+    </>
+  );
+}
+
+function ratiosFromTrends(data: Record<string, unknown>): RatioCard[] {
+  const series = (data.series as Record<string, number[]>) || {};
+  const totals = (data.totals as Record<string, number>) || {};
+  const bs = data.balanceSheet as Record<string, number> | null | undefined;
+  return buildAccountingRatios({
+    revenue: totals.revenue,
+    cogs: totals.cogs,
+    expenses: totals.expenses,
+    netIncome: totals.netIncome,
+    cashNet: totals.cashNet,
+    bankIn: totals.bankIn,
+    bankOut: totals.bankOut,
+    assets: bs ? Number(bs.assets) : undefined,
+    liabilities: bs ? Number(bs.liabilities) : undefined,
+    equity: bs ? Number(bs.equity) : undefined,
+    arOpen: Number(data.arTotal || 0) || undefined,
+    apOpen: Number(data.apTotal || 0) || undefined,
+    revenueSeries: series.revenue,
+    expenseSeries: series.expenses,
+    netSeries: series.netIncome,
+    cashSeries: series.cashNet,
+  });
+}
+
+function marginSeries(history: Array<Record<string, unknown>>) {
+  const gross: number[] = [];
+  const net: number[] = [];
+  for (const h of history) {
+    const rev = Number(h.revenue || 0);
+    const cogs = Number(h.cogs || 0);
+    const ni = Number(h.netIncome || 0);
+    gross.push(rev > 0 ? Math.round(((rev - cogs) / rev) * 1000) / 10 : 0);
+    net.push(rev > 0 ? Math.round((ni / rev) * 1000) / 10 : 0);
+  }
+  return { gross, net };
+}
+
 function TrendsReport({
   data,
   includePipeline,
@@ -689,6 +1002,8 @@ function TrendsReport({
   const history = (data.history as Array<Record<string, unknown>>) || [];
   const pipeline = (data.pipeline as Record<string, unknown>) || null;
   const months = Number((data.period as { months?: number })?.months || history.length || 12);
+  const ratios = ratiosFromTrends(data);
+  const margins = marginSeries(history);
 
   return (
     <>
@@ -713,12 +1028,29 @@ function TrendsReport({
         />
       </div>
 
+      <RatioGrid
+        ratios={ratios.filter((r) =>
+          [
+            'gross_margin',
+            'net_margin',
+            'expense_ratio',
+            'rev_growth',
+            'net_growth',
+            'cogs_ratio',
+          ].includes(r.id)
+        )}
+        title="Trend ratios"
+        subtitle="Profitability and momentum across the history window"
+      />
+
       <div className="grid lg:grid-cols-2 gap-4 mb-6">
         <ChartCard
           title="P&L trajectory"
-          subtitle="Monthly revenue, expenses, and net from posted journals"
-          height={300}
+          subtitle="Monthly revenue, expenses, and net — posted journals"
+          height={320}
           className="lg:col-span-2"
+          icon={Activity}
+          badge="Primary"
         >
           <PnlTrendChart
             labels={labels}
@@ -727,24 +1059,24 @@ function TrendsReport({
             netIncome={series.netIncome || []}
           />
         </ChartCard>
-        {includePipeline && (
-          <ChartCard
-            title="Pipeline by month"
-            subtitle="Gross pipeline (won + open scheduled) vs probability-weighted"
-            height={300}
-            className="lg:col-span-2"
-          >
-            <PnlTrendChart
-              labels={labels}
-              revenue={series.pipeline || []}
-              expenses={series.pipelineWeighted || []}
-              netIncome={(series.pipeline || []).map(
-                (p, i) => (series.pipelineWeighted?.[i] || 0)
-              )}
-            />
-          </ChartCard>
-        )}
-        <ChartCard title="Revenue vs cost stack" subtitle="Monthly composition" height={300}>
+        <ChartCard
+          title="Margin trend"
+          subtitle="Gross and net margin % by month"
+          height={280}
+          icon={Percent}
+        >
+          <MarginTrendChart
+            labels={labels}
+            grossMargin={margins.gross}
+            netMargin={margins.net}
+          />
+        </ChartCard>
+        <ChartCard
+          title="Revenue vs cost stack"
+          subtitle="Monthly composition (revenue up · costs down)"
+          height={280}
+          icon={BarChart3}
+        >
           <PnlStackChart
             labels={labels}
             revenue={series.revenue || []}
@@ -752,7 +1084,13 @@ function TrendsReport({
             expenses={series.expenses || []}
           />
         </ChartCard>
-        <ChartCard title="Cash in / out" subtitle="Bank lines (or payments fallback)" height={300}>
+        <ChartCard
+          title="Cash movement"
+          subtitle="Bank inflows / outflows · net dashed"
+          height={280}
+          icon={ArrowDownUp}
+          className="lg:col-span-2"
+        >
           <CashflowChart
             labels={labels}
             inflow={series.bankIn || []}
@@ -760,6 +1098,24 @@ function TrendsReport({
             net={series.cashNet || []}
           />
         </ChartCard>
+        {includePipeline && (
+          <ChartCard
+            title="Pipeline by month"
+            subtitle="Gross vs probability-weighted CRM pipeline"
+            height={280}
+            className="lg:col-span-2"
+            icon={Briefcase}
+          >
+            <PnlTrendChart
+              labels={labels}
+              revenue={series.pipeline || []}
+              expenses={series.pipelineWeighted || []}
+              netIncome={(series.pipeline || []).map(
+                (_p, i) => series.pipelineWeighted?.[i] || 0
+              )}
+            />
+          </ChartCard>
+        )}
       </div>
 
       <SectionLabel>Monthly detail</SectionLabel>
@@ -859,6 +1215,19 @@ function ForecastReport({
   const pipeline = (data.pipeline as Record<string, unknown>) || null;
   const periodMonths = Number((data.period as { months?: number })?.months || 12);
   const horizonLabel = horizons.map((h) => h.months).join(' · ') || '—';
+  const history = (data.history as Array<Record<string, unknown>>) || [];
+  const ratios = buildAccountingRatios({
+    revenue: totals.revenue,
+    cogs: totals.cogs,
+    expenses: totals.expenses,
+    netIncome: totals.netIncome,
+    cashNet: totals.cashNet,
+    bankIn: totals.bankIn,
+    bankOut: totals.bankOut,
+    revenueSeries: history.map((h) => Number(h.revenue || 0)),
+    netSeries: history.map((h) => Number(h.netIncome || 0)),
+  });
+  const margins = marginSeries(history);
 
   return (
     <>
@@ -867,10 +1236,10 @@ function ForecastReport({
         includePipeline={includePipeline}
       />
 
-      <div className="mb-5 rounded-3xl border border-cyan-100 bg-gradient-to-br from-white via-sky-50/80 to-cyan-50/50 p-5 sm:p-6">
+      <div className="mb-5 rounded-[1.5rem] border border-sky-100 bg-gradient-to-br from-white via-sky-50/70 to-teal-50/40 p-5 sm:p-6 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
           <div>
-            <div className="inline-flex items-center gap-1.5 rounded-full border border-cyan-200 bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-[#0077b6] mb-2">
+            <div className="inline-flex items-center gap-1.5 rounded-full border border-teal-200/80 bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-teal-700 mb-2">
               <TrendingUp className="w-3 h-3" />
               Multi-horizon forecast
             </div>
@@ -950,17 +1319,34 @@ function ForecastReport({
         </div>
       </div>
 
+      <RatioGrid
+        ratios={ratios.filter((r) =>
+          [
+            'gross_margin',
+            'net_margin',
+            'expense_ratio',
+            'rev_growth',
+            'net_growth',
+            'cogs_ratio',
+          ].includes(r.id)
+        )}
+        title="Baseline ratios (history)"
+        subtitle="Margins and growth that underwrite the forecast model"
+      />
+
       {series && (
         <div className="grid lg:grid-cols-2 gap-4 mb-6">
           <ChartCard
             title={includePipeline ? 'Revenue path (books + pipeline)' : 'Revenue & net path'}
             subtitle={
               includePipeline
-                ? 'Solid = actual · dashed = books forecast · pipeline layers onto “with pipeline” series'
-                : 'Solid = actual months · dashed = forecast · green band ≈ 80% revenue range'
+                ? 'Solid = actual · dashed = forecast (+ pipeline when enabled)'
+                : 'Solid = actual · dashed = forecast · band ≈ 80% revenue range'
             }
-            height={320}
+            height={340}
             className="lg:col-span-2"
+            icon={Activity}
+            badge="Primary"
           >
             <ForecastLineChart
               labels={series.labels}
@@ -985,6 +1371,7 @@ function ForecastReport({
             title="Horizon comparison"
             subtitle="Cumulative revenue, expenses, and net by planning window"
             height={300}
+            icon={BarChart3}
           >
             <HorizonBarsChart
               horizons={horizons.map((h) => ({
@@ -996,15 +1383,29 @@ function ForecastReport({
             />
           </ChartCard>
           <ChartCard
-            title="Last closed-month shape"
-            subtitle="Most recent month as a bridge reference"
+            title="Last month P&L bridge"
+            subtitle="Most recent month shape (reference)"
             height={300}
+            icon={PieChart}
           >
             <PeriodWaterfall
               revenue={Number(lastMonth?.revenue || 0)}
               cogs={Number(lastMonth?.cogs || 0)}
               expenses={Number(lastMonth?.expenses || 0)}
               netIncome={Number(lastMonth?.netIncome || 0)}
+            />
+          </ChartCard>
+          <ChartCard
+            title="Historic margin %"
+            subtitle="Gross and net margin through the history window"
+            height={280}
+            icon={Percent}
+            className="lg:col-span-2"
+          >
+            <MarginTrendChart
+              labels={history.map((h) => String(h.label))}
+              grossMargin={margins.gross}
+              netMargin={margins.net}
             />
           </ChartCard>
         </div>
