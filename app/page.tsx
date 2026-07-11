@@ -799,9 +799,28 @@ export default function LandingPage() {
               </div>
             </div>
           </div>
-          <div className="pt-6 border-t border-slate-800 text-xs text-white/40 flex flex-col sm:flex-row justify-between gap-2">
+          <div className="pt-6 border-t border-slate-800 text-xs text-white/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <span>SupplierAdvisor® 2026 © All rights reserved.</span>
-            <span>Built for operators who measure trust.</span>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-5">
+              <a
+                href="https://x.com/supplieradvisa"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-white/50 hover:text-white transition-colors"
+                aria-label="SupplierAdvisor on X"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  aria-hidden
+                  className="h-4 w-4 fill-current shrink-0"
+                >
+                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.727-8.835L1.254 2.25H8.08l4.253 5.622L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
+                </svg>
+                <span className="font-semibold">@supplieradvisa</span>
+              </a>
+              <span className="hidden sm:inline text-white/25">·</span>
+              <span>Built for operators who measure trust.</span>
+            </div>
           </div>
         </div>
       </footer>

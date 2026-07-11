@@ -89,7 +89,7 @@ export const metadata: Metadata = {
     description:
       'Verified B2B · B2G · B2C supply-chain OS — network, inventory, manufacturing, distribution & AI.',
     images: ['/og-image.png'],
-    creator: '@SupplierAdvisor',
+    creator: '@supplieradvisa',
   },
   robots: {
     index: true,

@@ -29,7 +29,7 @@ export default function JsonLd() {
       },
     },
     areaServed: 'Worldwide',
-    sameAs: [] as string[],
+    sameAs: ['https://x.com/supplieradvisa'],
   };
 
   const website = {
