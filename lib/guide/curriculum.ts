@@ -517,8 +517,9 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       { id: 'd', label: 'Pay', hint: 'AP', tone: 'violet' },
       { id: 'e', label: 'Bank', hint: 'Allocate', tone: 'amber' },
       { id: 'f', label: 'Manage', hint: 'Mgmt accounts', tone: 'violet' },
-      { id: 'g', label: 'Report', hint: 'P&L / TB', tone: 'cyan' },
-      { id: 'h', label: 'Close', hint: 'Period lock', tone: 'rose' },
+      { id: 'g', label: 'VAT', hint: 'Return box', tone: 'amber' },
+      { id: 'h', label: 'Report', hint: 'P&L / TB', tone: 'cyan' },
+      { id: 'i', label: 'Close', hint: 'Period lock', tone: 'rose' },
     ],
     processes: [
       {

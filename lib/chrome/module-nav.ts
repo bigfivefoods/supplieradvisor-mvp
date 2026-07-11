@@ -231,6 +231,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Pay', href: '/dashboard/accounting/accounts-payable' },
       { name: 'Bank', href: '/dashboard/accounting/bank-reconciliation' },
       { name: 'Manage', href: '/dashboard/accounting/management' },
+      { name: 'VAT', href: '/dashboard/accounting/tax' },
       { name: 'Report', href: '/dashboard/accounting/reports' },
       { name: 'Close', href: '/dashboard/accounting/settings' },
     ],

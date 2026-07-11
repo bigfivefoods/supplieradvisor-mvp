@@ -54,13 +54,19 @@ function HubInner() {
   const [loading, setLoading] = useState(true);
   const [warning, setWarning] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(null);
+  const [vatNet, setVatNet] = useState<number | null>(null);
+  const [vatOutput, setVatOutput] = useState<number | null>(null);
+  const [vatInput, setVatInput] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({ companyId: String(companyId) });
       if (privyUserId) params.set('privyUserId', privyUserId);
-      const res = await fetch(`/api/accounting/summary?${params}`);
+      const [res, taxRes] = await Promise.all([
+        fetch(`/api/accounting/summary?${params}`),
+        fetch(`/api/accounting/tax?${params}&includeUnclassified=0`).catch(() => null),
+      ]);
       const data = await res.json();
       setSummary(data.summary || null);
       setWarning(
@@ -69,6 +75,24 @@ function HubInner() {
           : data.warning || null
       );
       setHint(data.hint || null);
+
+      if (taxRes?.ok) {
+        const t = await taxRes.json();
+        const box = t.returnBox || t.summary || null;
+        if (box) {
+          setVatNet(
+            box.netVat != null
+              ? Number(box.netVat)
+              : Number(box.outputVat || 0) - Number(box.inputVat || 0)
+          );
+          setVatOutput(box.outputVat != null ? Number(box.outputVat) : null);
+          setVatInput(box.inputVat != null ? Number(box.inputVat) : null);
+        } else {
+          setVatNet(null);
+          setVatOutput(null);
+          setVatInput(null);
+        }
+      }
     } catch {
       setSummary(null);
     } finally {
@@ -160,9 +184,14 @@ function HubInner() {
       href: '/dashboard/accounting/tax',
       icon: Receipt,
       code: '09',
-      title: 'Tax & compliance',
-      desc: 'VAT rates, output/input summary, multi-code setup.',
+      title: 'VAT & tax',
+      desc: 'VAT return box, output/input, rates, and SARS-ready summary.',
       accent: 'from-slate-50 to-white border-slate-200',
+      metric:
+        vatNet != null
+          ? formatMoney(vatNet, cur)
+          : 'Open',
+      metricLabel: vatNet != null ? 'net VAT' : 'rates',
     },
     {
       href: '/dashboard/accounting/fixed-assets',
@@ -250,9 +279,10 @@ function HubInner() {
             valueClass: 'text-emerald-600',
           },
           {
-            label: 'Bank',
-            value: loading ? '—' : formatMoney(s?.bankBalance ?? 0, cur),
-            valueClass: 'text-amber-600',
+            label: 'Net VAT',
+            value:
+              loading || vatNet == null ? (loading ? '—' : 'Open') : formatMoney(vatNet, cur),
+            valueClass: 'text-violet-600',
           },
         ]}
       />
@@ -307,6 +337,24 @@ function HubInner() {
           href="/dashboard/accounting/payments"
         />
         <TelemetryCard
+          label="VAT (net)"
+          value={
+            loading
+              ? '—'
+              : vatNet != null
+                ? formatMoney(vatNet, cur)
+                : 'Setup'
+          }
+          sub={
+            vatOutput != null || vatInput != null
+              ? `Out ${formatMoney(vatOutput ?? 0, cur)} · In ${formatMoney(vatInput ?? 0, cur)}`
+              : 'Return box · rates · codes'
+          }
+          accent="violet"
+          icon={Receipt}
+          href="/dashboard/accounting/tax"
+        />
+        <TelemetryCard
           label="AR overdue"
           value={loading ? '—' : formatMoney(s?.arOverdueAmount ?? 0, cur)}
           sub={`${s?.arOverdue ?? 0} invoices`}
@@ -318,7 +366,7 @@ function HubInner() {
           label="Fixed assets BV"
           value={loading ? '—' : formatMoney(s?.assetsBookValue ?? 0, cur)}
           sub={`${s?.assets ?? 0} active assets`}
-          accent="violet"
+          accent="emerald"
           icon={Building2}
           href="/dashboard/accounting/fixed-assets"
         />
