@@ -3,8 +3,15 @@ import Image from 'next/image';
 import { ArrowLeft } from 'lucide-react';
 
 export const metadata = {
-  title: 'Terms of Service · SupplierAdvisor®',
-  description: 'Terms governing use of the SupplierAdvisor platform.',
+  title: 'Terms of Service',
+  description:
+    'Terms governing use of the SupplierAdvisor® platform — network trade, ERP modules, and verified B2B commerce.',
+  alternates: { canonical: 'https://www.supplieradvisor.com/terms' },
+  openGraph: {
+    title: 'Terms of Service · SupplierAdvisor®',
+    description: 'Terms governing use of the SupplierAdvisor platform.',
+    url: 'https://www.supplieradvisor.com/terms',
+  },
 };
 
 export default function TermsPage() {

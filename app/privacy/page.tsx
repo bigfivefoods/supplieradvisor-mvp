@@ -3,8 +3,15 @@ import Image from 'next/image';
 import { ArrowLeft } from 'lucide-react';
 
 export const metadata = {
-  title: 'Privacy Policy · SupplierAdvisor®',
-  description: 'How SupplierAdvisor collects, uses, and protects your information.',
+  title: 'Privacy Policy',
+  description:
+    'How SupplierAdvisor® collects, uses, and protects personal and business information on the supply-chain operating system.',
+  alternates: { canonical: 'https://www.supplieradvisor.com/privacy' },
+  openGraph: {
+    title: 'Privacy Policy · SupplierAdvisor®',
+    description: 'How SupplierAdvisor collects, uses, and protects your information.',
+    url: 'https://www.supplieradvisor.com/privacy',
+  },
 };
 
 export default function PrivacyPage() {
