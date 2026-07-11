@@ -7,7 +7,13 @@ import {
   parseCompanyId,
   round2,
 } from '@/lib/accounting/server';
-import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import {
+  requireCompanyAccess,
+  requireCompanyPermission,
+  legacyPrivyFrom,
+  requireVerifiedUser,
+} from '@/lib/auth/api-auth';
+import { auditLog } from '@/lib/audit/log';
 import { isPeriodLocked } from '@/lib/accounting/period-lock';
 
 /** GET ?companyId=&status= */
@@ -93,7 +99,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
 
-    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    const _gate = await requireCompanyPermission(
+      request,
+      companyId,
+      'accounting',
+      'write',
+      { legacyPrivyUserId: legacyPrivyFrom(request, body) }
+    );
     if (!_gate.ok) return _gate.response;
     if (lines.length < 2) {
       return NextResponse.json(
@@ -188,6 +200,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: lineErr.message }, { status: 400 });
     }
 
+    void auditLog({
+      companyId,
+      actorUserId: _gate.userId,
+      action: 'journal.post',
+      entityType: 'journal_entry',
+      entityId: entry.id,
+      summary: `Journal ${entryNumber} ${status}`,
+      metadata: {
+        status,
+        entry_date: entryDate,
+        debit: balanced.debit,
+        credit: balanced.credit,
+        role: _gate.role,
+      },
+    });
+
     return NextResponse.json({
       success: true,
       entry: {
@@ -223,7 +251,13 @@ export async function PATCH(request: NextRequest) {
     if (!Number.isFinite(companyId) || !Number.isFinite(id)) {
       return NextResponse.json({ error: 'companyId and id required' }, { status: 400 });
     }
-    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: privyUserId || legacyPrivyFrom(request) });
+    const _gate = await requireCompanyPermission(
+      request,
+      companyId,
+      'accounting',
+      'write',
+      { legacyPrivyUserId: privyUserId || legacyPrivyFrom(request, body) }
+    );
     if (!_gate.ok) return _gate.response;
 
     const supabase = getSupabaseServer();

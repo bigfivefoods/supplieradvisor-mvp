@@ -39,14 +39,42 @@ Cron uses `CRON_SECRET` Bearer (not Privy).
 ## Helpers
 
 ```ts
-import { requireCompanyAccess, requireVerifiedUser, legacyPrivyFrom } from '@/lib/auth/api-auth';
+import {
+  requireCompanyAccess,
+  requireCompanyPermission,
+  requireCompanyRoles,
+  ROLES_FINANCE_CRITICAL,
+  requireVerifiedUser,
+  legacyPrivyFrom,
+} from '@/lib/auth/api-auth';
 
+// Any active member
 const gate = await requireCompanyAccess(request, companyId, {
   legacyPrivyUserId: legacyPrivyFrom(request, body),
 });
 if (!gate.ok) return gate.response;
 // gate.userId is trusted
+
+// Resource + access level (see lib/business/permissions.ts)
+const write = await requireCompanyPermission(request, companyId, 'accounting', 'write');
+if (!write.ok) return write.response;
+
+// Explicit role allow-list (period locks, escrow, team)
+const finance = await requireCompanyRoles(request, companyId, ROLES_FINANCE_CRITICAL);
+if (!finance.ok) return finance.response;
 ```
+
+### Critical write matrix
+
+| Surface | Gate |
+|---------|------|
+| Period locks POST | `requireCompanyRoles` → owner \| admin \| finance |
+| Journals / bank allocate / auto-match | `requireCompanyPermission` accounting **write** |
+| QA inspections POST/PATCH | operations **write** |
+| Escrow on-chain | owner \| admin \| finance \| operations |
+| Team invite | owner \| admin + rate limit |
+
+Audit events soft-write to `activity_log` via `lib/audit/log.ts`.
 
 ## Tests
 

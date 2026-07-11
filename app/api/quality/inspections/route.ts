@@ -1,14 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { assertCompanyMember } from '@/lib/customers/access';
 import {
   isInspectionStatus,
   isInspectionType,
 } from '@/lib/quality/types';
-import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import {
+  requireCompanyPermission,
+  legacyPrivyFrom,
+} from '@/lib/auth/api-auth';
+import { auditLog } from '@/lib/audit/log';
 
 /**
- * GET ?companyId=&privyUserId=&status=&lot=
+ * GET ?companyId=&status=&lot=
  * POST create inspection
  * PATCH update status / notes
  */
@@ -16,12 +19,17 @@ export async function GET(request: NextRequest) {
   try {
     const sp = request.nextUrl.searchParams;
     const companyId = Number(sp.get('companyId'));
-    const privyUserId = sp.get('privyUserId');
     if (!Number.isFinite(companyId) || companyId <= 0) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
 
-    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    const _gate = await requireCompanyPermission(
+      request,
+      companyId,
+      'operations',
+      'view',
+      { legacyPrivyUserId: legacyPrivyFrom(request) }
+    );
     if (!_gate.ok) return _gate.response;
 
     const supabase = getSupabaseServer();
@@ -88,10 +96,18 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const companyId = Number(body.companyId);
-    const mem = await assertCompanyMember(body.privyUserId, companyId);
-    if (!mem.ok) {
-      return NextResponse.json({ error: mem.error }, { status: mem.status });
+    if (!Number.isFinite(companyId) || companyId <= 0) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
+
+    const gate = await requireCompanyPermission(
+      request,
+      companyId,
+      'operations',
+      'write',
+      { legacyPrivyUserId: legacyPrivyFrom(request, body) }
+    );
+    if (!gate.ok) return gate.response;
 
     const inspection_type = isInspectionType(body.inspection_type)
       ? body.inspection_type
@@ -129,7 +145,7 @@ export async function POST(request: NextRequest) {
       checklist: Array.isArray(body.checklist) ? body.checklist : [],
       inspected_at: body.inspected_at || (status !== 'open' ? new Date().toISOString() : null),
       released_at: status === 'passed' ? new Date().toISOString() : null,
-      created_by: mem.userId,
+      created_by: gate.userId,
       updated_at: new Date().toISOString(),
     };
 
@@ -153,6 +169,18 @@ export async function POST(request: NextRequest) {
       }
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    void auditLog({
+      companyId,
+      actorUserId: gate.userId,
+      action: 'qa.inspection.create',
+      entityType: 'quality_inspection',
+      entityId: data.id,
+      summary: `QA inspection #${data.id} created (${status})${
+        data.lot_number ? ` lot ${data.lot_number}` : ''
+      }`,
+      metadata: { status, lot_number: data.lot_number, role: gate.role },
+    });
 
     if (status === 'open' || status === 'failed') {
       void import('@/lib/notifications/email-alerts').then(({ notifyQaHold }) =>
@@ -182,9 +210,13 @@ export async function PATCH(request: NextRequest) {
     if (!Number.isFinite(companyId) || companyId <= 0) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
-    const gate = await requireCompanyAccess(request, companyId, {
-      legacyPrivyUserId: legacyPrivyFrom(request, body),
-    });
+    const gate = await requireCompanyPermission(
+      request,
+      companyId,
+      'operations',
+      'write',
+      { legacyPrivyUserId: legacyPrivyFrom(request, body) }
+    );
     if (!gate.ok) return gate.response;
     if (!Number.isFinite(id) || id <= 0) {
       return NextResponse.json({ error: 'id required' }, { status: 400 });
@@ -222,6 +254,18 @@ export async function PATCH(request: NextRequest) {
     if (!data) {
       return NextResponse.json({ error: 'Inspection not found' }, { status: 404 });
     }
+
+    void auditLog({
+      companyId,
+      actorUserId: gate.userId,
+      action: 'qa.inspection.update',
+      entityType: 'quality_inspection',
+      entityId: data.id,
+      summary: `QA inspection #${data.id} → ${data.status}${
+        data.lot_number ? ` lot ${data.lot_number}` : ''
+      }`,
+      metadata: { status: data.status, lot_number: data.lot_number, role: gate.role },
+    });
 
     if (data.status === 'open' || data.status === 'failed') {
       void import('@/lib/notifications/email-alerts').then(({ notifyQaHold }) =>

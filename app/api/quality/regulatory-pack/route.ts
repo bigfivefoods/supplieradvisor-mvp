@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { requireCompanyAccess, legacyPrivyFrom } from '@/lib/auth/api-auth';
+import {
+  requireCompanyPermission,
+  legacyPrivyFrom,
+} from '@/lib/auth/api-auth';
 import { findLotHolds } from '@/lib/quality/holds';
+import { auditLog } from '@/lib/audit/log';
 
 /**
  * GET ?companyId=&days=90
@@ -15,9 +19,13 @@ export async function GET(request: NextRequest) {
     if (!Number.isFinite(companyId) || companyId <= 0) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
-    const gate = await requireCompanyAccess(request, companyId, {
-      legacyPrivyUserId: legacyPrivyFrom(request),
-    });
+    const gate = await requireCompanyPermission(
+      request,
+      companyId,
+      'operations',
+      'view',
+      { legacyPrivyUserId: legacyPrivyFrom(request) }
+    );
     if (!gate.ok) return gate.response;
 
     const since = new Date(Date.now() - days * 86400000).toISOString();
@@ -103,6 +111,24 @@ export async function GET(request: NextRequest) {
       disclaimer:
         'Operational quality pack generated from SupplierAdvisor live data. Not a third-party certification or formal legal audit opinion.',
     };
+
+    void auditLog({
+      companyId,
+      actorUserId: gate.userId,
+      action: 'recall.export',
+      entityType: 'regulatory_pack',
+      entityId: companyId,
+      summary: `Regulatory pack exported (${days}d)`,
+      metadata: { days, role: gate.role },
+    });
+
+    void import('@/lib/notifications/email-alerts').then(({ notifyRecallPack }) =>
+      notifyRecallPack({
+        profileId: companyId,
+        lotNumber: holds[0]?.lot_number || null,
+        productName: null,
+      })
+    );
 
     return NextResponse.json({
       success: true,

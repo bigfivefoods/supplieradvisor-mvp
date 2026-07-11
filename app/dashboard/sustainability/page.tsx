@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { BarChart3, Droplets, Leaf, Recycle, Wind, Loader2 } from 'lucide-react';
+import { BarChart3, Leaf, Recycle, Loader2 } from 'lucide-react';
 import {
   RelationshipHeader,
   RelationshipPage,
@@ -16,6 +16,7 @@ import {
 } from '@/components/chrome/CommandHubChrome';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 
+/** Live modules only — ComingSoon stubs are not linked from the hub. */
 const MODULES: HubModule[] = [
   {
     href: '/dashboard/sustainability/carbon-tracking',
@@ -26,25 +27,9 @@ const MODULES: HubModule[] = [
     accent: 'from-emerald-50 to-white border-emerald-100',
   },
   {
-    href: '/dashboard/sustainability/ethical-sourcing',
-    icon: Wind,
-    code: '02',
-    title: 'Ethical sourcing',
-    desc: 'Roadmap — use supplier ratings & OTIFEF today.',
-    accent: 'from-cyan-50 to-white border-cyan-100',
-  },
-  {
-    href: '/dashboard/sustainability/water-waste',
-    icon: Droplets,
-    code: '03',
-    title: 'Water & waste',
-    desc: 'Roadmap resource intensity KPIs.',
-    accent: 'from-sky-50 to-white border-sky-100',
-  },
-  {
     href: '/dashboard/sustainability/reports',
     icon: BarChart3,
-    code: '04',
+    code: '02',
     title: 'ESG packs (live)',
     desc: '90-day pack from carbon, OTIFEF, QA, HACCP — export JSON/print.',
     accent: 'from-violet-50 to-white border-violet-100',
@@ -120,12 +105,12 @@ export default function SustainabilityHub() {
           href="/dashboard/sustainability/carbon-tracking"
         />
         <TelemetryCard
-          label="Roadmap"
-          value="ESG"
-          sub="Water · ethics · reports"
+          label="ESG pack"
+          value="Live"
+          sub="Export JSON / print"
           accent="violet"
           icon={BarChart3}
-          href="/dashboard/sustainability/ethical-sourcing"
+          href="/dashboard/sustainability/reports"
         />
       </HubTelemetryGrid>
 

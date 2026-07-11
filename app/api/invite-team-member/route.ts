@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import { getAppUrl, getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
 import { buildTeamInviteLink, teamInviteEmailHtml } from '@/lib/invites/email';
-import { INVITE_EXPIRY_DAYS, getCanonicalUserId } from '@/lib/auth/identity';
+import { INVITE_EXPIRY_DAYS } from '@/lib/auth/identity';
 import { assertCanManageTeam } from '@/lib/business/access';
 import {
   normalizeTeamRole,
@@ -11,7 +11,13 @@ import {
 } from '@/lib/business/permissions';
 import { logActivity } from '@/lib/customers/access';
 import { salesContractorInviteEmailHtml } from '@/lib/sales-contractor/agreement';
-import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import {
+  requireCompanyRoles,
+  legacyPrivyFrom,
+} from '@/lib/auth/api-auth';
+import type { TeamRole } from '@/lib/business/permissions';
+import { auditLog } from '@/lib/audit/log';
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 
 /**
  * POST /api/invite-team-member
@@ -23,7 +29,6 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const companyId = Number(body.companyId);
-    const privyUserId = body.privyUserId || body.invitedBy;
     const name = body.name ? String(body.name).trim() : '';
     const normalizedEmail = String(body.email || '')
       .toLowerCase()
@@ -37,11 +42,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'companyId is required' }, { status: 400 });
     }
 
-    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    const manageRoles: TeamRole[] = ['owner', 'admin'];
+    const _gate = await requireCompanyRoles(request, companyId, manageRoles, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
     if (!_gate.ok) return _gate.response;
 
-    // Owners/admins only
-    const mem = await assertCanManageTeam(privyUserId, companyId);
+    const rl = checkRateLimit({
+      key: `team-invite:${companyId}:${_gate.userId}`,
+      limit: 20,
+      windowMs: 60 * 60 * 1000,
+    });
+    if (!rl.ok) {
+      const r = rateLimitResponse(rl.retryAfterSeconds);
+      return NextResponse.json(r.body, { status: r.status, headers: r.headers });
+    }
+
+    // Double-check team manage matrix (same roles; keeps assertCanManageTeam as SSOT)
+    const mem = await assertCanManageTeam(_gate.userId, companyId);
     if (!mem.ok) {
       return NextResponse.json({ error: mem.error }, { status: mem.status });
     }
@@ -71,7 +89,7 @@ export async function POST(request: NextRequest) {
     const expiresAt = new Date(
       Date.now() + INVITE_EXPIRY_DAYS * 24 * 60 * 60 * 1000
     ).toISOString();
-    const inviterId = getCanonicalUserId(privyUserId) || String(privyUserId || '');
+    const inviterId = _gate.userId;
 
     // Company display name
     let displayCompany = String(body.companyName || '').trim();
@@ -267,6 +285,16 @@ export async function POST(request: NextRequest) {
       entity_id: memberId ? String(memberId) : undefined,
       summary: `Invited ${normalizedEmail} as ${role}`,
       metadata: { email: normalizedEmail, role, emailId, expiresAt },
+    });
+
+    void auditLog({
+      companyId,
+      actorUserId: _gate.userId,
+      action: 'team.invite',
+      entityType: 'business_users',
+      entityId: memberId,
+      summary: `Team invite ${normalizedEmail} as ${role}`,
+      metadata: { email: normalizedEmail, role },
     });
 
     return NextResponse.json({

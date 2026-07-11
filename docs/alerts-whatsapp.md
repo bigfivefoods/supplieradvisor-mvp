@@ -15,6 +15,10 @@ Both are **soft-fail** — missing config never breaks the primary API.
 |-------|-------|----------|
 | QA inspection open/failed | ✓ | ✓ |
 | PO escrow funded | ✓ | ✓ |
+| Accounting period lock/unlock | ✓ | ✓ |
+| Ship blocked by QA hold | ✓ | ✓ |
+| Regulatory / recall pack export | ✓ | ✓ |
+| Bank sync failure | ✓ | ✓ |
 
 ## Recipients
 

@@ -17,10 +17,15 @@ import { getCanonicalUserId } from '@/lib/auth/identity';
 import { assertCompanyMember } from '@/lib/customers/access';
 import {
   assertCompanyPermission,
+  getCompanyMembership,
   type MembershipFail,
   type MembershipOk,
 } from '@/lib/business/access';
-import type { AccessLevel, PermissionResource } from '@/lib/business/permissions';
+import type {
+  AccessLevel,
+  PermissionResource,
+  TeamRole,
+} from '@/lib/business/permissions';
 export { isPublicApiPath, PUBLIC_API_PREFIXES } from '@/lib/auth/public-paths';
 
 export type AuthOk = {
@@ -173,6 +178,58 @@ export async function requireCompanyPermission(
     name: mem.name,
   };
 }
+
+/**
+ * Verified member whose role is in an explicit allow-list.
+ * Use for critical actions (period lock, escrow release, team owner invites).
+ */
+export async function requireCompanyRoles(
+  request: NextRequest,
+  companyId: number,
+  allowedRoles: TeamRole[],
+  opts?: { legacyPrivyUserId?: string | null }
+): Promise<(AuthOk & MembershipOk) | AuthFail> {
+  if (!Number.isFinite(companyId) || companyId <= 0) {
+    return fail(400, 'Valid companyId is required', 'BAD_COMPANY');
+  }
+
+  const auth = await requireVerifiedUser(request, opts);
+  if (!auth.ok) return auth;
+
+  const mem = await getCompanyMembership(auth.userId, companyId);
+  if (!mem.ok) {
+    return fail(mem.status, mem.error, 'NOT_MEMBER');
+  }
+
+  if (!allowedRoles.includes(mem.role)) {
+    return fail(
+      403,
+      `Your role (${mem.role}) cannot perform this action. Allowed: ${allowedRoles.join(', ')}.`,
+      'ROLE_FORBIDDEN'
+    );
+  }
+
+  return {
+    ok: true,
+    userId: mem.userId,
+    verified: auth.verified,
+    memberId: mem.memberId,
+    role: mem.role,
+    status: mem.status,
+    email: mem.email,
+    name: mem.name,
+  };
+}
+
+/** Common role sets for sensitive writes */
+export const ROLES_FINANCE_CRITICAL: TeamRole[] = ['owner', 'admin', 'finance'];
+export const ROLES_OPS_CRITICAL: TeamRole[] = ['owner', 'admin', 'operations'];
+export const ROLES_MONEY_OR_OPS: TeamRole[] = [
+  'owner',
+  'admin',
+  'finance',
+  'operations',
+];
 
 /** Parse companyId from query or JSON body (does not consume body twice — pass body if already read) */
 export function companyIdFromQuery(request: NextRequest): number {

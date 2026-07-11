@@ -3,7 +3,12 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { assertAccountingAccess } from '@/lib/accounting/access';
 import { parseCompanyId, round2 } from '@/lib/accounting/server';
 import { invoiceBalance } from '@/lib/accounting/types';
-import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import {
+  requireCompanyAccess,
+  requireCompanyPermission,
+  legacyPrivyFrom,
+  requireVerifiedUser,
+} from '@/lib/auth/api-auth';
 
 /** GET ?companyId=&direction=inbound|outbound */
 export async function GET(request: NextRequest) {
@@ -83,7 +88,13 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: privyUserId || legacyPrivyFrom(request) });
+    const _gate = await requireCompanyPermission(
+      request,
+      companyId,
+      'accounting',
+      'write',
+      { legacyPrivyUserId: privyUserId || legacyPrivyFrom(request, body) }
+    );
     if (!_gate.ok) return _gate.response;
 
     const supabase = getSupabaseServer();

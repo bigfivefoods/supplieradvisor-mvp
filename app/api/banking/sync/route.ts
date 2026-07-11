@@ -11,16 +11,21 @@ import {
   sandboxTransactions,
   triggerBankLinkSync,
 } from '@/lib/banking';
-import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import {
+  requireCompanyPermission,
+  legacyPrivyFrom,
+} from '@/lib/auth/api-auth';
 
 /**
  * POST — pull latest transactions for a connection or bank account
  * body: companyId, privyUserId, connectionId? | bank_account_id?
  */
 export async function POST(request: NextRequest) {
+  let companyIdForAlert: number | null = null;
   try {
     const body = await request.json();
     const companyId = parseCompanyId(body.companyId);
+    companyIdForAlert = Number.isFinite(companyId) ? companyId : null;
     const privyUserId = body.privyUserId as string | undefined;
     const connectionId = body.connectionId ? Number(body.connectionId) : null;
     const bankAccountId = body.bank_account_id ? Number(body.bank_account_id) : null;
@@ -29,7 +34,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
 
-    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    const _gate = await requireCompanyPermission(
+      request,
+      companyId,
+      'banking',
+      'write',
+      { legacyPrivyUserId: legacyPrivyFrom(request, body) }
+    );
     if (!_gate.ok) return _gate.response;
 
     const supabase = getSupabaseServer();
@@ -100,6 +111,14 @@ export async function POST(request: NextRequest) {
     if (conn.provider === 'banklink' && cfg.mode === 'live' && externalAccountId) {
       const pulled = await fetchBankLinkTransactions({ accountId: externalAccountId });
       if (pulled.error && !pulled.txns.length) {
+        void import('@/lib/notifications/email-alerts').then(
+          ({ notifyBankSyncFailed }) =>
+            notifyBankSyncFailed({
+              profileId: companyId,
+              connectionId: Number(conn.id),
+              error: pulled.error || 'Failed to fetch transactions',
+            })
+        );
         return NextResponse.json(
           { error: pulled.error || 'Failed to fetch transactions' },
           { status: 502 }
@@ -152,9 +171,12 @@ export async function POST(request: NextRequest) {
       sync_run_id: runId,
     });
   } catch (e: unknown) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : 'Error' },
-      { status: 500 }
-    );
+    const msg = e instanceof Error ? e.message : 'Error';
+    if (companyIdForAlert && companyIdForAlert > 0) {
+      void import('@/lib/notifications/email-alerts').then(({ notifyBankSyncFailed }) =>
+        notifyBankSyncFailed({ profileId: companyIdForAlert!, error: msg })
+      );
+    }
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

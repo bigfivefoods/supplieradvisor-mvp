@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { assertCompanyMember, logActivity } from '@/lib/customers/access';
+import { logActivity } from '@/lib/customers/access';
 import { isSupplierPoEscrowEnabled } from '@/lib/procurement/types';
 import { verifyEscrowOrWarn } from '@/lib/contracts/verifyEscrow';
 import type { EscrowLinkKind as Kind } from '@/lib/contracts/escrow';
-import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import {
+  requireCompanyRoles,
+  ROLES_MONEY_OR_OPS,
+  legacyPrivyFrom,
+} from '@/lib/auth/api-auth';
+import { auditLog } from '@/lib/audit/log';
 
 /**
  * POST /api/suppliers/purchase-orders/[id]/onchain
@@ -41,7 +46,6 @@ export async function POST(request: NextRequest, ctx: Ctx) {
 
     const body = await request.json();
     const companyId = Number(body.companyId);
-    const privyUserId = body.privyUserId;
     const kind = parseKind(body.kind);
     const onchainTx = body.onchain_tx != null ? String(body.onchain_tx).trim() : '';
     const onchainPoIdRaw = body.onchain_po_id;
@@ -54,7 +58,12 @@ export async function POST(request: NextRequest, ctx: Ctx) {
       return NextResponse.json({ error: 'companyId is required' }, { status: 400 });
     }
 
-    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    const _gate = await requireCompanyRoles(
+      request,
+      companyId,
+      ROLES_MONEY_OR_OPS,
+      { legacyPrivyUserId: legacyPrivyFrom(request, body) }
+    );
     if (!_gate.ok) return _gate.response;
     if (!TX_HASH_RE.test(onchainTx)) {
       return NextResponse.json(
@@ -84,11 +93,6 @@ export async function POST(request: NextRequest, ctx: Ctx) {
         { error: 'supplier_wallet must be a 0x-prefixed 20-byte address' },
         { status: 400 }
       );
-    }
-
-    const member = await assertCompanyMember(privyUserId, companyId);
-    if (!member.ok) {
-      return NextResponse.json({ error: member.error }, { status: member.status });
     }
 
     const verify = await verifyEscrowOrWarn({
@@ -231,7 +235,7 @@ export async function POST(request: NextRequest, ctx: Ctx) {
 
     await logActivity({
       profile_id: companyId,
-      actor_user_id: member.userId,
+      actor_user_id: _gate.userId,
       action: `po.onchain.${kind}.srm`,
       entity_type: 'purchase_order',
       entity_id: String(poId),
@@ -241,7 +245,18 @@ export async function POST(request: NextRequest, ctx: Ctx) {
         onchain_tx: onchainTx,
         onchain_po_id: onchainPoId,
         verify_mode: verify.mode,
+        role: _gate.role,
       },
+    });
+
+    void auditLog({
+      companyId,
+      actorUserId: _gate.userId,
+      action: 'escrow.onchain',
+      entityType: 'purchase_order',
+      entityId: poId,
+      summary: `Escrow ${kind} on PO #${poId}`,
+      metadata: { kind, onchain_po_id: onchainPoId, verify_mode: verify.mode },
     });
 
     if (kind === 'fund') {

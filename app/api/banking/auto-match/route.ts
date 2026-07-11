@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { assertAccountingAccess } from '@/lib/accounting/access';
 import { parseCompanyId } from '@/lib/accounting/server';
 import { runAutoMatch, seedDefaultMatchRules } from '@/lib/banking/match-engine';
-import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import {
+  requireCompanyPermission,
+  legacyPrivyFrom,
+} from '@/lib/auth/api-auth';
+import { auditLog } from '@/lib/audit/log';
 
 /**
  * POST — score and optionally apply auto-matches for unallocated bank lines
@@ -29,7 +33,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
 
-    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    const _gate = await requireCompanyPermission(
+      request,
+      companyId,
+      'accounting',
+      'write',
+      { legacyPrivyUserId: legacyPrivyFrom(request, body) }
+    );
     if (!_gate.ok) return _gate.response;
 
     let seeded = 0;
@@ -43,13 +53,24 @@ export async function POST(request: NextRequest) {
 
     const result = await runAutoMatch({
       companyId,
-      privyUserId,
+      privyUserId: _gate.userId || privyUserId,
       bankAccountId: body.bank_account_id ? Number(body.bank_account_id) : null,
       minConfidence: body.minConfidence != null ? Number(body.minConfidence) : 80,
       dryRun,
       limit: body.limit != null ? Number(body.limit) : 200,
       txnIds: Array.isArray(body.ids) ? body.ids : undefined,
     });
+
+    if (!dryRun) {
+      void auditLog({
+        companyId,
+        actorUserId: _gate.userId,
+        action: 'bank.auto_match',
+        entityType: 'bank_transactions',
+        summary: `Bank auto-match applied (min conf ${body.minConfidence ?? 80})`,
+        metadata: { dryRun, seeded, role: _gate.role },
+      });
+    }
 
     return NextResponse.json({
       success: true,

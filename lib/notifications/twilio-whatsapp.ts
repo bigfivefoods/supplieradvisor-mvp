@@ -58,8 +58,13 @@ async function companyPhones(profileId: number): Promise<string[]> {
     .limit(20);
 
   for (const m of members || []) {
-    const role = String(m.role || '').toLowerCase();
-    if (['owner', 'admin', 'finance', 'ops'].includes(role) || !role) {
+    const role = String(m.role || '')
+      .toLowerCase()
+      .replace(/[\s-]+/g, '_');
+    if (
+      ['owner', 'admin', 'finance', 'ops', 'operations'].includes(role) ||
+      !role
+    ) {
       if (m.phone) phones.add(String(m.phone));
     }
   }
@@ -155,5 +160,82 @@ export async function whatsappEscrowFunded(params: {
     });
   } catch (e) {
     console.warn('whatsappEscrowFunded', e);
+  }
+}
+
+export async function whatsappPeriodLock(params: {
+  profileId: number;
+  periodKey: string;
+  locked: boolean;
+}): Promise<void> {
+  if (!isTwilioWhatsAppConfigured()) return;
+  try {
+    const phones = await companyPhones(params.profileId);
+    if (!phones.length) return;
+    const verb = params.locked ? 'locked' : 'unlocked';
+    const href = `${appBase()}/dashboard/accounting/settings`;
+    await sendWhatsApp({
+      to: phones,
+      body: `SupplierAdvisor: accounting period ${params.periodKey} ${verb}. ${href}`,
+    });
+  } catch (e) {
+    console.warn('whatsappPeriodLock', e);
+  }
+}
+
+export async function whatsappShipBlocked(params: {
+  profileId: number;
+  lots: string[];
+  transferId?: number | string | null;
+}): Promise<void> {
+  if (!isTwilioWhatsAppConfigured()) return;
+  try {
+    const phones = await companyPhones(params.profileId);
+    if (!phones.length) return;
+    const lots = params.lots.length ? params.lots.join(', ') : '—';
+    const href = `${appBase()}/dashboard/quality/inspections`;
+    await sendWhatsApp({
+      to: phones,
+      body: `SupplierAdvisor: ship blocked — QA hold on lot(s) ${lots}. Clear inspections. ${href}`,
+    });
+  } catch (e) {
+    console.warn('whatsappShipBlocked', e);
+  }
+}
+
+export async function whatsappRecallPack(params: {
+  profileId: number;
+  lotNumber?: string | null;
+}): Promise<void> {
+  if (!isTwilioWhatsAppConfigured()) return;
+  try {
+    const phones = await companyPhones(params.profileId);
+    if (!phones.length) return;
+    const lot = params.lotNumber || '—';
+    const href = `${appBase()}/dashboard/quality/recall-simulator`;
+    await sendWhatsApp({
+      to: phones,
+      body: `SupplierAdvisor: recall/regulatory pack generated for lot ${lot}. ${href}`,
+    });
+  } catch (e) {
+    console.warn('whatsappRecallPack', e);
+  }
+}
+
+export async function whatsappBankSyncFailed(params: {
+  profileId: number;
+  error: string;
+}): Promise<void> {
+  if (!isTwilioWhatsAppConfigured()) return;
+  try {
+    const phones = await companyPhones(params.profileId);
+    if (!phones.length) return;
+    const href = `${appBase()}/dashboard/accounting/bank-reconciliation`;
+    await sendWhatsApp({
+      to: phones,
+      body: `SupplierAdvisor: bank sync failed — ${String(params.error).slice(0, 120)}. ${href}`,
+    });
+  } catch (e) {
+    console.warn('whatsappBankSyncFailed', e);
   }
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ClipboardList, Globe2, Shield } from 'lucide-react';
+import { ClipboardList, Shield } from 'lucide-react';
 import {
   RelationshipHeader,
   RelationshipPage,
@@ -13,6 +13,7 @@ import {
   type HubModule,
 } from '@/components/chrome/CommandHubChrome';
 
+/** Live modules only — PESTLE and other stubs stay off the hub until APIs exist. */
 const MODULES: HubModule[] = [
   {
     href: '/dashboard/governance/raid',
@@ -23,17 +24,9 @@ const MODULES: HubModule[] = [
     accent: 'from-violet-50 to-white border-violet-100',
   },
   {
-    href: '/dashboard/governance/pestle',
-    icon: Globe2,
-    code: '02',
-    title: 'PESTLE',
-    desc: 'Political, economic, social, tech, legal, environmental scan.',
-    accent: 'from-sky-50 to-white border-sky-100',
-  },
-  {
     href: '/dashboard/my-business/riad-log',
     icon: Shield,
-    code: '03',
+    code: '02',
     title: 'Company RIAD log',
     desc: 'Operational risk register for the selected company.',
     accent: 'from-cyan-50 to-white border-cyan-100',
@@ -58,7 +51,7 @@ export default function GovernanceHub() {
         description="Enterprise RIAD with PESTLE context keeps material risks visible. Decisions are logged so audit and leadership share one narrative."
         stats={[
           { label: 'RIAD', value: 'Live', valueClass: 'text-[#00b4d8]' },
-          { label: 'PESTLE', value: 'Scan', valueClass: 'text-emerald-600' },
+          { label: 'Company log', value: 'Live', valueClass: 'text-emerald-600' },
           { label: 'Scope', value: 'Co.', valueClass: 'text-amber-600' },
         ]}
       />

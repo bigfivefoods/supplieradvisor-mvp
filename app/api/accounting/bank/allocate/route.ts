@@ -7,7 +7,11 @@ import {
   matchBankToInvoice,
   unallocateBankTransaction,
 } from '@/lib/accounting/allocate';
-import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import {
+  requireCompanyPermission,
+  legacyPrivyFrom,
+} from '@/lib/auth/api-auth';
+import { auditLog } from '@/lib/audit/log';
 
 /**
  * POST — allocate bank txn to GL or match to invoice
@@ -29,7 +33,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
 
-    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    // Finance write: accounting or banking resource
+    const _gate = await requireCompanyPermission(
+      request,
+      companyId,
+      'accounting',
+      'write',
+      { legacyPrivyUserId: legacyPrivyFrom(request, body) }
+    );
     if (!_gate.ok) return _gate.response;
 
     /** Accept UUID or numeric bank_transaction ids (production uses UUID). */
@@ -358,6 +369,21 @@ export async function POST(request: NextRequest) {
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: result.status });
     }
+
+    void auditLog({
+      companyId,
+      actorUserId: _gate.userId,
+      action: 'bank.allocate',
+      entityType: 'bank_transaction',
+      entityId: id,
+      summary: `Bank txn ${id} allocated to GL ${glAccountId}`,
+      metadata: {
+        action,
+        journalId: result.journalId,
+        entryNumber: result.entryNumber,
+        role: _gate.role,
+      },
+    });
 
     return NextResponse.json({
       success: true,

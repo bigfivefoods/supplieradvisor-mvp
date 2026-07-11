@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { assertCompanyMember, logActivity } from '@/lib/customers/access';
+import { logActivity } from '@/lib/customers/access';
 import { isCustomerPoEscrowEnabled } from '@/lib/procurement/types';
 import { verifyEscrowOrWarn } from '@/lib/contracts/verifyEscrow';
 import type { EscrowLinkKind as Kind } from '@/lib/contracts/escrow';
-import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import {
+  requireCompanyRoles,
+  ROLES_MONEY_OR_OPS,
+  legacyPrivyFrom,
+} from '@/lib/auth/api-auth';
+import { auditLog } from '@/lib/audit/log';
 
 /**
  * POST /api/buyer/purchase-orders/[id]/onchain
@@ -44,7 +49,6 @@ export async function POST(request: NextRequest, ctx: Ctx) {
 
     const body = await request.json();
     const buyerCompanyId = Number(body.buyerCompanyId);
-    const privyUserId = body.privyUserId;
     const kind = parseKind(body.kind);
     const onchainTx = body.onchain_tx != null ? String(body.onchain_tx).trim() : '';
     const onchainPoIdRaw = body.onchain_po_id;
@@ -57,7 +61,17 @@ export async function POST(request: NextRequest, ctx: Ctx) {
       return NextResponse.json({ error: 'buyerCompanyId is required' }, { status: 400 });
     }
 
-    const _gate = await requireCompanyAccess(request, buyerCompanyId, { legacyPrivyUserId: legacyPrivyFrom(request, typeof body !== 'undefined' ? body as Record<string, unknown> : undefined) });
+    const _gate = await requireCompanyRoles(
+      request,
+      buyerCompanyId,
+      ROLES_MONEY_OR_OPS,
+      {
+        legacyPrivyUserId: legacyPrivyFrom(
+          request,
+          typeof body !== 'undefined' ? (body as Record<string, unknown>) : undefined
+        ),
+      }
+    );
     if (!_gate.ok) return _gate.response;
     if (!TX_HASH_RE.test(onchainTx)) {
       return NextResponse.json(
@@ -66,10 +80,7 @@ export async function POST(request: NextRequest, ctx: Ctx) {
       );
     }
 
-    const member = await assertCompanyMember(privyUserId, buyerCompanyId);
-    if (!member.ok) {
-      return NextResponse.json({ error: member.error }, { status: member.status });
-    }
+    const member = { ok: true as const, userId: _gate.userId };
 
     const expectedId =
       onchainPoIdRaw !== undefined && onchainPoIdRaw !== null && onchainPoIdRaw !== ''
@@ -256,7 +267,18 @@ export async function POST(request: NextRequest, ctx: Ctx) {
         onchain_po_id: onchainPoId,
         supplier_wallet: supplierWalletRaw,
         verify_mode: verify.mode,
+        role: _gate.role,
       },
+    });
+
+    void auditLog({
+      companyId: buyerCompanyId,
+      actorUserId: _gate.userId,
+      action: 'escrow.onchain',
+      entityType: 'purchase_order',
+      entityId: poId,
+      summary: `Buyer escrow ${kind} on PO #${poId}`,
+      metadata: { kind, onchain_po_id: onchainPoId, verify_mode: verify.mode },
     });
 
     if (kind === 'fund') {

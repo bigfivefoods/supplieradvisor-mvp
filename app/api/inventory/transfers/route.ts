@@ -448,6 +448,25 @@ export async function POST(request: NextRequest) {
         );
         const qa = await hasQaHold(companyId, lotNums);
         if (qa.blocked) {
+          const lots = [...new Set(qa.holds.map((h) => h.lot_number))];
+          void import('@/lib/notifications/email-alerts').then(
+            ({ notifyShipBlockedByQa }) =>
+              notifyShipBlockedByQa({
+                profileId: companyId,
+                lots,
+                transferId: order?.id ?? null,
+              })
+          );
+          void import('@/lib/audit/log').then(({ auditLog }) =>
+            auditLog({
+              companyId,
+              action: 'qa.hold.ship_blocked',
+              entityType: 'transfer_order',
+              entityId: order?.id,
+              summary: `Ship blocked by QA hold on lot(s) ${lots.join(', ')}`,
+              metadata: { holds: qa.holds },
+            })
+          );
           return NextResponse.json(qaHoldErrorPayload(qa.holds), { status: 409 });
         }
       }

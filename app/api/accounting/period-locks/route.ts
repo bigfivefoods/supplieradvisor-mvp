@@ -6,8 +6,15 @@ import {
   periodKeyFromDate,
 } from '@/lib/accounting/period-lock';
 import { computeTrialBalance } from '@/lib/accounting/trial-balance';
-import { requireCompanyAccess, legacyPrivyFrom } from '@/lib/auth/api-auth';
+import {
+  requireCompanyPermission,
+  requireCompanyRoles,
+  ROLES_FINANCE_CRITICAL,
+  legacyPrivyFrom,
+} from '@/lib/auth/api-auth';
 import { parseCompanyId } from '@/lib/accounting/server';
+import { auditLog } from '@/lib/audit/log';
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 
 /**
  * GET ?companyId= — list locks + optional trial_balance integrity
@@ -20,9 +27,13 @@ export async function GET(request: NextRequest) {
     if (!Number.isFinite(companyId)) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
-    const gate = await requireCompanyAccess(request, companyId, {
-      legacyPrivyUserId: legacyPrivyFrom(request),
-    });
+    const gate = await requireCompanyPermission(
+      request,
+      companyId,
+      'accounting',
+      'view',
+      { legacyPrivyUserId: legacyPrivyFrom(request) }
+    );
     if (!gate.ok) return gate.response;
 
     const checkDate = request.nextUrl.searchParams.get('checkDate');
@@ -71,10 +82,25 @@ export async function POST(request: NextRequest) {
     if (!Number.isFinite(companyId)) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
-    const gate = await requireCompanyAccess(request, companyId, {
-      legacyPrivyUserId: legacyPrivyFrom(request, body),
-    });
+
+    // Owner / admin / finance only — not generic members
+    const gate = await requireCompanyRoles(
+      request,
+      companyId,
+      ROLES_FINANCE_CRITICAL,
+      { legacyPrivyUserId: legacyPrivyFrom(request, body) }
+    );
     if (!gate.ok) return gate.response;
+
+    const rl = checkRateLimit({
+      key: `period-lock:${companyId}:${gate.userId}`,
+      limit: 30,
+      windowMs: 60 * 60 * 1000,
+    });
+    if (!rl.ok) {
+      const r = rateLimitResponse(rl.retryAfterSeconds);
+      return NextResponse.json(r.body, { status: r.status, headers: r.headers });
+    }
 
     const period_key = String(body.period_key || '').trim();
     const locked = body.locked === true || body.locked === 'true' || body.locked === 1;
@@ -111,6 +137,25 @@ export async function POST(request: NextRequest) {
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: 503 });
     }
+
+    void auditLog({
+      companyId,
+      actorUserId: gate.userId,
+      action: locked ? 'period.lock' : 'period.unlock',
+      entityType: 'accounting_period',
+      entityId: period_key,
+      summary: `Period ${period_key} ${locked ? 'locked' : 'unlocked'} by ${gate.role}`,
+      metadata: { note: body.note || null, role: gate.role },
+    });
+
+    void import('@/lib/notifications/email-alerts').then(({ notifyPeriodLock }) =>
+      notifyPeriodLock({
+        profileId: companyId,
+        periodKey: period_key,
+        locked,
+        actorUserId: gate.userId,
+      })
+    );
 
     return NextResponse.json({ success: true, lock: result.row });
   } catch (e: unknown) {

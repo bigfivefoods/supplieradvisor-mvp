@@ -6,16 +6,14 @@ import AuthGate from '@/components/AuthGate';
 import ModuleAccessGate from '@/components/ModuleAccessGate';
 import ModuleProcessBar from '@/components/chrome/ModuleProcessBar';
 import { SidebarProvider, useSidebarChrome } from '@/components/chrome/SidebarContext';
-import { Menu, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
 import { usePrivy } from '@privy-io/react-auth';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
 import { normalizeTeamRole } from '@/lib/business/permissions';
-import NotificationBell from '@/components/chrome/NotificationBell';
-
 /**
- * Dashboard shell — collapsible icon sidebar + sticky module process rail.
+ * Dashboard shell — collapsible icon sidebar + single sticky process / Action centre rail.
  */
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -98,27 +96,9 @@ function DashboardChrome({ children }: { children: React.ReactNode }) {
 
       <div className="relative z-10 flex-1 min-w-0 flex flex-col pointer-events-auto">
         {!hideChrome && (
-          <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-md">
-            <header className="md:hidden border-b border-neutral-200 px-4 py-3 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsMobileMenuOpen(true)}
-                  className="p-3 hover:bg-neutral-100 rounded-3xl transition-colors cursor-pointer"
-                  aria-label="Open menu"
-                >
-                  <Menu size={26} />
-                </button>
-                <div className="font-black text-xl tracking-[-1px] text-[#00b4d8]">
-                  SupplierAdvisor®
-                </div>
-              </div>
-              <NotificationBell />
-            </header>
-            <div className="hidden md:flex items-center justify-end gap-2 border-b border-neutral-100 px-4 py-1.5 bg-white/80">
-              <NotificationBell />
-            </div>
-            <ModuleProcessBar />
+          <div className="sticky top-0 z-40">
+            {/* One rail only: mobile menu · process steps · Action centre */}
+            <ModuleProcessBar onOpenMobileMenu={() => setIsMobileMenuOpen(true)} />
           </div>
         )}
 
