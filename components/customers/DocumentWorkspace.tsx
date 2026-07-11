@@ -2,7 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 // useEffect used for load
-import { Loader2, Plus, Trash2, Package, ArrowRight, Share2, EyeOff } from 'lucide-react';
+import {
+  Loader2,
+  Plus,
+  Trash2,
+  Package,
+  ArrowRight,
+  Share2,
+  EyeOff,
+  Mail,
+  FileDown,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { usePrivy } from '@privy-io/react-auth';
 import { getCanonicalUserId } from '@/lib/auth/identity';
@@ -69,7 +79,8 @@ const CONFIG: Record<
   },
   invoice: {
     title: 'Invoices',
-    description: 'Bill customers, track payment, and auto-earn loyalty points on paid invoices.',
+    description:
+      'Bill customers, email with your bank details, print/PDF, track payment, and auto-earn loyalty points when paid.',
     numberField: 'invoice_number',
     statuses: ['draft', 'sent', 'paid', 'partial', 'overdue', 'void'],
   },
@@ -348,6 +359,55 @@ function DocInner({
       body: JSON.stringify({ type, id, status, companyId }),
     });
     if (res.ok) void load();
+  };
+
+  /** Open print-ready HTML (browser → Print → Save as PDF). */
+  const openPrintPdf = (id: number) => {
+    const url = `/api/customers/docs/render?companyId=${companyId}&type=${type}&id=${id}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  /**
+   * Email document to customer contact_email; CC you by default.
+   * Invoices include company bank details from Company → Profile.
+   */
+  const emailDoc = async (doc: DocRecord) => {
+    const to = String(doc.contact_email || '').trim();
+    if (!to || !to.includes('@')) {
+      toast.error('Add a contact email on this document (or customer) before sending.');
+      return;
+    }
+    setBusyId(Number(doc.id));
+    try {
+      const res = await fetch('/api/customers/docs/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          type,
+          id: doc.id,
+          to,
+          ccMe: true,
+          privyUserId,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || data.hint || 'Send failed');
+      const bankNote =
+        type === 'invoice'
+          ? data.bankDetailsIncluded
+            ? ' · bank details included'
+            : ' · add bank details under Company → Profile'
+          : '';
+      toast.success(
+        `Emailed ${to}${data.cc?.length ? ` (CC ${data.cc.join(', ')})` : ''}${bankNote}`
+      );
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Send failed');
+    } finally {
+      setBusyId(null);
+    }
   };
 
   /** Toggle visibility=shared | seller_only. New share blocked while customer suspended (409). */
@@ -801,6 +861,30 @@ function DocInner({
                     <div className="font-bold text-base tabular-nums mr-2">
                       {formatMoney(Number(d.total_amount || 0), String(d.currency || 'ZAR'))}
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => openPrintPdf(d.id)}
+                      className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
+                      title="Open print-ready document — use browser Print → Save as PDF"
+                    >
+                      <FileDown className="w-3.5 h-3.5" />
+                      PDF / print
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busyId === d.id}
+                      onClick={() => void emailDoc(d)}
+                      className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1 border-[#00b4d8]/40 text-[#0077b6]"
+                      title="Email customer (CC you). Invoices include bank details from Company profile."
+                    >
+                      {busyId === d.id ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <>
+                          <Mail className="w-3.5 h-3.5" /> Email
+                        </>
+                      )}
+                    </button>
                     <button
                       type="button"
                       disabled={busyId === d.id}
