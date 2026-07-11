@@ -17,6 +17,9 @@ import {
   CompanyRequired,
 } from '@/components/accounting/AccountingShell';
 import { Panel, SectionLabel } from '@/components/relationship/RelationshipChrome';
+import { useCompanyRole } from '@/lib/business/useCompanyRole';
+import { RoleDeniedBanner, RoleAwareButton } from '@/components/chrome/RoleGuard';
+import ActivityFeed from '@/components/chrome/ActivityFeed';
 
 export default function AccountingSettingsPage() {
   return (
@@ -30,6 +33,7 @@ function Inner() {
   const companyId = getSelectedCompanyId()!;
   const { user } = usePrivy();
   const privyUserId = getCanonicalUserId(user?.id);
+  const { canFinanceCritical, canAccountingWrite, roleLabel } = useCompanyRole();
   const [settings, setSettings] = useState<AccountingSettings | null>(null);
   const [periods, setPeriods] = useState<AccountingPeriod[]>([]);
   const [monthLocks, setMonthLocks] = useState<
@@ -180,6 +184,28 @@ function Inner() {
         description="Periods, currencies, document number prefixes, and system defaults."
       />
 
+      <SectionLabel>Period close checklist</SectionLabel>
+      <Panel className="mb-6">
+        <div className="p-5 sm:p-6">
+          <ol className="space-y-2 text-sm text-neutral-700 list-decimal list-inside">
+            <li>
+              Trial balance balanced
+              {tb
+                ? tb.balanced
+                  ? ' — ✓ ready'
+                  : ' — fix Δ first'
+                : ' — load TB above'}
+            </li>
+            <li>Bank lines allocated / auto-matched for the month</li>
+            <li>AR/AP and tax reviewed for the period</li>
+            <li>
+              Lock the month (owner / admin / finance only)
+              {!canFinanceCritical && ` — your role (${roleLabel || '…'}) cannot lock`}
+            </li>
+          </ol>
+        </div>
+      </Panel>
+
       <SectionLabel>Period locks & trial balance</SectionLabel>
       <Panel className="mb-8">
         <div className="p-5 sm:p-6 space-y-4">
@@ -204,6 +230,9 @@ function Inner() {
             <code className="text-[10px]">20260711_accounting_period_locks.sql</code> if this is
             empty.
           </p>
+          {!canFinanceCritical && (
+            <RoleDeniedBanner message="Only owner, admin, or finance can lock or unlock periods. You can still review status below." />
+          )}
           <div className="flex flex-wrap gap-2">
             {(suggestions.length
               ? suggestions
@@ -216,9 +245,10 @@ function Inner() {
               const row = monthLocks.find((l) => l.period_key === key);
               const locked = row?.locked === true;
               return (
-                <button
+                <RoleAwareButton
                   key={key}
-                  type="button"
+                  allowed={canFinanceCritical}
+                  deniedHint="Owner, admin, or finance required"
                   disabled={saving}
                   onClick={() => void toggleMonthLock(key, !locked)}
                   className={`text-xs font-semibold px-3 py-2 rounded-xl border ${
@@ -228,14 +258,25 @@ function Inner() {
                   }`}
                 >
                   {key} · {locked ? 'Locked' : 'Open'}
-                </button>
+                </RoleAwareButton>
               );
             })}
           </div>
         </div>
       </Panel>
 
+      <SectionLabel>Audit trail</SectionLabel>
+      <div className="mb-8">
+        <ActivityFeed limit={30} title="Accounting & company activity" />
+      </div>
+
       <SectionLabel>General</SectionLabel>
+      {!canAccountingWrite && (
+        <RoleDeniedBanner
+          className="mb-4"
+          message={`Your role (${roleLabel || 'viewer'}) has view-only access to accounting settings.`}
+        />
+      )}
       <Panel className="mb-8">
         <form onSubmit={saveSettings} className="p-5 sm:p-6 space-y-4">
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -369,7 +410,12 @@ function Inner() {
             Require balanced journals on post
           </label>
           <div className="flex justify-end">
-            <button type="submit" disabled={saving} className="btn-primary !py-2.5 !px-5 text-sm">
+            <button
+              type="submit"
+              disabled={saving || !canAccountingWrite}
+              className="btn-primary !py-2.5 !px-5 text-sm disabled:opacity-50"
+              title={!canAccountingWrite ? 'Write access required' : undefined}
+            >
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               Save settings
             </button>

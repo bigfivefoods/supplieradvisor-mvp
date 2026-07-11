@@ -14,6 +14,10 @@ import {
   type PermissionResource,
 } from '@/lib/business/permissions';
 
+const FINANCE_CRITICAL: TeamRole[] = ['owner', 'admin', 'finance'];
+const QA_OVERRIDE_ROLES: TeamRole[] = ['owner', 'admin'];
+const MONEY_OR_OPS: TeamRole[] = ['owner', 'admin', 'finance', 'operations'];
+
 export type CompanyRoleState = {
   loading: boolean;
   role: TeamRole | null;
@@ -26,6 +30,16 @@ export type CompanyRoleState = {
   canViewModule: (resource: PermissionResource) => boolean;
   canWriteModule: (resource: PermissionResource) => boolean;
   canAccessRoute: (pathname: string | null | undefined) => boolean;
+  /** Period lock, hard finance close */
+  canFinanceCritical: boolean;
+  /** QA inspections write */
+  canOpsWrite: boolean;
+  /** Ship despite QA hold */
+  canQaOverride: boolean;
+  /** On-chain escrow attach */
+  canMoneyOrOps: boolean;
+  /** Accounting journals / bank allocate */
+  canAccountingWrite: boolean;
   homePath: string;
   refresh: () => Promise<void>;
 };
@@ -113,6 +127,12 @@ export function useCompanyRole(): CompanyRoleState {
 
   const homePath = useMemo(() => defaultHomePathForRole(role), [role]);
 
+  const canFinanceCritical = Boolean(role && FINANCE_CRITICAL.includes(role));
+  const canOpsWrite = Boolean(role && canWrite(role, 'operations'));
+  const canQaOverride = Boolean(role && QA_OVERRIDE_ROLES.includes(role));
+  const canMoneyOrOps = Boolean(role && MONEY_OR_OPS.includes(role));
+  const canAccountingWrite = Boolean(role && canWrite(role, 'accounting'));
+
   return {
     loading,
     role,
@@ -124,6 +144,11 @@ export function useCompanyRole(): CompanyRoleState {
     canViewModule,
     canWriteModule,
     canAccessRoute,
+    canFinanceCritical,
+    canOpsWrite,
+    canQaOverride,
+    canMoneyOrOps,
+    canAccountingWrite,
     homePath,
     refresh,
   };

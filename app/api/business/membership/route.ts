@@ -21,10 +21,12 @@ export async function GET(request: NextRequest) {
   try {
     const companyId = Number(request.nextUrl.searchParams.get('companyId'));
 
-    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    const _gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request),
+    });
     if (!_gate.ok) return _gate.response;
-    const privyUserId = request.nextUrl.searchParams.get('privyUserId');
-    const mem = await getCompanyMembership(privyUserId, companyId);
+    // Trust JWT user, not client-supplied privyUserId
+    const mem = await getCompanyMembership(_gate.userId, companyId);
     if (!mem.ok) {
       return NextResponse.json({ error: mem.error }, { status: mem.status });
     }

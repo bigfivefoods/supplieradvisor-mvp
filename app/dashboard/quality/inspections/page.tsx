@@ -24,11 +24,15 @@ import {
   inspectionStatusClass,
   type QualityInspection,
 } from '@/lib/quality/types';
+import Link from 'next/link';
+import { useCompanyRole } from '@/lib/business/useCompanyRole';
+import { RoleDeniedBanner } from '@/components/chrome/RoleGuard';
 
 export default function QualityInspectionsPage() {
   const { user } = usePrivy();
   const privyUserId = getCanonicalUserId(user?.id);
   const companyId = getSelectedCompanyId();
+  const { canOpsWrite, roleLabel } = useCompanyRole();
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<QualityInspection[]>([]);
   const [warning, setWarning] = useState<string | null>(null);
@@ -148,17 +152,59 @@ export default function QualityInspectionsPage() {
           <button
             type="button"
             onClick={() => setShowForm(true)}
-            className="btn-primary !py-2 !px-4 text-sm inline-flex items-center gap-2"
+            disabled={!canOpsWrite}
+            title={!canOpsWrite ? 'Operations write access required' : undefined}
+            className="btn-primary !py-2 !px-4 text-sm inline-flex items-center gap-2 disabled:opacity-50"
           >
             <Plus className="w-4 h-4" /> New inspection
           </button>
         }
       />
 
+      {/* Guided food-safety path */}
+      <div className="mb-6 rounded-3xl border border-cyan-100 bg-gradient-to-br from-white via-sky-50/80 to-cyan-50 p-4 sm:p-5">
+        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-neutral-400 mb-2">
+          Release path
+        </p>
+        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
+          {[
+            { n: 1, label: 'Receive', href: '/dashboard/inventory/scan' },
+            { n: 2, label: 'Inspect', href: '/dashboard/quality/inspections' },
+            { n: 3, label: 'Hold / clear', href: '/dashboard/quality/inspections' },
+            { n: 4, label: 'Ship', href: '/dashboard/inventory/stock-transfers' },
+            { n: 5, label: 'Recall pack', href: '/dashboard/quality/regulatory-reports' },
+          ].map((s, i, arr) => (
+            <span key={s.n} className="inline-flex items-center gap-2">
+              <Link
+                href={s.href}
+                className="inline-flex items-center gap-1.5 rounded-full border border-[#00b4d8]/30 bg-white px-3 py-1.5 text-[#0077b6] hover:border-[#00b4d8] hover:shadow-sm"
+              >
+                <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[#00b4d8]/10 text-[10px] font-black text-[#00b4d8]">
+                  {s.n}
+                </span>
+                {s.label}
+              </Link>
+              {i < arr.length - 1 && <span className="text-neutral-300">→</span>}
+            </span>
+          ))}
+        </div>
+        <p className="mt-2 text-[11px] text-neutral-500 leading-relaxed max-w-2xl">
+          Open or failed inspections put the lot on hold. Ship is blocked until you pass &amp;
+          release — or an owner/admin overrides (audited).
+        </p>
+      </div>
+
       {warning && (
         <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           {warning}
         </div>
+      )}
+
+      {!canOpsWrite && (
+        <RoleDeniedBanner
+          className="mb-4"
+          message={`Your role (${roleLabel || 'viewer'}) cannot create or update inspections. Ask operations or an admin.`}
+        />
       )}
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
@@ -238,22 +284,25 @@ export default function QualityInspectionsPage() {
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
+                      disabled={!canOpsWrite}
                       onClick={() => void setStatus(row.id, 'passed')}
-                      className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-emerald-600 text-white"
+                      className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-emerald-600 text-white disabled:opacity-50"
                     >
                       Pass & release
                     </button>
                     <button
                       type="button"
+                      disabled={!canOpsWrite}
                       onClick={() => void setStatus(row.id, 'failed')}
-                      className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-red-100 text-red-800"
+                      className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-red-100 text-red-800 disabled:opacity-50"
                     >
                       Fail / hold
                     </button>
                     <button
                       type="button"
+                      disabled={!canOpsWrite}
                       onClick={() => void setStatus(row.id, 'conditional')}
-                      className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-amber-100 text-amber-900"
+                      className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-amber-100 text-amber-900 disabled:opacity-50"
                     >
                       Conditional
                     </button>

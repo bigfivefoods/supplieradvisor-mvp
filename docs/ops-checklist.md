@@ -82,7 +82,17 @@ npx playwright codegen --save-storage=e2e/.auth.json https://www.supplieradvisor
 npm run test:e2e:storage
 ```
 
-## 7. ComingSoon
+## 7. Role-aware UI (in app)
+
+| Surface | Behaviour |
+|---------|-----------|
+| Period locks | Only owner/admin/finance can toggle; others see banner |
+| QA inspections | Operations write required for create/pass/fail |
+| Ship transfer | Ops write; QA override checkbox only for owner/admin |
+| Accounting settings save | Accounting write required |
+| Audit feed | Accounting → Settings → Recent activity |
+
+## 8. ComingSoon
 
 Hubs only link **live** modules. Stubs remain at:
 

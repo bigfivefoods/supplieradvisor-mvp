@@ -440,7 +440,7 @@ export async function POST(request: NextRequest) {
       const shipLines = (body.lines as LineInput[] | undefined) || lines || [];
 
       // QA release gate — block ship when lots have open/failed inspections
-      if (!body.overrideQaHold) {
+      {
         const lotNums = shipLines.map(
           (l) =>
             l.lot_number ||
@@ -449,25 +449,56 @@ export async function POST(request: NextRequest) {
         const qa = await hasQaHold(companyId, lotNums);
         if (qa.blocked) {
           const lots = [...new Set(qa.holds.map((h) => h.lot_number))];
-          void import('@/lib/notifications/email-alerts').then(
-            ({ notifyShipBlockedByQa }) =>
-              notifyShipBlockedByQa({
-                profileId: companyId,
-                lots,
-                transferId: order?.id ?? null,
+          if (body.overrideQaHold) {
+            // Owner/admin only — never allow casual override
+            const { getCompanyMembership } = await import('@/lib/business/access');
+            const { normalizeTeamRole } = await import('@/lib/business/permissions');
+            const mem = await getCompanyMembership(_gate.userId, companyId);
+            const role = mem.ok ? normalizeTeamRole(mem.role) : null;
+            if (!role || !['owner', 'admin'].includes(role)) {
+              return NextResponse.json(
+                {
+                  error:
+                    'QA hold override requires owner or admin role. Clear inspections first.',
+                  code: 'QA_OVERRIDE_FORBIDDEN',
+                  holds: qa.holds,
+                },
+                { status: 403 }
+              );
+            }
+            void import('@/lib/audit/log').then(({ auditLog }) =>
+              auditLog({
+                companyId,
+                actorUserId: _gate.userId,
+                action: 'override.qa_hold',
+                entityType: 'transfer_order',
+                entityId: order?.id,
+                summary: `QA hold override on ship — lot(s) ${lots.join(', ')}`,
+                metadata: { holds: qa.holds, role },
               })
-          );
-          void import('@/lib/audit/log').then(({ auditLog }) =>
-            auditLog({
-              companyId,
-              action: 'qa.hold.ship_blocked',
-              entityType: 'transfer_order',
-              entityId: order?.id,
-              summary: `Ship blocked by QA hold on lot(s) ${lots.join(', ')}`,
-              metadata: { holds: qa.holds },
-            })
-          );
-          return NextResponse.json(qaHoldErrorPayload(qa.holds), { status: 409 });
+            );
+          } else {
+            void import('@/lib/notifications/email-alerts').then(
+              ({ notifyShipBlockedByQa }) =>
+                notifyShipBlockedByQa({
+                  profileId: companyId,
+                  lots,
+                  transferId: order?.id ?? null,
+                })
+            );
+            void import('@/lib/audit/log').then(({ auditLog }) =>
+              auditLog({
+                companyId,
+                actorUserId: _gate.userId,
+                action: 'qa.hold.ship_blocked',
+                entityType: 'transfer_order',
+                entityId: order?.id,
+                summary: `Ship blocked by QA hold on lot(s) ${lots.join(', ')}`,
+                metadata: { holds: qa.holds },
+              })
+            );
+            return NextResponse.json(qaHoldErrorPayload(qa.holds), { status: 409 });
+          }
         }
       }
 

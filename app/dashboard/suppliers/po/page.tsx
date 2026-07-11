@@ -177,8 +177,11 @@ function PoInner() {
   const [supplierWallet, setSupplierWallet] = useState('');
   /** Optional override for fundPO msg.value (ETH). Empty = demo fiat conversion. */
   const [escrowEthOverride, setEscrowEthOverride] = useState('');
-  const [escrowAsset, setEscrowAsset] = useState<'eth' | 'usdc'>('eth');
   const usdcEnabled = isUsdcEscrowEnabled();
+  /** Prefer USDC on Base for B2B demos; ETH Sepolia remains dev-only fallback */
+  const [escrowAsset, setEscrowAsset] = useState<'eth' | 'usdc'>(
+    usdcEnabled ? 'usdc' : 'eth'
+  );
   const [lineItems, setLineItems] = useState<PoLineItem[]>([
     { product_id: null, item_name: '', quantity: 1, unit_price: 0, uom: 'ea' },
   ]);
@@ -1042,29 +1045,18 @@ function PoInner() {
                   />
                   <div>
                     <div className="font-semibold text-sm text-slate-900 flex items-center gap-2">
-                      <Wallet className="w-4 h-4 text-[#00b4d8]" /> Create on-chain escrow (POEscrowV2)
+                      <Wallet className="w-4 h-4 text-[#00b4d8]" /> Create on-chain escrow
                     </div>
                     <p className="text-xs text-neutral-600 mt-0.5">
-                      Client-signed createPO after the off-chain PO is saved. Funds later via fundPO;
-                      release after delivery. Demo rate ≈ R{ETH_RATE_ZAR.toLocaleString()} / ETH.
+                      Prefer <strong>USDC on Base</strong> for realistic B2B demos. ETH Sepolia is
+                      available as a developer fallback only.
                     </p>
                   </div>
                 </label>
                 {useEscrow && (
                   <div className="space-y-3">
-                    {usdcEnabled && (
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setEscrowAsset('eth')}
-                          className={`text-xs font-semibold px-3 py-1.5 rounded-full border ${
-                            escrowAsset === 'eth'
-                              ? 'bg-[#00b4d8] text-white border-[#00b4d8]'
-                              : 'bg-white border-neutral-200'
-                          }`}
-                        >
-                          ETH (Sepolia)
-                        </button>
+                    <div className="flex flex-wrap gap-2">
+                      {usdcEnabled && (
                         <button
                           type="button"
                           onClick={() => setEscrowAsset('usdc')}
@@ -1074,9 +1066,26 @@ function PoInner() {
                               : 'bg-white border-neutral-200'
                           }`}
                         >
-                          USDC (Base)
+                          USDC (Base) · recommended
                         </button>
-                      </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setEscrowAsset('eth')}
+                        className={`text-xs font-semibold px-3 py-1.5 rounded-full border ${
+                          escrowAsset === 'eth'
+                            ? 'bg-[#00b4d8] text-white border-[#00b4d8]'
+                            : 'bg-white border-neutral-200'
+                        }`}
+                      >
+                        ETH (Sepolia · dev)
+                      </button>
+                    </div>
+                    {!usdcEnabled && (
+                      <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1.5">
+                        Set <code>NEXT_PUBLIC_USDC_ESCROW_ADDRESS</code> after deploying POEscrowUSDC
+                        to enable recommended USDC path.
+                      </p>
                     )}
                     <div>
                       <label className="text-xs font-medium">Supplier wallet *</label>
@@ -1087,21 +1096,23 @@ function PoInner() {
                         onChange={(e) => setSupplierWallet(e.target.value)}
                       />
                     </div>
-                    <div>
-                      <label className="text-xs font-medium">
-                        Escrow amount (ETH) — optional override
-                      </label>
-                      <input
-                        className="input mt-1 w-full !p-3 !text-sm font-mono"
-                        placeholder={`Auto ≈ ${fiatToEthString(totalAmount, ETH_RATE_ZAR)} from PO total`}
-                        value={escrowEthOverride}
-                        onChange={(e) => setEscrowEthOverride(e.target.value)}
-                      />
-                      <p className="text-[11px] text-amber-800 mt-1 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1">
-                        Demo: empty uses fiat÷{ETH_RATE_ZAR.toLocaleString()} rate. Enter exact ETH for
-                        real testnet funds. Production should use stablecoin + oracle.
-                      </p>
-                    </div>
+                    {escrowAsset === 'eth' && (
+                      <div>
+                        <label className="text-xs font-medium">
+                          Escrow amount (ETH) — optional override
+                        </label>
+                        <input
+                          className="input mt-1 w-full !p-3 !text-sm font-mono"
+                          placeholder={`Auto ≈ ${fiatToEthString(totalAmount, ETH_RATE_ZAR)} from PO total`}
+                          value={escrowEthOverride}
+                          onChange={(e) => setEscrowEthOverride(e.target.value)}
+                        />
+                        <p className="text-[11px] text-amber-800 mt-1 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1">
+                          Dev path: empty uses fiat÷{ETH_RATE_ZAR.toLocaleString()} rate. Prefer USDC
+                          for production-like demos.
+                        </p>
+                      </div>
+                    )}
                     {connectedWallet ? (
                       <p className="text-[11px] text-emerald-700">
                         Buyer wallet connected: {connectedWallet.slice(0, 6)}…{connectedWallet.slice(-4)}
@@ -1165,7 +1176,9 @@ function PoInner() {
               </div>
               {useEscrow && (
                 <div className="text-sm text-[#0077b6] mt-2 font-medium">
-                  ≈ {amountInEth(totalAmount)} ETH escrow
+                  {escrowAsset === 'usdc'
+                    ? 'USDC escrow on Base (recommended)'
+                    : `≈ ${amountInEth(totalAmount)} ETH escrow (dev)`}
                 </div>
               )}
               <div className="mt-4 text-xs text-neutral-500 space-y-1.5">

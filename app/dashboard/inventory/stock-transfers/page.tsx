@@ -31,6 +31,8 @@ import {
   type WarehouseRecord,
 } from '@/lib/inventory/types';
 import { CompanyRequired, InventoryHeader } from '@/components/inventory/InventoryShell';
+import { useCompanyRole } from '@/lib/business/useCompanyRole';
+import { RoleDeniedBanner } from '@/components/chrome/RoleGuard';
 
 type LineDraft = {
   product_id: string;
@@ -59,6 +61,8 @@ export default function StockTransfersPage() {
 function TransfersInner() {
   const companyId = getSelectedCompanyId()!;
   const searchParams = useSearchParams();
+  const { canOpsWrite, canQaOverride, roleLabel } = useCompanyRole();
+  const [overrideQaHold, setOverrideQaHold] = useState(false);
   const [mainTab, setMainTab] = useState<'locations' | 'container'>(
     searchParams.get('tab') === 'container' ? 'container' : 'locations'
   );
@@ -271,6 +275,7 @@ function TransfersInner() {
       carrier: shipCarrier || t.carrier,
       tracking_ref: shipTracking || t.tracking_ref,
       ship_notes: shipNotes || undefined,
+      overrideQaHold: canQaOverride && overrideQaHold ? true : undefined,
     });
   };
 
@@ -805,12 +810,36 @@ function TransfersInner() {
                             value={shipNotes}
                             onChange={(e) => setShipNotes(e.target.value)}
                           />
+                          {canQaOverride ? (
+                            <label className="flex items-start gap-2 text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                              <input
+                                type="checkbox"
+                                className="mt-0.5"
+                                checked={overrideQaHold}
+                                onChange={(e) => setOverrideQaHold(e.target.checked)}
+                              />
+                              <span>
+                                <strong>Override QA hold</strong> (owner/admin only) — ships even if
+                                lots have open/failed inspections. Always audited.
+                              </span>
+                            </label>
+                          ) : (
+                            <p className="text-[11px] text-neutral-500">
+                              Lots on QA hold cannot ship. Clear Quality → Inspections first.
+                              Override is limited to owners/admins.
+                            </p>
+                          )}
+                          {!canOpsWrite && (
+                            <RoleDeniedBanner
+                              message={`Your role (${roleLabel || 'viewer'}) cannot ship transfers. Ask an operations member or admin.`}
+                            />
+                          )}
                           <div className="flex flex-wrap gap-2">
                             <button
                               type="button"
-                              disabled={busyId === t.id}
+                              disabled={busyId === t.id || !canOpsWrite}
                               onClick={() => ship(t)}
-                              className="btn-primary !py-2 !px-4 text-sm"
+                              className="btn-primary !py-2 !px-4 text-sm disabled:opacity-50"
                             >
                               {busyId === t.id ? (
                                 <Loader2 className="w-4 h-4 animate-spin" />

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import {
   AlertTriangle,
   BarChart3,
@@ -9,6 +10,7 @@ import {
   ShieldCheck,
   Workflow,
   Loader2,
+  ArrowRight,
 } from 'lucide-react';
 import {
   RelationshipHeader,
@@ -106,8 +108,69 @@ export default function QualityHub() {
         eyebrow="Quality & food safety"
         title="Quality"
         titleAccent="Command"
-        description="Live inspections and lot traceability. HACCP / recall tools remain on the roadmap — use release gates today."
+        description="Live inspections, HACCP, traceability graph, recall drill, and regulatory packs — end-to-end release gates."
       />
+
+      {/* Hero food-safety story — one continuous path */}
+      <div className="mb-8 rounded-3xl border border-cyan-100 bg-white p-5 sm:p-6 shadow-sm">
+        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-neutral-400 mb-1">
+          Food-safety path
+        </p>
+        <h2 className="text-lg font-black text-slate-900 mb-1">
+          Receive → inspect → hold/clear → ship → recall pack
+        </h2>
+        <p className="text-sm text-neutral-500 mb-4 max-w-2xl">
+          Follow these five workbenches for a defensible release story. Open or failed inspections
+          block warehouse ship until you clear them.
+        </p>
+        <div className="grid sm:grid-cols-5 gap-2">
+          {[
+            {
+              n: '01',
+              t: 'Receive',
+              d: 'Scan goods in',
+              href: '/dashboard/inventory/scan',
+            },
+            {
+              n: '02',
+              t: 'Inspect',
+              d: 'Lot + pass/fail',
+              href: '/dashboard/quality/inspections',
+            },
+            {
+              n: '03',
+              t: 'Trace',
+              d: 'Pedigree graph',
+              href: '/dashboard/quality/traceability-graph',
+            },
+            {
+              n: '04',
+              t: 'Ship',
+              d: 'Hold-aware transfer',
+              href: '/dashboard/inventory/stock-transfers',
+            },
+            {
+              n: '05',
+              t: 'Recall pack',
+              d: 'Export for auditors',
+              href: '/dashboard/quality/regulatory-reports',
+            },
+          ].map((s) => (
+            <Link
+              key={s.n}
+              href={s.href}
+              className="group rounded-2xl border border-neutral-200 bg-gradient-to-br from-sky-50/80 to-white px-3 py-3 hover:border-[#00b4d8]/50 hover:shadow-sm transition-all"
+            >
+              <div className="text-[10px] font-black text-[#00b4d8] mb-1">{s.n}</div>
+              <div className="text-sm font-bold text-slate-800 group-hover:text-[#0077b6] flex items-center gap-1">
+                {s.t}
+                <ArrowRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+              </div>
+              <div className="text-[11px] text-neutral-500 mt-0.5">{s.d}</div>
+            </Link>
+          ))}
+        </div>
+      </div>
 
       <HubHero
         pill="Live QA · inspections + lots"

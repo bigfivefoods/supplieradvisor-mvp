@@ -6,6 +6,7 @@ import {
 } from '@/lib/auth/api-auth';
 import { findLotHolds } from '@/lib/quality/holds';
 import { auditLog } from '@/lib/audit/log';
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 
 /**
  * GET ?companyId=&days=90
@@ -27,6 +28,16 @@ export async function GET(request: NextRequest) {
       { legacyPrivyUserId: legacyPrivyFrom(request) }
     );
     if (!gate.ok) return gate.response;
+
+    const rl = checkRateLimit({
+      key: `reg-pack:${companyId}:${gate.userId}`,
+      limit: 20,
+      windowMs: 60 * 60 * 1000,
+    });
+    if (!rl.ok) {
+      const r = rateLimitResponse(rl.retryAfterSeconds);
+      return NextResponse.json(r.body, { status: r.status, headers: r.headers });
+    }
 
     const since = new Date(Date.now() - days * 86400000).toISOString();
     const supabase = getSupabaseServer();

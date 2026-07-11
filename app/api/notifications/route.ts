@@ -42,6 +42,8 @@ export async function GET(request: NextRequest) {
       openTransfers,
       pendingInvites,
       marketInq,
+      periodLocks,
+      bankSyncFail,
     ] = await Promise.all([
       supabase
         .from('quality_inspections')
@@ -95,6 +97,19 @@ export async function GET(request: NextRequest) {
         .in('status', ['new', 'open'])
         .order('created_at', { ascending: false })
         .limit(8),
+      supabase
+        .from('accounting_period_locks')
+        .select('period_key, locked, updated_at, locked_at')
+        .eq('profile_id', companyId)
+        .eq('locked', true)
+        .order('period_key', { ascending: false })
+        .limit(6),
+      supabase
+        .from('bank_connections')
+        .select('id, last_error, last_sync_at, updated_at')
+        .eq('profile_id', companyId)
+        .not('last_error', 'is', null)
+        .limit(5),
     ]);
 
     for (const r of openInsp.data || []) {
@@ -210,6 +225,36 @@ export async function GET(request: NextRequest) {
         created_at: iq.created_at || new Date().toISOString(),
         source: 'marketplace',
       });
+    }
+
+    if (!periodLocks.error && (periodLocks.data || []).length) {
+      for (const pl of periodLocks.data || []) {
+        notifications.push({
+          id: `period-lock-${pl.period_key}`,
+          severity: 'info',
+          title: `Period ${pl.period_key} locked`,
+          body: 'Posted journals into this month are blocked. Unlock under Accounting → Settings.',
+          href: '/dashboard/accounting/settings',
+          created_at: pl.updated_at || pl.locked_at || new Date().toISOString(),
+          source: 'accounting',
+        });
+      }
+    }
+
+    if (!bankSyncFail.error) {
+      for (const bc of bankSyncFail.data || []) {
+        const err = String(bc.last_error || '').trim();
+        if (!err) continue;
+        notifications.push({
+          id: `bank-sync-${bc.id}`,
+          severity: 'warning',
+          title: 'Bank feed sync error',
+          body: err.slice(0, 160),
+          href: '/dashboard/accounting/bank-reconciliation',
+          created_at: bc.updated_at || bc.last_sync_at || new Date().toISOString(),
+          source: 'banking',
+        });
+      }
     }
 
     // Severity sort: critical > warning > info > positive
