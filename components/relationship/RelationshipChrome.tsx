@@ -31,6 +31,8 @@ export type ProcessStep = {
   href: string;
   /** Short explanation of this stage in the lifecycle */
   desc?: string;
+  /** When true, only highlight on exact path match (module command hubs) */
+  exact?: boolean;
 };
 
 const BRAND = '#00b4d8';
@@ -153,38 +155,102 @@ export function RelationshipHeader({
       {backHref && (
         <Link
           href={backHref}
-          className="group inline-flex items-center gap-2 text-sm text-neutral-500 mb-3 hover:text-[#0077b6] transition-colors"
+          className="group mb-3 inline-flex items-center gap-2 text-sm text-neutral-500 transition-colors hover:text-[#0077b6]"
         >
-          <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-0.5 text-[#00b4d8]" />
-          {backLabel || 'Overview'}
+          <ArrowLeft className="h-4 w-4 text-[#00b4d8] transition-transform group-hover:-translate-x-0.5" />
+          {backLabel || 'Command'}
         </Link>
       )}
-      <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="max-w-3xl">
           {eyebrow && (
-            <p className="text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-1">
+            <p className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-neutral-400 sm:text-xs">
               {eyebrow}
             </p>
           )}
-          <h1 className="text-3xl sm:text-4xl font-black tracking-[-2px] text-[#00b4d8] leading-[1.1]">
+          <h1 className="text-3xl font-black leading-[1.1] tracking-tight text-slate-900 sm:text-4xl sm:tracking-[-1.5px]">
             {titleAccent ? (
               <>
                 <span className="text-slate-800">{title}</span>{' '}
                 <span className="text-[#00b4d8]">{titleAccent}</span>
               </>
             ) : (
-              title
+              <span className="text-[#00b4d8]">{title}</span>
             )}
           </h1>
           {description && (
-            <p className="text-neutral-600 mt-2 text-sm max-w-2xl leading-relaxed">
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-neutral-600 sm:text-[15px]">
               {description}
             </p>
           )}
         </div>
-        {action && <div className="flex flex-wrap gap-2 shrink-0">{action}</div>}
+        {action && <div className="flex shrink-0 flex-wrap gap-2">{action}</div>}
       </div>
     </div>
+  );
+}
+
+/** Light command band for sub-module workbenches — same language as hub heroes. */
+export function CommandWorkbenchBand({
+  pill,
+  title,
+  description,
+  stats,
+}: {
+  pill?: string;
+  title: React.ReactNode;
+  description?: string;
+  stats?: Array<{ label: string; value: string | number; valueClass?: string }>;
+}) {
+  return (
+    <section className="relative mb-6 overflow-hidden rounded-[1.5rem] border border-cyan-100 bg-gradient-to-br from-white via-sky-50/90 to-cyan-50 p-4 shadow-sm sm:mb-8 sm:rounded-[2rem] sm:p-6">
+      <div
+        className="pointer-events-none absolute -right-8 -top-8 h-36 w-36 rounded-full bg-[#00b4d8]/10 blur-3xl"
+        aria-hidden
+      />
+      <div className="relative flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="max-w-xl">
+          {pill && (
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-cyan-200/80 bg-white/90 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-[#0077b6] shadow-sm">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              </span>
+              {pill}
+            </div>
+          )}
+          <h2 className="text-xl font-black tracking-tight text-slate-900 sm:text-2xl">{title}</h2>
+          {description && (
+            <p className="mt-1.5 text-sm leading-relaxed text-slate-600">{description}</p>
+          )}
+        </div>
+        {stats && stats.length > 0 && (
+          <div
+            className={`grid min-w-0 gap-2 sm:min-w-[240px] ${
+              stats.length >= 3 ? 'grid-cols-3' : stats.length === 2 ? 'grid-cols-2' : 'grid-cols-1'
+            }`}
+          >
+            {stats.map((s) => (
+              <div
+                key={s.label}
+                className="rounded-2xl border border-cyan-100 bg-white px-2.5 py-2.5 text-center shadow-sm sm:px-3"
+              >
+                <div className="text-[9px] font-bold uppercase tracking-wider text-neutral-400 sm:text-[10px]">
+                  {s.label}
+                </div>
+                <div
+                  className={`text-lg font-black tabular-nums sm:text-xl ${
+                    s.valueClass || 'text-[#00b4d8]'
+                  }`}
+                >
+                  {s.value}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
 

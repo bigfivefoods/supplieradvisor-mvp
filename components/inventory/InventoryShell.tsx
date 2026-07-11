@@ -6,50 +6,23 @@ import { usePathname, useRouter } from 'next/navigation';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 
-/** Canonical inventory nav — keep hub, sidebar, and redirects in sync */
+/** Canonical inventory nav — keep hub, sidebar, and process rail in sync */
 export const INVENTORY_PROCESS = [
-  {
-    href: '/dashboard/inventory',
-    label: 'Overview',
-    short: 'Overview',
-    exact: true,
-  },
-  {
-    href: '/dashboard/inventory/products',
-    label: 'Products',
-    short: 'Products',
-    exact: false,
-  },
-  {
-    href: '/dashboard/inventory/warehouses',
-    label: 'Locations',
-    short: 'Locations',
-    exact: false,
-  },
-  {
-    href: '/dashboard/inventory/stock',
-    label: 'Live stock',
-    short: 'Live stock',
-    exact: false,
-  },
-  {
-    href: '/dashboard/inventory/scan',
-    label: 'Receive',
-    short: 'Receive',
-    exact: false,
-  },
+  { href: '/dashboard/inventory', label: 'Command', short: 'Command', exact: true },
+  { href: '/dashboard/inventory/products', label: 'Products', short: 'Products', exact: false },
+  { href: '/dashboard/inventory/warehouses', label: 'Locations', short: 'Locations', exact: false },
+  { href: '/dashboard/inventory/stock', label: 'Live stock', short: 'Stock', exact: false },
+  { href: '/dashboard/inventory/scan', label: 'Receive', short: 'Receive', exact: false },
   {
     href: '/dashboard/inventory/stock-transfers',
     label: 'Transfers',
     short: 'Transfers',
     exact: false,
   },
-  {
-    href: '/dashboard/inventory/counts',
-    label: 'Counts',
-    short: 'Counts',
-    exact: false,
-  },
+  { href: '/dashboard/inventory/tracking', label: 'Tracking', short: 'Tracking', exact: false },
+  { href: '/dashboard/inventory/counts', label: 'Counts', short: 'Counts', exact: false },
+  { href: '/dashboard/inventory/lots', label: 'Lots', short: 'Lots', exact: false },
+  { href: '/dashboard/inventory/edi', label: 'EDI', short: 'EDI', exact: false },
 ] as const;
 
 export const INVENTORY_TOOLS = [
@@ -127,32 +100,43 @@ export function InventoryProcessNav() {
 
 export function InventoryHeader({
   title,
+  titleAccent = 'Command',
   description,
   backHref = '/dashboard/inventory',
   action,
   showProcessNav = false,
 }: {
   title: string;
+  titleAccent?: string;
   description?: string;
   backHref?: string;
   action?: React.ReactNode;
   showProcessNav?: boolean;
 }) {
   return (
-    <div className="mb-6">
+    <div className="mb-6 sm:mb-8">
       {showProcessNav && <InventoryProcessNav />}
       <Link
         href={backHref}
-        className="inline-flex items-center gap-2 text-sm text-neutral-500 mb-3 hover:text-neutral-800"
+        className="group mb-3 inline-flex items-center gap-2 text-sm text-neutral-500 transition-colors hover:text-[#0077b6]"
       >
-        <ArrowLeft className="w-4 h-4" /> Inventory overview
+        <ArrowLeft className="h-4 w-4 text-[#00b4d8] transition-transform group-hover:-translate-x-0.5" />
+        Inventory command
       </Link>
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-        <div>
-          <h1 className="text-3xl sm:text-4xl font-black tracking-[-2px] text-[#00b4d8]">{title}</h1>
-          {description && <p className="text-neutral-600 mt-1 text-sm max-w-2xl">{description}</p>}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="max-w-3xl">
+          <p className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-neutral-400">
+            Inventory OS
+          </p>
+          <h1 className="text-3xl font-black leading-[1.1] tracking-tight text-slate-900 sm:text-4xl">
+            <span className="text-slate-800">{title}</span>{' '}
+            <span className="text-[#00b4d8]">{titleAccent}</span>
+          </h1>
+          {description && (
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-neutral-600">{description}</p>
+          )}
         </div>
-        {action}
+        {action && <div className="flex shrink-0 flex-wrap gap-2">{action}</div>}
       </div>
     </div>
   );

@@ -25,6 +25,7 @@ import {
   TelemetryCard,
   WorkbenchLink,
 } from '@/components/operations/OperationsShell';
+import { CommandWorkbenchBand } from '@/components/relationship/RelationshipChrome';
 
 type Shipment = {
   id: number;
@@ -81,7 +82,7 @@ function Inner() {
     <OperationsPage>
       <OperationsHeader
         title="Inbound"
-        titleAccent="operations"
+        titleAccent="Command"
         description="Goods into your network — supplier pickups, ports, and DC receipts. From ASN mindset to put-away."
         action={
           <Link
@@ -91,6 +92,21 @@ function Inner() {
             Manage inbound <ArrowRight className="w-4 h-4" />
           </Link>
         }
+      />
+
+      <CommandWorkbenchBand
+        pill="Live inbound · ASN → put-away"
+        title="Receive with zero blind spots."
+        description="Track inbound motion, exceptions, and dock readiness from one light workbench."
+        stats={[
+          { label: 'Ships', value: shipments.length, valueClass: 'text-[#00b4d8]' },
+          { label: 'Motion', value: motion, valueClass: 'text-emerald-600' },
+          {
+            label: 'Exceptions',
+            value: shipments.filter((s) => s.status === 'exception').length,
+            valueClass: 'text-amber-600',
+          },
+        ]}
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">

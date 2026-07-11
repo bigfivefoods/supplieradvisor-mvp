@@ -9,14 +9,15 @@ import {
 } from '@/components/relationship/RelationshipChrome';
 
 export const CONTAINERS_NAV: readonly NavItem[] = [
-  { href: '/dashboard/containers', label: 'Overview', exact: true },
+  { href: '/dashboard/containers', label: 'Command', exact: true },
   { href: '/dashboard/containers/manage', label: 'Manage' },
   { href: '/dashboard/containers/map', label: 'Map' },
   { href: '/dashboard/containers/add', label: 'Add' },
   { href: '/dashboard/containers/contractors', label: 'Contractors' },
-  { href: '/dashboard/containers/training', label: 'Training' },
-  { href: '/dashboard/containers/riad-log', label: 'RIAD' },
+  { href: '/dashboard/containers/training', label: 'Train' },
   { href: '/dashboard/containers/metrics', label: 'Metrics' },
+  { href: '/dashboard/containers/riad-log', label: 'RIAD' },
+  { href: '/dashboard/containers/reports', label: 'Reports' },
 ] as const;
 
 

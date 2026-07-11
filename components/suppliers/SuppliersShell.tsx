@@ -9,17 +9,15 @@ import {
 } from '@/components/relationship/RelationshipChrome';
 
 export const SUPPLIERS_NAV: readonly NavItem[] = [
-  { href: '/dashboard/suppliers', label: 'Overview', exact: true },
+  { href: '/dashboard/suppliers', label: 'Command', exact: true },
   { href: '/dashboard/suppliers/discover', label: 'Discover' },
   { href: '/dashboard/suppliers/network', label: 'Book' },
-  { href: '/dashboard/connections', label: 'Connections' },
   { href: '/dashboard/suppliers/add', label: 'Add' },
   { href: '/dashboard/suppliers/invites', label: 'Invites' },
+  { href: '/dashboard/suppliers/po', label: 'POs' },
   { href: '/dashboard/suppliers/performance', label: 'OTIFEF' },
   { href: '/dashboard/suppliers/ratings', label: 'Ratings' },
-  { href: '/dashboard/suppliers/documents', label: 'Documents' },
-  { href: '/dashboard/suppliers/po', label: 'POs' },
-  { href: '/dashboard/suppliers/portal', label: 'Ops' },
+  { href: '/dashboard/suppliers/documents', label: 'Docs' },
   { href: '/dashboard/suppliers/contracts', label: 'Contracts' },
   { href: '/dashboard/suppliers/riad-log', label: 'RIAD' },
 ] as const;

@@ -8,14 +8,15 @@ import {
   type NavItem,
 } from '@/components/relationship/RelationshipChrome';
 
-/** Lean intelligence nav — live BI + leadership */
+/** Intelligence nav — command + live BI + leadership */
 export const INTELLIGENCE_NAV: readonly NavItem[] = [
-  { href: '/dashboard/intelligence', label: 'Overview', exact: true },
+  { href: '/dashboard/intelligence', label: 'Command', exact: true },
   { href: '/dashboard/intelligence/pulse-dashboard', label: 'Pulse' },
   { href: '/dashboard/intelligence/neural-insights', label: 'Insights' },
-  { href: '/dashboard/intelligence/predictive-forecasts', label: 'Forecasts' },
+  { href: '/dashboard/intelligence/predictive-forecasts', label: 'Forecast' },
   { href: '/dashboard/intelligence/custom-scorecards', label: 'Scorecards' },
   { href: '/dashboard/intelligence/leadership-development', label: 'Leadership' },
+  { href: '/dashboard/intelligence/simulation-lab', label: 'Lab' },
 ] as const;
 
 

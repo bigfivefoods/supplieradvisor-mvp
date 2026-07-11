@@ -17,15 +17,14 @@ export default function ModuleProcessBar() {
 
   if (!life || life.steps.length === 0) return null;
 
-  // Prefer the most specific matching step for highlight
+  // Prefer most specific matching step; honour exact flag on Command hubs
   let activeHref: string | null = null;
   for (const step of [...life.steps].sort((a, b) => b.href.length - a.href.length)) {
-    if (isStepActive(pathname, step.href) || pathname === step.href) {
+    if (isStepActive(pathname, step.href, step.exact) || pathname === step.href) {
       activeHref = step.href;
       break;
     }
   }
-  // Hub exact match for module root
   if (!activeHref) {
     const hub = life.steps.find((s) => pathname === s.href);
     if (hub) activeHref = hub.href;

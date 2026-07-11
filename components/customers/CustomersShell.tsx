@@ -9,20 +9,18 @@ import {
 } from '@/components/relationship/RelationshipChrome';
 
 export const CUSTOMERS_NAV: readonly NavItem[] = [
-  { href: '/dashboard/customers', label: 'Overview', exact: true },
-  { href: '/dashboard/customers/leads', label: 'Pipeline' },
+  { href: '/dashboard/customers', label: 'Command', exact: true },
+  { href: '/dashboard/customers/leads', label: 'Leads' },
   { href: '/dashboard/customers/profiles', label: 'Profiles' },
-  { href: '/dashboard/customers/onboard', label: 'Add' },
+  { href: '/dashboard/customers/onboard', label: 'Onboard' },
   { href: '/dashboard/customers/invites', label: 'Invites' },
-  { href: '/dashboard/connections', label: 'Network' },
   { href: '/dashboard/customers/quotes', label: 'Quotes' },
   { href: '/dashboard/customers/orders', label: 'Orders' },
   { href: '/dashboard/customers/invoices', label: 'Invoices' },
-  { href: '/dashboard/customers/reviews', label: 'Reviews' },
   { href: '/dashboard/customers/loyalty', label: 'Loyalty' },
   { href: '/dashboard/customers/claims', label: 'Claims' },
   { href: '/dashboard/customers/contracts', label: 'Contracts' },
-  { href: '/dashboard/customers/portal', label: 'Ops' },
+  { href: '/dashboard/customers/reviews', label: 'Reviews' },
   { href: '/dashboard/customers/riad-log', label: 'RIAD' },
 ] as const;
 

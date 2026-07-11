@@ -9,14 +9,14 @@ import {
 } from '@/components/relationship/RelationshipChrome';
 
 export const ACCOUNTING_NAV: readonly NavItem[] = [
-  { href: '/dashboard/accounting', label: 'Overview', exact: true },
-  { href: '/dashboard/accounting/chart-of-accounts', label: 'Chart of Accounts' },
+  { href: '/dashboard/accounting', label: 'Command', exact: true },
+  { href: '/dashboard/accounting/chart-of-accounts', label: 'CoA' },
   { href: '/dashboard/accounting/journal-entries', label: 'Journals' },
-  { href: '/dashboard/accounting/accounts-receivable', label: 'Receivable' },
-  { href: '/dashboard/accounting/accounts-payable', label: 'Payable' },
-  { href: '/dashboard/accounting/payments', label: 'Payments' },
+  { href: '/dashboard/accounting/accounts-receivable', label: 'AR' },
+  { href: '/dashboard/accounting/accounts-payable', label: 'AP' },
+  { href: '/dashboard/accounting/payments', label: 'Pay' },
   { href: '/dashboard/accounting/bank-reconciliation', label: 'Bank' },
-  { href: '/dashboard/accounting/management', label: 'Mgmt accounts' },
+  { href: '/dashboard/accounting/management', label: 'Mgmt' },
   { href: '/dashboard/accounting/reports', label: 'Reports' },
   { href: '/dashboard/accounting/tax', label: 'Tax' },
   { href: '/dashboard/accounting/fixed-assets', label: 'Assets' },
