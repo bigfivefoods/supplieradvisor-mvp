@@ -4,20 +4,17 @@ import type { DiscoverSupplier } from '@/lib/suppliers/types';
 
 /**
  * Deep metadata marketplace search across platform profiles.
- * GET ?companyId=&q=&country=&industry=&cert=&verified=&otifefMin=&trustMin=&continent=&province=&bee=
- *
- * Lists ALL registered businesses on SupplierAdvisor (except the caller's own company).
- * Multi-company owners see their other entities — required for network trade.
- *
- * Note: production `profiles` uses verification_status (not is_verified). Selecting a
- * missing column made Supabase return an error and the UI showed zero companies.
+ * GET ?companyId=&q=&country=&industry=&cert=&verified=&otifefMin=&trustMin=
+ *   &continent=&province=&city=&bee=&sub_industry=&category=&relationship=
+ *   &hasWallet=&role=supplier|buyer|both&connection=connected|pending|none
+ *   &registeredOnly=&includeHidden=
  */
 const DISCOVER_SELECT =
   `id, trading_name, legal_name, email, industry, sub_industry, category,
    city, province, country, continent, certifications, trust_score, otifef_average,
    bee_level, verification_status, wallet_address, website, public_id,
    relationship_type, is_discoverable, is_supplier, is_buyer, supplier_status,
-   claimed_at, created_at, logo_url, status`;
+   claimed_at, created_at, logo_url, status, phone, description, short_description`;
 
 const DISCOVER_SELECT_MINIMAL =
   `id, trading_name, legal_name, email, industry, category,
@@ -33,29 +30,41 @@ export async function GET(request: NextRequest) {
     const country = sp.get('country') || '';
     const continent = sp.get('continent') || '';
     const province = sp.get('province') || '';
+    const city = sp.get('city') || '';
     const industry = sp.get('industry') || '';
     const subIndustry = sp.get('sub_industry') || '';
+    const category = sp.get('category') || '';
     const bee = sp.get('bee') || '';
-    const cert = sp.get('cert') || ''; // comma-separated, AND match
+    const relationship = sp.get('relationship') || '';
+    const cert = sp.get('cert') || '';
     const verifiedOnly = sp.get('verified') === '1' || sp.get('verified') === 'true';
+    const hasWallet = sp.get('hasWallet') === '1' || sp.get('hasWallet') === 'true';
+    const registeredOnly =
+      sp.get('registeredOnly') === '1' || sp.get('registeredOnly') === 'true';
+    const role = (sp.get('role') || '').toLowerCase(); // supplier | buyer | both
+    const connection = (sp.get('connection') || '').toLowerCase(); // connected | pending | none | in_book
     const trustMin = Number(sp.get('trustMin') || 0);
+    const trustMax = Number(sp.get('trustMax') || 100);
     const otifefMin = Number(sp.get('otifefMin') || 0);
+    const otifefMax = Number(sp.get('otifefMax') || 100);
     const includeHidden = sp.get('includeHidden') === '1';
     const limit = Math.min(500, Number(sp.get('limit') || 200));
 
     const supabase = getSupabaseServer();
 
-    // Prefer full select; fall back if optional columns missing in older schemas
-    let rows: Array<
-      DiscoverSupplier & {
-        supplier_status?: string | null;
-        claimed_at?: string | null;
-        is_discoverable?: boolean | null;
-        is_supplier?: boolean | null;
-        is_buyer?: boolean | null;
-        status?: string | null;
-      }
-    > = [];
+    type Row = DiscoverSupplier & {
+      supplier_status?: string | null;
+      claimed_at?: string | null;
+      is_discoverable?: boolean | null;
+      is_supplier?: boolean | null;
+      is_buyer?: boolean | null;
+      status?: string | null;
+      phone?: string | null;
+      description?: string | null;
+      short_description?: string | null;
+    };
+
+    let rows: Row[] = [];
     let selectWarning: string | undefined;
 
     for (const select of [DISCOVER_SELECT, DISCOVER_SELECT_MINIMAL]) {
@@ -71,7 +80,7 @@ export async function GET(request: NextRequest) {
 
       const { data, error } = await query;
       if (!error) {
-        rows = (data || []) as unknown as typeof rows;
+        rows = (data || []) as unknown as Row[];
         break;
       }
       selectWarning = error.message;
@@ -79,7 +88,6 @@ export async function GET(request: NextRequest) {
     }
 
     if (!rows.length && selectWarning) {
-      // Last resort: absolute minimal so the page never shows zero due to schema drift
       let query = supabase
         .from('profiles')
         .select('id, trading_name, legal_name, email, city, country, industry, supplier_status')
@@ -97,10 +105,9 @@ export async function GET(request: NextRequest) {
           warning: error.message,
         });
       }
-      rows = (data || []) as unknown as typeof rows;
+      rows = (data || []) as unknown as Row[];
     }
 
-    // Profiles that have at least one active team membership = fully registered businesses
     const registeredIds = new Set<number>();
     {
       const { data: memberships } = await supabase
@@ -116,78 +123,26 @@ export async function GET(request: NextRequest) {
       ? cert.split(',').map((c) => c.trim()).filter(Boolean)
       : [];
 
-    // Keep every real business on the platform.
-    // Drop only incomplete invite shells with no owner membership and never claimed.
     rows = rows.filter((r) => {
       const name = String(r.trading_name || r.legal_name || '').trim();
       if (!name) return false;
-
       const id = Number(r.id);
       if (registeredIds.has(id)) return true;
-
       const status = String(r.supplier_status || r.status || '').toLowerCase();
-      // Unclaimed invite stubs (no membership) stay out of marketplace noise
       if ((status === 'invited' || status === 'pending') && !r.claimed_at) {
         return false;
       }
-      // Everything else with a name is a platform company
       return true;
     });
 
-    // Discoverability opt-out only (null/undefined/true = visible)
     if (!includeHidden) {
       rows = rows.filter((r) => r.is_discoverable !== false);
     }
 
-    // Optional user filters (off by default so all companies show)
-    if (q) {
-      rows = rows.filter((r) => {
-        const hay = [
-          r.trading_name,
-          r.legal_name,
-          r.email,
-          r.industry,
-          r.sub_industry,
-          r.category,
-          r.city,
-          r.province,
-          r.country,
-          r.continent,
-          ...(r.certifications || []),
-        ]
-          .filter(Boolean)
-          .join(' ')
-          .toLowerCase();
-        return hay.includes(q);
-      });
-    }
-    if (country) rows = rows.filter((r) => r.country === country);
-    if (continent) rows = rows.filter((r) => r.continent === continent);
-    if (province) rows = rows.filter((r) => r.province === province);
-    if (industry) rows = rows.filter((r) => r.industry === industry);
-    if (subIndustry) rows = rows.filter((r) => r.sub_industry === subIndustry);
-    if (bee) rows = rows.filter((r) => r.bee_level === bee);
-    if (verifiedOnly) {
-      rows = rows.filter(
-        (r) =>
-          String(r.verification_status || '').toLowerCase() === 'verified' ||
-          r.verified === true
-      );
-    }
-    if (trustMin > 0) {
-      rows = rows.filter((r) => Number(r.trust_score || 0) >= trustMin);
-    }
-    if (otifefMin > 0) {
-      rows = rows.filter((r) => Number(r.otifef_average || 0) >= otifefMin);
-    }
-    if (certsWanted.length) {
-      rows = rows.filter((r) => {
-        const have = (r.certifications || []).map((c) => String(c).toLowerCase());
-        return certsWanted.every((c) => have.includes(c.toLowerCase()));
-      });
-    }
+    // Facets from full visible pool (before user filters) so deep search stays comprehensive
+    const facetPool = [...rows];
 
-    // Annotate with my-book / connection (either direction)
+    // Connection / book maps
     const bookMap = new Map<number, number>();
     const connected = new Set<number>();
     const pendingOut = new Set<number>();
@@ -224,11 +179,126 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Prefer registered (membership) companies first, then by name
+    // Apply filters
+    if (q) {
+      rows = rows.filter((r) => {
+        const hay = [
+          r.trading_name,
+          r.legal_name,
+          r.email,
+          r.industry,
+          r.sub_industry,
+          r.category,
+          r.city,
+          r.province,
+          r.country,
+          r.continent,
+          r.bee_level,
+          r.relationship_type,
+          r.website,
+          r.phone,
+          r.description,
+          r.short_description,
+          ...(r.certifications || []),
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        return hay.includes(q);
+      });
+    }
+    if (country) rows = rows.filter((r) => r.country === country);
+    if (continent) rows = rows.filter((r) => r.continent === continent);
+    if (province) rows = rows.filter((r) => r.province === province);
+    if (city) {
+      const c = city.toLowerCase();
+      rows = rows.filter((r) => String(r.city || '').toLowerCase() === c);
+    }
+    if (industry) rows = rows.filter((r) => r.industry === industry);
+    if (subIndustry) rows = rows.filter((r) => r.sub_industry === subIndustry);
+    if (category) {
+      const cat = category.toLowerCase();
+      rows = rows.filter((r) => String(r.category || '').toLowerCase() === cat);
+    }
+    if (bee) rows = rows.filter((r) => r.bee_level === bee);
+    if (relationship) {
+      rows = rows.filter(
+        (r) =>
+          String(r.relationship_type || '').toLowerCase() === relationship.toLowerCase()
+      );
+    }
+    if (verifiedOnly) {
+      rows = rows.filter(
+        (r) =>
+          String(r.verification_status || '').toLowerCase() === 'verified' ||
+          r.verified === true
+      );
+    }
+    if (hasWallet) {
+      rows = rows.filter((r) => Boolean(r.wallet_address && String(r.wallet_address).length > 8));
+    }
+    if (registeredOnly) {
+      rows = rows.filter((r) => registeredIds.has(Number(r.id)));
+    }
+    if (role === 'supplier') {
+      rows = rows.filter(
+        (r) =>
+          r.is_supplier === true ||
+          String(r.relationship_type || '').toLowerCase().includes('supplier') ||
+          String(r.supplier_status || '').length > 0
+      );
+    } else if (role === 'buyer') {
+      rows = rows.filter(
+        (r) =>
+          r.is_buyer === true ||
+          String(r.relationship_type || '').toLowerCase().includes('buyer') ||
+          String(r.relationship_type || '').toLowerCase().includes('customer')
+      );
+    } else if (role === 'both') {
+      rows = rows.filter((r) => r.is_supplier === true && r.is_buyer === true);
+    }
+    if (trustMin > 0 || trustMax < 100) {
+      rows = rows.filter((r) => {
+        const t = Number(r.trust_score || 0);
+        return t >= trustMin && t <= trustMax;
+      });
+    }
+    if (otifefMin > 0 || otifefMax < 100) {
+      rows = rows.filter((r) => {
+        const o = Number(r.otifef_average || 0);
+        return o >= otifefMin && o <= otifefMax;
+      });
+    }
+    if (certsWanted.length) {
+      rows = rows.filter((r) => {
+        const have = (r.certifications || []).map((c) => String(c).toLowerCase());
+        return certsWanted.every((c) => have.includes(c.toLowerCase()));
+      });
+    }
+    if (connection === 'connected') {
+      rows = rows.filter((r) => connected.has(Number(r.id)));
+    } else if (connection === 'pending') {
+      rows = rows.filter(
+        (r) => pendingOut.has(Number(r.id)) || pendingIn.has(Number(r.id))
+      );
+    } else if (connection === 'none') {
+      rows = rows.filter(
+        (r) =>
+          !connected.has(Number(r.id)) &&
+          !pendingOut.has(Number(r.id)) &&
+          !pendingIn.has(Number(r.id))
+      );
+    } else if (connection === 'in_book') {
+      rows = rows.filter((r) => bookMap.has(Number(r.id)));
+    }
+
     rows.sort((a, b) => {
       const aReg = registeredIds.has(Number(a.id)) ? 0 : 1;
       const bReg = registeredIds.has(Number(b.id)) ? 0 : 1;
       if (aReg !== bReg) return aReg - bReg;
+      const aConn = connected.has(Number(a.id)) ? 0 : 1;
+      const bConn = connected.has(Number(b.id)) ? 0 : 1;
+      if (aConn !== bConn) return aConn - bConn;
       const an = String(a.trading_name || a.legal_name || '');
       const bn = String(b.trading_name || b.legal_name || '');
       return an.localeCompare(bn);
@@ -251,22 +321,32 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // Facets for UI filters (from filtered set before limit)
     const facets = {
-      countries: uniqueSorted(enriched.map((r) => r.country)),
-      continents: uniqueSorted(enriched.map((r) => r.continent)),
-      provinces: uniqueSorted(enriched.map((r) => r.province)),
-      industries: uniqueSorted(enriched.map((r) => r.industry)),
-      certifications: uniqueSorted(enriched.flatMap((r) => r.certifications || [])),
-      beeLevels: uniqueSorted(enriched.map((r) => r.bee_level)),
+      countries: uniqueSorted(facetPool.map((r) => r.country)),
+      continents: uniqueSorted(facetPool.map((r) => r.continent)),
+      provinces: uniqueSorted(facetPool.map((r) => r.province)),
+      cities: uniqueSorted(facetPool.map((r) => r.city)),
+      industries: uniqueSorted(facetPool.map((r) => r.industry)),
+      subIndustries: uniqueSorted(facetPool.map((r) => r.sub_industry)),
+      categories: uniqueSorted(facetPool.map((r) => r.category)),
+      certifications: uniqueSorted(facetPool.flatMap((r) => r.certifications || [])),
+      beeLevels: uniqueSorted(facetPool.map((r) => r.bee_level)),
+      relationships: uniqueSorted(facetPool.map((r) => r.relationship_type)),
     };
+
+    const connectedMatches = enriched.filter((r) => r.already_connected);
+    const otherMatches = enriched.filter((r) => !r.already_connected);
 
     return NextResponse.json({
       success: true,
       suppliers: enriched.slice(0, limit),
+      connected: connectedMatches.slice(0, limit),
+      others: otherMatches.slice(0, Math.max(0, limit - Math.min(connectedMatches.length, limit))),
       total: enriched.length,
+      connectedTotal: connectedMatches.length,
       facets,
       platform_company_count: registeredIds.size,
+      pool_size: facetPool.length,
       warning: selectWarning && !enriched.length ? selectWarning : undefined,
     });
   } catch (e: unknown) {

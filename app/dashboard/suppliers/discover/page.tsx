@@ -1,16 +1,28 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Search,
   MapPin,
   Award,
   ShieldCheck,
   Loader2,
-  Filter,
-  UserPlus,
   Link2,
   CheckCircle2,
+  UserPlus,
+  X,
+  Sparkles,
+  Globe2,
+  Factory,
+  Wallet,
+  BadgeCheck,
+  Building2,
+  ChevronDown,
+  ChevronUp,
+  RotateCcw,
+  Network,
+  Star,
+  Filter,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePrivy } from '@privy-io/react-auth';
@@ -28,6 +40,42 @@ import {
   SuppliersHeader,
   SuppliersPage,
 } from '@/components/suppliers/SuppliersShell';
+import { CommandWorkbenchBand } from '@/components/relationship/RelationshipChrome';
+
+type Facets = {
+  countries: string[];
+  continents: string[];
+  provinces: string[];
+  cities: string[];
+  industries: string[];
+  subIndustries: string[];
+  categories: string[];
+  certifications: string[];
+  beeLevels: string[];
+  relationships: string[];
+};
+
+const CONTINENTS_FALLBACK = [
+  'Africa',
+  'Asia',
+  'Europe',
+  'North America',
+  'South America',
+  'Oceania',
+  'Antarctica',
+];
+
+const BEE_FALLBACK = [
+  'Level 1',
+  'Level 2',
+  'Level 3',
+  'Level 4',
+  'Level 5',
+  'Level 6',
+  'Level 7',
+  'Level 8',
+  'Non-compliant',
+];
 
 export default function DiscoverSuppliersPage() {
   return (
@@ -42,59 +90,125 @@ function DiscoverInner() {
   const { user } = usePrivy();
   const privyUserId = getCanonicalUserId(user?.id) || '';
 
+  // ── Deep search state ─────────────────────────────────────────────────────
   const [q, setQ] = useState('');
-  const [country, setCountry] = useState('');
   const [continent, setContinent] = useState('');
+  const [country, setCountry] = useState('');
   const [province, setProvince] = useState('');
+  const [city, setCity] = useState('');
   const [industry, setIndustry] = useState('');
+  const [subIndustry, setSubIndustry] = useState('');
+  const [category, setCategory] = useState('');
+  const [relationship, setRelationship] = useState('');
+  const [role, setRole] = useState('');
+  const [connection, setConnection] = useState('');
   const [trustMin, setTrustMin] = useState(0);
+  const [trustMax, setTrustMax] = useState(100);
   const [otifefMin, setOtifefMin] = useState(0);
+  const [otifefMax, setOtifefMax] = useState(100);
   const [verifiedOnly, setVerifiedOnly] = useState(false);
+  const [hasWallet, setHasWallet] = useState(false);
+  const [registeredOnly, setRegisteredOnly] = useState(false);
   const [certs, setCerts] = useState<string[]>([]);
   const [bee, setBee] = useState('');
-  const [rows, setRows] = useState<DiscoverSupplier[]>([]);
+  const [filtersOpen, setFiltersOpen] = useState(true);
+
+  const [connected, setConnected] = useState<DiscoverSupplier[]>([]);
+  const [others, setOthers] = useState<DiscoverSupplier[]>([]);
   const [total, setTotal] = useState(0);
-  const [facets, setFacets] = useState<{
-    countries: string[];
-    continents: string[];
-    provinces: string[];
-    industries: string[];
-    certifications: string[];
-    beeLevels: string[];
-  } | null>(null);
+  const [connectedTotal, setConnectedTotal] = useState(0);
+  const [poolSize, setPoolSize] = useState(0);
+  const [facets, setFacets] = useState<Facets | null>(null);
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState<number | null>(null);
+
+  const activeFilterCount = useMemo(() => {
+    let n = 0;
+    if (q) n++;
+    if (continent) n++;
+    if (country) n++;
+    if (province) n++;
+    if (city) n++;
+    if (industry) n++;
+    if (subIndustry) n++;
+    if (category) n++;
+    if (relationship) n++;
+    if (role) n++;
+    if (connection) n++;
+    if (trustMin > 0 || trustMax < 100) n++;
+    if (otifefMin > 0 || otifefMax < 100) n++;
+    if (verifiedOnly) n++;
+    if (hasWallet) n++;
+    if (registeredOnly) n++;
+    if (certs.length) n++;
+    if (bee) n++;
+    return n;
+  }, [
+    q,
+    continent,
+    country,
+    province,
+    city,
+    industry,
+    subIndustry,
+    category,
+    relationship,
+    role,
+    connection,
+    trustMin,
+    trustMax,
+    otifefMin,
+    otifefMax,
+    verifiedOnly,
+    hasWallet,
+    registeredOnly,
+    certs,
+    bee,
+  ]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({
         companyId: String(companyId),
-        limit: '200',
+        limit: '300',
       });
       if (q) params.set('q', q);
       if (country) params.set('country', country);
       if (continent) params.set('continent', continent);
       if (province) params.set('province', province);
+      if (city) params.set('city', city);
       if (industry) params.set('industry', industry);
+      if (subIndustry) params.set('sub_industry', subIndustry);
+      if (category) params.set('category', category);
+      if (relationship) params.set('relationship', relationship);
+      if (role) params.set('role', role);
+      if (connection) params.set('connection', connection);
       if (trustMin > 0) params.set('trustMin', String(trustMin));
+      if (trustMax < 100) params.set('trustMax', String(trustMax));
       if (otifefMin > 0) params.set('otifefMin', String(otifefMin));
+      if (otifefMax < 100) params.set('otifefMax', String(otifefMax));
       if (verifiedOnly) params.set('verified', '1');
+      if (hasWallet) params.set('hasWallet', '1');
+      if (registeredOnly) params.set('registeredOnly', '1');
       if (certs.length) params.set('cert', certs.join(','));
       if (bee) params.set('bee', bee);
 
       const res = await fetch(`/api/suppliers/discover?${params}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Search failed');
-      setRows(data.suppliers || []);
-      setTotal(Number(data.total || (data.suppliers || []).length));
+
+      setConnected(data.connected || []);
+      setOthers(data.others || data.suppliers || []);
+      setTotal(Number(data.total || 0));
+      setConnectedTotal(Number(data.connectedTotal || 0));
+      setPoolSize(Number(data.pool_size || data.platform_company_count || 0));
       setFacets(data.facets || null);
-      if (data.warning) {
-        toast.message('Discover note', { description: data.warning });
-      }
+      if (data.warning) toast.message('Discover note', { description: data.warning });
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Search failed');
-      setRows([]);
+      setConnected([]);
+      setOthers([]);
       setTotal(0);
     } finally {
       setLoading(false);
@@ -105,18 +219,51 @@ function DiscoverInner() {
     country,
     continent,
     province,
+    city,
     industry,
+    subIndustry,
+    category,
+    relationship,
+    role,
+    connection,
     trustMin,
+    trustMax,
     otifefMin,
+    otifefMax,
     verifiedOnly,
+    hasWallet,
+    registeredOnly,
     certs,
     bee,
   ]);
 
   useEffect(() => {
-    const t = setTimeout(() => void load(), 250);
+    const t = setTimeout(() => void load(), 280);
     return () => clearTimeout(t);
   }, [load]);
+
+  const clearAll = () => {
+    setQ('');
+    setCountry('');
+    setContinent('');
+    setProvince('');
+    setCity('');
+    setIndustry('');
+    setSubIndustry('');
+    setCategory('');
+    setRelationship('');
+    setRole('');
+    setConnection('');
+    setTrustMin(0);
+    setTrustMax(100);
+    setOtifefMin(0);
+    setOtifefMax(100);
+    setVerifiedOnly(false);
+    setHasWallet(false);
+    setRegisteredOnly(false);
+    setCerts([]);
+    setBee('');
+  };
 
   const toggleCert = (c: string) => {
     setCerts((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
@@ -150,30 +297,11 @@ function DiscoverInner() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Connect failed');
       if (data.alreadyConnected) {
-        toast.success(`Already connected with ${s.trading_name} — ready to trade`);
+        toast.success(`Already connected with ${s.trading_name}`);
       } else if (data.acceptedIncoming || data.status === 'accepted') {
-        toast.success(
-          `Connected with ${s.trading_name} — you can now raise POs, invoice, and settle on-chain`,
-          {
-            action: {
-              label: 'Open network',
-              onClick: () => {
-                window.location.href = '/dashboard/connections';
-              },
-            },
-          }
-        );
+        toast.success(`Connected with ${s.trading_name} — trade unlocked`);
       } else if (data.alreadyPending || data.status === 'pending') {
-        toast.success(`Request sent to ${s.trading_name}`, {
-          description:
-            'They will see it under Network → Incoming. Once accepted, trade unlocks.',
-          action: {
-            label: 'View sent',
-            onClick: () => {
-              window.location.href = '/dashboard/connections';
-            },
-          },
-        });
+        toast.success(`Request sent to ${s.trading_name}`);
       } else {
         toast.success(`Updated connection with ${s.trading_name}`);
       }
@@ -185,390 +313,864 @@ function DiscoverInner() {
     }
   };
 
+  const declineIncoming = async (s: DiscoverSupplier) => {
+    if (!privyUserId) return;
+    setConnecting(s.id);
+    try {
+      const res = await fetch('/api/suppliers/connect', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          targetProfileId: s.id,
+          action: 'decline',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Decline failed');
+      toast.message(`Declined ${s.trading_name}`);
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setConnecting(null);
+    }
+  };
+
+  const continents = facets?.continents?.length ? facets.continents : CONTINENTS_FALLBACK;
+  const industries = facets?.industries?.length
+    ? facets.industries
+    : [...SUPPLIER_INDUSTRIES];
+  const certOptions = facets?.certifications?.length
+    ? Array.from(new Set([...SUPPLIER_CERTIFICATIONS, ...facets.certifications]))
+    : [...SUPPLIER_CERTIFICATIONS];
+  const beeLevels = facets?.beeLevels?.length ? facets.beeLevels : BEE_FALLBACK;
+
+  // Cascading province/city lists when country selected
+  const provinces = useMemo(() => {
+    const list = facets?.provinces || [];
+    return list;
+  }, [facets]);
+  const cities = useMemo(() => facets?.cities || [], [facets]);
+
   return (
     <SuppliersPage>
       <SuppliersHeader
         title="Discover"
-        titleAccent="suppliers"
-        description="Search every business on SupplierAdvisor. Send a connection request — they accept or decline under Network → Incoming. Once accepted, trade securely: pricing, POs, invoices, and on-chain settlement."
+        titleAccent="Command"
+        description="Deep search is the core of network trade — filter by rich company metadata, then connect only with partners who match your criteria."
         action={
-          <Link href="/dashboard/connections" className="btn-secondary !py-2.5 !px-5 text-sm">
-            <Link2 className="w-4 h-4" /> Network hub
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/dashboard/connections" className="btn-secondary !py-2.5 !px-5 text-sm">
+              <Network className="w-4 h-4" /> Network hub
+            </Link>
+            <Link href="/dashboard/suppliers/add" className="btn-primary !py-2.5 !px-5 text-sm">
+              <UserPlus className="w-4 h-4" /> Invite off-platform
+            </Link>
+          </div>
         }
       />
 
-      <div className="grid lg:grid-cols-12 gap-6">
-        {/* Filters */}
-        <aside className="lg:col-span-3 space-y-4">
-          <div className="bg-white border rounded-3xl p-4 sticky top-4">
-            <div className="flex items-center gap-2 text-sm font-bold mb-3">
-              <Filter className="w-4 h-4 text-[#00b4d8]" /> Deep filters
+      <CommandWorkbenchBand
+        pill="Live marketplace · deep metadata search"
+        title={
+          <>
+            Find suppliers you can <span className="text-[#00b4d8]">trust.</span>
+          </>
+        }
+        description="Search every registered business by location, industry, certifications, B-BBEE, trust, OTIFEF, wallet readiness, and relationship status — then connect on-platform."
+        stats={[
+          {
+            label: 'Pool',
+            value: loading ? '—' : poolSize || total,
+            valueClass: 'text-[#00b4d8]',
+          },
+          {
+            label: 'Matches',
+            value: loading ? '—' : total,
+            valueClass: 'text-emerald-600',
+          },
+          {
+            label: 'Connected',
+            value: loading ? '—' : connectedTotal,
+            valueClass: 'text-violet-600',
+          },
+        ]}
+      />
+
+      {/* ═══ DEEP SEARCH — core of the page ═══ */}
+      <section className="mb-8 overflow-hidden rounded-[1.75rem] border border-cyan-100 bg-white shadow-sm sm:rounded-[2rem]">
+        {/* Search bar hero */}
+        <div className="border-b border-cyan-50 bg-gradient-to-br from-sky-50/80 via-white to-cyan-50/40 p-4 sm:p-6">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="inline-flex items-center gap-2 text-sm font-black text-slate-800">
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#00b4d8]/10 text-[#0077b6]">
+                <Sparkles className="h-4 w-4" />
+              </span>
+              Deep search criteria
+              {activeFilterCount > 0 && (
+                <span className="rounded-full bg-[#00b4d8] px-2 py-0.5 text-[10px] font-black text-white">
+                  {activeFilterCount} active
+                </span>
+              )}
             </div>
+            <div className="flex flex-wrap gap-2">
+              {activeFilterCount > 0 && (
+                <button
+                  type="button"
+                  onClick={clearAll}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-600 hover:border-rose-200 hover:text-rose-700"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" /> Clear all
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setFiltersOpen((v) => !v)}
+                className="inline-flex items-center gap-1.5 rounded-full border border-cyan-200 bg-white px-3 py-1.5 text-xs font-semibold text-[#0077b6] md:hidden"
+              >
+                <Filter className="h-3.5 w-3.5" />
+                {filtersOpen ? 'Hide filters' : 'Show filters'}
+                {filtersOpen ? (
+                  <ChevronUp className="h-3.5 w-3.5" />
+                ) : (
+                  <ChevronDown className="h-3.5 w-3.5" />
+                )}
+              </button>
+            </div>
+          </div>
 
-            <label className="text-xs font-medium text-neutral-500">Location</label>
-            <select
-              className="input w-full !py-2 !text-sm mb-2 mt-1"
-              value={continent}
-              onChange={(e) => setContinent(e.target.value)}
-            >
-              <option value="">All continents</option>
-              {(facets?.continents || ['Africa', 'Europe', 'Asia', 'North America']).map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-            <select
-              className="input w-full !py-2 !text-sm mb-2"
-              value={country}
-              onChange={(e) => setCountry(e.target.value)}
-            >
-              <option value="">All countries</option>
-              {(facets?.countries || []).map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-            <select
-              className="input w-full !py-2 !text-sm mb-3"
-              value={province}
-              onChange={(e) => setProvince(e.target.value)}
-            >
-              <option value="">All provinces / states</option>
-              {(facets?.provinces || []).map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#00b4d8]" />
+            <input
+              className="w-full rounded-2xl border border-cyan-100 bg-white py-4 pl-12 pr-4 text-base font-medium text-slate-900 shadow-sm outline-none ring-[#00b4d8]/20 transition-all placeholder:text-neutral-400 focus:border-[#00b4d8] focus:ring-4 sm:rounded-3xl sm:py-5 sm:pl-14 sm:text-lg"
+              placeholder="Search company name, legal name, city, industry, cert, email…"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              autoFocus
+            />
+            {q && (
+              <button
+                type="button"
+                onClick={() => setQ('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1.5 text-neutral-400 hover:bg-neutral-100 hover:text-slate-700"
+                aria-label="Clear search"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
 
-            <label className="text-xs font-medium text-neutral-500">Industry</label>
-            <select
-              className="input w-full !py-2 !text-sm mb-3 mt-1"
-              value={industry}
-              onChange={(e) => setIndustry(e.target.value)}
-            >
-              <option value="">All industries</option>
-              {(facets?.industries?.length ? facets.industries : [...SUPPLIER_INDUSTRIES]).map(
-                (c) => (
+          {/* Active chips */}
+          {activeFilterCount > 0 && (
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {q && (
+                <Chip label={`“${q}”`} onClear={() => setQ('')} />
+              )}
+              {continent && <Chip label={continent} onClear={() => setContinent('')} />}
+              {country && <Chip label={country} onClear={() => setCountry('')} />}
+              {province && <Chip label={province} onClear={() => setProvince('')} />}
+              {city && <Chip label={city} onClear={() => setCity('')} />}
+              {industry && <Chip label={industry} onClear={() => setIndustry('')} />}
+              {subIndustry && <Chip label={subIndustry} onClear={() => setSubIndustry('')} />}
+              {category && <Chip label={category} onClear={() => setCategory('')} />}
+              {relationship && (
+                <Chip label={relationship} onClear={() => setRelationship('')} />
+              )}
+              {role && <Chip label={`Role: ${role}`} onClear={() => setRole('')} />}
+              {connection && (
+                <Chip label={`Link: ${connection}`} onClear={() => setConnection('')} />
+              )}
+              {bee && <Chip label={`BEE ${bee}`} onClear={() => setBee('')} />}
+              {verifiedOnly && (
+                <Chip label="Verified" onClear={() => setVerifiedOnly(false)} />
+              )}
+              {hasWallet && <Chip label="On-chain wallet" onClear={() => setHasWallet(false)} />}
+              {registeredOnly && (
+                <Chip label="Registered" onClear={() => setRegisteredOnly(false)} />
+              )}
+              {(trustMin > 0 || trustMax < 100) && (
+                <Chip
+                  label={`Trust ${trustMin}–${trustMax}`}
+                  onClear={() => {
+                    setTrustMin(0);
+                    setTrustMax(100);
+                  }}
+                />
+              )}
+              {(otifefMin > 0 || otifefMax < 100) && (
+                <Chip
+                  label={`OTIFEF ${otifefMin}–${otifefMax}%`}
+                  onClear={() => {
+                    setOtifefMin(0);
+                    setOtifefMax(100);
+                  }}
+                />
+              )}
+              {certs.map((c) => (
+                <Chip key={c} label={c} onClear={() => toggleCert(c)} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Comprehensive filter grid */}
+        <div
+          className={`grid gap-0 border-t border-slate-100 md:grid-cols-2 xl:grid-cols-4 ${
+            filtersOpen ? '' : 'hidden md:grid'
+          }`}
+        >
+          {/* Location */}
+          <FilterPanel icon={Globe2} title="Location" accent="sky">
+            <Field label="Continent">
+              <select
+                className={selectCls}
+                value={continent}
+                onChange={(e) => setContinent(e.target.value)}
+              >
+                <option value="">All continents</option>
+                {continents.map((c) => (
                   <option key={c} value={c}>
                     {c}
                   </option>
-                )
-              )}
-            </select>
+                ))}
+              </select>
+            </Field>
+            <Field label="Country">
+              <select
+                className={selectCls}
+                value={country}
+                onChange={(e) => setCountry(e.target.value)}
+              >
+                <option value="">All countries</option>
+                {(facets?.countries || []).map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Province / state">
+              <select
+                className={selectCls}
+                value={province}
+                onChange={(e) => setProvince(e.target.value)}
+              >
+                <option value="">All provinces</option>
+                {provinces.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="City">
+              <select className={selectCls} value={city} onChange={(e) => setCity(e.target.value)}>
+                <option value="">All cities</option>
+                {cities.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </FilterPanel>
 
-            <div className="flex justify-between text-xs mb-1">
-              <span className="font-medium text-neutral-500">Min trust score</span>
-              <span className="font-bold">{trustMin}</span>
+          {/* Industry & profile */}
+          <FilterPanel icon={Factory} title="Industry & profile" accent="violet">
+            <Field label="Industry">
+              <select
+                className={selectCls}
+                value={industry}
+                onChange={(e) => setIndustry(e.target.value)}
+              >
+                <option value="">All industries</option>
+                {industries.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Sub-industry">
+              <select
+                className={selectCls}
+                value={subIndustry}
+                onChange={(e) => setSubIndustry(e.target.value)}
+              >
+                <option value="">All sub-industries</option>
+                {(facets?.subIndustries || []).map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Category">
+              <select
+                className={selectCls}
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+              >
+                <option value="">All categories</option>
+                {(facets?.categories || []).map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Relationship type">
+              <select
+                className={selectCls}
+                value={relationship}
+                onChange={(e) => setRelationship(e.target.value)}
+              >
+                <option value="">Any relationship</option>
+                {(facets?.relationships?.length
+                  ? facets.relationships
+                  : ['supplier', 'buyer', 'both', 'partner', 'logistics']
+                ).map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Trade role">
+              <select className={selectCls} value={role} onChange={(e) => setRole(e.target.value)}>
+                <option value="">Any role</option>
+                <option value="supplier">Suppliers</option>
+                <option value="buyer">Buyers</option>
+                <option value="both">Buyer & supplier</option>
+              </select>
+            </Field>
+          </FilterPanel>
+
+          {/* Trust & performance */}
+          <FilterPanel icon={Star} title="Trust & performance" accent="amber">
+            <div className="mb-3">
+              <div className="mb-1 flex justify-between text-[11px]">
+                <span className="font-semibold text-neutral-500">Trust score</span>
+                <span className="font-black tabular-nums text-slate-800">
+                  {trustMin} – {trustMax}
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={trustMin}
+                  onChange={(e) =>
+                    setTrustMin(Math.min(Number(e.target.value), trustMax))
+                  }
+                  className="w-full accent-[#00b4d8]"
+                />
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={trustMax}
+                  onChange={(e) =>
+                    setTrustMax(Math.max(Number(e.target.value), trustMin))
+                  }
+                  className="w-full accent-[#0077b6]"
+                />
+              </div>
             </div>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              value={trustMin}
-              onChange={(e) => setTrustMin(Number(e.target.value))}
-              className="w-full mb-3"
-            />
-
-            <div className="flex justify-between text-xs mb-1">
-              <span className="font-medium text-neutral-500">Min OTIFEF %</span>
-              <span className="font-bold">{otifefMin}</span>
+            <div className="mb-3">
+              <div className="mb-1 flex justify-between text-[11px]">
+                <span className="font-semibold text-neutral-500">OTIFEF %</span>
+                <span className="font-black tabular-nums text-slate-800">
+                  {otifefMin} – {otifefMax}
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={otifefMin}
+                  onChange={(e) =>
+                    setOtifefMin(Math.min(Number(e.target.value), otifefMax))
+                  }
+                  className="w-full accent-emerald-500"
+                />
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={otifefMax}
+                  onChange={(e) =>
+                    setOtifefMax(Math.max(Number(e.target.value), otifefMin))
+                  }
+                  className="w-full accent-emerald-700"
+                />
+              </div>
             </div>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              value={otifefMin}
-              onChange={(e) => setOtifefMin(Number(e.target.value))}
-              className="w-full mb-3"
-            />
+            <Field label="B-BBEE level">
+              <select className={selectCls} value={bee} onChange={(e) => setBee(e.target.value)}>
+                <option value="">Any BEE level</option>
+                {beeLevels.map((b) => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Network status">
+              <select
+                className={selectCls}
+                value={connection}
+                onChange={(e) => setConnection(e.target.value)}
+              >
+                <option value="">Any connection state</option>
+                <option value="connected">Already connected</option>
+                <option value="pending">Pending request</option>
+                <option value="none">Not connected</option>
+                <option value="in_book">In my supplier book</option>
+              </select>
+            </Field>
+          </FilterPanel>
 
-            <label className="flex items-center gap-2 text-sm mb-3 cursor-pointer">
-              <input
-                type="checkbox"
+          {/* Trust flags & certs */}
+          <FilterPanel icon={BadgeCheck} title="Verification & certs" accent="emerald">
+            <div className="mb-3 space-y-2">
+              <Toggle
                 checked={verifiedOnly}
-                onChange={(e) => setVerifiedOnly(e.target.checked)}
+                onChange={setVerifiedOnly}
+                label="Verified companies only"
+                icon={ShieldCheck}
               />
-              Verified only
-            </label>
-
-            <label className="text-xs font-medium text-neutral-500">BEE level</label>
-            <select
-              className="input w-full !py-2 !text-sm mb-3 mt-1"
-              value={bee}
-              onChange={(e) => setBee(e.target.value)}
-            >
-              <option value="">Any</option>
-              {(facets?.beeLevels?.length
-                ? facets.beeLevels
-                : ['Level 1', 'Level 2', 'Level 3', 'Level 4']
-              ).map((b) => (
-                <option key={b} value={b}>
-                  {b}
-                </option>
-              ))}
-            </select>
-
-            <div className="text-xs font-medium text-neutral-500 mb-2">Certifications (AND)</div>
-            <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto">
-              {SUPPLIER_CERTIFICATIONS.map((c) => (
+              <Toggle
+                checked={hasWallet}
+                onChange={setHasWallet}
+                label="On-chain wallet present"
+                icon={Wallet}
+              />
+              <Toggle
+                checked={registeredOnly}
+                onChange={setRegisteredOnly}
+                label="Fully registered (team membership)"
+                icon={Building2}
+              />
+            </div>
+            <div className="text-[11px] font-semibold text-neutral-500 mb-2">
+              Certifications (AND match)
+            </div>
+            <div className="flex max-h-44 flex-wrap gap-1.5 overflow-y-auto pr-1">
+              {certOptions.map((c) => (
                 <button
                   key={c}
                   type="button"
                   onClick={() => toggleCert(c)}
-                  className={`text-[10px] font-semibold px-2 py-1 rounded-full border ${
+                  className={`rounded-full border px-2.5 py-1 text-[10px] font-bold transition-all ${
                     certs.includes(c)
-                      ? 'border-[#00b4d8] bg-[#00b4d8]/10 text-[#0077b6]'
-                      : 'border-neutral-200 text-neutral-600'
+                      ? 'border-[#00b4d8] bg-[#00b4d8] text-white shadow-sm'
+                      : 'border-neutral-200 bg-white text-neutral-600 hover:border-cyan-200'
                   }`}
                 >
                   {c}
                 </button>
               ))}
             </div>
-          </div>
-        </aside>
+          </FilterPanel>
+        </div>
 
-        {/* Results */}
-        <div className="lg:col-span-9">
-          <div className="relative mb-4">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
-            <input
-              className="input w-full !py-3 !pl-10 !text-sm"
-              placeholder="Search name, city, industry, certification…"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-            />
-          </div>
-          <p className="text-xs text-neutral-500 mb-3">
-            {loading
-              ? 'Searching all registered companies…'
-              : `${rows.length} of ${total} companies on SupplierAdvisor${
-                  country || continent || province || industry || q || verifiedOnly || certs.length || trustMin || otifefMin || bee
-                    ? ' (filters applied — clear filters to see everyone)'
-                    : ''
-                }`}
+        {/* Live result strip */}
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 bg-slate-50/80 px-4 py-3 sm:px-6">
+          <p className="text-sm text-neutral-600">
+            {loading ? (
+              <span className="inline-flex items-center gap-2 font-medium">
+                <Loader2 className="h-4 w-4 animate-spin text-[#00b4d8]" /> Searching deep
+                metadata…
+              </span>
+            ) : (
+              <>
+                <strong className="font-black text-slate-900">{total}</strong> companies match your
+                criteria
+                {activeFilterCount > 0
+                  ? ` · ${activeFilterCount} filter${activeFilterCount === 1 ? '' : 's'}`
+                  : ' · showing full network'}
+                {connectedTotal > 0 && (
+                  <>
+                    {' '}
+                    · <strong className="text-emerald-700">{connectedTotal}</strong> already
+                    connected
+                  </>
+                )}
+              </>
+            )}
           </p>
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="text-xs font-bold text-[#00b4d8] hover:underline"
+          >
+            Refresh results
+          </button>
+        </div>
+      </section>
 
-          {loading ? (
-            <div className="p-16 flex justify-center">
-              <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
-            </div>
-          ) : rows.length === 0 ? (
-            <div className="bg-white border rounded-3xl p-16 text-center">
-              <Search className="w-10 h-10 text-neutral-300 mx-auto mb-3" />
-              <p className="font-medium text-neutral-700">No companies match</p>
-              <p className="text-sm text-neutral-500 mt-1">
-                Clear location / trust filters to list every registered business — or{' '}
-                <a href="/dashboard/suppliers/add" className="text-[#00b4d8] underline">
-                  invite a supplier
-                </a>{' '}
-                not yet on SupplierAdvisor.
-              </p>
-              <button
-                type="button"
-                className="btn-secondary !py-2 !px-4 text-xs mt-4"
-                onClick={() => {
-                  setQ('');
-                  setCountry('');
-                  setContinent('');
-                  setProvince('');
-                  setIndustry('');
-                  setTrustMin(0);
-                  setOtifefMin(0);
-                  setVerifiedOnly(false);
-                  setCerts([]);
-                  setBee('');
-                }}
-              >
+      {/* ═══ CONNECTED (below criteria) ═══ */}
+      {!loading && connected.length > 0 && (
+        <section className="mb-8">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <h2 className="text-sm font-black uppercase tracking-[0.14em] text-neutral-400">
+              Connected partners matching criteria
+            </h2>
+            <span className="rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-0.5 text-[10px] font-black text-emerald-700">
+              {connected.length}
+            </span>
+          </div>
+          <ul className="space-y-3">
+            {connected.map((s) => (
+              <CompanyCard
+                key={s.id}
+                s={s}
+                connecting={connecting}
+                onConnect={connect}
+                onDecline={declineIncoming}
+              />
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {/* ═══ ALL MATCHES ═══ */}
+      <section>
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h2 className="text-sm font-black uppercase tracking-[0.14em] text-neutral-400">
+            {connected.length > 0 ? 'Other matching companies' : 'Matching companies'}
+          </h2>
+          {!loading && (
+            <span className="text-[10px] font-bold text-neutral-400">{others.length} shown</span>
+          )}
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center rounded-[2rem] border border-dashed border-cyan-100 bg-white py-20">
+            <Loader2 className="h-9 w-9 animate-spin text-[#00b4d8]" />
+          </div>
+        ) : others.length === 0 && connected.length === 0 ? (
+          <div className="rounded-[2rem] border border-dashed border-cyan-200 bg-gradient-to-br from-white to-sky-50/60 px-6 py-16 text-center">
+            <Search className="mx-auto mb-3 h-10 w-10 text-neutral-300" />
+            <p className="font-black text-slate-800">No companies match these criteria</p>
+            <p className="mx-auto mt-2 max-w-md text-sm text-neutral-500">
+              Broaden location, lower trust/OTIFEF thresholds, or clear certifications. You can also
+              invite a supplier not yet on SupplierAdvisor.
+            </p>
+            <div className="mt-6 flex flex-wrap justify-center gap-3">
+              <button type="button" onClick={clearAll} className="btn-secondary !py-2.5 !px-5 text-sm">
                 Clear all filters
               </button>
+              <Link href="/dashboard/suppliers/add" className="btn-primary !py-2.5 !px-5 text-sm">
+                Invite supplier
+              </Link>
             </div>
+          </div>
+        ) : others.length === 0 ? (
+          <p className="rounded-2xl border border-neutral-100 bg-white px-4 py-8 text-center text-sm text-neutral-500">
+            All matching companies are already in your connected list above.
+          </p>
+        ) : (
+          <ul className="space-y-3">
+            {others.map((s) => (
+              <CompanyCard
+                key={s.id}
+                s={s}
+                connecting={connecting}
+                onConnect={connect}
+                onDecline={declineIncoming}
+              />
+            ))}
+          </ul>
+        )}
+      </section>
+
+    </SuppliersPage>
+  );
+}
+
+const selectCls =
+  'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-900 outline-none focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/20';
+
+function Chip({ label, onClear }: { label: string; onClear: () => void }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border border-cyan-200 bg-white px-2.5 py-1 text-[11px] font-bold text-[#0077b6] shadow-sm">
+      {label}
+      <button
+        type="button"
+        onClick={onClear}
+        className="rounded-full p-0.5 hover:bg-cyan-50"
+        aria-label={`Remove ${label}`}
+      >
+        <X className="h-3 w-3" />
+      </button>
+    </span>
+  );
+}
+
+function FilterPanel({
+  icon: Icon,
+  title,
+  accent,
+  children,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  accent: 'sky' | 'violet' | 'amber' | 'emerald';
+  children: React.ReactNode;
+}) {
+  const accents = {
+    sky: 'from-sky-50/50 to-white border-sky-50',
+    violet: 'from-violet-50/40 to-white border-violet-50',
+    amber: 'from-amber-50/40 to-white border-amber-50',
+    emerald: 'from-emerald-50/40 to-white border-emerald-50',
+  };
+  const iconTone = {
+    sky: 'text-sky-700 bg-sky-100',
+    violet: 'text-violet-700 bg-violet-100',
+    amber: 'text-amber-800 bg-amber-100',
+    emerald: 'text-emerald-700 bg-emerald-100',
+  };
+  return (
+    <div className={`border-b border-r border-slate-100 bg-gradient-to-b p-4 sm:p-5 ${accents[accent]}`}>
+      <div className="mb-3 flex items-center gap-2">
+        <span
+          className={`flex h-7 w-7 items-center justify-center rounded-lg ${iconTone[accent]}`}
+        >
+          <Icon className="h-3.5 w-3.5" />
+        </span>
+        <h3 className="text-xs font-black uppercase tracking-wider text-slate-700">{title}</h3>
+      </div>
+      <div className="space-y-2.5">{children}</div>
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-neutral-400">
+        {label}
+      </span>
+      {children}
+    </label>
+  );
+}
+
+function Toggle({
+  checked,
+  onChange,
+  label,
+  icon: Icon,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+}) {
+  return (
+    <label className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-neutral-100 bg-white px-2.5 py-2 text-xs font-semibold text-slate-700 hover:border-cyan-100">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="h-3.5 w-3.5 rounded border-neutral-300 text-[#00b4d8] accent-[#00b4d8]"
+      />
+      <Icon className="h-3.5 w-3.5 text-[#00b4d8]" />
+      {label}
+    </label>
+  );
+}
+
+function CompanyCard({
+  s,
+  connecting,
+  onConnect,
+  onDecline,
+}: {
+  s: DiscoverSupplier;
+  connecting: number | null;
+  onConnect: (s: DiscoverSupplier, mode: 'request' | 'add_and_connect' | 'accept') => void;
+  onDecline: (s: DiscoverSupplier) => void;
+}) {
+  const trust = trustBand(Number(s.trust_score || 0));
+  const verified = s.verified || s.is_verified || s.verification_status === 'verified';
+
+  return (
+    <li className="rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm transition-all hover:border-[#00b4d8]/40 hover:shadow-md sm:p-5">
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+        <div className="min-w-0 flex-1">
+          <div className="mb-1.5 flex flex-wrap items-center gap-2">
+            <h3 className="truncate text-lg font-black tracking-tight text-slate-900">
+              {s.trading_name}
+            </h3>
+            {verified && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black uppercase text-emerald-800">
+                <ShieldCheck className="h-3 w-3" /> Verified
+              </span>
+            )}
+            {s.already_connected && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-black uppercase text-sky-800">
+                <CheckCircle2 className="h-3 w-3" /> Connected
+              </span>
+            )}
+            {s.in_my_book && !s.already_connected && (
+              <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-bold uppercase text-neutral-600">
+                In book
+              </span>
+            )}
+            {(s as { is_registered?: boolean }).is_registered && (
+              <span className="rounded-full border border-cyan-100 bg-cyan-50 px-2 py-0.5 text-[10px] font-bold text-[#0077b6]">
+                Registered
+              </span>
+            )}
+          </div>
+
+          {s.legal_name && s.legal_name !== s.trading_name && (
+            <p className="mb-1 text-xs text-neutral-500">{s.legal_name}</p>
+          )}
+
+          <div className="mb-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-neutral-500">
+            {(s.city || s.country) && (
+              <span className="inline-flex items-center gap-1">
+                <MapPin className="h-3 w-3 text-[#00b4d8]" />
+                {[s.city, s.province, s.country, s.continent].filter(Boolean).join(', ')}
+              </span>
+            )}
+            {s.industry && <span>{s.industry}</span>}
+            {s.sub_industry && <span>· {s.sub_industry}</span>}
+            {s.category && <span>· {s.category}</span>}
+            {s.bee_level && <span>· BEE {s.bee_level}</span>}
+            {s.relationship_type && <span>· {s.relationship_type}</span>}
+          </div>
+
+          {(s.certifications || []).length > 0 && (
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              {(s.certifications || []).slice(0, 10).map((c) => (
+                <span
+                  key={c}
+                  className="inline-flex items-center gap-0.5 rounded-full border border-violet-100 bg-violet-50 px-2 py-0.5 text-[10px] font-bold text-violet-800"
+                >
+                  <Award className="h-2.5 w-2.5" />
+                  {c}
+                </span>
+              ))}
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-2 text-xs">
+            <span
+              className={`rounded-full border px-2 py-0.5 font-bold ${trust.className}`}
+            >
+              Trust {Number(s.trust_score || 0).toFixed(0)}
+            </span>
+            <span className="rounded-full border border-neutral-200 bg-neutral-50 px-2 py-0.5 font-semibold text-neutral-700">
+              OTIFEF{' '}
+              <strong className="text-slate-900">
+                {Number(s.otifef_average || 0).toFixed(0)}%
+              </strong>
+            </span>
+            {s.wallet_address && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-100 bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-800">
+                <Wallet className="h-3 w-3" /> On-chain
+              </span>
+            )}
+            {s.website && (
+              <a
+                href={s.website.startsWith('http') ? s.website : `https://${s.website}`}
+                target="_blank"
+                rel="noreferrer"
+                className="font-semibold text-[#0077b6] hover:underline"
+              >
+                Website
+              </a>
+            )}
+          </div>
+        </div>
+
+        <div className="flex shrink-0 flex-col gap-2 sm:items-end">
+          {s.already_connected ? (
+            <>
+              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-800">
+                <CheckCircle2 className="h-3.5 w-3.5" /> Connected
+              </span>
+              <Link
+                href="/dashboard/suppliers/po"
+                className="text-[11px] font-bold text-[#0077b6] hover:underline"
+              >
+                Raise PO →
+              </Link>
+            </>
+          ) : s.connection_pending_out ? (
+            <>
+              <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-bold text-sky-800">
+                Request sent
+              </span>
+              <Link
+                href="/dashboard/connections"
+                className="text-[11px] font-semibold text-neutral-500 hover:underline"
+              >
+                View network →
+              </Link>
+            </>
+          ) : s.connection_pending_in ? (
+            <>
+              <button
+                type="button"
+                disabled={connecting === s.id}
+                onClick={() => void onConnect(s, 'accept')}
+                className="btn-primary !px-4 !py-2 text-xs"
+              >
+                {connecting === s.id ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <>
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Accept
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                disabled={connecting === s.id}
+                onClick={() => void onDecline(s)}
+                className="btn-secondary !border-red-200 !px-4 !py-2 text-xs text-red-600"
+              >
+                Decline
+              </button>
+            </>
           ) : (
-            <ul className="space-y-3">
-              {rows.map((s) => {
-                const trust = trustBand(Number(s.trust_score || 0));
-                const verified =
-                  s.verified || s.is_verified || s.verification_status === 'verified';
-                return (
-                  <li
-                    key={s.id}
-                    className="bg-white border border-neutral-200 rounded-3xl p-5 hover:border-[#00b4d8]/50 transition-colors"
-                  >
-                    <div className="flex flex-col sm:flex-row sm:items-start gap-4 justify-between">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2 mb-1">
-                          <h3 className="font-bold text-lg text-slate-900 truncate">
-                            {s.trading_name}
-                          </h3>
-                          {verified && (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                              <ShieldCheck className="w-3 h-3" /> Verified
-                            </span>
-                          )}
-                          {s.already_connected && (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-sky-100 text-sky-800">
-                              <CheckCircle2 className="w-3 h-3" /> Connected
-                            </span>
-                          )}
-                          {s.in_my_book && !s.already_connected && (
-                            <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-600">
-                              In my book
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-neutral-500 mb-2">
-                          {(s.city || s.country) && (
-                            <span className="inline-flex items-center gap-1">
-                              <MapPin className="w-3 h-3" />
-                              {[s.city, s.province, s.country].filter(Boolean).join(', ')}
-                            </span>
-                          )}
-                          {s.industry && <span>{s.industry}</span>}
-                          {s.sub_industry && <span>· {s.sub_industry}</span>}
-                          {s.bee_level && <span>· BEE {s.bee_level}</span>}
-                        </div>
-                        <div className="flex flex-wrap gap-1.5 mb-2">
-                          {(s.certifications || []).slice(0, 8).map((c) => (
-                            <span
-                              key={c}
-                              className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-violet-50 text-violet-800 border border-violet-100"
-                            >
-                              <Award className="w-2.5 h-2.5 inline mr-0.5" />
-                              {c}
-                            </span>
-                          ))}
-                        </div>
-                        <div className="flex flex-wrap gap-3 text-xs">
-                          <span
-                            className={`px-2 py-0.5 rounded-full border font-semibold ${trust.className}`}
-                          >
-                            Trust {Number(s.trust_score || 0).toFixed(0)}
-                          </span>
-                          <span className="text-neutral-600">
-                            OTIFEF{' '}
-                            <strong className="text-slate-900">
-                              {Number(s.otifef_average || 0).toFixed(0)}%
-                            </strong>
-                          </span>
-                          {s.wallet_address && (
-                            <span className="text-emerald-700 font-medium">On-chain wallet</span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex flex-col gap-2 sm:items-end flex-shrink-0">
-                        {s.already_connected ? (
-                          <div className="flex flex-col gap-1.5 sm:items-end">
-                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200">
-                              <CheckCircle2 className="w-3.5 h-3.5" /> Connected
-                            </span>
-                            <Link
-                              href="/dashboard/suppliers/po"
-                              className="text-[11px] font-semibold text-[#0077b6] hover:underline"
-                            >
-                              Raise PO →
-                            </Link>
-                          </div>
-                        ) : s.connection_pending_out ? (
-                          <div className="flex flex-col gap-1.5 sm:items-end">
-                            <span className="text-xs font-semibold text-sky-700 px-3 py-1.5 rounded-full bg-sky-50 border border-sky-200">
-                              Request sent
-                            </span>
-                            <Link
-                              href="/dashboard/connections"
-                              className="text-[11px] font-semibold text-neutral-500 hover:underline"
-                            >
-                              View in Network →
-                            </Link>
-                          </div>
-                        ) : s.connection_pending_in ? (
-                          <div className="flex flex-col gap-2 sm:items-end">
-                            <button
-                              type="button"
-                              disabled={connecting === s.id}
-                              onClick={() => void connect(s, 'accept')}
-                              className="btn-primary !py-2 !px-4 text-xs"
-                            >
-                              {connecting === s.id ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              ) : (
-                                <>
-                                  <CheckCircle2 className="w-3.5 h-3.5" /> Accept request
-                                </>
-                              )}
-                            </button>
-                            <button
-                              type="button"
-                              disabled={connecting === s.id}
-                              onClick={async () => {
-                                if (!privyUserId) return;
-                                setConnecting(s.id);
-                                try {
-                                  const res = await fetch('/api/suppliers/connect', {
-                                    method: 'PATCH',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({
-                                      companyId,
-                                      privyUserId,
-                                      targetProfileId: s.id,
-                                      action: 'decline',
-                                    }),
-                                  });
-                                  const data = await res.json();
-                                  if (!res.ok) throw new Error(data.error || 'Decline failed');
-                                  toast.message(`Declined ${s.trading_name}`);
-                                  void load();
-                                } catch (e: unknown) {
-                                  toast.error(e instanceof Error ? e.message : 'Failed');
-                                } finally {
-                                  setConnecting(null);
-                                }
-                              }}
-                              className="btn-secondary !py-2 !px-4 text-xs text-red-600 border-red-200"
-                            >
-                              Decline
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex flex-col gap-2 sm:items-end">
-                            <button
-                              type="button"
-                              disabled={connecting === s.id}
-                              onClick={() => void connect(s, 'request')}
-                              className="btn-primary !py-2 !px-4 text-xs"
-                              title="Send a request — they accept or decline in Network"
-                            >
-                              {connecting === s.id ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              ) : (
-                                <>
-                                  <Link2 className="w-3.5 h-3.5" /> Request connect
-                                </>
-                              )}
-                            </button>
-                            <button
-                              type="button"
-                              disabled={connecting === s.id}
-                              onClick={() => void connect(s, 'add_and_connect')}
-                              className="btn-secondary !py-2 !px-4 text-xs"
-                              title="Instant connect only if you own both companies; otherwise sends a request"
-                            >
-                              <UserPlus className="w-3.5 h-3.5" /> Connect now
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
+            <>
+              <button
+                type="button"
+                disabled={connecting === s.id}
+                onClick={() => void onConnect(s, 'request')}
+                className="btn-primary !px-4 !py-2 text-xs"
+              >
+                {connecting === s.id ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <>
+                    <Link2 className="h-3.5 w-3.5" /> Request connect
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                disabled={connecting === s.id}
+                onClick={() => void onConnect(s, 'add_and_connect')}
+                className="btn-secondary !px-4 !py-2 text-xs"
+              >
+                <UserPlus className="h-3.5 w-3.5" /> Connect now
+              </button>
+            </>
           )}
         </div>
       </div>
-    </SuppliersPage>
+    </li>
   );
 }
