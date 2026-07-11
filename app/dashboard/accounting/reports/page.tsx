@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   Loader2,
@@ -8,7 +8,6 @@ import {
   TrendingUp,
   Info,
   Sparkles,
-  CalendarRange,
   Briefcase,
 } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
@@ -16,13 +15,6 @@ import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
 import { formatMoney } from '@/lib/accounting/types';
-import {
-  fiscalYearLabel,
-  fiscalYearMonths,
-  fiscalYearQuarters,
-  resolvePeriodPreset,
-  type PeriodPreset,
-} from '@/lib/accounting/fiscal';
 import { horizonsFromMax } from '@/lib/accounting/forecast';
 import {
   AccountingHeader,
@@ -30,6 +22,10 @@ import {
   CompanyRequired,
 } from '@/components/accounting/AccountingShell';
 import { Panel, SectionLabel } from '@/components/relationship/RelationshipChrome';
+import PeriodSlicer, {
+  initialPeriodSlicerValue,
+  type PeriodSlicerValue,
+} from '@/components/accounting/PeriodSlicer';
 import {
   AgingBarChart,
   BalanceCompositionChart,
@@ -55,12 +51,7 @@ const REPORTS = [
   { id: 'management_accounts', label: 'Mgmt snapshot' },
 ] as const;
 
-const HISTORY_OPTIONS = [3, 6, 12, 18, 24, 36] as const;
 const HORIZON_PRESETS = [1, 3, 6, 9, 12, 18, 24] as const;
-
-const INITIAL = resolvePeriodPreset('this_month');
-
-type ViewMode = 'month' | 'quarter' | 'ytd' | 'trailing';
 
 export default function ReportsPage() {
   return (
@@ -75,37 +66,13 @@ function Inner() {
   const { user } = usePrivy();
   const privyUserId = getCanonicalUserId(user?.id);
   const [report, setReport] = useState<string>('forecast');
-  const [viewMode, setViewMode] = useState<ViewMode>('trailing');
-  const [preset, setPreset] = useState<PeriodPreset>('this_month');
-  const [from, setFrom] = useState(INITIAL.from);
-  const [to, setTo] = useState(INITIAL.to);
-  const [periodLabel, setPeriodLabel] = useState(INITIAL.label);
-  const [historyMonths, setHistoryMonths] = useState(12);
+  const [period, setPeriod] = useState<PeriodSlicerValue>(() => initialPeriodSlicerValue('this_month'));
   const [horizonMonths, setHorizonMonths] = useState(12);
   const [selectedHorizons, setSelectedHorizons] = useState<number[]>([1, 3, 6, 9, 12]);
   const [includePipeline, setIncludePipeline] = useState(true);
   const [customHorizon, setCustomHorizon] = useState('');
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<Record<string, unknown> | null>(null);
-
-  const fyLabel = useMemo(() => fiscalYearLabel(new Date()), []);
-  const fyMonths = useMemo(() => fiscalYearMonths(new Date()), []);
-  const fyQuarters = useMemo(() => fiscalYearQuarters(new Date()), []);
-
-  const applyPreset = useCallback((p: Exclude<PeriodPreset, 'custom'>) => {
-    const range = resolvePeriodPreset(p);
-    setPreset(range.preset);
-    setFrom(range.from);
-    setTo(range.to);
-    setPeriodLabel(range.label);
-  }, []);
-
-  const applyCustomRange = useCallback((nextFrom: string, nextTo: string, label: string) => {
-    setPreset('custom');
-    setFrom(nextFrom);
-    setTo(nextTo);
-    setPeriodLabel(label);
-  }, []);
 
   const toggleHorizon = (h: number) => {
     setSelectedHorizons((prev) => {
@@ -134,6 +101,9 @@ function Inner() {
   };
 
   const isSeriesReport = report === 'trends' || report === 'forecast';
+  const historyMonths = period.historyMonths ?? 12;
+  const from = period.from;
+  const to = period.to;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -147,7 +117,13 @@ function Inner() {
       if (isSeriesReport) {
         params.set('months', String(historyMonths));
         params.set('includePipeline', includePipeline ? '1' : '0');
-        if (from) params.set('to', to || from); // anchor history end
+        // When multi-month range selected, use it; else trailing ends at `to`
+        if (period.selectedMonthFroms.length > 0) {
+          params.set('from', from);
+          params.set('to', to);
+        } else if (to) {
+          params.set('to', to);
+        }
         if (report === 'forecast') {
           params.set('horizons', selectedHorizons.join(','));
           params.set('horizonMonths', String(Math.max(...selectedHorizons, horizonMonths)));
@@ -180,20 +156,19 @@ function Inner() {
     selectedHorizons,
     includePipeline,
     isSeriesReport,
+    period.selectedMonthFroms.length,
   ]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const activeMonthKey = `${from}_${to}`;
-
   return (
     <AccountingPage>
       <AccountingHeader
         title="Reports &"
         titleAccent="analytics"
-        description="Slice by month, quarter, or year · layer CRM pipeline sales · set forecast horizons (1–36 months)."
+        description="Slice by one or more months, quarters, or FY · pipeline sales · forecast horizons (1–36 months)."
         action={
           <button
             type="button"
@@ -225,213 +200,11 @@ function Inner() {
         ))}
       </div>
 
-      {/* ── Period & forecast controls ── */}
-      <Panel className="mb-6">
-        <div className="px-5 py-4 space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-sm">
-              <CalendarRange className="w-4 h-4 text-[#00b4d8]" />
-              <span className="font-bold text-slate-900">
-                {isSeriesReport ? `Trailing ${historyMonths} months` : periodLabel}
-              </span>
-              {!isSeriesReport && (
-                <span className="text-xs text-neutral-400 tabular-nums">
-                  {from} → {to}
-                </span>
-              )}
-            </div>
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
-              FY {fyLabel} · Mar–Feb
-            </div>
-          </div>
-
-          {/* Mode tabs */}
-          <div className="flex flex-wrap gap-2">
-            {(
-              [
-                { id: 'trailing' as const, label: 'Trailing history', series: true },
-                { id: 'month' as const, label: 'Month', series: false },
-                { id: 'quarter' as const, label: 'Quarter', series: false },
-                { id: 'ytd' as const, label: 'YTD / FY', series: false },
-              ] as const
-            ).map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                onClick={() => {
-                  setViewMode(m.id);
-                  if (m.id === 'month') applyPreset('this_month');
-                  else if (m.id === 'quarter') applyPreset('this_quarter');
-                  else if (m.id === 'ytd') applyPreset('ytd');
-                }}
-                className={`text-xs font-semibold px-3.5 py-1.5 rounded-full border transition-colors ${
-                  viewMode === m.id
-                    ? 'border-[#00b4d8] bg-[#00b4d8] text-white'
-                    : 'border-neutral-200 bg-white text-neutral-600 hover:border-[#00b4d8]/50'
-                }`}
-              >
-                {m.label}
-              </button>
-            ))}
-          </div>
-
-          {viewMode === 'trailing' && (
-            <div>
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400 mb-2">
-                History window (months back)
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {HISTORY_OPTIONS.map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => setHistoryMonths(n)}
-                    className={`min-w-[3rem] text-xs font-semibold px-2.5 py-1.5 rounded-xl border transition-colors ${
-                      historyMonths === n
-                        ? 'border-[#00b4d8] bg-[#00b4d8]/10 text-[#0077b6]'
-                        : 'border-neutral-200 bg-white text-neutral-600 hover:border-[#00b4d8]/40'
-                    }`}
-                  >
-                    {n}m
-                  </button>
-                ))}
-              </div>
-              <p className="mt-2 text-[11px] text-neutral-500">
-                Used for <strong>Trends</strong> and <strong>Forecast</strong>. Statement reports
-                use the month / quarter / YTD picker.
-              </p>
-            </div>
-          )}
-
-          {viewMode === 'month' && (
-            <div className="space-y-3">
-              <div className="flex flex-wrap gap-2">
-                <Chip active={preset === 'this_month'} onClick={() => applyPreset('this_month')} label="This month" />
-                <Chip active={preset === 'last_month'} onClick={() => applyPreset('last_month')} label="Last month" />
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {fyMonths.map((m) => {
-                  const active = activeMonthKey === `${m.from}_${m.to}`;
-                  return (
-                    <button
-                      key={m.from}
-                      type="button"
-                      onClick={() =>
-                        applyCustomRange(
-                          m.from,
-                          m.to,
-                          `${m.label} ${m.from.slice(0, 4)}`
-                        )
-                      }
-                      className={`min-w-[3rem] text-xs font-semibold px-2.5 py-1.5 rounded-xl border transition-colors ${
-                        active
-                          ? 'border-[#00b4d8] bg-[#00b4d8]/10 text-[#0077b6]'
-                          : m.isCurrent
-                            ? 'border-emerald-200 bg-emerald-50/50 text-emerald-900'
-                            : 'border-neutral-200 bg-white text-neutral-600 hover:border-[#00b4d8]/40'
-                      }`}
-                    >
-                      {m.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {viewMode === 'quarter' && (
-            <div className="space-y-3">
-              <div className="flex flex-wrap gap-2">
-                <Chip active={preset === 'this_quarter'} onClick={() => applyPreset('this_quarter')} label="This quarter" />
-                <Chip active={preset === 'last_quarter'} onClick={() => applyPreset('last_quarter')} label="Last quarter" />
-              </div>
-              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-2">
-                {fyQuarters.map((q) => {
-                  const active = activeMonthKey === `${q.from}_${q.to}`;
-                  return (
-                    <button
-                      key={q.quarter}
-                      type="button"
-                      onClick={() => applyCustomRange(q.from, q.to, `FY ${fyLabel} ${q.label}`)}
-                      className={`text-left rounded-2xl border px-3 py-3 transition-colors ${
-                        active
-                          ? 'border-[#00b4d8] bg-[#00b4d8]/10 shadow-sm'
-                          : q.isCurrent
-                            ? 'border-emerald-200 bg-emerald-50/40'
-                            : 'border-neutral-200 bg-white hover:border-[#00b4d8]/40'
-                      }`}
-                    >
-                      <div className="text-xs font-bold text-slate-900">{q.label}</div>
-                      <div className="text-[10px] text-neutral-400 mt-1 tabular-nums">
-                        {q.from} → {q.to}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {viewMode === 'ytd' && (
-            <div className="flex flex-wrap gap-2">
-              <Chip active={preset === 'ytd'} onClick={() => applyPreset('ytd')} label="YTD (1 Mar → today)" />
-              <Chip active={preset === 'full_fy'} onClick={() => applyPreset('full_fy')} label={`Full FY ${fyLabel}`} />
-              <Chip
-                active={periodLabel.startsWith('Full FY') && preset === 'custom'}
-                onClick={() => {
-                  const currentStart = resolvePeriodPreset('full_fy').from;
-                  const [y, m, d] = currentStart.split('-').map(Number);
-                  const lastDayPrior = new Date(y, m - 1, d);
-                  lastDayPrior.setDate(lastDayPrior.getDate() - 1);
-                  const prior = resolvePeriodPreset('full_fy', lastDayPrior);
-                  applyCustomRange(prior.from, prior.to, prior.label);
-                }}
-                label="Prior FY"
-              />
-              <Chip
-                active={periodLabel.startsWith('Calendar')}
-                onClick={() => {
-                  const y = new Date().getFullYear();
-                  applyCustomRange(`${y}-01-01`, `${y}-12-31`, `Calendar ${y}`);
-                }}
-                label={`Calendar ${new Date().getFullYear()}`}
-              />
-            </div>
-          )}
-
-          {/* Custom dates always available for statement reports */}
-          {!isSeriesReport && (
-            <div className="flex flex-wrap gap-3 items-end pt-1 border-t border-neutral-100">
-              <label className="text-xs font-semibold text-neutral-600">
-                From
-                <input
-                  type="date"
-                  value={from}
-                  onChange={(e) => {
-                    setFrom(e.target.value);
-                    setPreset('custom');
-                    setPeriodLabel('Custom period');
-                  }}
-                  className="mt-1 block rounded-xl border border-neutral-200 px-3 py-2 text-sm"
-                />
-              </label>
-              <label className="text-xs font-semibold text-neutral-600">
-                To
-                <input
-                  type="date"
-                  value={to}
-                  onChange={(e) => {
-                    setTo(e.target.value);
-                    setPreset('custom');
-                    setPeriodLabel('Custom period');
-                  }}
-                  className="mt-1 block rounded-xl border border-neutral-200 px-3 py-2 text-sm"
-                />
-              </label>
-            </div>
-          )}
-
-          {/* Pipeline + forecast variables */}
+      <PeriodSlicer
+        value={period}
+        onChange={setPeriod}
+        showTrailing
+        footer={
           <div className="pt-3 border-t border-neutral-100 space-y-3">
             <div className="flex flex-wrap items-center gap-3">
               <label className="inline-flex items-center gap-2 cursor-pointer select-none">
@@ -470,7 +243,7 @@ function Inner() {
                         type="button"
                         onClick={() => applyMaxHorizon(n)}
                         className={`min-w-[3rem] text-xs font-semibold px-2.5 py-1.5 rounded-xl border transition-colors ${
-                          horizonMonths === n && selectedHorizons[selectedHorizons.length - 1] === n
+                          horizonMonths === n
                             ? 'border-[#00b4d8] bg-[#00b4d8] text-white'
                             : 'border-neutral-200 bg-white text-neutral-600 hover:border-[#00b4d8]/40'
                         }`}
@@ -531,8 +304,8 @@ function Inner() {
               </div>
             )}
           </div>
-        </div>
-      </Panel>
+        }
+      />
 
       {loading ? (
         <div className="flex justify-center py-16">
@@ -542,30 +315,6 @@ function Inner() {
         <ReportBody report={report} data={data} includePipeline={includePipeline} />
       )}
     </AccountingPage>
-  );
-}
-
-function Chip({
-  label,
-  active,
-  onClick,
-}: {
-  label: string;
-  active?: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${
-        active
-          ? 'border-[#00b4d8] bg-[#00b4d8] text-white'
-          : 'border-neutral-200 bg-white text-neutral-600 hover:border-[#00b4d8]/50'
-      }`}
-    >
-      {label}
-    </button>
   );
 }
 

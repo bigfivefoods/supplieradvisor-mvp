@@ -313,8 +313,26 @@ export async function GET(request: NextRequest) {
           : [1, 3, 6, 9, 12];
       const maxHorizon = Math.max(...horizons, 1);
 
-      // Optional explicit history end (to=) — default ends at current month
-      const keys = trailingMonthKeys(historyMonths, to ? new Date(to + 'T12:00:00') : new Date());
+      // History keys: explicit from→to month span when both provided, else trailing N months
+      let keys: string[];
+      if (from && to) {
+        const start = new Date(from + 'T12:00:00');
+        const end = new Date(to + 'T12:00:00');
+        keys = [];
+        const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+        const endM = new Date(end.getFullYear(), end.getMonth(), 1);
+        // Cap at 36 months
+        for (let i = 0; i < 36 && cursor <= endM; i++) {
+          keys.push(monthKey(cursor));
+          cursor.setMonth(cursor.getMonth() + 1);
+        }
+        if (!keys.length) keys = trailingMonthKeys(historyMonths, end);
+      } else {
+        keys = trailingMonthKeys(
+          historyMonths,
+          to ? new Date(to + 'T12:00:00') : new Date()
+        );
+      }
       const rangeFrom = from || `${keys[0]}-01`;
       const lastKey = keys[keys.length - 1];
       const [ly, lm] = lastKey.split('-').map(Number);
