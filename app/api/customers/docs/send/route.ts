@@ -89,10 +89,18 @@ export async function POST(request: NextRequest) {
           )
       ) || (members || [])[0];
 
+    const isResend =
+      body.resend === true ||
+      ['sent', 'partial', 'overdue', 'paid', 'viewed'].includes(
+        String(doc.status || '').toLowerCase()
+      );
+
     const sellerName =
       input.seller.trading_name || input.seller.legal_name || 'Your supplier';
     const number = input.number;
-    const subject = `${LABELS[type]} ${number} from ${sellerName}`;
+    const subject = isResend
+      ? `Reminder: ${LABELS[type]} ${number} from ${sellerName}`
+      : `${LABELS[type]} ${number} from ${sellerName}`;
     const intro =
       body.message != null && String(body.message).trim()
         ? `<p style="font-family:system-ui,sans-serif;max-width:640px">${String(body.message)
@@ -100,10 +108,16 @@ export async function POST(request: NextRequest) {
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;')}</p>`
         : type === 'invoice'
-          ? `<p style="font-family:system-ui,sans-serif;max-width:640px">Hi${
-              input.contactName ? ` ${String(input.contactName).split(' ')[0]}` : ''
-            },<br/><br/>Please find <strong>invoice ${number}</strong> from <strong>${sellerName}</strong>. Payment can be made by bank transfer — details are on the invoice. Use <strong>${number}</strong> as your payment reference.</p>`
-          : `<p style="font-family:system-ui,sans-serif;max-width:640px">Please find your ${LABELS[type].toLowerCase()} <strong>${number}</strong> from <strong>${sellerName}</strong>.</p>`;
+          ? isResend
+            ? `<p style="font-family:system-ui,sans-serif;max-width:640px">Hi${
+                input.contactName ? ` ${String(input.contactName).split(' ')[0]}` : ''
+              },<br/><br/>This is a <strong>resend</strong> of <strong>invoice ${number}</strong> from <strong>${sellerName}</strong>. Payment can be made by bank transfer — details are on the invoice. Use <strong>${number}</strong> as your payment reference.</p>`
+            : `<p style="font-family:system-ui,sans-serif;max-width:640px">Hi${
+                input.contactName ? ` ${String(input.contactName).split(' ')[0]}` : ''
+              },<br/><br/>Please find <strong>invoice ${number}</strong> from <strong>${sellerName}</strong>. Payment can be made by bank transfer — details are on the invoice. Use <strong>${number}</strong> as your payment reference.</p>`
+          : `<p style="font-family:system-ui,sans-serif;max-width:640px">Please find your ${LABELS[type].toLowerCase()} <strong>${number}</strong> from <strong>${sellerName}</strong>${
+              isResend ? ' (resend)' : ''
+            }.</p>`;
 
     const cc: string[] = [];
     if (body.ccMe !== false) {
@@ -150,23 +164,38 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Status: don't downgrade paid/partial/overdue on resend; only promote draft → sent
     if (type === 'invoice' || type === 'quote') {
+      const prev = String(doc.status || '').toLowerCase();
+      let nextStatus = prev;
+      if (type === 'invoice') {
+        if (['draft', '', 'open'].includes(prev)) nextStatus = 'sent';
+        // keep paid | partial | overdue | void | sent as-is on resend
+      } else if (type === 'quote' && prev === 'draft') {
+        nextStatus = 'sent';
+      }
       await supabase
         .from(TABLES[type])
         .update({
-          status:
-            type === 'invoice'
-              ? 'sent'
-              : doc.status === 'draft'
-                ? 'sent'
-                : doc.status,
+          status: nextStatus || 'sent',
           contact_email: to,
           customer_name: input.customerName || doc.customer_name,
           contact_name: input.contactName || doc.contact_name,
           updated_at: new Date().toISOString(),
+          last_sent_at: new Date().toISOString(),
         })
         .eq('id', id)
         .eq('profile_id', companyId);
+
+      void supabase.from('activity_log').insert({
+        profile_id: companyId,
+        actor_user_id: gate.userId,
+        action: isResend ? `${type}.resend` : `${type}.send`,
+        entity_type: TABLES[type],
+        entity_id: String(id),
+        summary: `${isResend ? 'Resent' : 'Sent'} ${LABELS[type].toLowerCase()} ${number} to ${to}`,
+        metadata: { to, cc, emailId: sent?.id, resend: isResend },
+      });
     }
 
     return NextResponse.json({
@@ -175,6 +204,7 @@ export async function POST(request: NextRequest) {
       to,
       cc,
       subject,
+      resend: isResend,
       bankDetailsIncluded,
       sellerVerified: Boolean(input.seller.is_verified),
       hasLogo: Boolean(input.seller.logo_url),

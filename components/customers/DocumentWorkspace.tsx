@@ -368,11 +368,31 @@ function DocInner({
   };
 
   /**
-   * Email document to customer contact_email; CC you by default.
+   * Email or resend document to customer; CC you by default.
    * Invoices include company bank details from Company → Profile.
    */
-  const emailDoc = async (doc: DocRecord) => {
-    // Server resolves email from document + customer CRM profile if needed
+  const emailDoc = async (doc: DocRecord, opts?: { resend?: boolean }) => {
+    const st = String(doc.status || '').toLowerCase();
+    const isResend =
+      opts?.resend === true ||
+      ['sent', 'partial', 'overdue', 'paid', 'viewed'].includes(st);
+
+    // Optional override when resending (wrong address, reminder, etc.)
+    let toOverride: string | undefined;
+    if (isResend) {
+      const current = String(doc.contact_email || '').trim();
+      const entered = window.prompt(
+        'Resend to this email (leave as-is or change):',
+        current || ''
+      );
+      if (entered === null) return; // cancelled
+      toOverride = entered.trim();
+      if (!toOverride.includes('@')) {
+        toast.error('Enter a valid email address to resend');
+        return;
+      }
+    }
+
     setBusyId(Number(doc.id));
     try {
       const res = await fetch('/api/customers/docs/send', {
@@ -384,6 +404,8 @@ function DocInner({
           id: doc.id,
           ccMe: true,
           privyUserId,
+          resend: isResend,
+          ...(toOverride ? { to: toOverride } : {}),
         }),
       });
       const data = await res.json();
@@ -396,7 +418,9 @@ function DocInner({
       if (data.sellerVerified) bits.push('verified');
       const stamp = bits.length ? ` · ${bits.join(', ')} on document` : '';
       toast.success(
-        `Emailed ${data.to}${data.cc?.length ? ` (CC ${data.cc.join(', ')})` : ''}${stamp}`
+        `${data.resend ? 'Resent' : 'Emailed'} ${data.to}${
+          data.cc?.length ? ` (CC ${data.cc.join(', ')})` : ''
+        }${stamp}`
       );
       void load();
     } catch (e: unknown) {
@@ -869,15 +893,32 @@ function DocInner({
                     <button
                       type="button"
                       disabled={busyId === d.id}
-                      onClick={() => void emailDoc(d)}
+                      onClick={() =>
+                        void emailDoc(d, {
+                          resend: ['sent', 'partial', 'overdue', 'paid', 'viewed'].includes(
+                            String(d.status || '').toLowerCase()
+                          ),
+                        })
+                      }
                       className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1 border-[#00b4d8]/40 text-[#0077b6]"
-                      title="Email customer (CC you). Invoices include bank details from Company profile."
+                      title={
+                        ['sent', 'partial', 'overdue', 'paid', 'viewed'].includes(
+                          String(d.status || '').toLowerCase()
+                        )
+                          ? 'Resend this document to the customer (you can change the email). CC you by default.'
+                          : 'Email customer (CC you). Invoices include bank details from Company profile.'
+                      }
                     >
                       {busyId === d.id ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
                       ) : (
                         <>
-                          <Mail className="w-3.5 h-3.5" /> Email
+                          <Mail className="w-3.5 h-3.5" />
+                          {['sent', 'partial', 'overdue', 'paid', 'viewed'].includes(
+                            String(d.status || '').toLowerCase()
+                          )
+                            ? 'Resend'
+                            : 'Email'}
                         </>
                       )}
                     </button>
