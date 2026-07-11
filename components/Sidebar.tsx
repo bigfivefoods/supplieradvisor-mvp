@@ -239,7 +239,9 @@ const modules = [
       { name: 'Inspections', href: '/dashboard/quality/inspections' },
       { name: 'HACCP', href: '/dashboard/quality/haccp' },
       { name: 'Traceability', href: '/dashboard/quality/traceability' },
+      { name: 'Pedigree graph', href: '/dashboard/quality/traceability-graph' },
       { name: 'Recall drill', href: '/dashboard/quality/recall-simulator' },
+      { name: 'Regulatory pack', href: '/dashboard/quality/regulatory-reports' },
     ],
   },
 

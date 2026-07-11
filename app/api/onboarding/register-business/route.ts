@@ -26,7 +26,9 @@ export async function POST(request: NextRequest) {
       short_description,
     } = body;
 
-    const userId = getCanonicalUserId(privyUserId);
+    const _auth = await requireVerifiedUser(request, { legacyPrivyUserId: privyUserId });
+    if (!_auth.ok) return _auth.response;
+    const userId = getCanonicalUserId(_auth.userId);
     if (!userId) {
       return NextResponse.json({ error: 'You must be signed in to register a business.' }, { status: 401 });
     }

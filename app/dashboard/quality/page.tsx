@@ -53,8 +53,8 @@ const MODULES: HubModule[] = [
     href: '/dashboard/quality/traceability-graph',
     icon: Workflow,
     code: '04',
-    title: 'Traceability graph',
-    desc: 'Visual material flow — roadmap.',
+    title: 'Traceability graph (live)',
+    desc: 'Product → lot → movement → warehouse + QA/HACCP nodes.',
     accent: 'from-violet-50 to-white border-violet-100',
   },
   {
@@ -69,8 +69,8 @@ const MODULES: HubModule[] = [
     href: '/dashboard/quality/regulatory-reports',
     icon: FileCheck,
     code: '06',
-    title: 'Regulatory reports',
-    desc: 'Compliance packs — roadmap.',
+    title: 'Regulatory reports (live)',
+    desc: 'Export JSON/print pack for auditors from live QA data.',
     accent: 'from-rose-50 to-white border-rose-100',
   },
 ];

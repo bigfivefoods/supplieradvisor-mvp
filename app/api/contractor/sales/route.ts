@@ -11,11 +11,14 @@ export async function GET(request: NextRequest) {
     const email = request.nextUrl.searchParams.get('email');
     const userId = getCanonicalUserId(privyUserId);
 
-    if (!userId || !Number.isFinite(containerId)) {
-      return NextResponse.json({ error: 'containerId and privyUserId required' }, { status: 400 });
+    if (!Number.isFinite(containerId)) {
+      return NextResponse.json({ error: 'containerId required' }, { status: 400 });
     }
+    const _auth = await requireVerifiedUser(request, { legacyPrivyUserId: privyUserId });
+    if (!_auth.ok) return _auth.response;
+    const verifiedId = _auth.userId;
 
-    const access = await assertContractorContainerAccess(containerId, privyUserId, email);
+    const access = await assertContractorContainerAccess(containerId, verifiedId, email);
     if (!access.ok) {
       return NextResponse.json({ error: access.error }, { status: access.status });
     }
@@ -38,19 +41,21 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const userId = getCanonicalUserId(body.privyUserId);
     const containerId = Number(body.containerId);
     const email = body.email ? String(body.email).toLowerCase() : null;
     const amount = Number(body.gross_amount ?? body.amount ?? 0);
 
-    if (!userId || !Number.isFinite(containerId) || amount <= 0) {
+    if (!Number.isFinite(containerId) || amount <= 0) {
       return NextResponse.json(
-        { error: 'privyUserId, containerId, and positive amount required' },
+        { error: 'containerId and positive amount required' },
         { status: 400 }
       );
     }
+    const _auth = await requireVerifiedUser(request, { legacyPrivyUserId: body.privyUserId });
+    if (!_auth.ok) return _auth.response;
+    const userId = _auth.userId;
 
-    const access = await assertContractorContainerAccess(containerId, body.privyUserId, email);
+    const access = await assertContractorContainerAccess(containerId, userId, email);
     if (!access.ok) {
       return NextResponse.json({ error: access.error }, { status: access.status });
     }

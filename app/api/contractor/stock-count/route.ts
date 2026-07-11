@@ -11,19 +11,21 @@ import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/li
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const userId = getCanonicalUserId(body.privyUserId);
     const containerId = Number(body.containerId);
     const email = body.email ? String(body.email).toLowerCase() : null;
     const lines = Array.isArray(body.lines) ? body.lines : [];
 
-    if (!userId || !Number.isFinite(containerId) || lines.length === 0) {
+    if (!Number.isFinite(containerId) || lines.length === 0) {
       return NextResponse.json(
-        { error: 'privyUserId, containerId, and lines required' },
+        { error: 'containerId and lines required' },
         { status: 400 }
       );
     }
+    const _auth = await requireVerifiedUser(request, { legacyPrivyUserId: body.privyUserId });
+    if (!_auth.ok) return _auth.response;
+    const userId = _auth.userId;
 
-    const access = await assertContractorContainerAccess(containerId, body.privyUserId, email);
+    const access = await assertContractorContainerAccess(containerId, userId, email);
     if (!access.ok) {
       return NextResponse.json({ error: access.error }, { status: access.status });
     }

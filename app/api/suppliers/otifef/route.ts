@@ -10,6 +10,14 @@ export async function GET(request: NextRequest) {
   try {
     const sp = request.nextUrl.searchParams;
     const companyId = sp.get('companyId') ? Number(sp.get('companyId')) : null;
+    if (!companyId || !Number.isFinite(companyId)) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+    }
+    const _gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request),
+    });
+    if (!_gate.ok) return _gate.response;
+
     const persist = sp.get('persist') === '1' || sp.get('persist') === 'true';
 
     const to = sp.get('to') || new Date().toISOString().slice(0, 10);

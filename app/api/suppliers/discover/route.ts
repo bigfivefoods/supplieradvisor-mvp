@@ -27,6 +27,14 @@ export async function GET(request: NextRequest) {
   try {
     const sp = request.nextUrl.searchParams;
     const companyId = sp.get('companyId') ? Number(sp.get('companyId')) : null;
+    if (!companyId || !Number.isFinite(companyId)) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+    }
+    const _gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request),
+    });
+    if (!_gate.ok) return _gate.response;
+
     const q = (sp.get('q') || '').trim().toLowerCase();
     const country = sp.get('country') || '';
     const continent = sp.get('continent') || '';

@@ -26,6 +26,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Product not found' }, { status: 404 });
     }
 
+    const companyId = Number(body.companyId || product.profile_id);
+    const _gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
+    if (!_gate.ok) return _gate.response;
+
+    if (Number(product.profile_id) !== companyId) {
+      return NextResponse.json({ error: 'Product not in your company' }, { status: 403 });
+    }
+
     let identityHash = product.onchain_hash as string | null;
     if (!identityHash || !product.public_id) {
       identityHash = hashProductIdentity({
@@ -45,6 +55,22 @@ export async function POST(request: NextRequest) {
 
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: 502 });
+    }
+
+    // Production: refuse to mark as success if only simulated (unless explicitly allowed)
+    const allowSim =
+      process.env.ALLOW_SIMULATED_PASSPORT === '1' ||
+      process.env.NODE_ENV !== 'production';
+    if (result.mode === 'simulated' && !allowSim) {
+      return NextResponse.json(
+        {
+          error:
+            'On-chain passport not configured in production. Set INVENTORY_PASSPORT_ADDRESS + PRIVATE_KEY, or ALLOW_SIMULATED_PASSPORT=1 for demos.',
+          code: 'PASSPORT_NOT_CONFIGURED',
+          note: result.note,
+        },
+        { status: 503 }
+      );
     }
 
     const now = new Date().toISOString();
