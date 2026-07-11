@@ -817,26 +817,62 @@ export async function POST(request: NextRequest) {
     ).length;
 
     const quotes = customerQuotesRes.error ? [] : customerQuotesRes.data || [];
-    const openQuoteStatuses = new Set(['draft', 'sent', 'accepted']);
-    const quotesOpen = quotes.filter((q) =>
+    const openQuoteStatuses = new Set(['draft', 'sent', 'accepted', 'pending', 'viewed']);
+    const quotesOpenRows = quotes.filter((q) =>
       openQuoteStatuses.has(String(q.status || '').toLowerCase())
-    ).length;
-    const quotesValue = quotes
-      .filter((q) => openQuoteStatuses.has(String(q.status || '').toLowerCase()))
-      .reduce((s, q) => s + Number(q.total_amount || 0), 0);
+    );
+    const quotesOpen = quotesOpenRows.length;
+    const quotesValue = quotesOpenRows.reduce(
+      (s, q) => s + Number(q.total_amount || 0),
+      0
+    );
+    const quotesAcceptedRows = quotes.filter((q) =>
+      ['accepted', 'converted', 'won'].includes(String(q.status || '').toLowerCase())
+    );
+    const quotesAcceptedValue = quotesAcceptedRows.reduce(
+      (s, q) => s + Number(q.total_amount || 0),
+      0
+    );
+    const quotesTotalValue = quotes.reduce(
+      (s, q) => s + Number(q.total_amount || 0),
+      0
+    );
 
     const custInvoices = customerInvoicesRes.error ? [] : customerInvoicesRes.data || [];
-    const openInvStatuses = new Set(['draft', 'sent', 'partial', 'overdue']);
-    const invoicesOpen = custInvoices.filter((i) =>
+    const openInvStatuses = new Set([
+      'draft',
+      'sent',
+      'partial',
+      'overdue',
+      'issued',
+      'unpaid',
+    ]);
+    const invoicesOpenRows = custInvoices.filter((i) =>
       openInvStatuses.has(String(i.status || '').toLowerCase())
-    ).length;
-    const invoicesOpenValue = custInvoices
-      .filter((i) => openInvStatuses.has(String(i.status || '').toLowerCase()))
-      .reduce(
-        (s, i) =>
-          s + Math.max(0, Number(i.total_amount || 0) - Number(i.amount_paid || 0)),
-        0
-      );
+    );
+    const invoicesOpen = invoicesOpenRows.length;
+    const invoicesOpenValue = invoicesOpenRows.reduce(
+      (s, i) =>
+        s + Math.max(0, Number(i.total_amount || 0) - Number(i.amount_paid || 0)),
+      0
+    );
+    const invoicesPaidRows = custInvoices.filter((i) =>
+      ['paid', 'settled', 'complete', 'completed'].includes(
+        String(i.status || '').toLowerCase()
+      )
+    );
+    const invoicesPaidValue = invoicesPaidRows.reduce(
+      (s, i) => s + Number(i.total_amount || i.amount_paid || 0),
+      0
+    );
+    const invoicesTotalValue = custInvoices.reduce(
+      (s, i) => s + Number(i.total_amount || 0),
+      0
+    );
+    const invoicesCollectedValue = custInvoices.reduce(
+      (s, i) => s + Number(i.amount_paid || 0),
+      0
+    );
 
     const productsFull = productsFullRes.error ? [] : productsFullRes.data || [];
     let multiCurrencyProducts = 0;
@@ -1024,8 +1060,13 @@ export async function POST(request: NextRequest) {
         pricingBuying,
         quotesOpen,
         quotesValue,
+        quotesAcceptedValue,
+        quotesTotalValue,
         invoicesOpen,
         invoicesOpenValue,
+        invoicesPaidValue,
+        invoicesTotalValue,
+        invoicesCollectedValue,
         multiCurrencyProducts,
         catalogueCurrencies: Array.from(currencySet).sort(),
         arOpen: arOpen.length,
@@ -1056,8 +1097,13 @@ export async function POST(request: NextRequest) {
       trade: {
         quotesOpen,
         quotesValue,
+        quotesAcceptedValue,
+        quotesTotalValue,
         invoicesOpen,
         invoicesOpenValue,
+        invoicesPaidValue,
+        invoicesTotalValue,
+        invoicesCollectedValue,
         openPos: srmOpenPos.length,
         onchainPos: srmOnchainPos.length,
         arOpen: arOpen.length,
@@ -1083,6 +1129,16 @@ export async function POST(request: NextRequest) {
         invitePending: crmInvitePending,
         inviteAccepted: crmInviteAccepted,
         riadOpen: crmRiadOpen,
+        // Commercial process (quotes → invoices)
+        quotesOpen,
+        quotesValue,
+        quotesAcceptedValue,
+        quotesTotalValue,
+        invoicesOpen,
+        invoicesOpenValue,
+        invoicesPaidValue,
+        invoicesTotalValue,
+        invoicesCollectedValue,
         href: '/dashboard/customers',
       },
       srm: {

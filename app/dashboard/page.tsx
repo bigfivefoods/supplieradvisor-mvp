@@ -87,7 +87,13 @@ type Kpis = {
   pricingActive?: number;
   quotesOpen?: number;
   quotesValue?: number;
+  quotesAcceptedValue?: number;
+  quotesTotalValue?: number;
   invoicesOpen?: number;
+  invoicesOpenValue?: number;
+  invoicesPaidValue?: number;
+  invoicesTotalValue?: number;
+  invoicesCollectedValue?: number;
   multiCurrencyProducts?: number;
   catalogueCurrencies?: string[];
   arOpen?: number;
@@ -224,6 +230,15 @@ export default function DashboardCommandCenter() {
     riadOpen: number;
     wonCount?: number;
     invitePending?: number;
+    quotesOpen?: number;
+    quotesValue?: number;
+    quotesAcceptedValue?: number;
+    quotesTotalValue?: number;
+    invoicesOpen?: number;
+    invoicesOpenValue?: number;
+    invoicesPaidValue?: number;
+    invoicesTotalValue?: number;
+    invoicesCollectedValue?: number;
   } | null>(null);
   const [srm, setSrm] = useState<{
     book: number;
@@ -246,6 +261,13 @@ export default function DashboardCommandCenter() {
   const [trade, setTrade] = useState<{
     quotesOpen: number;
     quotesValue: number;
+    quotesAcceptedValue?: number;
+    quotesTotalValue?: number;
+    invoicesOpen?: number;
+    invoicesOpenValue?: number;
+    invoicesPaidValue?: number;
+    invoicesTotalValue?: number;
+    invoicesCollectedValue?: number;
     arOpen: number;
     arOpenValue: number;
     apOpen: number;
@@ -274,7 +296,7 @@ export default function DashboardCommandCenter() {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     business: true,
     financial: true,
-    crm: false,
+    crm: true,
     srm: false,
     operations: false,
     manufacturing: false,
@@ -920,7 +942,16 @@ export default function DashboardCommandCenter() {
               icon={Users}
               code="CRM"
               title="CRM · sales & customers"
-              summary={`${crm?.customers ?? kpis?.customersTotal ?? 0} customers · ${money(crm?.pipelineValue ?? 0, baseCcy)} pipeline`}
+              summary={`${crm?.customers ?? kpis?.customersTotal ?? 0} customers · ${money(
+                crm?.quotesValue ?? trade?.quotesValue ?? kpis?.quotesValue ?? 0,
+                baseCcy
+              )} quoted · ${money(
+                crm?.invoicesOpenValue ??
+                  trade?.invoicesOpenValue ??
+                  kpis?.invoicesOpenValue ??
+                  0,
+                baseCcy
+              )} invoiced open`}
               badge={
                 (crm?.leadsOpen ?? 0) > 0
                   ? { label: `${crm?.leadsOpen} leads`, tone: 'good' }
@@ -952,15 +983,60 @@ export default function DashboardCommandCenter() {
                   {
                     label: 'Pipeline value',
                     value: money(crm?.pipelineValue ?? kpis?.pipelineValue ?? 0, baseCcy),
-                    sub: 'Weighted open deals',
+                    sub: 'Open opportunity amount',
                     href: '/dashboard/customers/leads',
                     tone: 'good',
                   },
                   {
-                    label: 'Open quotes',
-                    value: trade?.quotesOpen ?? kpis?.quotesOpen ?? 0,
-                    sub: money(trade?.quotesValue ?? kpis?.quotesValue ?? 0, baseCcy),
+                    label: 'Quoted amount',
+                    value: money(
+                      crm?.quotesValue ?? trade?.quotesValue ?? kpis?.quotesValue ?? 0,
+                      baseCcy
+                    ),
+                    sub: `${crm?.quotesOpen ?? trade?.quotesOpen ?? kpis?.quotesOpen ?? 0} open quotes (draft/sent/accepted)`,
                     href: '/dashboard/customers/quotes',
+                    tone: 'good',
+                  },
+                  {
+                    label: 'Quotes accepted',
+                    value: money(
+                      crm?.quotesAcceptedValue ?? trade?.quotesAcceptedValue ?? 0,
+                      baseCcy
+                    ),
+                    sub: 'Accepted / converted quote total',
+                    href: '/dashboard/customers/quotes',
+                  },
+                  {
+                    label: 'Invoiced open',
+                    value: money(
+                      crm?.invoicesOpenValue ??
+                        trade?.invoicesOpenValue ??
+                        kpis?.invoicesOpenValue ??
+                        0,
+                      baseCcy
+                    ),
+                    sub: `${crm?.invoicesOpen ?? trade?.invoicesOpen ?? kpis?.invoicesOpen ?? 0} invoices outstanding (balance due)`,
+                    href: '/dashboard/customers/invoices',
+                    tone:
+                      (crm?.invoicesOpenValue ?? trade?.invoicesOpenValue ?? 0) > 0
+                        ? 'warn'
+                        : 'good',
+                  },
+                  {
+                    label: 'Invoiced paid',
+                    value: money(
+                      crm?.invoicesPaidValue ?? trade?.invoicesPaidValue ?? 0,
+                      baseCcy
+                    ),
+                    sub: `Collected ${money(
+                      crm?.invoicesCollectedValue ?? trade?.invoicesCollectedValue ?? 0,
+                      baseCcy
+                    )} · all-time billed ${money(
+                      crm?.invoicesTotalValue ?? trade?.invoicesTotalValue ?? 0,
+                      baseCcy
+                    )}`,
+                    href: '/dashboard/customers/invoices',
+                    tone: 'good',
                   },
                   {
                     label: 'Quote win rate',
@@ -972,7 +1048,12 @@ export default function DashboardCommandCenter() {
                   {
                     label: 'Pipeline projection',
                     value: money(
-                      (crm?.pipelineValue ?? 0) * (1 + Math.max(-0.3, Math.min(0.5, (intel?.salesGrowth ?? 0) / 100))),
+                      (crm?.pipelineValue ?? 0) *
+                        (1 +
+                          Math.max(
+                            -0.3,
+                            Math.min(0.5, (intel?.salesGrowth ?? 0) / 100)
+                          )),
                       baseCcy
                     ),
                     sub: `~30d outlook · sales growth ${intel?.salesGrowth != null ? `${intel.salesGrowth}%` : 'n/a'}`,
