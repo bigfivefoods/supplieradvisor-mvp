@@ -302,14 +302,14 @@ export function canManageTeam(role?: string | null) {
   return canAdmin(role, 'team') || canAdmin(role, 'invites');
 }
 
-/** Sidebar module id → permission resource */
+/** Sidebar module id → permission resource (ids match lib/chrome/module-nav.ts) */
 export const SIDEBAR_MODULE_RESOURCE: Record<string, PermissionResource> = {
   home: 'dashboard',
+  'sales-portal': 'sales_portal',
   'my-business': 'profile',
   network: 'network',
   suppliers: 'suppliers',
   customers: 'customers',
-  'sales-portal': 'sales_portal',
   containers: 'containers',
   inventory: 'inventory',
   operations: 'operations',
