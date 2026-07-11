@@ -3,6 +3,7 @@ import { randomBytes } from 'crypto';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { hashMovement } from '@/lib/inventory/hash';
 import { hasQaHold, qaHoldErrorPayload } from '@/lib/quality/holds';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 function newPublicToken() {
   return randomBytes(16).toString('hex');
@@ -234,6 +235,9 @@ export async function POST(request: NextRequest) {
     if (!Number.isFinite(companyId)) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
 
     const action = body.action || (body.id ? body.nextAction : 'create') || 'create';
     const supabase = getSupabaseServer();

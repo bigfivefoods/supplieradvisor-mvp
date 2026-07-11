@@ -16,6 +16,7 @@ import {
   upsertNetworkConnection,
   userOwnsBothCompanies,
 } from '@/lib/connections/sync';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /** Production-safe profile columns (no is_verified — that column does not exist). */
 const PROFILE_SELECT =
@@ -39,13 +40,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
 
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
+
     let membershipWarning: string | undefined;
-    if (privyUserId) {
-      const mem = await assertCompanyMember(privyUserId, companyId);
-      if (!mem.ok) {
-        membershipWarning = mem.error;
-      }
-    }
 
     const supabase = getSupabaseServer();
 

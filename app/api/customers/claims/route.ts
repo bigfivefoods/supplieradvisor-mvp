@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { docNumber } from '@/lib/customers/documents';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 export async function GET(request: NextRequest) {
   try {
@@ -8,6 +9,9 @@ export async function GET(request: NextRequest) {
     if (!Number.isFinite(companyId)) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
     const supabase = getSupabaseServer();
     const [{ data, error }, { data: customers }] = await Promise.all([
       supabase
@@ -45,6 +49,9 @@ export async function POST(request: NextRequest) {
     if (!Number.isFinite(companyId) || !body.title) {
       return NextResponse.json({ error: 'companyId and title required' }, { status: 400 });
     }
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
     const supabase = getSupabaseServer();
     const { data, error } = await supabase
       .from('customer_claims')

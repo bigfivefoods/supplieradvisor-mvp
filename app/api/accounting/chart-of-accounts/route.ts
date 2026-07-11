@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { assertAccountingAccess } from '@/lib/accounting/access';
 import { ensureDefaultCoa, parseCompanyId } from '@/lib/accounting/server';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /** GET ?companyId=&seed=1&q= — list CoA; optional seed of defaults when empty */
 export async function GET(request: NextRequest) {
@@ -15,10 +16,9 @@ export async function GET(request: NextRequest) {
     if (!Number.isFinite(companyId)) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
-    if (privyUserId) {
-      const mem = await assertAccountingAccess(privyUserId, companyId, 'view');
-      if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
-    }
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
 
     let seeded = 0;
     let seedWarning: string | undefined;
@@ -110,10 +110,9 @@ export async function POST(request: NextRequest) {
     if (!Number.isFinite(companyId)) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
-    if (privyUserId) {
-      const mem = await assertAccountingAccess(privyUserId, companyId, 'write');
-      if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
-    }
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
 
     if (body.seed) {
       const r = await ensureDefaultCoa(companyId);
@@ -173,10 +172,8 @@ export async function PATCH(request: NextRequest) {
     if (!Number.isFinite(companyId) || !Number.isFinite(id)) {
       return NextResponse.json({ error: 'companyId and id required' }, { status: 400 });
     }
-    if (privyUserId) {
-      const mem = await assertAccountingAccess(privyUserId, companyId, 'write');
-      if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
-    }
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: privyUserId || legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
 
     const allowed = [
       'code',
@@ -228,10 +225,8 @@ export async function DELETE(request: NextRequest) {
     if (!Number.isFinite(companyId) || !Number.isFinite(id)) {
       return NextResponse.json({ error: 'companyId and id required' }, { status: 400 });
     }
-    if (privyUserId) {
-      const mem = await assertAccountingAccess(privyUserId, companyId, 'write');
-      if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
-    }
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: privyUserId || legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
 
     const supabase = getSupabaseServer();
     if (hard) {

@@ -10,6 +10,7 @@ import {
   type VatCategory,
   type VatRateLike,
 } from '@/lib/accounting/vat';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 function rateMap(rates: VatRateLike[]) {
   const m = new Map<string, VatRateLike>();
@@ -48,10 +49,9 @@ export async function GET(request: NextRequest) {
     if (!Number.isFinite(companyId)) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
-    if (privyUserId) {
-      const mem = await assertAccountingAccess(privyUserId, companyId, 'view');
-      if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
-    }
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
 
     const supabase = getSupabaseServer();
     const { data: ratesRaw, error } = await supabase
@@ -366,10 +366,9 @@ export async function POST(request: NextRequest) {
     if (!Number.isFinite(companyId)) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
-    if (privyUserId) {
-      const mem = await assertAccountingAccess(privyUserId, companyId, 'write');
-      if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
-    }
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
 
     const supabase = getSupabaseServer();
 
@@ -657,10 +656,8 @@ export async function PATCH(request: NextRequest) {
     if (!Number.isFinite(companyId) || !Number.isFinite(id)) {
       return NextResponse.json({ error: 'companyId and id required' }, { status: 400 });
     }
-    if (privyUserId) {
-      const mem = await assertAccountingAccess(privyUserId, companyId, 'write');
-      if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
-    }
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: privyUserId || legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
 
     const supabase = getSupabaseServer();
     if (body.is_default) {

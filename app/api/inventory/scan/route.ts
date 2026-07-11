@@ -3,6 +3,7 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { parseBarcode } from '@/lib/inventory/gs1';
 import { hashMovement } from '@/lib/inventory/hash';
 import { hasQaHold } from '@/lib/quality/holds';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /**
  * POST — resolve a QR/barcode scan and optionally receive stock
@@ -15,6 +16,9 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const companyId = Number(body.companyId);
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
     const raw = String(body.raw || '').trim();
     if (!Number.isFinite(companyId) || !raw) {
       return NextResponse.json({ error: 'companyId and raw scan required' }, { status: 400 });

@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { assertCompanyMember, logActivity } from '@/lib/customers/access';
 import type { MarketplaceListing } from '@/lib/marketplace/types';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /**
  * GET ?companyId=&mode=browse|mine&q=&category=&visibility=
@@ -19,6 +20,9 @@ export async function GET(request: NextRequest) {
     if (!Number.isFinite(companyId) || companyId <= 0) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
 
     const supabase = getSupabaseServer();
 

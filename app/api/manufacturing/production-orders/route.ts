@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { nextOrderNumber } from '@/lib/manufacturing/types';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 export async function GET(request: NextRequest) {
   try {
@@ -75,6 +76,9 @@ export async function POST(request: NextRequest) {
     if (!Number.isFinite(companyId)) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
     if (!body.product_id && !body.productId) {
       return NextResponse.json({ error: 'product_id required' }, { status: 400 });
     }

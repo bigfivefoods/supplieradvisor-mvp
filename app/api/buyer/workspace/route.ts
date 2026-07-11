@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { assertCompanyMember } from '@/lib/customers/access';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /**
  * GET /api/buyer/workspace
@@ -39,6 +40,9 @@ export async function GET(request: NextRequest) {
     if (!Number.isFinite(buyerCompanyId) || buyerCompanyId <= 0) {
       return NextResponse.json({ error: 'buyerCompanyId is required' }, { status: 400 });
     }
+
+    const _gate = await requireCompanyAccess(request, buyerCompanyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
 
     const member = await assertCompanyMember(privyUserId, buyerCompanyId);
     if (!member.ok) {

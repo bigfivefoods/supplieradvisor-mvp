@@ -6,6 +6,7 @@ import { hashProductIdentity } from '@/lib/inventory/hash';
 import { normalizeProductPrices, productQrPayload } from '@/lib/inventory/types';
 import { lookupListPrice } from '@/lib/pricing/access';
 import { findConnectionBetween } from '@/lib/connections/sync';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /**
  * POST — import a product into the buyer's catalogue from a connected seller
@@ -24,6 +25,9 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const companyId = Number(body.companyId);
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
     const sellerProfileId = Number(body.sellerProfileId || body.seller_profile_id);
 
     if (!Number.isFinite(companyId) || !Number.isFinite(sellerProfileId)) {

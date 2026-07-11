@@ -7,6 +7,7 @@ import {
   CONTRACTOR_CONTRACT_VERSION,
   contractorInviteEmailHtml,
 } from '@/lib/contracts/independent-contractor-agreement';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /**
  * POST — invite a contractor to operate a specific container.
@@ -16,6 +17,9 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const companyId = Number(body.companyId);
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
     const containerId = Number(body.containerId);
     const email = String(body.email || '').toLowerCase().trim();
     const fullName = body.full_name ? String(body.full_name).trim() : null;

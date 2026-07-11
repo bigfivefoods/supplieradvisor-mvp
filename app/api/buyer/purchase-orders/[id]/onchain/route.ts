@@ -4,6 +4,7 @@ import { assertCompanyMember, logActivity } from '@/lib/customers/access';
 import { isCustomerPoEscrowEnabled } from '@/lib/procurement/types';
 import { verifyEscrowOrWarn } from '@/lib/contracts/verifyEscrow';
 import type { EscrowLinkKind as Kind } from '@/lib/contracts/escrow';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /**
  * POST /api/buyer/purchase-orders/[id]/onchain
@@ -55,6 +56,9 @@ export async function POST(request: NextRequest, ctx: Ctx) {
     if (!Number.isFinite(buyerCompanyId) || buyerCompanyId <= 0) {
       return NextResponse.json({ error: 'buyerCompanyId is required' }, { status: 400 });
     }
+
+    const _gate = await requireCompanyAccess(request, buyerCompanyId, { legacyPrivyUserId: legacyPrivyFrom(request, typeof body !== 'undefined' ? body as Record<string, unknown> : undefined) });
+    if (!_gate.ok) return _gate.response;
     if (!TX_HASH_RE.test(onchainTx)) {
       return NextResponse.json(
         { error: 'onchain_tx must be a 0x-prefixed 32-byte hex transaction hash' },

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { computeBuyerOtifef } from '@/lib/suppliers/otifef';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /**
  * GET ?companyId= — SRM hub KPIs
@@ -11,6 +12,9 @@ export async function GET(request: NextRequest) {
     if (!Number.isFinite(companyId)) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
     const supabase = getSupabaseServer();
 
     const [{ data: suppliers, error }, openRiad, pendingInvites] = await Promise.all([

@@ -4,6 +4,7 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { hashProductIdentity } from '@/lib/inventory/hash';
 import { normalizeProductPrices, productQrPayload } from '@/lib/inventory/types';
 import { toGtin14, isValidGtin } from '@/lib/inventory/gs1';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 export async function GET(request: NextRequest) {
   try {
@@ -75,6 +76,9 @@ export async function POST(request: NextRequest) {
     if (!Number.isFinite(companyId) || !body.name) {
       return NextResponse.json({ error: 'companyId and name required' }, { status: 400 });
     }
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
 
     const publicId = body.public_id || randomUUID();
     const appUrl = process.env.NEXT_PUBLIC_APP_URL;

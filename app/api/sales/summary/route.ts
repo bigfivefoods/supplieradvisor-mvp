@@ -13,6 +13,7 @@ import {
   type CommissionTier,
 } from '@/lib/sales-contractor/commission';
 import type { SalesPortalSummary } from '@/lib/sales-contractor/types';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 function monthKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -29,6 +30,9 @@ function weekLabel(d: Date): string {
 export async function GET(request: NextRequest) {
   try {
     const companyId = Number(request.nextUrl.searchParams.get('companyId'));
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
     const privyUserId = request.nextUrl.searchParams.get('privyUserId');
     const ctx = await assertSalesPortalAccess(privyUserId, companyId);
     if (!ctx.ok) {

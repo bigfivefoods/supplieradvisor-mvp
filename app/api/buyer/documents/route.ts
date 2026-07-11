@@ -4,6 +4,7 @@ import {
   assertCompanyMember,
   assertCustomerConnection,
 } from '@/lib/customers/access';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /**
  * GET /api/buyer/documents
@@ -252,6 +253,9 @@ export async function GET(request: NextRequest) {
     if (!Number.isFinite(buyerCompanyId) || buyerCompanyId <= 0) {
       return NextResponse.json({ error: 'buyerCompanyId is required' }, { status: 400 });
     }
+
+    const _gate = await requireCompanyAccess(request, buyerCompanyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
     if (supplierFilter != null && !Number.isFinite(supplierFilter)) {
       return NextResponse.json({ error: 'supplierProfileId must be a number' }, { status: 400 });
     }

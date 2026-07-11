@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { assertAccountingAccess } from '@/lib/accounting/access';
 import { getOrCreateSettings, parseCompanyId } from '@/lib/accounting/server';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,10 +12,9 @@ export async function GET(request: NextRequest) {
     if (!Number.isFinite(companyId)) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
-    if (privyUserId) {
-      const mem = await assertAccountingAccess(privyUserId, companyId, 'view');
-      if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
-    }
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
 
     const settings = await getOrCreateSettings(companyId);
 
@@ -48,10 +48,9 @@ export async function PATCH(request: NextRequest) {
     if (!Number.isFinite(companyId)) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
-    if (privyUserId) {
-      const mem = await assertAccountingAccess(privyUserId, companyId, 'write');
-      if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
-    }
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
 
     await getOrCreateSettings(companyId);
 
@@ -105,10 +104,8 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    if (privyUserId) {
-      const mem = await assertAccountingAccess(privyUserId, companyId, 'write');
-      if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
-    }
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: privyUserId || legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
 
     const supabase = getSupabaseServer();
     const { data, error } = await supabase

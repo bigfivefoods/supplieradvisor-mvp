@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { getCanonicalUserId } from '@/lib/auth/identity';
 import { CONTRACTOR_CONTRACT_VERSION } from '@/lib/contracts/independent-contractor-agreement';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /**
  * POST — accept contractor invite after Privy login + contract agreement

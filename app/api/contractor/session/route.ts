@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { getCanonicalUserId, userIdMatchVariants } from '@/lib/auth/identity';
 import { getContainerOperatorMetrics } from '@/lib/contractor/access';
+import { requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /**
  * POST /api/contractor/session
@@ -13,6 +14,9 @@ import { getContainerOperatorMetrics } from '@/lib/contractor/access';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+
+    const _auth = await requireVerifiedUser(request, { legacyPrivyUserId: body.privyUserId });
+    if (!_auth.ok) return _auth.response;
     const userId = getCanonicalUserId(body.privyUserId);
     const email = body.email ? String(body.email).toLowerCase().trim() : null;
 

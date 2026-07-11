@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { isClosedLike, isOpenLike } from '@/lib/customers/riad';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /**
  * GET ?companyId=&customerId=&type=&status=
@@ -135,6 +136,9 @@ export async function POST(request: NextRequest) {
     if (!Number.isFinite(companyId) || !body.title) {
       return NextResponse.json({ error: 'companyId and title required' }, { status: 400 });
     }
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
     const entryType = body.entry_type || body.riad_type || 'risk';
     const severity = body.severity || body.priority || 'medium';
     const supabase = getSupabaseServer();

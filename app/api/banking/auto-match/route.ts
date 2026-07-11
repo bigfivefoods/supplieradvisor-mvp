@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { assertAccountingAccess } from '@/lib/accounting/access';
 import { parseCompanyId } from '@/lib/accounting/server';
 import { runAutoMatch, seedDefaultMatchRules } from '@/lib/banking/match-engine';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /**
  * POST — score and optionally apply auto-matches for unallocated bank lines
@@ -27,10 +28,9 @@ export async function POST(request: NextRequest) {
     if (!Number.isFinite(companyId)) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
-    if (privyUserId) {
-      const mem = await assertAccountingAccess(privyUserId, companyId, 'write');
-      if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
-    }
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
 
     let seeded = 0;
     if (body.seedRules) {

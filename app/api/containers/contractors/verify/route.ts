@@ -5,6 +5,7 @@ import {
   isValidSaIdNumber,
   parseVerifyNowSaidResult,
 } from '@/lib/verifynow/client';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /**
  * POST — run VerifyNow SA ID check for a contractor

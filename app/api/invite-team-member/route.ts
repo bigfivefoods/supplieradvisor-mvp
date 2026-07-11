@@ -11,6 +11,7 @@ import {
 } from '@/lib/business/permissions';
 import { logActivity } from '@/lib/customers/access';
 import { salesContractorInviteEmailHtml } from '@/lib/sales-contractor/agreement';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /**
  * POST /api/invite-team-member
@@ -35,6 +36,9 @@ export async function POST(request: NextRequest) {
     if (!Number.isFinite(companyId) || companyId <= 0) {
       return NextResponse.json({ error: 'companyId is required' }, { status: 400 });
     }
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
 
     // Owners/admins only
     const mem = await assertCanManageTeam(privyUserId, companyId);

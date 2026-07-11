@@ -5,6 +5,7 @@ import {
   isCustomerInvitesEnabled,
   logActivity,
 } from '@/lib/customers/access';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /**
  * POST /api/customers/invites/unsuspend
@@ -34,6 +35,9 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const companyId = Number(body.companyId);
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
     const customerId = Number(body.customerId);
     const privyUserId = body.privyUserId;
 

@@ -8,6 +8,7 @@ import {
 } from '@/lib/business/types';
 import { computeDetailedCompleteness } from '@/lib/business/completeness';
 import { expandDocumentUrlWrites } from '@/lib/business/documentFields';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /**
  * GET ?companyId=&privyUserId=
@@ -24,6 +25,9 @@ export async function GET(request: NextRequest) {
     if (!Number.isFinite(companyId) || companyId <= 0) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
 
     let membershipWarning: string | undefined;
     if (privyUserId) {

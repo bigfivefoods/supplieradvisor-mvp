@@ -11,6 +11,7 @@ import {
   sandboxTransactions,
   triggerBankLinkSync,
 } from '@/lib/banking';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /**
  * POST — pull latest transactions for a connection or bank account
@@ -27,10 +28,9 @@ export async function POST(request: NextRequest) {
     if (!Number.isFinite(companyId)) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
-    if (privyUserId) {
-      const mem = await assertAccountingAccess(privyUserId, companyId, 'write');
-      if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
-    }
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
 
     const supabase = getSupabaseServer();
     const cfg = banklinkConfig();

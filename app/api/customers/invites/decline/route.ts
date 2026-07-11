@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { getCanonicalUserId, isInviteExpired } from '@/lib/auth/identity';
 import { isCustomerInvitesEnabled, logActivity } from '@/lib/customers/access';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /**
  * POST /api/customers/invites/decline

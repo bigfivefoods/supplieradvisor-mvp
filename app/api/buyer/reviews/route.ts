@@ -10,6 +10,7 @@ import {
   normalizeReviewDimensions,
   PO_REVIEWABLE_STATUSES,
 } from '@/lib/procurement/types';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /**
  * GET /api/buyer/reviews?buyerCompanyId=&privyUserId=
@@ -31,6 +32,9 @@ export async function GET(request: NextRequest) {
     if (!Number.isFinite(buyerCompanyId) || buyerCompanyId <= 0) {
       return NextResponse.json({ error: 'buyerCompanyId is required' }, { status: 400 });
     }
+
+    const _gate = await requireCompanyAccess(request, buyerCompanyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
 
     const member = await assertCompanyMember(privyUserId, buyerCompanyId);
     if (!member.ok) {

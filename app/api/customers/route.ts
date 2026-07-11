@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { assertCustomersAccess } from '@/lib/customers/access';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 export async function GET(request: NextRequest) {
   try {
@@ -68,6 +69,9 @@ export async function POST(request: NextRequest) {
     if (!Number.isFinite(companyId) || !body.trading_name) {
       return NextResponse.json({ error: 'companyId and trading_name required' }, { status: 400 });
     }
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
     if (body.privyUserId) {
       const mem = await assertCustomersAccess(body.privyUserId, companyId, 'write');
       if (!mem.ok) {

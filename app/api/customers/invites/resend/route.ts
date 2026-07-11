@@ -14,6 +14,7 @@ import {
   buildCustomerInviteLink,
   customerInviteEmailHtml,
 } from '@/lib/invites/email';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /**
  * POST /api/customers/invites/resend
@@ -40,6 +41,9 @@ export async function POST(request: NextRequest) {
     if (!Number.isFinite(companyId)) {
       return NextResponse.json({ error: 'companyId is required' }, { status: 400 });
     }
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
 
     const member = await assertCustomersAccess(privyUserId, companyId, 'write');
     if (!member.ok) {

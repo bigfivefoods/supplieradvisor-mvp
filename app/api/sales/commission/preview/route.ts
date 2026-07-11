@@ -7,6 +7,7 @@ import {
   calculateCommission,
   ensureAscendingCommissionTiers,
 } from '@/lib/sales-contractor/commission';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /**
  * GET ?companyId=&privyUserId=&amount=
@@ -16,6 +17,9 @@ export async function GET(request: NextRequest) {
   try {
     const sp = request.nextUrl.searchParams;
     const companyId = Number(sp.get('companyId'));
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
     const privyUserId = sp.get('privyUserId');
     const amount = Number(sp.get('amount') || 0);
 

@@ -3,6 +3,7 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { getCanonicalUserId } from '@/lib/auth/identity';
 import { assertContractorContainerAccess } from '@/lib/contractor/access';
 import { computeRpn } from '@/lib/containers/riad';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /**
  * GET ?companyId=&containerId=&type=&status=&privyUserId=&email=
@@ -166,6 +167,9 @@ export async function POST(request: NextRequest) {
     if (!Number.isFinite(companyId)) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
     if (!body.title || !String(body.title).trim()) {
       return NextResponse.json({ error: 'title is required' }, { status: 400 });
     }

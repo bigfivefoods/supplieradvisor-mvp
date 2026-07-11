@@ -7,6 +7,7 @@ import { WagmiProvider } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RainbowKitProvider, getDefaultConfig } from '@rainbow-me/rainbowkit';
 import { base, baseSepolia, sepolia } from 'wagmi/chains';
+import ApiAuthBridge from '@/components/auth/ApiAuthBridge';
 import '@rainbow-me/rainbowkit/styles.css';
 
 const walletConnectProjectId =
@@ -76,7 +77,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
               Do not use overflow/transform/z-0 wrappers that trap position:fixed
               (landing header must stay viewport-fixed). Isolation is fine.
             */}
-            <div className="min-h-dvh pointer-events-auto isolate">{children}</div>
+            <ApiAuthBridge>
+              <div className="min-h-dvh pointer-events-auto isolate">{children}</div>
+            </ApiAuthBridge>
             <Toaster position="top-center" richColors closeButton expand={false} />
           </RainbowKitProvider>
         </QueryClientProvider>

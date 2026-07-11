@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { getCanonicalUserId } from '@/lib/auth/identity';
 import { assertContractorContainerAccess } from '@/lib/contractor/access';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /**
  * POST stock count — records count + optionally adjusts inventory to counted qty

@@ -10,6 +10,7 @@ import {
   upsertNetworkConnection,
   userOwnsBothCompanies,
 } from '@/lib/connections/sync';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /**
  * POST — connection request / accept / connect between platform companies.
@@ -31,6 +32,9 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const companyId = Number(body.companyId);
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
     const targetProfileId = Number(body.targetProfileId);
     let mode = String(body.mode || 'request').toLowerCase();
     const message =

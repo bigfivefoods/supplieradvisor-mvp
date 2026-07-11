@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { hashMovement } from '@/lib/inventory/hash';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /**
  * Public driver handoff API — no dashboard login required.
@@ -205,6 +206,9 @@ export async function POST(request: NextRequest) {
     }
 
     const companyId = Number(order.profile_id);
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
     const now = new Date().toISOString();
     const driverName = body.driverName || body.driver_name || order.driver_name || null;
     const driverPhone = body.driverPhone || body.driver_phone || order.driver_phone || null;

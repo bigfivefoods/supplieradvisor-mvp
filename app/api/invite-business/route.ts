@@ -4,6 +4,7 @@ import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import { getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
 import { buildBusinessInviteLink, businessInviteEmailHtml } from '@/lib/invites/email';
 import { INVITE_EXPIRY_DAYS } from '@/lib/auth/identity';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /**
  * POST /api/invite-business

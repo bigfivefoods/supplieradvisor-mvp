@@ -6,6 +6,7 @@ import {
   formatCo2e,
   MODE_FACTORS_KG_PER_TKM,
 } from '@/lib/sustainability/carbon';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /**
  * GET ?companyId=&privyUserId=
@@ -19,12 +20,9 @@ export async function GET(request: NextRequest) {
     if (!Number.isFinite(companyId) || companyId <= 0) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
-    if (privyUserId) {
-      const mem = await assertCompanyMember(privyUserId, companyId);
-      if (!mem.ok) {
-        return NextResponse.json({ error: mem.error }, { status: mem.status });
-      }
-    }
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
 
     const supabase = getSupabaseServer();
     const { data: ships, error } = await supabase

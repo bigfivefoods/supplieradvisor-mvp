@@ -7,6 +7,7 @@ import {
   netRequirements,
   type DemandInput,
 } from '@/lib/manufacturing/mrp';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 export async function GET(request: NextRequest) {
   try {
@@ -97,6 +98,9 @@ export async function POST(request: NextRequest) {
     if (!Number.isFinite(companyId)) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
 
     const horizonDays = Number(body.horizon_days ?? 90);
     const supabase = getSupabaseServer();

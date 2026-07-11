@@ -7,6 +7,7 @@ import {
   isValidSaIdNumber,
   parseVerifyNowCipcResult,
 } from '@/lib/verifynow/client';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /**
  * POST — Verify company via VerifyNow CIPC after R69 Paystack payment.
@@ -26,6 +27,9 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const companyId = Number(body.companyId);
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
     const mem = await assertCompanyMember(body.privyUserId, companyId);
     if (!mem.ok) {
       return NextResponse.json({ error: mem.error }, { status: mem.status });

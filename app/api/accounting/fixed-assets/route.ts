@@ -3,6 +3,7 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { assertAccountingAccess } from '@/lib/accounting/access';
 import { parseCompanyId, round2 } from '@/lib/accounting/server';
 import { computeBookValue, monthlyDepreciation } from '@/lib/accounting/types';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,10 +13,9 @@ export async function GET(request: NextRequest) {
     if (!Number.isFinite(companyId)) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
-    if (privyUserId) {
-      const mem = await assertAccountingAccess(privyUserId, companyId, 'view');
-      if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
-    }
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
 
     const supabase = getSupabaseServer();
     const { data, error } = await supabase
@@ -58,10 +58,8 @@ export async function POST(request: NextRequest) {
     if (!Number.isFinite(companyId) || !body.name) {
       return NextResponse.json({ error: 'companyId and name required' }, { status: 400 });
     }
-    if (privyUserId) {
-      const mem = await assertAccountingAccess(privyUserId, companyId, 'write');
-      if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
-    }
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: privyUserId || legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
 
     // action: depreciate — post one period of depreciation
     if (body.action === 'depreciate') {
@@ -162,10 +160,8 @@ export async function PATCH(request: NextRequest) {
     if (!Number.isFinite(companyId) || !Number.isFinite(id)) {
       return NextResponse.json({ error: 'companyId and id required' }, { status: 400 });
     }
-    if (privyUserId) {
-      const mem = await assertAccountingAccess(privyUserId, companyId, 'write');
-      if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
-    }
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: privyUserId || legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
 
     const allowed = [
       'asset_code',

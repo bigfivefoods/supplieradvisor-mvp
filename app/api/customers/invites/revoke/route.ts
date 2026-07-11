@@ -5,6 +5,7 @@ import {
   isCustomerInvitesEnabled,
   logActivity,
 } from '@/lib/customers/access';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /** Statuses that may be revoked by the seller. Stuck `claiming` is for the expiry/reap job. */
 const REVOCABLE_STATUSES = new Set(['pending', 'expired']);
@@ -24,6 +25,9 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const companyId = Number(body.companyId);
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
     const invitationId = Number(body.invitationId);
     const privyUserId = body.privyUserId;
 

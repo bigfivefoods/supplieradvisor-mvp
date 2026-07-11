@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { assertCompanyMember, assertSupplierConnection } from '@/lib/suppliers/access';
 import { logActivity } from '@/lib/customers/access';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /**
  * GET ?companyId=&supplierId=&sharedOnly=
@@ -53,6 +54,9 @@ export async function POST(request: NextRequest) {
     if (!Number.isFinite(companyId) || !body.title) {
       return NextResponse.json({ error: 'companyId and title required' }, { status: 400 });
     }
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
     const mem = await assertCompanyMember(body.privyUserId, companyId);
     if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
 

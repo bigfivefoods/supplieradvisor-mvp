@@ -3,6 +3,7 @@ import { assertCompanyMember } from '@/lib/customers/access';
 import { lookupListPrice } from '@/lib/pricing/access';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { isAgreementEffective } from '@/lib/pricing/types';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /**
  * GET — resolve list prices for PO / catalogue import
@@ -30,12 +31,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
 
-    if (privyUserId) {
-      const mem = await assertCompanyMember(privyUserId, companyId);
-      if (!mem.ok) {
-        return NextResponse.json({ error: mem.error }, { status: mem.status });
-      }
-    }
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
 
     // Catalogue mode — full price list(s) where we are the buyer
     if (catalogue) {

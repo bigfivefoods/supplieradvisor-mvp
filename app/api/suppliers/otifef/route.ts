@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { computeBuyerOtifef, persistScorecards } from '@/lib/suppliers/otifef';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /**
  * GET ?companyId=&from=&to=&persist=1

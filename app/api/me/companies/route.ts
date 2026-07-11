@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import { getCanonicalUserId, userIdMatchVariants } from '@/lib/auth/identity';
+import { requireVerifiedUser, legacyPrivyFrom } from '@/lib/auth/api-auth';
 
 /**
  * POST /api/me/companies
@@ -13,6 +14,9 @@ import { getCanonicalUserId, userIdMatchVariants } from '@/lib/auth/identity';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+
+    const _auth = await requireVerifiedUser(request, { legacyPrivyUserId: body.privyUserId });
+    if (!_auth.ok) return _auth.response;
     const userId = getCanonicalUserId(body.privyUserId);
     const email = body.email ? String(body.email).toLowerCase().trim() : null;
 

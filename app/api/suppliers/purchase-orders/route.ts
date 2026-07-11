@@ -6,6 +6,7 @@ import {
   isSrmBuyerTransitionAllowed,
   normalizePoItems,
 } from '@/lib/procurement/types';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /**
  * GET ?companyId=&privyUserId=&status=
@@ -20,6 +21,9 @@ export async function GET(request: NextRequest) {
     if (!Number.isFinite(companyId) || companyId <= 0) {
       return NextResponse.json({ error: 'companyId is required' }, { status: 400 });
     }
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
     const member = await assertCompanyMember(privyUserId, companyId);
     if (!member.ok) {
       return NextResponse.json({ error: member.error }, { status: member.status });
@@ -110,6 +114,9 @@ export async function POST(request: NextRequest) {
     if (!Number.isFinite(companyId) || companyId <= 0) {
       return NextResponse.json({ error: 'companyId is required' }, { status: 400 });
     }
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
     const member = await assertCompanyMember(privyUserId, companyId);
     if (!member.ok) {
       return NextResponse.json({ error: member.error }, { status: member.status });

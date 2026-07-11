@@ -4,6 +4,7 @@ import { assertCompanyMember, logActivity } from '@/lib/customers/access';
 import { isSupplierPoEscrowEnabled } from '@/lib/procurement/types';
 import { verifyEscrowOrWarn } from '@/lib/contracts/verifyEscrow';
 import type { EscrowLinkKind as Kind } from '@/lib/contracts/escrow';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /**
  * POST /api/suppliers/purchase-orders/[id]/onchain
@@ -52,6 +53,9 @@ export async function POST(request: NextRequest, ctx: Ctx) {
     if (!Number.isFinite(companyId) || companyId <= 0) {
       return NextResponse.json({ error: 'companyId is required' }, { status: 400 });
     }
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
     if (!TX_HASH_RE.test(onchainTx)) {
       return NextResponse.json(
         { error: 'onchain_tx must be a 0x-prefixed 32-byte hex transaction hash' },

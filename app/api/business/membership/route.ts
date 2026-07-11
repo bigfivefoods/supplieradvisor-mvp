@@ -11,6 +11,7 @@ import {
   canView,
   type PermissionResource,
 } from '@/lib/business/permissions';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /**
  * GET ?companyId=&privyUserId=
@@ -19,6 +20,9 @@ import {
 export async function GET(request: NextRequest) {
   try {
     const companyId = Number(request.nextUrl.searchParams.get('companyId'));
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
     const privyUserId = request.nextUrl.searchParams.get('privyUserId');
     const mem = await getCompanyMembership(privyUserId, companyId);
     if (!mem.ok) {

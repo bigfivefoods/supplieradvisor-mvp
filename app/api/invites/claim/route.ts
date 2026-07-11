@@ -8,6 +8,7 @@ import {
 import { isCustomerInvitesEnabled, logActivity } from '@/lib/customers/access';
 import { upsertSupplierConnection } from '@/lib/suppliers/access';
 import { syncBooksOnAccept } from '@/lib/connections/sync';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /** Stuck claiming lease — only same-user restore after this age (matches design reaper window). */
 const CLAIMING_STALE_MS = 5 * 60 * 1000;

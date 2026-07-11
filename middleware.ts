@@ -1,21 +1,70 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { isPublicApiPath } from '@/lib/auth/public-paths';
 
 /**
- * Edge middleware.
+ * Edge middleware — security headers + coarse API gate.
  *
- * Auth is enforced client-side via Privy (see components/AuthGate.tsx) because
- * Privy sessions are primarily browser-based unless cookie auth is fully configured.
- * This middleware is reserved for security headers and future server-side checks.
+ * Full JWT verification runs in Node route handlers (lib/auth/verify-privy.ts)
+ * because Privy JWKS verification is more reliable in the Node runtime.
+ * Here we only reject clearly unauthenticated API calls in production when
+ * AUTH_STRICT is not disabled, so anonymous scanners get 401 early.
+ *
+ * Public prefixes (health, fx, webhooks, public listings) are allowed through.
  */
-export function middleware(_request: NextRequest) {
+export function middleware(request: NextRequest) {
   const response = NextResponse.next();
   response.headers.set('X-Frame-Options', 'DENY');
   response.headers.set('X-Content-Type-Options', 'nosniff');
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  response.headers.set(
+    'Permissions-Policy',
+    'camera=(), microphone=(), geolocation=(self)'
+  );
+
+  const { pathname } = request.nextUrl;
+
+  // Coarse API gate: production requires some credential signal
+  if (pathname.startsWith('/api/')) {
+    if (isPublicApiPath(pathname)) {
+      return response;
+    }
+    // Cron / webhooks use their own secrets
+    if (
+      pathname.includes('/cron') ||
+      pathname.includes('/webhooks/') ||
+      request.headers.get('x-cron-secret')
+    ) {
+      return response;
+    }
+
+    const strictEnv = process.env.AUTH_STRICT;
+    const strict =
+      strictEnv === undefined || strictEnv === ''
+        ? process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production'
+        : !['0', 'false', 'no', 'off'].includes(String(strictEnv).toLowerCase());
+
+    if (strict) {
+      const auth = request.headers.get('authorization') || '';
+      const cookie = request.headers.get('cookie') || '';
+      const hasBearer = /^Bearer\s+\S{20,}/i.test(auth);
+      const hasPrivyCookie = /(?:^|;\s*)privy-token=/.test(cookie);
+      if (!hasBearer && !hasPrivyCookie) {
+        return NextResponse.json(
+          {
+            error:
+              'Authentication required. Send Authorization: Bearer <Privy access token>.',
+            code: 'UNAUTHORIZED',
+          },
+          { status: 401 }
+        );
+      }
+    }
+  }
+
   return response;
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/api/:path*'],
+  matcher: ['/dashboard/:path*', '/api/:path*', '/sales/:path*', '/contractor/:path*'],
 };

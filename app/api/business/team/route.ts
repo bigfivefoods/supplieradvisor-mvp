@@ -3,6 +3,7 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { logActivity } from '@/lib/customers/access';
 import { assertCanManageTeam, getCompanyMembership } from '@/lib/business/access';
 import { canView, normalizeTeamRole } from '@/lib/business/permissions';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /**
  * GET ?companyId=&privyUserId=
@@ -14,6 +15,9 @@ export async function GET(request: NextRequest) {
     if (!Number.isFinite(companyId)) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
     if (privyUserId) {
       const mem = await getCompanyMembership(privyUserId, companyId);
       if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });

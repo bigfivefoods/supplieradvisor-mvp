@@ -16,6 +16,7 @@ import {
 } from '@/lib/sales-contractor/subscription';
 import { logActivity } from '@/lib/customers/access';
 import { DEFAULT_COMMISSION_TIERS } from '@/lib/sales-contractor/commission';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /**
  * GET ?companyId=&privyUserId=
@@ -24,6 +25,9 @@ import { DEFAULT_COMMISSION_TIERS } from '@/lib/sales-contractor/commission';
 export async function GET(request: NextRequest) {
   try {
     const companyId = Number(request.nextUrl.searchParams.get('companyId'));
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
     const privyUserId = request.nextUrl.searchParams.get('privyUserId');
     const ctx = await assertSalesPortalAccess(privyUserId, companyId);
     if (!ctx.ok) {

@@ -5,6 +5,7 @@ import {
   isPoReviewsEnabled,
   logActivity,
 } from '@/lib/customers/access';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /**
  * GET /api/customers/reviews?companyId=&privyUserId=&includeHidden=
@@ -29,6 +30,9 @@ export async function GET(request: NextRequest) {
     if (!Number.isFinite(companyId) || companyId <= 0) {
       return NextResponse.json({ error: 'companyId is required' }, { status: 400 });
     }
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
 
     const member = await assertCustomersAccess(privyUserId, companyId, 'view');
     if (!member.ok) {
@@ -111,6 +115,9 @@ export async function PATCH(request: NextRequest) {
     if (!Number.isFinite(companyId) || companyId <= 0) {
       return NextResponse.json({ error: 'companyId is required' }, { status: 400 });
     }
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
     if (!Number.isFinite(id) || id <= 0) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 });
     }

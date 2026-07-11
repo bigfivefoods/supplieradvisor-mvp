@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { anchorProductOnChain, getInventoryPassportAddress, getInventoryChain } from '@/lib/inventory/onchain';
 import { hashProductIdentity } from '@/lib/inventory/hash';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /**
  * POST { productId, companyId? } — mint/anchor product identity on InventoryPassport (or simulated).

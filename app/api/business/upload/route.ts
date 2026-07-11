@@ -8,6 +8,7 @@ import {
   dbColumnsForAppField,
   APP_DOCUMENT_FIELDS,
 } from '@/lib/business/documentFields';
+import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /**
  * POST multipart — upload a company document via service-role Supabase storage,
@@ -39,6 +40,9 @@ export async function POST(request: NextRequest) {
     if (!Number.isFinite(companyId) || companyId <= 0) {
       return NextResponse.json({ error: 'companyId is required' }, { status: 400 });
     }
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
 
     const mem = await assertCompanyMember(privyUserId, companyId);
     if (!mem.ok) {
