@@ -4,13 +4,20 @@ import { Providers } from '@/components/Providers';
 
 export const metadata: Metadata = {
   title: {
-    default: 'SupplierAdvisor®',
+    default: 'SupplierAdvisor® — Supply Chain Operating System',
     template: '%s · SupplierAdvisor®',
   },
   description:
-    'Verified, transparent supply-chain platform for B2B, B2G, and B2C — blockchain verification, AI insights, and ethical transparency.',
+    'The verified supply-chain operating system for B2B, B2G & B2C — network trade, inventory, manufacturing, distribution, accounting, and AI intelligence. Light, precise, on-chain ready.',
   icons: {
     icon: '/sa-logo.png',
+  },
+  openGraph: {
+    title: 'SupplierAdvisor® — Supply Chain Operating System',
+    description:
+      'Verified trade, inventory, manufacturing, distribution, and intelligence in one company workspace.',
+    type: 'website',
+    url: 'https://www.supplieradvisor.com',
   },
 };
 

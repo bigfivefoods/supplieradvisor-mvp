@@ -1,0 +1,380 @@
+'use client';
+
+import type { LucideIcon } from 'lucide-react';
+
+/** Browser-frame product mockups for landing — light Tesla-style product UI. */
+
+function Frame({
+  title,
+  children,
+  className = '',
+}: {
+  title: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`rounded-[1.25rem] sm:rounded-[1.75rem] border border-slate-200/90 bg-white shadow-[0_25px_60px_-20px_rgba(15,23,42,0.18)] overflow-hidden ${className}`}
+    >
+      <div className="flex items-center gap-2 px-3 sm:px-4 py-2.5 sm:py-3 border-b border-slate-100 bg-slate-50/90">
+        <div className="flex gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-rose-300" />
+          <span className="w-2.5 h-2.5 rounded-full bg-amber-300" />
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-300" />
+        </div>
+        <div className="flex-1 mx-2 sm:mx-4">
+          <div className="h-6 sm:h-7 rounded-full bg-white border border-slate-200 flex items-center px-3 text-[10px] sm:text-[11px] font-medium text-slate-400 truncate">
+            app.supplieradvisor.com/{title}
+          </div>
+        </div>
+      </div>
+      <div className="p-3 sm:p-5 bg-gradient-to-br from-[#f8fafc] via-white to-sky-50/40 min-h-[220px] sm:min-h-[280px]">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function Telemetry({
+  label,
+  value,
+  tone = 'cyan',
+}: {
+  label: string;
+  value: string;
+  tone?: 'cyan' | 'emerald' | 'amber' | 'violet';
+}) {
+  const tones = {
+    cyan: 'from-cyan-50 to-white border-cyan-100',
+    emerald: 'from-emerald-50 to-white border-emerald-100',
+    amber: 'from-amber-50 to-white border-amber-100',
+    violet: 'from-violet-50 to-white border-violet-100',
+  };
+  return (
+    <div className={`rounded-xl sm:rounded-2xl border bg-gradient-to-br ${tones[tone]} px-2.5 sm:px-3 py-2 sm:py-2.5`}>
+      <div className="text-[8px] sm:text-[9px] font-black uppercase tracking-wider text-neutral-400">
+        {label}
+      </div>
+      <div className="text-base sm:text-xl font-black tabular-nums text-slate-900 tracking-tight">
+        {value}
+      </div>
+    </div>
+  );
+}
+
+export function OpsMock() {
+  return (
+    <Frame title="dashboard/operations">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div>
+          <div className="text-[9px] font-bold uppercase tracking-widest text-[#00b4d8]">
+            Operations · Command
+          </div>
+          <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
+            One chain. Zero blind spots.
+          </div>
+        </div>
+        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[9px] font-black uppercase text-emerald-700">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live
+        </span>
+      </div>
+      <div className="grid grid-cols-4 gap-1.5 sm:gap-2 mb-3">
+        <Telemetry label="Buy POs" value="12" tone="violet" />
+        <Telemetry label="Inbound" value="4" tone="cyan" />
+        <Telemetry label="WIP" value="7" tone="emerald" />
+        <Telemetry label="Ship" value="9" tone="amber" />
+      </div>
+      <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+        {['Procure', 'Warehouse', 'Fulfill'].map((t, i) => (
+          <div
+            key={t}
+            className="rounded-xl border border-slate-100 bg-white p-2 sm:p-3 shadow-sm"
+          >
+            <div className="text-[9px] font-mono text-neutral-400 mb-1">0{i + 1}</div>
+            <div className="text-[11px] sm:text-xs font-bold text-slate-800">{t}</div>
+            <div className="mt-2 h-1 rounded-full bg-slate-100 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-[#00b4d8]"
+                style={{ width: `${55 + i * 15}%` }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </Frame>
+  );
+}
+
+export function CrmMock() {
+  return (
+    <Frame title="dashboard/customers">
+      <div className="text-[9px] font-bold uppercase tracking-widest text-[#00b4d8] mb-1">
+        Customers · Command
+      </div>
+      <div className="text-sm sm:text-base font-black text-slate-900 mb-3">
+        Customers you can grow.
+      </div>
+      <div className="grid grid-cols-3 gap-1.5 sm:gap-2 mb-3">
+        <Telemetry label="Pipeline" value="R 2.4M" tone="emerald" />
+        <Telemetry label="Leads" value="18" tone="amber" />
+        <Telemetry label="Won" value="R 890k" tone="cyan" />
+      </div>
+      <div className="rounded-xl border border-slate-100 bg-white p-3 space-y-2">
+        {['Qualified', 'Proposal', 'Negotiation', 'Closed won'].map((stage, i) => (
+          <div key={stage} className="flex items-center gap-2">
+            <div className="text-[9px] font-bold text-slate-400 w-20 shrink-0">{stage}</div>
+            <div className="flex-1 h-2 rounded-full bg-slate-100 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-[#00b4d8] to-violet-400"
+                style={{ width: `${85 - i * 18}%` }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </Frame>
+  );
+}
+
+export function SrmMock() {
+  return (
+    <Frame title="dashboard/suppliers">
+      <div className="text-[9px] font-bold uppercase tracking-widest text-[#00b4d8] mb-1">
+        Suppliers · Command
+      </div>
+      <div className="text-sm sm:text-base font-black text-slate-900 mb-3">OTIFEF portfolio</div>
+      <div className="grid grid-cols-3 gap-1.5 sm:gap-2 mb-3">
+        <Telemetry label="OTIFEF" value="96%" tone="emerald" />
+        <Telemetry label="Connected" value="28" tone="cyan" />
+        <Telemetry label="On time" value="98%" tone="violet" />
+      </div>
+      <div className="rounded-xl border border-slate-100 bg-white divide-y divide-slate-50">
+        {[
+          { n: 'Cape Harvest Co-op', s: '99.2%' },
+          { n: 'Atlas Logistics SA', s: '97.1%' },
+          { n: 'Kalahari Inputs', s: '95.8%' },
+        ].map((r, i) => (
+          <div key={r.n} className="flex items-center justify-between px-3 py-2 text-xs">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-[9px] font-black text-neutral-300 w-4">
+                {String(i + 1).padStart(2, '0')}
+              </span>
+              <span className="font-semibold text-slate-800 truncate">{r.n}</span>
+            </div>
+            <span className="font-black text-[#00b4d8] tabular-nums">{r.s}</span>
+          </div>
+        ))}
+      </div>
+    </Frame>
+  );
+}
+
+export function InventoryMock() {
+  return (
+    <Frame title="dashboard/inventory">
+      <div className="text-[9px] font-bold uppercase tracking-widest text-[#00b4d8] mb-1">
+        Inventory · Command
+      </div>
+      <div className="text-sm sm:text-base font-black text-slate-900 mb-3">
+        Every unit has a home.
+      </div>
+      <div className="grid grid-cols-2 gap-1.5 sm:gap-2 mb-3">
+        <Telemetry label="On hand" value="48.2k" tone="cyan" />
+        <Telemetry label="SKUs" value="312" tone="violet" />
+        <Telemetry label="Sites" value="6" tone="emerald" />
+        <Telemetry label="Low stock" value="3" tone="amber" />
+      </div>
+      <div className="rounded-xl border border-slate-100 bg-white p-3">
+        <div className="flex justify-between text-[10px] font-bold text-slate-500 mb-2">
+          <span>Live transfers</span>
+          <span className="text-emerald-600">2 en route</span>
+        </div>
+        <div className="h-16 sm:h-20 rounded-lg bg-gradient-to-br from-sky-50 to-cyan-50 border border-cyan-100 relative overflow-hidden">
+          <div className="absolute inset-0 opacity-40 bg-[radial-gradient(#00b4d8_1px,transparent_1px)] bg-[length:10px_10px]" />
+          <div className="absolute left-[15%] top-[40%] w-2 h-2 rounded-full bg-[#00b4d8] shadow" />
+          <div className="absolute left-[45%] top-[30%] w-2 h-2 rounded-full bg-emerald-500 shadow animate-pulse" />
+          <div className="absolute right-[18%] top-[55%] w-2 h-2 rounded-full bg-amber-500 shadow" />
+          <svg className="absolute inset-0 w-full h-full" aria-hidden>
+            <path
+              d="M40 40 Q 90 20 140 35 T 240 50"
+              fill="none"
+              stroke="#00b4d8"
+              strokeWidth="1.5"
+              strokeDasharray="4 3"
+              opacity="0.6"
+            />
+          </svg>
+        </div>
+      </div>
+    </Frame>
+  );
+}
+
+export function ManufacturingMock() {
+  return (
+    <Frame title="dashboard/manufacturing">
+      <div className="text-[9px] font-bold uppercase tracking-widest text-[#00b4d8] mb-1">
+        Manufacturing · Command
+      </div>
+      <div className="text-sm sm:text-base font-black text-slate-900 mb-3">
+        Factory physics, not spreadsheets.
+      </div>
+      <div className="grid grid-cols-3 gap-1.5 sm:gap-2 mb-3">
+        <Telemetry label="OEE" value="87%" tone="emerald" />
+        <Telemetry label="WIP" value="14" tone="cyan" />
+        <Telemetry label="Yield" value="99%" tone="violet" />
+      </div>
+      <div className="space-y-2">
+        {[
+          { l: 'Availability', v: 92, c: 'bg-emerald-500' },
+          { l: 'Performance', v: 88, c: 'bg-[#00b4d8]' },
+          { l: 'Quality', v: 97, c: 'bg-violet-500' },
+        ].map((b) => (
+          <div key={b.l} className="rounded-xl border border-slate-100 bg-white p-2.5">
+            <div className="flex justify-between text-[10px] font-bold mb-1.5">
+              <span className="text-slate-500">{b.l}</span>
+              <span className="text-slate-800 tabular-nums">{b.v}%</span>
+            </div>
+            <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+              <div className={`h-full rounded-full ${b.c}`} style={{ width: `${b.v}%` }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </Frame>
+  );
+}
+
+export function DistributionMock() {
+  return (
+    <Frame title="dashboard/distribution">
+      <div className="text-[9px] font-bold uppercase tracking-widest text-[#00b4d8] mb-1">
+        Distribution · Command
+      </div>
+      <div className="text-sm sm:text-base font-black text-slate-900 mb-3">
+        Every mile. Every handoff.
+      </div>
+      <div className="grid grid-cols-3 gap-1.5 sm:gap-2 mb-3">
+        <Telemetry label="In motion" value="18" tone="emerald" />
+        <Telemetry label="OTIF" value="97%" tone="cyan" />
+        <Telemetry label="Exceptions" value="1" tone="amber" />
+      </div>
+      <div className="rounded-xl border border-slate-100 bg-white p-3 space-y-2">
+        {[
+          { id: 'SHP-1042', mode: 'Ocean', st: 'In transit', t: 'emerald' },
+          { id: 'SHP-1048', mode: 'Road', st: 'At dock', t: 'cyan' },
+          { id: 'SHP-1051', mode: 'Air', st: 'Planned', t: 'violet' },
+        ].map((s) => (
+          <div
+            key={s.id}
+            className="flex items-center justify-between text-[11px] rounded-lg border border-slate-50 px-2.5 py-2"
+          >
+            <span className="font-mono font-bold text-slate-800">{s.id}</span>
+            <span className="text-slate-500">{s.mode}</span>
+            <span
+              className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
+                s.t === 'emerald'
+                  ? 'bg-emerald-50 text-emerald-700'
+                  : s.t === 'cyan'
+                    ? 'bg-sky-50 text-sky-700'
+                    : 'bg-violet-50 text-violet-700'
+              }`}
+            >
+              {s.st}
+            </span>
+          </div>
+        ))}
+      </div>
+    </Frame>
+  );
+}
+
+export function IntelligenceMock() {
+  return (
+    <Frame title="dashboard/intelligence">
+      <div className="text-[9px] font-bold uppercase tracking-widest text-[#00b4d8] mb-1">
+        Intelligence · Command
+      </div>
+      <div className="text-sm sm:text-base font-black text-slate-900 mb-3">Signal over noise.</div>
+      <div className="grid grid-cols-5 gap-1 sm:gap-1.5 mb-3">
+        {[
+          { l: 'Health', v: '86' },
+          { l: 'Net', v: '91' },
+          { l: 'Supply', v: '88' },
+          { l: 'Demand', v: '79' },
+          { l: 'Ops', v: '84' },
+        ].map((h) => (
+          <div
+            key={h.l}
+            className="rounded-xl border border-cyan-100 bg-gradient-to-b from-white to-sky-50 px-1 py-2 text-center"
+          >
+            <div className="text-[8px] font-bold uppercase text-neutral-400">{h.l}</div>
+            <div className="text-sm sm:text-lg font-black text-slate-900 tabular-nums">{h.v}</div>
+          </div>
+        ))}
+      </div>
+      <div className="rounded-xl border border-slate-100 bg-white p-3 space-y-2">
+        {[
+          { s: 'critical', t: 'AP overdue rising on 2 bills' },
+          { s: 'warning', t: 'Supplier concentration 42% top 3' },
+          { s: 'positive', t: 'OTIFEF improved +3.1 pts MTD' },
+        ].map((i) => (
+          <div key={i.t} className="flex items-start gap-2 text-[11px]">
+            <span
+              className={`mt-1 w-1.5 h-1.5 rounded-full shrink-0 ${
+                i.s === 'critical'
+                  ? 'bg-red-500'
+                  : i.s === 'warning'
+                    ? 'bg-amber-500'
+                    : 'bg-emerald-500'
+              }`}
+            />
+            <span className="font-medium text-slate-700">{i.t}</span>
+          </div>
+        ))}
+      </div>
+    </Frame>
+  );
+}
+
+export function AccountingMock() {
+  return (
+    <Frame title="dashboard/accounting">
+      <div className="text-[9px] font-bold uppercase tracking-widest text-[#00b4d8] mb-1">
+        Accounting · Command
+      </div>
+      <div className="text-sm sm:text-base font-black text-slate-900 mb-3">One ledger of truth.</div>
+      <div className="grid grid-cols-2 gap-1.5 sm:gap-2 mb-3">
+        <Telemetry label="AR open" value="R 1.2M" tone="cyan" />
+        <Telemetry label="AP open" value="R 640k" tone="amber" />
+        <Telemetry label="Bank" value="R 3.1M" tone="emerald" />
+        <Telemetry label="Posted" value="148" tone="violet" />
+      </div>
+      <div className="rounded-xl border border-slate-100 bg-white p-3">
+        <div className="text-[10px] font-bold text-slate-500 mb-2">P&L snapshot</div>
+        <div className="flex items-end gap-1 h-16 sm:h-20">
+          {[40, 55, 48, 70, 62, 78, 85].map((h, i) => (
+            <div
+              key={i}
+              className="flex-1 rounded-t-md bg-gradient-to-t from-[#0077b6] to-[#00b4d8] opacity-80"
+              style={{ height: `${h}%` }}
+            />
+          ))}
+        </div>
+      </div>
+    </Frame>
+  );
+}
+
+export type ModuleDef = {
+  id: string;
+  code: string;
+  title: string;
+  tagline: string;
+  body: string;
+  bullets: string[];
+  Mock: React.ComponentType;
+  icon: LucideIcon;
+  accent: string;
+};
