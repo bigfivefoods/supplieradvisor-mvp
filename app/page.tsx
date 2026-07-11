@@ -702,39 +702,141 @@ export default function LandingPage() {
       </section>
 
       {/* ─── FINAL CTA ─── */}
-      <section className="relative overflow-x-clip px-4 py-14 sm:px-6 sm:py-20 md:py-28 lg:px-10">
+      <section className="relative overflow-x-clip px-4 py-12 sm:px-6 sm:py-16 md:py-20 lg:px-10 lg:py-24">
+        {/* Soft light wash — keeps brand bright, not a heavy dark block */}
         <div
-          className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-900 to-[#023e5a]"
+          className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#f8fafc] via-sky-50/80 to-cyan-50/60"
           aria-hidden
         />
         <div
-          className="absolute inset-0 bg-[radial-gradient(#ffffff_0.7px,transparent_0.7px)] bg-[length:16px_16px] opacity-[0.07]"
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(#94a3b8_0.55px,transparent_0.55px)] bg-[length:18px_18px] opacity-[0.22]"
           aria-hidden
         />
-        <div className="relative mx-auto max-w-3xl text-center text-white">
-          <h2 className="mb-4 text-3xl font-black tracking-tight sm:mb-5 sm:text-4xl md:text-5xl lg:text-6xl lg:tracking-[-0.04em]">
-            The future of supply chains is here.
-          </h2>
-          <p className="mb-8 text-base leading-relaxed text-white/75 sm:mb-10 sm:text-lg md:text-xl">
-            Join the movement that makes transparency the standard and ethics the competitive
-            advantage.
-          </p>
-          <Link
-            href="/onboarding?type=business"
-            className="inline-flex w-full max-w-md items-center justify-center gap-2 rounded-full bg-[#00b4d8] px-6 py-4 text-base font-semibold text-white shadow-lg shadow-cyan-500/20 transition-all touch-manipulation hover:bg-[#0099b8] sm:w-auto sm:px-12 sm:py-5 sm:text-lg"
-          >
-            Get started in under 5 minutes <ArrowRight className="h-5 w-5 shrink-0" />
-          </Link>
-          <p className="mt-6 text-xs text-white/45 sm:text-sm">
-            Free company workspace ·{' '}
-            <Link href="/terms" className="underline hover:text-white">
-              Terms
-            </Link>{' '}
-            ·{' '}
-            <Link href="/privacy" className="underline hover:text-white">
-              Privacy
-            </Link>
-          </p>
+        <div
+          className="pointer-events-none absolute left-1/2 top-0 h-64 w-[min(90vw,48rem)] -translate-x-1/2 rounded-full bg-[#00b4d8]/15 blur-3xl"
+          aria-hidden
+        />
+        <div
+          className="pointer-events-none absolute -left-20 bottom-10 h-56 w-56 rounded-full bg-violet-300/20 blur-3xl"
+          aria-hidden
+        />
+        <div
+          className="pointer-events-none absolute -right-16 top-1/3 h-48 w-48 rounded-full bg-cyan-300/25 blur-3xl"
+          aria-hidden
+        />
+
+        <div className="relative mx-auto max-w-5xl">
+          <div className="relative overflow-hidden rounded-[1.75rem] border border-cyan-100/90 bg-white/90 p-7 shadow-[0_24px_80px_-28px_rgba(0,119,182,0.35)] backdrop-blur-sm sm:rounded-[2rem] sm:p-10 md:p-12 lg:p-14">
+            {/* Inner brand frame */}
+            <div
+              className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white via-sky-50/40 to-cyan-50/50"
+              aria-hidden
+            />
+            <div
+              className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-[#00b4d8]/10 blur-3xl"
+              aria-hidden
+            />
+            <div
+              className="pointer-events-none absolute -bottom-20 -left-16 h-56 w-56 rounded-full bg-violet-200/25 blur-3xl"
+              aria-hidden
+            />
+            {/* Top accent line */}
+            <div
+              className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-transparent via-[#00b4d8] to-transparent opacity-80"
+              aria-hidden
+            />
+
+            <div className="relative mx-auto max-w-3xl text-center">
+              <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-cyan-200/90 bg-white px-3.5 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-[#0077b6] shadow-sm sm:mb-6 sm:text-xs">
+                <span className="relative flex h-1.5 w-1.5 shrink-0">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                </span>
+                The network is open
+              </div>
+
+              <h2 className="mb-4 text-[1.85rem] font-black leading-[1.08] tracking-tight text-slate-900 sm:mb-5 sm:text-4xl md:text-5xl lg:text-[3.25rem] lg:tracking-[-0.035em]">
+                The future of supply chains
+                <span className="mt-1 block bg-gradient-to-r from-[#00b4d8] to-[#0077b6] bg-clip-text text-transparent">
+                  is transparent.
+                </span>
+              </h2>
+
+              <p className="mx-auto mb-8 max-w-2xl text-base leading-relaxed text-slate-600 sm:mb-9 sm:text-lg md:text-xl">
+                Join the movement that makes{' '}
+                <span className="font-semibold text-slate-800">transparency the standard</span>
+                {' '}and{' '}
+                <span className="font-semibold text-slate-800">ethics the competitive advantage</span>
+                — one verified company workspace at a time.
+              </p>
+
+              {/* Value chips */}
+              <div className="mb-8 flex flex-wrap items-center justify-center gap-2 sm:mb-9 sm:gap-2.5">
+                {[
+                  { icon: ShieldCheck, label: 'Verified network' },
+                  { icon: Leaf, label: 'Ethics by design' },
+                  { icon: Globe, label: 'B2B · B2G · B2C' },
+                  { icon: CheckCircle2, label: 'Live in minutes' },
+                ].map((chip) => (
+                  <span
+                    key={chip.label}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-slate-200/90 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-600 shadow-sm sm:text-xs"
+                  >
+                    <chip.icon className="h-3.5 w-3.5 text-[#00b4d8] shrink-0" aria-hidden />
+                    {chip.label}
+                  </span>
+                ))}
+              </div>
+
+              <div className="flex w-full flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
+                <Link
+                  href="/onboarding?type=business"
+                  className="group inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#00b4d8] px-7 py-4 text-base font-semibold text-white shadow-lg shadow-cyan-500/25 transition-all touch-manipulation hover:bg-[#0099b8] hover:shadow-cyan-500/35 active:scale-[0.99] sm:w-auto sm:px-10 sm:py-4.5 sm:text-lg"
+                >
+                  Get started in under 5 minutes
+                  <ArrowRight className="h-5 w-5 shrink-0 transition-transform group-hover:translate-x-0.5" />
+                </Link>
+                <Link
+                  href="/login"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-7 py-4 text-base font-semibold text-slate-800 shadow-sm transition-all touch-manipulation hover:border-[#00b4d8] hover:text-[#0077b6] active:scale-[0.99] sm:w-auto sm:px-8 sm:text-lg"
+                >
+                  Log in to workspace
+                </Link>
+              </div>
+
+              {/* Trust strip */}
+              <div className="mt-8 flex flex-col items-center gap-3 sm:mt-9">
+                <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs text-slate-500 sm:text-sm">
+                  <span className="inline-flex items-center gap-1.5 font-medium text-slate-600">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" aria-hidden />
+                    Free company workspace
+                  </span>
+                  <span className="hidden h-1 w-1 rounded-full bg-slate-300 sm:inline-block" aria-hidden />
+                  <span className="inline-flex items-center gap-1.5">
+                    No card required for beta
+                  </span>
+                  <span className="hidden h-1 w-1 rounded-full bg-slate-300 sm:inline-block" aria-hidden />
+                  <span className="inline-flex items-center gap-x-2">
+                    <Link
+                      href="/terms"
+                      className="font-semibold text-slate-600 underline decoration-slate-300 underline-offset-2 transition-colors hover:text-[#0077b6] hover:decoration-[#00b4d8]"
+                    >
+                      Terms
+                    </Link>
+                    <span className="text-slate-300" aria-hidden>
+                      ·
+                    </span>
+                    <Link
+                      href="/privacy"
+                      className="font-semibold text-slate-600 underline decoration-slate-300 underline-offset-2 transition-colors hover:text-[#0077b6] hover:decoration-[#00b4d8]"
+                    >
+                      Privacy
+                    </Link>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
