@@ -9,18 +9,25 @@
 ## Deploy
 
 ```bash
-# 1. Compile (Hardhat in contracts/contracts)
-cd contracts/contracts && npx hardhat compile
+# 1. Compile + deploy (from repo root)
+cd contracts/contracts
+npx hardhat compile
 
-# 2. Deploy to Base Sepolia
-cd ../..
-PRIVATE_KEY=0x... \
+SEPOLIA_PRIVATE_KEY=0x... \
+BASE_SEPOLIA_RPC_URL=https://sepolia.base.org \
 USDC_TOKEN_ADDRESS=0x036CbD53842c5426634e7929541eC2318f3dCF7e \
-USDC_ESCROW_CHAIN_ID=84532 \
-npm run deploy:usdc-escrow
+npx tsx scripts/deploy-usdc.ts
+
+# Or from root:
+# npm run deploy:usdc-hardhat
 ```
 
-Writes `contracts/contracts/deployments/usdc-escrow-84532.json`.
+Also: `npm run deploy:usdc-escrow` (viem script using compiled artifact).
+
+Writes:
+- `contracts/contracts/deployments/usdc-escrow-84532.json`
+- `src/lib/contracts/abi/POEscrowUSDC.json`
+
 
 ## Vercel env
 

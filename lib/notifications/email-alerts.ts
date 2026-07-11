@@ -99,6 +99,10 @@ export async function notifyQaHold(params: {
         </div>
       `,
     });
+    // Parallel WhatsApp (soft)
+    void import('@/lib/notifications/twilio-whatsapp').then(({ whatsappQaHold }) =>
+      whatsappQaHold(params)
+    );
   } catch (e) {
     console.warn('notifyQaHold', e);
   }
@@ -129,6 +133,9 @@ export async function notifyEscrowFunded(params: {
         </div>
       `,
     });
+    void import('@/lib/notifications/twilio-whatsapp').then(({ whatsappEscrowFunded }) =>
+      whatsappEscrowFunded(params)
+    );
   } catch (e) {
     console.warn('notifyEscrowFunded', e);
   }
