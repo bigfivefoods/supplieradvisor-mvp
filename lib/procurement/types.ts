@@ -24,11 +24,13 @@ export function isCustomerPoEscrowEnabled(): boolean {
 }
 
 /**
- * Feature flag: client-signed POEscrowV2 on the **buyer SRM** path
+ * Feature flag: client-signed escrow on the **buyer SRM** path
  * (`/dashboard/suppliers/po`).
  *
- * Default **false** until chain + wallet are configured (world-class: never show
- * broken escrow by default). Set either env to `1`/`true` to enable:
+ * Default **true** so operators can raise both standard and escrow POs.
+ * ETH Sepolia has a default contract address; USDC is additive when configured.
+ *
+ * Disable with either env set to `0`/`false`/`off`:
  * - `SUPPLIER_PO_ESCROW_ENABLED`
  * - `NEXT_PUBLIC_SUPPLIER_PO_ESCROW_ENABLED` (required for browser UI)
  */
@@ -36,8 +38,8 @@ export function isSupplierPoEscrowEnabled(): boolean {
   const raw =
     process.env.SUPPLIER_PO_ESCROW_ENABLED ??
     process.env.NEXT_PUBLIC_SUPPLIER_PO_ESCROW_ENABLED;
-  if (raw === undefined || raw === '') return false;
-  return ['1', 'true', 'yes', 'on'].includes(String(raw).toLowerCase().trim());
+  if (raw === undefined || raw === '') return true;
+  return !['0', 'false', 'no', 'off'].includes(String(raw).toLowerCase().trim());
 }
 
 export const PO_STATUSES = [

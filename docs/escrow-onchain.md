@@ -20,19 +20,34 @@
 
 Optional: **raiseDispute** / **resolveDispute** (owner).
 
+## Raising POs (UI)
+
+**Suppliers → Purchase orders** (`/dashboard/suppliers/po`):
+
+| Type | Button | Needs wallet? |
+|------|--------|----------------|
+| **Standard PO** | Send standard PO | No |
+| **Escrow PO** | Send escrow PO | Yes + supplier 0x |
+
+Choose **Standard PO** or **Escrow PO** in the type selector, fill lines, then use the matching button.
+
 ## Feature flags
 
 ```bash
-# SRM path /dashboard/suppliers/po
-SUPPLIER_PO_ESCROW_ENABLED=true
-NEXT_PUBLIC_SUPPLIER_PO_ESCROW_ENABLED=true
+# SRM path /dashboard/suppliers/po — default ON (omit or set true)
+# SUPPLIER_PO_ESCROW_ENABLED=true
+# NEXT_PUBLIC_SUPPLIER_PO_ESCROW_ENABLED=true
 
-# Customer portal /dashboard/buyer/pos
+# Disable escrow only:
+# NEXT_PUBLIC_SUPPLIER_PO_ESCROW_ENABLED=false
+# SUPPLIER_PO_ESCROW_ENABLED=false
+
+# Customer portal /dashboard/buyer/pos — default OFF
 CUSTOMER_PO_ESCROW_ENABLED=true
 NEXT_PUBLIC_CUSTOMER_PO_ESCROW_ENABLED=true
 ```
 
-Defaults are **false**. Rebuild after changing `NEXT_PUBLIC_*`.
+Supplier escrow **defaults to enabled**. Rebuild after changing `NEXT_PUBLIC_*`.
 
 ## Chain & wallet
 

@@ -578,7 +578,14 @@ function PoInner() {
     );
   };
 
-  const handleRaisePO = async (asDraft = false) => {
+  /**
+   * Raise PO. Pass `mode: 'standard' | 'escrow'` to force path (avoids React state race).
+   * Drafts are always standard off-chain records (no createPO tx).
+   */
+  const handleRaisePO = async (
+    asDraft = false,
+    opts?: { mode?: 'standard' | 'escrow' }
+  ) => {
     if (!privyUserId) {
       toast.error('Sign in required');
       return;
@@ -596,7 +603,8 @@ function PoInner() {
       toast.error('Add at least one line item');
       return;
     }
-    const wantEscrow = escrowEnabled && useEscrow && !asDraft;
+    const mode = opts?.mode ?? (useEscrow ? 'escrow' : 'standard');
+    const wantEscrow = escrowEnabled && mode === 'escrow' && !asDraft;
     if (wantEscrow) {
       if (!connectedWallet) {
         toast.error('Connect wallet for on-chain escrow');
@@ -731,15 +739,15 @@ function PoInner() {
     <div className="pb-8">
       <SuppliersHeader
         title="Purchase orders"
-        description="World-class procurement: standard off-chain POs with OTIFEF delivery capture, or optional POEscrowV2 escrow (create → fund → markShipped → confirmDelivery) with client-signed txs and server receipt verification."
+        description="Raise a standard off-chain PO (OTIFEF delivery + ratings) or an escrow PO (create → fund → ship → confirm on-chain). Both paths use the same supplier book and line items."
         action={
           <div className="flex flex-wrap gap-2">
             <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase px-3 py-1.5 rounded-full bg-emerald-100 text-emerald-800">
-              <FileText className="w-3 h-3" /> Standard
+              <FileText className="w-3 h-3" /> Standard PO
             </span>
             {escrowEnabled && (
               <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase px-3 py-1.5 rounded-full bg-[#00b4d8]/15 text-[#0077b6]">
-                <Shield className="w-3 h-3" /> On-chain escrow
+                <Shield className="w-3 h-3" /> Escrow PO
               </span>
             )}
           </div>
@@ -749,6 +757,9 @@ function PoInner() {
       {escrowEnabled && (
         <div className="mb-6">
           <WalletConnectBar />
+          <p className="text-[11px] text-neutral-500 mt-2">
+            Wallet is only required for escrow POs. Standard POs work without a wallet.
+          </p>
         </div>
       )}
 
@@ -1034,130 +1045,188 @@ function PoInner() {
               </div>
             </div>
 
-            {escrowEnabled && (
-              <div className="rounded-2xl border border-[#00b4d8]/30 bg-[#00b4d8]/5 p-4 space-y-3">
-                <label className="flex items-start gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="mt-1"
-                    checked={useEscrow}
-                    onChange={(e) => setUseEscrow(e.target.checked)}
-                  />
-                  <div>
-                    <div className="font-semibold text-sm text-slate-900 flex items-center gap-2">
-                      <Wallet className="w-4 h-4 text-[#00b4d8]" /> Create on-chain escrow
-                    </div>
-                    <p className="text-xs text-neutral-600 mt-0.5">
-                      Prefer <strong>USDC on Base</strong> for realistic B2B demos. ETH Sepolia is
-                      available as a developer fallback only.
-                    </p>
+            {/* PO type: standard vs escrow — always explicit */}
+            <div className="rounded-2xl border border-neutral-200 bg-white p-4 space-y-3">
+              <div className="text-xs font-bold uppercase tracking-wider text-neutral-400">
+                Purchase order type
+              </div>
+              <div className="grid sm:grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setUseEscrow(false)}
+                  className={`text-left rounded-2xl border px-4 py-3 transition-all ${
+                    !useEscrow
+                      ? 'border-emerald-500 bg-emerald-50 shadow-sm ring-1 ring-emerald-200'
+                      : 'border-neutral-200 bg-white hover:border-emerald-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 font-semibold text-sm text-slate-900">
+                    <FileText className="w-4 h-4 text-emerald-600" />
+                    Standard PO
                   </div>
-                </label>
-                {useEscrow && (
-                  <div className="space-y-3">
-                    <div className="flex flex-wrap gap-2">
-                      {usdcEnabled && (
-                        <button
-                          type="button"
-                          onClick={() => setEscrowAsset('usdc')}
-                          className={`text-xs font-semibold px-3 py-1.5 rounded-full border ${
-                            escrowAsset === 'usdc'
-                              ? 'bg-violet-600 text-white border-violet-600'
-                              : 'bg-white border-neutral-200'
-                          }`}
-                        >
-                          USDC (Base) · recommended
-                        </button>
-                      )}
+                  <p className="text-[11px] text-neutral-500 mt-1 leading-relaxed">
+                    Off-chain only. Send, accept, record delivery (OTIFEF), rate supplier. No wallet
+                    required.
+                  </p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (escrowEnabled) setUseEscrow(true);
+                    else
+                      toast.error(
+                        'Escrow disabled. Set NEXT_PUBLIC_SUPPLIER_PO_ESCROW_ENABLED=true (default is on).'
+                      );
+                  }}
+                  disabled={!escrowEnabled}
+                  className={`text-left rounded-2xl border px-4 py-3 transition-all ${
+                    useEscrow && escrowEnabled
+                      ? 'border-[#00b4d8] bg-[#00b4d8]/10 shadow-sm ring-1 ring-[#00b4d8]/30'
+                      : 'border-neutral-200 bg-white hover:border-[#00b4d8]/40'
+                  } ${!escrowEnabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  <div className="flex items-center gap-2 font-semibold text-sm text-slate-900">
+                    <Shield className="w-4 h-4 text-[#00b4d8]" />
+                    Escrow PO
+                  </div>
+                  <p className="text-[11px] text-neutral-500 mt-1 leading-relaxed">
+                    On-chain funds locked until delivery. Connect wallet, set supplier 0x address,
+                    then create → fund → ship → confirm.
+                  </p>
+                </button>
+              </div>
+
+              {useEscrow && escrowEnabled && (
+                <div className="space-y-3 pt-1 border-t border-neutral-100">
+                  <div className="flex flex-wrap gap-2">
+                    {usdcEnabled && (
                       <button
                         type="button"
-                        onClick={() => setEscrowAsset('eth')}
+                        onClick={() => setEscrowAsset('usdc')}
                         className={`text-xs font-semibold px-3 py-1.5 rounded-full border ${
-                          escrowAsset === 'eth'
-                            ? 'bg-[#00b4d8] text-white border-[#00b4d8]'
+                          escrowAsset === 'usdc'
+                            ? 'bg-violet-600 text-white border-violet-600'
                             : 'bg-white border-neutral-200'
                         }`}
                       >
-                        ETH (Sepolia · dev)
+                        USDC (Base) · recommended
                       </button>
-                    </div>
-                    {!usdcEnabled && (
-                      <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1.5">
-                        Set <code>NEXT_PUBLIC_USDC_ESCROW_ADDRESS</code> after deploying POEscrowUSDC
-                        to enable recommended USDC path.
-                      </p>
                     )}
+                    <button
+                      type="button"
+                      onClick={() => setEscrowAsset('eth')}
+                      className={`text-xs font-semibold px-3 py-1.5 rounded-full border ${
+                        escrowAsset === 'eth'
+                          ? 'bg-[#00b4d8] text-white border-[#00b4d8]'
+                          : 'bg-white border-neutral-200'
+                      }`}
+                    >
+                      ETH (Sepolia · dev)
+                    </button>
+                  </div>
+                  {!usdcEnabled && (
+                    <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1.5">
+                      ETH Sepolia escrow is available. Deploy USDC escrow and set{' '}
+                      <code>NEXT_PUBLIC_USDC_ESCROW_ADDRESS</code> for the recommended stablecoin path.
+                    </p>
+                  )}
+                  <div>
+                    <label className="text-xs font-medium">Supplier wallet (0x) *</label>
+                    <input
+                      className="input mt-1 w-full !p-3 !text-sm font-mono"
+                      placeholder="0x…"
+                      value={supplierWallet}
+                      onChange={(e) => setSupplierWallet(e.target.value)}
+                    />
+                  </div>
+                  {escrowAsset === 'eth' && (
                     <div>
-                      <label className="text-xs font-medium">Supplier wallet *</label>
+                      <label className="text-xs font-medium">
+                        Escrow amount (ETH) — optional override
+                      </label>
                       <input
                         className="input mt-1 w-full !p-3 !text-sm font-mono"
-                        placeholder="0x…"
-                        value={supplierWallet}
-                        onChange={(e) => setSupplierWallet(e.target.value)}
+                        placeholder={`Auto ≈ ${fiatToEthString(totalAmount, ETH_RATE_ZAR)} from PO total`}
+                        value={escrowEthOverride}
+                        onChange={(e) => setEscrowEthOverride(e.target.value)}
                       />
-                    </div>
-                    {escrowAsset === 'eth' && (
-                      <div>
-                        <label className="text-xs font-medium">
-                          Escrow amount (ETH) — optional override
-                        </label>
-                        <input
-                          className="input mt-1 w-full !p-3 !text-sm font-mono"
-                          placeholder={`Auto ≈ ${fiatToEthString(totalAmount, ETH_RATE_ZAR)} from PO total`}
-                          value={escrowEthOverride}
-                          onChange={(e) => setEscrowEthOverride(e.target.value)}
-                        />
-                        <p className="text-[11px] text-amber-800 mt-1 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1">
-                          Dev path: empty uses fiat÷{ETH_RATE_ZAR.toLocaleString()} rate. Prefer USDC
-                          for production-like demos.
-                        </p>
-                      </div>
-                    )}
-                    {connectedWallet ? (
-                      <p className="text-[11px] text-emerald-700">
-                        Buyer wallet connected: {connectedWallet.slice(0, 6)}…{connectedWallet.slice(-4)}
+                      <p className="text-[11px] text-amber-800 mt-1 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1">
+                        Dev path: empty uses fiat÷{ETH_RATE_ZAR.toLocaleString()} rate.
                       </p>
-                    ) : (
-                      <p className="text-[11px] text-amber-700">Connect wallet to sign escrow</p>
-                    )}
-                    {escrowAsset === 'usdc' && usdcEnabled && supplierWallet && (
-                      <UsdcEscrowActions
-                        supplierWallet={supplierWallet}
-                        fiatAmount={totalAmount}
-                        metadataURI={`https://supplieradvisor.com/po/draft`}
-                        onCreated={({ onchainPoId, txHash }) => {
-                          toast.success(`USDC createPO #${onchainPoId} — raise PO then link tx ${txHash.slice(0, 10)}…`);
-                        }}
-                      />
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
+                    </div>
+                  )}
+                  {connectedWallet ? (
+                    <p className="text-[11px] text-emerald-700">
+                      Buyer wallet connected: {connectedWallet.slice(0, 6)}…
+                      {connectedWallet.slice(-4)}
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-amber-700 font-medium">
+                      Connect wallet above before sending an escrow PO.
+                    </p>
+                  )}
+                  {escrowAsset === 'usdc' && usdcEnabled && supplierWallet && (
+                    <UsdcEscrowActions
+                      supplierWallet={supplierWallet}
+                      fiatAmount={totalAmount}
+                      metadataURI={`https://supplieradvisor.com/po/draft`}
+                      onCreated={({ onchainPoId, txHash }) => {
+                        toast.success(
+                          `USDC createPO #${onchainPoId} — raise PO then link tx ${txHash.slice(0, 10)}…`
+                        );
+                      }}
+                    />
+                  )}
+                </div>
+              )}
+            </div>
 
-            <div className="flex flex-wrap gap-2 pt-2 border-t">
+            <div className="flex flex-col sm:flex-row flex-wrap gap-2 pt-2 border-t">
+              {/* Two first-class paths — mode passed explicitly (no setState race) */}
               <button
                 type="button"
                 disabled={saving || isContractPending}
-                onClick={() => void handleRaisePO(false)}
-                className="btn-primary !py-3 !px-6 text-sm"
+                onClick={() => {
+                  setUseEscrow(false);
+                  void handleRaisePO(false, { mode: 'standard' });
+                }}
+                className={`${
+                  !useEscrow ? 'btn-primary' : 'btn-secondary'
+                } !py-3 !px-6 text-sm inline-flex items-center gap-2`}
               >
-                {saving ? (
+                {saving && !useEscrow ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
-                ) : useEscrow ? (
-                  <>
-                    <Shield className="w-4 h-4" /> Send PO + create escrow
-                  </>
                 ) : (
                   <>
                     <Truck className="w-4 h-4" /> Send standard PO
                   </>
                 )}
               </button>
+              {escrowEnabled && (
+                <button
+                  type="button"
+                  disabled={saving || isContractPending}
+                  onClick={() => {
+                    setUseEscrow(true);
+                    void handleRaisePO(false, { mode: 'escrow' });
+                  }}
+                  className={`${
+                    useEscrow ? 'btn-primary' : 'btn-secondary'
+                  } !py-3 !px-6 text-sm inline-flex items-center gap-2`}
+                >
+                  {saving && useEscrow ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>
+                      <Shield className="w-4 h-4" /> Send escrow PO
+                    </>
+                  )}
+                </button>
+              )}
               <button
                 type="button"
                 disabled={saving}
-                onClick={() => void handleRaisePO(true)}
+                onClick={() => void handleRaisePO(true, { mode: 'standard' })}
                 className="btn-secondary !py-3 !px-5 text-sm"
               >
                 Save draft
@@ -1548,9 +1617,11 @@ function ProcessGuide({ escrowEnabled }: { escrowEnabled: boolean }) {
         <div className="inline-flex p-2 rounded-xl bg-[#00b4d8]/15 text-[#0077b6] mb-3">
           <Shield className="w-5 h-5" />
         </div>
-        <h3 className="font-bold text-lg mb-2">On-chain escrow (POEscrowV2)</h3>
+        <h3 className="font-bold text-lg mb-2">Escrow PO (on-chain)</h3>
         {escrowEnabled ? (
           <ol className="text-sm text-neutral-600 space-y-2 list-decimal list-inside">
+            <li>On Create tab, choose <strong>Escrow PO</strong></li>
+            <li>Connect wallet and enter supplier 0x address</li>
             {ESCROW_LIFECYCLE.map((s) => (
               <li key={s.fn}>
                 <code className="text-xs bg-neutral-100 px-1 rounded">{s.fn}</code> — {s.label} (
@@ -1562,12 +1633,12 @@ function ProcessGuide({ escrowEnabled }: { escrowEnabled: boolean }) {
           </ol>
         ) : (
           <p className="text-sm text-neutral-500">
-            Escrow off by default. Set NEXT_PUBLIC_SUPPLIER_PO_ESCROW_ENABLED=true (and server twin)
-            after wallet + chain are ready.
+            Escrow is disabled. Set NEXT_PUBLIC_SUPPLIER_PO_ESCROW_ENABLED=true (default is on) to
+            enable escrow POs alongside standard POs.
           </p>
         )}
         <p className="text-xs text-neutral-500 mt-4">
-          Contract: {PO_ESCROW_ADDRESS.slice(0, 10)}… · client-signed only · receipt verified
+          ETH contract: {PO_ESCROW_ADDRESS.slice(0, 10)}… · client-signed · receipt verified
         </p>
       </div>
     </div>
