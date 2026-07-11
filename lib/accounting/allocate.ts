@@ -246,6 +246,106 @@ export async function allocateBankTransaction(params: AllocateParams): Promise<
 }
 
 /**
+ * Undo a bank allocation:
+ * - Void the linked allocation journal (if still posted)
+ * - Reset bank line to unallocated so it can be re-coded / re-VAT'd
+ */
+export async function unallocateBankTransaction(params: {
+  profileId: number;
+  bankTxnId: number | string;
+  privyUserId?: string | null;
+  /** Also clear tax_code / tax_amount so VAT can be re-picked */
+  clearTax?: boolean;
+}): Promise<
+  | { ok: true; voidedJournalId: number | null }
+  | { ok: false; error: string; status: number }
+> {
+  const supabase = getSupabaseServer();
+  const { data: txn, error: txnErr } = await supabase
+    .from('bank_transactions')
+    .select('*')
+    .eq('id', params.bankTxnId)
+    .eq('profile_id', params.profileId)
+    .maybeSingle();
+
+  if (txnErr || !txn) {
+    return { ok: false, error: 'Bank transaction not found', status: 404 };
+  }
+
+  const status = String(txn.allocation_status || 'unallocated');
+  if (status === 'unallocated') {
+    return { ok: false, error: 'Transaction is already unallocated', status: 400 };
+  }
+  if (status === 'excluded') {
+    return {
+      ok: false,
+      error: 'Transaction is excluded — use Unexclude first',
+      status: 400,
+    };
+  }
+
+  let voidedJournalId: number | null = null;
+  const journalId = txn.matched_journal_id ? Number(txn.matched_journal_id) : null;
+
+  if (journalId && Number.isFinite(journalId)) {
+    const { data: je } = await supabase
+      .from('journal_entries')
+      .select('id, status, source, source_id')
+      .eq('id', journalId)
+      .eq('profile_id', params.profileId)
+      .maybeSingle();
+
+    if (je && String(je.status) !== 'void') {
+      const { error: voidErr } = await supabase
+        .from('journal_entries')
+        .update({
+          status: 'void',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', journalId)
+        .eq('profile_id', params.profileId);
+
+      if (voidErr) {
+        return {
+          ok: false,
+          error: `Could not void linked journal: ${voidErr.message}`,
+          status: 400,
+        };
+      }
+      voidedJournalId = journalId;
+    }
+  }
+
+  const patch: Record<string, unknown> = {
+    allocation_status: 'unallocated',
+    gl_account_id: null,
+    matched_journal_id: null,
+    matched_invoice_id: null,
+    matched_payment_id: null,
+    allocated_at: null,
+    allocated_by: null,
+    status: 'unreconciled',
+    updated_at: new Date().toISOString(),
+  };
+  if (params.clearTax) {
+    patch.tax_code = null;
+    patch.tax_amount = 0;
+  }
+
+  const { error: upErr } = await supabase
+    .from('bank_transactions')
+    .update(patch)
+    .eq('id', txn.id)
+    .eq('profile_id', params.profileId);
+
+  if (upErr) {
+    return { ok: false, error: upErr.message, status: 400 };
+  }
+
+  return { ok: true, voidedJournalId };
+}
+
+/**
  * Match bank receipt/payment to an invoice and record a payment.
  * Inflow → AR invoice; Outflow → AP bill.
  */

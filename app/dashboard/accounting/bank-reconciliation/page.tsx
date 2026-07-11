@@ -23,6 +23,7 @@ import {
   Wand2,
   ListFilter,
   Trash2,
+  Undo2,
 } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
@@ -790,22 +791,30 @@ function Inner() {
     if (!showAllocate || !allocForm.gl_account_id) return;
     setSaving(true);
     try {
+      const alreadyAllocated = ['allocated', 'matched_invoice'].includes(
+        String(showAllocate.allocation_status || '')
+      );
       const res = await fetch('/api/accounting/bank/allocate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           companyId,
           privyUserId,
-          action: 'allocate',
+          action: alreadyAllocated ? 'reallocate' : 'allocate',
           bank_transaction_id: showAllocate.id,
           gl_account_id: Number(allocForm.gl_account_id),
           memo: allocForm.memo || null,
           tax_amount: allocForm.tax_amount ? Number(allocForm.tax_amount) : 0,
+          tax_code: showAllocate.tax_code || undefined,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
-      toast.success(`Allocated · journal ${data.entryNumber}`);
+      toast.success(
+        alreadyAllocated
+          ? `Re-allocated · journal ${data.entryNumber}`
+          : `Allocated · journal ${data.entryNumber}`
+      );
       setShowAllocate(null);
       setAllocForm({ gl_account_id: '', memo: '', tax_amount: '' });
       void load();
@@ -1086,6 +1095,42 @@ function Inner() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
       toast.success('Excluded');
+      void load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed');
+    }
+  }
+
+  /** Undo wrong GL/VAT allocation — voids linked journal and returns line to unallocated */
+  async function unallocate(id: string | number, clearTax = false) {
+    if (
+      !window.confirm(
+        clearTax
+          ? 'Unallocate and clear VAT code? Linked journal will be voided.'
+          : 'Unallocate this line? The linked journal will be voided so you can re-allocate with the correct GL/VAT.'
+      )
+    ) {
+      return;
+    }
+    try {
+      const res = await fetch('/api/accounting/bank/allocate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          action: 'unallocate',
+          bank_transaction_id: id,
+          clear_tax: clearTax,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      toast.success(
+        data.results?.[0]?.voidedJournalId
+          ? 'Unallocated — journal voided. Re-allocate when ready.'
+          : 'Unallocated'
+      );
       void load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed');
@@ -1612,6 +1657,40 @@ function Inner() {
                               </IconBtn>
                               <IconBtn title="Exclude" onClick={() => void exclude(t.id)}>
                                 <Ban className="w-3.5 h-3.5" />
+                              </IconBtn>
+                            </>
+                          )}
+                          {(alloc === 'allocated' || alloc === 'matched_invoice') && (
+                            <>
+                              <IconBtn
+                                title="Unallocate (void journal — fix wrong GL/VAT)"
+                                onClick={() => void unallocate(t.id, false)}
+                              >
+                                <Undo2 className="w-3.5 h-3.5" />
+                              </IconBtn>
+                              <IconBtn
+                                title="Unallocate & clear VAT code"
+                                onClick={() => void unallocate(t.id, true)}
+                              >
+                                <RotateCcw className="w-3.5 h-3.5" />
+                              </IconBtn>
+                              <IconBtn
+                                title="Re-allocate to different GL"
+                                onClick={() => {
+                                  setShowAllocate(t);
+                                  setAllocForm({
+                                    gl_account_id: t.gl_account_id
+                                      ? String(t.gl_account_id)
+                                      : '',
+                                    memo: t.description || '',
+                                    tax_amount:
+                                      t.tax_amount != null && Number(t.tax_amount) > 0
+                                        ? String(t.tax_amount)
+                                        : '',
+                                  });
+                                }}
+                              >
+                                <Tags className="w-3.5 h-3.5" />
                               </IconBtn>
                             </>
                           )}

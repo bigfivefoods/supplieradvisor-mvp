@@ -190,7 +190,14 @@ export async function POST(request: NextRequest) {
   }
 }
 
-/** PATCH — void or post draft { companyId, id, action: 'void' | 'post' } */
+/**
+ * PATCH — journal amendments
+ * action:
+ *  - void | post
+ *  - reverse — post reversing entry (swap D/C), mark original void
+ *  - update_draft — replace memo/date/lines on a draft only
+ *  - correct — reverse original + post new lines as a correcting pair
+ */
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
@@ -209,10 +216,24 @@ export async function PATCH(request: NextRequest) {
     const supabase = getSupabaseServer();
     const action = body.action as string;
 
+    const { data: existing, error: exErr } = await supabase
+      .from('journal_entries')
+      .select('*')
+      .eq('id', id)
+      .eq('profile_id', companyId)
+      .maybeSingle();
+
+    if (exErr || !existing) {
+      return NextResponse.json({ error: 'Journal entry not found' }, { status: 404 });
+    }
+
     if (action === 'void') {
+      if (String(existing.status) === 'void') {
+        return NextResponse.json({ error: 'Already void' }, { status: 400 });
+      }
       const { data, error } = await supabase
         .from('journal_entries')
-        .update({ status: 'void' })
+        .update({ status: 'void', updated_at: new Date().toISOString() })
         .eq('id', id)
         .eq('profile_id', companyId)
         .select('*')
@@ -222,6 +243,9 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (action === 'post') {
+      if (String(existing.status) !== 'draft') {
+        return NextResponse.json({ error: 'Only drafts can be posted' }, { status: 400 });
+      }
       const { data: lines } = await supabase
         .from('journal_lines')
         .select('debit, credit')
@@ -235,7 +259,11 @@ export async function PATCH(request: NextRequest) {
       }
       const { data, error } = await supabase
         .from('journal_entries')
-        .update({ status: 'posted', posted_at: new Date().toISOString() })
+        .update({
+          status: 'posted',
+          posted_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', id)
         .eq('profile_id', companyId)
         .select('*')
@@ -244,11 +272,368 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ success: true, entry: data });
     }
 
-    const patch: Record<string, unknown> = {};
+    /** Reverse a posted journal (proper amendment — does not rewrite history) */
+    if (action === 'reverse') {
+      if (String(existing.status) !== 'posted') {
+        return NextResponse.json(
+          { error: 'Only posted journals can be reversed (edit drafts instead)' },
+          { status: 400 }
+        );
+      }
+      const { data: lines } = await supabase
+        .from('journal_lines')
+        .select('account_id, debit, credit, memo, counterparty, tax_code')
+        .eq('journal_entry_id', id);
+
+      if (!lines?.length) {
+        return NextResponse.json({ error: 'No lines to reverse' }, { status: 400 });
+      }
+
+      const reverseLines = lines.map((l) => ({
+        account_id: Number(l.account_id),
+        debit: round2(Number(l.credit || 0)),
+        credit: round2(Number(l.debit || 0)),
+        memo: l.memo ? `Reversal: ${l.memo}` : 'Reversal',
+        counterparty: l.counterparty || null,
+        tax_code: l.tax_code || null,
+      }));
+
+      const balanced = linesAreBalanced(reverseLines);
+      if (!balanced.ok) {
+        return NextResponse.json(
+          { error: `Reverse lines do not balance (${balanced.debit} ≠ ${balanced.credit})` },
+          { status: 400 }
+        );
+      }
+
+      const entryNumber = await nextDocumentNumber(companyId, 'journal');
+      const reverseDate =
+        body.entry_date || existing.entry_date || new Date().toISOString().slice(0, 10);
+
+      const { data: revEntry, error: revErr } = await supabase
+        .from('journal_entries')
+        .insert({
+          profile_id: companyId,
+          entry_number: entryNumber,
+          entry_date: reverseDate,
+          memo:
+            body.memo ||
+            `Reversal of ${existing.entry_number || `JE-${id}`}${existing.memo ? `: ${existing.memo}` : ''}`,
+          status: 'posted',
+          source: 'reversal',
+          source_id: String(id),
+          currency: existing.currency || 'ZAR',
+          entity_id: existing.entity_id || null,
+          created_by: privyUserId || null,
+          posted_at: new Date().toISOString(),
+          metadata: {
+            reverses_journal_id: id,
+            reverses_entry_number: existing.entry_number,
+          },
+        })
+        .select('*')
+        .single();
+
+      if (revErr || !revEntry) {
+        return NextResponse.json(
+          { error: revErr?.message || 'Failed to create reversal' },
+          { status: 400 }
+        );
+      }
+
+      const { data: insertedLines, error: lineErr } = await supabase
+        .from('journal_lines')
+        .insert(
+          reverseLines.map((l) => ({
+            journal_entry_id: revEntry.id,
+            profile_id: companyId,
+            ...l,
+          }))
+        )
+        .select('*');
+
+      if (lineErr) {
+        await supabase.from('journal_entries').delete().eq('id', revEntry.id);
+        return NextResponse.json({ error: lineErr.message }, { status: 400 });
+      }
+
+      // Mark original void so it no longer affects open reports that filter void
+      await supabase
+        .from('journal_entries')
+        .update({
+          status: 'void',
+          updated_at: new Date().toISOString(),
+          metadata: {
+            ...(existing.metadata && typeof existing.metadata === 'object'
+              ? (existing.metadata as object)
+              : {}),
+            reversed_by_journal_id: revEntry.id,
+            reversed_at: new Date().toISOString(),
+          },
+        })
+        .eq('id', id)
+        .eq('profile_id', companyId);
+
+      return NextResponse.json({
+        success: true,
+        reversed: true,
+        originalId: id,
+        entry: {
+          ...revEntry,
+          lines: insertedLines,
+          total_debit: balanced.debit,
+          total_credit: balanced.credit,
+        },
+      });
+    }
+
+    /**
+     * Update a draft: replace lines + memo/date.
+     * body: { action: 'update_draft', memo?, entry_date?, lines: [...] }
+     */
+    if (action === 'update_draft' || action === 'edit') {
+      if (String(existing.status) !== 'draft') {
+        return NextResponse.json(
+          {
+            error:
+              'Only draft journals can be edited in place. For posted entries use Reverse, then post a new journal.',
+          },
+          { status: 400 }
+        );
+      }
+
+      const lines = Array.isArray(body.lines) ? body.lines : null;
+      const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+      if (body.memo !== undefined) patch.memo = body.memo;
+      if (body.entry_date !== undefined) patch.entry_date = body.entry_date;
+
+      if (lines) {
+        if (lines.length < 2) {
+          return NextResponse.json({ error: 'At least two lines required' }, { status: 400 });
+        }
+        const balanced = linesAreBalanced(lines);
+        // Drafts may be unbalanced until post — still allow save
+        await supabase.from('journal_lines').delete().eq('journal_entry_id', id);
+        const { error: lineErr } = await supabase.from('journal_lines').insert(
+          lines.map(
+            (l: {
+              account_id: number;
+              debit?: number;
+              credit?: number;
+              memo?: string;
+              counterparty?: string;
+              tax_code?: string;
+            }) => ({
+              journal_entry_id: id,
+              profile_id: companyId,
+              account_id: Number(l.account_id),
+              debit: round2(Number(l.debit || 0)),
+              credit: round2(Number(l.credit || 0)),
+              memo: l.memo || null,
+              counterparty: l.counterparty || null,
+              tax_code: l.tax_code || null,
+            })
+          )
+        );
+        if (lineErr) return NextResponse.json({ error: lineErr.message }, { status: 400 });
+        void balanced;
+      }
+
+      const { data, error } = await supabase
+        .from('journal_entries')
+        .update(patch)
+        .eq('id', id)
+        .eq('profile_id', companyId)
+        .select('*')
+        .single();
+      if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+      const { data: elines } = await supabase
+        .from('journal_lines')
+        .select('*')
+        .eq('journal_entry_id', id);
+
+      return NextResponse.json({
+        success: true,
+        entry: { ...data, lines: elines || [] },
+      });
+    }
+
+    /**
+     * Correct a posted journal: reverse original, then post new lines.
+     * body: { action: 'correct', lines, memo?, entry_date? }
+     */
+    if (action === 'correct') {
+      if (String(existing.status) !== 'posted') {
+        return NextResponse.json(
+          { error: 'Correct is for posted journals. Edit drafts with update_draft.' },
+          { status: 400 }
+        );
+      }
+      const newLines = Array.isArray(body.lines) ? body.lines : [];
+      if (newLines.length < 2) {
+        return NextResponse.json({ error: 'New lines required for correction' }, { status: 400 });
+      }
+      const balancedNew = linesAreBalanced(newLines);
+      if (!balancedNew.ok) {
+        return NextResponse.json(
+          {
+            error: `Correction must balance (${balancedNew.debit} ≠ ${balancedNew.credit})`,
+          },
+          { status: 400 }
+        );
+      }
+
+      const { data: oldLines } = await supabase
+        .from('journal_lines')
+        .select('account_id, debit, credit, memo, counterparty, tax_code')
+        .eq('journal_entry_id', id);
+
+      if (!oldLines?.length) {
+        return NextResponse.json({ error: 'No lines to reverse' }, { status: 400 });
+      }
+
+      const reverseLines = oldLines.map((l) => ({
+        account_id: Number(l.account_id),
+        debit: round2(Number(l.credit || 0)),
+        credit: round2(Number(l.debit || 0)),
+        memo: l.memo ? `Reversal: ${l.memo}` : 'Reversal',
+        counterparty: l.counterparty || null,
+        tax_code: l.tax_code || null,
+      }));
+
+      const revDate =
+        body.entry_date || existing.entry_date || new Date().toISOString().slice(0, 10);
+      const revNumber = await nextDocumentNumber(companyId, 'journal');
+      const { data: revEntry, error: revErr } = await supabase
+        .from('journal_entries')
+        .insert({
+          profile_id: companyId,
+          entry_number: revNumber,
+          entry_date: revDate,
+          memo: `Reversal before correction of ${existing.entry_number || `JE-${id}`}`,
+          status: 'posted',
+          source: 'reversal',
+          source_id: String(id),
+          currency: existing.currency || 'ZAR',
+          created_by: privyUserId || null,
+          posted_at: new Date().toISOString(),
+          metadata: { reverses_journal_id: id, part_of_correction: true },
+        })
+        .select('*')
+        .single();
+
+      if (revErr || !revEntry) {
+        return NextResponse.json(
+          { error: revErr?.message || 'Failed to reverse original' },
+          { status: 400 }
+        );
+      }
+
+      const { error: revLineErr } = await supabase.from('journal_lines').insert(
+        reverseLines.map((l) => ({
+          journal_entry_id: revEntry.id,
+          profile_id: companyId,
+          ...l,
+        }))
+      );
+      if (revLineErr) {
+        await supabase.from('journal_entries').delete().eq('id', revEntry.id);
+        return NextResponse.json({ error: revLineErr.message }, { status: 400 });
+      }
+
+      await supabase
+        .from('journal_entries')
+        .update({ status: 'void', updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .eq('profile_id', companyId);
+
+      const corrNumber = await nextDocumentNumber(companyId, 'journal');
+      const { data: corrEntry, error: corrErr } = await supabase
+        .from('journal_entries')
+        .insert({
+          profile_id: companyId,
+          entry_number: corrNumber,
+          entry_date: revDate,
+          memo: body.memo || `Correction of ${existing.entry_number || `JE-${id}`}`,
+          status: 'posted',
+          source: 'correction',
+          source_id: String(id),
+          currency: existing.currency || 'ZAR',
+          created_by: privyUserId || null,
+          posted_at: new Date().toISOString(),
+          metadata: {
+            corrects_journal_id: id,
+            reverse_journal_id: revEntry.id,
+          },
+        })
+        .select('*')
+        .single();
+
+      if (corrErr || !corrEntry) {
+        return NextResponse.json(
+          { error: corrErr?.message || 'Failed to post correction' },
+          { status: 400 }
+        );
+      }
+
+      const { data: insertedLines, error: lineErr } = await supabase
+        .from('journal_lines')
+        .insert(
+          newLines.map(
+            (l: {
+              account_id: number;
+              debit?: number;
+              credit?: number;
+              memo?: string;
+              counterparty?: string;
+              tax_code?: string;
+            }) => ({
+              journal_entry_id: corrEntry.id,
+              profile_id: companyId,
+              account_id: Number(l.account_id),
+              debit: round2(Number(l.debit || 0)),
+              credit: round2(Number(l.credit || 0)),
+              memo: l.memo || null,
+              counterparty: l.counterparty || null,
+              tax_code: l.tax_code || null,
+            })
+          )
+        )
+        .select('*');
+
+      if (lineErr) {
+        await supabase.from('journal_entries').delete().eq('id', corrEntry.id);
+        return NextResponse.json({ error: lineErr.message }, { status: 400 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        corrected: true,
+        reverseEntry: revEntry,
+        entry: {
+          ...corrEntry,
+          lines: insertedLines,
+          total_debit: balancedNew.debit,
+          total_credit: balancedNew.credit,
+        },
+      });
+    }
+
+    // Simple header patch (draft or posted memo only)
+    const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (body.memo !== undefined) patch.memo = body.memo;
-    if (body.entry_date !== undefined) patch.entry_date = body.entry_date;
-    if (Object.keys(patch).length === 0) {
-      return NextResponse.json({ error: 'Nothing to update' }, { status: 400 });
+    if (body.entry_date !== undefined && String(existing.status) === 'draft') {
+      patch.entry_date = body.entry_date;
+    }
+    if (Object.keys(patch).length <= 1) {
+      return NextResponse.json(
+        {
+          error:
+            'Nothing to update. Use action void | post | reverse | update_draft | correct',
+        },
+        { status: 400 }
+      );
     }
 
     const { data, error } = await supabase

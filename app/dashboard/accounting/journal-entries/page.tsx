@@ -8,6 +8,9 @@ import {
   CheckCircle2,
   Ban,
   Trash2,
+  Undo2,
+  Pencil,
+  RotateCcw,
 } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
@@ -57,6 +60,12 @@ function Inner() {
   const [entryDate, setEntryDate] = useState(new Date().toISOString().slice(0, 10));
   const [postNow, setPostNow] = useState(true);
   const [lines, setLines] = useState<LineForm[]>([emptyLine(), emptyLine()]);
+  /** null = create · draft id = edit draft · posted id = correct (reverse + new) */
+  const [editMode, setEditMode] = useState<{
+    type: 'create' | 'edit_draft' | 'correct';
+    id?: number;
+    label?: string;
+  }>({ type: 'create' });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -100,7 +109,54 @@ function Inner() {
     };
   }, [lines]);
 
-  async function createJournal(e: React.FormEvent) {
+  function openCreate() {
+    setEditMode({ type: 'create' });
+    setMemo('');
+    setEntryDate(new Date().toISOString().slice(0, 10));
+    setPostNow(true);
+    setLines([emptyLine(), emptyLine()]);
+    setShowModal(true);
+  }
+
+  function openEditDraft(je: JournalEntry) {
+    setEditMode({
+      type: 'edit_draft',
+      id: je.id,
+      label: je.entry_number || `JE-${je.id}`,
+    });
+    setMemo(je.memo || '');
+    setEntryDate(String(je.entry_date || '').slice(0, 10));
+    setPostNow(false);
+    const formLines = (je.lines || []).map((l) => ({
+      account_id: String(l.account_id || ''),
+      debit: Number(l.debit) > 0 ? String(l.debit) : '',
+      credit: Number(l.credit) > 0 ? String(l.credit) : '',
+      memo: l.memo || '',
+    }));
+    setLines(formLines.length >= 2 ? formLines : [emptyLine(), emptyLine()]);
+    setShowModal(true);
+  }
+
+  function openCorrect(je: JournalEntry) {
+    setEditMode({
+      type: 'correct',
+      id: je.id,
+      label: je.entry_number || `JE-${je.id}`,
+    });
+    setMemo(`Correction of ${je.entry_number || je.id}${je.memo ? `: ${je.memo}` : ''}`);
+    setEntryDate(new Date().toISOString().slice(0, 10));
+    setPostNow(true);
+    const formLines = (je.lines || []).map((l) => ({
+      account_id: String(l.account_id || ''),
+      debit: Number(l.debit) > 0 ? String(l.debit) : '',
+      credit: Number(l.credit) > 0 ? String(l.credit) : '',
+      memo: l.memo || '',
+    }));
+    setLines(formLines.length >= 2 ? formLines : [emptyLine(), emptyLine()]);
+    setShowModal(true);
+  }
+
+  async function saveJournal(e: React.FormEvent) {
     e.preventDefault();
     const payloadLines = lines
       .filter((l) => l.account_id && (Number(l.debit) > 0 || Number(l.credit) > 0))
@@ -114,28 +170,83 @@ function Inner() {
       toast.error('Need at least two lines with amounts');
       return;
     }
-    if (postNow && !balance.ok) {
+    if ((postNow || editMode.type === 'correct') && !balance.ok) {
       toast.error(`Entry must balance (D ${balance.debit} ≠ C ${balance.credit})`);
       return;
     }
     setSaving(true);
     try {
-      const res = await fetch('/api/accounting/journals', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          companyId,
-          privyUserId,
-          entry_date: entryDate,
-          memo,
-          status: postNow ? 'posted' : 'draft',
-          lines: payloadLines,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed');
-      toast.success(postNow ? 'Journal posted' : 'Draft saved');
+      if (editMode.type === 'edit_draft' && editMode.id) {
+        const res = await fetch('/api/accounting/journals', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyId,
+            privyUserId,
+            id: editMode.id,
+            action: 'update_draft',
+            entry_date: entryDate,
+            memo,
+            lines: payloadLines,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed');
+        if (postNow) {
+          const postRes = await fetch('/api/accounting/journals', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              companyId,
+              privyUserId,
+              id: editMode.id,
+              action: 'post',
+            }),
+          });
+          const postData = await postRes.json();
+          if (!postRes.ok) throw new Error(postData.error || 'Saved but post failed');
+          toast.success('Draft updated and posted');
+        } else {
+          toast.success('Draft updated');
+        }
+      } else if (editMode.type === 'correct' && editMode.id) {
+        const res = await fetch('/api/accounting/journals', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyId,
+            privyUserId,
+            id: editMode.id,
+            action: 'correct',
+            entry_date: entryDate,
+            memo,
+            lines: payloadLines,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed');
+        toast.success(
+          `Corrected — original reversed, new entry ${data.entry?.entry_number || ''} posted`
+        );
+      } else {
+        const res = await fetch('/api/accounting/journals', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyId,
+            privyUserId,
+            entry_date: entryDate,
+            memo,
+            status: postNow ? 'posted' : 'draft',
+            lines: payloadLines,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed');
+        toast.success(postNow ? 'Journal posted' : 'Draft saved');
+      }
       setShowModal(false);
+      setEditMode({ type: 'create' });
       setMemo('');
       setLines([emptyLine(), emptyLine()]);
       void load();
@@ -146,7 +257,14 @@ function Inner() {
     }
   }
 
-  async function action(id: number, act: 'post' | 'void') {
+  async function action(id: number, act: 'post' | 'void' | 'reverse') {
+    const labels = {
+      post: 'Post this draft?',
+      void: 'Void this journal? It will no longer affect reports.',
+      reverse:
+        'Reverse this posted journal? A reversing entry will be posted and the original voided — use this to undo allocation/VAT mistakes, then post the correct journal.',
+    };
+    if (!window.confirm(labels[act])) return;
     try {
       const res = await fetch('/api/accounting/journals', {
         method: 'PATCH',
@@ -155,7 +273,9 @@ function Inner() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
-      toast.success(act === 'post' ? 'Posted' : 'Voided');
+      toast.success(
+        act === 'post' ? 'Posted' : act === 'void' ? 'Voided' : 'Reversed — correcting entry created'
+      );
       void load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed');
@@ -172,17 +292,24 @@ function Inner() {
       <AccountingHeader
         title="Journal"
         titleAccent="entries"
-        description="Create and manage manual double-entry journals. Posted entries must balance; drafts can be incomplete."
+        description="Create, edit drafts, reverse posted mistakes, or correct entries (reverse + re-post). Bank misallocations: unallocate on Bank first, then re-allocate with the right VAT/GL."
         action={
           <button
             type="button"
-            onClick={() => setShowModal(true)}
+            onClick={openCreate}
             className="btn-primary !py-2.5 !px-5 text-sm"
           >
             <Plus className="w-4 h-4" /> New journal
           </button>
         }
       />
+
+      <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-xs text-slate-600 leading-relaxed">
+        <strong className="text-slate-800">Fixing errors · </strong>
+        <strong>Draft</strong> → Edit &amp; save / post. <strong>Posted</strong> → Reverse (undo)
+        or Correct (reverse + enter right lines). <strong>Bank/VAT</strong> → Bank recon →
+        Unallocate → re-classify VAT on Tax page → allocate again.
+      </div>
 
       <div className="mb-4">
         <select
@@ -237,14 +364,44 @@ function Inner() {
                       </div>
                     </div>
                     {je.status === 'draft' && (
-                      <button
-                        type="button"
-                        title="Post"
-                        onClick={() => void action(je.id, 'post')}
-                        className="p-1.5 rounded-lg border border-neutral-200 hover:border-emerald-300 text-neutral-500 hover:text-emerald-700"
-                      >
-                        <CheckCircle2 className="w-4 h-4" />
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          title="Edit draft"
+                          onClick={() => openEditDraft(je)}
+                          className="p-1.5 rounded-lg border border-neutral-200 hover:border-[#00b4d8] text-neutral-500 hover:text-[#0077b6]"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          title="Post"
+                          onClick={() => void action(je.id, 'post')}
+                          className="p-1.5 rounded-lg border border-neutral-200 hover:border-emerald-300 text-neutral-500 hover:text-emerald-700"
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
+                    {je.status === 'posted' && (
+                      <>
+                        <button
+                          type="button"
+                          title="Reverse (undo posted entry)"
+                          onClick={() => void action(je.id, 'reverse')}
+                          className="p-1.5 rounded-lg border border-neutral-200 hover:border-amber-300 text-neutral-500 hover:text-amber-700"
+                        >
+                          <Undo2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          title="Correct (reverse + re-enter lines)"
+                          onClick={() => openCorrect(je)}
+                          className="p-1.5 rounded-lg border border-neutral-200 hover:border-[#00b4d8] text-neutral-500 hover:text-[#0077b6]"
+                        >
+                          <RotateCcw className="w-4 h-4" />
+                        </button>
+                      </>
                     )}
                     {je.status !== 'void' && (
                       <button
@@ -299,12 +456,25 @@ function Inner() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
           <div className="bg-white rounded-3xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-5 py-4 border-b sticky top-0 bg-white">
-              <h3 className="font-bold">New journal entry</h3>
+              <div>
+                <h3 className="font-bold">
+                  {editMode.type === 'edit_draft'
+                    ? `Edit draft ${editMode.label || ''}`
+                    : editMode.type === 'correct'
+                      ? `Correct ${editMode.label || ''}`
+                      : 'New journal entry'}
+                </h3>
+                {editMode.type === 'correct' && (
+                  <p className="text-[11px] text-amber-700 mt-0.5">
+                    Saves a reversing entry of the original, then posts your corrected lines.
+                  </p>
+                )}
+              </div>
               <button type="button" onClick={() => setShowModal(false)} className="p-1.5 rounded-lg hover:bg-neutral-100">
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <form onSubmit={createJournal} className="p-5 space-y-4">
+            <form onSubmit={saveJournal} className="p-5 space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <label className="block text-xs font-semibold text-neutral-600">
                   Date
@@ -426,17 +596,35 @@ function Inner() {
                 <span className="font-bold">{balance.ok ? 'Balanced' : 'Out of balance'}</span>
               </div>
 
-              <label className="flex items-center gap-2 text-xs font-semibold text-neutral-600">
-                <input type="checkbox" checked={postNow} onChange={(e) => setPostNow(e.target.checked)} />
-                Post immediately (must balance)
-              </label>
+              {editMode.type !== 'correct' && (
+                <label className="flex items-center gap-2 text-xs font-semibold text-neutral-600">
+                  <input
+                    type="checkbox"
+                    checked={postNow}
+                    onChange={(e) => setPostNow(e.target.checked)}
+                  />
+                  {editMode.type === 'edit_draft'
+                    ? 'Post after save (must balance)'
+                    : 'Post immediately (must balance)'}
+                </label>
+              )}
 
               <div className="flex justify-end gap-2">
                 <button type="button" className="btn-secondary !py-2 !px-4 text-sm" onClick={() => setShowModal(false)}>
                   Cancel
                 </button>
                 <button type="submit" disabled={saving} className="btn-primary !py-2 !px-4 text-sm">
-                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : postNow ? 'Post entry' : 'Save draft'}
+                  {saving ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : editMode.type === 'correct' ? (
+                    'Post correction'
+                  ) : editMode.type === 'edit_draft' ? (
+                    postNow ? 'Save & post' : 'Save draft'
+                  ) : postNow ? (
+                    'Post entry'
+                  ) : (
+                    'Save draft'
+                  )}
                 </button>
               </div>
             </form>

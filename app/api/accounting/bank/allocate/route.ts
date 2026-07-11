@@ -5,15 +5,16 @@ import { parseCompanyId } from '@/lib/accounting/server';
 import {
   allocateBankTransaction,
   matchBankToInvoice,
+  unallocateBankTransaction,
 } from '@/lib/accounting/allocate';
 
 /**
  * POST — allocate bank txn to GL or match to invoice
  * body: {
  *   companyId, privyUserId,
- *   action: 'allocate' | 'match_invoice' | 'exclude' | 'bulk_allocate',
+ *   action: 'allocate' | 'match_invoice' | 'exclude' | 'unexclude' | 'unallocate' | 'reallocate' | 'bulk_allocate',
  *   bank_transaction_id | ids[],
- *   gl_account_id?, invoice_id?, tax_amount?, tax_gl_account_id?, memo?
+ *   gl_account_id?, invoice_id?, tax_amount?, tax_gl_account_id?, memo?, clear_tax?
  * }
  */
 export async function POST(request: NextRequest) {
@@ -84,6 +85,117 @@ export async function POST(request: NextRequest) {
         .single();
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
       return NextResponse.json({ success: true, transaction: data });
+    }
+
+    /** Undo GL/VAT allocation — voids linked journal and returns line to the queue */
+    if (action === 'unallocate' || action === 'undo_allocate') {
+      const ids: Array<string | number> = Array.isArray(body.ids)
+        ? body.ids
+            .map(parseTxnId)
+            .filter((n: string | number | null): n is string | number => n != null)
+        : (() => {
+            const one = parseTxnId(body.bank_transaction_id || body.id);
+            return one != null ? [one] : [];
+          })();
+
+      if (!ids.length) {
+        return NextResponse.json(
+          { error: 'bank_transaction_id or ids[] required' },
+          { status: 400 }
+        );
+      }
+
+      const clearTax = body.clear_tax === true || body.clearTax === true;
+      const results: Array<{
+        id: string | number;
+        ok: boolean;
+        error?: string;
+        voidedJournalId?: number | null;
+      }> = [];
+
+      for (const id of ids) {
+        const r = await unallocateBankTransaction({
+          profileId: companyId,
+          bankTxnId: id,
+          privyUserId,
+          clearTax,
+        });
+        if (r.ok) {
+          results.push({ id, ok: true, voidedJournalId: r.voidedJournalId });
+        } else {
+          results.push({ id, ok: false, error: r.error });
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        unallocated: results.filter((r) => r.ok).length,
+        failed: results.filter((r) => !r.ok).length,
+        results,
+      });
+    }
+
+    /** Unallocate then allocate again with new GL / tax (fix allocation errors) */
+    if (action === 'reallocate') {
+      const id = parseTxnId(body.bank_transaction_id || body.id);
+      const glAccountId = Number(body.gl_account_id);
+      if (id == null || !Number.isFinite(glAccountId)) {
+        return NextResponse.json(
+          { error: 'bank_transaction_id and gl_account_id required' },
+          { status: 400 }
+        );
+      }
+
+      const undo = await unallocateBankTransaction({
+        profileId: companyId,
+        bankTxnId: id,
+        privyUserId,
+        clearTax: false,
+      });
+      // Allow reallocate even if already unallocated
+      if (!undo.ok && !String(undo.error || '').includes('already unallocated')) {
+        return NextResponse.json({ error: undo.error }, { status: undo.status });
+      }
+
+      // Optional VAT re-code before posting
+      if (body.tax_code || body.tax_amount != null) {
+        const supabase = getSupabaseServer();
+        const taxPatch: Record<string, unknown> = {
+          updated_at: new Date().toISOString(),
+        };
+        if (body.tax_code) taxPatch.tax_code = String(body.tax_code).toUpperCase();
+        if (body.tax_amount != null) taxPatch.tax_amount = Number(body.tax_amount);
+        if (body.tax_inclusive != null) taxPatch.tax_inclusive = !!body.tax_inclusive;
+        await supabase
+          .from('bank_transactions')
+          .update(taxPatch)
+          .eq('id', id)
+          .eq('profile_id', companyId);
+      }
+
+      const result = await allocateBankTransaction({
+        profileId: companyId,
+        bankTxnId: id,
+        glAccountId,
+        privyUserId,
+        taxAmount: body.tax_amount != null ? Number(body.tax_amount) : 0,
+        taxGlAccountId: body.tax_gl_account_id ? Number(body.tax_gl_account_id) : null,
+        memo: body.memo || null,
+        counterparty: body.counterparty || null,
+        markReconciled: body.mark_reconciled !== false,
+      });
+
+      if (!result.ok) {
+        return NextResponse.json({ error: result.error }, { status: result.status });
+      }
+
+      return NextResponse.json({
+        success: true,
+        reallocated: true,
+        voidedJournalId: undo.ok ? undo.voidedJournalId : null,
+        journalId: result.journalId,
+        entryNumber: result.entryNumber,
+      });
     }
 
     if (action === 'match_invoice') {

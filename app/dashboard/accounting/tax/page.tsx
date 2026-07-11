@@ -760,6 +760,103 @@ function Inner() {
             )}
           </Panel>
 
+          {/* Fix / reclassify bank VAT */}
+          {bankLines.length > 0 && (
+            <>
+              <SectionLabel>Fix bank VAT codes (already classified)</SectionLabel>
+              <Panel className="mb-6">
+                <div className="px-4 py-2 border-b border-neutral-100 text-[11px] text-neutral-500">
+                  Change a wrong VAT code here. If the line was also allocated to GL,{' '}
+                  <Link
+                    href="/dashboard/accounting/bank-reconciliation"
+                    className="font-semibold text-[#00b4d8] hover:underline"
+                  >
+                    unallocate on Bank
+                  </Link>{' '}
+                  first so the journal is voided, then re-allocate with the correct tax amount.
+                </div>
+                <div className="overflow-x-auto max-h-80 overflow-y-auto">
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 bg-white">
+                      <tr className="text-left text-[11px] uppercase tracking-wider text-neutral-400 border-b border-neutral-100">
+                        <th className="px-3 py-2 font-semibold">Date</th>
+                        <th className="px-3 py-2 font-semibold">Description</th>
+                        <th className="px-3 py-2 font-semibold text-right">Gross</th>
+                        <th className="px-3 py-2 font-semibold">Code</th>
+                        <th className="px-3 py-2 font-semibold text-right">VAT</th>
+                        <th className="px-3 py-2 font-semibold">Change to</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-neutral-50">
+                      {bankLines.slice(0, 100).map((row) => (
+                        <tr key={`bank-fix-${row.id}`} className="hover:bg-neutral-50/80">
+                          <td className="px-3 py-2 tabular-nums text-xs whitespace-nowrap">
+                            {String(row.date || '').slice(0, 10)}
+                          </td>
+                          <td className="px-3 py-2 max-w-[12rem] truncate text-slate-700">
+                            {String(row.ref || '—')}
+                          </td>
+                          <td className="px-3 py-2 text-right tabular-nums">
+                            {formatMoney(Number(row.gross || 0))}
+                          </td>
+                          <td className="px-3 py-2 font-mono text-xs font-semibold">
+                            {String(row.tax_code)}
+                          </td>
+                          <td className="px-3 py-2 text-right tabular-nums font-semibold">
+                            {formatMoney(Number(row.vat || 0))}
+                          </td>
+                          <td className="px-3 py-2">
+                            <div className="flex flex-wrap gap-1">
+                              {['VAT15', 'VAT0', 'EXEMPT', 'OUT'].map((c) => (
+                                <button
+                                  key={c}
+                                  type="button"
+                                  disabled={classifying || String(row.tax_code) === c}
+                                  onClick={() => {
+                                    void (async () => {
+                                      setClassifying(true);
+                                      try {
+                                        const res = await fetch('/api/accounting/tax', {
+                                          method: 'POST',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({
+                                            companyId,
+                                            privyUserId,
+                                            action: 'classify_bank',
+                                            ids: [row.id],
+                                            tax_code: c,
+                                            tax_inclusive: true,
+                                          }),
+                                        });
+                                        const data = await res.json();
+                                        if (!res.ok) throw new Error(data.error || 'Failed');
+                                        toast.success(`Changed to ${c}`);
+                                        void load();
+                                      } catch (err) {
+                                        toast.error(
+                                          err instanceof Error ? err.message : 'Failed'
+                                        );
+                                      } finally {
+                                        setClassifying(false);
+                                      }
+                                    })();
+                                  }}
+                                  className="text-[10px] font-bold px-2 py-1 rounded-lg border border-neutral-200 hover:border-[#00b4d8] hover:text-[#0077b6] disabled:opacity-40"
+                                >
+                                  {c}
+                                </button>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </Panel>
+            </>
+          )}
+
           {/* Recent classified lines */}
           {(invoiceLines.length > 0 || bankLines.length > 0) && (
             <>
