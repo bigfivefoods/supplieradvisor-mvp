@@ -93,7 +93,7 @@ Creates `bank_connections`, `bank_sync_runs`, `bank_match_rules`, and provider c
 - Auto-match boosts confidence (48% single hit, up to ~82% with repeated consistent allocations)
 
 ### Scheduled sync
-- `GET/POST /api/banking/cron-sync` every 6 hours (Vercel Cron)
+- `GET/POST /api/banking/cron-sync` daily at 02:00 UTC (Vercel Hobby allows 1 run/day per cron)
 - Auth: `Authorization: Bearer $CRON_SECRET`
 - Syncs active `bank_connections`, ingests + high-confidence auto-match
 

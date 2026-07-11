@@ -397,15 +397,64 @@ function LeadershipInner() {
     });
   };
 
-  const persist = async (nextStep?: Step) => {
+  const buildProgressPayload = (nextStep?: Step) => {
     const savedAt = new Date().toISOString();
-    const progress = {
+    return {
       scores,
       step: nextStep || step,
       totalScore,
       dimensions: Object.fromEntries(DIMENSIONS.map((d) => [d.key, dimScore(d.key)])),
+      dimensionDetail: DIMENSIONS.map((d) => ({
+        key: d.key,
+        name: d.name,
+        score: dimScore(d.key),
+        practices: d.practices,
+      })),
+      model: 'Super-Cube®',
+      companyId,
       savedAt,
     };
+  };
+
+  const exportReport = () => {
+    const progress = buildProgressPayload();
+    const blob = new Blob([JSON.stringify(progress, null, 2)], {
+      type: 'application/json',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `super-cube-assessment-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    // Printable summary window
+    const w = window.open('', '_blank');
+    if (w) {
+      const rows = DIMENSIONS.map(
+        (d) =>
+          `<tr><td style="padding:8px;border-bottom:1px solid #eee">${d.name}</td><td style="padding:8px;border-bottom:1px solid #eee;font-weight:700">${dimScore(d.key).toFixed(1)}</td></tr>`
+      ).join('');
+      w.document.write(`<!DOCTYPE html><html><head><title>Super-Cube® Report</title>
+        <style>body{font-family:system-ui,sans-serif;max-width:640px;margin:40px auto;color:#0f172a}
+        h1{color:#00b4d8} table{width:100%;border-collapse:collapse} .muted{color:#64748b;font-size:13px}</style></head>
+        <body>
+        <h1>Leadership Super-Cube®</h1>
+        <p class="muted">Exported ${progress.savedAt} · Company #${companyId || '—'}</p>
+        <p><strong>Overall:</strong> ${totalScore.toFixed(1)} / 10</p>
+        <table><thead><tr><th align="left">Dimension</th><th align="left">Score</th></tr></thead>
+        <tbody>${rows}</tbody></table>
+        <p class="muted" style="margin-top:24px">SupplierAdvisor® — self-assessment for development, not a certification.</p>
+        <script>window.onload=()=>window.print()</script>
+        </body></html>`);
+      w.document.close();
+    }
+    toast.success('Report exported (JSON + print view)');
+  };
+
+  const persist = async (nextStep?: Step) => {
+    const progress = buildProgressPayload(nextStep);
+    const savedAt = progress.savedAt;
     try {
       localStorage.setItem(storageKey, JSON.stringify(progress));
     } catch {
@@ -457,20 +506,29 @@ function LeadershipInner() {
         titleAccent="Super-Cube®"
         description="Become the leader you want to follow — then raise everyone around you. Six dimensions. One integrated human model. Progress saves to your company workspace."
         action={
-          <button
-            type="button"
-            disabled={saving}
-            onClick={() => void persist()}
-            className="btn-primary !py-2.5 !px-5 text-sm"
-          >
-            {saving ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <>
-                <Save className="w-4 h-4" /> Save progress
-              </>
-            )}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => exportReport()}
+              className="btn-secondary !py-2.5 !px-4 text-sm"
+            >
+              Export report
+            </button>
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => void persist()}
+              className="btn-primary !py-2.5 !px-5 text-sm"
+            >
+              {saving ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <>
+                  <Save className="w-4 h-4" /> Save progress
+                </>
+              )}
+            </button>
+          </div>
         }
       />
 

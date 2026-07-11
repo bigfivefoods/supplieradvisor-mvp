@@ -12,6 +12,7 @@ import { usePrivy } from '@privy-io/react-auth';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
 import { normalizeTeamRole } from '@/lib/business/permissions';
+import NotificationBell from '@/components/chrome/NotificationBell';
 
 /**
  * Dashboard shell — collapsible icon sidebar + sticky module process rail.
@@ -112,7 +113,11 @@ function DashboardChrome({ children }: { children: React.ReactNode }) {
                   SupplierAdvisor®
                 </div>
               </div>
+              <NotificationBell />
             </header>
+            <div className="hidden md:flex items-center justify-end gap-2 border-b border-neutral-100 px-4 py-1.5 bg-white/80">
+              <NotificationBell />
+            </div>
             <ModuleProcessBar />
           </div>
         )}

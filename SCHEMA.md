@@ -182,7 +182,8 @@ APIs: `/api/suppliers`, `/summary`, `/discover`, `/connect`, `/invites`, `/otife
 | Escrow create | status stays sent/accepted | wallet `createPO` → `POST …/onchain` kind=create |
 | Fund | status → `funded` | wallet `fundPO` + value |
 | Delivery | PATCH promised/actual qty + damaged → `completed` (OTIFEF inputs) | — |
-| Release | status completed | wallet `releaseFunds` → `POST …/onchain` kind=release |
+| Ship | chain status shipped | supplier wallet `markShipped` → `POST …/onchain` kind=ship |
+| Release | status completed | buyer wallet `confirmDelivery` → `POST …/onchain` kind=release |
 | Rate | `POST /api/suppliers/ratings` | — |
 
 Buyer transitions: `lib/procurement/types.ts` → `SRM_BUYER_PO_TRANSITIONS`.

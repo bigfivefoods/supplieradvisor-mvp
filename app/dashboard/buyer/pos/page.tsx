@@ -31,15 +31,21 @@ import {
 } from '@/lib/procurement/types';
 import { CONTRACTS } from '@/lib/contracts/config';
 import POEscrowV2ABI from '@/lib/contracts/abi/POEscrowV2.json';
+import {
+  fiatToEthString,
+  getEthDemoRateFiat,
+  getPoEscrowAddress,
+  type EscrowLinkKind,
+} from '@/lib/contracts/escrow';
+// fiatToEthString used for placeholder when override empty
+import WalletConnectBar from '@/components/onchain/WalletConnectBar';
 
-const PO_ESCROW_ADDRESS = CONTRACTS.POEscrowV2.address;
+const PO_ESCROW_ADDRESS = getPoEscrowAddress() || CONTRACTS.POEscrowV2.address;
 /**
  * Demo-only ZAR→ETH rate (matches suppliers/po). Drives real msg.value for fundPO —
- * not for production without an oracle / explicit ETH amount field.
+ * override with NEXT_PUBLIC_ETH_DEMO_RATE.
  */
-const ETH_RATE_ZAR = 55000;
-
-type EscrowLinkKind = 'create' | 'fund';
+const ETH_RATE_ZAR = getEthDemoRateFiat();
 
 type PendingEscrowLink = {
   supabasePoId: number;
@@ -132,6 +138,7 @@ export default function BuyerPurchaseOrdersPage() {
   const [description, setDescription] = useState('');
   const [useEscrow, setUseEscrow] = useState(false);
   const [supplierWallet, setSupplierWallet] = useState('');
+  const [escrowEthOverride, setEscrowEthOverride] = useState('');
   const [lineItems, setLineItems] = useState<LineItem[]>([
     { product_id: null, item_name: '', quantity: 1, unit_price: 0, uom: null },
   ]);
@@ -326,7 +333,11 @@ export default function BuyerPurchaseOrdersPage() {
         toast.success(
           link.kind === 'create'
             ? `On-chain escrow linked (chain PO #${poIdOnChain})`
-            : `Fund recorded for chain PO #${poIdOnChain} (create tx preserved)`
+            : link.kind === 'fund'
+              ? `Fund recorded for chain PO #${poIdOnChain}`
+              : link.kind === 'ship'
+                ? `Shipped recorded for chain PO #${poIdOnChain}`
+                : `Delivery confirmed — supplier paid (chain PO #${poIdOnChain})`
         );
         setPendingLink(null);
         setLinkError(null);
@@ -386,8 +397,57 @@ export default function BuyerPurchaseOrdersPage() {
     setLineItems(updated);
   };
 
-  const amountInEth = (amountZar: number) =>
-    (amountZar / ETH_RATE_ZAR).toFixed(6);
+  const amountInEth = (amountZar: number) => {
+    const o = escrowEthOverride.trim();
+    if (o && Number.isFinite(Number(o)) && Number(o) > 0) {
+      return Number(o).toFixed(6);
+    }
+    return fiatToEthString(amountZar, ETH_RATE_ZAR);
+  };
+
+  /** Buyer confirmDelivery — pays supplier after markShipped */
+  const confirmDeliveryOnchain = (po: PurchaseOrder) => {
+    if (!escrowEnabled) return;
+    if (!connectedWallet) {
+      toast.error('Connect your wallet to confirm delivery');
+      return;
+    }
+    const onchainId = po.onchain_po_id;
+    if (onchainId == null || onchainId === '') {
+      toast.error('No on-chain PO id linked yet');
+      return;
+    }
+    setLinkError(null);
+    autoLinkDoneForHashRef.current = null;
+    writeErrorToastedRef.current = null;
+    pendingSubmitRef.current = {
+      supabasePoId: po.id,
+      supplierWallet: po.supplier_wallet || null,
+      onchainPoId: onchainId,
+      kind: 'release',
+    };
+    writeContract(
+      {
+        address: PO_ESCROW_ADDRESS,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        abi: POEscrowV2ABI.abi as any,
+        functionName: 'confirmDelivery',
+        args: [BigInt(String(onchainId))],
+      },
+      {
+        onError: (err) => {
+          pendingSubmitRef.current = null;
+          autoLinkDoneForHashRef.current = null;
+          const msg = err?.message || 'Wallet rejected confirmDelivery';
+          writeErrorToastedRef.current = msg;
+          toast.error(
+            `confirmDelivery failed: ${msg}. Supplier must call markShipped first.`
+          );
+        },
+      }
+    );
+    toast.message(`Confirming delivery for chain PO #${onchainId}…`);
+  };
 
   /** Client-signed createPO — never POEscrowService / server key */
   const submitCreateOnchain = (supabasePoId: number, wallet: string, amountZar: number) => {
@@ -638,20 +698,6 @@ export default function BuyerPurchaseOrdersPage() {
                 ? ' · optional client-signed on-chain escrow'
                 : ' · off-chain PO (escrow flag off)'}
             </p>
-            {escrowEnabled && (
-              <div className="flex flex-wrap items-center gap-2 mt-2">
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
-                  Escrow available
-                </span>
-                {connectedWallet ? (
-                  <span className="text-xs text-neutral-500 font-mono">
-                    Wallet {connectedWallet.slice(0, 6)}…{connectedWallet.slice(-4)}
-                  </span>
-                ) : (
-                  <span className="text-xs text-amber-700">Connect wallet for escrow</span>
-                )}
-              </div>
-            )}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <Link
@@ -666,6 +712,12 @@ export default function BuyerPurchaseOrdersPage() {
             </div>
           </div>
         </div>
+
+        {escrowEnabled && (
+          <div className="mb-6">
+            <WalletConnectBar />
+          </div>
+        )}
 
         {loading ? (
           <div className="flex justify-center py-20">
@@ -773,17 +825,35 @@ export default function BuyerPurchaseOrdersPage() {
                     )}
                   </p>
                   {useEscrow && (
-                    <div className="mt-3 ml-6">
-                      <label className="text-xs text-neutral-500 mb-1 block">
-                        Supplier wallet address
-                      </label>
-                      <input
-                        type="text"
-                        value={supplierWallet}
-                        onChange={(e) => setSupplierWallet(e.target.value)}
-                        className="w-full px-4 py-3 border border-neutral-200 rounded-2xl font-mono text-sm focus:border-[#00b4d8]"
-                        placeholder="0x…"
-                      />
+                    <div className="mt-3 ml-6 space-y-3">
+                      <div>
+                        <label className="text-xs text-neutral-500 mb-1 block">
+                          Supplier wallet address
+                        </label>
+                        <input
+                          type="text"
+                          value={supplierWallet}
+                          onChange={(e) => setSupplierWallet(e.target.value)}
+                          className="w-full px-4 py-3 border border-neutral-200 rounded-2xl font-mono text-sm focus:border-[#00b4d8]"
+                          placeholder="0x…"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-neutral-500 mb-1 block">
+                          Escrow amount (ETH) — optional override
+                        </label>
+                        <input
+                          type="text"
+                          value={escrowEthOverride}
+                          onChange={(e) => setEscrowEthOverride(e.target.value)}
+                          className="w-full px-4 py-3 border border-neutral-200 rounded-2xl font-mono text-sm focus:border-[#00b4d8]"
+                          placeholder={`Auto ≈ ${fiatToEthString(totalAmount, ETH_RATE_ZAR)} ETH`}
+                        />
+                        <p className="text-[11px] text-amber-800 mt-1">
+                          Leave empty for demo fiat conversion. Enter exact ETH for real testnet
+                          funds.
+                        </p>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1020,9 +1090,21 @@ export default function BuyerPurchaseOrdersPage() {
                                 <Wallet className="w-3.5 h-3.5" /> Create on-chain escrow
                               </button>
                             )}
+                            {isOnchain &&
+                              (po.status === 'funded' || po.status === 'paid') && (
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() => confirmDeliveryOnchain(po)}
+                                  className="px-4 py-1.5 bg-violet-600 text-white rounded-xl text-sm font-medium flex items-center gap-1.5 disabled:bg-neutral-300"
+                                  title="Pays supplier after markShipped"
+                                >
+                                  <CheckCircle className="w-3.5 h-3.5" /> Confirm delivery & pay
+                                </button>
+                              )}
                             {po.onchain_tx && (
                               <span className="px-3 py-1.5 text-xs bg-emerald-100 text-emerald-700 rounded-xl flex items-center gap-1">
-                                <CheckCircle className="w-3.5 h-3.5" /> Chain tx saved
+                                <CheckCircle className="w-3.5 h-3.5" /> Chain tx verified
                               </span>
                             )}
                           </div>

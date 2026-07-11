@@ -1,11 +1,20 @@
-import { sepolia } from 'viem/chains';
+/**
+ * Re-export canonical escrow config (Hardhat POEscrowV2 on Sepolia by default).
+ * Override with NEXT_PUBLIC_PO_ESCROW_ADDRESS / NEXT_PUBLIC_PO_ESCROW_CHAIN_ID.
+ */
+import {
+  getPoEscrowAddress,
+  getPoEscrowChainId,
+  getPoEscrowChain,
+  DEFAULT_PO_ESCROW_ADDRESS,
+} from '@/lib/contracts/escrow';
 
-export const CHAIN = sepolia;
+export const CHAIN = getPoEscrowChain();
+export const CHAIN_ID = getPoEscrowChainId();
 
 export const CONTRACTS = {
   POEscrowV2: {
-    address: '0xDCB5bBF409DCbf54124C02a11a6518e3a8ddd61c' as const, // Sepolia
-    // Add mainnet address later when deployed
+    address: getPoEscrowAddress() as typeof DEFAULT_PO_ESCROW_ADDRESS,
+    chainId: getPoEscrowChainId(),
   },
-  // CompanyConnectionRegistry: { ... }  // we can add later
 } as const;

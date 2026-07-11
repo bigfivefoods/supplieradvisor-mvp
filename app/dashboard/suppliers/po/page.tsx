@@ -37,6 +37,17 @@ import {
 import { CONTRACTS } from '@/lib/contracts/config';
 import POEscrowV2ABI from '@/lib/contracts/abi/POEscrowV2.json';
 import {
+  fiatToEthString,
+  getEthDemoRateFiat,
+  getPoEscrowAddress,
+  escrowTxUrl,
+  ESCROW_LIFECYCLE,
+  type EscrowLinkKind,
+} from '@/lib/contracts/escrow';
+import WalletConnectBar from '@/components/onchain/WalletConnectBar';
+import UsdcEscrowActions from '@/components/onchain/UsdcEscrowActions';
+import { isUsdcEscrowEnabled } from '@/lib/contracts/usdcEscrow';
+import {
   CompanyRequired,
   SuppliersHeader,
   SuppliersPage,
@@ -44,11 +55,9 @@ import {
 import FxRateStrip from '@/components/fx/FxRateStrip';
 import { COMMON_CURRENCIES } from '@/lib/inventory/types';
 
-const PO_ESCROW_ADDRESS = CONTRACTS.POEscrowV2.address;
-/** Demo ZAR→ETH rate for fundPO msg.value — replace with oracle in production */
-const ETH_RATE_ZAR = 55000;
-
-type EscrowLinkKind = 'create' | 'fund' | 'release';
+const PO_ESCROW_ADDRESS = getPoEscrowAddress() || CONTRACTS.POEscrowV2.address;
+/** Demo ZAR→ETH rate for fundPO msg.value — override via NEXT_PUBLIC_ETH_DEMO_RATE */
+const ETH_RATE_ZAR = getEthDemoRateFiat();
 
 type PendingEscrowLink = {
   supabasePoId: number;
@@ -166,6 +175,10 @@ function PoInner() {
   const [poCurrency, setPoCurrency] = useState('ZAR');
   const [useEscrow, setUseEscrow] = useState(false);
   const [supplierWallet, setSupplierWallet] = useState('');
+  /** Optional override for fundPO msg.value (ETH). Empty = demo fiat conversion. */
+  const [escrowEthOverride, setEscrowEthOverride] = useState('');
+  const [escrowAsset, setEscrowAsset] = useState<'eth' | 'usdc'>('eth');
+  const usdcEnabled = isUsdcEscrowEnabled();
   const [lineItems, setLineItems] = useState<PoLineItem[]>([
     { product_id: null, item_name: '', quantity: 1, unit_price: 0, uom: 'ea' },
   ]);
@@ -307,7 +320,13 @@ function PoInner() {
     toast.error(msg);
   }, [isWriteError, writeError]);
 
-  const amountInEth = (zar: number) => (zar / ETH_RATE_ZAR).toFixed(6);
+  const amountInEth = (zar: number) => {
+    const o = escrowEthOverride.trim();
+    if (o && Number.isFinite(Number(o)) && Number(o) > 0) {
+      return Number(o).toFixed(6);
+    }
+    return fiatToEthString(zar, ETH_RATE_ZAR);
+  };
 
   const persistEscrowLink = useCallback(
     async (link: PendingEscrowLink) => {
@@ -354,7 +373,7 @@ function PoInner() {
           throw new Error(
             link.kind === 'create'
               ? 'Could not parse on-chain PO id from receipt (PO_Created). Use Retry after confirm.'
-              : 'Missing on-chain PO id for fund/release.'
+              : 'Missing on-chain PO id for fund/ship/release.'
           );
         }
 
@@ -378,7 +397,9 @@ function PoInner() {
             ? `Escrow created & linked (chain PO #${poIdOnChain})`
             : link.kind === 'fund'
               ? `Escrow funded (chain PO #${poIdOnChain})`
-              : `Funds released (chain PO #${poIdOnChain})`
+              : link.kind === 'ship'
+                ? `Marked shipped on-chain (PO #${poIdOnChain})`
+                : `Delivery confirmed — supplier paid (chain PO #${poIdOnChain})`
         );
         setPendingLink(null);
         setLinkError(null);
@@ -480,13 +501,51 @@ function PoInner() {
     );
   };
 
-  const submitReleaseOnchain = (po: PurchaseOrder) => {
+  /** Supplier wallet must call markShipped before buyer can confirmDelivery */
+  const submitShipOnchain = (po: PurchaseOrder) => {
     if (!po.onchain_po_id) {
-      toast.error('No on-chain PO to release');
+      toast.error('No on-chain PO to mark shipped');
       return;
     }
     if (!connectedWallet) {
-      toast.error('Connect wallet to release funds');
+      toast.error('Connect the supplier wallet to mark shipped');
+      return;
+    }
+    setLinkError(null);
+    autoLinkDoneForHashRef.current = null;
+    pendingSubmitRef.current = {
+      supabasePoId: po.id,
+      supplierWallet: po.supplier_wallet || connectedWallet,
+      onchainPoId: po.onchain_po_id,
+      kind: 'ship',
+    };
+    writeContract(
+      {
+        address: PO_ESCROW_ADDRESS,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        abi: POEscrowV2ABI.abi as any,
+        functionName: 'markShipped',
+        args: [BigInt(String(po.onchain_po_id))],
+      },
+      {
+        onError: (err) => {
+          pendingSubmitRef.current = null;
+          toast.error(
+            `markShipped failed: ${err?.message || 'rejected'}. Must be the supplier address on-chain.`
+          );
+        },
+      }
+    );
+  };
+
+  /** Buyer confirmDelivery — releases escrowed ETH to supplier (Hardhat POEscrowV2) */
+  const submitReleaseOnchain = (po: PurchaseOrder) => {
+    if (!po.onchain_po_id) {
+      toast.error('No on-chain PO to confirm');
+      return;
+    }
+    if (!connectedWallet) {
+      toast.error('Connect buyer wallet to confirm delivery & release');
       return;
     }
     setLinkError(null);
@@ -502,13 +561,15 @@ function PoInner() {
         address: PO_ESCROW_ADDRESS,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         abi: POEscrowV2ABI.abi as any,
-        functionName: 'releaseFunds',
+        functionName: 'confirmDelivery',
         args: [BigInt(String(po.onchain_po_id))],
       },
       {
         onError: (err) => {
           pendingSubmitRef.current = null;
-          toast.error(`releaseFunds failed: ${err?.message || 'rejected'}`);
+          toast.error(
+            `confirmDelivery failed: ${err?.message || 'rejected'}. Supplier must markShipped first.`
+          );
         },
       }
     );
@@ -660,14 +721,14 @@ function PoInner() {
     return purchaseOrders;
   }, [purchaseOrders, filter]);
 
-  const sepoliaTx = (hash: string) => `https://sepolia.etherscan.io/tx/${hash}`;
+  const sepoliaTx = (hash: string) => escrowTxUrl(hash);
 
   return (
     <SuppliersPage>
     <div className="pb-8">
       <SuppliersHeader
         title="Purchase orders"
-        description="World-class procurement: standard off-chain POs with full OTIFEF delivery capture, or optional POEscrowV2 on-chain escrow (create → fund → release) with client-signed wallet txs."
+        description="World-class procurement: standard off-chain POs with OTIFEF delivery capture, or optional POEscrowV2 escrow (create → fund → markShipped → confirmDelivery) with client-signed txs and server receipt verification."
         action={
           <div className="flex flex-wrap gap-2">
             <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase px-3 py-1.5 rounded-full bg-emerald-100 text-emerald-800">
@@ -681,6 +742,12 @@ function PoInner() {
           </div>
         }
       />
+
+      {escrowEnabled && (
+        <div className="mb-6">
+          <WalletConnectBar />
+        </div>
+      )}
 
       {/* KPI strip */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 mb-6">
@@ -984,20 +1051,73 @@ function PoInner() {
                   </div>
                 </label>
                 {useEscrow && (
-                  <div>
-                    <label className="text-xs font-medium">Supplier wallet *</label>
-                    <input
-                      className="input mt-1 w-full !p-3 !text-sm font-mono"
-                      placeholder="0x…"
-                      value={supplierWallet}
-                      onChange={(e) => setSupplierWallet(e.target.value)}
-                    />
+                  <div className="space-y-3">
+                    {usdcEnabled && (
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setEscrowAsset('eth')}
+                          className={`text-xs font-semibold px-3 py-1.5 rounded-full border ${
+                            escrowAsset === 'eth'
+                              ? 'bg-[#00b4d8] text-white border-[#00b4d8]'
+                              : 'bg-white border-neutral-200'
+                          }`}
+                        >
+                          ETH (Sepolia)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEscrowAsset('usdc')}
+                          className={`text-xs font-semibold px-3 py-1.5 rounded-full border ${
+                            escrowAsset === 'usdc'
+                              ? 'bg-violet-600 text-white border-violet-600'
+                              : 'bg-white border-neutral-200'
+                          }`}
+                        >
+                          USDC (Base)
+                        </button>
+                      </div>
+                    )}
+                    <div>
+                      <label className="text-xs font-medium">Supplier wallet *</label>
+                      <input
+                        className="input mt-1 w-full !p-3 !text-sm font-mono"
+                        placeholder="0x…"
+                        value={supplierWallet}
+                        onChange={(e) => setSupplierWallet(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium">
+                        Escrow amount (ETH) — optional override
+                      </label>
+                      <input
+                        className="input mt-1 w-full !p-3 !text-sm font-mono"
+                        placeholder={`Auto ≈ ${fiatToEthString(totalAmount, ETH_RATE_ZAR)} from PO total`}
+                        value={escrowEthOverride}
+                        onChange={(e) => setEscrowEthOverride(e.target.value)}
+                      />
+                      <p className="text-[11px] text-amber-800 mt-1 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1">
+                        Demo: empty uses fiat÷{ETH_RATE_ZAR.toLocaleString()} rate. Enter exact ETH for
+                        real testnet funds. Production should use stablecoin + oracle.
+                      </p>
+                    </div>
                     {connectedWallet ? (
-                      <p className="text-[11px] text-emerald-700 mt-1">
+                      <p className="text-[11px] text-emerald-700">
                         Buyer wallet connected: {connectedWallet.slice(0, 6)}…{connectedWallet.slice(-4)}
                       </p>
                     ) : (
-                      <p className="text-[11px] text-amber-700 mt-1">Connect wallet to sign escrow</p>
+                      <p className="text-[11px] text-amber-700">Connect wallet to sign escrow</p>
+                    )}
+                    {escrowAsset === 'usdc' && usdcEnabled && supplierWallet && (
+                      <UsdcEscrowActions
+                        supplierWallet={supplierWallet}
+                        fiatAmount={totalAmount}
+                        metadataURI={`https://supplieradvisor.com/po/draft`}
+                        onCreated={({ onchainPoId, txHash }) => {
+                          toast.success(`USDC createPO #${onchainPoId} — raise PO then link tx ${txHash.slice(0, 10)}…`);
+                        }}
+                      />
                     )}
                   </div>
                 )}
@@ -1247,6 +1367,17 @@ function PoInner() {
                               <Package className="w-3 h-3" /> Record delivery
                             </button>
                           )}
+                          {escrowEnabled && onchain && po.status === 'funded' && (
+                            <button
+                              type="button"
+                              disabled={isContractPending}
+                              onClick={() => submitShipOnchain(po)}
+                              className="btn-secondary !py-1.5 !px-3 text-xs"
+                              title="Must be signed by the supplier wallet registered on-chain"
+                            >
+                              <Truck className="w-3 h-3" /> Mark shipped
+                            </button>
+                          )}
                           {escrowEnabled &&
                             onchain &&
                             (po.status === 'funded' || po.status === 'completed') && (
@@ -1255,8 +1386,9 @@ function PoInner() {
                                 disabled={isContractPending}
                                 onClick={() => submitReleaseOnchain(po)}
                                 className="btn-secondary !py-1.5 !px-3 text-xs"
+                                title="Buyer confirmDelivery — pays supplier after markShipped"
                               >
-                                Release funds
+                                Confirm & pay
                               </button>
                             )}
                           {po.status === 'completed' && (
@@ -1406,29 +1538,23 @@ function ProcessGuide({ escrowEnabled }: { escrowEnabled: boolean }) {
         <h3 className="font-bold text-lg mb-2">On-chain escrow (POEscrowV2)</h3>
         {escrowEnabled ? (
           <ol className="text-sm text-neutral-600 space-y-2 list-decimal list-inside">
-            <li>Create off-chain PO first (source of truth)</li>
-            <li>
-              <code className="text-xs bg-neutral-100 px-1 rounded">createPO</code> — client-signed;
-              links chain PO id from PO_Created
-            </li>
-            <li>
-              <code className="text-xs bg-neutral-100 px-1 rounded">fundPO</code> — lock ETH (demo
-              ZAR rate); status → funded
-            </li>
-            <li>Record delivery / complete off-chain</li>
-            <li>
-              <code className="text-xs bg-neutral-100 px-1 rounded">releaseFunds</code> — pay
-              supplier after performance
-            </li>
-            <li>All txs audited in activity log + PO metadata</li>
+            {ESCROW_LIFECYCLE.map((s) => (
+              <li key={s.fn}>
+                <code className="text-xs bg-neutral-100 px-1 rounded">{s.fn}</code> — {s.label} (
+                {s.role})
+              </li>
+            ))}
+            <li>Server verifies receipt before saving on-chain refs</li>
+            <li>Record OTIFEF delivery + rate supplier off-chain</li>
           </ol>
         ) : (
           <p className="text-sm text-neutral-500">
-            Escrow disabled via SUPPLIER_PO_ESCROW_ENABLED.
+            Escrow off by default. Set NEXT_PUBLIC_SUPPLIER_PO_ESCROW_ENABLED=true (and server twin)
+            after wallet + chain are ready.
           </p>
         )}
         <p className="text-xs text-neutral-500 mt-4">
-          Contract: {PO_ESCROW_ADDRESS.slice(0, 10)}… on Sepolia · never uses server private key
+          Contract: {PO_ESCROW_ADDRESS.slice(0, 10)}… · client-signed only · receipt verified
         </p>
       </div>
     </div>

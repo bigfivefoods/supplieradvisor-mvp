@@ -50,7 +50,7 @@ function InsightsInner() {
       <IntelligenceHeader
         title="Business"
         titleAccent="insights"
-        description="Actionable intelligence derived from live network, SRM, CRM, inventory, and accounting data — not generic AI fluff. Each insight links to the module where you can act."
+        description="Rule-based intelligence from live network, SRM, CRM, inventory, and accounting data — transparent thresholds, not a black-box neural net. Each insight links to the module where you can act."
         action={
           <button type="button" onClick={() => void reload()} className="btn-secondary !py-2.5 !px-4 text-sm">
             <RefreshCw className="w-4 h-4" /> Refresh

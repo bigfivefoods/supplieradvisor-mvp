@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPOEscrowService } from '@/lib/contracts/POEscrowService';
 
-// ==================== POST /api/po ====================
+/**
+ * Legacy admin/script API for POEscrowV2 (server private key).
+ * Prefer client-signed flows on /dashboard/suppliers/po and /dashboard/buyer/pos.
+ */
 export async function POST(request: NextRequest) {
   try {
     const poEscrowService = getPOEscrowService();
@@ -10,7 +13,10 @@ export async function POST(request: NextRequest) {
 
     if (!action) {
       return NextResponse.json(
-        { error: 'Missing "action" field (create, fund, confirm, release)' },
+        {
+          error:
+            'Missing "action" field (create, fund, ship, confirm, release)',
+        },
         { status: 400 }
       );
     }
@@ -22,8 +28,10 @@ export async function POST(request: NextRequest) {
         result = await poEscrowService.createPO({
           supplier: params.supplier,
           amount: BigInt(params.amount),
-          description: params.description,
-          deadline: BigInt(params.deadline),
+          metadataURI:
+            params.metadataURI ||
+            params.description ||
+            `po://legacy/${Date.now()}`,
         });
         break;
 
@@ -34,12 +42,13 @@ export async function POST(request: NextRequest) {
         );
         break;
 
-      case 'confirm':
-        result = await poEscrowService.confirmDelivery(BigInt(params.poId));
+      case 'ship':
+        result = await poEscrowService.markShipped(BigInt(params.poId));
         break;
 
+      case 'confirm':
       case 'release':
-        result = await poEscrowService.releaseFunds(BigInt(params.poId));
+        result = await poEscrowService.confirmDelivery(BigInt(params.poId));
         break;
 
       default:
@@ -57,17 +66,10 @@ export async function POST(request: NextRequest) {
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Internal server error';
     console.error('PO API Error:', error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: message,
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
 
-// ==================== GET /api/po?id=xx ====================
 export async function GET(request: NextRequest) {
   try {
     const poEscrowService = getPOEscrowService();
@@ -75,33 +77,43 @@ export async function GET(request: NextRequest) {
     const poId = searchParams.get('id');
 
     if (!poId) {
-      const counter = await poEscrowService.getPOCounter();
       return NextResponse.json({
         success: true,
-        poCounter: counter.toString(),
+        hint: 'Pass ?id= for getPO. Counter not exposed on Hardhat POEscrowV2 ABI as getPOCounter.',
       });
     }
 
     const po = await poEscrowService.getPO(BigInt(poId));
-    const status = await poEscrowService.getPOStatus(BigInt(poId));
+    // getPO returns struct tuple / object depending on ABI encoding
+    if (Array.isArray(po)) {
+      const row = po as readonly unknown[];
+      return NextResponse.json({
+        success: true,
+        po: {
+          id: String(row[0]),
+          buyer: row[1],
+          supplier: row[2],
+          amount: String(row[3]),
+          metadataURI: row[4],
+          status: row[5],
+          createdAt: row[6] != null ? String(row[6]) : null,
+          fundedAt: row[7] != null ? String(row[7]) : null,
+        },
+      });
+    }
 
+    const obj = (po && typeof po === 'object' ? po : {}) as Record<string, unknown>;
     return NextResponse.json({
       success: true,
       po: {
-        ...po,
-        id: po.id.toString(),
-        amount: po.amount.toString(),
-        fundedAmount: po.fundedAmount.toString(),
-        deadline: po.deadline.toString(),
+        ...obj,
+        id: obj.id != null ? String(obj.id) : undefined,
+        amount: obj.amount != null ? String(obj.amount) : undefined,
       },
-      status,
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Internal server error';
     console.error('PO GET Error:', error);
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }

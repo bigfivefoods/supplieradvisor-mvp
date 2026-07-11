@@ -210,23 +210,40 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * PATCH — seller updates inquiry status
- * Body: companyId, privyUserId, inquiryId, status
+ * PATCH — seller/buyer updates inquiry status + optional settlement
+ * Body: companyId, privyUserId, inquiryId, status?, settlement_status?, settlement_note?
+ *
+ * settlement_status (stored in metadata): none | pending | off_platform | paid | disputed
  */
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
     const companyId = Number(body.companyId);
     const inquiryId = Number(body.inquiryId);
-    const status = String(body.status || '');
+    const status = body.status != null ? String(body.status) : null;
+    const settlementStatus =
+      body.settlement_status != null ? String(body.settlement_status) : null;
     const mem = await assertCompanyMember(body.privyUserId, companyId);
     if (!mem.ok) {
       return NextResponse.json({ error: mem.error }, { status: mem.status });
     }
 
-    const allowed = ['quoted', 'accepted', 'declined', 'converted', 'cancelled'];
-    if (!allowed.includes(status)) {
+    const allowed = ['new', 'quoted', 'accepted', 'declined', 'converted', 'cancelled'];
+    if (status && !allowed.includes(status)) {
       return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
+    }
+    const settlementAllowed = ['none', 'pending', 'off_platform', 'paid', 'disputed'];
+    if (settlementStatus && !settlementAllowed.includes(settlementStatus)) {
+      return NextResponse.json(
+        { error: 'Invalid settlement_status', allowed: settlementAllowed },
+        { status: 400 }
+      );
+    }
+    if (!status && !settlementStatus) {
+      return NextResponse.json(
+        { error: 'status or settlement_status required' },
+        { status: 400 }
+      );
     }
 
     const supabase = getSupabaseServer();
@@ -246,9 +263,30 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Not a party to this inquiry' }, { status: 403 });
     }
 
+    const prevMeta =
+      inv.metadata && typeof inv.metadata === 'object' && !Array.isArray(inv.metadata)
+        ? { ...(inv.metadata as Record<string, unknown>) }
+        : {};
+    if (settlementStatus) {
+      prevMeta.settlement_status = settlementStatus;
+      prevMeta.settlement_updated_at = new Date().toISOString();
+      if (body.settlement_note != null) {
+        prevMeta.settlement_note = String(body.settlement_note);
+      }
+      if (settlementStatus === 'paid') {
+        prevMeta.settled_at = new Date().toISOString();
+      }
+    }
+
+    const updates: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+      metadata: prevMeta,
+    };
+    if (status) updates.status = status;
+
     const { data: updated, error: upErr } = await supabase
       .from('marketplace_inquiries')
-      .update({ status, updated_at: new Date().toISOString() })
+      .update(updates)
       .eq('id', inquiryId)
       .select('*')
       .single();
@@ -257,7 +295,32 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: upErr.message }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, inquiry: updated });
+    await logActivity({
+      profile_id: companyId,
+      actor_user_id: mem.userId,
+      action: settlementStatus
+        ? `marketplace.settlement.${settlementStatus}`
+        : `marketplace.inquiry.${status}`,
+      entity_type: 'marketplace_inquiries',
+      entity_id: String(inquiryId),
+      summary: settlementStatus
+        ? `Marketplace inquiry #${inquiryId} settlement → ${settlementStatus}`
+        : `Marketplace inquiry #${inquiryId} → ${status}`,
+      metadata: { status, settlement_status: settlementStatus },
+    });
+
+    return NextResponse.json({
+      success: true,
+      inquiry: updated,
+      settlement_status: prevMeta.settlement_status || 'none',
+      next:
+        status === 'converted' || settlementStatus === 'paid'
+          ? {
+              po: '/dashboard/suppliers/po',
+              message: 'Convert trade to a PO for OTIFEF, escrow, and accounting.',
+            }
+          : undefined,
+    });
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },

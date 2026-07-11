@@ -61,6 +61,16 @@ export type MarketplaceListing = {
   is_own?: boolean;
 };
 
+export const SETTLEMENT_STATUSES = [
+  'none',
+  'pending',
+  'off_platform',
+  'paid',
+  'disputed',
+] as const;
+
+export type SettlementStatus = (typeof SETTLEMENT_STATUSES)[number];
+
 export type MarketplaceInquiry = {
   id: number;
   listing_id: number;
@@ -74,10 +84,33 @@ export type MarketplaceInquiry = {
   contact_name?: string | null;
   contact_email?: string | null;
   contact_phone?: string | null;
+  metadata?: Record<string, unknown> | null;
   created_at?: string;
   listing?: Partial<MarketplaceListing> | null;
   buyer?: { id: number; trading_name?: string | null } | null;
 };
+
+export function inquirySettlement(inv: MarketplaceInquiry): SettlementStatus {
+  const raw = inv.metadata?.settlement_status;
+  if (typeof raw === 'string' && (SETTLEMENT_STATUSES as readonly string[]).includes(raw)) {
+    return raw as SettlementStatus;
+  }
+  return 'none';
+}
+
+export function settlementStatusClass(s?: string | null): string {
+  switch (String(s || 'none')) {
+    case 'paid':
+      return 'bg-emerald-100 text-emerald-800';
+    case 'pending':
+    case 'off_platform':
+      return 'bg-amber-100 text-amber-900';
+    case 'disputed':
+      return 'bg-red-100 text-red-800';
+    default:
+      return 'bg-neutral-100 text-neutral-600';
+  }
+}
 
 export function formatMoney(n: number | null | undefined, currency = 'ZAR') {
   const v = Number(n || 0);

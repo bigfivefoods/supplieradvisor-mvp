@@ -682,8 +682,17 @@ function ProductsInner() {
                     <td className="px-4 py-4">
                       <span
                         className={`text-[11px] px-2 py-0.5 rounded-full capitalize ${onchainStatusClass(p.onchain_status)}`}
+                        title={
+                          (p.onchain_status || '').toLowerCase() === 'anchored'
+                            ? 'Simulated passport — deploy InventoryPassport + set env for real mint'
+                            : undefined
+                        }
                       >
-                        {p.onchain_status || 'pending'}
+                        {(p.onchain_status || '').toLowerCase() === 'anchored'
+                          ? 'simulated'
+                          : (p.onchain_status || 'pending').toLowerCase() === 'minted'
+                            ? 'minted'
+                            : p.onchain_status || 'pending'}
                       </span>
                     </td>
                     <td className="px-5 py-4" onClick={(e) => e.stopPropagation()}>

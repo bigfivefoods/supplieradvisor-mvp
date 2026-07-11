@@ -239,6 +239,7 @@ const modules = [
       { name: 'Inspections', href: '/dashboard/quality/inspections' },
       { name: 'HACCP', href: '/dashboard/quality/haccp' },
       { name: 'Traceability', href: '/dashboard/quality/traceability' },
+      { name: 'Recall drill', href: '/dashboard/quality/recall-simulator' },
     ],
   },
 
@@ -252,6 +253,9 @@ const modules = [
       { name: 'Portfolio', href: '/dashboard/projects/portfolio' },
       { name: 'Kanban', href: '/dashboard/projects/kanban-boards' },
       { name: 'Milestones', href: '/dashboard/projects/milestones' },
+      { name: 'Timesheets', href: '/dashboard/projects/timesheets' },
+      { name: 'Risks', href: '/dashboard/projects/risk-register' },
+      { name: 'Reporting', href: '/dashboard/projects/reporting' },
     ],
   },
 
@@ -263,7 +267,7 @@ const modules = [
     sub: [
       { name: 'Overview', href: '/dashboard/sustainability' },
       { name: 'Carbon', href: '/dashboard/sustainability/carbon-tracking' },
-      { name: 'Ethical sourcing', href: '/dashboard/sustainability/ethical-sourcing' },
+      { name: 'ESG packs', href: '/dashboard/sustainability/reports' },
     ],
   },
 
@@ -275,8 +279,8 @@ const modules = [
     sub: [
       { name: 'Overview', href: '/dashboard/intelligence' },
       { name: 'Pulse', href: '/dashboard/intelligence/pulse-dashboard' },
-      { name: 'Insights', href: '/dashboard/intelligence/neural-insights' },
-      { name: 'Forecasts', href: '/dashboard/intelligence/predictive-forecasts' },
+      { name: 'Insights (rules)', href: '/dashboard/intelligence/neural-insights' },
+      { name: 'ML forecasts', href: '/dashboard/intelligence/predictive-forecasts' },
       { name: 'Scorecards', href: '/dashboard/intelligence/custom-scorecards' },
       { name: 'Leadership Super-Cube®', href: '/dashboard/intelligence/leadership-development' },
     ],

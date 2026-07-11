@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { randomBytes } from 'crypto';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { hashMovement } from '@/lib/inventory/hash';
+import { hasQaHold, qaHoldErrorPayload } from '@/lib/quality/holds';
 
 function newPublicToken() {
   return randomBytes(16).toString('hex');
@@ -433,6 +434,19 @@ export async function POST(request: NextRequest) {
 
       const fromId = Number(order.from_warehouse_id);
       const shipLines = (body.lines as LineInput[] | undefined) || lines || [];
+
+      // QA release gate — block ship when lots have open/failed inspections
+      if (!body.overrideQaHold) {
+        const lotNums = shipLines.map(
+          (l) =>
+            l.lot_number ||
+            (lines || []).find((x) => x.id === (l as { id?: number }).id)?.lot_number
+        );
+        const qa = await hasQaHold(companyId, lotNums);
+        if (qa.blocked) {
+          return NextResponse.json(qaHoldErrorPayload(qa.holds), { status: 409 });
+        }
+      }
 
       for (const l of shipLines) {
         const lineId = (l as { id?: number }).id;

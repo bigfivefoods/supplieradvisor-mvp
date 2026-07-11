@@ -24,6 +24,8 @@ import {
   listingStatusClass,
   visibilityLabel,
   LISTING_VISIBILITY,
+  inquirySettlement,
+  settlementStatusClass,
   type MarketplaceInquiry,
   type MarketplaceListing,
 } from '@/lib/marketplace/types';
@@ -189,7 +191,11 @@ function SellInner() {
     }
   };
 
-  const setInquiryStatus = async (inquiryId: number, status: string) => {
+  const setInquiryStatus = async (
+    inquiryId: number,
+    status?: string,
+    settlement_status?: string
+  ) => {
     if (!privyUserId) return;
     try {
       const res = await fetch('/api/marketplace/inquiries', {
@@ -200,11 +206,16 @@ function SellInner() {
           privyUserId,
           inquiryId,
           status,
+          settlement_status,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
-      toast.success(`Inquiry ${status}`);
+      toast.success(
+        settlement_status
+          ? `Settlement → ${settlement_status}`
+          : `Inquiry ${status}`
+      );
       void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed');
@@ -520,6 +531,11 @@ function SellInner() {
                     >
                       {inv.status}
                     </span>
+                    <span
+                      className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${settlementStatusClass(inquirySettlement(inv))}`}
+                    >
+                      pay: {inquirySettlement(inv)}
+                    </span>
                   </div>
                   <div className="text-xs text-neutral-500 mt-0.5">
                     From{' '}
@@ -562,12 +578,47 @@ function SellInner() {
                     </>
                   )}
                   {(inv.status === 'accepted' || inv.status === 'quoted') && (
-                    <Link
-                      href="/dashboard/customers/quotes"
-                      className="btn-primary !py-1.5 !px-3 text-xs"
-                    >
-                      Create quote / order
-                    </Link>
+                    <>
+                      <Link
+                        href="/dashboard/customers/quotes"
+                        className="btn-primary !py-1.5 !px-3 text-xs"
+                      >
+                        Create quote / order
+                      </Link>
+                      <Link
+                        href="/dashboard/suppliers/po"
+                        className="btn-secondary !py-1.5 !px-3 text-xs"
+                      >
+                        Raise PO
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void setInquiryStatus(inv.id, undefined, 'pending')
+                        }
+                        className="btn-secondary !py-1.5 !px-3 text-xs"
+                      >
+                        Settlement pending
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void setInquiryStatus(inv.id, undefined, 'off_platform')
+                        }
+                        className="btn-secondary !py-1.5 !px-3 text-xs"
+                      >
+                        Paid off-platform
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void setInquiryStatus(inv.id, 'converted', 'paid')
+                        }
+                        className="btn-secondary !py-1.5 !px-3 text-xs"
+                      >
+                        Mark paid
+                      </button>
+                    </>
                   )}
                 </div>
               </li>

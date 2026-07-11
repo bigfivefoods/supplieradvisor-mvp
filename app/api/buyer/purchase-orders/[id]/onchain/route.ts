@@ -2,28 +2,29 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { assertCompanyMember, logActivity } from '@/lib/customers/access';
 import { isCustomerPoEscrowEnabled } from '@/lib/procurement/types';
+import { verifyEscrowOrWarn } from '@/lib/contracts/verifyEscrow';
+import type { EscrowLinkKind as Kind } from '@/lib/contracts/escrow';
 
 /**
  * POST /api/buyer/purchase-orders/[id]/onchain
  *
- * Trust-then-audit: client reports { onchain_tx, onchain_po_id, supplier_wallet?, kind? }
- * after buyer wallet writeContract(createPO|fundPO). Server checks membership +
- * PO ownership only — does NOT eth_getTransactionReceipt / parse PO_Created logs,
- * and does NOT call POEscrowService (no server private key signing).
+ * Client reports { onchain_tx, onchain_po_id, kind } after wallet writeContract.
+ * Server verifies receipt against POEscrowV2 (strict by default via ESCROW_VERIFY_STRICT).
  *
- * A malicious client could spoof chain refs while CUSTOMER_PO_ESCROW_ENABLED is on.
- * Acceptable for MVP; later verify receipt + event before update.
- *
- * kind:
- * - create (default): sets onchain_tx + onchain_po_id (create hash is the durable create ref)
- * - fund: does NOT overwrite an existing onchain_tx (preserves create hash); logs fund tx in activity;
- *   may set status → funded when current status is sent|accepted
+ * kind: create | fund | ship | release (confirmDelivery)
  */
 type Ctx = { params: Promise<{ id: string }> };
 
 const TX_HASH_RE = /^0x[a-fA-F0-9]{64}$/;
 const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 const POSITIVE_INT_RE = /^[1-9]\d*$/;
+
+function parseKind(raw: unknown): Kind {
+  if (raw === 'fund') return 'fund';
+  if (raw === 'ship') return 'ship';
+  if (raw === 'release' || raw === 'confirm' || raw === 'confirmDelivery') return 'release';
+  return 'create';
+}
 
 export async function POST(request: NextRequest, ctx: Ctx) {
   try {
@@ -43,7 +44,7 @@ export async function POST(request: NextRequest, ctx: Ctx) {
     const body = await request.json();
     const buyerCompanyId = Number(body.buyerCompanyId);
     const privyUserId = body.privyUserId;
-    const kind = body.kind === 'fund' ? 'fund' : 'create';
+    const kind = parseKind(body.kind);
     const onchainTx = body.onchain_tx != null ? String(body.onchain_tx).trim() : '';
     const onchainPoIdRaw = body.onchain_po_id;
     const supplierWalletRaw =
@@ -60,12 +61,23 @@ export async function POST(request: NextRequest, ctx: Ctx) {
         { status: 400 }
       );
     }
-    if (onchainPoIdRaw === undefined || onchainPoIdRaw === null || onchainPoIdRaw === '') {
-      return NextResponse.json({ error: 'onchain_po_id is required' }, { status: 400 });
+
+    const member = await assertCompanyMember(privyUserId, buyerCompanyId);
+    if (!member.ok) {
+      return NextResponse.json({ error: member.error }, { status: member.status });
     }
-    // Schema column is text; require positive integer string
-    const onchainPoId = String(onchainPoIdRaw).trim();
-    if (!POSITIVE_INT_RE.test(onchainPoId)) {
+
+    const expectedId =
+      onchainPoIdRaw !== undefined && onchainPoIdRaw !== null && onchainPoIdRaw !== ''
+        ? String(onchainPoIdRaw).trim()
+        : null;
+    if (kind !== 'create' && (!expectedId || !POSITIVE_INT_RE.test(expectedId))) {
+      return NextResponse.json(
+        { error: 'onchain_po_id must be a positive integer for fund/ship/release' },
+        { status: 400 }
+      );
+    }
+    if (expectedId && !POSITIVE_INT_RE.test(expectedId)) {
       return NextResponse.json(
         { error: 'onchain_po_id must be a positive integer' },
         { status: 400 }
@@ -77,17 +89,41 @@ export async function POST(request: NextRequest, ctx: Ctx) {
         { status: 400 }
       );
     }
-    const supplierWallet = supplierWalletRaw;
 
-    const member = await assertCompanyMember(privyUserId, buyerCompanyId);
-    if (!member.ok) {
-      return NextResponse.json({ error: member.error }, { status: member.status });
+    const verify = await verifyEscrowOrWarn({
+      txHash: onchainTx,
+      kind,
+      expectedOnchainPoId: expectedId,
+    });
+
+    if (verify.mode === 'rejected') {
+      return NextResponse.json(
+        { error: verify.error, code: verify.code || 'ESCROW_VERIFY_FAILED' },
+        { status: 422 }
+      );
+    }
+
+    let onchainPoId: string;
+    if (verify.mode === 'verified') {
+      onchainPoId = verify.onchainPoId;
+    } else {
+      // unverified soft path
+      if (!expectedId) {
+        return NextResponse.json(
+          {
+            error: verify.warning || 'Could not verify create tx — provide onchain_po_id or retry',
+            code: 'ESCROW_UNVERIFIED',
+          },
+          { status: 422 }
+        );
+      }
+      onchainPoId = expectedId;
     }
 
     const supabase = getSupabaseServer();
     const { data: po, error: loadErr } = await supabase
       .from('purchase_orders')
-      .select('id, buyer_profile_id, status, onchain_tx, onchain_po_id, supplier_wallet')
+      .select('id, buyer_profile_id, status, onchain_tx, onchain_po_id, supplier_wallet, metadata')
       .eq('id', poId)
       .maybeSingle();
 
@@ -105,7 +141,6 @@ export async function POST(request: NextRequest, ctx: Ctx) {
       );
     }
 
-    // Immutable after first link: refuse re-pointing to a different chain PO id
     const existingPoId =
       po.onchain_po_id != null && String(po.onchain_po_id).trim() !== ''
         ? String(po.onchain_po_id).trim()
@@ -126,21 +161,41 @@ export async function POST(request: NextRequest, ctx: Ctx) {
       updated_at: now,
     };
 
-    // Preserve createPO hash: fund path does not clobber existing onchain_tx
     const hasCreateTx = po.onchain_tx != null && String(po.onchain_tx).trim() !== '';
     if (kind === 'create' || !hasCreateTx) {
       updates.onchain_tx = onchainTx;
     }
+    if (supplierWalletRaw) updates.supplier_wallet = supplierWalletRaw;
 
-    if (supplierWallet) {
-      updates.supplier_wallet = supplierWallet;
-    }
-
-    // Intentional app/chain status sync for fund (seller may still PATCH further)
     const statusNow = String(po.status ?? '').toLowerCase();
-    if (kind === 'fund' && (statusNow === 'sent' || statusNow === 'accepted')) {
+    if (kind === 'fund' && ['sent', 'accepted', 'draft'].includes(statusNow)) {
       updates.status = 'funded';
     }
+    if (kind === 'release' && ['funded', 'accepted', 'paid', 'sent'].includes(statusNow)) {
+      updates.status = 'completed';
+    }
+
+    const prevMeta =
+      po.metadata && typeof po.metadata === 'object' && !Array.isArray(po.metadata)
+        ? { ...(po.metadata as Record<string, unknown>) }
+        : {};
+    const chainLog = Array.isArray(prevMeta.chain_events)
+      ? [...(prevMeta.chain_events as unknown[])]
+      : [];
+    chainLog.push({
+      kind,
+      tx: onchainTx,
+      onchain_po_id: onchainPoId,
+      at: now,
+      verify: verify.mode,
+      ...(verify.mode === 'verified' ? verify.meta : { warning: verify.warning }),
+    });
+    prevMeta.chain_events = chainLog;
+    prevMeta.use_escrow = true;
+    if (kind === 'fund') prevMeta.fund_tx = onchainTx;
+    if (kind === 'ship') prevMeta.ship_tx = onchainTx;
+    if (kind === 'release') prevMeta.release_tx = onchainTx;
+    updates.metadata = prevMeta;
 
     let { data, error } = await supabase
       .from('purchase_orders')
@@ -150,16 +205,13 @@ export async function POST(request: NextRequest, ctx: Ctx) {
       .select('*')
       .maybeSingle();
 
-    // Retry without optional columns if schema cache is behind
     if (error && /column|schema cache|does not exist/i.test(error.message)) {
       console.warn('PO onchain update retry without optional columns:', error.message);
       const minimal: Record<string, unknown> = {
         onchain_po_id: onchainPoId,
         updated_at: now,
       };
-      if (kind === 'create' || !hasCreateTx) {
-        minimal.onchain_tx = onchainTx;
-      }
+      if (kind === 'create' || !hasCreateTx) minimal.onchain_tx = onchainTx;
       if (updates.status) minimal.status = updates.status;
       const retry = await supabase
         .from('purchase_orders')
@@ -180,29 +232,35 @@ export async function POST(request: NextRequest, ctx: Ctx) {
       return NextResponse.json({ error: 'Purchase order not found or not owned' }, { status: 404 });
     }
 
+    const actionMap: Record<Kind, string> = {
+      create: 'po.onchain.linked.by_customer',
+      fund: 'po.onchain.funded.by_customer',
+      ship: 'po.onchain.shipped',
+      release: 'po.onchain.released.by_customer',
+    };
+
     await logActivity({
       profile_id: buyerCompanyId,
       actor_user_id: member.userId,
-      action:
-        kind === 'fund' ? 'po.onchain.funded.by_customer' : 'po.onchain.linked.by_customer',
+      action: actionMap[kind],
       entity_type: 'purchase_order',
       entity_id: String(poId),
-      summary:
-        kind === 'fund'
-          ? `Buyer funded on-chain escrow for PO #${poId} (fund tx ${onchainTx})`
-          : `Buyer linked on-chain escrow refs for PO #${poId}`,
+      summary: `Buyer ${kind} on-chain escrow for PO #${poId} (tx ${onchainTx.slice(0, 10)}…)`,
       metadata: {
         kind,
         onchain_tx: onchainTx,
         onchain_po_id: onchainPoId,
-        supplier_wallet: supplierWallet,
-        preserved_create_tx: kind === 'fund' && hasCreateTx,
-        // trust-then-audit: no receipt verification
-        trust_then_audit: true,
+        supplier_wallet: supplierWalletRaw,
+        verify_mode: verify.mode,
       },
     });
 
-    return NextResponse.json({ success: true, purchaseOrder: data });
+    return NextResponse.json({
+      success: true,
+      purchaseOrder: data,
+      verification: verify.mode,
+      warning: verify.mode === 'unverified' ? verify.warning : undefined,
+    });
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },

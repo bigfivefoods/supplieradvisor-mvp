@@ -278,13 +278,24 @@ export function productQrPayload(publicId: string, appUrl?: string) {
 export function onchainStatusClass(s?: string | null) {
   switch ((s || '').toLowerCase()) {
     case 'minted':
-    case 'anchored':
       return 'bg-emerald-100 text-emerald-800';
+    case 'anchored':
+      // Simulated or soft anchor (no real mint) — amber so operators do not confuse with minted
+      return 'bg-amber-100 text-amber-900';
     case 'hashed':
       return 'bg-sky-100 text-sky-800';
     default:
       return 'bg-neutral-100 text-neutral-600';
   }
+}
+
+/** Human label for passport mode */
+export function onchainStatusLabel(s?: string | null, mode?: string | null): string {
+  const status = (s || '').toLowerCase();
+  if (mode === 'simulated' || status === 'anchored') return 'simulated anchor';
+  if (status === 'minted') return 'minted on-chain';
+  if (status === 'hashed') return 'hashed';
+  return status || 'pending';
 }
 
 export const COMMON_CURRENCIES = [

@@ -49,6 +49,7 @@ export async function POST(request: NextRequest) {
     const now = new Date().toISOString();
     const updates: Record<string, unknown> = {
       onchain_hash: identityHash,
+      // 'minted' = real chain tx; 'anchored' = simulated (no passport address / key)
       onchain_status: result.mode === 'onchain' ? 'minted' : 'anchored',
       onchain_tx_hash: result.txHash,
       onchain_token_id: result.tokenId || null,

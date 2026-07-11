@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { parseBarcode } from '@/lib/inventory/gs1';
 import { hashMovement } from '@/lib/inventory/hash';
+import { hasQaHold } from '@/lib/quality/holds';
 
 /**
  * POST — resolve a QR/barcode scan and optionally receive stock
@@ -88,6 +89,15 @@ export async function POST(request: NextRequest) {
     const warehouseId = body.warehouseId != null ? Number(body.warehouseId) : null;
     const containerId = body.containerId != null ? Number(body.containerId) : null;
     const now = new Date().toISOString();
+
+    // QA awareness: warn if lot already has open/failed inspection (still allow receive)
+    let qaWarning: string | null = null;
+    if (lotNumber) {
+      const qa = await hasQaHold(companyId, [lotNumber]);
+      if (qa.blocked) {
+        qaWarning = `Lot ${lotNumber} has open/failed QA — stock received but lot remains on hold until inspection is cleared.`;
+      }
+    }
 
     const productId = Number(product.id);
     let nextQty = qty;
@@ -267,6 +277,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       action: 'receive',
+      qa_warning: qaWarning,
       parsed,
       product,
       qty_on_hand: nextQty,
@@ -276,6 +287,10 @@ export async function POST(request: NextRequest) {
       expiry_date: expiryDate,
       movement,
       onchain_hash: onchainHash,
+      next:
+        qaWarning != null
+          ? { quality: '/dashboard/quality/inspections', message: qaWarning }
+          : undefined,
     });
   } catch (e: unknown) {
     return NextResponse.json(

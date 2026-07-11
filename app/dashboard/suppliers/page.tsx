@@ -375,7 +375,7 @@ function HubInner() {
           },
           {
             title: 'Connect on-chain when it matters',
-            body: 'Standard POs for speed; POEscrowV2 create → fund → release when capital must be locked.',
+            body: 'Standard POs for speed; optional POEscrowV2 create → fund → ship → confirmDelivery when capital must be locked.',
           },
           {
             title: 'Invite, then hand over',

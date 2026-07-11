@@ -1,43 +1,31 @@
-import { 
-  createPublicClient, 
-  createWalletClient, 
-  http, 
-  parseEther, 
-  type Address, 
+/**
+ * Server-side POEscrow helpers (admin / scripts only).
+ * Buyer and SRM UI use client-signed writeContract — never this service for user funds.
+ */
+import {
+  createPublicClient,
+  createWalletClient,
+  http,
+  parseEther,
+  type Address,
   type Hash,
-  type TransactionReceipt 
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { sepolia } from 'viem/chains';
-import { loadAbi } from './loadAbi';
-import { CONTRACTS } from './config';
+import POEscrowV2Artifact from '@/lib/contracts/abi/POEscrowV2.json';
+import {
+  getEscrowRpcUrl,
+  getPoEscrowAddress,
+  getPoEscrowChain,
+} from '@/lib/contracts/escrow';
 import { env } from '@/lib/env';
 
-const POESCROW_ABI = loadAbi('POEscrowV2');
-
-// ==================== TYPES ====================
+const POESCROW_ABI = (POEscrowV2Artifact as { abi: unknown[] }).abi;
 
 interface CreatePOParams {
   supplier: Address;
   amount: bigint;
-  description: string;
-  deadline: bigint;
+  metadataURI: string;
 }
-
-export interface PO {
-  id: bigint;
-  buyer: Address;
-  supplier: Address;
-  amount: bigint;
-  description: string;
-  deadline: bigint;
-  status: number;
-  fundedAmount: bigint;
-  supplierConfirmedDelivery: boolean;
-  buyerApprovedRelease: boolean;
-}
-
-// ==================== SERVICE ====================
 
 export class POEscrowService {
   private publicClient;
@@ -45,153 +33,92 @@ export class POEscrowService {
   private account;
 
   constructor(privateKey: string) {
-    this.account = privateKeyToAccount(`0x${privateKey.replace('0x', '')}` as `0x${string}`);
+    this.account = privateKeyToAccount(
+      `0x${privateKey.replace('0x', '')}` as `0x${string}`
+    );
+    const chain = getPoEscrowChain();
+    const transport = http(getEscrowRpcUrl() || env.SEPOLIA_RPC_URL);
 
     this.publicClient = createPublicClient({
-      chain: sepolia,
-      transport: http(env.SEPOLIA_RPC_URL),
+      chain,
+      transport,
     });
 
     this.walletClient = createWalletClient({
       account: this.account,
-      chain: sepolia,
-      transport: http(env.SEPOLIA_RPC_URL),
+      chain,
+      transport,
     });
   }
 
-  // ==================== WRITE FUNCTIONS ====================
-
   async createPO(params: CreatePOParams): Promise<Hash> {
-    const { supplier, amount, description, deadline } = params;
-
+    const { supplier, amount, metadataURI } = params;
     return this.walletClient.writeContract({
-      address: CONTRACTS.POEscrowV2.address,
-      abi: POESCROW_ABI,
+      address: getPoEscrowAddress(),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      abi: POESCROW_ABI as any,
       functionName: 'createPO',
-      args: [supplier, amount, description, deadline],
+      args: [supplier, amount, metadataURI],
     });
   }
 
   async fundPO(poId: bigint, amountInEth: string): Promise<Hash> {
     return this.walletClient.writeContract({
-      address: CONTRACTS.POEscrowV2.address,
-      abi: POESCROW_ABI,
+      address: getPoEscrowAddress(),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      abi: POESCROW_ABI as any,
       functionName: 'fundPO',
       args: [poId],
       value: parseEther(amountInEth),
     });
   }
 
+  async markShipped(poId: bigint): Promise<Hash> {
+    return this.walletClient.writeContract({
+      address: getPoEscrowAddress(),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      abi: POESCROW_ABI as any,
+      functionName: 'markShipped',
+      args: [poId],
+    });
+  }
+
   async confirmDelivery(poId: bigint): Promise<Hash> {
     return this.walletClient.writeContract({
-      address: CONTRACTS.POEscrowV2.address,
-      abi: POESCROW_ABI,
+      address: getPoEscrowAddress(),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      abi: POESCROW_ABI as any,
       functionName: 'confirmDelivery',
       args: [poId],
     });
   }
 
+  /** @deprecated Use confirmDelivery — Hardhat POEscrowV2 has no releaseFunds */
   async releaseFunds(poId: bigint): Promise<Hash> {
-    return this.walletClient.writeContract({
-      address: CONTRACTS.POEscrowV2.address,
-      abi: POESCROW_ABI,
-      functionName: 'releaseFunds',
-      args: [poId],
-    });
+    return this.confirmDelivery(poId);
   }
 
-  // ==================== READ FUNCTIONS ====================
-
-  async getPO(poId: bigint): Promise<PO> {
-    type POData = readonly [
-      bigint, Address, Address, bigint, string, bigint, number, bigint, boolean, boolean
-    ];
-
-    const result = (await this.publicClient.readContract({
-      address: CONTRACTS.POEscrowV2.address,
-      abi: POESCROW_ABI,
+  async getPO(poId: bigint) {
+    return this.publicClient.readContract({
+      address: getPoEscrowAddress(),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      abi: POESCROW_ABI as any,
       functionName: 'getPO',
       args: [poId],
-    })) as POData;
-
-    return {
-      id: result[0],
-      buyer: result[1],
-      supplier: result[2],
-      amount: result[3],
-      description: result[4],
-      deadline: result[5],
-      status: Number(result[6]),
-      fundedAmount: result[7],
-      supplierConfirmedDelivery: result[8],
-      buyerApprovedRelease: result[9],
-    };
-  }
-
-  async getPOStatus(poId: bigint): Promise<number> {
-    const status = await this.publicClient.readContract({
-      address: CONTRACTS.POEscrowV2.address,
-      abi: POESCROW_ABI,
-      functionName: 'getPOStatus',
-      args: [poId],
     });
-    return Number(status);
-  }
-
-  async getPOCounter(): Promise<bigint> {
-    const counter = await this.publicClient.readContract({
-      address: CONTRACTS.POEscrowV2.address,
-      abi: POESCROW_ABI,
-      functionName: 'poCounter',
-    });
-    return counter as bigint;
-  }
-
-  // ==================== TRANSACTION HELPERS ====================
-
-  async waitForTransaction(hash: Hash): Promise<TransactionReceipt> {
-    return this.publicClient.waitForTransactionReceipt({ hash });
-  }
-
-  // ==================== CONVENIENCE METHODS (Write + Wait) ====================
-
-  async createPOAndWait(params: CreatePOParams) {
-    const hash = await this.createPO(params);
-    const receipt = await this.waitForTransaction(hash);
-    return { hash, receipt };
-  }
-
-  async fundPOAndWait(poId: bigint, amountInEth: string) {
-    const hash = await this.fundPO(poId, amountInEth);
-    const receipt = await this.waitForTransaction(hash);
-    return { hash, receipt };
-  }
-
-  async confirmDeliveryAndWait(poId: bigint) {
-    const hash = await this.confirmDelivery(poId);
-    const receipt = await this.waitForTransaction(hash);
-    return { hash, receipt };
-  }
-
-  async releaseFundsAndWait(poId: bigint) {
-    const hash = await this.releaseFunds(poId);
-    const receipt = await this.waitForTransaction(hash);
-    return { hash, receipt };
   }
 }
 
-// ==================== LAZY DEFAULT INSTANCE ====================
-
-let _poEscrowService: POEscrowService | null = null;
+let _svc: POEscrowService | null = null;
 
 export function getPOEscrowService(): POEscrowService {
-  if (!_poEscrowService) {
-    _poEscrowService = new POEscrowService(env.PRIVATE_KEY);
-  }
-  return _poEscrowService;
+  if (_svc) return _svc;
+  const pk = process.env.PRIVATE_KEY || process.env.DEPLOYER_PRIVATE_KEY;
+  if (!pk) throw new Error('PRIVATE_KEY required for POEscrowService');
+  _svc = new POEscrowService(pk);
+  return _svc;
 }
 
-/** @deprecated Prefer getPOEscrowService() to avoid build-time env crashes */
 export const poEscrowService = {
   get createPO() {
     return getPOEscrowService().createPO.bind(getPOEscrowService());
@@ -205,13 +132,7 @@ export const poEscrowService = {
   get releaseFunds() {
     return getPOEscrowService().releaseFunds.bind(getPOEscrowService());
   },
-  get getPO() {
-    return getPOEscrowService().getPO.bind(getPOEscrowService());
-  },
-  get getPOStatus() {
-    return getPOEscrowService().getPOStatus.bind(getPOEscrowService());
-  },
-  get getPOCounter() {
-    return getPOEscrowService().getPOCounter.bind(getPOEscrowService());
+  get markShipped() {
+    return getPOEscrowService().markShipped.bind(getPOEscrowService());
   },
 };

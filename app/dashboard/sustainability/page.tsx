@@ -1,6 +1,7 @@
 'use client';
 
-import { BarChart3, Droplets, Leaf, Recycle, Wind } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { BarChart3, Droplets, Leaf, Recycle, Wind, Loader2 } from 'lucide-react';
 import {
   RelationshipHeader,
   RelationshipPage,
@@ -13,113 +14,118 @@ import {
   TelemetryCard,
   type HubModule,
 } from '@/components/chrome/CommandHubChrome';
+import { getSelectedCompanyId } from '@/lib/containers/company';
 
 const MODULES: HubModule[] = [
   {
     href: '/dashboard/sustainability/carbon-tracking',
     icon: Leaf,
     code: '01',
-    title: 'Carbon tracking',
-    desc: 'Emissions visibility across the chain — scored on real trade flows.',
+    title: 'Carbon tracking (live)',
+    desc: 'Estimated CO₂e from your distribution shipments.',
     accent: 'from-emerald-50 to-white border-emerald-100',
-  },
-  {
-    href: '/dashboard/sustainability/water-waste',
-    icon: Droplets,
-    code: '02',
-    title: 'Water & waste',
-    desc: 'Resource intensity and reduction goals you can review like any KPI.',
-    accent: 'from-sky-50 to-white border-sky-100',
   },
   {
     href: '/dashboard/sustainability/ethical-sourcing',
     icon: Wind,
-    code: '03',
+    code: '02',
     title: 'Ethical sourcing',
-    desc: 'Supplier ethics and SDG alignment tied to your network.',
+    desc: 'Roadmap — use supplier ratings & OTIFEF today.',
     accent: 'from-cyan-50 to-white border-cyan-100',
   },
   {
-    href: '/dashboard/sustainability/green-certificates',
-    icon: Recycle,
-    code: '04',
-    title: 'Green certificates',
-    desc: 'Certificates and claims management — evidence over slogans.',
-    accent: 'from-violet-50 to-white border-violet-100',
-  },
-  {
-    href: '/dashboard/sustainability/regenerative-dashboard',
-    icon: Leaf,
-    code: '05',
-    title: 'Regenerative dashboard',
-    desc: 'Regenerative impact at a glance for leadership.',
-    accent: 'from-amber-50 to-white border-amber-100',
+    href: '/dashboard/sustainability/water-waste',
+    icon: Droplets,
+    code: '03',
+    title: 'Water & waste',
+    desc: 'Roadmap resource intensity KPIs.',
+    accent: 'from-sky-50 to-white border-sky-100',
   },
   {
     href: '/dashboard/sustainability/reports',
     icon: BarChart3,
-    code: '06',
-    title: 'Reports',
-    desc: 'Stakeholder and compliance packs ready to share.',
-    accent: 'from-rose-50 to-white border-rose-100',
+    code: '04',
+    title: 'ESG packs (live)',
+    desc: '90-day pack from carbon, OTIFEF, QA, HACCP — export JSON/print.',
+    accent: 'from-violet-50 to-white border-violet-100',
   },
 ];
 
 export default function SustainabilityHub() {
+  const companyId = getSelectedCompanyId();
+  const [total, setTotal] = useState<string>('—');
+  const [count, setCount] = useState<number | string>('—');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!companyId) {
+      setLoading(false);
+      return;
+    }
+    fetch(`/api/sustainability/carbon?companyId=${companyId}`)
+      .then((r) => r.json())
+      .then((j) => {
+        setTotal(j.total_label || '0 kg');
+        setCount(j.shipment_count ?? 0);
+      })
+      .catch(() => null)
+      .finally(() => setLoading(false));
+  }, [companyId]);
+
   return (
     <RelationshipPage>
       <RelationshipHeader
         backHref="/dashboard"
         backLabel="Dashboard"
-        eyebrow="ESG & regenerative"
-        title="Sustainability"
-        titleAccent="Command"
-        description="Measure what matters — carbon, water, ethics, and regenerative outcomes tied to trade."
+        eyebrow="Sustainability"
+        title="Impact"
+        titleAccent="lite"
+        description="Start with real shipment carbon estimates. Broader ESG modules stay on the roadmap so we never over-claim."
       />
 
       <HubHero
-        pill="Live impact · measure → improve"
-        title="Impact follows trade."
-        description="Emissions and ethics are scored on real supplier and product flows — not detached marketing claims. Certificates and regenerative metrics must be verifiable."
+        pill="Live carbon from distribution"
+        title="Measure what you already move."
+        description="We score CO₂e from shipments you already record — transparent factors, no black box."
         stats={[
-          { label: 'Tracks', value: 6, valueClass: 'text-emerald-600' },
-          { label: 'Focus', value: 'CO₂e', valueClass: 'text-[#00b4d8]' },
-          { label: 'Proof', value: 'Certs', valueClass: 'text-amber-600' },
+          {
+            label: 'Estimated CO₂e',
+            value: loading ? '…' : total,
+            valueClass: 'text-emerald-600',
+          },
+          {
+            label: 'Shipments',
+            value: loading ? '…' : count,
+            valueClass: 'text-[#00b4d8]',
+          },
+          { label: 'Method', value: 'Factors', valueClass: 'text-amber-600' },
         ]}
       />
 
       <HubTelemetryGrid>
         <TelemetryCard
           label="Carbon"
-          value="Track"
-          sub="Chain emissions"
+          value={loading ? '…' : String(total)}
+          sub="From shipments"
           accent="emerald"
-          icon={Leaf}
+          icon={loading ? Loader2 : Leaf}
           href="/dashboard/sustainability/carbon-tracking"
         />
         <TelemetryCard
-          label="Water & waste"
-          value="Goals"
-          sub="Resource intensity"
+          label="Scope"
+          value="Ops"
+          sub="Transport estimate"
           accent="sky"
-          icon={Droplets}
-          href="/dashboard/sustainability/water-waste"
-        />
-        <TelemetryCard
-          label="Ethics"
-          value="SDG"
-          sub="Supplier alignment"
-          accent="cyan"
-          icon={Wind}
-          href="/dashboard/sustainability/ethical-sourcing"
-        />
-        <TelemetryCard
-          label="Certificates"
-          value="Claims"
-          sub="Evidence packs"
-          accent="violet"
           icon={Recycle}
-          href="/dashboard/sustainability/green-certificates"
+          href="/dashboard/sustainability/carbon-tracking"
+        />
+        <TelemetryCard
+          label="Roadmap"
+          value="ESG"
+          sub="Water · ethics · reports"
+          accent="violet"
+          icon={BarChart3}
+          href="/dashboard/sustainability/ethical-sourcing"
         />
       </HubTelemetryGrid>
 
@@ -128,16 +134,16 @@ export default function SustainabilityHub() {
       <HubPrinciples
         items={[
           {
-            title: 'Impact follows trade',
-            body: 'Emissions and ethics are scored on real supplier and product flows — not detached marketing claims.',
+            title: 'Honest scope',
+            body: 'Carbon lite uses mode factors × distance × weight. Label estimates clearly — never as a formal GHG inventory.',
           },
           {
-            title: 'Measure to improve',
-            body: 'Carbon, water, and waste only change when they are visible, owned, and reviewed like any KPI.',
+            title: 'Reuse trade data',
+            body: 'Distribution shipments already hold mode and routing signals — sustainability rides on ops, not a separate silo.',
           },
           {
-            title: 'Evidence over slogans',
-            body: 'Certificates, ethical sourcing, and regenerative metrics must be verifiable and shareable with partners.',
+            title: 'Expand carefully',
+            body: 'Water, waste, and ethical modules stay roadmap until they have real APIs — same standard as quality.',
           },
         ]}
       />

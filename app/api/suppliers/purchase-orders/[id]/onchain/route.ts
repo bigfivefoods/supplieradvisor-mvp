@@ -2,18 +2,26 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { assertCompanyMember, logActivity } from '@/lib/customers/access';
 import { isSupplierPoEscrowEnabled } from '@/lib/procurement/types';
+import { verifyEscrowOrWarn } from '@/lib/contracts/verifyEscrow';
+import type { EscrowLinkKind as Kind } from '@/lib/contracts/escrow';
 
 /**
  * POST /api/suppliers/purchase-orders/[id]/onchain
- *
- * Trust-then-audit link of client-signed POEscrowV2 txs (create | fund | release).
- * Mirrors buyer onchain path — no server private key, no receipt re-verify (MVP).
+ * SRM buyer path — verify + persist client-signed POEscrowV2 txs.
+ * kind: create | fund | ship | release (confirmDelivery)
  */
 type Ctx = { params: Promise<{ id: string }> };
 
 const TX_HASH_RE = /^0x[a-fA-F0-9]{64}$/;
 const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 const POSITIVE_INT_RE = /^[1-9]\d*$/;
+
+function parseKind(raw: unknown): Kind {
+  if (raw === 'fund') return 'fund';
+  if (raw === 'ship') return 'ship';
+  if (raw === 'release' || raw === 'confirm' || raw === 'confirmDelivery') return 'release';
+  return 'create';
+}
 
 export async function POST(request: NextRequest, ctx: Ctx) {
   try {
@@ -33,8 +41,7 @@ export async function POST(request: NextRequest, ctx: Ctx) {
     const body = await request.json();
     const companyId = Number(body.companyId);
     const privyUserId = body.privyUserId;
-    const kind =
-      body.kind === 'fund' ? 'fund' : body.kind === 'release' ? 'release' : 'create';
+    const kind = parseKind(body.kind);
     const onchainTx = body.onchain_tx != null ? String(body.onchain_tx).trim() : '';
     const onchainPoIdRaw = body.onchain_po_id;
     const supplierWalletRaw =
@@ -51,11 +58,18 @@ export async function POST(request: NextRequest, ctx: Ctx) {
         { status: 400 }
       );
     }
-    if (onchainPoIdRaw === undefined || onchainPoIdRaw === null || onchainPoIdRaw === '') {
-      return NextResponse.json({ error: 'onchain_po_id is required' }, { status: 400 });
+
+    const expectedId =
+      onchainPoIdRaw !== undefined && onchainPoIdRaw !== null && onchainPoIdRaw !== ''
+        ? String(onchainPoIdRaw).trim()
+        : null;
+    if (kind !== 'create' && (!expectedId || !POSITIVE_INT_RE.test(expectedId))) {
+      return NextResponse.json(
+        { error: 'onchain_po_id must be a positive integer for fund/ship/release' },
+        { status: 400 }
+      );
     }
-    const onchainPoId = String(onchainPoIdRaw).trim();
-    if (!POSITIVE_INT_RE.test(onchainPoId)) {
+    if (expectedId && !POSITIVE_INT_RE.test(expectedId)) {
       return NextResponse.json(
         { error: 'onchain_po_id must be a positive integer' },
         { status: 400 }
@@ -71,6 +85,34 @@ export async function POST(request: NextRequest, ctx: Ctx) {
     const member = await assertCompanyMember(privyUserId, companyId);
     if (!member.ok) {
       return NextResponse.json({ error: member.error }, { status: member.status });
+    }
+
+    const verify = await verifyEscrowOrWarn({
+      txHash: onchainTx,
+      kind,
+      expectedOnchainPoId: expectedId,
+    });
+
+    if (verify.mode === 'rejected') {
+      return NextResponse.json(
+        { error: verify.error, code: verify.code || 'ESCROW_VERIFY_FAILED' },
+        { status: 422 }
+      );
+    }
+
+    let onchainPoId: string;
+    if (verify.mode === 'verified') {
+      onchainPoId = verify.onchainPoId;
+    } else if (expectedId) {
+      onchainPoId = expectedId;
+    } else {
+      return NextResponse.json(
+        {
+          error: verify.warning || 'Could not verify create tx',
+          code: 'ESCROW_UNVERIFIED',
+        },
+        { status: 422 }
+      );
     }
 
     const supabase = getSupabaseServer();
@@ -127,7 +169,6 @@ export async function POST(request: NextRequest, ctx: Ctx) {
       updates.status = 'completed';
     }
 
-    // Merge fund/release txs into metadata audit trail
     const prevMeta =
       po.metadata && typeof po.metadata === 'object' && !Array.isArray(po.metadata)
         ? { ...(po.metadata as Record<string, unknown>) }
@@ -135,11 +176,20 @@ export async function POST(request: NextRequest, ctx: Ctx) {
     const chainLog = Array.isArray(prevMeta.chain_events)
       ? [...(prevMeta.chain_events as unknown[])]
       : [];
-    chainLog.push({ kind, tx: onchainTx, onchain_po_id: onchainPoId, at: now });
+    chainLog.push({
+      kind,
+      tx: onchainTx,
+      onchain_po_id: onchainPoId,
+      at: now,
+      verify: verify.mode,
+      ...(verify.mode === 'verified' ? verify.meta : { warning: verify.warning }),
+    });
     prevMeta.chain_events = chainLog;
     prevMeta.use_escrow = true;
     if (kind === 'fund') prevMeta.fund_tx = onchainTx;
+    if (kind === 'ship') prevMeta.ship_tx = onchainTx;
     if (kind === 'release') prevMeta.release_tx = onchainTx;
+    if (kind === 'ship') prevMeta.chain_status = 'shipped';
     updates.metadata = prevMeta;
 
     let { data, error } = await supabase
@@ -181,16 +231,21 @@ export async function POST(request: NextRequest, ctx: Ctx) {
       action: `po.onchain.${kind}.srm`,
       entity_type: 'purchase_order',
       entity_id: String(poId),
-      summary: `SRM on-chain ${kind} for PO #${poId} (tx ${onchainTx})`,
+      summary: `SRM ${kind} on-chain escrow for PO #${poId}`,
       metadata: {
         kind,
         onchain_tx: onchainTx,
         onchain_po_id: onchainPoId,
-        trust_then_audit: true,
+        verify_mode: verify.mode,
       },
     });
 
-    return NextResponse.json({ success: true, purchaseOrder: data });
+    return NextResponse.json({
+      success: true,
+      purchaseOrder: data,
+      verification: verify.mode,
+      warning: verify.mode === 'unverified' ? verify.warning : undefined,
+    });
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },
