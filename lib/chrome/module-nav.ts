@@ -22,6 +22,7 @@ import {
   FolderKanban,
   Leaf,
   Brain,
+  BookOpen,
 } from 'lucide-react';
 import type { ProcessStep } from '@/components/relationship/RelationshipChrome';
 import type { PermissionResource } from '@/lib/business/permissions';
@@ -52,7 +53,7 @@ export type ModuleNav = {
  * suppliers ContactRound · customers UsersRound · containers Container
  * inventory Warehouse · operations Workflow · manufacturing Factory
  * distribution Ship · accounting Landmark · quality ClipboardCheck
- * projects FolderKanban · sustainability Leaf · intelligence Brain
+ * projects FolderKanban · sustainability Leaf · intelligence Brain · guide BookOpen
  */
 export const MODULE_NAV: readonly ModuleNav[] = [
   {
@@ -287,6 +288,31 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Forecast', href: '/dashboard/intelligence/predictive-forecasts' },
       { name: 'Score', href: '/dashboard/intelligence/custom-scorecards' },
       { name: 'Lead', href: '/dashboard/intelligence/leadership-development' },
+    ],
+  },
+  /**
+   * Last module — system training. Always available (dashboard resource).
+   * Nested steps = curriculum chapters (verb-ish short names).
+   */
+  {
+    id: 'guide',
+    name: 'Guide',
+    icon: BookOpen,
+    href: '/dashboard/guide',
+    resource: 'dashboard',
+    steps: [
+      { name: 'Start', href: '/dashboard/guide', exact: true, desc: 'System overview' },
+      { name: 'Company', href: '/dashboard/guide/company' },
+      { name: 'Network', href: '/dashboard/guide/network' },
+      { name: 'Buy', href: '/dashboard/guide/suppliers' },
+      { name: 'Sell', href: '/dashboard/guide/customers' },
+      { name: 'Stock', href: '/dashboard/guide/inventory' },
+      { name: 'Ops', href: '/dashboard/guide/operations' },
+      { name: 'Make', href: '/dashboard/guide/make' },
+      { name: 'Ship', href: '/dashboard/guide/ship' },
+      { name: 'Assure', href: '/dashboard/guide/quality' },
+      { name: 'Money', href: '/dashboard/guide/finance' },
+      { name: 'Secure', href: '/dashboard/guide/roles-security' },
     ],
   },
 ] as const;

@@ -320,6 +320,7 @@ export const SIDEBAR_MODULE_RESOURCE: Record<string, PermissionResource> = {
   projects: 'projects',
   sustainability: 'operations',
   intelligence: 'intelligence',
+  guide: 'dashboard',
 };
 
 /**
@@ -356,6 +357,7 @@ export function resourceForPath(pathname: string | null | undefined): Permission
     return 'accounting';
   }
   if (pathname.startsWith('/dashboard/intelligence')) return 'intelligence';
+  if (pathname.startsWith('/dashboard/guide')) return 'dashboard';
   if (pathname.startsWith('/dashboard/quality')) return 'operations';
   if (pathname.startsWith('/dashboard/projects')) return 'projects';
   if (pathname.startsWith('/dashboard/sustainability')) return 'operations';
