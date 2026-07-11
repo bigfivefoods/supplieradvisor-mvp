@@ -244,6 +244,18 @@ export async function POST(request: NextRequest, ctx: Ctx) {
       },
     });
 
+    if (kind === 'fund') {
+      void import('@/lib/notifications/email-alerts').then(({ notifyEscrowFunded }) =>
+        notifyEscrowFunded({
+          profileId: companyId,
+          poId,
+          onchainPoId,
+          txHash: onchainTx,
+          asset: body.asset === 'usdc' ? 'usdc' : 'eth',
+        })
+      );
+    }
+
     return NextResponse.json({
       success: true,
       purchaseOrder: data,

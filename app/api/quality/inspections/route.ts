@@ -154,6 +154,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    if (status === 'open' || status === 'failed') {
+      void import('@/lib/notifications/email-alerts').then(({ notifyQaHold }) =>
+        notifyQaHold({
+          profileId: companyId,
+          inspectionId: Number(data.id),
+          lotNumber: data.lot_number,
+          status: String(data.status),
+        })
+      );
+    }
+
     return NextResponse.json({ success: true, inspection: data }, { status: 201 });
   } catch (e: unknown) {
     return NextResponse.json(
@@ -168,10 +179,13 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     const companyId = Number(body.companyId);
     const id = Number(body.id);
-    const mem = await assertCompanyMember(body.privyUserId, companyId);
-    if (!mem.ok) {
-      return NextResponse.json({ error: mem.error }, { status: mem.status });
+    if (!Number.isFinite(companyId) || companyId <= 0) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
+    const gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
+    if (!gate.ok) return gate.response;
     if (!Number.isFinite(id) || id <= 0) {
       return NextResponse.json({ error: 'id required' }, { status: 400 });
     }
@@ -207,6 +221,17 @@ export async function PATCH(request: NextRequest) {
     }
     if (!data) {
       return NextResponse.json({ error: 'Inspection not found' }, { status: 404 });
+    }
+
+    if (data.status === 'open' || data.status === 'failed') {
+      void import('@/lib/notifications/email-alerts').then(({ notifyQaHold }) =>
+        notifyQaHold({
+          profileId: companyId,
+          inspectionId: Number(data.id),
+          lotNumber: data.lot_number,
+          status: String(data.status),
+        })
+      );
     }
 
     return NextResponse.json({ success: true, inspection: data });

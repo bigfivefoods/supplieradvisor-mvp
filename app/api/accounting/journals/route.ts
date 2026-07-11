@@ -8,6 +8,7 @@ import {
   round2,
 } from '@/lib/accounting/server';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import { isPeriodLocked } from '@/lib/accounting/period-lock';
 
 /** GET ?companyId=&status= */
 export async function GET(request: NextRequest) {
@@ -112,6 +113,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const entryDate = body.entry_date || new Date().toISOString().slice(0, 10);
+    if (status === 'posted') {
+      const lock = await isPeriodLocked(companyId, entryDate);
+      if (lock.locked) {
+        return NextResponse.json(
+          {
+            error: `Period ${lock.period_key} is locked. Unlock the period or post as draft.`,
+            code: 'PERIOD_LOCKED',
+            period_key: lock.period_key,
+          },
+          { status: 409 }
+        );
+      }
+    }
+
     const entryNumber =
       body.entry_number || (await nextDocumentNumber(companyId, 'journal'));
     const supabase = getSupabaseServer();
@@ -121,14 +137,14 @@ export async function POST(request: NextRequest) {
       .insert({
         profile_id: companyId,
         entry_number: entryNumber,
-        entry_date: body.entry_date || new Date().toISOString().slice(0, 10),
+        entry_date: entryDate,
         memo: body.memo || null,
         status,
         source: body.source || 'manual',
         source_id: body.source_id || null,
         currency: body.currency || 'ZAR',
         entity_id: body.entity_id || null,
-        created_by: privyUserId || body.created_by || null,
+        created_by: _gate.userId || privyUserId || body.created_by || null,
         posted_at: status === 'posted' ? new Date().toISOString() : null,
         metadata: body.metadata || {},
       })
@@ -242,6 +258,20 @@ export async function PATCH(request: NextRequest) {
     if (action === 'post') {
       if (String(existing.status) !== 'draft') {
         return NextResponse.json({ error: 'Only drafts can be posted' }, { status: 400 });
+      }
+      const lock = await isPeriodLocked(
+        companyId,
+        String(existing.entry_date || new Date().toISOString().slice(0, 10))
+      );
+      if (lock.locked) {
+        return NextResponse.json(
+          {
+            error: `Period ${lock.period_key} is locked`,
+            code: 'PERIOD_LOCKED',
+            period_key: lock.period_key,
+          },
+          { status: 409 }
+        );
       }
       const { data: lines } = await supabase
         .from('journal_lines')

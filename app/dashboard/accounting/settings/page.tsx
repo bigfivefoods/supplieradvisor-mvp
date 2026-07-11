@@ -32,6 +32,17 @@ function Inner() {
   const privyUserId = getCanonicalUserId(user?.id);
   const [settings, setSettings] = useState<AccountingSettings | null>(null);
   const [periods, setPeriods] = useState<AccountingPeriod[]>([]);
+  const [monthLocks, setMonthLocks] = useState<
+    { period_key: string; locked: boolean }[]
+  >([]);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [tb, setTb] = useState<{
+    balanced: boolean;
+    total_debit: number;
+    total_credit: number;
+    difference: number;
+    entry_count: number;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showPeriod, setShowPeriod] = useState(false);
@@ -47,16 +58,44 @@ function Inner() {
     try {
       const params = new URLSearchParams({ companyId: String(companyId) });
       if (privyUserId) params.set('privyUserId', privyUserId);
-      const res = await fetch(`/api/accounting/settings?${params}`);
+      const lockParams = new URLSearchParams(params);
+      lockParams.set('trialBalance', '1');
+      const [res, lockRes] = await Promise.all([
+        fetch(`/api/accounting/settings?${params}`),
+        fetch(`/api/accounting/period-locks?${lockParams}`),
+      ]);
       const data = await res.json();
+      const lockData = await lockRes.json();
       setSettings(data.settings || null);
       setPeriods(data.periods || []);
+      setMonthLocks(lockData.locks || []);
+      setSuggestions(lockData.suggestions || []);
+      setTb(lockData.trial_balance || null);
     } catch {
       setSettings(null);
     } finally {
       setLoading(false);
     }
   }, [companyId, privyUserId]);
+
+  async function toggleMonthLock(period_key: string, locked: boolean) {
+    setSaving(true);
+    try {
+      const res = await fetch('/api/accounting/period-locks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyId, privyUserId, period_key, locked }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      toast.success(locked ? `Locked ${period_key}` : `Unlocked ${period_key}`);
+      void load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed');
+    } finally {
+      setSaving(false);
+    }
+  }
 
   useEffect(() => {
     void load();
@@ -140,6 +179,61 @@ function Inner() {
         titleAccent="settings"
         description="Periods, currencies, document number prefixes, and system defaults."
       />
+
+      <SectionLabel>Period locks & trial balance</SectionLabel>
+      <Panel className="mb-8">
+        <div className="p-5 sm:p-6 space-y-4">
+          {tb && (
+            <div
+              className={`rounded-2xl border px-4 py-3 text-sm ${
+                tb.balanced
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                  : 'border-red-200 bg-red-50 text-red-900'
+              }`}
+            >
+              <strong>Trial balance (all posted journals):</strong>{' '}
+              {tb.balanced ? 'Balanced ✓' : `Out of balance by ${tb.difference}`}
+              <span className="block text-xs mt-1 opacity-80">
+                Debits {Number(tb.total_debit).toLocaleString()} · Credits{' '}
+                {Number(tb.total_credit).toLocaleString()} · {tb.entry_count} entries
+              </span>
+            </div>
+          )}
+          <p className="text-xs text-neutral-500">
+            Locked months reject posted journals. Unlock only for corrections. Run migration{' '}
+            <code className="text-[10px]">20260711_accounting_period_locks.sql</code> if this is
+            empty.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {(suggestions.length
+              ? suggestions
+              : Array.from({ length: 6 }, (_, i) => {
+                  const d = new Date();
+                  d.setMonth(d.getMonth() - i);
+                  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                })
+            ).map((key) => {
+              const row = monthLocks.find((l) => l.period_key === key);
+              const locked = row?.locked === true;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  disabled={saving}
+                  onClick={() => void toggleMonthLock(key, !locked)}
+                  className={`text-xs font-semibold px-3 py-2 rounded-xl border ${
+                    locked
+                      ? 'bg-red-50 border-red-200 text-red-800'
+                      : 'bg-white border-neutral-200 text-neutral-700 hover:border-[#00b4d8]'
+                  }`}
+                >
+                  {key} · {locked ? 'Locked' : 'Open'}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </Panel>
 
       <SectionLabel>General</SectionLabel>
       <Panel className="mb-8">
