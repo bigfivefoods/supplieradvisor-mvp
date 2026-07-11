@@ -7,14 +7,19 @@ import {
   buildForecastSeries,
   emptyBucket,
   finalizeBuckets,
+  forwardMonthKeys,
+  horizonsFromMax,
   monthKey,
+  parseHorizons,
   trailingMonthKeys,
   type MonthBucket,
 } from '@/lib/accounting/forecast';
+import { stageProbability } from '@/lib/customers/types';
 
 /**
  * GET ?companyId=&report=trial_balance|pnl|balance_sheet|ar_aging|ap_aging|cashflow|management_accounts|trends|forecast
- * Optional: from=&to= (YYYY-MM-DD), months=12 (for trends/forecast history window)
+ * Optional: from=&to= (YYYY-MM-DD), months=12 (history), horizons=1,3,6,9,12 | horizonMonths=12,
+ * includePipeline=1
  */
 export async function GET(request: NextRequest) {
   try {
@@ -295,13 +300,26 @@ export async function GET(request: NextRequest) {
     // ── Monthly trends + multi-horizon forecast ──────────────────────────
     if (report === 'trends' || report === 'forecast') {
       const monthsParam = Number(request.nextUrl.searchParams.get('months') || 12);
-      const historyMonths = Math.min(24, Math.max(6, Number.isFinite(monthsParam) ? monthsParam : 12));
-      const keys = trailingMonthKeys(historyMonths);
-      const rangeFrom = `${keys[0]}-01`;
+      const historyMonths = Math.min(36, Math.max(3, Number.isFinite(monthsParam) ? monthsParam : 12));
+      const includePipeline =
+        request.nextUrl.searchParams.get('includePipeline') !== '0' &&
+        request.nextUrl.searchParams.get('includePipeline') !== 'false';
+      const horizonMonthsParam = Number(request.nextUrl.searchParams.get('horizonMonths') || 0);
+      const horizonsRaw = request.nextUrl.searchParams.get('horizons');
+      const horizons = horizonsRaw
+        ? parseHorizons(horizonsRaw)
+        : horizonMonthsParam > 0
+          ? horizonsFromMax(horizonMonthsParam)
+          : [1, 3, 6, 9, 12];
+      const maxHorizon = Math.max(...horizons, 1);
+
+      // Optional explicit history end (to=) — default ends at current month
+      const keys = trailingMonthKeys(historyMonths, to ? new Date(to + 'T12:00:00') : new Date());
+      const rangeFrom = from || `${keys[0]}-01`;
       const lastKey = keys[keys.length - 1];
       const [ly, lm] = lastKey.split('-').map(Number);
       const lastDay = new Date(ly, lm, 0).getDate();
-      const rangeTo = `${lastKey}-${String(lastDay).padStart(2, '0')}`;
+      const rangeTo = to || `${lastKey}-${String(lastDay).padStart(2, '0')}`;
 
       const { data: accounts } = await supabase
         .from('chart_of_accounts')
@@ -418,6 +436,94 @@ export async function GET(request: NextRequest) {
         else b.bankOut += amt;
       }
 
+      // ── CRM pipeline (sales team opportunities) ────────────────────────
+      const fwdKeys = forwardMonthKeys(maxHorizon);
+      const pipelineForward = Array(maxHorizon).fill(0) as number[];
+      const pipelineWeightedForward = Array(maxHorizon).fill(0) as number[];
+      let pipelineOpen = 0;
+      let pipelineWeightedOpen = 0;
+      let pipelineWonHist = 0;
+      let pipelineOpenDeals = 0;
+      let pipelineWonDeals = 0;
+      const pipelineRows: Array<Record<string, unknown>> = [];
+      let pipelineWarning: string | undefined;
+
+      if (includePipeline) {
+        const { data: opps, error: oppErr } = await supabase
+          .from('opportunities')
+          .select(
+            'id, name, stage, status, amount, opportunity_size, probability, expected_close_date, estimated_date, actual_close_date, company_name, currency, created_at'
+          )
+          .eq('profile_id', companyId)
+          .limit(1000);
+
+        if (oppErr) {
+          pipelineWarning = oppErr.message;
+        } else {
+          const fwdIndex = new Map(fwdKeys.map((k, i) => [k, i]));
+          for (const o of opps || []) {
+            const amount = Number(o.amount ?? o.opportunity_size ?? 0);
+            const stage = String(o.stage || o.status || 'prospecting')
+              .toLowerCase()
+              .replace(/\s+/g, '_');
+            const isWon = stage === 'closed_won' || stage === 'won';
+            const isLost = stage === 'closed_lost' || stage === 'lost';
+            const isOpen = !isWon && !isLost;
+            const prob =
+              o.probability != null && Number(o.probability) > 0
+                ? Number(o.probability)
+                : stageProbability(stage);
+            const closeDate =
+              (isWon
+                ? o.actual_close_date || o.expected_close_date || o.estimated_date
+                : o.expected_close_date || o.estimated_date || o.created_at) || null;
+            const mk = closeDate ? String(closeDate).slice(0, 7) : null;
+
+            if (isWon && mk && bucketMap.has(mk)) {
+              const b = bucketMap.get(mk)!;
+              b.pipeline += amount;
+              b.pipelineWeighted += amount; // won = 100%
+              pipelineWonHist += amount;
+              pipelineWonDeals += 1;
+            }
+
+            if (isOpen) {
+              pipelineOpen += amount;
+              pipelineWeightedOpen += (amount * prob) / 100;
+              pipelineOpenDeals += 1;
+              if (mk && fwdIndex.has(mk)) {
+                const i = fwdIndex.get(mk)!;
+                pipelineForward[i] += amount;
+                pipelineWeightedForward[i] += (amount * prob) / 100;
+              } else if (mk && bucketMap.has(mk)) {
+                // Expected close still in history window (this month)
+                const b = bucketMap.get(mk)!;
+                b.pipeline += amount;
+                b.pipelineWeighted += (amount * prob) / 100;
+              } else if (!mk || mk < keys[0]) {
+                // Undated / overdue → park in current month (last history key)
+                const b = bucketMap.get(lastKey);
+                if (b) {
+                  b.pipeline += amount;
+                  b.pipelineWeighted += (amount * prob) / 100;
+                }
+              }
+              pipelineRows.push({
+                id: o.id,
+                name: o.name,
+                company_name: o.company_name,
+                stage,
+                amount,
+                probability: prob,
+                weighted: round2((amount * prob) / 100),
+                expected_close_date: o.expected_close_date || o.estimated_date,
+                currency: o.currency || 'ZAR',
+              });
+            }
+          }
+        }
+      }
+
       const history = finalizeBuckets(bucketMap, keys);
       const totals = {
         revenue: round2(history.reduce((s, h) => s + h.revenue, 0)),
@@ -427,6 +533,32 @@ export async function GET(request: NextRequest) {
         bankIn: round2(history.reduce((s, h) => s + h.bankIn, 0)),
         bankOut: round2(history.reduce((s, h) => s + h.bankOut, 0)),
         cashNet: round2(history.reduce((s, h) => s + h.cashNet, 0)),
+        pipeline: round2(history.reduce((s, h) => s + h.pipeline, 0)),
+        pipelineWeighted: round2(history.reduce((s, h) => s + h.pipelineWeighted, 0)),
+        pipelineOpen: round2(pipelineOpen),
+        pipelineWeightedOpen: round2(pipelineWeightedOpen),
+        pipelineWonHist: round2(pipelineWonHist),
+        pipelineOpenDeals,
+        pipelineWonDeals,
+      };
+
+      const pipelineBlock = {
+        enabled: includePipeline,
+        openValue: round2(pipelineOpen),
+        weightedValue: round2(pipelineWeightedOpen),
+        openDeals: pipelineOpenDeals,
+        wonInHistory: round2(pipelineWonHist),
+        wonDeals: pipelineWonDeals,
+        forwardByMonth: fwdKeys.map((k, i) => ({
+          key: k,
+          label: k,
+          amount: round2(pipelineForward[i] || 0),
+          weighted: round2(pipelineWeightedForward[i] || 0),
+        })),
+        topDeals: pipelineRows
+          .sort((a, b) => Number(b.weighted) - Number(a.weighted))
+          .slice(0, 25),
+        warning: pipelineWarning,
       };
 
       if (report === 'trends') {
@@ -436,6 +568,7 @@ export async function GET(request: NextRequest) {
           period: { from: rangeFrom, to: rangeTo, months: historyMonths },
           history,
           totals,
+          pipeline: pipelineBlock,
           labels: history.map((h) => h.label),
           series: {
             revenue: history.map((h) => h.revenue),
@@ -445,12 +578,18 @@ export async function GET(request: NextRequest) {
             bankIn: history.map((h) => h.bankIn),
             bankOut: history.map((h) => h.bankOut),
             cashNet: history.map((h) => h.cashNet),
+            pipeline: history.map((h) => h.pipeline),
+            pipelineWeighted: history.map((h) => h.pipelineWeighted),
           },
         });
       }
 
       // forecast
-      const { series, horizons, method } = buildForecastSeries(history);
+      const { series, horizons: horizonRows, method } = buildForecastSeries(history, horizons, {
+        includePipeline,
+        pipelineForward: pipelineForward.map((n) => round2(n)),
+        pipelineWeightedForward: pipelineWeightedForward.map((n) => round2(n)),
+      });
       const last = history[history.length - 1] || emptyBucket(monthKey(new Date()));
 
       return NextResponse.json({
@@ -459,9 +598,12 @@ export async function GET(request: NextRequest) {
         period: { from: rangeFrom, to: rangeTo, months: historyMonths },
         history,
         totals,
+        pipeline: pipelineBlock,
         lastMonth: last,
         series,
-        horizons,
+        horizons: horizonRows,
+        selectedHorizons: horizons,
+        maxHorizon,
         method,
         asOf: new Date().toISOString(),
       });

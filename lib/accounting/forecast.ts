@@ -16,19 +16,27 @@ export type MonthBucket = {
   bankOut: number;
   cashNet: number;
   journalCount: number;
+  /** CRM pipeline closed-won / expected closes attributed to month */
+  pipeline: number;
+  /** Probability-weighted pipeline for month */
+  pipelineWeighted: number;
 };
 
-export type HorizonKey = 1 | 3 | 6 | 9 | 12;
-
 export type HorizonForecast = {
-  months: HorizonKey;
+  months: number;
   endLabel: string;
   revenue: number;
+  /** Booked revenue + weighted pipeline contribution in horizon */
+  revenueWithPipeline: number;
   cogs: number;
   expenses: number;
   grossProfit: number;
   netIncome: number;
+  /** Net if pipeline-weighted sales convert as scheduled */
+  netWithPipeline: number;
   cashNet: number;
+  pipeline: number;
+  pipelineWeighted: number;
   /** Average monthly run-rate used in the window */
   avgMonthlyNet: number;
   revenueLow: number;
@@ -45,11 +53,18 @@ export type ForecastSeries = {
   expenses: Array<number | null>;
   netIncome: Array<number | null>;
   cashNet: Array<number | null>;
+  pipeline: Array<number | null>;
+  pipelineWeighted: Array<number | null>;
   /** Forecast continuation (null for history) */
   revenueForecast: Array<number | null>;
+  /** Revenue forecast + pipeline-weighted expected closes */
+  revenueWithPipelineForecast: Array<number | null>;
   expensesForecast: Array<number | null>;
   netForecast: Array<number | null>;
+  netWithPipelineForecast: Array<number | null>;
   cashForecast: Array<number | null>;
+  pipelineForecast: Array<number | null>;
+  pipelineWeightedForecast: Array<number | null>;
   /** Confidence band around revenue forecast */
   revenueLow: Array<number | null>;
   revenueHigh: Array<number | null>;
@@ -104,7 +119,32 @@ export function emptyBucket(key: string): MonthBucket {
     bankOut: 0,
     cashNet: 0,
     journalCount: 0,
+    pipeline: 0,
+    pipelineWeighted: 0,
   };
+}
+
+/** Parse horizon list from query e.g. "1,3,6,9,12" or single max months. */
+export function parseHorizons(raw: string | null | undefined, fallback: number[] = [1, 3, 6, 9, 12]): number[] {
+  if (!raw || !String(raw).trim()) return fallback;
+  const parts = String(raw)
+    .split(/[,\s]+/)
+    .map((s) => Number(s))
+    .filter((n) => Number.isFinite(n) && n >= 1 && n <= 36);
+  if (!parts.length) return fallback;
+  // unique sorted
+  return Array.from(new Set(parts.map((n) => Math.round(n)))).sort((a, b) => a - b);
+}
+
+/**
+ * Build milestone horizons from a max look-ahead (e.g. 12 → 1,3,6,9,12).
+ * Always includes 1 and maxH when maxH > 1.
+ */
+export function horizonsFromMax(maxH: number): number[] {
+  const m = Math.min(36, Math.max(1, Math.round(maxH)));
+  const base = [1, 3, 6, 9, 12, 18, 24, 36].filter((h) => h <= m);
+  if (!base.includes(m)) base.push(m);
+  return Array.from(new Set(base)).sort((a, b) => a - b);
 }
 
 /**
@@ -183,13 +223,32 @@ export function blendedProject(
 
 export function buildForecastSeries(
   history: MonthBucket[],
-  horizons: HorizonKey[] = [1, 3, 6, 9, 12]
+  horizons: number[] = [1, 3, 6, 9, 12],
+  opts?: {
+    /** Forward pipeline gross by month (aligned to forecast months) */
+    pipelineForward?: number[];
+    /** Forward pipeline weighted by month */
+    pipelineWeightedForward?: number[];
+    includePipeline?: boolean;
+  }
 ): { series: ForecastSeries; horizons: HorizonForecast[]; method: string } {
-  const maxH = Math.max(...horizons);
+  const cleanHorizons = (horizons.length ? horizons : [1, 3, 6, 9, 12])
+    .map((h) => Math.min(36, Math.max(1, Math.round(h))))
+    .filter((v, i, a) => a.indexOf(v) === i)
+    .sort((a, b) => a - b);
+  const maxH = Math.max(...cleanHorizons);
+  const includePipeline = opts?.includePipeline !== false;
+  const pipeFwd = (opts?.pipelineForward || []).slice(0, maxH);
+  const pipeWFwd = (opts?.pipelineWeightedForward || []).slice(0, maxH);
+  while (pipeFwd.length < maxH) pipeFwd.push(0);
+  while (pipeWFwd.length < maxH) pipeWFwd.push(0);
+
   const revH = history.map((h) => h.revenue);
   const cogsH = history.map((h) => h.cogs);
   const expH = history.map((h) => h.expenses);
   const cashH = history.map((h) => h.cashNet);
+  const pipeH = history.map((h) => h.pipeline);
+  const pipeWH = history.map((h) => h.pipelineWeighted);
 
   const revF = blendedProject(revH, maxH, { nonNegative: true });
   const cogsF = blendedProject(cogsH, maxH, { nonNegative: true });
@@ -198,6 +257,12 @@ export function buildForecastSeries(
   const cashF = blendedProject(cashH, maxH, { nonNegative: false, blend: 0.55 });
 
   const netPoints = revF.points.map((r, i) => round2(r - cogsF.points[i] - expF.points[i]));
+  const revWithPipe = revF.points.map((r, i) =>
+    round2(r + (includePipeline ? pipeWFwd[i] || 0 : 0))
+  );
+  const netWithPipe = revWithPipe.map((r, i) =>
+    round2(r - cogsF.points[i] - expF.points[i])
+  );
 
   const histLabels = history.map((h) => h.label);
   const fwdKeys = forwardMonthKeys(maxH);
@@ -213,7 +278,7 @@ export function buildForecastSeries(
   ];
 
   // Bridge: last historical value on forecast series so the line connects
-  const bridge = <T extends number>(hist: number[], forecast: number[]): Array<number | null> => {
+  const bridge = (hist: number[], forecast: number[]): Array<number | null> => {
     const out: Array<number | null> = history.map(() => null);
     if (hist.length) out[hist.length - 1] = hist[hist.length - 1];
     for (let i = 0; i < forecast.length; i++) out.push(forecast[i]);
@@ -225,7 +290,7 @@ export function buildForecastSeries(
     round2(Math.max(0, v - z * revF.residualStd * (1 + i * 0.08)))
   );
   const revHigh = revF.points.map((v, i) =>
-    round2(v + z * revF.residualStd * (1 + i * 0.08))
+    round2(v + z * revF.residualStd * (1 + i * 0.08) + (includePipeline ? pipeWFwd[i] || 0 : 0))
   );
 
   const series: ForecastSeries = {
@@ -235,26 +300,42 @@ export function buildForecastSeries(
     expenses: histOnly(expH),
     netIncome: histOnly(history.map((h) => h.netIncome)),
     cashNet: histOnly(cashH),
+    pipeline: histOnly(pipeH),
+    pipelineWeighted: histOnly(pipeWH),
     revenueForecast: bridge(revH, revF.points),
+    revenueWithPipelineForecast: bridge(
+      revH.map((r, i) => r + (pipeWH[i] || 0)),
+      revWithPipe
+    ),
     expensesForecast: bridge(expH, expF.points),
     netForecast: bridge(
       history.map((h) => h.netIncome),
       netPoints
     ),
+    netWithPipelineForecast: bridge(
+      history.map((h) => h.netIncome + (h.pipelineWeighted || 0)),
+      netWithPipe
+    ),
     cashForecast: bridge(cashH, cashF.points),
+    pipelineForecast: bridge(pipeH, pipeFwd),
+    pipelineWeightedForecast: bridge(pipeWH, pipeWFwd),
     revenueLow: padNull(revLow),
     revenueHigh: padNull(revHigh),
   };
 
-  const horizonRows: HorizonForecast[] = horizons.map((months) => {
+  const horizonRows: HorizonForecast[] = cleanHorizons.map((months) => {
     const slice = (arr: number[]) => arr.slice(0, months);
     const sum = (arr: number[]) => round2(arr.reduce((s, v) => s + v, 0));
     const rev = sum(slice(revF.points));
+    const pipe = sum(slice(pipeFwd));
+    const pipeW = sum(slice(pipeWFwd));
+    const revWP = sum(slice(revWithPipe));
     const cogs = sum(slice(cogsF.points));
     const expenses = sum(slice(expF.points));
     const cashNet = sum(slice(cashF.points));
     const grossProfit = round2(rev - cogs);
     const netIncome = round2(grossProfit - expenses);
+    const netWP = round2(revWP - cogs - expenses);
     const revL = sum(slice(revLow));
     const revHi = sum(slice(revHigh));
     const netBand = z * (revF.residualStd + expF.residualStd) * Math.sqrt(months);
@@ -263,11 +344,15 @@ export function buildForecastSeries(
       months,
       endLabel: fwdLabels[months - 1] || monthLabel(fwdKeys[months - 1]),
       revenue: rev,
+      revenueWithPipeline: revWP,
       cogs,
       expenses,
       grossProfit,
       netIncome,
+      netWithPipeline: netWP,
       cashNet,
+      pipeline: pipe,
+      pipelineWeighted: pipeW,
       avgMonthlyNet: round2(netIncome / months),
       revenueLow: revL,
       revenueHigh: revHi,
@@ -278,6 +363,9 @@ export function buildForecastSeries(
 
   const method =
     'Blended linear trend + trailing 3-month average on posted monthly P&L and bank cash. ' +
+    (includePipeline
+      ? 'Open CRM pipeline (opportunities) is scheduled by expected close date; probability-weighted amounts layer onto revenue for “with pipeline” views. '
+      : '') +
     'Horizons sum monthly projections. Bands use residual std-dev (~80% interval, widens with horizon). ' +
     'Not a guarantee — use for planning alongside budgets and known contracts.';
 
@@ -295,6 +383,8 @@ export function finalizeBuckets(map: Map<string, MonthBucket>, keys: string[]): 
     b.expenses = round2(b.expenses);
     b.bankIn = round2(b.bankIn);
     b.bankOut = round2(b.bankOut);
+    b.pipeline = round2(b.pipeline);
+    b.pipelineWeighted = round2(b.pipelineWeighted);
     return b;
   });
 }
