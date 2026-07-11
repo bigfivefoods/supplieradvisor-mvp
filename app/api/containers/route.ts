@@ -89,35 +89,12 @@ export async function POST(request: NextRequest) {
     };
 
     const supabase = getSupabaseServer();
-    const { data, error } = await supabase.from('containers').insert(payload).select('*').single();
-
-    if (error) {
-      // Retry without optional columns if schema is thinner
-      const minimal = {
-        profile_id: companyId,
-        container_code: payload.container_code,
-        name: payload.name,
-        type: payload.type,
-        status: payload.status,
-        country: payload.country,
-        province: payload.province,
-        city: payload.city,
-        address: payload.address,
-        latitude: payload.latitude,
-        longitude: payload.longitude,
-        notes: payload.notes,
-        photo_url: payload.photo_url,
-        assigned_contractor: payload.assigned_contractor,
-        contractor_id: payload.contractor_id,
-      };
-      const retry = await supabase.from('containers').insert(minimal).select('*').single();
-      if (retry.error) {
-        return NextResponse.json({ error: retry.error.message, details: error.message }, { status: 500 });
-      }
-      return NextResponse.json({ success: true, container: retry.data });
+    const { insertContainerTolerant } = await import('@/lib/containers/db-write');
+    const result = await insertContainerTolerant(supabase, payload);
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error }, { status: result.status });
     }
-
-    return NextResponse.json({ success: true, container: data });
+    return NextResponse.json({ success: true, container: result.container });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Failed to create container';
     return NextResponse.json({ error: message }, { status: 500 });

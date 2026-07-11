@@ -117,6 +117,7 @@ export default function EditContainerForm({ container, onClose, onSuccess }: Edi
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
+          companyId,
           continent: geo.continent || null,
           country: geo.country || null,
           province: geo.province || null,
