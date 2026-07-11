@@ -68,7 +68,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <WagmiProvider config={wagmiConfig}>
         <QueryClientProvider client={queryClient}>
           <RainbowKitProvider>
-            <div className="relative z-0 min-h-screen pointer-events-auto">{children}</div>
+            {/*
+              Do not use overflow/transform/z-0 wrappers that trap position:fixed
+              (landing header must stay viewport-fixed). Isolation is fine.
+            */}
+            <div className="min-h-dvh pointer-events-auto isolate">{children}</div>
             <Toaster position="top-center" richColors closeButton expand={false} />
           </RainbowKitProvider>
         </QueryClientProvider>

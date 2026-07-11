@@ -12,7 +12,7 @@ const LINKS = [
   { id: 'modules', label: 'Modules' },
   { id: 'how-it-works', label: 'How it works' },
   { id: 'verified', label: 'Network' },
-  { id: 'audiences', label: 'Who it\'s for' },
+  { id: 'audiences', label: "Who it's for" },
 ] as const;
 
 export default function LandingNav() {
@@ -22,22 +22,39 @@ export default function LandingNav() {
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 12);
+    const onScroll = () => setScrolled(window.scrollY > 8);
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
   useEffect(() => {
-    document.body.style.overflow = open ? 'hidden' : '';
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
     return () => {
-      document.body.style.overflow = '';
+      document.body.style.overflow = prev;
     };
   }, [open]);
 
+  // Close drawer on resize to desktop
+  useEffect(() => {
+    const onResize = () => {
+      if (window.innerWidth >= 768) setOpen(false);
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
   const scrollTo = (id: string) => {
     setOpen(false);
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+    // Allow drawer to close before scroll on mobile
+    requestAnimationFrame(() => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const y = el.getBoundingClientRect().top + window.scrollY - 72;
+      window.scrollTo({ top: y, behavior: 'smooth' });
+    });
   };
 
   const goLogin = () => {
@@ -48,109 +65,137 @@ export default function LandingNav() {
 
   return (
     <>
+      {/*
+        Fixed header is portaled at document flow root of the page tree.
+        Use solid white + high z-index so it never sits under hero/Providers stacking.
+      */}
       <header
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-          scrolled || open
-            ? 'bg-white/90 backdrop-blur-xl border-b border-slate-200/80 shadow-sm'
-            : 'bg-white/70 backdrop-blur-md border-b border-transparent'
-        }`}
+        className="fixed top-0 left-0 right-0 z-[200] w-full border-b transition-all duration-300"
+        style={{
+          backgroundColor: scrolled || open ? 'rgba(255,255,255,0.97)' : 'rgba(255,255,255,0.92)',
+          borderColor: scrolled || open ? '#e2e8f0' : 'rgba(226,232,240,0.6)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          boxShadow: scrolled || open ? '0 1px 3px 0 rgb(0 0 0 / 0.06)' : 'none',
+        }}
       >
-        <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-10 h-16 sm:h-[4.25rem] flex items-center justify-between gap-3">
-          <Link href="/" className="flex items-center gap-2.5 min-w-0 shrink-0">
+        <div className="mx-auto flex h-16 max-w-screen-2xl items-center justify-between gap-3 px-4 sm:h-[4.25rem] sm:px-6 lg:px-10">
+          {/* Brand */}
+          <Link
+            href="/"
+            className="flex min-w-0 shrink-0 items-center gap-2 sm:gap-2.5"
+            onClick={() => setOpen(false)}
+          >
             <Image
               src="/sa-logo.png"
               alt="SupplierAdvisor"
               width={40}
               height={40}
-              className="rounded-2xl object-contain w-9 h-9 sm:w-10 sm:h-10"
+              className="h-9 w-9 rounded-2xl object-contain sm:h-10 sm:w-10"
               priority
             />
-            <span className="text-lg sm:text-xl font-black tracking-[-0.04em] text-slate-900 truncate">
-              SupplierAdvisor<span className="text-[#00b4d8]">®</span>
+            <span className="truncate text-base font-black tracking-tight text-slate-900 sm:text-xl">
+              SupplierAdvisor
+              <span className="text-[#00b4d8]">®</span>
             </span>
           </Link>
 
-          <nav className="hidden lg:flex items-center gap-1">
+          {/* Desktop / tablet nav — show from md (768px), not only lg */}
+          <nav
+            className="hidden items-center gap-0.5 md:flex"
+            aria-label="Primary"
+          >
             {LINKS.map((l) => (
               <button
                 key={l.id}
                 type="button"
                 onClick={() => scrollTo(l.id)}
-                className="px-3.5 py-2 text-sm font-semibold text-slate-600 hover:text-[#0077b6] rounded-full hover:bg-slate-50 transition-colors"
+                className="rounded-full px-2.5 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 hover:text-[#0077b6] lg:px-3.5"
               >
                 {l.label}
               </button>
             ))}
           </nav>
 
-          <div className="hidden lg:flex items-center gap-2.5">
+          {/* Desktop CTAs */}
+          <div className="hidden items-center gap-2 md:flex">
             <button
               type="button"
               onClick={goLogin}
-              className="px-5 py-2.5 text-sm font-semibold text-slate-700 border border-slate-200 rounded-full hover:border-[#00b4d8] hover:text-[#0077b6] transition-all"
+              className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition-all hover:border-[#00b4d8] hover:text-[#0077b6] lg:px-5 lg:py-2.5"
             >
               Log in
             </button>
             <Link
               href="/onboarding?type=business"
-              className="inline-flex items-center gap-1.5 px-5 py-2.5 text-sm font-semibold text-white bg-[#00b4d8] hover:bg-[#0099b8] rounded-full transition-all shadow-sm"
+              className="inline-flex items-center gap-1.5 rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#0099b8] lg:px-5 lg:py-2.5"
             >
-              Join free <ArrowRight className="w-4 h-4" />
+              Join free <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
 
+          {/* Mobile menu button */}
           <button
             type="button"
-            className="lg:hidden w-11 h-11 inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-800 touch-manipulation"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-800 touch-manipulation md:hidden"
             aria-label={open ? 'Close menu' : 'Open menu'}
             aria-expanded={open}
             onClick={() => setOpen((v) => !v)}
           >
-            {open ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
         </div>
       </header>
 
       {/* Mobile drawer */}
       <div
-        className={`fixed inset-0 z-40 lg:hidden transition-opacity duration-300 ${
-          open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+        className={`fixed inset-0 z-[190] md:hidden ${
+          open ? 'pointer-events-auto' : 'pointer-events-none'
         }`}
+        aria-hidden={!open}
       >
         <button
           type="button"
-          className="absolute inset-0 bg-slate-900/30 backdrop-blur-[2px]"
+          className={`absolute inset-0 bg-slate-900/40 transition-opacity duration-300 ${
+            open ? 'opacity-100' : 'opacity-0'
+          }`}
+          style={{ backdropFilter: open ? 'blur(2px)' : undefined }}
           aria-label="Close menu overlay"
           onClick={() => setOpen(false)}
+          tabIndex={open ? 0 : -1}
         />
         <div
-          className={`absolute top-16 sm:top-[4.25rem] left-0 right-0 bg-white border-b border-slate-200 shadow-xl transition-transform duration-300 ${
-            open ? 'translate-y-0' : '-translate-y-3'
+          className={`absolute left-0 right-0 top-16 max-h-[min(80vh,calc(100dvh-4rem))] overflow-y-auto border-b border-slate-200 bg-white shadow-xl transition-transform duration-300 sm:top-[4.25rem] ${
+            open ? 'translate-y-0' : '-translate-y-4'
           }`}
+          style={{
+            opacity: open ? 1 : 0,
+            visibility: open ? 'visible' : 'hidden',
+          }}
         >
-          <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 py-4 flex flex-col gap-1">
+          <div className="mx-auto flex max-w-screen-2xl flex-col gap-1 px-4 py-4 sm:px-6">
             {LINKS.map((l) => (
               <button
                 key={l.id}
                 type="button"
                 onClick={() => scrollTo(l.id)}
-                className="text-left px-4 py-3.5 rounded-2xl text-base font-semibold text-slate-800 hover:bg-sky-50 hover:text-[#0077b6] transition-colors touch-manipulation"
+                className="rounded-2xl px-4 py-3.5 text-left text-base font-semibold text-slate-800 transition-colors touch-manipulation hover:bg-sky-50 hover:text-[#0077b6]"
               >
                 {l.label}
               </button>
             ))}
-            <div className="grid grid-cols-2 gap-2 pt-3 mt-1 border-t border-slate-100">
+            <div className="mt-1 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3">
               <button
                 type="button"
                 onClick={goLogin}
-                className="py-3.5 rounded-2xl border border-slate-200 font-semibold text-slate-700 touch-manipulation"
+                className="rounded-2xl border border-slate-200 py-3.5 font-semibold text-slate-700 touch-manipulation"
               >
                 Log in
               </button>
               <Link
                 href="/onboarding?type=business"
                 onClick={() => setOpen(false)}
-                className="py-3.5 rounded-2xl bg-[#00b4d8] text-white font-semibold text-center touch-manipulation"
+                className="rounded-2xl bg-[#00b4d8] py-3.5 text-center font-semibold text-white touch-manipulation"
               >
                 Join free
               </Link>
@@ -158,6 +203,9 @@ export default function LandingNav() {
           </div>
         </div>
       </div>
+
+      {/* Spacer so fixed header never covers content */}
+      <div className="h-16 sm:h-[4.25rem]" aria-hidden />
     </>
   );
 }

@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Providers } from '@/components/Providers';
 
@@ -21,14 +21,21 @@ export const metadata: Metadata = {
   },
 };
 
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+  themeColor: '#f8fafc',
+};
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className="scroll-smooth">
       <head>
         {/* Paystack Inline Script */}
         <script src="https://js.paystack.co/v1/inline.js" async />
       </head>
-      <body className="antialiased">
+      <body className="min-h-dvh antialiased text-slate-900">
         <Providers>{children}</Providers>
       </body>
     </html>

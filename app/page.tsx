@@ -179,13 +179,14 @@ export default function LandingPage() {
   const FeaturedMock = featured.Mock;
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-slate-900 overflow-x-hidden antialiased">
+    <div className="min-h-dvh bg-[#f8fafc] text-slate-900 antialiased">
       <LandingNav />
 
       {/* ─── HERO ─── */}
+      {/* Note: spacer for fixed nav is inside LandingNav — do not double-pad top */}
       <section
         id="platform"
-        className="relative pt-16 sm:pt-[4.25rem] min-h-[100svh] flex flex-col justify-center overflow-hidden"
+        className="relative flex min-h-[calc(100svh-4rem)] flex-col justify-center overflow-x-clip sm:min-h-[calc(100svh-4.25rem)]"
       >
         {/* Light space-grade wash */}
         <div
@@ -205,61 +206,64 @@ export default function LandingPage() {
           aria-hidden
         />
 
-        <div className="relative z-10 max-w-screen-2xl mx-auto w-full px-4 sm:px-6 lg:px-10 py-12 sm:py-16 lg:py-20">
-          <div className="grid lg:grid-cols-12 gap-10 lg:gap-12 items-center">
-            <div className="lg:col-span-6 text-center lg:text-left">
-              <div className="inline-flex items-center gap-2 rounded-full border border-cyan-200/80 bg-white/90 px-3.5 py-1.5 text-[10px] sm:text-xs font-black uppercase tracking-widest text-[#0077b6] mb-6 shadow-sm">
-                <span className="relative flex h-1.5 w-1.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
+        <div className="relative z-10 mx-auto w-full max-w-screen-2xl px-4 py-10 sm:px-6 sm:py-14 lg:px-10 lg:py-20">
+          <div className="grid items-center gap-8 lg:grid-cols-12 lg:gap-12">
+            <div className="text-center lg:col-span-6 lg:text-left">
+              <div className="mb-5 inline-flex max-w-full items-center gap-2 rounded-full border border-cyan-200/80 bg-white/90 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-[#0077b6] shadow-sm sm:mb-6 sm:px-3.5 sm:text-xs">
+                <span className="relative flex h-1.5 w-1.5 shrink-0">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
                 </span>
-                B2B · B2G · B2C · On-chain ready
+                <span className="truncate">B2B · B2G · B2C · On-chain ready</span>
               </div>
 
-              <h1 className="text-[2.5rem] leading-[0.95] sm:text-5xl md:text-6xl lg:text-[4.25rem] font-black tracking-[-0.045em] text-slate-900 mb-5 sm:mb-6">
+              <h1 className="mb-4 text-[2.15rem] font-black leading-[1.05] tracking-tight text-slate-900 sm:mb-6 sm:text-5xl md:text-6xl lg:text-[3.75rem] xl:text-[4.25rem] xl:tracking-[-0.045em]">
                 The supply chain
-                <span className="block text-[#00b4d8]">operating system.</span>
+                <span className="mt-1 block text-[#00b4d8]">operating system.</span>
               </h1>
 
-              <p className="text-base sm:text-lg md:text-xl text-slate-600 max-w-xl mx-auto lg:mx-0 leading-relaxed mb-8">
+              <p className="mx-auto mb-7 max-w-xl text-base leading-relaxed text-slate-600 sm:mb-8 sm:text-lg md:text-xl lg:mx-0">
                 Verified trade, inventory, manufacturing, distribution, accounting, and intelligence
                 — one light, precise workspace. Built for operators who refuse blind spots.
               </p>
 
-              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center lg:justify-start mb-6">
+              <div className="mb-5 flex w-full flex-col gap-3 sm:mb-6 sm:flex-row sm:justify-center lg:justify-start">
                 <Link
                   href="/onboarding?type=business"
-                  className="inline-flex items-center justify-center gap-2 rounded-full bg-[#00b4d8] hover:bg-[#0099b8] text-white font-semibold text-base sm:text-lg px-8 py-4 shadow-lg shadow-cyan-500/20 transition-all touch-manipulation"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#00b4d8] px-6 py-3.5 text-base font-semibold text-white shadow-lg shadow-cyan-500/20 transition-all touch-manipulation hover:bg-[#0099b8] sm:w-auto sm:px-8 sm:py-4 sm:text-lg"
                 >
-                  Start free <ArrowRight className="w-5 h-5" />
+                  Start free <ArrowRight className="h-5 w-5 shrink-0" />
                 </Link>
                 <button
                   type="button"
-                  onClick={() =>
-                    document.getElementById('modules')?.scrollIntoView({ behavior: 'smooth' })
-                  }
-                  className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-300 bg-white hover:border-[#00b4d8] text-slate-800 font-semibold text-base sm:text-lg px-8 py-4 transition-all touch-manipulation"
+                  onClick={() => {
+                    const el = document.getElementById('modules');
+                    if (!el) return;
+                    const y = el.getBoundingClientRect().top + window.scrollY - 72;
+                    window.scrollTo({ top: y, behavior: 'smooth' });
+                  }}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-300 bg-white px-6 py-3.5 text-base font-semibold text-slate-800 transition-all touch-manipulation hover:border-[#00b4d8] sm:w-auto sm:px-8 sm:py-4 sm:text-lg"
                 >
                   Explore modules
                 </button>
               </div>
-              <p className="text-xs sm:text-sm text-slate-500">
+              <p className="text-xs text-slate-500 sm:text-sm">
                 Free company workspace · no card for beta ·{' '}
                 <Link href="/privacy" className="underline hover:text-[#0077b6]">
                   Privacy
                 </Link>
               </p>
 
-              <div className="mt-10 grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-lg mx-auto lg:mx-0">
+              <div className="mx-auto mt-8 grid max-w-lg grid-cols-2 gap-2.5 sm:mt-10 sm:grid-cols-4 sm:gap-3 lg:mx-0">
                 {STATS.map((s) => (
                   <div
                     key={s.label}
-                    className="rounded-2xl border border-slate-200/80 bg-white/80 backdrop-blur px-3 py-3 text-center shadow-sm"
+                    className="rounded-2xl border border-slate-200/80 bg-white/90 px-2.5 py-3 text-center shadow-sm sm:px-3"
                   >
-                    <div className="text-lg sm:text-xl font-black text-slate-900 tabular-nums tracking-tight">
+                    <div className="text-base font-black tabular-nums tracking-tight text-slate-900 sm:text-xl">
                       {s.value}
                     </div>
-                    <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-400 mt-0.5">
+                    <div className="mt-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-400 sm:text-[10px]">
                       {s.label}
                     </div>
                   </div>
@@ -267,20 +271,20 @@ export default function LandingPage() {
               </div>
             </div>
 
-            <div className="lg:col-span-6 relative">
-              <div className="absolute -inset-4 bg-gradient-to-tr from-cyan-200/30 via-transparent to-violet-200/20 blur-2xl rounded-[2rem] pointer-events-none" />
-              <div className="relative">
+            <div className="relative min-w-0 lg:col-span-6">
+              <div className="pointer-events-none absolute -inset-2 rounded-[2rem] bg-gradient-to-tr from-cyan-200/30 via-transparent to-violet-200/20 blur-2xl sm:-inset-4" />
+              <div className="relative min-w-0">
                 <FeaturedMock />
-                <div className="mt-4 flex gap-1.5 overflow-x-auto pb-1 scrollbar-thin justify-center lg:justify-start">
+                <div className="-mx-1 mt-3 flex gap-1.5 overflow-x-auto px-1 pb-1 scrollbar-thin sm:mt-4 sm:justify-center lg:justify-start">
                   {MODULES.map((m, i) => (
                     <button
                       key={m.id}
                       type="button"
                       onClick={() => setActiveModule(i)}
-                      className={`shrink-0 px-3 py-1.5 rounded-full text-[10px] sm:text-xs font-bold border transition-all touch-manipulation ${
+                      className={`shrink-0 rounded-full border px-2.5 py-1.5 text-[10px] font-bold transition-all touch-manipulation sm:px-3 sm:text-xs ${
                         i === activeModule
-                          ? 'bg-[#00b4d8] border-[#00b4d8] text-white shadow-sm'
-                          : 'bg-white border-slate-200 text-slate-600 hover:border-cyan-300'
+                          ? 'border-[#00b4d8] bg-[#00b4d8] text-white shadow-sm'
+                          : 'border-slate-200 bg-white text-slate-600 hover:border-cyan-300'
                       }`}
                     >
                       {m.title.split(' ')[0]}
@@ -318,23 +322,23 @@ export default function LandingPage() {
       </section>
 
       {/* ─── MODULES SHOWCASE ─── */}
-      <section id="modules" className="py-16 sm:py-20 md:py-28 px-4 sm:px-6 lg:px-10">
-        <div className="max-w-screen-2xl mx-auto">
-          <div className="max-w-3xl mx-auto text-center mb-12 sm:mb-16">
-            <p className="text-[10px] sm:text-xs font-black uppercase tracking-[0.2em] text-[#00b4d8] mb-3">
+      <section id="modules" className="px-4 py-14 sm:px-6 sm:py-20 md:py-28 lg:px-10">
+        <div className="mx-auto max-w-screen-2xl">
+          <div className="mx-auto mb-10 max-w-3xl text-center sm:mb-16">
+            <p className="mb-3 text-[10px] font-black uppercase tracking-[0.2em] text-[#00b4d8] sm:text-xs">
               Product
             </p>
-            <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black tracking-[-0.04em] text-slate-900 mb-4">
+            <h2 className="mb-4 text-3xl font-black tracking-tight text-slate-900 sm:text-4xl md:text-5xl lg:text-6xl lg:tracking-[-0.04em]">
               Built like a mission.
-              <span className="block text-[#00b4d8]">Run like a business.</span>
+              <span className="mt-1 block text-[#00b4d8]">Run like a business.</span>
             </h2>
-            <p className="text-base sm:text-lg text-slate-600 leading-relaxed">
+            <p className="text-base leading-relaxed text-slate-600 sm:text-lg">
               Every module shares the same light command chrome — hero telemetry, workbenches, and
               operating principles — so teams never relearn the UI.
             </p>
           </div>
 
-          <div className="space-y-16 sm:space-y-24 md:space-y-28">
+          <div className="space-y-14 sm:space-y-20 md:space-y-28">
             {MODULES.map((mod, index) => {
               const Mock = mod.Mock;
               const reverse = index % 2 === 1;
@@ -342,43 +346,41 @@ export default function LandingPage() {
                 <div
                   key={mod.id}
                   id={`module-${mod.id}`}
-                  className={`grid lg:grid-cols-2 gap-8 lg:gap-14 items-center ${
-                    reverse ? '' : ''
-                  }`}
+                  className="grid items-center gap-6 lg:grid-cols-2 lg:gap-14"
                 >
-                  <div className={reverse ? 'lg:order-2' : ''}>
-                    <div className="inline-flex items-center gap-2 mb-4">
+                  <div className={`min-w-0 ${reverse ? 'lg:order-2' : ''}`}>
+                    <div className="mb-3 inline-flex items-center gap-2 sm:mb-4">
                       <span className="font-mono text-[10px] font-black tracking-widest text-neutral-400">
                         {mod.code}
                       </span>
-                      <span className="w-8 h-px bg-slate-200" />
-                      <mod.icon className="w-4 h-4 text-[#00b4d8]" />
+                      <span className="h-px w-8 bg-slate-200" />
+                      <mod.icon className="h-4 w-4 text-[#00b4d8]" />
                     </div>
-                    <h3 className="text-2xl sm:text-3xl md:text-4xl font-black tracking-[-0.03em] text-slate-900 mb-2">
+                    <h3 className="mb-2 text-xl font-black tracking-tight text-slate-900 sm:text-3xl md:text-4xl md:tracking-[-0.03em]">
                       {mod.title}
                     </h3>
-                    <p className="text-lg sm:text-xl font-semibold text-[#0077b6] mb-4">
+                    <p className="mb-3 text-base font-semibold text-[#0077b6] sm:mb-4 sm:text-xl">
                       {mod.tagline}
                     </p>
-                    <p className="text-sm sm:text-base text-slate-600 leading-relaxed mb-6 max-w-lg">
+                    <p className="mb-5 max-w-lg text-sm leading-relaxed text-slate-600 sm:mb-6 sm:text-base">
                       {mod.body}
                     </p>
-                    <ul className="space-y-2.5 mb-8">
+                    <ul className="mb-6 space-y-2.5 sm:mb-8">
                       {mod.bullets.map((b) => (
                         <li key={b} className="flex items-start gap-2.5 text-sm text-slate-700">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
                           <span>{b}</span>
                         </li>
                       ))}
                     </ul>
                     <Link
                       href="/onboarding?type=business"
-                      className="inline-flex items-center gap-1.5 text-sm font-bold text-[#00b4d8] hover:text-[#0077b6] transition-colors"
+                      className="inline-flex items-center gap-1.5 text-sm font-bold text-[#00b4d8] transition-colors hover:text-[#0077b6]"
                     >
-                      Get access <ChevronRight className="w-4 h-4" />
+                      Get access <ChevronRight className="h-4 w-4" />
                     </Link>
                   </div>
-                  <div className={reverse ? 'lg:order-1' : ''}>
+                  <div className={`min-w-0 ${reverse ? 'lg:order-1' : ''}`}>
                     <Mock />
                   </div>
                 </div>
@@ -386,8 +388,7 @@ export default function LandingPage() {
             })}
           </div>
 
-          {/* Module grid index */}
-          <div className="mt-16 sm:mt-20 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="mt-12 grid grid-cols-2 gap-2.5 sm:mt-20 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
             {[
               { icon: Warehouse, t: 'Containers', d: 'Retail outlet network' },
               { icon: Network, t: 'Connections', d: 'Company trading graph' },
@@ -400,11 +401,11 @@ export default function LandingPage() {
             ].map((m) => (
               <div
                 key={m.t}
-                className="rounded-2xl sm:rounded-3xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm hover:border-[#00b4d8]/50 hover:shadow-md transition-all"
+                className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm transition-all hover:border-[#00b4d8]/50 hover:shadow-md sm:rounded-3xl sm:p-5"
               >
-                <m.icon className="w-5 h-5 text-[#00b4d8] mb-2.5" />
-                <div className="font-bold text-sm sm:text-base text-slate-900">{m.t}</div>
-                <div className="text-xs text-slate-500 mt-0.5">{m.d}</div>
+                <m.icon className="mb-2 h-5 w-5 text-[#00b4d8] sm:mb-2.5" />
+                <div className="text-sm font-bold text-slate-900 sm:text-base">{m.t}</div>
+                <div className="mt-0.5 text-[11px] leading-snug text-slate-500 sm:text-xs">{m.d}</div>
               </div>
             ))}
           </div>
@@ -701,7 +702,7 @@ export default function LandingPage() {
       </section>
 
       {/* ─── FINAL CTA ─── */}
-      <section className="relative py-16 sm:py-20 md:py-28 px-4 sm:px-6 lg:px-10 overflow-hidden">
+      <section className="relative overflow-x-clip px-4 py-14 sm:px-6 sm:py-20 md:py-28 lg:px-10">
         <div
           className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-900 to-[#023e5a]"
           aria-hidden
@@ -710,21 +711,21 @@ export default function LandingPage() {
           className="absolute inset-0 bg-[radial-gradient(#ffffff_0.7px,transparent_0.7px)] bg-[length:16px_16px] opacity-[0.07]"
           aria-hidden
         />
-        <div className="relative max-w-3xl mx-auto text-center text-white">
-          <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black tracking-[-0.04em] mb-5">
+        <div className="relative mx-auto max-w-3xl text-center text-white">
+          <h2 className="mb-4 text-3xl font-black tracking-tight sm:mb-5 sm:text-4xl md:text-5xl lg:text-6xl lg:tracking-[-0.04em]">
             The future of supply chains is here.
           </h2>
-          <p className="text-base sm:text-lg md:text-xl text-white/75 mb-10 leading-relaxed">
+          <p className="mb-8 text-base leading-relaxed text-white/75 sm:mb-10 sm:text-lg md:text-xl">
             Join the movement that makes transparency the standard and ethics the competitive
             advantage.
           </p>
           <Link
             href="/onboarding?type=business"
-            className="inline-flex items-center justify-center gap-2 rounded-full bg-[#00b4d8] hover:bg-[#0099b8] text-white font-semibold text-base sm:text-lg px-8 sm:px-12 py-4 sm:py-5 transition-all touch-manipulation shadow-lg shadow-cyan-500/20"
+            className="inline-flex w-full max-w-md items-center justify-center gap-2 rounded-full bg-[#00b4d8] px-6 py-4 text-base font-semibold text-white shadow-lg shadow-cyan-500/20 transition-all touch-manipulation hover:bg-[#0099b8] sm:w-auto sm:px-12 sm:py-5 sm:text-lg"
           >
-            Get started in under 5 minutes <ArrowRight className="w-5 h-5" />
+            Get started in under 5 minutes <ArrowRight className="h-5 w-5 shrink-0" />
           </Link>
-          <p className="text-xs sm:text-sm text-white/45 mt-6">
+          <p className="mt-6 text-xs text-white/45 sm:text-sm">
             Free company workspace ·{' '}
             <Link href="/terms" className="underline hover:text-white">
               Terms

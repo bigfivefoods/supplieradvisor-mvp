@@ -15,21 +15,21 @@ function Frame({
 }) {
   return (
     <div
-      className={`rounded-[1.25rem] sm:rounded-[1.75rem] border border-slate-200/90 bg-white shadow-[0_25px_60px_-20px_rgba(15,23,42,0.18)] overflow-hidden ${className}`}
+      className={`w-full min-w-0 max-w-full overflow-hidden rounded-[1.25rem] border border-slate-200/90 bg-white shadow-[0_25px_60px_-20px_rgba(15,23,42,0.18)] sm:rounded-[1.75rem] ${className}`}
     >
-      <div className="flex items-center gap-2 px-3 sm:px-4 py-2.5 sm:py-3 border-b border-slate-100 bg-slate-50/90">
-        <div className="flex gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-rose-300" />
-          <span className="w-2.5 h-2.5 rounded-full bg-amber-300" />
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-300" />
+      <div className="flex items-center gap-2 border-b border-slate-100 bg-slate-50/90 px-2.5 py-2 sm:px-4 sm:py-3">
+        <div className="flex shrink-0 gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-rose-300 sm:h-2.5 sm:w-2.5" />
+          <span className="h-2 w-2 rounded-full bg-amber-300 sm:h-2.5 sm:w-2.5" />
+          <span className="h-2 w-2 rounded-full bg-emerald-300 sm:h-2.5 sm:w-2.5" />
         </div>
-        <div className="flex-1 mx-2 sm:mx-4">
-          <div className="h-6 sm:h-7 rounded-full bg-white border border-slate-200 flex items-center px-3 text-[10px] sm:text-[11px] font-medium text-slate-400 truncate">
+        <div className="min-w-0 flex-1 sm:mx-2">
+          <div className="flex h-6 items-center truncate rounded-full border border-slate-200 bg-white px-2 text-[9px] font-medium text-slate-400 sm:h-7 sm:px-3 sm:text-[11px]">
             app.supplieradvisor.com/{title}
           </div>
         </div>
       </div>
-      <div className="p-3 sm:p-5 bg-gradient-to-br from-[#f8fafc] via-white to-sky-50/40 min-h-[220px] sm:min-h-[280px]">
+      <div className="min-h-[200px] bg-gradient-to-br from-[#f8fafc] via-white to-sky-50/40 p-2.5 sm:min-h-[280px] sm:p-5">
         {children}
       </div>
     </div>
