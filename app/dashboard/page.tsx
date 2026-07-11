@@ -225,10 +225,17 @@ export default function DashboardCommandCenter() {
   const [crm, setCrm] = useState<{
     customers: number;
     pipelineValue: number;
+    pipelineWeighted?: number;
     opportunitiesOpen: number;
+    opportunitiesTotal?: number;
     leadsOpen: number;
+    leadsTotal?: number;
     riadOpen: number;
     wonCount?: number;
+    wonValue?: number;
+    invoicedCount?: number;
+    invoicedValue?: number;
+    lostCount?: number;
     invitePending?: number;
     quotesOpen?: number;
     quotesValue?: number;
@@ -239,6 +246,14 @@ export default function DashboardCommandCenter() {
     invoicesPaidValue?: number;
     invoicesTotalValue?: number;
     invoicesCollectedValue?: number;
+    pipelineStages?: Array<{
+      stage: string;
+      label: string;
+      probability: number;
+      count: number;
+      value: number;
+      weighted: number;
+    }>;
   } | null>(null);
   const [srm, setSrm] = useState<{
     book: number;
@@ -942,136 +957,175 @@ export default function DashboardCommandCenter() {
               icon={Users}
               code="CRM"
               title="CRM · sales & customers"
-              summary={`${crm?.customers ?? kpis?.customersTotal ?? 0} customers · ${money(
-                crm?.quotesValue ?? trade?.quotesValue ?? kpis?.quotesValue ?? 0,
+              summary={`${crm?.opportunitiesOpen ?? kpis?.opportunitiesOpen ?? 0} open deals · ${money(
+                crm?.pipelineValue ?? kpis?.pipelineValue ?? 0,
                 baseCcy
-              )} quoted · ${money(
-                crm?.invoicesOpenValue ??
-                  trade?.invoicesOpenValue ??
-                  kpis?.invoicesOpenValue ??
-                  0,
-                baseCcy
-              )} invoiced open`}
+              )} pipeline · ${money(crm?.pipelineWeighted ?? 0, baseCcy)} weighted`}
               badge={
                 (crm?.leadsOpen ?? 0) > 0
                   ? { label: `${crm?.leadsOpen} leads`, tone: 'good' }
                   : undefined
               }
-              href="/dashboard/customers"
+              href="/dashboard/customers/leads"
               accent="from-sky-50 to-white border-sky-100"
             >
+              {/* Same headline KPIs as Customers → Leads */}
               <MetricGrid
                 metrics={[
+                  {
+                    label: 'Open leads',
+                    value: crm?.leadsOpen ?? kpis?.leadsOpen ?? 0,
+                    sub: `${crm?.leadsTotal ?? crm?.leadsOpen ?? 0} total in book`,
+                    href: '/dashboard/customers/leads',
+                  },
+                  {
+                    label: 'Open deals',
+                    value: crm?.opportunitiesOpen ?? kpis?.opportunitiesOpen ?? 0,
+                    sub: `${crm?.opportunitiesTotal ?? 0} total opportunities`,
+                    href: '/dashboard/customers/leads?tab=pipeline',
+                    tone: 'good',
+                  },
+                  {
+                    label: 'Pipeline',
+                    value: money(crm?.pipelineValue ?? kpis?.pipelineValue ?? 0, baseCcy),
+                    sub: 'Open opportunity amount',
+                    href: '/dashboard/customers/leads?tab=pipeline',
+                    tone: 'good',
+                  },
+                  {
+                    label: 'Weighted',
+                    value: money(crm?.pipelineWeighted ?? 0, baseCcy),
+                    sub: 'Probability-weighted pipeline',
+                    href: '/dashboard/customers/leads?tab=pipeline',
+                  },
+                  {
+                    label: 'Won value',
+                    value: money(crm?.wonValue ?? 0, baseCcy),
+                    sub: `${crm?.wonCount ?? 0} closed-won deals`,
+                    href: '/dashboard/customers/leads?tab=pipeline',
+                    tone: 'good',
+                  },
+                  {
+                    label: 'Invoiced (pipeline)',
+                    value: money(crm?.invoicedValue ?? 0, baseCcy),
+                    sub: `${crm?.invoicedCount ?? 0} deals at Invoiced stage`,
+                    href: '/dashboard/customers/leads?tab=pipeline',
+                  },
+                  {
+                    label: 'Lost deals',
+                    value: crm?.lostCount ?? 0,
+                    sub: 'Closed-lost count',
+                    href: '/dashboard/customers/leads?tab=pipeline',
+                    tone: (crm?.lostCount ?? 0) > 0 ? 'warn' : 'default',
+                  },
                   {
                     label: 'Customers',
                     value: crm?.customers ?? kpis?.customersTotal ?? 0,
                     sub: 'Accounts in book',
                     href: '/dashboard/customers',
                   },
-                  {
-                    label: 'Open leads',
-                    value: crm?.leadsOpen ?? kpis?.leadsOpen ?? 0,
-                    sub: 'Active pipeline intake',
-                    href: '/dashboard/customers/leads',
-                  },
-                  {
-                    label: 'Opportunities',
-                    value: crm?.opportunitiesOpen ?? kpis?.opportunitiesOpen ?? 0,
-                    sub: `${crm?.wonCount ?? 0} won (tracked)`,
-                    href: '/dashboard/customers/leads',
-                  },
-                  {
-                    label: 'Pipeline value',
-                    value: money(crm?.pipelineValue ?? kpis?.pipelineValue ?? 0, baseCcy),
-                    sub: 'Open opportunity amount',
-                    href: '/dashboard/customers/leads',
-                    tone: 'good',
-                  },
-                  {
-                    label: 'Quoted amount',
-                    value: money(
-                      crm?.quotesValue ?? trade?.quotesValue ?? kpis?.quotesValue ?? 0,
-                      baseCcy
-                    ),
-                    sub: `${crm?.quotesOpen ?? trade?.quotesOpen ?? kpis?.quotesOpen ?? 0} open quotes (draft/sent/accepted)`,
-                    href: '/dashboard/customers/quotes',
-                    tone: 'good',
-                  },
-                  {
-                    label: 'Quotes accepted',
-                    value: money(
-                      crm?.quotesAcceptedValue ?? trade?.quotesAcceptedValue ?? 0,
-                      baseCcy
-                    ),
-                    sub: 'Accepted / converted quote total',
-                    href: '/dashboard/customers/quotes',
-                  },
-                  {
-                    label: 'Invoiced open',
-                    value: money(
-                      crm?.invoicesOpenValue ??
-                        trade?.invoicesOpenValue ??
-                        kpis?.invoicesOpenValue ??
-                        0,
-                      baseCcy
-                    ),
-                    sub: `${crm?.invoicesOpen ?? trade?.invoicesOpen ?? kpis?.invoicesOpen ?? 0} invoices outstanding (balance due)`,
-                    href: '/dashboard/customers/invoices',
-                    tone:
-                      (crm?.invoicesOpenValue ?? trade?.invoicesOpenValue ?? 0) > 0
-                        ? 'warn'
-                        : 'good',
-                  },
-                  {
-                    label: 'Invoiced paid',
-                    value: money(
-                      crm?.invoicesPaidValue ?? trade?.invoicesPaidValue ?? 0,
-                      baseCcy
-                    ),
-                    sub: `Collected ${money(
-                      crm?.invoicesCollectedValue ?? trade?.invoicesCollectedValue ?? 0,
-                      baseCcy
-                    )} · all-time billed ${money(
-                      crm?.invoicesTotalValue ?? trade?.invoicesTotalValue ?? 0,
-                      baseCcy
-                    )}`,
-                    href: '/dashboard/customers/invoices',
-                    tone: 'good',
-                  },
-                  {
-                    label: 'Quote win rate',
-                    value:
-                      intel?.quoteWinRate != null ? `${Math.round(intel.quoteWinRate)}%` : '—',
-                    sub: 'Intelligence model',
-                    href: '/dashboard/intelligence',
-                  },
-                  {
-                    label: 'Pipeline projection',
-                    value: money(
-                      (crm?.pipelineValue ?? 0) *
-                        (1 +
-                          Math.max(
-                            -0.3,
-                            Math.min(0.5, (intel?.salesGrowth ?? 0) / 100)
-                          )),
-                      baseCcy
-                    ),
-                    sub: `~30d outlook · sales growth ${intel?.salesGrowth != null ? `${intel.salesGrowth}%` : 'n/a'}`,
-                    href: '/dashboard/intelligence/predictive-forecasts',
-                    tone: 'good',
-                  },
-                  {
-                    label: 'CRM RIAD open',
-                    value: crm?.riadOpen ?? kpis?.crmRiadOpen ?? 0,
-                    sub: 'Customer issues',
-                    href: '/dashboard/customers/riad-log',
-                    tone: (crm?.riadOpen ?? 0) > 0 ? 'warn' : 'good',
-                  },
                 ]}
               />
+
+              {/* Pipeline stage strip — count + value per stage */}
+              {crm?.pipelineStages && crm.pipelineStages.length > 0 && (
+                <div className="mt-3 mb-1">
+                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-neutral-400 mb-2 px-0.5">
+                    Pipeline by stage
+                  </div>
+                  <div className="overflow-x-auto pb-1 -mx-0.5">
+                    <div className="flex gap-2 min-w-max px-0.5">
+                      {crm.pipelineStages.map((st) => (
+                        <Link
+                          key={st.stage}
+                          href="/dashboard/customers/leads?tab=pipeline"
+                          className={`w-[132px] shrink-0 rounded-2xl border px-3 py-2.5 bg-white shadow-sm hover:border-[#00b4d8]/50 transition-colors ${
+                            st.count > 0
+                              ? 'border-sky-100'
+                              : 'border-neutral-100 opacity-70'
+                          }`}
+                        >
+                          <div className="text-[10px] font-bold text-neutral-500 truncate">
+                            {st.label}
+                          </div>
+                          <div className="text-lg font-black tabular-nums text-slate-900 leading-tight">
+                            {st.count}
+                          </div>
+                          <div className="text-[11px] font-semibold text-emerald-700 tabular-nums truncate">
+                            {money(st.value, baseCcy)}
+                          </div>
+                          <div className="text-[10px] text-neutral-400">
+                            w {money(st.weighted, baseCcy)} · {st.probability}%
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-3">
+                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-neutral-400 mb-2 px-0.5">
+                  Quotes &amp; invoices processed
+                </div>
+                <MetricGrid
+                  metrics={[
+                    {
+                      label: 'Quoted amount',
+                      value: money(
+                        crm?.quotesValue ?? trade?.quotesValue ?? kpis?.quotesValue ?? 0,
+                        baseCcy
+                      ),
+                      sub: `${crm?.quotesOpen ?? trade?.quotesOpen ?? kpis?.quotesOpen ?? 0} open quotes`,
+                      href: '/dashboard/customers/quotes',
+                      tone: 'good',
+                    },
+                    {
+                      label: 'Quotes accepted',
+                      value: money(
+                        crm?.quotesAcceptedValue ?? trade?.quotesAcceptedValue ?? 0,
+                        baseCcy
+                      ),
+                      sub: 'Accepted / converted quote total',
+                      href: '/dashboard/customers/quotes',
+                    },
+                    {
+                      label: 'Invoiced open',
+                      value: money(
+                        crm?.invoicesOpenValue ??
+                          trade?.invoicesOpenValue ??
+                          kpis?.invoicesOpenValue ??
+                          0,
+                        baseCcy
+                      ),
+                      sub: `${crm?.invoicesOpen ?? trade?.invoicesOpen ?? kpis?.invoicesOpen ?? 0} outstanding`,
+                      href: '/dashboard/customers/invoices',
+                      tone:
+                        (crm?.invoicesOpenValue ?? trade?.invoicesOpenValue ?? 0) > 0
+                          ? 'warn'
+                          : 'good',
+                    },
+                    {
+                      label: 'Invoiced paid',
+                      value: money(
+                        crm?.invoicesPaidValue ?? trade?.invoicesPaidValue ?? 0,
+                        baseCcy
+                      ),
+                      sub: `Collected ${money(
+                        crm?.invoicesCollectedValue ?? trade?.invoicesCollectedValue ?? 0,
+                        baseCcy
+                      )}`,
+                      href: '/dashboard/customers/invoices',
+                      tone: 'good',
+                    },
+                  ]}
+                />
+              </div>
+
               <SectionLinks
                 links={[
                   { href: '/dashboard/customers/leads', label: 'Leads' },
+                  { href: '/dashboard/customers/leads?tab=pipeline', label: 'Pipeline map' },
                   { href: '/dashboard/customers/quotes', label: 'Quotes' },
                   { href: '/dashboard/customers/orders', label: 'Orders' },
                   { href: '/dashboard/customers/invoices', label: 'Invoices' },

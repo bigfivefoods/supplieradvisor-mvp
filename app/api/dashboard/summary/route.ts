@@ -3,6 +3,7 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { computeProfileCompleteness } from '@/lib/business/completeness';
 import { normalizeProfileRow } from '@/lib/business/types';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import { OPPORTUNITY_STAGES, stageProbability } from '@/lib/customers/types';
 
 export type DashboardActivity = {
   id: string;
@@ -219,10 +220,12 @@ export async function POST(request: NextRequest) {
 
       supabase
         .from('opportunities')
-        .select('id, stage, status, amount, name, updated_at')
+        .select(
+          'id, stage, status, amount, opportunity_size, probability, name, updated_at'
+        )
         .eq('profile_id', companyId)
         .order('updated_at', { ascending: false })
-        .limit(100),
+        .limit(200),
 
       supabase
         .from('customer_invitations')
@@ -640,22 +643,100 @@ export async function POST(request: NextRequest) {
 
     const openLeadStatuses = new Set(['new', 'contacted', 'working', 'qualified', 'recycled']);
     const openLeads = leads.filter((l) => openLeadStatuses.has(String(l.status || '').toLowerCase()));
-    const openOppStages = new Set([
-      'prospecting',
-      'qualification',
-      'needs_analysis',
-      'proposal',
-      'negotiation',
-    ]);
-    const openOpps = opportunities.filter(
-      (o) =>
-        openOppStages.has(String(o.stage || '').toLowerCase()) &&
-        String(o.status || 'open').toLowerCase() !== 'closed_lost'
+    // Align with Customers → Leads KPIs: open = not closed_won / closed_lost
+    const closedStages = new Set(['closed_won', 'closed_lost', 'won', 'lost']);
+    const normalizeOppStage = (o: { stage?: string | null; status?: string | null }) =>
+      String(o.stage || o.status || 'prospecting')
+        .toLowerCase()
+        .replace(/\s+/g, '_');
+    const openOpps = opportunities.filter((o) => !closedStages.has(normalizeOppStage(o)));
+    const pipelineValue = openOpps.reduce(
+      (s, o) => s + Number((o as { amount?: number; opportunity_size?: number }).amount ?? (o as { opportunity_size?: number }).opportunity_size ?? 0),
+      0
     );
-    const pipelineValue = openOpps.reduce((s, o) => s + Number(o.amount || 0), 0);
-    const wonOpps = opportunities.filter(
-      (o) => String(o.stage || '').toLowerCase() === 'closed_won'
+    let pipelineWeighted = 0;
+    for (const o of openOpps) {
+      const amt = Number(
+        (o as { amount?: number; opportunity_size?: number }).amount ??
+          (o as { opportunity_size?: number }).opportunity_size ??
+          0
+      );
+      const st = normalizeOppStage(o);
+      const prob =
+        (o as { probability?: number }).probability != null
+          ? Number((o as { probability?: number }).probability)
+          : stageProbability(st);
+      pipelineWeighted += (amt * (Number.isFinite(prob) ? prob : 10)) / 100;
+    }
+    const wonOpps = opportunities.filter((o) => {
+      const st = normalizeOppStage(o);
+      return st === 'closed_won' || st === 'won';
+    });
+    const wonValue = wonOpps.reduce(
+      (s, o) =>
+        s +
+        Number(
+          (o as { amount?: number; opportunity_size?: number }).amount ??
+            (o as { opportunity_size?: number }).opportunity_size ??
+            0
+        ),
+      0
     );
+    const invoicedOpps = opportunities.filter((o) => normalizeOppStage(o) === 'invoiced');
+    const invoicedValue = invoicedOpps.reduce(
+      (s, o) =>
+        s +
+        Number(
+          (o as { amount?: number; opportunity_size?: number }).amount ??
+            (o as { opportunity_size?: number }).opportunity_size ??
+            0
+        ),
+      0
+    );
+    const lostOpps = opportunities.filter((o) => {
+      const st = normalizeOppStage(o);
+      return st === 'closed_lost' || st === 'lost';
+    });
+    const pipelineStages = OPPORTUNITY_STAGES.map((stage) => {
+      const cards = opportunities.filter((o) => {
+        const st = normalizeOppStage(o);
+        if (stage.value === 'closed_won') return st === 'closed_won' || st === 'won';
+        if (stage.value === 'closed_lost') return st === 'closed_lost' || st === 'lost';
+        if (stage.value === 'proposal') return st === 'proposal' || st === 'quoted';
+        return st === stage.value;
+      });
+      const value = cards.reduce(
+        (s, o) =>
+          s +
+          Number(
+            (o as { amount?: number; opportunity_size?: number }).amount ??
+              (o as { opportunity_size?: number }).opportunity_size ??
+              0
+          ),
+        0
+      );
+      let weighted = 0;
+      for (const o of cards) {
+        const amt = Number(
+          (o as { amount?: number; opportunity_size?: number }).amount ??
+            (o as { opportunity_size?: number }).opportunity_size ??
+            0
+        );
+        const prob =
+          (o as { probability?: number }).probability != null
+            ? Number((o as { probability?: number }).probability)
+            : stage.probability;
+        weighted += (amt * prob) / 100;
+      }
+      return {
+        stage: stage.value,
+        label: stage.label,
+        probability: stage.probability,
+        count: cards.length,
+        value: Math.round(value),
+        weighted: Math.round(weighted),
+      };
+    });
     const customersActive = customers.filter(
       (c) => !c.status || ['active', 'customer'].includes(String(c.status).toLowerCase())
     ).length;
@@ -1037,8 +1118,13 @@ export async function POST(request: NextRequest) {
         leadsOpen: openLeads.length,
         leadsTotal: leads.length,
         opportunitiesOpen: openOpps.length,
-        pipelineValue,
+        pipelineValue: Math.round(pipelineValue),
+        pipelineWeighted: Math.round(pipelineWeighted),
         wonCount: wonOpps.length,
+        wonValue: Math.round(wonValue),
+        invoicedCount: invoicedOpps.length,
+        invoicedValue: Math.round(invoicedValue),
+        lostCount: lostOpps.length,
         crmInvitePending,
         crmInviteAccepted,
         crmRiadOpen,
@@ -1123,9 +1209,18 @@ export async function POST(request: NextRequest) {
         customers: customers.length,
         customersActive,
         leadsOpen: openLeads.length,
-        pipelineValue,
+        leadsTotal: leads.length,
+        // Pipeline (matches Customers → Leads KPIs)
         opportunitiesOpen: openOpps.length,
+        pipelineValue: Math.round(pipelineValue),
+        pipelineWeighted: Math.round(pipelineWeighted),
         wonCount: wonOpps.length,
+        wonValue: Math.round(wonValue),
+        invoicedCount: invoicedOpps.length,
+        invoicedValue: Math.round(invoicedValue),
+        lostCount: lostOpps.length,
+        opportunitiesTotal: opportunities.length,
+        pipelineStages,
         invitePending: crmInvitePending,
         inviteAccepted: crmInviteAccepted,
         riadOpen: crmRiadOpen,
@@ -1140,6 +1235,7 @@ export async function POST(request: NextRequest) {
         invoicesTotalValue,
         invoicesCollectedValue,
         href: '/dashboard/customers',
+        leadsHref: '/dashboard/customers/leads',
       },
       srm: {
         book: srmBook.length,
