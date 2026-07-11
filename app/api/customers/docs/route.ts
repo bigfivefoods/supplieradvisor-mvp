@@ -74,10 +74,25 @@ function buildPayload(
     tax_amount: totals.tax_amount,
     total_amount: totals.total_amount,
     customer_name:
-      body.customer_name || customer?.trading_name || null,
-    contact_name: body.contact_name || customer?.contact_name || null,
-    contact_email: body.contact_email || customer?.email || null,
-    contact_phone: body.contact_phone || customer?.phone || null,
+      body.customer_name ||
+      customer?.trading_name ||
+      customer?.legal_name ||
+      customer?.company_name ||
+      null,
+    contact_name:
+      body.contact_name || customer?.contact_name || customer?.name || null,
+    contact_email:
+      body.contact_email ||
+      customer?.email ||
+      customer?.contact_email ||
+      customer?.billing_email ||
+      null,
+    contact_phone:
+      body.contact_phone ||
+      customer?.phone ||
+      customer?.contact_phone ||
+      customer?.contact_number ||
+      null,
     notes: body.notes || null,
     items,
     updated_at: now,

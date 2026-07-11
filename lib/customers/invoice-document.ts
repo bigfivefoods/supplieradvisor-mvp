@@ -1,8 +1,9 @@
 /**
- * HTML invoice / quote / order document for print-PDF and email.
- * Pulls seller bank details from company profile when present.
+ * HTML invoice / quote / order for print-PDF and email.
+ * Uses company profile (logo, VAT, reg, bank) + customer contact from CRM.
  */
 import { formatMoney, type DocLineItem } from '@/lib/customers/documents';
+import { normalizeProfileRow, type CompanyProfile } from '@/lib/business/types';
 
 export type SellerProfile = {
   trading_name?: string | null;
@@ -18,6 +19,7 @@ export type SellerProfile = {
   city?: string | null;
   province?: string | null;
   country?: string | null;
+  postal_code?: string | null;
   bank_name?: string | null;
   account_name?: string | null;
   account_number?: string | null;
@@ -26,6 +28,9 @@ export type SellerProfile = {
   branch_code?: string | null;
   account_type?: string | null;
   primary_currency?: string | null;
+  logo_url?: string | null;
+  is_verified?: boolean;
+  verification_status?: string | null;
 };
 
 export type DocRenderInput = {
@@ -64,7 +69,7 @@ function esc(s: unknown): string {
 }
 
 function sellerAddress(s: SellerProfile): string {
-  return [s.street || s.address, s.city, s.province, s.country]
+  return [s.street || s.address, s.city, s.province, s.postal_code, s.country]
     .map((x) => (x ? String(x).trim() : ''))
     .filter(Boolean)
     .join(', ');
@@ -85,8 +90,7 @@ function bankBlock(s: SellerProfile): string {
     return `
       <div class="pay-box warn">
         <strong>Payment details not configured</strong>
-        <p>Add bank details under <em>Company → Profile</em> (bank name, account name, account number)
-        so customers know how to pay.</p>
+        <p>Add bank details under <em>Company → Profile</em> so customers know how to pay by EFT.</p>
       </div>`;
   }
   return `
@@ -98,8 +102,116 @@ function bankBlock(s: SellerProfile): string {
             `<tr><td>${esc(k)}</td><td><code>${esc(v)}</code></td></tr>`
         )
         .join('')}</table>
-      <p class="hint">Use invoice number as payment reference.</p>
+      <p class="hint">Please use the invoice number as your payment reference.</p>
     </div>`;
+}
+
+/**
+ * Map raw profiles row → seller block (logo, VAT, reg, bank, verified).
+ */
+export function extractBankFromProfile(row: Record<string, unknown>): SellerProfile {
+  const p = normalizeProfileRow(row) as CompanyProfile;
+  const meta =
+    row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata)
+      ? (row.metadata as Record<string, unknown>)
+      : {};
+  const settings =
+    row.settings && typeof row.settings === 'object' && !Array.isArray(row.settings)
+      ? (row.settings as Record<string, unknown>)
+      : {};
+
+  const pick = (...keys: string[]) => {
+    for (const k of keys) {
+      const v =
+        (p as Record<string, unknown>)[k] ?? row[k] ?? meta[k] ?? settings[k];
+      if (v != null && String(v).trim()) return String(v).trim();
+    }
+    return null;
+  };
+
+  const verified =
+    p.is_verified === true ||
+    String(p.verification_status || '').toLowerCase() === 'verified';
+
+  return {
+    trading_name: pick('trading_name'),
+    legal_name: pick('legal_name'),
+    email: pick('email', 'contact_email'),
+    contact_email: pick('contact_email', 'email'),
+    contact_phone: pick('contact_phone', 'phone', 'contact_number'),
+    phone: pick('phone', 'contact_phone', 'contact_number'),
+    vat_number: pick('vat_number', 'vat_no', 'tax_number'),
+    registration_number: pick(
+      'registration_number',
+      'company_registration',
+      'cipc_number'
+    ),
+    address: pick('address', 'street'),
+    street: pick('street', 'address'),
+    city: pick('city'),
+    province: pick('province', 'region', 'state'),
+    country: pick('country'),
+    postal_code: pick('postal_code', 'zip'),
+    bank_name: pick('bank_name', 'bank'),
+    account_name: pick('account_name', 'bank_account_name'),
+    account_number: pick('account_number', 'bank_account_number'),
+    iban: pick('iban'),
+    swift: pick('swift', 'bic', 'swift_code'),
+    branch_code: pick('branch_code', 'branch', 'sort_code'),
+    account_type: pick('account_type'),
+    primary_currency: pick('primary_currency') || 'ZAR',
+    logo_url: pick('logo_url', 'company_logo', 'logo'),
+    is_verified: verified,
+    verification_status: p.verification_status || (verified ? 'verified' : null),
+  };
+}
+
+/** Resolve customer display + email from customers row (and aliases). */
+export function resolveCustomerContact(
+  customer: Record<string, unknown> | null | undefined,
+  doc: Record<string, unknown>
+): {
+  customerName: string | null;
+  contactName: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+} {
+  const c = customer || {};
+  const pick = (...vals: unknown[]) => {
+    for (const v of vals) {
+      if (v != null && String(v).trim()) return String(v).trim();
+    }
+    return null;
+  };
+  return {
+    customerName: pick(
+      doc.customer_name,
+      c.trading_name,
+      c.legal_name,
+      c.company_name,
+      c.name
+    ),
+    contactName: pick(
+      doc.contact_name,
+      c.contact_name,
+      c.primary_contact,
+      c.name
+    ),
+    contactEmail: pick(
+      doc.contact_email,
+      c.email,
+      c.contact_email,
+      c.billing_email,
+      c.invited_email
+    ),
+    contactPhone: pick(
+      doc.contact_phone,
+      c.phone,
+      c.contact_phone,
+      c.contact_number,
+      c.mobile
+    ),
+  };
 }
 
 export function renderCommercialDocumentHtml(doc: DocRenderInput): string {
@@ -107,6 +219,13 @@ export function renderCommercialDocumentHtml(doc: DocRenderInput): string {
   const title = KIND_LABEL[doc.kind];
   const sellerName =
     doc.seller.trading_name || doc.seller.legal_name || 'Supplier';
+  const logo = doc.seller.logo_url
+    ? `<img class="logo" src="${esc(doc.seller.logo_url)}" alt="${esc(sellerName)}" />`
+    : '';
+  const verifiedBadge = doc.seller.is_verified
+    ? `<span class="verified">✓ Verified business</span>`
+    : '';
+
   const lines = (doc.items || [])
     .map(
       (l, i) => `
@@ -136,7 +255,9 @@ export function renderCommercialDocumentHtml(doc: DocRenderInput): string {
     * { box-sizing: border-box; }
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color: #0f172a; margin: 0; padding: 32px; background: #fff; }
     h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -0.02em; }
-    .brand { color: #0077b6; font-weight: 800; font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; }
+    .brand { color: #0077b6; font-weight: 800; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; }
+    .logo { max-height: 56px; max-width: 180px; object-fit: contain; display: block; margin-bottom: 10px; }
+    .verified { display: inline-block; font-size: 10px; font-weight: 700; color: #047857; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 999px; padding: 2px 8px; margin-left: 6px; vertical-align: middle; }
     .row { display: flex; justify-content: space-between; gap: 24px; flex-wrap: wrap; margin-bottom: 28px; }
     .muted { color: #64748b; font-size: 12px; }
     table.lines { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 13px; }
@@ -163,16 +284,20 @@ export function renderCommercialDocumentHtml(doc: DocRenderInput): string {
   <div class="brand">SupplierAdvisor</div>
   <div class="row">
     <div>
-      <h1>${esc(title)}</h1>
+      ${logo}
+      <h1>${esc(title)} ${verifiedBadge}</h1>
       <div class="muted"># ${esc(doc.number)} · Status: ${esc(doc.status || '—')}</div>
     </div>
     <div style="text-align:right">
       <div style="font-weight:700">${esc(sellerName)}</div>
+      ${doc.seller.legal_name && doc.seller.legal_name !== sellerName
+        ? `<div class="muted">${esc(doc.seller.legal_name)}</div>`
+        : ''}
       <div class="muted">${esc(sellerAddress(doc.seller))}</div>
       <div class="muted">${esc(doc.seller.email || doc.seller.contact_email || '')}</div>
       <div class="muted">${esc(doc.seller.contact_phone || doc.seller.phone || '')}</div>
-      ${doc.seller.vat_number ? `<div class="muted">VAT: ${esc(doc.seller.vat_number)}</div>` : ''}
-      ${doc.seller.registration_number ? `<div class="muted">Reg: ${esc(doc.seller.registration_number)}</div>` : ''}
+      ${doc.seller.vat_number ? `<div class="muted"><strong>VAT:</strong> ${esc(doc.seller.vat_number)}</div>` : ''}
+      ${doc.seller.registration_number ? `<div class="muted"><strong>Reg:</strong> ${esc(doc.seller.registration_number)}</div>` : ''}
     </div>
   </div>
 
@@ -218,51 +343,9 @@ export function renderCommercialDocumentHtml(doc: DocRenderInput): string {
   ${doc.notes ? `<p style="margin-top:20px;font-size:13px"><strong>Notes</strong><br/>${esc(doc.notes)}</p>` : ''}
 
   <div class="footer">
-    Generated via SupplierAdvisor · ${esc(sellerName)} · Please retain for your records.
+    ${esc(sellerName)}${doc.seller.vat_number ? ` · VAT ${esc(doc.seller.vat_number)}` : ''}${doc.seller.registration_number ? ` · Reg ${esc(doc.seller.registration_number)}` : ''}
+    · Generated via SupplierAdvisor · Please retain for your records.
   </div>
 </body>
 </html>`;
-}
-
-export function extractBankFromProfile(row: Record<string, unknown>): SellerProfile {
-  const meta =
-    row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata)
-      ? (row.metadata as Record<string, unknown>)
-      : {};
-  const settings =
-    row.settings && typeof row.settings === 'object' && !Array.isArray(row.settings)
-      ? (row.settings as Record<string, unknown>)
-      : {};
-
-  const pick = (...keys: string[]) => {
-    for (const k of keys) {
-      const v = row[k] ?? meta[k] ?? settings[k];
-      if (v != null && String(v).trim()) return String(v).trim();
-    }
-    return null;
-  };
-
-  return {
-    trading_name: pick('trading_name'),
-    legal_name: pick('legal_name'),
-    email: pick('email', 'contact_email'),
-    contact_email: pick('contact_email', 'email'),
-    contact_phone: pick('contact_phone', 'phone'),
-    phone: pick('phone', 'contact_phone'),
-    vat_number: pick('vat_number', 'vat_no'),
-    registration_number: pick('registration_number', 'company_registration'),
-    address: pick('address', 'street'),
-    street: pick('street', 'address'),
-    city: pick('city'),
-    province: pick('province', 'state'),
-    country: pick('country'),
-    bank_name: pick('bank_name', 'bank'),
-    account_name: pick('account_name', 'bank_account_name'),
-    account_number: pick('account_number', 'bank_account_number'),
-    iban: pick('iban'),
-    swift: pick('swift', 'bic', 'swift_code'),
-    branch_code: pick('branch_code', 'branch', 'sort_code'),
-    account_type: pick('account_type'),
-    primary_currency: pick('primary_currency') || 'ZAR',
-  };
 }

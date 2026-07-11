@@ -2,25 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
 import {
-  extractBankFromProfile,
-  renderCommercialDocumentHtml,
-} from '@/lib/customers/invoice-document';
-import { normalizeItems } from '@/lib/customers/documents';
-import {
   requireCompanyAccess,
   legacyPrivyFrom,
 } from '@/lib/auth/api-auth';
+import { loadCommercialDocument } from '@/lib/customers/load-commercial-doc';
 
 const TABLES = {
   quote: 'customer_quotes',
   order: 'sales_orders',
   invoice: 'customer_invoices',
-} as const;
-
-const NUM_FIELD = {
-  quote: 'quote_number',
-  order: 'order_number',
-  invoice: 'invoice_number',
 } as const;
 
 const LABELS = {
@@ -31,8 +21,8 @@ const LABELS = {
 
 /**
  * POST { companyId, type, id, to?, ccMe?, message? }
- * Emails HTML document to customer; optionally CC the signed-in user / company email.
- * Invoices include bank details from company profile.
+ * Emails document using company identity (logo/VAT/reg/bank) and customer email from CRM.
+ * CC you by default.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -59,109 +49,84 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = getSupabaseServer();
-    const [{ data: doc, error }, { data: profile }, { data: memberRows }] =
-      await Promise.all([
-        supabase
-          .from(TABLES[type])
-          .select('*')
-          .eq('id', id)
-          .eq('profile_id', companyId)
-          .maybeSingle(),
-        supabase.from('profiles').select('*').eq('id', companyId).maybeSingle(),
-        supabase
-          .from('business_users')
-          .select('email, invited_email, name, user_id')
-          .eq('profile_id', companyId)
-          .eq('status', 'active')
-          .limit(20),
-      ]);
-    const members = memberRows || [];
-    const member =
-      members.find((m) =>
-        String(m.user_id || '')
-          .toLowerCase()
-          .includes(String(gate.userId || '').toLowerCase().replace(/^did:privy:/, ''))
-      ) || members[0];
+    const loaded = await loadCommercialDocument({ companyId, type, id });
+    if (!loaded.ok) {
+      return NextResponse.json({ error: loaded.error }, { status: loaded.status });
+    }
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    if (!doc) return NextResponse.json({ error: 'Document not found' }, { status: 404 });
-
-    const seller = extractBankFromProfile((profile || {}) as Record<string, unknown>);
+    const { html, input, toEmail, bankDetailsIncluded, doc } = loaded;
     const to =
-      String(body.to || doc.contact_email || '')
+      String(body.to || toEmail || '')
         .toLowerCase()
         .trim() || '';
     if (!to || !to.includes('@')) {
       return NextResponse.json(
         {
           error: 'Customer email required',
-          hint: 'Set contact email on the invoice or pass { to: "customer@…" }.',
+          hint:
+            'Ensure the customer profile has an email, or the invoice contact_email is set. Then try Email again.',
         },
         { status: 400 }
       );
     }
 
-    const items = normalizeItems(doc.items);
-    const number = String(doc[NUM_FIELD[type]] || id);
-    const html = renderCommercialDocumentHtml({
-      kind: type,
-      number,
-      status: doc.status,
-      currency: doc.currency,
-      issuedAt: doc.created_at || doc.issued_at,
-      dueDate: doc.due_date,
-      validUntil: doc.valid_until,
-      customerName: doc.customer_name,
-      contactName: doc.contact_name,
-      contactEmail: doc.contact_email,
-      contactPhone: doc.contact_phone,
-      notes: doc.notes,
-      items,
-      subtotal: Number(doc.subtotal || 0),
-      taxRate: Number(doc.tax_rate || 0),
-      taxAmount: Number(doc.tax_amount || 0),
-      totalAmount: Number(doc.total_amount || 0),
-      seller,
-    });
+    const supabase = getSupabaseServer();
+    const { data: members } = await supabase
+      .from('business_users')
+      .select('email, invited_email, user_id')
+      .eq('profile_id', companyId)
+      .eq('status', 'active')
+      .limit(20);
 
-    const sellerName = seller.trading_name || seller.legal_name || 'Your supplier';
+    const member =
+      (members || []).find((m) =>
+        String(m.user_id || '')
+          .toLowerCase()
+          .includes(
+            String(gate.userId || '')
+              .toLowerCase()
+              .replace(/^did:privy:/, '')
+          )
+      ) || (members || [])[0];
+
+    const sellerName =
+      input.seller.trading_name || input.seller.legal_name || 'Your supplier';
+    const number = input.number;
     const subject = `${LABELS[type]} ${number} from ${sellerName}`;
-    const intro = body.message
-      ? `<p style="font-family:system-ui,sans-serif">${String(body.message)
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;')}</p>`
-      : type === 'invoice'
-        ? `<p style="font-family:system-ui,sans-serif">Please find your invoice <strong>${number}</strong> below. Payment details (bank transfer) are included on the document.</p>`
-        : `<p style="font-family:system-ui,sans-serif">Please find your ${LABELS[type].toLowerCase()} <strong>${number}</strong> below.</p>`;
+    const intro =
+      body.message != null && String(body.message).trim()
+        ? `<p style="font-family:system-ui,sans-serif;max-width:640px">${String(body.message)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')}</p>`
+        : type === 'invoice'
+          ? `<p style="font-family:system-ui,sans-serif;max-width:640px">Hi${
+              input.contactName ? ` ${String(input.contactName).split(' ')[0]}` : ''
+            },<br/><br/>Please find <strong>invoice ${number}</strong> from <strong>${sellerName}</strong>. Payment can be made by bank transfer — details are on the invoice. Use <strong>${number}</strong> as your payment reference.</p>`
+          : `<p style="font-family:system-ui,sans-serif;max-width:640px">Please find your ${LABELS[type].toLowerCase()} <strong>${number}</strong> from <strong>${sellerName}</strong>.</p>`;
 
     const cc: string[] = [];
-    const ccMe = body.ccMe !== false; // default true — copy sender
-    if (ccMe) {
-      // Prefer explicit body.cc, then team membership email, then company profile
+    if (body.ccMe !== false) {
       const me = String(
-        body.cc || member?.email || member?.invited_email || seller.email || seller.contact_email || ''
+        body.cc ||
+          member?.email ||
+          member?.invited_email ||
+          input.seller.email ||
+          input.seller.contact_email ||
+          ''
       )
         .toLowerCase()
         .trim();
       if (me.includes('@') && me !== to) cc.push(me);
     }
-    // Always offer company contact email as BCC-style extra CC if different
-    const companyMail = String(seller.contact_email || seller.email || '')
-      .toLowerCase()
-      .trim();
-    if (
-      body.ccCompany &&
-      companyMail.includes('@') &&
-      companyMail !== to &&
-      !cc.includes(companyMail)
-    ) {
-      cc.push(companyMail);
-    }
 
     const resend = getResend();
     const from = getResendFrom();
-    const replyTo = getResendReplyTo() || seller.email || undefined;
+    const replyTo =
+      getResendReplyTo() ||
+      input.seller.email ||
+      input.seller.contact_email ||
+      undefined;
 
     const { data: sent, error: sendErr } = await resend.emails.send({
       from,
@@ -169,7 +134,7 @@ export async function POST(request: NextRequest) {
       cc: cc.length ? cc : undefined,
       replyTo: replyTo || undefined,
       subject,
-      html: `${intro}${html}`,
+      html: `${intro}<hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0"/>${html}`,
       attachments: [
         {
           filename: `${type}-${number}.html`,
@@ -185,12 +150,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Mark invoice/quote as sent
     if (type === 'invoice' || type === 'quote') {
       await supabase
         .from(TABLES[type])
         .update({
-          status: type === 'invoice' ? 'sent' : doc.status === 'draft' ? 'sent' : doc.status,
+          status:
+            type === 'invoice'
+              ? 'sent'
+              : doc.status === 'draft'
+                ? 'sent'
+                : doc.status,
+          contact_email: to,
+          customer_name: input.customerName || doc.customer_name,
+          contact_name: input.contactName || doc.contact_name,
           updated_at: new Date().toISOString(),
         })
         .eq('id', id)
@@ -203,9 +175,11 @@ export async function POST(request: NextRequest) {
       to,
       cc,
       subject,
-      bankDetailsIncluded: Boolean(
-        seller.bank_name || seller.account_number || seller.iban
-      ),
+      bankDetailsIncluded,
+      sellerVerified: Boolean(input.seller.is_verified),
+      hasLogo: Boolean(input.seller.logo_url),
+      hasVat: Boolean(input.seller.vat_number),
+      hasRegistration: Boolean(input.seller.registration_number),
     });
   } catch (e: unknown) {
     return NextResponse.json(

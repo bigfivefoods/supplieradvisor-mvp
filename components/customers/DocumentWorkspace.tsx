@@ -372,11 +372,7 @@ function DocInner({
    * Invoices include company bank details from Company → Profile.
    */
   const emailDoc = async (doc: DocRecord) => {
-    const to = String(doc.contact_email || '').trim();
-    if (!to || !to.includes('@')) {
-      toast.error('Add a contact email on this document (or customer) before sending.');
-      return;
-    }
+    // Server resolves email from document + customer CRM profile if needed
     setBusyId(Number(doc.id));
     try {
       const res = await fetch('/api/customers/docs/send', {
@@ -386,21 +382,21 @@ function DocInner({
           companyId,
           type,
           id: doc.id,
-          to,
           ccMe: true,
           privyUserId,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || data.hint || 'Send failed');
-      const bankNote =
-        type === 'invoice'
-          ? data.bankDetailsIncluded
-            ? ' · bank details included'
-            : ' · add bank details under Company → Profile'
-          : '';
+      const bits: string[] = [];
+      if (data.bankDetailsIncluded) bits.push('bank details');
+      if (data.hasLogo) bits.push('logo');
+      if (data.hasVat) bits.push('VAT');
+      if (data.hasRegistration) bits.push('reg no.');
+      if (data.sellerVerified) bits.push('verified');
+      const stamp = bits.length ? ` · ${bits.join(', ')} on document` : '';
       toast.success(
-        `Emailed ${to}${data.cc?.length ? ` (CC ${data.cc.join(', ')})` : ''}${bankNote}`
+        `Emailed ${data.to}${data.cc?.length ? ` (CC ${data.cc.join(', ')})` : ''}${stamp}`
       );
       void load();
     } catch (e: unknown) {
