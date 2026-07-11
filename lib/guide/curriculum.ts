@@ -516,8 +516,9 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       { id: 'c', label: 'Collect', hint: 'AR', tone: 'emerald' },
       { id: 'd', label: 'Pay', hint: 'AP', tone: 'violet' },
       { id: 'e', label: 'Bank', hint: 'Allocate', tone: 'amber' },
-      { id: 'f', label: 'Report', hint: 'P&L / TB', tone: 'cyan' },
-      { id: 'g', label: 'Close', hint: 'Period lock', tone: 'rose' },
+      { id: 'f', label: 'Manage', hint: 'Mgmt accounts', tone: 'violet' },
+      { id: 'g', label: 'Report', hint: 'P&L / TB', tone: 'cyan' },
+      { id: 'h', label: 'Close', hint: 'Period lock', tone: 'rose' },
     ],
     processes: [
       {
@@ -529,6 +530,18 @@ export const GUIDE_SECTIONS: GuideSection[] = [
           'Allocate / auto-match',
           'Review unmatched in Action centre',
         ],
+      },
+      {
+        name: 'Review management accounts',
+        href: '/dashboard/accounting/management',
+        summary: 'Slice-and-dice management pack — P&L-style views, ratios, and period slicers for leadership.',
+        steps: [
+          'Finance → Manage',
+          'Pick period range with the slicer',
+          'Review visual pack and key ratios',
+          'Drill to Report for full statements when needed',
+        ],
+        tip: 'Bank allocations and posted journals feed these numbers — keep bank and Post current first.',
       },
       {
         name: 'Close a period',
