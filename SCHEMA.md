@@ -243,8 +243,11 @@ Customer-type edges: `connection_type = 'customer'`, seller = `requester`, buyer
 | `accounting_periods` | Open / closed fiscal periods |
 | `accounting_settings` | Currency, prefixes, document sequences, lock date |
 | `bank_accounts` | Operating banks, wallets, gateways |
-| `bank_transactions` | Statement lines + GL allocation status |
-| `bank_import_batches` | CSV/OFX import audit trail |
+| `bank_transactions` | Statement lines + GL allocation status (provider + provider_txn_id) |
+| `bank_import_batches` | CSV/PDF/OFX import audit trail |
+| `bank_connections` | Live bank feeds (BankLink / sandbox / FNB) |
+| `bank_sync_runs` | Sync / Pulse / import audit |
+| `bank_match_rules` | Auto-match patterns → GL / exclude |
 | `tax_rates` | VAT / tax codes |
 | `fixed_assets` | Asset register + depreciation |
 

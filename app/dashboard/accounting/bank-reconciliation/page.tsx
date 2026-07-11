@@ -17,6 +17,9 @@ import {
   Download,
   Layers,
   Sparkles,
+  RefreshCw,
+  Unplug,
+  Wifi,
 } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
@@ -49,6 +52,25 @@ type Pulse = {
   excluded: number;
   unallocatedIn: number;
   unallocatedOut: number;
+};
+
+type BankConnection = {
+  id: number;
+  status: string;
+  provider?: string | null;
+  bank_name?: string | null;
+  account_name?: string | null;
+  account_mask?: string | null;
+  bank_account_id?: number | null;
+  last_sync_at?: string | null;
+  last_error?: string | null;
+};
+
+type BankingProviderInfo = {
+  mode?: string;
+  configured?: boolean;
+  name?: string;
+  docs?: string;
 };
 
 export default function BankReconciliationPage() {
@@ -120,6 +142,11 @@ function Inner() {
   const [matchInvoiceId, setMatchInvoiceId] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string | number>>(new Set());
   const [bulkGl, setBulkGl] = useState('');
+  const [connections, setConnections] = useState<BankConnection[]>([]);
+  const [bankProvider, setBankProvider] = useState<BankingProviderInfo | null>(null);
+  const [connecting, setConnecting] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [showConnect, setShowConnect] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -136,16 +163,23 @@ function Inner() {
       const coaParams = new URLSearchParams({ companyId: String(companyId) });
       if (privyUserId) coaParams.set('privyUserId', privyUserId);
 
-      const [bankRes, coaRes] = await Promise.all([
+      const connParams = new URLSearchParams({ companyId: String(companyId) });
+      if (privyUserId) connParams.set('privyUserId', privyUserId);
+
+      const [bankRes, coaRes, connRes] = await Promise.all([
         fetch(`/api/accounting/bank?${params}`),
         fetch(`/api/accounting/chart-of-accounts?${coaParams}`),
+        fetch(`/api/banking/connections?${connParams}`),
       ]);
       const bankData = await bankRes.json();
       const coaData = await coaRes.json();
+      const connData = await connRes.json();
       setAccounts(bankData.accounts || []);
       setTransactions(bankData.transactions || []);
       setPulse(bankData.pulse || null);
       setCoa((coaData.accounts || []).filter((a: CoaAccount) => !a.is_header && a.is_active !== false));
+      setConnections(connData.connections || []);
+      setBankProvider(connData.provider || null);
       if (bankData.warning) toast.message(bankData.warning, { description: bankData.hint });
     } catch {
       setAccounts([]);
@@ -158,6 +192,164 @@ function Inner() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Complete bank link after redirect (?bank_link=1&session=…)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const sp = new URLSearchParams(window.location.search);
+    if (sp.get('bank_link') !== '1') return;
+    const session = sp.get('session');
+    if (!session) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/banking/connect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyId,
+            privyUserId,
+            action: 'complete',
+            sessionId: session,
+          }),
+        });
+        const data = await res.json();
+        if (cancelled) return;
+        if (!res.ok) throw new Error(data.error || 'Link complete failed');
+        toast.success(data.message || 'Bank connected');
+        if (data.ingest) {
+          toast.message(
+            `Synced ${data.ingest.inserted} new · ${data.ingest.duplicates} duplicates`
+          );
+        }
+        // Clean query string
+        const url = new URL(window.location.href);
+        url.searchParams.delete('bank_link');
+        url.searchParams.delete('session');
+        url.searchParams.delete('mode');
+        window.history.replaceState({}, '', url.pathname + url.search);
+        void load();
+      } catch (e) {
+        if (!cancelled) {
+          toast.error(e instanceof Error ? e.message : 'Could not complete bank link');
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId, privyUserId, load]);
+
+  const activeConnections = useMemo(
+    () => connections.filter((c) => c.status === 'active'),
+    [connections]
+  );
+
+  async function startBankConnect() {
+    setConnecting(true);
+    try {
+      const returnUrl =
+        typeof window !== 'undefined'
+          ? `${window.location.origin}/dashboard/accounting/bank-reconciliation`
+          : '/dashboard/accounting/bank-reconciliation';
+      const res = await fetch('/api/banking/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          action: 'start',
+          bank_account_id: selectedAccount || undefined,
+          returnUrl,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Connect failed');
+
+      if (data.mode === 'sandbox') {
+        // Complete in-app without leaving the page
+        const done = await fetch('/api/banking/connect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyId,
+            privyUserId,
+            action: 'complete',
+            connectionId: data.connection?.id,
+            sessionId: data.sessionId,
+          }),
+        });
+        const doneData = await done.json();
+        if (!done.ok) throw new Error(doneData.error || 'Sandbox complete failed');
+        toast.success(doneData.message || 'Sandbox bank connected');
+        if (doneData.ingest) {
+          toast.message(
+            `Imported ${doneData.ingest.inserted} sample lines · ${doneData.ingest.duplicates} duplicates`
+          );
+        }
+        setShowConnect(false);
+        void load();
+        return;
+      }
+
+      if (data.url) {
+        toast.message('Redirecting to bank link…', {
+          description: data.message || 'Authorise your account securely',
+        });
+        window.location.href = data.url;
+        return;
+      }
+      toast.success('Connection started');
+      void load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Connect failed');
+    } finally {
+      setConnecting(false);
+    }
+  }
+
+  async function syncConnection(connectionId?: number) {
+    setSyncing(true);
+    try {
+      const res = await fetch('/api/banking/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          connectionId: connectionId || activeConnections[0]?.id,
+          bank_account_id: selectedAccount || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Sync failed');
+      toast.success(
+        `Synced ${data.ingest?.inserted ?? 0} new · ${data.ingest?.duplicates ?? 0} duplicates`
+      );
+      void load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Sync failed');
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  async function disconnectBank(connectionId: number) {
+    try {
+      const res = await fetch('/api/banking/connections', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyId, privyUserId, connectionId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Disconnect failed');
+      toast.success('Bank connection revoked');
+      void load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    }
+  }
 
   const coaById = useMemo(() => {
     const m: Record<number, CoaAccount> = {};
@@ -746,7 +938,7 @@ function Inner() {
       <AccountingHeader
         title="Bank &"
         titleAccent="allocation"
-        description="Import FNB/RMB PDF or CSV statements, allocate income and expenses to the GL, match AR/AP, and feed management accounts."
+        description="Connect FNB via BankLink (or sandbox), import PDF/CSV statements, allocate to the GL, and match AR/AP — one middleware for every source."
         action={
           <>
             <Link
@@ -762,6 +954,24 @@ function Inner() {
             >
               <Plus className="w-4 h-4" /> Account
             </button>
+            <button
+              type="button"
+              onClick={() => setShowConnect(true)}
+              className="btn-secondary !py-2.5 !px-5 text-sm inline-flex items-center gap-2"
+            >
+              <Wifi className="w-4 h-4" /> Connect bank
+            </button>
+            {activeConnections.length > 0 && (
+              <button
+                type="button"
+                onClick={() => void syncConnection()}
+                disabled={syncing}
+                className="btn-secondary !py-2.5 !px-5 text-sm inline-flex items-center gap-2"
+              >
+                <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
+                Sync feed
+              </button>
+            )}
             <button
               type="button"
               onClick={() => void openMassAllocate()}
@@ -804,6 +1014,90 @@ function Inner() {
           </>
         }
       />
+
+      {/* Live bank feeds */}
+      {(activeConnections.length > 0 || bankProvider) && (
+        <div className="mb-6 rounded-3xl border border-cyan-100 bg-gradient-to-br from-white via-sky-50/50 to-cyan-50/40 p-4 sm:p-5">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
+            <div>
+              <div className="text-[10px] font-black uppercase tracking-widest text-[#0077b6]">
+                Bank feed middleware
+              </div>
+              <p className="text-sm text-slate-600 mt-0.5">
+                {bankProvider?.mode === 'sandbox' || !bankProvider?.configured
+                  ? 'Sandbox mode — demo FNB feed without API keys. Set BANKLINK_API_KEY for live BankLink.'
+                  : 'Live BankLink mode — FNB and roadmap banks via open-banking style link.'}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${
+                  bankProvider?.configured
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                    : 'border-amber-200 bg-amber-50 text-amber-900'
+                }`}
+              >
+                {bankProvider?.configured ? 'API configured' : 'Sandbox'}
+              </span>
+              {bankProvider?.docs && (
+                <a
+                  href={bankProvider.docs}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs font-semibold text-[#00b4d8] hover:underline"
+                >
+                  BankLink docs
+                </a>
+              )}
+            </div>
+          </div>
+          {activeConnections.length === 0 ? (
+            <p className="text-xs text-slate-500">
+              No active connections. Use <strong>Connect bank</strong> or keep using PDF/CSV import.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {activeConnections.map((c) => (
+                <li
+                  key={c.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white bg-white/90 px-3 py-2.5 shadow-sm"
+                >
+                  <div className="min-w-0">
+                    <div className="font-semibold text-slate-900 text-sm">
+                      {c.bank_name || 'Bank'} · {c.account_name || 'Account'}
+                      {c.account_mask ? ` ·••${c.account_mask}` : ''}
+                    </div>
+                    <div className="text-[11px] text-neutral-500">
+                      {c.provider} ·{' '}
+                      {c.last_sync_at
+                        ? `Last sync ${new Date(c.last_sync_at).toLocaleString()}`
+                        : 'Never synced'}
+                      {c.last_error ? ` · ${c.last_error}` : ''}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void syncConnection(c.id)}
+                      disabled={syncing}
+                      className="text-xs font-semibold px-3 py-1.5 rounded-full border border-cyan-200 text-[#0077b6] hover:bg-sky-50"
+                    >
+                      Sync
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void disconnectBank(c.id)}
+                      className="text-xs font-semibold px-3 py-1.5 rounded-full border border-neutral-200 text-neutral-600 hover:bg-neutral-50 inline-flex items-center gap-1"
+                    >
+                      <Unplug className="w-3 h-3" /> Disconnect
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         <div className="rounded-3xl border border-emerald-100 bg-emerald-50/40 p-5">
@@ -1371,6 +1665,73 @@ function Inner() {
                   )}
                 </button>
               </div>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Connect bank modal */}
+      {showConnect && (
+        <Modal title="Connect bank feed" onClose={() => setShowConnect(false)}>
+          <div className="space-y-4">
+            <p className="text-sm text-slate-600 leading-relaxed">
+              Link a South African bank account via BankLink open banking (FNB live; other banks on
+              roadmap). Transactions land in the same allocation queue as PDF/CSV imports.
+            </p>
+            <div className="rounded-2xl border border-cyan-100 bg-sky-50/60 px-4 py-3 text-xs text-slate-700 space-y-1.5">
+              <div className="font-bold text-slate-900">How it works</div>
+              <ol className="list-decimal list-inside space-y-1 text-slate-600">
+                <li>Authorise the bank (or use sandbox sample data).</li>
+                <li>We create a connection + map to a GL bank account.</li>
+                <li>Sync or receive webhooks into bank_transactions.</li>
+                <li>Allocate / match as usual.</li>
+              </ol>
+            </div>
+            <div className="rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-xs">
+              <div className="font-semibold text-slate-800 mb-1">Provider status</div>
+              <p className="text-neutral-600">
+                Mode:{' '}
+                <strong>
+                  {bankProvider?.configured ? 'live (API key)' : 'sandbox (no key)'}
+                </strong>
+                . Webhook URL for BankLink Pulses:
+              </p>
+              <code className="mt-2 block text-[10px] bg-neutral-50 border border-neutral-100 rounded-lg px-2 py-1.5 break-all">
+                {typeof window !== 'undefined'
+                  ? `${window.location.origin}/api/banking/webhooks/banklink`
+                  : '/api/banking/webhooks/banklink'}
+              </code>
+              <p className="mt-2 text-neutral-500">
+                Env: <code className="font-mono">BANKLINK_API_KEY</code>,{' '}
+                <code className="font-mono">BANKLINK_WEBHOOK_SECRET</code> (optional).
+              </p>
+            </div>
+            {selectedAccount && (
+              <p className="text-xs text-neutral-500">
+                Will prefer selected account #{selectedAccount} when mapping the feed.
+              </p>
+            )}
+            <div className="flex flex-wrap gap-2 justify-end pt-2">
+              <button
+                type="button"
+                className="btn-secondary !py-2 !px-4 text-sm"
+                onClick={() => setShowConnect(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn-primary !py-2 !px-5 text-sm inline-flex items-center gap-2"
+                disabled={connecting}
+                onClick={() => void startBankConnect()}
+              >
+                {connecting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Wifi className="w-4 h-4" />
+                )}
+                {bankProvider?.configured ? 'Connect with BankLink' : 'Connect sandbox FNB'}
+              </button>
             </div>
           </div>
         </Modal>
