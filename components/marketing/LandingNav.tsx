@@ -9,9 +9,10 @@ import { useRouter } from 'next/navigation';
 
 const LINKS = [
   { id: 'platform', label: 'Platform' },
+  { id: 'demo', label: 'See it work' },
   { id: 'modules', label: 'Modules' },
-  { id: 'trust', label: 'Trust layer' },
-  { id: 'how-it-works', label: 'How it works' },
+  { id: 'trust', label: 'Trust' },
+  { id: 'compare', label: 'Compare' },
   { id: 'verified', label: 'Network' },
   { id: 'audiences', label: "Who it's for" },
 ] as const;

@@ -110,6 +110,16 @@ export async function GET() {
 
     const verifiedCount = companies.filter((c) => c.badge === 'verified').length;
 
+    // Total companies on platform (founding-slot style count)
+    let platformTotal = companies.length;
+    const { count: profileCount } = await supabase
+      .from('profiles')
+      .select('id', { count: 'exact', head: true })
+      .not('trading_name', 'is', null);
+    if (typeof profileCount === 'number' && profileCount > 0) {
+      platformTotal = profileCount;
+    }
+
     return NextResponse.json({
       success: true,
       companies: companies.slice(0, 9),
@@ -117,6 +127,7 @@ export async function GET() {
         shown: Math.min(9, companies.length),
         verified: verifiedCount,
         total: companies.length,
+        platformTotal,
       },
     });
   } catch (e: unknown) {
@@ -124,7 +135,7 @@ export async function GET() {
       {
         success: false,
         companies: [],
-        counts: { shown: 0, verified: 0, total: 0 },
+        counts: { shown: 0, verified: 0, total: 0, platformTotal: 0 },
         error: e instanceof Error ? e.message : 'Error',
       },
       { status: 200 }

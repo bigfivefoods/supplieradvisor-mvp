@@ -50,6 +50,16 @@ import {
   COMPANY_TRIAL_DAYS,
 } from '@/lib/billing/company-subscription';
 import { FOUNDING_FREE_COMPANY_LIMIT } from '@/lib/billing/lifetime';
+import {
+  ComparisonTable,
+  DemoCta,
+  FoundingBanner,
+  InteractiveTrustDemo,
+  MultiEntityCase,
+  OtifefCard,
+  SecurityStrip,
+  TraceOnchainCard,
+} from '@/components/marketing/LandingConversion';
 
 type PublicCompany = {
   id: number;
@@ -210,6 +220,7 @@ const TRUST_PILLARS = [
 export default function LandingPage() {
   const [verifiedCompanies, setVerifiedCompanies] = useState<PublicCompany[]>([]);
   const [verifiedCount, setVerifiedCount] = useState(0);
+  const [platformTotal, setPlatformTotal] = useState<number | null>(null);
   const [loadingVerified, setLoadingVerified] = useState(true);
   const [activeModule, setActiveModule] = useState(0);
 
@@ -222,8 +233,16 @@ export default function LandingPage() {
         if (cancelled) return;
         setVerifiedCompanies(data.companies || []);
         setVerifiedCount(data.counts?.verified ?? data.companies?.length ?? 0);
+        setPlatformTotal(
+          typeof data.counts?.platformTotal === 'number'
+            ? data.counts.platformTotal
+            : data.counts?.total ?? data.companies?.length ?? 0
+        );
       } catch {
-        if (!cancelled) setVerifiedCompanies([]);
+        if (!cancelled) {
+          setVerifiedCompanies([]);
+          setPlatformTotal(null);
+        }
       } finally {
         if (!cancelled) setLoadingVerified(false);
       }
@@ -286,15 +305,15 @@ export default function LandingPage() {
               </div>
 
               <h1 className="mb-4 text-[2.15rem] font-black leading-[1.05] tracking-tight text-slate-900 sm:mb-6 sm:text-5xl md:text-6xl lg:text-[3.75rem] xl:text-[4.25rem] xl:tracking-[-0.045em]">
-                The supply chain
-                <span className="mt-1 block text-[#00b4d8]">operating system.</span>
+                ERP that ships.
+                <span className="mt-1 block text-[#00b4d8]">Trust that blocks risk.</span>
               </h1>
 
               <p className="mx-auto mb-7 max-w-xl text-base leading-relaxed text-slate-600 sm:mb-8 sm:text-lg md:text-xl lg:mx-0">
-                Verified trade, inventory, manufacturing, distribution,{' '}
+                The supply-chain OS for verified trade — inventory, manufacturing, distribution,{' '}
                 <strong className="font-semibold text-slate-800">SHEQ & food safety</strong>,
-                finance, and intelligence — one light workspace where ratings, lots, and holds
-                actually block risk.
+                finance, ratings, and on-chain pedigree in one light workspace. When a lot fails,
+                the ship stops.
               </p>
 
               <div className="relative z-[2] mb-5 flex w-full flex-col gap-3 sm:mb-6 sm:flex-row sm:justify-center lg:justify-start">
@@ -308,14 +327,14 @@ export default function LandingPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    const el = document.getElementById('modules');
+                    const el = document.getElementById('demo');
                     if (!el) return;
                     const y = el.getBoundingClientRect().top + window.scrollY - 72;
                     window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
                   }}
                   className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-300 bg-white px-6 py-3.5 text-base font-semibold text-slate-800 transition-all touch-manipulation hover:border-[#00b4d8] active:scale-[0.99] sm:w-auto sm:px-8 sm:py-4 sm:text-lg"
                 >
-                  Explore modules
+                  See how trust works
                 </button>
               </div>
               <p className="text-xs text-slate-500 sm:text-sm">
@@ -396,8 +415,21 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ─── FOUNDING + DEMO ─── */}
+      <section className="px-4 py-10 sm:px-6 sm:py-14 lg:px-10">
+        <div className="mx-auto max-w-screen-2xl space-y-8 sm:space-y-10">
+          <FoundingBanner usedSlots={platformTotal} loading={loadingVerified} />
+          <InteractiveTrustDemo />
+          <div className="grid gap-4 lg:grid-cols-2">
+            <OtifefCard />
+            <TraceOnchainCard />
+          </div>
+          <MultiEntityCase />
+        </div>
+      </section>
+
       {/* ─── MODULES SHOWCASE ─── */}
-      <section id="modules" className="px-4 py-14 sm:px-6 sm:py-20 md:py-28 lg:px-10">
+      <section id="modules" className="px-4 py-14 sm:px-6 sm:py-20 md:py-28 lg:px-10 bg-white border-y border-slate-100">
         <div className="mx-auto max-w-screen-2xl">
           <div className="mx-auto mb-10 max-w-3xl text-center sm:mb-16">
             <p className="mb-3 text-[10px] font-black uppercase tracking-[0.2em] text-[#00b4d8] sm:text-xs">
@@ -540,10 +572,19 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ─── COMPARE + SECURITY ─── */}
+      <section className="px-4 py-14 sm:px-6 sm:py-20 lg:px-10 bg-[#f8fafc]">
+        <div className="mx-auto max-w-screen-2xl space-y-8">
+          <ComparisonTable />
+          <SecurityStrip />
+          <DemoCta />
+        </div>
+      </section>
+
       {/* ─── HOW IT WORKS ─── */}
       <section
         id="how-it-works"
-        className="py-16 sm:py-20 md:py-24 px-4 sm:px-6 lg:px-10 bg-[#f8fafc] border-y border-slate-100"
+        className="py-16 sm:py-20 md:py-24 px-4 sm:px-6 lg:px-10 bg-white border-y border-slate-100"
       >
         <div className="max-w-screen-2xl mx-auto">
           <div className="text-center max-w-2xl mx-auto mb-12 sm:mb-16">
@@ -659,9 +700,17 @@ export default function LandingPage() {
             </h2>
             <p className="text-base sm:text-lg text-slate-600 max-w-2xl mx-auto">
               {verifiedCount > 0
-                ? `${verifiedCount}+ verified and network companies building transparent trade together`
-                : 'Companies building transparent, ethical trade on the platform'}
+                ? `${verifiedCount}+ verified companies on the network — discover who you can trade with`
+                : platformTotal
+                  ? `${platformTotal} companies building transparent trade on the platform`
+                  : 'Companies building transparent, ethical trade on the platform'}
             </p>
+            {!loadingVerified && platformTotal != null && (
+              <p className="mt-3 text-sm font-semibold text-violet-800">
+                Founding free-for-life: {Math.max(0, FOUNDING_FREE_COMPANY_LIMIT - platformTotal)} of{' '}
+                {FOUNDING_FREE_COMPANY_LIMIT} slots remaining
+              </p>
+            )}
           </div>
 
           {loadingVerified ? (
@@ -891,18 +940,17 @@ export default function LandingPage() {
               </div>
 
               <h2 className="mb-4 text-[1.85rem] font-black leading-[1.08] tracking-tight text-slate-900 sm:mb-5 sm:text-4xl md:text-5xl lg:text-[3.25rem] lg:tracking-[-0.035em]">
-                The future of supply chains
+                Stop running trust on spreadsheets
                 <span className="mt-1 block bg-gradient-to-r from-[#00b4d8] to-[#0077b6] bg-clip-text text-transparent">
-                  is transparent.
+                  Run it on one OS.
                 </span>
               </h2>
 
               <p className="mx-auto mb-8 max-w-2xl text-base leading-relaxed text-slate-600 sm:mb-9 sm:text-lg md:text-xl">
-                Join the movement that makes{' '}
-                <span className="font-semibold text-slate-800">transparency the standard</span>
-                {' '}and{' '}
-                <span className="font-semibold text-slate-800">ethics the competitive advantage</span>
-                — one verified company workspace at a time.
+                Join operators who treat{' '}
+                <span className="font-semibold text-slate-800">verification, ratings, lots, and SHEQ</span>
+                {' '}as live controls — not after-the-fact reports. {COMPANY_TRIAL_DAYS} days free.
+                First {FOUNDING_FREE_COMPANY_LIMIT} companies free for life.
               </p>
 
               {/* Value chips */}
