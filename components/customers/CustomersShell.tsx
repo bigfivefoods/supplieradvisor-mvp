@@ -20,6 +20,8 @@ export const CUSTOMERS_NAV: readonly NavItem[] = [
   { href: '/dashboard/customers/loyalty', label: 'Loyalty' },
   { href: '/dashboard/customers/claims', label: 'Claims' },
   { href: '/dashboard/customers/contracts', label: 'Contracts' },
+  { href: '/dashboard/customers/ratings', label: 'Ratings' },
+  { href: '/dashboard/customers/report', label: 'Report' },
   { href: '/dashboard/customers/reviews', label: 'Reviews' },
   { href: '/dashboard/customers/riad-log', label: 'RIAD' },
 ] as const;

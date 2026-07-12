@@ -124,6 +124,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Order', href: '/dashboard/suppliers/po' },
       { name: 'Score', href: '/dashboard/suppliers/performance' },
       { name: 'Rate', href: '/dashboard/suppliers/ratings' },
+      { name: 'Report', href: '/dashboard/suppliers/report' },
     ],
   },
   {
@@ -139,7 +140,8 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Quote', href: '/dashboard/customers/quotes' },
       { name: 'Order', href: '/dashboard/customers/orders' },
       { name: 'Invoice', href: '/dashboard/customers/invoices' },
-      { name: 'Claim', href: '/dashboard/customers/claims' },
+      { name: 'Rate', href: '/dashboard/customers/ratings' },
+      { name: 'Report', href: '/dashboard/customers/report' },
     ],
   },
   {

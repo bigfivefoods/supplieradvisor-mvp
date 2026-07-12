@@ -3,3 +3,5 @@ export { ReviewForm } from './ReviewForm';
 export type { ReviewFormSubmit } from './ReviewForm';
 export { ReviewCard } from './ReviewCard';
 export { PeerRatingSummary } from './PeerRatingSummary';
+export { StarScaleLegend, StarSelectionCaption } from './StarGuide';
+export { RateCompanyForm } from './RateCompanyForm';

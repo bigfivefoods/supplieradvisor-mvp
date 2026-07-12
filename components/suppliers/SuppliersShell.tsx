@@ -17,6 +17,7 @@ export const SUPPLIERS_NAV: readonly NavItem[] = [
   { href: '/dashboard/suppliers/po', label: 'POs' },
   { href: '/dashboard/suppliers/performance', label: 'OTIFEF' },
   { href: '/dashboard/suppliers/ratings', label: 'Ratings' },
+  { href: '/dashboard/suppliers/report', label: 'Report' },
   { href: '/dashboard/suppliers/documents', label: 'Docs' },
   { href: '/dashboard/suppliers/contracts', label: 'Contracts' },
   { href: '/dashboard/suppliers/riad-log', label: 'RIAD' },
