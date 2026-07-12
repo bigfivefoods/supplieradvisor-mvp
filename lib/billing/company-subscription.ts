@@ -18,6 +18,127 @@ export const COMPANY_TRIAL_DAYS = 30;
 export const COMPANY_SUBSCRIPTION_PRODUCT = 'company_saas_monthly';
 export const COMPANY_SUBSCRIPTION_PLAN = 'company_monthly';
 
+/** Prepaid term options (monthly list price with multi-year discounts). */
+export type BillingTermId = 'monthly' | '1y' | '2y' | '3y';
+
+export type BillingTerm = {
+  id: BillingTermId;
+  label: string;
+  shortLabel: string;
+  months: number;
+  years: number;
+  /** Discount off full monthly×months list price */
+  discountPercent: number;
+  /** Undiscounted total for the term */
+  listZar: number;
+  /** Amount charged (ZAR, whole rands) */
+  payZar: number;
+  /** Paystack amount in cents */
+  payCents: number;
+  savingsZar: number;
+  planCode: string;
+  /** Effective price per month after discount */
+  effectiveMonthlyZar: number;
+  badge?: string;
+};
+
+function buildTerm(
+  id: BillingTermId,
+  months: number,
+  discountPercent: number,
+  opts: { label: string; shortLabel: string; planCode: string; badge?: string }
+): BillingTerm {
+  const years = months / 12;
+  const listZar = COMPANY_SUBSCRIPTION_MONTHLY_ZAR * months;
+  const payZar = Math.round(listZar * (1 - discountPercent / 100));
+  const savingsZar = listZar - payZar;
+  return {
+    id,
+    label: opts.label,
+    shortLabel: opts.shortLabel,
+    months,
+    years: years < 1 ? 0 : years,
+    discountPercent,
+    listZar,
+    payZar,
+    payCents: payZar * 100,
+    savingsZar,
+    planCode: opts.planCode,
+    effectiveMonthlyZar: Math.round((payZar / months) * 100) / 100,
+    badge: opts.badge,
+  };
+}
+
+export const BILLING_TERMS: BillingTerm[] = [
+  buildTerm('monthly', 1, 0, {
+    label: 'Monthly',
+    shortLabel: '1 month',
+    planCode: 'company_monthly',
+  }),
+  buildTerm('1y', 12, 15, {
+    label: '1 year',
+    shortLabel: '12 months',
+    planCode: 'company_annual_1y',
+    badge: 'Save 15%',
+  }),
+  buildTerm('2y', 24, 25, {
+    label: '2 years',
+    shortLabel: '24 months',
+    planCode: 'company_annual_2y',
+    badge: 'Save 25%',
+  }),
+  buildTerm('3y', 36, 30, {
+    label: '3 years',
+    shortLabel: '36 months',
+    planCode: 'company_annual_3y',
+    badge: 'Best value · Save 30%',
+  }),
+];
+
+export function getBillingTerm(id: string | null | undefined): BillingTerm {
+  const found = BILLING_TERMS.find((t) => t.id === id);
+  return found || BILLING_TERMS[0];
+}
+
+/** Resolve term from plan code, months, or amount paid (cents). */
+export function resolveBillingTerm(opts: {
+  termId?: string | null;
+  planCode?: string | null;
+  months?: number | null;
+  amountCents?: number | null;
+}): BillingTerm {
+  if (opts.termId) {
+    const byId = BILLING_TERMS.find((t) => t.id === opts.termId);
+    if (byId) return byId;
+  }
+  if (opts.planCode) {
+    const byPlan = BILLING_TERMS.find((t) => t.planCode === opts.planCode);
+    if (byPlan) return byPlan;
+  }
+  if (opts.months != null && Number.isFinite(opts.months)) {
+    const byMonths = BILLING_TERMS.find((t) => t.months === Number(opts.months));
+    if (byMonths) return byMonths;
+  }
+  if (opts.amountCents != null && Number.isFinite(opts.amountCents)) {
+    const amt = Number(opts.amountCents);
+    // Match exact prepaid term amounts first (multi-year)
+    const exact = [...BILLING_TERMS]
+      .reverse()
+      .find((t) => t.payCents === amt);
+    if (exact) return exact;
+    // Allow small overpay tolerance
+    const near = [...BILLING_TERMS]
+      .sort((a, b) => b.payCents - a.payCents)
+      .find((t) => amt >= t.payCents && amt < t.payCents + 100);
+    if (near) return near;
+  }
+  return BILLING_TERMS[0];
+}
+
+export function formatZar(amount: number): string {
+  return `R${amount.toLocaleString('en-ZA')}`;
+}
+
 export type CompanySubscriptionStatus =
   | 'none'
   | 'trial'

@@ -21,9 +21,12 @@ import {
   getCanonicalUserId,
 } from '@/lib/auth/identity';
 import {
-  COMPANY_SUBSCRIPTION_MONTHLY_CENTS,
+  BILLING_TERMS,
   COMPANY_SUBSCRIPTION_MONTHLY_ZAR,
   COMPANY_TRIAL_DAYS,
+  formatZar,
+  getBillingTerm,
+  type BillingTermId,
   type CompanySubscriptionInfo,
 } from '@/lib/billing/company-subscription';
 import {
@@ -61,6 +64,8 @@ function BillingInner() {
   const [billingEmail, setBillingEmail] = useState<string | null>(null);
   const [subscription, setSubscription] =
     useState<CompanySubscriptionInfo | null>(null);
+  const [termId, setTermId] = useState<BillingTermId>('1y');
+  const selectedTerm = getBillingTerm(termId);
 
   const load = useCallback(async () => {
     if (!companyId) return;
@@ -91,7 +96,7 @@ function BillingInner() {
     void load();
   }, [load]);
 
-  const activate = async (paystackReference: string) => {
+  const activate = async (paystackReference: string, paidTermId: BillingTermId) => {
     try {
       const res = await fetch('/api/business/subscription', {
         method: 'POST',
@@ -101,11 +106,13 @@ function BillingInner() {
           privyUserId,
           action: 'activate',
           paystackReference,
+          termId: paidTermId,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || data.hint || 'Activation failed');
-      toast.success('Subscription active — thank you!');
+      const termLabel = data.term?.label || getBillingTerm(paidTermId).label;
+      toast.success(`Subscription active (${termLabel}) — thank you!`);
       setSubscription(data.subscription);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Activation failed');
@@ -132,13 +139,14 @@ function BillingInner() {
       return;
     }
 
+    const term = getBillingTerm(termId);
     setPaying(true);
-    const ref = `sa-co-sub-${companyId}-${Date.now()}`;
+    const ref = `sa-co-sub-${term.id}-${companyId}-${Date.now()}`;
     try {
       const handler = window.PaystackPop.setup({
         key,
         email: payEmail,
-        amount: COMPANY_SUBSCRIPTION_MONTHLY_CENTS,
+        amount: term.payCents,
         currency: 'ZAR',
         ref,
         metadata: {
@@ -146,7 +154,7 @@ function BillingInner() {
             {
               display_name: 'Product',
               variable_name: 'product',
-              value: 'company_saas_monthly',
+              value: 'company_saas',
             },
             {
               display_name: 'Company ID',
@@ -154,19 +162,29 @@ function BillingInner() {
               value: String(companyId),
             },
             {
-              display_name: 'Plan',
-              variable_name: 'plan',
-              value: 'company_monthly',
+              display_name: 'Term',
+              variable_name: 'term_id',
+              value: term.id,
             },
             {
-              display_name: 'Monthly ZAR',
-              variable_name: 'monthly_zar',
-              value: String(COMPANY_SUBSCRIPTION_MONTHLY_ZAR),
+              display_name: 'Plan',
+              variable_name: 'plan',
+              value: term.planCode,
+            },
+            {
+              display_name: 'Months',
+              variable_name: 'months',
+              value: String(term.months),
+            },
+            {
+              display_name: 'Discount %',
+              variable_name: 'discount_percent',
+              value: String(term.discountPercent),
             },
           ],
         },
         callback: (response: { reference?: string }) => {
-          void activate(response.reference || ref);
+          void activate(response.reference || ref, term.id);
         },
         onClose: () => {
           setPaying(false);
@@ -200,7 +218,7 @@ function BillingInner() {
     <BusinessPage>
       <BusinessHeader
         title="Billing & subscription"
-        description={`Company plan for ${companyName || 'your business'} — ${COMPANY_TRIAL_DAYS}-day free trial, then R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/month via Paystack.`}
+        description={`Company plan for ${companyName || 'your business'} — ${COMPANY_TRIAL_DAYS}-day free trial, then from R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/month. Save up to 30% with multi-year prepaid.`}
         action={
           <button
             type="button"
@@ -220,7 +238,7 @@ function BillingInner() {
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
                 <div className="text-sm text-slate-500 font-semibold">
-                  Monthly plan
+                  From
                 </div>
                 <div className="text-5xl font-black text-slate-900 tracking-tight">
                   R{COMPANY_SUBSCRIPTION_MONTHLY_ZAR}
@@ -242,15 +260,15 @@ function BillingInner() {
               </li>
               <li className="flex gap-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                Full platform: procurement, CRM, finance, inventory, quality
+                Prepaid multi-year: 15% (1y) · 25% (2y) · 30% (3y)
               </li>
               <li className="flex gap-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                Billed monthly in ZAR via secure Paystack checkout
+                Secure Paystack checkout in ZAR
               </li>
               <li className="flex gap-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                Renew anytime — paid months stack if you renew early
+                Early renewals extend your access period
               </li>
             </ul>
 
@@ -313,6 +331,62 @@ function BillingInner() {
 
             {!sub?.isLifetime && (
               <>
+                <div className="mt-6">
+                  <div className="text-sm font-bold text-slate-900 mb-3">
+                    Choose billing term
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-2.5">
+                    {BILLING_TERMS.map((t) => {
+                      const selected = termId === t.id;
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => setTermId(t.id)}
+                          className={`text-left rounded-2xl border px-4 py-3 transition ${
+                            selected
+                              ? 'border-[#00b4d8] bg-sky-50 ring-2 ring-[#00b4d8]/30'
+                              : 'border-slate-200 bg-white hover:border-slate-300'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-bold text-slate-900 text-sm">
+                              {t.label}
+                            </span>
+                            {t.badge && (
+                              <span className="text-[10px] font-bold uppercase tracking-wide text-emerald-800 bg-emerald-100 border border-emerald-200 rounded-full px-2 py-0.5">
+                                {t.discountPercent > 0
+                                  ? `−${t.discountPercent}%`
+                                  : t.badge}
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-1 text-lg font-black text-slate-900">
+                            {formatZar(t.payZar)}
+                            <span className="text-xs font-semibold text-slate-500 ml-1">
+                              {t.months === 1 ? '/mo' : ` prepaid`}
+                            </span>
+                          </div>
+                          {t.discountPercent > 0 ? (
+                            <div className="text-[11px] text-slate-500 mt-0.5">
+                              <span className="line-through">
+                                {formatZar(t.listZar)}
+                              </span>
+                              {' · '}
+                              save {formatZar(t.savingsZar)} · ~R
+                              {t.effectiveMonthlyZar}/mo
+                            </div>
+                          ) : (
+                            <div className="text-[11px] text-slate-500 mt-0.5">
+                              Flexible month-to-month
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 <button
                   type="button"
                   disabled={paying}
@@ -324,11 +398,10 @@ function BillingInner() {
                   ) : (
                     <CreditCard className="w-5 h-5" />
                   )}
-                  {sub?.isActive
-                    ? `Renew · R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}`
-                    : sub?.isTrial
-                      ? `Subscribe · R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo`
-                      : `Pay R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR} · start plan`}
+                  {sub?.isActive ? 'Renew' : 'Pay'} · {formatZar(selectedTerm.payZar)}
+                  {selectedTerm.months > 1
+                    ? ` · ${selectedTerm.label}`
+                    : ' / month'}
                 </button>
 
                 <p className="mt-3 text-[11px] text-center text-neutral-500 flex items-center justify-center gap-1">

@@ -11,8 +11,10 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import {
+  BILLING_TERMS,
   COMPANY_SUBSCRIPTION_MONTHLY_ZAR,
   COMPANY_TRIAL_DAYS,
+  formatZar,
 } from '@/lib/billing/company-subscription';
 import { FOUNDING_FREE_COMPANY_LIMIT } from '@/lib/billing/lifetime';
 
@@ -22,7 +24,7 @@ const FEATURES = [
   'Quality, manufacturing & distribution modules',
   'On-chain verification & supplier network',
   'Invoices, quotes & bank tools',
-  'Secure Paystack billing in ZAR',
+  'Prepaid annual discounts up to 30%',
   `First ${FOUNDING_FREE_COMPANY_LIMIT} companies — free for life`,
 ];
 
@@ -53,15 +55,40 @@ export default function Pricing() {
             {COMPANY_TRIAL_DAYS}-day free trial
           </p>
           <p className="text-xl sm:text-2xl text-slate-600 mt-4">
-            Then{' '}
+            Then from{' '}
             <strong className="text-slate-900">
               R{COMPANY_SUBSCRIPTION_MONTHLY_ZAR}
             </strong>{' '}
             per company per month
           </p>
           <p className="text-slate-500 mt-6 text-sm sm:text-base">
-            Unlimited users · Full ERP · Paystack secure payments
+            Unlimited users · Full ERP · Save up to 30% prepaid
           </p>
+
+          <div className="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-2 text-left">
+            {BILLING_TERMS.map((t) => (
+              <div
+                key={t.id}
+                className="rounded-2xl border border-slate-200 bg-white px-3 py-3"
+              >
+                <div className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                  {t.label}
+                </div>
+                <div className="text-lg font-black text-slate-900 mt-1">
+                  {formatZar(t.payZar)}
+                </div>
+                {t.discountPercent > 0 ? (
+                  <div className="text-[10px] font-semibold text-emerald-700 mt-0.5">
+                    −{t.discountPercent}% · save {formatZar(t.savingsZar)}
+                  </div>
+                ) : (
+                  <div className="text-[10px] text-slate-500 mt-0.5">
+                    list / month
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
 
           <ul className="mt-8 text-left space-y-2.5 max-w-md mx-auto">
             {FEATURES.map((f) => (
@@ -109,9 +136,12 @@ export default function Pricing() {
               <li>
                 Subscribe in{' '}
                 <strong className="text-slate-800">My Business → Billing</strong>{' '}
-                for R{COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/month via Paystack.
+                — monthly or prepaid multi-year via Paystack.
               </li>
-              <li>Renew monthly — early renewals extend your access period.</li>
+              <li>
+                Save 15% (1 year), 25% (2 years), or 30% (3 years) when you pay
+                upfront.
+              </li>
             </ol>
           </div>
           <div className="card p-6 bg-gradient-to-br from-sky-50 to-white border-sky-100">
@@ -122,8 +152,8 @@ export default function Pricing() {
               </span>
             </div>
             <p className="mt-2 text-sm text-slate-600">
-              Flat per-company rate. Payments processed securely by Paystack in
-              South African Rand.
+              List monthly rate. Prepaid terms discount the full period total —
+              e.g. 3 years for {formatZar(BILLING_TERMS.find((t) => t.id === '3y')!.payZar)}.
             </p>
           </div>
           <div className="card p-6 bg-gradient-to-br from-violet-50 to-amber-50 border-violet-100">

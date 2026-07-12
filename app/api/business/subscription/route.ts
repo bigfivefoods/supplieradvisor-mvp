@@ -7,6 +7,7 @@ import {
 import { getCompanyMembership } from '@/lib/business/access';
 import { logActivity } from '@/lib/customers/access';
 import {
+  BILLING_TERMS,
   COMPANY_SUBSCRIPTION_MONTHLY_CENTS,
   COMPANY_SUBSCRIPTION_MONTHLY_ZAR,
   COMPANY_SUBSCRIPTION_PLAN,
@@ -16,6 +17,9 @@ import {
   addDays,
   addMonths,
   computeCompanySubscription,
+  formatZar,
+  getBillingTerm,
+  resolveBillingTerm,
   type CompanySubscriptionInfo,
 } from '@/lib/billing/company-subscription';
 import {
@@ -52,7 +56,22 @@ function pricingPayload() {
     currency: 'ZAR',
     product: COMPANY_SUBSCRIPTION_PRODUCT,
     plan: COMPANY_SUBSCRIPTION_PLAN,
-    description: `SupplierAdvisor company plan — R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/month after ${COMPANY_TRIAL_DAYS}-day free trial`,
+    description: `SupplierAdvisor company plan — R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/month after ${COMPANY_TRIAL_DAYS}-day free trial. Multi-year prepaid: 15% (1y), 25% (2y), 30% (3y).`,
+    terms: BILLING_TERMS.map((t) => ({
+      id: t.id,
+      label: t.label,
+      shortLabel: t.shortLabel,
+      months: t.months,
+      years: t.years,
+      discountPercent: t.discountPercent,
+      listZar: t.listZar,
+      payZar: t.payZar,
+      payCents: t.payCents,
+      savingsZar: t.savingsZar,
+      planCode: t.planCode,
+      effectiveMonthlyZar: t.effectiveMonthlyZar,
+      badge: t.badge || null,
+    })),
   };
 }
 
@@ -447,11 +466,15 @@ export async function POST(request: NextRequest) {
       const paystackReference = String(
         body.paystackReference || body.reference || ''
       ).trim();
+      const claimedTerm = getBillingTerm(
+        body.termId || body.term || body.billingTerm || 'monthly'
+      );
+
       if (!paystackReference) {
         return NextResponse.json(
           {
             error: 'Payment reference required',
-            hint: `Complete Paystack checkout for R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/month.`,
+            hint: `Complete Paystack checkout (${claimedTerm.label} · ${formatZar(claimedTerm.payZar)}).`,
           },
           { status: 400 }
         );
@@ -483,6 +506,7 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // Verify paid amount is at least the cheapest monthly plan
       const verified = await verifyPaystackTransaction(paystackReference, {
         expectedAmountCents: COMPANY_SUBSCRIPTION_MONTHLY_CENTS,
         expectedCurrency: 'ZAR',
@@ -491,6 +515,26 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           { error: verified.error, hint: 'Paystack verification failed.' },
           { status: verified.status || 402 }
+        );
+      }
+
+      // Resolve term from claimed id + actual paid amount
+      const term = resolveBillingTerm({
+        termId: claimedTerm.id,
+        amountCents: verified.amount,
+      });
+      // If claimed multi-year but paid only monthly, fall back to amount-based term
+      const finalTerm =
+        verified.amount >= term.payCents
+          ? term
+          : resolveBillingTerm({ amountCents: verified.amount });
+
+      if (verified.amount < finalTerm.payCents) {
+        return NextResponse.json(
+          {
+            error: `Paid amount too low for ${finalTerm.label} plan (got ${verified.amount} cents, need ${finalTerm.payCents}).`,
+          },
+          { status: 402 }
         );
       }
 
@@ -504,7 +548,7 @@ export async function POST(request: NextRequest) {
           periodStart = existingEnd;
         }
       }
-      const periodEnd = addMonths(periodStart, 1);
+      const periodEnd = addMonths(periodStart, finalTerm.months);
       const startsAt = row.subscription_starts_at || now.toISOString();
 
       const updates: Record<string, unknown> = {
@@ -512,18 +556,14 @@ export async function POST(request: NextRequest) {
         subscription_starts_at: startsAt,
         subscription_ends_at: periodEnd.toISOString(),
         subscription_paystack_ref: verified.reference,
-        subscription_amount_zar: COMPANY_SUBSCRIPTION_MONTHLY_ZAR,
-        subscription_plan: COMPANY_SUBSCRIPTION_PLAN,
+        subscription_amount_zar: finalTerm.payZar,
+        subscription_plan: finalTerm.planCode,
       };
       if (verified.customerCode) {
         updates.subscription_paystack_customer_code = verified.customerCode;
       }
       if (verified.authorizationCode) {
         updates.subscription_paystack_auth_code = verified.authorizationCode;
-      }
-      // Keep trial end history if present
-      if (!row.subscription_trial_ends_at) {
-        updates.subscription_trial_ends_at = null;
       }
 
       const { data, error } = await supabase
@@ -555,10 +595,13 @@ export async function POST(request: NextRequest) {
         action: 'billing.subscription_activated',
         entity_type: 'profile',
         entity_id: String(companyId),
-        summary: `Company subscription activated (R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo · Paystack)`,
+        summary: `Company subscription activated (${finalTerm.label} · ${formatZar(finalTerm.payZar)} · ${finalTerm.months} mo)`,
         metadata: {
           paystackReference: verified.reference,
-          monthlyZar: COMPANY_SUBSCRIPTION_MONTHLY_ZAR,
+          termId: finalTerm.id,
+          months: finalTerm.months,
+          discountPercent: finalTerm.discountPercent,
+          payZar: finalTerm.payZar,
           endsAt: periodEnd.toISOString(),
           amountCents: verified.amount,
           channel: verified.channel,
@@ -569,6 +612,7 @@ export async function POST(request: NextRequest) {
         success: true,
         subscription,
         pricing: pricingPayload(),
+        term: finalTerm,
         periodEnd: periodEnd.toISOString(),
       });
     }
