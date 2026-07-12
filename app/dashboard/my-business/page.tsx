@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   Globe,
   RefreshCw,
+  CreditCard,
 } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -48,6 +49,9 @@ type Summary = {
   documents: number;
   profileCompleteness: number;
   completeness: Record<string, boolean>;
+  subscriptionStatus?: string | null;
+  subscriptionDaysRemaining?: number | null;
+  subscriptionHasAccess?: boolean;
 };
 
 export default function MyBusinessHub() {
@@ -109,9 +113,34 @@ function HubInner() {
       metricLabel: 'active',
     },
     {
+      href: '/dashboard/my-business/billing',
+      icon: CreditCard,
+      code: '03',
+      title: 'Billing',
+      desc: '30-day free trial, then R499/mo via Paystack.',
+      accent: 'from-amber-50 to-white border-amber-100',
+      metric: loading
+        ? '—'
+        : s?.subscriptionStatus === 'trial'
+          ? s.subscriptionDaysRemaining != null
+            ? `${s.subscriptionDaysRemaining}d`
+            : 'Trial'
+          : s?.subscriptionStatus === 'active'
+            ? 'Active'
+            : s?.subscriptionHasAccess
+              ? 'OK'
+              : 'Pay',
+      metricLabel:
+        s?.subscriptionStatus === 'trial'
+          ? 'trial left'
+          : s?.subscriptionStatus === 'active'
+            ? 'plan'
+            : 'subscribe',
+    },
+    {
       href: '/dashboard/my-business/settings',
       icon: Settings,
-      code: '03',
+      code: '04',
       title: 'Settings',
       desc: 'Timezone, currency, notifications, discoverability.',
       accent: 'from-cyan-50 to-white border-cyan-100',
@@ -119,7 +148,7 @@ function HubInner() {
     {
       href: '/dashboard/my-business/legal',
       icon: ShieldCheck,
-      code: '04',
+      code: '05',
       title: 'Legal',
       desc: 'Registration, B-BBEE, tax, regulatory posture.',
       accent: 'from-emerald-50 to-white border-emerald-100',
@@ -127,7 +156,7 @@ function HubInner() {
     {
       href: '/dashboard/my-business/documents',
       icon: FileText,
-      code: '05',
+      code: '06',
       title: 'Documents',
       desc: 'Company files, policies, and contracts vault.',
       accent: 'from-amber-50 to-white border-amber-100',
@@ -137,7 +166,7 @@ function HubInner() {
     {
       href: '/dashboard/my-business/projects',
       icon: FolderOpen,
-      code: '06',
+      code: '07',
       title: 'Projects',
       desc: 'Strategic initiatives and internal workstreams.',
       accent: 'from-rose-50 to-white border-rose-100',
@@ -145,7 +174,7 @@ function HubInner() {
     {
       href: '/dashboard/my-business/riad-log',
       icon: Scale,
-      code: '07',
+      code: '08',
       title: 'RIAD',
       desc: 'Internal risks, issues, actions, and decisions.',
       accent: 'from-slate-50 to-white border-slate-200',

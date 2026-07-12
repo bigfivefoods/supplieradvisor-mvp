@@ -4,6 +4,7 @@ import { assertCompanyMember } from '@/lib/customers/access';
 import { computeProfileCompleteness } from '@/lib/business/completeness';
 import { normalizeProfileRow } from '@/lib/business/types';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import { computeCompanySubscription } from '@/lib/billing/company-subscription';
 
 /**
  * GET ?companyId=&privyUserId= — My Business hub KPIs
@@ -57,6 +58,15 @@ export async function GET(request: NextRequest) {
     const team = teamRes.data || [];
     const profile = normalizeProfileRow(p as Record<string, unknown>);
     const comp = computeProfileCompleteness(profile as Record<string, unknown>);
+    const raw = p as Record<string, unknown>;
+    const sub = computeCompanySubscription({
+      subscription_status: raw.subscription_status as string | null,
+      subscription_trial_ends_at: raw.subscription_trial_ends_at as string | null,
+      subscription_starts_at: raw.subscription_starts_at as string | null,
+      subscription_ends_at: raw.subscription_ends_at as string | null,
+      subscription_paystack_ref: raw.subscription_paystack_ref as string | null,
+      subscription_plan: raw.subscription_plan as string | null,
+    });
 
     return NextResponse.json({
       success: true,
@@ -78,6 +88,9 @@ export async function GET(request: NextRequest) {
         documents: docsRes.error ? 0 : docsRes.count || 0,
         profileCompleteness: comp.pct,
         completeness: comp.map,
+        subscriptionStatus: sub.status,
+        subscriptionDaysRemaining: sub.daysRemaining,
+        subscriptionHasAccess: sub.hasAccess,
       },
     });
   } catch (e: unknown) {
@@ -101,5 +114,8 @@ function emptySummary() {
     documents: 0,
     profileCompleteness: 0,
     completeness: {},
+    subscriptionStatus: 'none',
+    subscriptionDaysRemaining: null,
+    subscriptionHasAccess: false,
   };
 }

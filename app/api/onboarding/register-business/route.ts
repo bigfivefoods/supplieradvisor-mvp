@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import { getCanonicalUserId } from '@/lib/auth/identity';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import {
+  COMPANY_SUBSCRIPTION_MONTHLY_ZAR,
+  COMPANY_SUBSCRIPTION_PLAN,
+  COMPANY_TRIAL_DAYS,
+  addDays,
+} from '@/lib/billing/company-subscription';
 
 /**
  * POST /api/onboarding/register-business
@@ -42,33 +48,69 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = getSupabaseAdmin();
-    const now = new Date().toISOString();
+    const nowDate = new Date();
+    const now = nowDate.toISOString();
+    const trialEnds = addDays(nowDate, COMPANY_TRIAL_DAYS).toISOString();
     const email = String(contact_email).toLowerCase().trim();
 
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .insert({
-        trading_name: String(trading_name).trim(),
-        legal_name: legal_name ? String(legal_name).trim() : String(trading_name).trim(),
-        registration_number: registration_number || null,
-        industry: industry || null,
-        business_type: business_type || 'business',
-        country: country || 'South Africa',
-        city: city || null,
-        website: website || null,
-        contact_name: contact_name || null,
-        contact_phone: contact_phone || null,
-        email,
-        short_description: short_description || null,
-        supplier_status: 'active',
-        relationship_type: business_type === 'supplier' ? 'supplier' : 'business',
-        is_discoverable: true,
-        user_id: userId,
-        created_at: now,
-        claimed_at: now,
-      })
-      .select('id, trading_name')
-      .single();
+    const baseInsert: Record<string, unknown> = {
+      trading_name: String(trading_name).trim(),
+      legal_name: legal_name ? String(legal_name).trim() : String(trading_name).trim(),
+      registration_number: registration_number || null,
+      industry: industry || null,
+      business_type: business_type || 'business',
+      country: country || 'South Africa',
+      city: city || null,
+      website: website || null,
+      contact_name: contact_name || null,
+      contact_phone: contact_phone || null,
+      email,
+      short_description: short_description || null,
+      supplier_status: 'active',
+      relationship_type: business_type === 'supplier' ? 'supplier' : 'business',
+      is_discoverable: true,
+      user_id: userId,
+      created_at: now,
+      claimed_at: now,
+      // 30-day free trial starts on registration
+      subscription_status: 'trial',
+      subscription_trial_ends_at: trialEnds,
+      subscription_starts_at: now,
+      subscription_plan: COMPANY_SUBSCRIPTION_PLAN,
+      subscription_amount_zar: COMPANY_SUBSCRIPTION_MONTHLY_ZAR,
+    };
+
+    let profile: { id: number; trading_name: string } | null = null;
+    let profileError: { message?: string } | null = null;
+
+    {
+      const res = await supabase
+        .from('profiles')
+        .insert(baseInsert)
+        .select('id, trading_name')
+        .single();
+      profile = res.data;
+      profileError = res.error;
+    }
+
+    // If subscription columns not migrated yet, retry without them
+    if (profileError && /column|subscription_/i.test(String(profileError.message || ''))) {
+      const {
+        subscription_status: _s,
+        subscription_trial_ends_at: _t,
+        subscription_starts_at: _st,
+        subscription_plan: _p,
+        subscription_amount_zar: _a,
+        ...withoutSub
+      } = baseInsert;
+      const res = await supabase
+        .from('profiles')
+        .insert(withoutSub)
+        .select('id, trading_name')
+        .single();
+      profile = res.data;
+      profileError = res.error;
+    }
 
     if (profileError || !profile) {
       console.error('Register business profile error:', profileError);
@@ -109,6 +151,12 @@ export async function POST(request: NextRequest) {
       profileId: profile.id,
       tradingName: profile.trading_name,
       message: 'Business registered successfully.',
+      trial: {
+        status: 'trial',
+        days: COMPANY_TRIAL_DAYS,
+        endsAt: trialEnds,
+        monthlyZarAfterTrial: COMPANY_SUBSCRIPTION_MONTHLY_ZAR,
+      },
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Registration failed';
