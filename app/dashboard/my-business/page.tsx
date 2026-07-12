@@ -121,21 +121,25 @@ function HubInner() {
       accent: 'from-amber-50 to-white border-amber-100',
       metric: loading
         ? '—'
-        : s?.subscriptionStatus === 'trial'
-          ? s.subscriptionDaysRemaining != null
-            ? `${s.subscriptionDaysRemaining}d`
-            : 'Trial'
-          : s?.subscriptionStatus === 'active'
-            ? 'Active'
-            : s?.subscriptionHasAccess
-              ? 'OK'
-              : 'Pay',
+        : s?.subscriptionStatus === 'lifetime'
+          ? 'Free'
+          : s?.subscriptionStatus === 'trial'
+            ? s.subscriptionDaysRemaining != null
+              ? `${s.subscriptionDaysRemaining}d`
+              : 'Trial'
+            : s?.subscriptionStatus === 'active'
+              ? 'Active'
+              : s?.subscriptionHasAccess
+                ? 'OK'
+                : 'Pay',
       metricLabel:
-        s?.subscriptionStatus === 'trial'
-          ? 'trial left'
-          : s?.subscriptionStatus === 'active'
-            ? 'plan'
-            : 'subscribe',
+        s?.subscriptionStatus === 'lifetime'
+          ? 'lifetime'
+          : s?.subscriptionStatus === 'trial'
+            ? 'trial left'
+            : s?.subscriptionStatus === 'active'
+              ? 'plan'
+              : 'subscribe',
     },
     {
       href: '/dashboard/my-business/settings',

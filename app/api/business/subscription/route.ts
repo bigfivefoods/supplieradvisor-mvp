@@ -18,11 +18,19 @@ import {
   computeCompanySubscription,
   type CompanySubscriptionInfo,
 } from '@/lib/billing/company-subscription';
+import {
+  FOUNDING_FREE_COMPANY_LIMIT,
+  isFounderLifetimeCompany,
+  isLifetimeStatus,
+  LIFETIME_PLAN_FOUNDER,
+  LIFETIME_PLAN_FOUNDING,
+} from '@/lib/billing/lifetime';
 import { verifyPaystackTransaction } from '@/lib/billing/paystack';
 
 type ProfileSubRow = {
   id: number;
   trading_name?: string | null;
+  legal_name?: string | null;
   email?: string | null;
   subscription_status?: string | null;
   subscription_trial_ends_at?: string | null;
@@ -33,6 +41,7 @@ type ProfileSubRow = {
   subscription_paystack_auth_code?: string | null;
   subscription_amount_zar?: number | null;
   subscription_plan?: string | null;
+  created_at?: string | null;
 };
 
 function pricingPayload() {
@@ -76,13 +85,102 @@ async function loadProfile(companyId: number): Promise<{
 }
 
 /**
+ * Grant lifetime if founder company or within first N founding partners.
+ * Idempotent.
+ */
+async function ensureLifetimeIfEligible(
+  companyId: number,
+  row: ProfileSubRow
+): Promise<{ row: ProfileSubRow; subscription: CompanySubscriptionInfo; granted: boolean }> {
+  const current = computeCompanySubscription(row);
+  if (current.isLifetime || isLifetimeStatus(row.subscription_status)) {
+    return { row, subscription: current, granted: false };
+  }
+
+  const founder = isFounderLifetimeCompany({
+    id: companyId,
+    tradingName: row.trading_name,
+    legalName: row.legal_name,
+  });
+
+  let foundingSlot = false;
+  if (!founder) {
+    const supabase = getSupabaseServer();
+    // First N companies by created_at (founding partners) get free lifetime
+    const { data: earliest } = await supabase
+      .from('profiles')
+      .select('id')
+      .order('created_at', { ascending: true, nullsFirst: false })
+      .order('id', { ascending: true })
+      .limit(FOUNDING_FREE_COMPANY_LIMIT);
+    foundingSlot = Boolean(earliest?.some((r) => Number(r.id) === companyId));
+  }
+
+  if (!founder && !foundingSlot) {
+    return { row, subscription: current, granted: false };
+  }
+
+  const now = new Date().toISOString();
+  const plan = founder ? LIFETIME_PLAN_FOUNDER : LIFETIME_PLAN_FOUNDING;
+  const updates = {
+    subscription_status: 'lifetime',
+    subscription_plan: plan,
+    subscription_amount_zar: 0,
+    subscription_starts_at: row.subscription_starts_at || row.created_at || now,
+    subscription_ends_at: null as string | null,
+  };
+
+  const supabase = getSupabaseServer();
+  const { data, error } = await supabase
+    .from('profiles')
+    .update(updates)
+    .eq('id', companyId)
+    .select(SUBSCRIPTION_SELECT_FIELDS)
+    .single();
+
+  if (error || !data) {
+    // Soft: still expose lifetime in response for founder allowlist
+    if (founder) {
+      const synthetic: CompanySubscriptionInfo = {
+        ...current,
+        status: 'lifetime',
+        hasAccess: true,
+        isLifetime: true,
+        isActive: true,
+        isExpired: false,
+        isTrial: false,
+        monthlyZar: 0,
+        daysRemaining: null,
+        endsAt: null,
+        plan,
+      };
+      return { row, subscription: synthetic, granted: false };
+    }
+    return { row, subscription: current, granted: false };
+  }
+
+  return {
+    row: data as ProfileSubRow,
+    subscription: computeCompanySubscription(data as ProfileSubRow),
+    granted: true,
+  };
+}
+
+/**
  * Ensure a 30-day trial is started once when the company has never subscribed.
- * Idempotent — does not restart if trial/paid already set.
+ * Idempotent — does not restart if trial/paid/lifetime already set.
  */
 async function ensureTrialStarted(
   companyId: number,
   row: ProfileSubRow
 ): Promise<{ row: ProfileSubRow; subscription: CompanySubscriptionInfo; started: boolean }> {
+  // Lifetime first
+  const life = await ensureLifetimeIfEligible(companyId, row);
+  if (life.subscription.isLifetime || life.granted) {
+    return { row: life.row, subscription: life.subscription, started: false };
+  }
+  row = life.row;
+
   const current = computeCompanySubscription(row);
   if (
     row.subscription_status &&
@@ -157,6 +255,26 @@ export async function GET(request: NextRequest) {
     let row = loaded.row;
     let subscription = computeCompanySubscription(row);
     let trialJustStarted = false;
+    let lifetimeJustGranted = false;
+
+    // Always try lifetime eligibility (founder + founding 50)
+    if (!subscription.isLifetime) {
+      const life = await ensureLifetimeIfEligible(companyId, row);
+      row = life.row;
+      subscription = life.subscription;
+      lifetimeJustGranted = life.granted;
+      if (life.granted) {
+        void logActivity({
+          profile_id: companyId,
+          actor_user_id: gate.userId,
+          action: 'billing.lifetime_granted',
+          entity_type: 'profile',
+          entity_id: String(companyId),
+          summary: `Lifetime complimentary access granted (${subscription.plan})`,
+          metadata: { plan: subscription.plan },
+        });
+      }
+    }
 
     if (autoTrial && subscription.status === 'none') {
       const ensured = await ensureTrialStarted(companyId, row);
@@ -187,6 +305,8 @@ export async function GET(request: NextRequest) {
       subscription,
       pricing: pricingPayload(),
       trialJustStarted,
+      lifetimeJustGranted,
+      foundingFreeSlots: FOUNDING_FREE_COMPANY_LIMIT,
     });
   } catch (e: unknown) {
     return NextResponse.json(
@@ -242,6 +362,17 @@ export async function POST(request: NextRequest) {
 
     // ── start_trial ──────────────────────────────────────────
     if (action === 'start_trial') {
+      const life = await ensureLifetimeIfEligible(companyId, row);
+      if (life.subscription.isLifetime) {
+        return NextResponse.json({
+          success: true,
+          started: false,
+          lifetime: true,
+          subscription: life.subscription,
+          pricing: pricingPayload(),
+        });
+      }
+      row = life.row;
       const ensured = await ensureTrialStarted(companyId, row);
       if (ensured.started) {
         void logActivity({
@@ -300,6 +431,19 @@ export async function POST(request: NextRequest) {
 
     // ── activate / renew via Paystack ────────────────────────
     if (action === 'activate' || action === 'renew' || action === 'pay') {
+      const life = await ensureLifetimeIfEligible(companyId, row);
+      if (life.subscription.isLifetime) {
+        return NextResponse.json({
+          success: true,
+          alreadyActive: true,
+          lifetime: true,
+          subscription: life.subscription,
+          pricing: pricingPayload(),
+          message: 'This company already has complimentary lifetime access.',
+        });
+      }
+      row = life.row;
+
       const paystackReference = String(
         body.paystackReference || body.reference || ''
       ).trim();

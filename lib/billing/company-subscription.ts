@@ -1,7 +1,14 @@
 /**
  * Company SaaS subscription — R499 / month after 30-day free trial.
  * Payments via Paystack (monthly prepaid period).
+ * Lifetime complimentary: founder companies + first 50 founding partners.
  */
+
+import {
+  isLifetimePlan,
+  isLifetimeStatus,
+  LIFETIME_PLAN,
+} from '@/lib/billing/lifetime';
 
 export const COMPANY_SUBSCRIPTION_MONTHLY_ZAR = 499;
 /** Paystack amount in cents (ZAR minor units). */
@@ -17,7 +24,8 @@ export type CompanySubscriptionStatus =
   | 'active'
   | 'past_due'
   | 'cancelled'
-  | 'expired';
+  | 'expired'
+  | 'lifetime';
 
 export type CompanySubscriptionInfo = {
   status: CompanySubscriptionStatus;
@@ -28,11 +36,13 @@ export type CompanySubscriptionInfo = {
   endsAt: string | null;
   paystackReference: string | null;
   daysRemaining: number | null;
-  /** True when trial or paid period is currently valid */
+  /** True when trial, paid, or lifetime access is currently valid */
   hasAccess: boolean;
   isTrial: boolean;
   isActive: boolean;
   isExpired: boolean;
+  /** Permanent complimentary access (founder / founding 50) */
+  isLifetime: boolean;
   plan: string;
 };
 
@@ -73,10 +83,16 @@ export function computeCompanySubscription(row: SubRow | null | undefined): Comp
     ? new Date(row.subscription_ends_at)
     : null;
   const raw = String(row?.subscription_status || 'none').toLowerCase();
+  const plan = row?.subscription_plan
+    ? String(row.subscription_plan)
+    : COMPANY_SUBSCRIPTION_PLAN;
 
   let status: CompanySubscriptionStatus = 'none';
 
-  if (endsAt && endsAt.getTime() > now && (raw === 'active' || raw === 'paid')) {
+  // Lifetime / complimentary always wins
+  if (isLifetimeStatus(raw) || isLifetimePlan(plan)) {
+    status = 'lifetime';
+  } else if (endsAt && endsAt.getTime() > now && (raw === 'active' || raw === 'paid')) {
     status = 'active';
   } else if (
     raw === 'cancelled' &&
@@ -104,12 +120,15 @@ export function computeCompanySubscription(row: SubRow | null | undefined): Comp
     status = 'none';
   }
 
+  const isLifetime = status === 'lifetime';
   const hasAccess =
+    isLifetime ||
     status === 'trial' ||
     status === 'active' ||
     (status === 'cancelled' && !!endsAt && endsAt.getTime() > now);
-  const accessEnd =
-    status === 'active' || (status === 'cancelled' && endsAt && endsAt.getTime() > now)
+  const accessEnd = isLifetime
+    ? null
+    : status === 'active' || (status === 'cancelled' && endsAt && endsAt.getTime() > now)
       ? endsAt
       : status === 'trial'
         ? trialEnds
@@ -117,11 +136,13 @@ export function computeCompanySubscription(row: SubRow | null | undefined): Comp
   const daysRemaining =
     hasAccess && accessEnd
       ? Math.max(0, Math.ceil((accessEnd.getTime() - now) / (24 * 60 * 60 * 1000)))
-      : null;
+      : isLifetime
+        ? null
+        : null;
 
   return {
     status,
-    monthlyZar: COMPANY_SUBSCRIPTION_MONTHLY_ZAR,
+    monthlyZar: isLifetime ? 0 : COMPANY_SUBSCRIPTION_MONTHLY_ZAR,
     trialDays: COMPANY_TRIAL_DAYS,
     trialEndsAt: trialEnds ? trialEnds.toISOString() : null,
     startsAt: startsAt ? startsAt.toISOString() : null,
@@ -132,13 +153,14 @@ export function computeCompanySubscription(row: SubRow | null | undefined): Comp
     daysRemaining,
     hasAccess,
     isTrial: status === 'trial',
-    isActive: status === 'active',
-    isExpired: status === 'expired' || status === 'past_due' || status === 'cancelled',
-    plan: row?.subscription_plan
-      ? String(row.subscription_plan)
-      : COMPANY_SUBSCRIPTION_PLAN,
+    isActive: status === 'active' || isLifetime,
+    isExpired:
+      !isLifetime &&
+      (status === 'expired' || status === 'past_due' || status === 'cancelled'),
+    isLifetime,
+    plan: isLifetime && !isLifetimePlan(plan) ? LIFETIME_PLAN : plan,
   };
 }
 
 export const SUBSCRIPTION_SELECT_FIELDS =
-  'id, trading_name, email, subscription_status, subscription_trial_ends_at, subscription_starts_at, subscription_ends_at, subscription_paystack_ref, subscription_paystack_customer_code, subscription_paystack_auth_code, subscription_amount_zar, subscription_plan';
+  'id, trading_name, legal_name, email, subscription_status, subscription_trial_ends_at, subscription_starts_at, subscription_ends_at, subscription_paystack_ref, subscription_paystack_customer_code, subscription_paystack_auth_code, subscription_amount_zar, subscription_plan, created_at';

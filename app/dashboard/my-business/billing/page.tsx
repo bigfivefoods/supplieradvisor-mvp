@@ -254,7 +254,23 @@ function BillingInner() {
               </li>
             </ul>
 
-            {sub?.hasAccess && !sub.isExpired ? (
+            {sub?.isLifetime ? (
+              <div className="mt-6 rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 to-amber-50 px-4 py-4 text-sm text-violet-950">
+                <div className="font-bold flex items-center gap-2 text-base">
+                  <Sparkles className="w-5 h-5 text-amber-500" />
+                  Lifetime complimentary access
+                </div>
+                <p className="mt-2 text-violet-900">
+                  This company has free access for life
+                  {sub.plan === 'founder_lifetime'
+                    ? ' as a founder company'
+                    : sub.plan === 'founding_50'
+                      ? ' as one of the first 50 founding partners'
+                      : ''}
+                  . No payment required — ever.
+                </p>
+              </div>
+            ) : sub?.hasAccess && !sub.isExpired ? (
               <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
                 <div className="font-bold flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4" />
@@ -295,28 +311,32 @@ function BillingInner() {
               </div>
             )}
 
-            <button
-              type="button"
-              disabled={paying}
-              onClick={() => startPayment()}
-              className="mt-6 w-full inline-flex items-center justify-center gap-2 px-6 py-4 rounded-2xl bg-gradient-to-r from-[#00b4d8] to-[#0077b6] text-white font-black text-base shadow-xl shadow-sky-200/50 disabled:opacity-50"
-            >
-              {paying ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <CreditCard className="w-5 h-5" />
-              )}
-              {sub?.isActive
-                ? `Renew · R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}`
-                : sub?.isTrial
-                  ? `Subscribe · R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo`
-                  : `Pay R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR} · start plan`}
-            </button>
+            {!sub?.isLifetime && (
+              <>
+                <button
+                  type="button"
+                  disabled={paying}
+                  onClick={() => startPayment()}
+                  className="mt-6 w-full inline-flex items-center justify-center gap-2 px-6 py-4 rounded-2xl bg-gradient-to-r from-[#00b4d8] to-[#0077b6] text-white font-black text-base shadow-xl shadow-sky-200/50 disabled:opacity-50"
+                >
+                  {paying ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <CreditCard className="w-5 h-5" />
+                  )}
+                  {sub?.isActive
+                    ? `Renew · R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}`
+                    : sub?.isTrial
+                      ? `Subscribe · R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo`
+                      : `Pay R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR} · start plan`}
+                </button>
 
-            <p className="mt-3 text-[11px] text-center text-neutral-500 flex items-center justify-center gap-1">
-              <Shield className="w-3 h-3" />
-              Secure Paystack checkout · fees paid to SupplierAdvisor
-            </p>
+                <p className="mt-3 text-[11px] text-center text-neutral-500 flex items-center justify-center gap-1">
+                  <Shield className="w-3 h-3" />
+                  Secure Paystack checkout · fees paid to SupplierAdvisor
+                </p>
+              </>
+            )}
           </Panel>
         </div>
 
@@ -401,6 +421,14 @@ function BillingInner() {
 
 function StatusBadge({ sub }: { sub: CompanySubscriptionInfo | null }) {
   if (!sub) return null;
+  if (sub.isLifetime) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-100 border border-violet-200 px-3 py-1 text-xs font-bold uppercase tracking-wide text-violet-900">
+        <Sparkles className="w-3.5 h-3.5" />
+        Lifetime free
+      </span>
+    );
+  }
   if (sub.isActive) {
     return (
       <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 border border-emerald-200 px-3 py-1 text-xs font-bold uppercase tracking-wide text-emerald-800">

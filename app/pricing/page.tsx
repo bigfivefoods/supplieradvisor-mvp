@@ -14,6 +14,7 @@ import {
   COMPANY_SUBSCRIPTION_MONTHLY_ZAR,
   COMPANY_TRIAL_DAYS,
 } from '@/lib/billing/company-subscription';
+import { FOUNDING_FREE_COMPANY_LIMIT } from '@/lib/billing/lifetime';
 
 const FEATURES = [
   'Unlimited team users per company',
@@ -22,6 +23,7 @@ const FEATURES = [
   'On-chain verification & supplier network',
   'Invoices, quotes & bank tools',
   'Secure Paystack billing in ZAR',
+  `First ${FOUNDING_FREE_COMPANY_LIMIT} companies — free for life`,
 ];
 
 export default function Pricing() {
@@ -122,6 +124,17 @@ export default function Pricing() {
             <p className="mt-2 text-sm text-slate-600">
               Flat per-company rate. Payments processed securely by Paystack in
               South African Rand.
+            </p>
+          </div>
+          <div className="card p-6 bg-gradient-to-br from-violet-50 to-amber-50 border-violet-100">
+            <div className="text-sm font-bold uppercase tracking-wide text-violet-800">
+              Founding partners
+            </div>
+            <p className="mt-2 text-sm text-slate-700">
+              The first <strong>{FOUNDING_FREE_COMPANY_LIMIT}</strong> companies
+              on SupplierAdvisor receive <strong>lifetime free access</strong> —
+              no card, no monthly fee. After that, standard trial + R
+              {COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo applies.
             </p>
           </div>
         </div>

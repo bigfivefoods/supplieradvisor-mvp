@@ -8,6 +8,12 @@ import {
   COMPANY_TRIAL_DAYS,
   addDays,
 } from '@/lib/billing/company-subscription';
+import {
+  FOUNDING_FREE_COMPANY_LIMIT,
+  isFounderLifetimeCompany,
+  LIFETIME_PLAN_FOUNDER,
+  LIFETIME_PLAN_FOUNDING,
+} from '@/lib/billing/lifetime';
 
 /**
  * POST /api/onboarding/register-business
@@ -52,10 +58,32 @@ export async function POST(request: NextRequest) {
     const now = nowDate.toISOString();
     const trialEnds = addDays(nowDate, COMPANY_TRIAL_DAYS).toISOString();
     const email = String(contact_email).toLowerCase().trim();
+    const tradingNameTrim = String(trading_name).trim();
+    const legalNameTrim = legal_name
+      ? String(legal_name).trim()
+      : tradingNameTrim;
+
+    // Founder names or remaining founding-50 slots → lifetime free
+    let lifetimePlan: string | null = null;
+    if (
+      isFounderLifetimeCompany({
+        tradingName: tradingNameTrim,
+        legalName: legalNameTrim,
+      })
+    ) {
+      lifetimePlan = LIFETIME_PLAN_FOUNDER;
+    } else {
+      const { count } = await supabase
+        .from('profiles')
+        .select('id', { count: 'exact', head: true });
+      if ((count ?? 999) < FOUNDING_FREE_COMPANY_LIMIT) {
+        lifetimePlan = LIFETIME_PLAN_FOUNDING;
+      }
+    }
 
     const baseInsert: Record<string, unknown> = {
-      trading_name: String(trading_name).trim(),
-      legal_name: legal_name ? String(legal_name).trim() : String(trading_name).trim(),
+      trading_name: tradingNameTrim,
+      legal_name: legalNameTrim,
       registration_number: registration_number || null,
       industry: industry || null,
       business_type: business_type || 'business',
@@ -72,12 +100,23 @@ export async function POST(request: NextRequest) {
       user_id: userId,
       created_at: now,
       claimed_at: now,
-      // 30-day free trial starts on registration
-      subscription_status: 'trial',
-      subscription_trial_ends_at: trialEnds,
-      subscription_starts_at: now,
-      subscription_plan: COMPANY_SUBSCRIPTION_PLAN,
-      subscription_amount_zar: COMPANY_SUBSCRIPTION_MONTHLY_ZAR,
+      ...(lifetimePlan
+        ? {
+            subscription_status: 'lifetime',
+            subscription_starts_at: now,
+            subscription_ends_at: null,
+            subscription_trial_ends_at: null,
+            subscription_plan: lifetimePlan,
+            subscription_amount_zar: 0,
+          }
+        : {
+            // 30-day free trial starts on registration
+            subscription_status: 'trial',
+            subscription_trial_ends_at: trialEnds,
+            subscription_starts_at: now,
+            subscription_plan: COMPANY_SUBSCRIPTION_PLAN,
+            subscription_amount_zar: COMPANY_SUBSCRIPTION_MONTHLY_ZAR,
+          }),
     };
 
     let profile: { id: number; trading_name: string } | null = null;
@@ -99,6 +138,7 @@ export async function POST(request: NextRequest) {
         subscription_status: _s,
         subscription_trial_ends_at: _t,
         subscription_starts_at: _st,
+        subscription_ends_at: _e,
         subscription_plan: _p,
         subscription_amount_zar: _a,
         ...withoutSub
@@ -150,13 +190,20 @@ export async function POST(request: NextRequest) {
       success: true,
       profileId: profile.id,
       tradingName: profile.trading_name,
-      message: 'Business registered successfully.',
-      trial: {
-        status: 'trial',
-        days: COMPANY_TRIAL_DAYS,
-        endsAt: trialEnds,
-        monthlyZarAfterTrial: COMPANY_SUBSCRIPTION_MONTHLY_ZAR,
-      },
+      message: lifetimePlan
+        ? 'Business registered with complimentary lifetime access.'
+        : 'Business registered successfully.',
+      trial: lifetimePlan
+        ? null
+        : {
+            status: 'trial',
+            days: COMPANY_TRIAL_DAYS,
+            endsAt: trialEnds,
+            monthlyZarAfterTrial: COMPANY_SUBSCRIPTION_MONTHLY_ZAR,
+          },
+      lifetime: lifetimePlan
+        ? { status: 'lifetime', plan: lifetimePlan }
+        : null,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Registration failed';
