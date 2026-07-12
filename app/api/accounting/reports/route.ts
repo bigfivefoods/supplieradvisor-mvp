@@ -192,13 +192,14 @@ export async function GET(request: NextRequest) {
       }
       const journals = (entries || []).map((e) => {
         const t = totalsByEntry[Number(e.id)] || { debit: 0, credit: 0 };
+        const row = e as Record<string, unknown>;
         return {
           id: e.id,
           entry_date: e.entry_date,
-          document_number: e.document_number ?? null,
-          reference: e.reference ?? null,
-          memo: e.memo ?? null,
-          source: e.source ?? null,
+          document_number: (row.entry_number as string) || null,
+          reference: (row.reference as string) || null,
+          memo: (row.memo as string) || null,
+          source: (row.source as string) || null,
           status: e.status,
           total_debit: round2(t.debit),
           total_credit: round2(t.credit),
