@@ -2,7 +2,15 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Loader2, RefreshCw, Upload, AlertTriangle } from 'lucide-react';
+import {
+  Loader2,
+  RefreshCw,
+  Upload,
+  AlertTriangle,
+  Plus,
+  BookOpen,
+  ExternalLink,
+} from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -51,6 +59,18 @@ type LineRow = {
   amount: number;
 };
 
+type PeriodJournal = {
+  id: number;
+  entry_date?: string | null;
+  document_number?: string | null;
+  reference?: string | null;
+  memo?: string | null;
+  source?: string | null;
+  status?: string | null;
+  total_debit?: number;
+  total_credit?: number;
+};
+
 export default function ManagementAccountsPage() {
   return (
     <CompanyRequired>
@@ -73,6 +93,7 @@ function Inner() {
   const [income, setIncome] = useState<LineRow[]>([]);
   const [cogs, setCogs] = useState<LineRow[]>([]);
   const [expenses, setExpenses] = useState<LineRow[]>([]);
+  const [journals, setJournals] = useState<PeriodJournal[]>([]);
   const [trendLabels, setTrendLabels] = useState<string[]>([]);
   const [trendSeries, setTrendSeries] = useState<{
     revenue: number[];
@@ -115,6 +136,7 @@ function Inner() {
       setIncome(data.income || []);
       setCogs(data.cogs || []);
       setExpenses(data.expenses || []);
+      setJournals(Array.isArray(data.journals) ? data.journals : []);
       if (data.warning) toast.message(data.warning);
 
       if (trendRes.ok) {
@@ -139,9 +161,21 @@ function Inner() {
       <AccountingHeader
         title="Management"
         titleAccent="accounts"
-        description="Period P&L from posted journals (including bank allocations). Multi-select months or quarters · FY Mar–Feb."
+        description="Period P&L from posted journals (including bank allocations). Multi-select months or quarters · FY Mar–Feb. Journals for this period are listed below."
         action={
           <>
+            <Link
+              href="/dashboard/accounting/journal-entries"
+              className="btn-primary !py-2.5 !px-5 text-sm inline-flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" /> New journal
+            </Link>
+            <Link
+              href="/dashboard/accounting/journal-entries"
+              className="btn-secondary !py-2.5 !px-5 text-sm inline-flex items-center gap-2"
+            >
+              <BookOpen className="w-4 h-4" /> All journals
+            </Link>
             <Link
               href="/dashboard/accounting/bank-reconciliation"
               className="btn-secondary !py-2.5 !px-5 text-sm"
@@ -151,7 +185,7 @@ function Inner() {
             <button
               type="button"
               onClick={() => void load()}
-              className="btn-primary !py-2.5 !px-5 text-sm"
+              className="btn-secondary !py-2.5 !px-5 text-sm"
             >
               <RefreshCw className="w-4 h-4" /> Refresh
             </button>
@@ -201,12 +235,100 @@ function Inner() {
           <div className="grid lg:grid-cols-3 gap-3 mb-6">
             <Kpi label="Bank in (period)" value={formatMoney(summary?.bankIn ?? 0)} />
             <Kpi label="Bank out (period)" value={formatMoney(summary?.bankOut ?? 0)} />
-            <Kpi
-              label="Journals posted"
-              value={String(summary?.journalCount ?? 0)}
-              sub={`${summary?.allocatedCount ?? 0} bank-allocated`}
-            />
+            <Link href="/dashboard/accounting/journal-entries" className="block">
+              <Kpi
+                label="Journals posted"
+                value={String(summary?.journalCount ?? 0)}
+                sub={`${summary?.allocatedCount ?? 0} bank-allocated · open journals →`}
+              />
+            </Link>
           </div>
+
+          {/* Period journals — double-entry source of management P&L */}
+          <SectionLabel
+            action={
+              <Link
+                href="/dashboard/accounting/journal-entries"
+                className="text-xs font-semibold text-[#00b4d8] hover:underline inline-flex items-center gap-1"
+              >
+                Journal workspace <ExternalLink className="w-3 h-3" />
+              </Link>
+            }
+          >
+            Journals this period
+          </SectionLabel>
+          <Panel className="mb-8">
+            {journals.length === 0 ? (
+              <div className="px-6 py-10 text-center">
+                <p className="text-sm text-neutral-500 mb-4">
+                  No posted journals in {periodLabel}. Post entries or allocate bank lines so
+                  management accounts can build.
+                </p>
+                <Link
+                  href="/dashboard/accounting/journal-entries"
+                  className="btn-primary !py-2.5 !px-5 text-sm inline-flex items-center gap-2"
+                >
+                  <Plus className="w-4 h-4" /> Create journal
+                </Link>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-neutral-100 text-left text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
+                      <th className="px-4 py-3">Date</th>
+                      <th className="px-4 py-3">Ref</th>
+                      <th className="px-4 py-3">Memo</th>
+                      <th className="px-4 py-3">Source</th>
+                      <th className="px-4 py-3 text-right">Debit</th>
+                      <th className="px-4 py-3 text-right">Credit</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {journals.map((j) => (
+                      <tr
+                        key={j.id}
+                        className="border-b border-neutral-50 hover:bg-sky-50/40"
+                      >
+                        <td className="px-4 py-2.5 whitespace-nowrap text-slate-700">
+                          {j.entry_date
+                            ? new Date(j.entry_date).toLocaleDateString('en-ZA')
+                            : '—'}
+                        </td>
+                        <td className="px-4 py-2.5 font-mono text-xs text-slate-600">
+                          {j.document_number || j.reference || `#${j.id}`}
+                        </td>
+                        <td className="px-4 py-2.5 text-slate-800 max-w-[280px] truncate">
+                          {j.memo || '—'}
+                        </td>
+                        <td className="px-4 py-2.5 capitalize text-xs text-neutral-500">
+                          {String(j.source || 'manual').replace(/_/g, ' ')}
+                        </td>
+                        <td className="px-4 py-2.5 text-right tabular-nums text-slate-800">
+                          {formatMoney(j.total_debit ?? 0)}
+                        </td>
+                        <td className="px-4 py-2.5 text-right tabular-nums text-slate-800">
+                          {formatMoney(j.total_credit ?? 0)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="px-4 py-3 text-[11px] text-neutral-500 border-t border-neutral-100 flex flex-wrap justify-between gap-2">
+                  <span>
+                    {journals.length} posted journal
+                    {journals.length === 1 ? '' : 's'} feed this period&apos;s P&amp;L
+                  </span>
+                  <Link
+                    href="/dashboard/accounting/journal-entries"
+                    className="font-semibold text-[#00b4d8] hover:underline"
+                  >
+                    Open full journal entries →
+                  </Link>
+                </div>
+              </div>
+            )}
+          </Panel>
 
           {/* Visual analytics */}
           <SectionLabel>Visual management pack</SectionLabel>

@@ -228,7 +228,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
     steps: [
       { name: 'Overview', href: '/dashboard/accounting', exact: true },
       { name: 'Chart', href: '/dashboard/accounting/chart-of-accounts' },
-      { name: 'Post', href: '/dashboard/accounting/journal-entries' },
+      { name: 'Journals', href: '/dashboard/accounting/journal-entries' },
       { name: 'Collect', href: '/dashboard/accounting/accounts-receivable' },
       { name: 'Pay', href: '/dashboard/accounting/accounts-payable' },
       { name: 'Bank', href: '/dashboard/accounting/bank-reconciliation' },

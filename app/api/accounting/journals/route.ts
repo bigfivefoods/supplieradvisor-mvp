@@ -22,6 +22,8 @@ export async function GET(request: NextRequest) {
     const companyId = parseCompanyId(request.nextUrl.searchParams.get('companyId'));
     const privyUserId = request.nextUrl.searchParams.get('privyUserId');
     const status = request.nextUrl.searchParams.get('status');
+    const from = request.nextUrl.searchParams.get('from');
+    const to = request.nextUrl.searchParams.get('to');
 
     if (!Number.isFinite(companyId)) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
@@ -40,6 +42,8 @@ export async function GET(request: NextRequest) {
       .limit(200);
 
     if (status && status !== 'all') query = query.eq('status', status);
+    if (from) query = query.gte('entry_date', from);
+    if (to) query = query.lte('entry_date', to);
 
     const { data: entries, error } = await query;
     if (error) {

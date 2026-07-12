@@ -39,16 +39,20 @@ export function AccountingHeader({
   description,
   action,
   titleAccent,
+  showNav = true,
 }: {
   title: string;
   description?: string;
   action?: React.ReactNode;
   titleAccent?: string;
+  /** Finance strip (CoA, Journals, Mgmt, …) — restored for management accounts + journals */
+  showNav?: boolean;
 }) {
   return (
     <RelationshipHeader
+      nav={showNav ? <AccountingNav /> : undefined}
       backHref="/dashboard/accounting"
-      backLabel="Accounting overview"
+      backLabel="Finance overview"
       eyebrow="Financial control"
       title={title}
       titleAccent={titleAccent}

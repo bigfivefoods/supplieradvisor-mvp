@@ -152,26 +152,58 @@ export async function GET(request: NextRequest) {
 
       let jeQ = supabase
         .from('journal_entries')
-        .select('id, entry_date, status, source')
+        .select('id, entry_date, status, source, memo, entry_number, reference')
         .eq('profile_id', companyId)
-        .eq('status', 'posted');
+        .eq('status', 'posted')
+        .order('entry_date', { ascending: false })
+        .order('id', { ascending: false });
       if (from) jeQ = jeQ.gte('entry_date', from);
       if (to) jeQ = jeQ.lte('entry_date', to);
       const { data: entries } = await jeQ;
       const entryIds = (entries || []).map((e) => e.id);
 
-      let lines: Array<{ account_id: number; debit: number; credit: number }> = [];
+      let lines: Array<{
+        account_id: number;
+        debit: number;
+        credit: number;
+        journal_entry_id?: number;
+      }> = [];
       if (entryIds.length) {
         const { data: lineRows } = await supabase
           .from('journal_lines')
-          .select('account_id, debit, credit')
+          .select('account_id, debit, credit, journal_entry_id')
           .in('journal_entry_id', entryIds);
         lines = (lineRows || []).map((l) => ({
           account_id: Number(l.account_id),
           debit: Number(l.debit || 0),
           credit: Number(l.credit || 0),
+          journal_entry_id: Number(l.journal_entry_id),
         }));
       }
+
+      // Period journals for management accounts drill-down
+      const totalsByEntry: Record<number, { debit: number; credit: number }> = {};
+      for (const l of lines) {
+        const eid = Number(l.journal_entry_id);
+        if (!Number.isFinite(eid)) continue;
+        if (!totalsByEntry[eid]) totalsByEntry[eid] = { debit: 0, credit: 0 };
+        totalsByEntry[eid].debit += l.debit;
+        totalsByEntry[eid].credit += l.credit;
+      }
+      const journals = (entries || []).map((e) => {
+        const t = totalsByEntry[Number(e.id)] || { debit: 0, credit: 0 };
+        return {
+          id: e.id,
+          entry_date: e.entry_date,
+          document_number: e.document_number ?? null,
+          reference: e.reference ?? null,
+          memo: e.memo ?? null,
+          source: e.source ?? null,
+          status: e.status,
+          total_debit: round2(t.debit),
+          total_credit: round2(t.credit),
+        };
+      });
 
       const totals: Record<number, { debit: number; credit: number }> = {};
       for (const l of lines) {
@@ -287,6 +319,7 @@ export async function GET(request: NextRequest) {
         income,
         cogs: cogsRows,
         expenses,
+        journals,
         bank: {
           unallocated,
           unallocatedIn: round2(unallocatedIn),
