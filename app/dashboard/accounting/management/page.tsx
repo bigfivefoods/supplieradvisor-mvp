@@ -84,8 +84,10 @@ function Inner() {
   const { user } = usePrivy();
   const privyUserId = getCanonicalUserId(user?.id);
 
+  // Default to YTD (Mar–today FY) so bank-allocated journals from earlier months show.
+  // "This month" is often empty mid-cycle after month-end allocations.
   const [period, setPeriod] = useState<PeriodSlicerValue>(() =>
-    initialPeriodSlicerValue('this_month')
+    initialPeriodSlicerValue('ytd')
   );
 
   const [loading, setLoading] = useState(true);
@@ -131,13 +133,20 @@ function Inner() {
         fetch(`/api/accounting/reports?${trendParams}`),
       ]);
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed');
+      if (!res.ok) throw new Error(data.error || data.warning || 'Failed');
       setSummary(data.summary || null);
       setIncome(data.income || []);
       setCogs(data.cogs || []);
       setExpenses(data.expenses || []);
       setJournals(Array.isArray(data.journals) ? data.journals : []);
-      if (data.warning) toast.message(data.warning);
+      if (data.warning) {
+        // Empty period is informational; query failures are errors
+        if (/failed|error|column/i.test(String(data.warning))) {
+          toast.error(data.warning);
+        } else {
+          toast.message(data.warning);
+        }
+      }
 
       if (trendRes.ok) {
         const t = await trendRes.json();

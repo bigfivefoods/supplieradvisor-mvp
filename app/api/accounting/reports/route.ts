@@ -131,36 +131,116 @@ export async function GET(request: NextRequest) {
 
     if (report === 'management_accounts') {
       // P&L from posted journals + bank allocation pulse
-      const { data: accounts, error: accErr } = await supabase
-        .from('chart_of_accounts')
-        .select('*')
-        .eq('profile_id', companyId)
-        .eq('is_active', true)
-        .order('code');
-
-      if (accErr) {
-        return NextResponse.json({
-          success: true,
-          report,
-          warning: accErr.message,
-          summary: null,
-          income: [],
-          expenses: [],
-          bank: null,
-        });
+      // Prefer active accounts; fall back if is_active column filter is empty/mis-set
+      let accounts: Array<Record<string, unknown>> = [];
+      let accWarning: string | undefined;
+      {
+        const active = await supabase
+          .from('chart_of_accounts')
+          .select('*')
+          .eq('profile_id', companyId)
+          .eq('is_active', true)
+          .order('code');
+        if (active.error) {
+          const all = await supabase
+            .from('chart_of_accounts')
+            .select('*')
+            .eq('profile_id', companyId)
+            .order('code');
+          if (all.error) {
+            return NextResponse.json({
+              success: true,
+              report,
+              warning: all.error.message,
+              summary: null,
+              income: [],
+              expenses: [],
+              journals: [],
+              bank: null,
+            });
+          }
+          accounts = (all.data || []) as Array<Record<string, unknown>>;
+          accWarning = active.error.message;
+        } else {
+          accounts = (active.data || []) as Array<Record<string, unknown>>;
+          if (accounts.length === 0) {
+            const all = await supabase
+              .from('chart_of_accounts')
+              .select('*')
+              .eq('profile_id', companyId)
+              .order('code');
+            accounts = (all.data || []) as Array<Record<string, unknown>>;
+          }
+        }
       }
 
+      // Safe column list only — `reference` does NOT exist on journal_entries in prod
       let jeQ = supabase
         .from('journal_entries')
-        .select('id, entry_date, status, source, memo, entry_number, reference')
+        .select('id, entry_date, status, source, memo, entry_number, currency, posted_at, created_at')
         .eq('profile_id', companyId)
         .eq('status', 'posted')
         .order('entry_date', { ascending: false })
         .order('id', { ascending: false });
       if (from) jeQ = jeQ.gte('entry_date', from);
       if (to) jeQ = jeQ.lte('entry_date', to);
-      const { data: entries } = await jeQ;
-      const entryIds = (entries || []).map((e) => e.id);
+      let entries: Array<Record<string, unknown>> | null = null;
+      let jeErr: { message: string } | null = null;
+      {
+        const res = await jeQ;
+        entries = (res.data || null) as Array<Record<string, unknown>> | null;
+        jeErr = res.error;
+      }
+
+      // Retry with minimal columns if optional columns missing
+      if (jeErr && /column|42703/i.test(jeErr.message)) {
+        let retry = supabase
+          .from('journal_entries')
+          .select('id, entry_date, status, source, memo, entry_number')
+          .eq('profile_id', companyId)
+          .eq('status', 'posted')
+          .order('entry_date', { ascending: false })
+          .order('id', { ascending: false });
+        if (from) retry = retry.gte('entry_date', from);
+        if (to) retry = retry.lte('entry_date', to);
+        const r2 = await retry;
+        entries = (r2.data || null) as Array<Record<string, unknown>> | null;
+        jeErr = r2.error;
+      }
+
+      if (jeErr) {
+        return NextResponse.json({
+          success: true,
+          report,
+          period: { from, to },
+          warning: `Journal query failed: ${jeErr.message}`,
+          summary: {
+            revenue: 0,
+            cogs: 0,
+            grossProfit: 0,
+            expenses: 0,
+            operatingProfit: 0,
+            netIncome: 0,
+            journalCount: 0,
+            bankLines: 0,
+            bankIn: 0,
+            bankOut: 0,
+            unallocated: 0,
+            unallocatedIn: 0,
+            unallocatedOut: 0,
+            allocatedCount: 0,
+          },
+          income: [],
+          cogs: [],
+          expenses: [],
+          journals: [],
+          bank: null,
+        });
+      }
+
+      const entryIds = (entries || [])
+        .map((e) => Number(e.id))
+        .filter((n) => Number.isFinite(n));
 
       let lines: Array<{
         account_id: number;
@@ -168,17 +248,62 @@ export async function GET(request: NextRequest) {
         credit: number;
         journal_entry_id?: number;
       }> = [];
+      // Chunk .in() for large periods (PostgREST URL limits)
       if (entryIds.length) {
-        const { data: lineRows } = await supabase
-          .from('journal_lines')
-          .select('account_id, debit, credit, journal_entry_id')
-          .in('journal_entry_id', entryIds);
-        lines = (lineRows || []).map((l) => ({
-          account_id: Number(l.account_id),
-          debit: Number(l.debit || 0),
-          credit: Number(l.credit || 0),
-          journal_entry_id: Number(l.journal_entry_id),
-        }));
+        const chunkSize = 150;
+        for (let i = 0; i < entryIds.length; i += chunkSize) {
+          const chunk = entryIds.slice(i, i + chunkSize);
+          const { data: lineRows, error: lineErr } = await supabase
+            .from('journal_lines')
+            .select('account_id, debit, credit, journal_entry_id')
+            .in('journal_entry_id', chunk);
+          if (lineErr) {
+            return NextResponse.json({
+              success: true,
+              report,
+              period: { from, to },
+              warning: `Journal lines query failed: ${lineErr.message}`,
+              summary: {
+                revenue: 0,
+                cogs: 0,
+                grossProfit: 0,
+                expenses: 0,
+                operatingProfit: 0,
+                netIncome: 0,
+                journalCount: entryIds.length,
+                bankLines: 0,
+                bankIn: 0,
+                bankOut: 0,
+                unallocated: 0,
+                unallocatedIn: 0,
+                unallocatedOut: 0,
+                allocatedCount: 0,
+              },
+              income: [],
+              cogs: [],
+              expenses: [],
+              journals: (entries || []).map((e) => ({
+                id: e.id,
+                entry_date: e.entry_date,
+                document_number: (e.entry_number as string) ?? null,
+                memo: (e.memo as string) ?? null,
+                source: (e.source as string) ?? null,
+                status: e.status,
+                total_debit: 0,
+                total_credit: 0,
+              })),
+              bank: null,
+            });
+          }
+          for (const l of lineRows || []) {
+            lines.push({
+              account_id: Number(l.account_id),
+              debit: Number(l.debit || 0),
+              credit: Number(l.credit || 0),
+              journal_entry_id: Number(l.journal_entry_id),
+            });
+          }
+        }
       }
 
       // Period journals for management accounts drill-down
@@ -192,14 +317,13 @@ export async function GET(request: NextRequest) {
       }
       const journals = (entries || []).map((e) => {
         const t = totalsByEntry[Number(e.id)] || { debit: 0, credit: 0 };
-        const row = e as Record<string, unknown>;
         return {
           id: e.id,
           entry_date: e.entry_date,
-          document_number: (row.entry_number as string) || null,
-          reference: (row.reference as string) || null,
-          memo: (row.memo as string) || null,
-          source: (row.source as string) || null,
+          document_number: (e.entry_number as string) ?? null,
+          reference: null,
+          memo: (e.memo as string) ?? null,
+          source: (e.source as string) ?? null,
           status: e.status,
           total_debit: round2(t.debit),
           total_credit: round2(t.credit),
@@ -219,38 +343,43 @@ export async function GET(request: NextRequest) {
 
       for (const a of accounts || []) {
         if (a.is_header) continue;
-        const t = totals[a.id] || { debit: 0, credit: 0 };
-        const type = String(a.account_type || '');
-        if (type === 'revenue') {
+        const aid = Number(a.id);
+        const t = totals[aid] || { debit: 0, credit: 0 };
+        const type = String(a.account_type || '').toLowerCase();
+        // Normalize common aliases
+        const isRevenue = type === 'revenue' || type === 'income' || type === 'sales';
+        const isCogs = type === 'cogs' || type === 'cost_of_sales' || type === 'cost_of_goods';
+        const isExpense = type === 'expense' || type === 'expenses' || type === 'opex';
+        if (isRevenue) {
           const amount = round2(t.credit - t.debit);
           if (amount !== 0) {
             income.push({
-              id: a.id,
+              id: aid,
               code: a.code,
               name: a.name,
-              account_type: type,
+              account_type: 'revenue',
               amount,
             });
           }
-        } else if (type === 'cogs') {
+        } else if (isCogs) {
           const amount = round2(t.debit - t.credit);
           if (amount !== 0) {
             cogsRows.push({
-              id: a.id,
+              id: aid,
               code: a.code,
               name: a.name,
-              account_type: type,
+              account_type: 'cogs',
               amount,
             });
           }
-        } else if (type === 'expense') {
+        } else if (isExpense) {
           const amount = round2(t.debit - t.credit);
           if (amount !== 0) {
             expenses.push({
-              id: a.id,
+              id: aid,
               code: a.code,
               name: a.name,
-              account_type: type,
+              account_type: 'expense',
               amount,
             });
           }
@@ -297,10 +426,16 @@ export async function GET(request: NextRequest) {
         .filter((t) => ['allocated', 'matched_invoice'].includes(String(t.allocation_status)))
         .slice(0, 50);
 
+      const emptyPeriod =
+        entryIds.length === 0
+          ? `No posted journals between ${from || '…'} and ${to || '…'}. Try YTD, Full FY, or multi-select months that cover your bank allocations.`
+          : undefined;
+
       return NextResponse.json({
         success: true,
         report,
         period: { from, to },
+        warning: accWarning || emptyPeriod || undefined,
         summary: {
           revenue,
           cogs,
@@ -309,6 +444,7 @@ export async function GET(request: NextRequest) {
           operatingProfit,
           netIncome: operatingProfit,
           journalCount: entryIds.length,
+          lineCount: lines.length,
           bankLines: (bankTxns || []).length,
           bankIn: round2(bankIn),
           bankOut: round2(bankOut),
