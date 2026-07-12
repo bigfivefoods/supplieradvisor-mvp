@@ -10,6 +10,8 @@ import {
   Plus,
   BookOpen,
   ExternalLink,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
@@ -96,6 +98,8 @@ function Inner() {
   const [cogs, setCogs] = useState<LineRow[]>([]);
   const [expenses, setExpenses] = useState<LineRow[]>([]);
   const [journals, setJournals] = useState<PeriodJournal[]>([]);
+  /** Collapsed by default — expand to browse period journal lines */
+  const [journalsOpen, setJournalsOpen] = useState(false);
   const [trendLabels, setTrendLabels] = useState<string[]>([]);
   const [trendSeries, setTrendSeries] = useState<{
     revenue: number[];
@@ -253,89 +257,141 @@ function Inner() {
             </Link>
           </div>
 
-          {/* Period journals — double-entry source of management P&L */}
-          <SectionLabel
-            action={
+          {/* Period journals — expandable list (source of management P&L) */}
+          <Panel className="mb-8 overflow-hidden">
+            <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-neutral-100 bg-slate-50/80">
+              <button
+                type="button"
+                onClick={() => setJournalsOpen((o) => !o)}
+                className="inline-flex items-center gap-2 text-left min-w-0 group"
+                aria-expanded={journalsOpen}
+              >
+                {journalsOpen ? (
+                  <ChevronDown className="w-4 h-4 text-[#00b4d8] shrink-0" />
+                ) : (
+                  <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:text-[#00b4d8]" />
+                )}
+                <span className="text-sm font-black text-slate-900">
+                  Journals this period
+                </span>
+                <span className="rounded-full bg-white border border-slate-200 px-2 py-0.5 text-[11px] font-bold tabular-nums text-slate-600">
+                  {journals.length}
+                </span>
+                <span className="text-[11px] text-slate-500 hidden sm:inline">
+                  {journalsOpen ? 'Click to collapse' : 'Click to expand'}
+                </span>
+              </button>
               <Link
                 href="/dashboard/accounting/journal-entries"
-                className="text-xs font-semibold text-[#00b4d8] hover:underline inline-flex items-center gap-1"
+                className="text-xs font-semibold text-[#00b4d8] hover:underline inline-flex items-center gap-1 shrink-0"
+                onClick={(e) => e.stopPropagation()}
               >
                 Journal workspace <ExternalLink className="w-3 h-3" />
               </Link>
-            }
-          >
-            Journals this period
-          </SectionLabel>
-          <Panel className="mb-8">
-            {journals.length === 0 ? (
-              <div className="px-6 py-10 text-center">
-                <p className="text-sm text-neutral-500 mb-4">
-                  No posted journals in {periodLabel}. Post entries or allocate bank lines so
-                  management accounts can build.
-                </p>
-                <Link
-                  href="/dashboard/accounting/journal-entries"
-                  className="btn-primary !py-2.5 !px-5 text-sm inline-flex items-center gap-2"
-                >
-                  <Plus className="w-4 h-4" /> Create journal
-                </Link>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-neutral-100 text-left text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
-                      <th className="px-4 py-3">Date</th>
-                      <th className="px-4 py-3">Ref</th>
-                      <th className="px-4 py-3">Memo</th>
-                      <th className="px-4 py-3">Source</th>
-                      <th className="px-4 py-3 text-right">Debit</th>
-                      <th className="px-4 py-3 text-right">Credit</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {journals.map((j) => (
-                      <tr
-                        key={j.id}
-                        className="border-b border-neutral-50 hover:bg-sky-50/40"
-                      >
-                        <td className="px-4 py-2.5 whitespace-nowrap text-slate-700">
-                          {j.entry_date
-                            ? new Date(j.entry_date).toLocaleDateString('en-ZA')
-                            : '—'}
-                        </td>
-                        <td className="px-4 py-2.5 font-mono text-xs text-slate-600">
-                          {j.document_number || j.reference || `#${j.id}`}
-                        </td>
-                        <td className="px-4 py-2.5 text-slate-800 max-w-[280px] truncate">
-                          {j.memo || '—'}
-                        </td>
-                        <td className="px-4 py-2.5 capitalize text-xs text-neutral-500">
-                          {String(j.source || 'manual').replace(/_/g, ' ')}
-                        </td>
-                        <td className="px-4 py-2.5 text-right tabular-nums text-slate-800">
-                          {formatMoney(j.total_debit ?? 0)}
-                        </td>
-                        <td className="px-4 py-2.5 text-right tabular-nums text-slate-800">
-                          {formatMoney(j.total_credit ?? 0)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <div className="px-4 py-3 text-[11px] text-neutral-500 border-t border-neutral-100 flex flex-wrap justify-between gap-2">
+            </div>
+
+            {!journalsOpen && (
+              <button
+                type="button"
+                onClick={() => setJournalsOpen(true)}
+                className="w-full px-4 py-3 text-left text-sm text-slate-600 hover:bg-sky-50/50 transition-colors"
+              >
+                {journals.length === 0 ? (
                   <span>
-                    {journals.length} posted journal
-                    {journals.length === 1 ? '' : 's'} feed this period&apos;s P&amp;L
+                    No posted journals in <strong>{periodLabel}</strong>. Expand for actions.
                   </span>
-                  <Link
-                    href="/dashboard/accounting/journal-entries"
-                    className="font-semibold text-[#00b4d8] hover:underline"
-                  >
-                    Open full journal entries →
-                  </Link>
-                </div>
-              </div>
+                ) : (
+                  <span>
+                    <strong className="text-slate-900">{journals.length}</strong> posted journal
+                    {journals.length === 1 ? '' : 's'} feed this period&apos;s P&amp;L — expand to
+                    browse.
+                  </span>
+                )}
+              </button>
+            )}
+
+            {journalsOpen && (
+              <>
+                {journals.length === 0 ? (
+                  <div className="px-6 py-10 text-center">
+                    <p className="text-sm text-neutral-500 mb-4">
+                      No posted journals in {periodLabel}. Post entries or allocate bank lines so
+                      management accounts can build.
+                    </p>
+                    <Link
+                      href="/dashboard/accounting/journal-entries"
+                      className="btn-primary !py-2.5 !px-5 text-sm inline-flex items-center gap-2"
+                    >
+                      <Plus className="w-4 h-4" /> Create journal
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-neutral-100 text-left text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
+                          <th className="px-4 py-3">Date</th>
+                          <th className="px-4 py-3">Ref</th>
+                          <th className="px-4 py-3">Memo</th>
+                          <th className="px-4 py-3">Source</th>
+                          <th className="px-4 py-3 text-right">Debit</th>
+                          <th className="px-4 py-3 text-right">Credit</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {journals.map((j) => (
+                          <tr
+                            key={j.id}
+                            className="border-b border-neutral-50 hover:bg-sky-50/40"
+                          >
+                            <td className="px-4 py-2.5 whitespace-nowrap text-slate-700">
+                              {j.entry_date
+                                ? new Date(j.entry_date).toLocaleDateString('en-ZA')
+                                : '—'}
+                            </td>
+                            <td className="px-4 py-2.5 font-mono text-xs text-slate-600">
+                              {j.document_number || j.reference || `#${j.id}`}
+                            </td>
+                            <td className="px-4 py-2.5 text-slate-800 max-w-[280px] truncate">
+                              {j.memo || '—'}
+                            </td>
+                            <td className="px-4 py-2.5 capitalize text-xs text-neutral-500">
+                              {String(j.source || 'manual').replace(/_/g, ' ')}
+                            </td>
+                            <td className="px-4 py-2.5 text-right tabular-nums text-slate-800">
+                              {formatMoney(j.total_debit ?? 0)}
+                            </td>
+                            <td className="px-4 py-2.5 text-right tabular-nums text-slate-800">
+                              {formatMoney(j.total_credit ?? 0)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <div className="px-4 py-3 text-[11px] text-neutral-500 border-t border-neutral-100 flex flex-wrap justify-between gap-2">
+                      <span>
+                        {journals.length} posted journal
+                        {journals.length === 1 ? '' : 's'} feed this period&apos;s P&amp;L
+                      </span>
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setJournalsOpen(false)}
+                          className="font-semibold text-slate-600 hover:text-slate-900"
+                        >
+                          Collapse
+                        </button>
+                        <Link
+                          href="/dashboard/accounting/journal-entries"
+                          className="font-semibold text-[#00b4d8] hover:underline"
+                        >
+                          Open full journal entries →
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </Panel>
 
