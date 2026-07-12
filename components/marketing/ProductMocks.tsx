@@ -367,6 +367,84 @@ export function AccountingMock() {
   );
 }
 
+export function SheqMock() {
+  return (
+    <Frame title="dashboard/sheq">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div>
+          <div className="text-[9px] font-bold uppercase tracking-widest text-amber-700">
+            SHEQ · Command
+          </div>
+          <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
+            Safety · Health · Environment · Quality
+          </div>
+        </div>
+        <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[9px] font-black uppercase text-amber-800">
+          ISO 45001
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-1.5 sm:gap-2 mb-3">
+        <Telemetry label="Incidents" value="2 open" tone="amber" />
+        <Telemetry label="NCRs" value="5" tone="violet" />
+        <Telemetry label="CAPAs" value="3" tone="cyan" />
+        <Telemetry label="QA holds" value="1 lot" tone="emerald" />
+      </div>
+      <div className="space-y-1.5">
+        {[
+          { t: 'Near-miss · cold store', s: 'Investigating', c: 'bg-amber-100 text-amber-800' },
+          { t: 'NCR · lot L-2041 fail', s: 'CAPA linked', c: 'bg-violet-100 text-violet-800' },
+          { t: 'Hazard · forklift zone', s: 'Score 12', c: 'bg-rose-100 text-rose-800' },
+        ].map((r) => (
+          <div
+            key={r.t}
+            className="flex items-center justify-between gap-2 rounded-xl border border-slate-100 bg-white px-2.5 py-2"
+          >
+            <span className="text-[11px] font-semibold text-slate-800 truncate">{r.t}</span>
+            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold ${r.c}`}>
+              {r.s}
+            </span>
+          </div>
+        ))}
+      </div>
+    </Frame>
+  );
+}
+
+export function QualityMock() {
+  return (
+    <Frame title="dashboard/quality">
+      <div className="text-[9px] font-bold uppercase tracking-widest text-[#00b4d8] mb-1">
+        Quality · Food safety
+      </div>
+      <div className="text-sm sm:text-base font-black text-slate-900 mb-3">
+        Inspect · hold · trace · recall.
+      </div>
+      <div className="grid grid-cols-2 gap-1.5 sm:gap-2 mb-3">
+        <Telemetry label="Open QA" value="4" tone="amber" />
+        <Telemetry label="Passed" value="128" tone="emerald" />
+        <Telemetry label="Lots" value="86" tone="cyan" />
+        <Telemetry label="CCPs" value="12" tone="violet" />
+      </div>
+      <div className="rounded-xl border border-slate-100 bg-white p-3">
+        <div className="text-[10px] font-bold text-slate-500 mb-2">Traceability graph</div>
+        <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+          {['SKU', 'Lot L-88', 'WH-CPT', 'Ship #41', 'HACCP'].map((n, i) => (
+            <span key={n} className="inline-flex items-center gap-1">
+              <span className="rounded-lg border border-cyan-100 bg-sky-50 px-2 py-1 font-bold text-slate-800">
+                {n}
+              </span>
+              {i < 4 && <span className="text-slate-300">→</span>}
+            </span>
+          ))}
+        </div>
+        <div className="mt-2 text-[10px] text-emerald-700 font-semibold">
+          Ship blocked on open hold · audit pack ready
+        </div>
+      </div>
+    </Frame>
+  );
+}
+
 export type ModuleDef = {
   id: string;
   code: string;

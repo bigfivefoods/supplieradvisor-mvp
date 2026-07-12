@@ -24,6 +24,12 @@ import {
   ShoppingCart,
   Workflow,
   ChevronRight,
+  HardHat,
+  ClipboardCheck,
+  Link2,
+  Star,
+  Fingerprint,
+  CreditCard,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import LandingNav from '@/components/marketing/LandingNav';
@@ -36,7 +42,14 @@ import {
   DistributionMock,
   IntelligenceMock,
   AccountingMock,
+  SheqMock,
+  QualityMock,
 } from '@/components/marketing/ProductMocks';
+import {
+  COMPANY_SUBSCRIPTION_MONTHLY_ZAR,
+  COMPANY_TRIAL_DAYS,
+} from '@/lib/billing/company-subscription';
+import { FOUNDING_FREE_COMPANY_LIMIT } from '@/lib/billing/lifetime';
 
 type PublicCompany = {
   id: number;
@@ -113,18 +126,38 @@ const MODULES = [
     icon: Ship,
   },
   {
-    id: 'fin',
+    id: 'sheq',
     code: '07',
-    title: 'Accounting',
+    title: 'SHEQ',
+    tagline: 'ISO 45001-ready control tower',
+    body: 'Incidents, hazard risk scores, NCRs and CAPAs in one hub — failed QA inspections auto-raise nonconformances so people, product, and process risk never live in separate silos.',
+    bullets: ['Incidents & near-misses', 'HIRARC hazard register', 'NCR + CAPA loop'],
+    Mock: SheqMock,
+    icon: HardHat,
+  },
+  {
+    id: 'qa',
+    code: '08',
+    title: 'Quality & food safety',
+    tagline: 'Inspect · hold · trace · recall',
+    body: 'Live inspections that block shipping on hold, HACCP plans with CCPs, lot pedigree graphs, recall drills, and auditor export packs — built for real release gates, not paperwork theatre.',
+    bullets: ['QA holds block ship', 'HACCP monitoring', 'Traceability + recall packs'],
+    Mock: QualityMock,
+    icon: ClipboardCheck,
+  },
+  {
+    id: 'fin',
+    code: '09',
+    title: 'Finance',
     tagline: 'One ledger of truth',
-    body: 'Double-entry CoA, journals, AR/AP, payments, bank import, tax, fixed assets, and management accounts — membership-scoped to your company.',
-    bullets: ['Double-entry GL', 'AR / AP / bank', 'Reports & management P&L'],
+    body: 'Double-entry CoA, journals, AR/AP, payments, bank import, VAT, fixed assets, and management accounts — membership-scoped to your company.',
+    bullets: ['Journals & GL', 'Bank allocation', 'Management accounts'],
     Mock: AccountingMock,
     icon: Wallet,
   },
   {
     id: 'bi',
-    code: '08',
+    code: '10',
     title: 'Intelligence',
     tagline: 'Signal over noise',
     body: 'Live pulse across network, supply, demand, finance, and ops — plus Super-Cube® leadership development for the humans who run the system.',
@@ -135,10 +168,43 @@ const MODULES = [
 ] as const;
 
 const STATS = [
-  { label: 'Modules', value: '20+' },
-  { label: 'From farm to fork', value: 'E2E' },
+  { label: 'Modules', value: '25+' },
+  { label: 'Free trial', value: `${COMPANY_TRIAL_DAYS}d` },
   { label: 'On-chain ready', value: 'Yes' },
-  { label: 'Multi-currency', value: 'Live' },
+  { label: 'From', value: `R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}` },
+];
+
+const TRUST_PILLARS = [
+  {
+    icon: Star,
+    title: 'Supplier ratings & OTIFEF',
+    body: 'Score every delivery on On-Time, In-Full, Error-Free — peer ratings and RIAD risk logs that follow the trading relationship.',
+  },
+  {
+    icon: Fingerprint,
+    title: 'On-chain pedigree',
+    body: 'Optional product passports and PO escrow when capital or authenticity must be proven — without forcing crypto on every workflow.',
+  },
+  {
+    icon: Link2,
+    title: 'Lot-level traceability',
+    body: 'Product → lot → warehouse → movement → QA/HACCP nodes. Mock recalls and hold gates before goods leave the gate.',
+  },
+  {
+    icon: HardHat,
+    title: 'SHEQ that operators use',
+    body: 'ISO 45001-style incidents and hazards plus ISO 9001-style NCR/CAPA — wired to the same inventory that runs the business.',
+  },
+  {
+    icon: ShieldCheck,
+    title: 'Verified companies',
+    body: 'CIPC-style verification and certificate metadata so counterparties know who they are trading with on the network.',
+  },
+  {
+    icon: CreditCard,
+    title: 'Simple ZAR billing',
+    body: `${COMPANY_TRIAL_DAYS}-day free trial, then R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo — or save up to 30% prepaid. First ${FOUNDING_FREE_COMPANY_LIMIT} companies free for life.`,
+  },
 ];
 
 export default function LandingPage() {
@@ -214,7 +280,9 @@ export default function LandingPage() {
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
                   <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
                 </span>
-                <span className="truncate">B2B · B2G · B2C · On-chain ready</span>
+                <span className="truncate">
+                  B2B · B2G · B2C · SHEQ · On-chain ready
+                </span>
               </div>
 
               <h1 className="mb-4 text-[2.15rem] font-black leading-[1.05] tracking-tight text-slate-900 sm:mb-6 sm:text-5xl md:text-6xl lg:text-[3.75rem] xl:text-[4.25rem] xl:tracking-[-0.045em]">
@@ -223,8 +291,10 @@ export default function LandingPage() {
               </h1>
 
               <p className="mx-auto mb-7 max-w-xl text-base leading-relaxed text-slate-600 sm:mb-8 sm:text-lg md:text-xl lg:mx-0">
-                Verified trade, inventory, manufacturing, distribution, accounting, and intelligence
-                — one light, precise workspace. Built for operators who refuse blind spots.
+                Verified trade, inventory, manufacturing, distribution,{' '}
+                <strong className="font-semibold text-slate-800">SHEQ & food safety</strong>,
+                finance, and intelligence — one light workspace where ratings, lots, and holds
+                actually block risk.
               </p>
 
               <div className="relative z-[2] mb-5 flex w-full flex-col gap-3 sm:mb-6 sm:flex-row sm:justify-center lg:justify-start">
@@ -232,7 +302,8 @@ export default function LandingPage() {
                   href="/onboarding?type=business"
                   className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#00b4d8] px-6 py-3.5 text-base font-semibold text-white shadow-lg shadow-cyan-500/20 transition-all touch-manipulation hover:bg-[#0099b8] active:scale-[0.99] sm:w-auto sm:px-8 sm:py-4 sm:text-lg"
                 >
-                  Start free <ArrowRight className="h-5 w-5 shrink-0" />
+                  Start {COMPANY_TRIAL_DAYS}-day free trial{' '}
+                  <ArrowRight className="h-5 w-5 shrink-0" />
                 </Link>
                 <button
                   type="button"
@@ -248,9 +319,11 @@ export default function LandingPage() {
                 </button>
               </div>
               <p className="text-xs text-slate-500 sm:text-sm">
-                Free company workspace · no card for beta ·{' '}
-                <Link href="/privacy" className="underline hover:text-[#0077b6]">
-                  Privacy
+                {COMPANY_TRIAL_DAYS}-day free trial · then from R
+                {COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo · first {FOUNDING_FREE_COMPANY_LIMIT} cos free
+                for life ·{' '}
+                <Link href="/pricing" className="font-semibold text-[#0077b6] underline">
+                  Pricing
                 </Link>
               </p>
 
@@ -303,10 +376,12 @@ export default function LandingPage() {
           <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-4 text-center">
             {[
               { icon: ShieldCheck, t: 'Company verification' },
-              { icon: Network, t: 'Secure trading graph' },
-              { icon: Package, t: 'Inventory + pedigree' },
-              { icon: Factory, t: 'MPS / MRP / BOM' },
-              { icon: Ship, t: 'Global logistics' },
+              { icon: Star, t: 'OTIFEF ratings' },
+              { icon: HardHat, t: 'SHEQ · ISO 45001' },
+              { icon: ClipboardCheck, t: 'QA holds & HACCP' },
+              { icon: Link2, t: 'Lot traceability' },
+              { icon: Fingerprint, t: 'On-chain ready' },
+              { icon: Wallet, t: 'Finance & journals' },
               { icon: Brain, t: 'Live intelligence' },
             ].map((item) => (
               <div
@@ -392,12 +467,16 @@ export default function LandingPage() {
             {[
               { icon: Warehouse, t: 'Containers', d: 'Retail outlet network' },
               { icon: Network, t: 'Connections', d: 'Company trading graph' },
-              { icon: ShieldCheck, t: 'Quality', d: 'HACCP & traceability' },
-              { icon: Leaf, t: 'Sustainability', d: 'Carbon & ethics' },
-              { icon: Users, t: 'My business', d: 'Profile, team, legal' },
+              { icon: HardHat, t: 'SHEQ', d: 'Incidents, NCR, CAPA' },
+              { icon: ClipboardCheck, t: 'Quality', d: 'HACCP & recall packs' },
+              { icon: Leaf, t: 'Impact', d: 'Carbon & ESG packs' },
+              { icon: Users, t: 'My business', d: 'Profile, team, billing' },
               { icon: Award, t: 'Projects', d: 'Portfolio & milestones' },
+              { icon: ShoppingCart, t: 'Sales portal', d: 'Contractors & commission' },
               { icon: Globe, t: 'Marketplace', d: 'Optional reach' },
               { icon: ShoppingCart, t: 'Buyer portal', d: 'Raise POs as buyer' },
+              { icon: BookOpen, t: 'Guide', d: 'In-app how-to paths' },
+              { icon: CreditCard, t: 'Billing', d: 'Trial + Paystack ZAR' },
             ].map((m) => (
               <div
                 key={m.t}
@@ -412,10 +491,59 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ─── TRUST LAYER ─── */}
+      <section
+        id="trust"
+        className="border-y border-slate-100 bg-white py-16 sm:py-20 md:py-24 px-4 sm:px-6 lg:px-10"
+      >
+        <div className="mx-auto max-w-screen-2xl">
+          <div className="mx-auto mb-10 max-w-3xl text-center sm:mb-14">
+            <p className="mb-3 text-[10px] font-black uppercase tracking-[0.2em] text-[#00b4d8] sm:text-xs">
+              Trust layer
+            </p>
+            <h2 className="mb-4 text-3xl font-black tracking-tight text-slate-900 sm:text-4xl md:text-5xl md:tracking-[-0.04em]">
+              Why operators join — and stay
+            </h2>
+            <p className="text-base leading-relaxed text-slate-600 sm:text-lg">
+              Not another dashboard. A system where verification, ratings, lots, and SHEQ
+              controls show up in the same place you buy, make, and ship.
+            </p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 sm:gap-5">
+            {TRUST_PILLARS.map((p) => (
+              <div
+                key={p.title}
+                className="rounded-2xl border border-slate-200 bg-[#f8fafc] p-5 sm:rounded-3xl sm:p-6 hover:border-[#00b4d8]/40 hover:shadow-md transition-all"
+              >
+                <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-sky-100 text-[#00b4d8]">
+                  <p.icon className="h-5 w-5" />
+                </div>
+                <h3 className="text-lg font-black text-slate-900 mb-2">{p.title}</h3>
+                <p className="text-sm text-slate-600 leading-relaxed">{p.body}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
+            <Link
+              href="/onboarding?type=business"
+              className="inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-6 py-3 text-sm font-bold text-white shadow-sm hover:bg-[#0099b8]"
+            >
+              Claim free trial <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link
+              href="/pricing"
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-6 py-3 text-sm font-bold text-slate-800 hover:border-[#00b4d8]"
+            >
+              See pricing tiers
+            </Link>
+          </div>
+        </div>
+      </section>
+
       {/* ─── HOW IT WORKS ─── */}
       <section
         id="how-it-works"
-        className="py-16 sm:py-20 md:py-24 px-4 sm:px-6 lg:px-10 bg-white border-y border-slate-100"
+        className="py-16 sm:py-20 md:py-24 px-4 sm:px-6 lg:px-10 bg-[#f8fafc] border-y border-slate-100"
       >
         <div className="max-w-screen-2xl mx-auto">
           <div className="text-center max-w-2xl mx-auto mb-12 sm:mb-16">
@@ -423,25 +551,30 @@ export default function LandingPage() {
               How it works
             </p>
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-[-0.04em] text-slate-900">
-              Three steps to live ops
+              Four steps to live ops
             </h2>
           </div>
-          <div className="grid md:grid-cols-3 gap-4 sm:gap-6">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
             {[
               {
                 n: '01',
-                t: 'Verify company',
-                b: 'Onboard identity, certificates, and location. Multi-company groups get separate workspaces.',
+                t: 'Register & verify',
+                b: 'Company profile, team, certificates. Multi-entity groups get separate workspaces.',
               },
               {
                 n: '02',
                 t: 'Connect & trade',
-                b: 'Discover or invite counterparties. Accept handshakes. Raise POs, share docs, set pricing.',
+                b: 'Discover or invite partners. Handshakes, POs, docs, and OTIFEF scorecards.',
               },
               {
                 n: '03',
-                t: 'Operate & prove',
-                b: 'Inventory, manufacturing, distribution, accounting, and intelligence — with OTIFEF and audit trails.',
+                t: 'Operate the chain',
+                b: 'Inventory, manufacturing, distribution, finance — one membership-scoped OS.',
+              },
+              {
+                n: '04',
+                t: 'Prove & improve',
+                b: 'SHEQ incidents, QA holds, traceability, CAPA, and auditor packs when it matters.',
               },
             ].map((step) => (
               <div
@@ -472,9 +605,11 @@ export default function LandingPage() {
                 </p>
                 <ul className="space-y-2.5 mb-8">
                   {[
-                    'Verified counterparties and measurable OTIFEF',
+                    'Verified counterparties and measurable OTIFEF ratings',
+                    'Lot holds, HACCP, and SHEQ NCR/CAPA on the same stock',
                     'Multi-company accounts for groups & brands',
                     'On-chain options when capital or pedigree must be proven',
+                    `${COMPANY_TRIAL_DAYS}-day free trial · from R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo · founding ${FOUNDING_FREE_COMPANY_LIMIT} free for life`,
                   ].map((t) => (
                     <li key={t} className="flex gap-2.5 text-sm text-slate-700">
                       <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
@@ -774,9 +909,10 @@ export default function LandingPage() {
               <div className="mb-8 flex flex-wrap items-center justify-center gap-2 sm:mb-9 sm:gap-2.5">
                 {[
                   { icon: ShieldCheck, label: 'Verified network' },
-                  { icon: Leaf, label: 'Ethics by design' },
+                  { icon: HardHat, label: 'SHEQ + HACCP' },
+                  { icon: Link2, label: 'Traceability' },
+                  { icon: Fingerprint, label: 'On-chain ready' },
                   { icon: Globe, label: 'B2B · B2G · B2C' },
-                  { icon: CheckCircle2, label: 'Live in minutes' },
                 ].map((chip) => (
                   <span
                     key={chip.label}
@@ -809,11 +945,11 @@ export default function LandingPage() {
                 <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs text-slate-500 sm:text-sm">
                   <span className="inline-flex items-center gap-1.5 font-medium text-slate-600">
                     <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" aria-hidden />
-                    Free company workspace
+                    {COMPANY_TRIAL_DAYS}-day free trial
                   </span>
                   <span className="hidden h-1 w-1 rounded-full bg-slate-300 sm:inline-block" aria-hidden />
                   <span className="inline-flex items-center gap-1.5">
-                    No card required for beta
+                    From R{COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo · Paystack
                   </span>
                   <span className="hidden h-1 w-1 rounded-full bg-slate-300 sm:inline-block" aria-hidden />
                   <span className="inline-flex items-center gap-x-2">
@@ -849,7 +985,8 @@ export default function LandingPage() {
                 SupplierAdvisor®
               </div>
               <p className="text-sm text-white/50 max-w-xs leading-relaxed">
-                Verified, transparent supply-chain operating system for B2B, B2G, and B2C.
+                Verified supply-chain OS — trade, ops, SHEQ, finance, and on-chain pedigree for B2B,
+                B2G, and B2C.
               </p>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-6 sm:gap-10 text-sm">
