@@ -19,6 +19,7 @@ import {
   Ship,
   Landmark,
   ClipboardCheck,
+  HardHat,
   FolderKanban,
   Leaf,
   Brain,
@@ -238,11 +239,26 @@ export const MODULE_NAV: readonly ModuleNav[] = [
     ],
   },
   {
+    id: 'sheq',
+    name: 'SHEQ',
+    icon: HardHat,
+    href: '/dashboard/sheq',
+    resource: 'sheq',
+    steps: [
+      { name: 'Overview', href: '/dashboard/sheq', exact: true },
+      { name: 'Incidents', href: '/dashboard/sheq/incidents' },
+      { name: 'Hazards', href: '/dashboard/sheq/hazards' },
+      { name: 'NCR', href: '/dashboard/sheq/ncrs' },
+      { name: 'CAPA', href: '/dashboard/sheq/capas' },
+      { name: 'Quality', href: '/dashboard/quality' },
+    ],
+  },
+  {
     id: 'quality',
     name: 'Quality',
     icon: ClipboardCheck,
     href: '/dashboard/quality',
-    resource: 'operations',
+    resource: 'sheq',
     steps: [
       { name: 'Overview', href: '/dashboard/quality', exact: true },
       { name: 'Inspect', href: '/dashboard/quality/inspections' },
@@ -250,6 +266,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Trace', href: '/dashboard/quality/traceability-graph' },
       { name: 'Recall', href: '/dashboard/quality/recall-simulator' },
       { name: 'Export', href: '/dashboard/quality/regulatory-reports' },
+      { name: 'SHEQ', href: '/dashboard/sheq' },
     ],
   },
   {

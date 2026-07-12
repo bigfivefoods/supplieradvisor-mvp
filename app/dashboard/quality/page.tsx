@@ -28,6 +28,14 @@ import { getSelectedCompanyId } from '@/lib/containers/company';
 
 const MODULES: HubModule[] = [
   {
+    href: '/dashboard/sheq',
+    icon: ShieldCheck,
+    code: '00',
+    title: 'SHEQ command',
+    desc: 'ISO 45001 incidents, hazards, NCR & CAPA — failed inspections auto-raise NCR.',
+    accent: 'from-amber-50 to-white border-amber-100',
+  },
+  {
     href: '/dashboard/quality/inspections',
     icon: Search,
     code: '01',

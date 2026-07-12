@@ -47,7 +47,9 @@ export type PermissionResource =
   | 'intelligence'
   | 'buyer'
   /** Independent sales contractor portal (/sales) */
-  | 'sales_portal';
+  | 'sales_portal'
+  /** SHEQ — OH&S, NCR/CAPA, quality assurance */
+  | 'sheq';
 
 const ALL_RESOURCES: PermissionResource[] = [
   'dashboard',
@@ -74,6 +76,7 @@ const ALL_RESOURCES: PermissionResource[] = [
   'intelligence',
   'buyer',
   'sales_portal',
+  'sheq',
 ];
 
 const LEVEL_RANK: Record<AccessLevel, number> = {
@@ -137,6 +140,7 @@ export const ROLE_PERMISSIONS: Record<TeamRole, Record<PermissionResource, Acces
     containers: 'write',
     manufacturing: 'write',
     distribution: 'write',
+    sheq: 'write',
     invites: 'none',
   },
   sales: {
@@ -316,7 +320,8 @@ export const SIDEBAR_MODULE_RESOURCE: Record<string, PermissionResource> = {
   manufacturing: 'manufacturing',
   distribution: 'distribution',
   accounting: 'accounting',
-  quality: 'operations',
+  quality: 'sheq',
+  sheq: 'sheq',
   projects: 'projects',
   sustainability: 'operations',
   intelligence: 'intelligence',
@@ -358,7 +363,8 @@ export function resourceForPath(pathname: string | null | undefined): Permission
   }
   if (pathname.startsWith('/dashboard/intelligence')) return 'intelligence';
   if (pathname.startsWith('/dashboard/guide')) return 'dashboard';
-  if (pathname.startsWith('/dashboard/quality')) return 'operations';
+  if (pathname.startsWith('/dashboard/quality')) return 'sheq';
+  if (pathname.startsWith('/dashboard/sheq')) return 'sheq';
   if (pathname.startsWith('/dashboard/projects')) return 'projects';
   if (pathname.startsWith('/dashboard/sustainability')) return 'operations';
   if (pathname.startsWith('/dashboard/invite-business')) return 'network';
@@ -438,6 +444,7 @@ export function resourceLabel(resource: PermissionResource): string {
     intelligence: 'Intelligence',
     buyer: 'Buyer portal',
     sales_portal: 'Sales contractor portal',
+    sheq: 'SHEQ',
   };
   return map[resource];
 }

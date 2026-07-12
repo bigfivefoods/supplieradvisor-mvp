@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
     const _gate = await requireCompanyPermission(
       request,
       companyId,
-      'operations',
+      'sheq',
       'view',
       { legacyPrivyUserId: legacyPrivyFrom(request) }
     );
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
     const gate = await requireCompanyPermission(
       request,
       companyId,
-      'operations',
+      'sheq',
       'write',
       { legacyPrivyUserId: legacyPrivyFrom(request, body) }
     );
@@ -193,7 +193,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ success: true, inspection: data }, { status: 201 });
+    let sheq: { ncrId: number | null; capaId: number | null; created: boolean } | null =
+      null;
+    if (status === 'failed') {
+      const { ensureNcrForFailedInspection } = await import(
+        '@/lib/sheq/from-inspection'
+      );
+      const raised = await ensureNcrForFailedInspection({
+        companyId,
+        actorUserId: gate.userId,
+        inspection: data,
+        createCapa: true,
+      });
+      sheq = {
+        ncrId: raised.ncrId,
+        capaId: raised.capaId,
+        created: raised.created,
+      };
+    }
+
+    return NextResponse.json(
+      { success: true, inspection: data, sheq },
+      { status: 201 }
+    );
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },
@@ -213,7 +235,7 @@ export async function PATCH(request: NextRequest) {
     const gate = await requireCompanyPermission(
       request,
       companyId,
-      'operations',
+      'sheq',
       'write',
       { legacyPrivyUserId: legacyPrivyFrom(request, body) }
     );
@@ -278,7 +300,26 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ success: true, inspection: data });
+    let sheq: { ncrId: number | null; capaId: number | null; created: boolean } | null =
+      null;
+    if (data.status === 'failed') {
+      const { ensureNcrForFailedInspection } = await import(
+        '@/lib/sheq/from-inspection'
+      );
+      const raised = await ensureNcrForFailedInspection({
+        companyId,
+        actorUserId: gate.userId,
+        inspection: data,
+        createCapa: true,
+      });
+      sheq = {
+        ncrId: raised.ncrId,
+        capaId: raised.capaId,
+        created: raised.created,
+      };
+    }
+
+    return NextResponse.json({ success: true, inspection: data, sheq });
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },
