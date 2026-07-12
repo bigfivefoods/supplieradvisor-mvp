@@ -1,13 +1,18 @@
 'use client';
 
-import Breadcrumb from '@/components/ui/Breadcrumb';
+import Image from 'next/image';
+import Link from 'next/link';
 import {
   ArrowRight,
   CheckCircle2,
-  CreditCard,
   Shield,
   Sparkles,
   Building2,
+  Users,
+  Zap,
+  Globe2,
+  CreditCard,
+  Clock,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import {
@@ -15,160 +20,441 @@ import {
   COMPANY_SUBSCRIPTION_MONTHLY_ZAR,
   COMPANY_TRIAL_DAYS,
   formatZar,
+  type BillingTerm,
 } from '@/lib/billing/company-subscription';
 import { FOUNDING_FREE_COMPANY_LIMIT } from '@/lib/billing/lifetime';
 
-const FEATURES = [
+const INCLUDED = [
   'Unlimited team users per company',
-  'Full ERP — procurement, CRM, finance, inventory',
-  'Quality, manufacturing & distribution modules',
-  'On-chain verification & supplier network',
-  'Invoices, quotes & bank tools',
-  'Prepaid annual discounts up to 30%',
-  `First ${FOUNDING_FREE_COMPANY_LIMIT} companies — free for life`,
+  'Procurement, CRM, finance & inventory',
+  'Quality, manufacturing & distribution',
+  'On-chain verification & trade network',
+  'Quotes, invoices & bank tools',
+  'Secure Paystack billing in ZAR',
 ];
+
+const HIGHLIGHTS = [
+  {
+    icon: Clock,
+    title: `${COMPANY_TRIAL_DAYS}-day free trial`,
+    body: 'Full platform access. No card required to start.',
+  },
+  {
+    icon: Building2,
+    title: 'One flat company fee',
+    body: 'No per-seat pricing. Invite your whole team.',
+  },
+  {
+    icon: Zap,
+    title: 'Prepaid multi-year savings',
+    body: '15% for 1 year · 25% for 2 years · 30% for 3 years.',
+  },
+  {
+    icon: Globe2,
+    title: 'Built for African trade',
+    body: 'ZAR billing, local verification, network commerce.',
+  },
+];
+
+function termCta(t: BillingTerm): string {
+  if (t.id === 'monthly') return 'Start monthly';
+  if (t.id === '3y') return 'Lock in 3 years';
+  if (t.id === '2y') return 'Choose 2 years';
+  return 'Choose 1 year';
+}
 
 export default function Pricing() {
   const router = useRouter();
+  const annual = BILLING_TERMS.find((t) => t.id === '1y')!;
+  const best = BILLING_TERMS.find((t) => t.id === '3y')!;
 
   return (
-    <div className="pl-0 pr-6 sm:pr-12 py-12 bg-[#f8fafc] min-h-[70vh]">
-      <Breadcrumb />
-      <h1 className="text-5xl sm:text-6xl font-black tracking-[-2px] sm:tracking-[-3px] text-[#00b4d8] mb-4">
-        Pricing
-      </h1>
-      <p className="text-slate-600 text-lg max-w-2xl mb-12">
-        One simple company plan. Start free for {COMPANY_TRIAL_DAYS} days — then
-        R{COMPANY_SUBSCRIPTION_MONTHLY_ZAR} per month. No per-user fees.
-      </p>
-
-      <div className="max-w-4xl mx-auto grid gap-8 lg:grid-cols-5 items-stretch">
-        <div className="lg:col-span-3 card p-8 sm:p-12 text-center relative overflow-hidden">
-          <div className="inline-flex items-center gap-2 rounded-full bg-sky-100 border border-sky-200 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-sky-800 mb-6">
-            <Sparkles className="w-3.5 h-3.5" />
-            Company plan
-          </div>
-          <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-slate-900">
-            Full SupplierAdvisor access
-          </h2>
-          <p className="text-5xl sm:text-6xl font-black text-[#00b4d8]">
-            {COMPANY_TRIAL_DAYS}-day free trial
-          </p>
-          <p className="text-xl sm:text-2xl text-slate-600 mt-4">
-            Then from{' '}
-            <strong className="text-slate-900">
-              R{COMPANY_SUBSCRIPTION_MONTHLY_ZAR}
-            </strong>{' '}
-            per company per month
-          </p>
-          <p className="text-slate-500 mt-6 text-sm sm:text-base">
-            Unlimited users · Full ERP · Save up to 30% prepaid
-          </p>
-
-          <div className="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-2 text-left">
-            {BILLING_TERMS.map((t) => (
-              <div
-                key={t.id}
-                className="rounded-2xl border border-slate-200 bg-white px-3 py-3"
-              >
-                <div className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
-                  {t.label}
-                </div>
-                <div className="text-lg font-black text-slate-900 mt-1">
-                  {formatZar(t.payZar)}
-                </div>
-                {t.discountPercent > 0 ? (
-                  <div className="text-[10px] font-semibold text-emerald-700 mt-0.5">
-                    −{t.discountPercent}% · save {formatZar(t.savingsZar)}
-                  </div>
-                ) : (
-                  <div className="text-[10px] text-slate-500 mt-0.5">
-                    list / month
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-
-          <ul className="mt-8 text-left space-y-2.5 max-w-md mx-auto">
-            {FEATURES.map((f) => (
-              <li key={f} className="flex gap-2 text-sm text-slate-700">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                {f}
-              </li>
-            ))}
-          </ul>
-
-          <button
-            type="button"
-            onClick={() => router.push('/onboarding')}
-            className="btn-primary w-full py-5 sm:py-6 mt-10 text-lg sm:text-xl inline-flex items-center justify-center gap-2"
-          >
-            Start {COMPANY_TRIAL_DAYS}-day free trial
-            <ArrowRight className="w-5 h-5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => router.push('/dashboard/my-business/billing')}
-            className="mt-3 w-full py-3 rounded-2xl border border-slate-200 bg-white text-slate-700 font-semibold text-sm hover:bg-slate-50 inline-flex items-center justify-center gap-2"
-          >
-            <CreditCard className="w-4 h-4" />
-            Manage billing in My Business
-          </button>
-          <p className="mt-4 text-[11px] text-slate-500 flex items-center justify-center gap-1">
-            <Shield className="w-3 h-3" />
-            No card required for trial · cancel anytime
-          </p>
+    <div className="min-h-screen bg-[#f8fafc] text-slate-900">
+      {/* Standalone marketing header — no dashboard chrome */}
+      <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur-md">
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+          <Link href="/" className="flex min-w-0 items-center gap-2.5">
+            <Image
+              src="/sa-logo.png"
+              alt="SupplierAdvisor"
+              width={40}
+              height={40}
+              className="h-9 w-9 rounded-2xl object-contain"
+              priority
+            />
+            <span className="truncate text-lg font-black tracking-tight text-slate-900 sm:text-xl">
+              SupplierAdvisor<span className="text-[#00b4d8]">®</span>
+            </span>
+          </Link>
+          <nav className="flex items-center gap-2 sm:gap-3">
+            <Link
+              href="/"
+              className="hidden sm:inline-flex px-3 py-2 text-sm font-semibold text-slate-600 hover:text-slate-900"
+            >
+              Home
+            </Link>
+            <Link
+              href="/login?next=/dashboard/select-company"
+              className="px-3 py-2 text-sm font-semibold text-slate-600 hover:text-slate-900"
+            >
+              Log in
+            </Link>
+            <button
+              type="button"
+              onClick={() => router.push('/onboarding')}
+              className="inline-flex items-center gap-1.5 rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-white shadow-sm shadow-sky-200/60 hover:bg-[#0096c7] transition-colors"
+            >
+              Start free
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </nav>
         </div>
+      </header>
 
-        <div className="lg:col-span-2 space-y-4">
-          <div className="card p-6">
-            <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
-              <Building2 className="w-4 h-4 text-[#00b4d8]" />
-              How it works
+      <main>
+        {/* Hero */}
+        <section className="relative overflow-hidden">
+          <div
+            className="pointer-events-none absolute inset-0 opacity-70"
+            style={{
+              background:
+                'radial-gradient(ellipse 80% 60% at 50% -10%, rgba(0,180,216,0.18), transparent 55%), radial-gradient(ellipse 50% 40% at 100% 20%, rgba(251,191,36,0.12), transparent 50%)',
+            }}
+          />
+          <div className="relative mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pt-14 sm:pt-20 pb-10 sm:pb-14 text-center">
+            <div className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-wider text-sky-800 mb-6">
+              <Sparkles className="w-3.5 h-3.5" />
+              Simple company pricing
             </div>
-            <ol className="mt-4 space-y-3 text-sm text-slate-600 list-decimal list-inside">
-              <li>Register your company (free trial starts automatically).</li>
-              <li>
-                Use the full platform for {COMPANY_TRIAL_DAYS} days with no
-                charge.
-              </li>
-              <li>
-                Subscribe in{' '}
-                <strong className="text-slate-800">My Business → Billing</strong>{' '}
-                — monthly or prepaid multi-year via Paystack.
-              </li>
-              <li>
-                Save 15% (1 year), 25% (2 years), or 30% (3 years) when you pay
-                upfront.
-              </li>
-            </ol>
-          </div>
-          <div className="card p-6 bg-gradient-to-br from-sky-50 to-white border-sky-100">
-            <div className="text-4xl font-black text-slate-900">
-              R{COMPANY_SUBSCRIPTION_MONTHLY_ZAR}
-              <span className="text-base font-semibold text-slate-500">
-                /mo
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-[-1.5px] sm:tracking-[-2px] text-slate-900 max-w-3xl mx-auto leading-[1.08]">
+              One plan. Full platform.
+              <span className="block text-[#00b4d8] mt-1">
+                {COMPANY_TRIAL_DAYS} days free, then from R
+                {COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo
               </span>
+            </h1>
+            <p className="mt-5 text-base sm:text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed">
+              Unlimited users per company. No per-seat fees. Pay monthly or
+              prepay and save up to <strong className="text-slate-800">30%</strong>{' '}
+              — secure checkout with Paystack in South African Rand.
+            </p>
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => router.push('/onboarding')}
+                className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-[#00b4d8] to-[#0077b6] px-7 py-3.5 text-base font-black text-white shadow-xl shadow-sky-200/50 hover:opacity-95 transition"
+              >
+                Start {COMPANY_TRIAL_DAYS}-day free trial
+                <ArrowRight className="w-5 h-5" />
+              </button>
+              <a
+                href="#tiers"
+                className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-6 py-3.5 text-base font-bold text-slate-700 hover:bg-slate-50 transition"
+              >
+                Compare tiers
+              </a>
             </div>
-            <p className="mt-2 text-sm text-slate-600">
-              List monthly rate. Prepaid terms discount the full period total —
-              e.g. 3 years for {formatZar(BILLING_TERMS.find((t) => t.id === '3y')!.payZar)}.
+            <p className="mt-4 text-xs text-slate-500 inline-flex items-center gap-1.5 justify-center">
+              <Shield className="w-3.5 h-3.5" />
+              No card required for trial · Cancel anytime · First{' '}
+              {FOUNDING_FREE_COMPANY_LIMIT} companies free for life
             </p>
           </div>
-          <div className="card p-6 bg-gradient-to-br from-violet-50 to-amber-50 border-violet-100">
-            <div className="text-sm font-bold uppercase tracking-wide text-violet-800">
-              Founding partners
-            </div>
-            <p className="mt-2 text-sm text-slate-700">
-              The first <strong>{FOUNDING_FREE_COMPANY_LIMIT}</strong> companies
-              on SupplierAdvisor receive <strong>lifetime free access</strong> —
-              no card, no monthly fee. After that, standard trial + R
-              {COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo applies.
+        </section>
+
+        {/* Pricing tiers */}
+        <section id="tiers" className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pb-16 sm:pb-20">
+          <div className="text-center mb-10">
+            <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">
+              Choose your billing tier
+            </h2>
+            <p className="mt-2 text-slate-600 text-sm sm:text-base max-w-xl mx-auto">
+              Same full product on every tier. Longer prepaid terms unlock bigger
+              discounts off the R{COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/month list rate.
             </p>
           </div>
+
+          <div className="grid gap-4 sm:gap-5 sm:grid-cols-2 xl:grid-cols-4">
+            {BILLING_TERMS.map((t) => {
+              const featured = t.id === '1y';
+              const bestValue = t.id === '3y';
+              return (
+                <div
+                  key={t.id}
+                  className={`relative flex flex-col rounded-[1.75rem] border bg-white p-6 sm:p-7 shadow-sm transition hover:shadow-md ${
+                    featured
+                      ? 'border-[#00b4d8] ring-2 ring-[#00b4d8]/25 xl:-translate-y-1 shadow-sky-100/80'
+                      : bestValue
+                        ? 'border-amber-200 bg-gradient-to-b from-amber-50/80 to-white'
+                        : 'border-slate-200'
+                  }`}
+                >
+                  {(featured || bestValue) && (
+                    <div
+                      className={`absolute -top-3 left-1/2 -translate-x-1/2 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider text-white shadow ${
+                        bestValue
+                          ? 'bg-gradient-to-r from-amber-500 to-orange-500'
+                          : 'bg-gradient-to-r from-[#00b4d8] to-[#0077b6]'
+                      }`}
+                    >
+                      {bestValue ? 'Best value' : 'Most popular'}
+                    </div>
+                  )}
+
+                  <div className="text-sm font-bold text-slate-500 uppercase tracking-wide">
+                    {t.label}
+                  </div>
+                  <div className="mt-3 flex items-baseline gap-1">
+                    <span className="text-4xl font-black tracking-tight text-slate-900">
+                      {formatZar(t.payZar)}
+                    </span>
+                    <span className="text-sm font-semibold text-slate-500">
+                      {t.months === 1 ? '/mo' : ' prepaid'}
+                    </span>
+                  </div>
+
+                  {t.discountPercent > 0 ? (
+                    <div className="mt-2 space-y-0.5">
+                      <div className="text-sm text-slate-500 line-through">
+                        {formatZar(t.listZar)} list
+                      </div>
+                      <div className="inline-flex items-center rounded-full bg-emerald-100 border border-emerald-200 px-2.5 py-0.5 text-xs font-bold text-emerald-800">
+                        Save {t.discountPercent}% · {formatZar(t.savingsZar)}
+                      </div>
+                      <div className="text-xs text-slate-500 pt-1">
+                        ~{formatZar(Math.round(t.effectiveMonthlyZar))}/mo effective
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-2 text-sm text-slate-500">
+                      Flexible month-to-month · list rate
+                    </div>
+                  )}
+
+                  <ul className="mt-5 space-y-2 flex-1">
+                    <li className="flex gap-2 text-sm text-slate-700">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                      {t.months === 1
+                        ? '1 month access'
+                        : `${t.months} months access`}
+                    </li>
+                    <li className="flex gap-2 text-sm text-slate-700">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                      Full ERP for one company
+                    </li>
+                    <li className="flex gap-2 text-sm text-slate-700">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                      Unlimited users
+                    </li>
+                    {t.discountPercent > 0 && (
+                      <li className="flex gap-2 text-sm text-slate-700">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                        {t.discountPercent}% prepaid discount
+                      </li>
+                    )}
+                  </ul>
+
+                  <button
+                    type="button"
+                    onClick={() => router.push('/onboarding')}
+                    className={`mt-6 w-full inline-flex items-center justify-center gap-2 rounded-2xl py-3 text-sm font-black transition ${
+                      featured
+                        ? 'bg-gradient-to-r from-[#00b4d8] to-[#0077b6] text-white shadow-lg shadow-sky-200/40'
+                        : bestValue
+                          ? 'bg-slate-900 text-white hover:bg-slate-800'
+                          : 'border border-slate-200 bg-white text-slate-800 hover:bg-slate-50'
+                    }`}
+                  >
+                    {termCta(t)}
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+
+          <p className="mt-6 text-center text-sm text-slate-500">
+            After trial, subscribe in{' '}
+            <Link
+              href="/dashboard/my-business/billing"
+              className="font-semibold text-[#00b4d8] hover:underline"
+            >
+              My Business → Billing
+            </Link>{' '}
+            and pick any tier. Early renewals extend your access period.
+          </p>
+        </section>
+
+        {/* What's included */}
+        <section className="border-y border-slate-200/80 bg-white">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-14 sm:py-16">
+            <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-start">
+              <div>
+                <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">
+                  Everything included
+                </h2>
+                <p className="mt-3 text-slate-600 leading-relaxed">
+                  Every tier is the same product — the full SupplierAdvisor supply-chain
+                  operating system for your company workspace.
+                </p>
+                <ul className="mt-6 grid sm:grid-cols-2 gap-3">
+                  {INCLUDED.map((f) => (
+                    <li
+                      key={f}
+                      className="flex gap-2.5 text-sm text-slate-700 bg-slate-50 border border-slate-100 rounded-2xl px-3.5 py-3"
+                    >
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="grid sm:grid-cols-2 gap-4">
+                {HIGHLIGHTS.map((h) => (
+                  <div
+                    key={h.title}
+                    className="rounded-[1.5rem] border border-slate-200 bg-[#f8fafc] p-5"
+                  >
+                    <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-sky-100 text-[#00b4d8]">
+                      <h.icon className="w-5 h-5" />
+                    </div>
+                    <h3 className="mt-3 font-bold text-slate-900">{h.title}</h3>
+                    <p className="mt-1.5 text-sm text-slate-600 leading-relaxed">
+                      {h.body}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Founding + how it works */}
+        <section className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-14 sm:py-16">
+          <div className="grid lg:grid-cols-3 gap-5">
+            <div className="lg:col-span-2 rounded-[2rem] border border-violet-200 bg-gradient-to-br from-violet-50 via-white to-amber-50 p-7 sm:p-9">
+              <div className="inline-flex items-center gap-2 rounded-full bg-violet-100 border border-violet-200 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-violet-800">
+                <Users className="w-3.5 h-3.5" />
+                Founding partners
+              </div>
+              <h2 className="mt-4 text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+                First {FOUNDING_FREE_COMPANY_LIMIT} companies — free for life
+              </h2>
+              <p className="mt-3 text-slate-700 leading-relaxed max-w-xl">
+                Early companies on SupplierAdvisor receive complimentary lifetime
+                access. After the founding cohort fills, standard trial + paid tiers
+                apply from R{COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/month.
+              </p>
+              <button
+                type="button"
+                onClick={() => router.push('/onboarding')}
+                className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-slate-900 text-white font-bold text-sm px-5 py-3 hover:bg-slate-800 transition"
+              >
+                Claim your free lifetime slot
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="rounded-[2rem] border border-slate-200 bg-white p-7 sm:p-8">
+              <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
+                <CreditCard className="w-4 h-4 text-[#00b4d8]" />
+                How billing works
+              </div>
+              <ol className="mt-5 space-y-4 text-sm text-slate-600">
+                <li className="flex gap-3">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-100 text-xs font-black text-sky-800">
+                    1
+                  </span>
+                  <span>
+                    Register your company — trial starts automatically for{' '}
+                    {COMPANY_TRIAL_DAYS} days.
+                  </span>
+                </li>
+                <li className="flex gap-3">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-100 text-xs font-black text-sky-800">
+                    2
+                  </span>
+                  <span>
+                    Use the full platform with your team (unlimited users).
+                  </span>
+                </li>
+                <li className="flex gap-3">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-100 text-xs font-black text-sky-800">
+                    3
+                  </span>
+                  <span>
+                    Pick a tier in Billing — monthly or prepaid multi-year via
+                    Paystack.
+                  </span>
+                </li>
+              </ol>
+              <div className="mt-6 rounded-2xl bg-slate-50 border border-slate-100 px-4 py-3 text-xs text-slate-600">
+                Popular: {annual.label} at {formatZar(annual.payZar)} (−15%).
+                Best value: {best.label} at {formatZar(best.payZar)} (−30%).
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Bottom CTA */}
+        <section className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pb-16 sm:pb-20">
+          <div className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-[#0077b6] via-[#00b4d8] to-sky-400 px-6 sm:px-12 py-12 sm:py-14 text-center text-white shadow-xl shadow-sky-200/40">
+            <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_20%_20%,white,transparent_45%)]" />
+            <div className="relative">
+              <h2 className="text-2xl sm:text-4xl font-black tracking-tight">
+                Ready to run your supply chain?
+              </h2>
+              <p className="mt-3 text-white/90 max-w-lg mx-auto text-sm sm:text-base">
+                Start free for {COMPANY_TRIAL_DAYS} days. Upgrade when you&apos;re
+                ready — or join the first {FOUNDING_FREE_COMPANY_LIMIT} for lifetime
+                free access.
+              </p>
+              <button
+                type="button"
+                onClick={() => router.push('/onboarding')}
+                className="mt-8 inline-flex items-center gap-2 rounded-2xl bg-white text-[#0077b6] font-black text-base px-8 py-4 shadow-lg hover:bg-sky-50 transition"
+              >
+                Start free trial
+                <ArrowRight className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer className="border-t border-slate-200 bg-white">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-slate-500">
+          <div className="flex items-center gap-2">
+            <Image
+              src="/sa-logo.png"
+              alt=""
+              width={28}
+              height={28}
+              className="rounded-xl"
+            />
+            <span className="font-semibold text-slate-700">
+              SupplierAdvisor®
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-4">
+            <Link href="/" className="hover:text-slate-900">
+              Home
+            </Link>
+            <Link href="/terms" className="hover:text-slate-900">
+              Terms
+            </Link>
+            <Link href="/privacy" className="hover:text-slate-900">
+              Privacy
+            </Link>
+            <Link href="/login" className="hover:text-slate-900">
+              Log in
+            </Link>
+          </div>
+          <p className="text-xs">
+            © {new Date().getFullYear()} SupplierAdvisor. All rights reserved.
+          </p>
         </div>
-      </div>
+      </footer>
     </div>
   );
 }

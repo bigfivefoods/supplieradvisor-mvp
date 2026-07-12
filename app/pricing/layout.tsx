@@ -13,6 +13,7 @@ export const metadata: Metadata = {
   },
 };
 
+/** Standalone marketing shell — no dashboard sidebar / breadcrumb chrome. */
 export default function PricingLayout({ children }: { children: React.ReactNode }) {
-  return children;
+  return <div className="min-h-dvh bg-[#f8fafc]">{children}</div>;
 }
