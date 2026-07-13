@@ -88,6 +88,12 @@ function MapInner() {
             <Link href="/dashboard/containers/manage" className="btn-secondary !py-2.5 !px-5 text-sm">
               Manage
             </Link>
+            <Link
+              href="/dashboard/containers/settings"
+              className="btn-secondary !py-2.5 !px-5 text-sm"
+            >
+              Share on website
+            </Link>
           </>
         }
       />

@@ -79,9 +79,17 @@ function MetricsInner() {
         titleAccent="metrics"
         description="Live pulse across outlets, map coverage, and contractor readiness — from Supabase."
         action={
-          <Link href="/dashboard/containers/manage" className="btn-secondary !py-2.5 !px-5 text-sm">
-            Manage outlets
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/dashboard/containers/settings"
+              className="btn-secondary !py-2.5 !px-5 text-sm"
+            >
+              Share on website
+            </Link>
+            <Link href="/dashboard/containers/manage" className="btn-secondary !py-2.5 !px-5 text-sm">
+              Manage outlets
+            </Link>
+          </div>
         }
       />
 
