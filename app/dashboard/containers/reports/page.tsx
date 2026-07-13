@@ -14,6 +14,11 @@ const REPORTS = [
     desc: 'Jobs created per container and people fed from food sales — live report with map.',
     href: '/dashboard/containers/impact',
   },
+  {
+    title: 'Deploy feasibility',
+    desc: 'Region deployment model — cost, uptake, people served, margin per meal, POS & marketing income.',
+    href: '/dashboard/containers/feasibility',
+  },
   { title: 'Monthly performance', desc: 'Revenue, margin, and sales by container' },
   { title: 'Contractor payouts', desc: 'Commission calculations and payment history' },
   { title: 'Inventory & stock', desc: 'Stock levels and replenishment summary' },

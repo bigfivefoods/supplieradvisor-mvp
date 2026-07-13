@@ -19,6 +19,7 @@ import {
   RefreshCw,
   Share2,
   Heart,
+  Calculator,
 } from 'lucide-react';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import {
@@ -153,9 +154,17 @@ function HubInner() {
       accent: 'from-emerald-50 to-white border-emerald-100',
     },
     {
+      href: '/dashboard/containers/feasibility',
+      icon: Calculator,
+      code: '04',
+      title: 'Deploy feasibility',
+      desc: 'Region model: cost, uptake, people served, margin/meal, POS & marketing income.',
+      accent: 'from-amber-50 to-white border-amber-100',
+    },
+    {
       href: '/dashboard/containers/add',
       icon: Plus,
-      code: '04',
+      code: '05',
       title: 'Add container',
       desc: 'Onboard a new retail container and pin its location.',
       accent: 'from-cyan-50 to-white border-cyan-100',
@@ -163,7 +172,7 @@ function HubInner() {
     {
       href: '/dashboard/containers/contractors',
       icon: Users,
-      code: '05',
+      code: '06',
       title: 'Contractors',
       desc: 'Appoint operators, VerifyNow ID checks, banking, and invites.',
       accent: 'from-emerald-50 to-white border-emerald-100',
@@ -173,7 +182,7 @@ function HubInner() {
     {
       href: '/dashboard/containers/training',
       icon: GraduationCap,
-      code: '06',
+      code: '07',
       title: 'Training hub',
       desc: 'Monitor contractor training and certification status.',
       accent: 'from-amber-50 to-white border-amber-100',
@@ -183,7 +192,7 @@ function HubInner() {
     {
       href: '/dashboard/containers/manage',
       icon: Boxes,
-      code: '07',
+      code: '08',
       title: 'Inventory & orders',
       desc: 'Open an outlet to order, receive, and track stock.',
       accent: 'from-rose-50 to-white border-rose-100',
@@ -191,7 +200,7 @@ function HubInner() {
     {
       href: '/dashboard/containers/riad-log',
       icon: Scale,
-      code: '08',
+      code: '09',
       title: 'Container RIAD',
       desc: 'Risks, issues, actions & decisions — shared with operators.',
       accent: 'from-violet-50 to-white border-violet-100',
@@ -199,7 +208,7 @@ function HubInner() {
     {
       href: '/dashboard/containers/metrics',
       icon: BarChart3,
-      code: '09',
+      code: '10',
       title: 'Network metrics',
       desc: 'Pulse across outlets, contractors, and coverage.',
       accent: 'from-slate-50 to-white border-slate-200',
@@ -207,7 +216,7 @@ function HubInner() {
     {
       href: '/dashboard/containers/settings',
       icon: Share2,
-      code: '10',
+      code: '11',
       title: 'Share on website',
       desc: 'Embed live map + metrics on bigfivegroup.africa (public link / iframe).',
       accent: 'from-violet-50 to-white border-violet-100',
@@ -215,7 +224,7 @@ function HubInner() {
     {
       href: '/dashboard/containers/contractors',
       icon: ShieldCheck,
-      code: '11',
+      code: '12',
       title: 'Verify contractors',
       desc: 'SA ID documents and VerifyNow Home Affairs checks.',
       accent: 'from-sky-50 to-white border-sky-100',
