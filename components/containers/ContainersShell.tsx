@@ -37,13 +37,13 @@ export function ContainersHeader({
   description,
   action,
   titleAccent,
-  showNav = true,
+  /** Process links live in the sticky ModuleProcessBar only — keep false to avoid duplicate nav. */
+  showNav = false,
 }: {
   title: string;
   description?: React.ReactNode;
   action?: React.ReactNode;
   titleAccent?: string;
-  /** In-module strip (Map, Metrics, Share, …) */
   showNav?: boolean;
 }) {
   return (

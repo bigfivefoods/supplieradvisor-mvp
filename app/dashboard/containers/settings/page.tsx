@@ -11,11 +11,6 @@ import {
   ExternalLink,
   Map as MapIcon,
   Heart,
-  BarChart3,
-  Package,
-  Users,
-  FileText,
-  Plus,
 } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
@@ -219,24 +214,11 @@ function SettingsInner() {
   return (
     <ContainersPage>
       <ContainersHeader
-        showNav
         title="Share"
         titleAccent="& settings"
-        description="Public map embed for your website — people fed, jobs, and outlet locations. Use the Containers bar above to jump Map, Impact, Manage, and more."
+        description="Public map embed for your website — people fed, jobs, and outlet locations. Navigation is in the Containers process bar at the top."
         action={
           <div className="flex flex-wrap gap-2">
-            <Link
-              href="/dashboard/containers/map"
-              className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-2"
-            >
-              <MapIcon className="w-4 h-4" /> Map
-            </Link>
-            <Link
-              href="/dashboard/containers/impact"
-              className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-2"
-            >
-              <Heart className="w-4 h-4" /> Impact
-            </Link>
             {share?.publicUrl && (
               <a
                 href={share.publicUrl}
@@ -483,65 +465,6 @@ function SettingsInner() {
           </div>
 
           <div className="space-y-4">
-            <Panel title="Containers navigation">
-              <ul className="p-3 space-y-1">
-                {(
-                  [
-                    {
-                      href: '/dashboard/containers',
-                      label: 'Command hub',
-                      icon: Package,
-                    },
-                    {
-                      href: '/dashboard/containers/manage',
-                      label: 'Manage outlets',
-                      icon: Package,
-                    },
-                    {
-                      href: '/dashboard/containers/map',
-                      label: 'Map (people & jobs)',
-                      icon: MapIcon,
-                    },
-                    {
-                      href: '/dashboard/containers/impact',
-                      label: 'Food security & jobs',
-                      icon: Heart,
-                    },
-                    {
-                      href: '/dashboard/containers/add',
-                      label: 'Add container',
-                      icon: Plus,
-                    },
-                    {
-                      href: '/dashboard/containers/contractors',
-                      label: 'Contractors',
-                      icon: Users,
-                    },
-                    {
-                      href: '/dashboard/containers/metrics',
-                      label: 'Network metrics',
-                      icon: BarChart3,
-                    },
-                    {
-                      href: '/dashboard/containers/reports',
-                      label: 'Reports',
-                      icon: FileText,
-                    },
-                  ] as const
-                ).map((item) => (
-                  <li key={item.href}>
-                    <Link
-                      href={item.href}
-                      className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-sky-50 hover:text-[#0077b6] transition-colors"
-                    >
-                      <item.icon className="w-4 h-4 text-[#00b4d8] shrink-0" />
-                      {item.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </Panel>
-
             <Panel title="Impact assumptions">
               <div className="p-4 text-sm text-slate-600 leading-relaxed space-y-2">
                 <p>
@@ -554,6 +477,24 @@ function SettingsInner() {
                 >
                   <Heart className="w-4 h-4" />
                   Edit meal price & jobs defaults
+                </Link>
+              </div>
+            </Panel>
+            <Panel title="Related">
+              <div className="p-4 flex flex-col gap-2 text-sm">
+                <Link
+                  href="/dashboard/containers/map"
+                  className="inline-flex items-center gap-1.5 font-semibold text-slate-700 hover:text-[#0077b6]"
+                >
+                  <MapIcon className="w-4 h-4 text-[#00b4d8]" />
+                  Live map (stock · people · jobs)
+                </Link>
+                <Link
+                  href="/dashboard/containers/impact"
+                  className="inline-flex items-center gap-1.5 font-semibold text-slate-700 hover:text-[#0077b6]"
+                >
+                  <Heart className="w-4 h-4 text-[#00b4d8]" />
+                  Food security & jobs report
                 </Link>
               </div>
             </Panel>
