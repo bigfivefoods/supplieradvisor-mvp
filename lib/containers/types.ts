@@ -74,6 +74,7 @@ export type ContainerInventoryItem = {
   id: number;
   profile_id?: number | null;
   container_id: number;
+  product_id?: number | null;
   product_name: string;
   sku?: string | null;
   qty_on_hand: number;
@@ -82,6 +83,22 @@ export type ContainerInventoryItem = {
   unit_cost?: number | null;
   last_received_at?: string | null;
   notes?: string | null;
+};
+
+/** Catalogue product for container stock/order pickers */
+export type CatalogueProductOption = {
+  id: number;
+  name: string;
+  sku?: string | null;
+  uom?: string | null;
+  unit?: string | null;
+  product_type?: string | null;
+  category?: string | null;
+  reorder_level?: number | null;
+  cost_price?: number | null;
+  sell_price?: number | null;
+  qty_on_hand?: number | null;
+  status?: string | null;
 };
 
 export type ContainerOrder = {
