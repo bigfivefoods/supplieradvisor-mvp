@@ -12,6 +12,7 @@ export const CONTAINERS_NAV: readonly NavItem[] = [
   { href: '/dashboard/containers', label: 'Command', exact: true },
   { href: '/dashboard/containers/manage', label: 'Manage' },
   { href: '/dashboard/containers/map', label: 'Map' },
+  { href: '/dashboard/containers/impact', label: 'Impact' },
   { href: '/dashboard/containers/add', label: 'Add' },
   { href: '/dashboard/containers/contractors', label: 'Contractors' },
   { href: '/dashboard/containers/training', label: 'Train' },

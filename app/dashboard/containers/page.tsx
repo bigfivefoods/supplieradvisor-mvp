@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   RefreshCw,
   Share2,
+  Heart,
 } from 'lucide-react';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import {
@@ -138,15 +139,23 @@ function HubInner() {
       icon: Map,
       code: '02',
       title: 'Live map',
-      desc: 'Every outlet on a map with GPS pins and contractor status.',
+      desc: 'People fed, jobs created, or outlet pins — switch modes on the map.',
       accent: 'from-sky-50 to-white border-sky-100',
       metric: s?.mapped ?? '—',
       metricLabel: 'mapped',
     },
     {
+      href: '/dashboard/containers/impact',
+      icon: Heart,
+      code: '03',
+      title: 'Food security & jobs',
+      desc: 'Jobs per container and people fed from food sales — report + assumptions.',
+      accent: 'from-emerald-50 to-white border-emerald-100',
+    },
+    {
       href: '/dashboard/containers/add',
       icon: Plus,
-      code: '03',
+      code: '04',
       title: 'Add container',
       desc: 'Onboard a new retail container and pin its location.',
       accent: 'from-cyan-50 to-white border-cyan-100',
@@ -154,7 +163,7 @@ function HubInner() {
     {
       href: '/dashboard/containers/contractors',
       icon: Users,
-      code: '04',
+      code: '05',
       title: 'Contractors',
       desc: 'Appoint operators, VerifyNow ID checks, banking, and invites.',
       accent: 'from-emerald-50 to-white border-emerald-100',
@@ -164,7 +173,7 @@ function HubInner() {
     {
       href: '/dashboard/containers/training',
       icon: GraduationCap,
-      code: '05',
+      code: '06',
       title: 'Training hub',
       desc: 'Monitor contractor training and certification status.',
       accent: 'from-amber-50 to-white border-amber-100',
@@ -174,7 +183,7 @@ function HubInner() {
     {
       href: '/dashboard/containers/manage',
       icon: Boxes,
-      code: '06',
+      code: '07',
       title: 'Inventory & orders',
       desc: 'Open an outlet to order, receive, and track stock.',
       accent: 'from-rose-50 to-white border-rose-100',
@@ -182,7 +191,7 @@ function HubInner() {
     {
       href: '/dashboard/containers/riad-log',
       icon: Scale,
-      code: '07',
+      code: '08',
       title: 'Container RIAD',
       desc: 'Risks, issues, actions & decisions — shared with operators.',
       accent: 'from-violet-50 to-white border-violet-100',
@@ -190,7 +199,7 @@ function HubInner() {
     {
       href: '/dashboard/containers/metrics',
       icon: BarChart3,
-      code: '08',
+      code: '09',
       title: 'Network metrics',
       desc: 'Pulse across outlets, contractors, and coverage.',
       accent: 'from-slate-50 to-white border-slate-200',
@@ -198,7 +207,7 @@ function HubInner() {
     {
       href: '/dashboard/containers/settings',
       icon: Share2,
-      code: '09',
+      code: '10',
       title: 'Share on website',
       desc: 'Embed live map + metrics on bigfivegroup.africa (public link / iframe).',
       accent: 'from-violet-50 to-white border-violet-100',
@@ -206,7 +215,7 @@ function HubInner() {
     {
       href: '/dashboard/containers/contractors',
       icon: ShieldCheck,
-      code: '10',
+      code: '11',
       title: 'Verify contractors',
       desc: 'SA ID documents and VerifyNow Home Affairs checks.',
       accent: 'from-sky-50 to-white border-sky-100',
@@ -218,12 +227,19 @@ function HubInner() {
       <ContainersHeader
         title="Containers"
         titleAccent="Command"
-        description="Retail outlets run by independent contractors — map locations, appoint & train operators, order and receive stock, RIAD, and payouts. Share the public map from Settings."
+        description="Retail outlets run by independent contractors — map impact (people fed & jobs), appoint & train operators, order stock, RIAD, and payouts. Share the public map from Settings."
         action={
           <div className="flex flex-wrap gap-2">
             <Link
-              href="/dashboard/containers/settings"
+              href="/dashboard/containers/impact"
               className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center gap-2"
+            >
+              <Heart className="w-4 h-4" />
+              Food security & jobs
+            </Link>
+            <Link
+              href="/dashboard/containers/settings"
+              className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-2"
             >
               <Share2 className="w-4 h-4" />
               Share on website
@@ -244,9 +260,9 @@ function HubInner() {
       />
 
       <HubHero
-        pill="Live retail · map → operate"
+        pill="Live retail · impact · operate"
         title="Locate every outlet."
-        description="GPS-mapped containers are the foundation of stock, sales, and contractor allocation. Independent operators claim, train, and run day-to-day sales with clear verification."
+        description="GPS-mapped containers show food security and jobs impact by area. Operators claim, train, and log sales so people-fed and jobs metrics stay real."
         stats={[
           {
             label: 'Outlets',

@@ -14,11 +14,43 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
 
+const SHADOW =
+  'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png';
+
+/** Coloured circle markers for impact heat on the map */
+function markerIconForTone(tone?: MapPin['tone']): L.DivIcon | L.Icon {
+  if (!tone || tone === 'default') {
+    return new L.Icon.Default();
+  }
+  const colors: Record<string, string> = {
+    'impact-high': '#059669',
+    'impact-mid': '#00b4d8',
+    'impact-low': '#f59e0b',
+    jobs: '#7c3aed',
+  };
+  const bg = colors[tone] || '#00b4d8';
+  return L.divIcon({
+    className: '',
+    html: `<div style="
+      width:18px;height:18px;border-radius:9999px;
+      background:${bg};border:2px solid #fff;
+      box-shadow:0 1px 4px rgba(0,0,0,.35);
+    "></div>`,
+    iconSize: [18, 18],
+    iconAnchor: [9, 9],
+    popupAnchor: [0, -10],
+  });
+}
+
 export type MapPin = {
   id: string | number;
   position: [number, number];
   label?: string;
   subtitle?: string;
+  /** Extra popup lines (e.g. impact metrics) */
+  detail?: string;
+  /** Marker accent: default | impact-high | impact-mid | impact-low | jobs */
+  tone?: 'default' | 'impact-high' | 'impact-mid' | 'impact-low' | 'jobs';
 };
 
 interface LocationMapProps {
@@ -153,11 +185,22 @@ export default function LocationMap({
           </>
         )}
         {pins.map((pin) => (
-          <Marker key={String(pin.id)} position={pin.position}>
-            {(pin.label || pin.subtitle) && (
+          <Marker
+            key={String(pin.id)}
+            position={pin.position}
+            icon={markerIconForTone(pin.tone)}
+          >
+            {(pin.label || pin.subtitle || pin.detail) && (
               <Popup>
-                <div className="text-sm font-semibold">{pin.label}</div>
-                {pin.subtitle && <div className="text-xs text-slate-600">{pin.subtitle}</div>}
+                <div className="text-sm font-semibold text-slate-900">{pin.label}</div>
+                {pin.subtitle && (
+                  <div className="text-xs text-slate-600 mt-0.5">{pin.subtitle}</div>
+                )}
+                {pin.detail && (
+                  <div className="text-xs text-slate-800 mt-1.5 whitespace-pre-line font-medium">
+                    {pin.detail}
+                  </div>
+                )}
               </Popup>
             )}
           </Marker>
