@@ -17,13 +17,14 @@ import {
   UserCheck,
   AlertTriangle,
   RefreshCw,
+  Share2,
 } from 'lucide-react';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import {
   CompanyRequired,
+  ContainersHeader,
   ContainersPage,
 } from '@/components/containers/ContainersShell';
-import { RelationshipHeader } from '@/components/relationship/RelationshipChrome';
 import {
   HubHero,
   HubModuleGrid,
@@ -195,9 +196,17 @@ function HubInner() {
       accent: 'from-slate-50 to-white border-slate-200',
     },
     {
+      href: '/dashboard/containers/settings',
+      icon: Share2,
+      code: '09',
+      title: 'Share on website',
+      desc: 'Embed live map + metrics on bigfivegroup.africa (public link / iframe).',
+      accent: 'from-violet-50 to-white border-violet-100',
+    },
+    {
       href: '/dashboard/containers/contractors',
       icon: ShieldCheck,
-      code: '09',
+      code: '10',
       title: 'Verify contractors',
       desc: 'SA ID documents and VerifyNow Home Affairs checks.',
       accent: 'from-sky-50 to-white border-sky-100',
@@ -206,13 +215,19 @@ function HubInner() {
 
   return (
     <ContainersPage>
-      <RelationshipHeader
-        eyebrow="Container retail network"
+      <ContainersHeader
         title="Containers"
         titleAccent="Command"
-        description="Retail outlets run by independent contractors — map locations, appoint & train operators, order and receive stock, RIAD, and payouts."
+        description="Retail outlets run by independent contractors — map locations, appoint & train operators, order and receive stock, RIAD, and payouts. Share the public map from Settings."
         action={
           <div className="flex flex-wrap gap-2">
+            <Link
+              href="/dashboard/containers/settings"
+              className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center gap-2"
+            >
+              <Share2 className="w-4 h-4" />
+              Share on website
+            </Link>
             <button
               type="button"
               onClick={() => void load()}
@@ -221,7 +236,7 @@ function HubInner() {
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               Refresh
             </button>
-            <Link href="/dashboard/containers/add" className="btn-primary !py-2.5 !px-5 text-sm">
+            <Link href="/dashboard/containers/add" className="btn-secondary !py-2.5 !px-5 text-sm">
               <Plus className="w-4 h-4" /> Add container
             </Link>
           </div>

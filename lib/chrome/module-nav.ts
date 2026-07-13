@@ -157,6 +157,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Add', href: '/dashboard/containers/add' },
       { name: 'Staff', href: '/dashboard/containers/contractors' },
       { name: 'Score', href: '/dashboard/containers/metrics' },
+      { name: 'Share', href: '/dashboard/containers/settings' },
     ],
   },
   {

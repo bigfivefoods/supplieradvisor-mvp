@@ -16,6 +16,7 @@ export const CONTAINERS_NAV: readonly NavItem[] = [
   { href: '/dashboard/containers/contractors', label: 'Contractors' },
   { href: '/dashboard/containers/training', label: 'Train' },
   { href: '/dashboard/containers/metrics', label: 'Metrics' },
+  { href: '/dashboard/containers/settings', label: 'Share' },
   { href: '/dashboard/containers/riad-log', label: 'RIAD' },
   { href: '/dashboard/containers/reports', label: 'Reports' },
 ] as const;
@@ -35,14 +36,18 @@ export function ContainersHeader({
   description,
   action,
   titleAccent,
+  showNav = true,
 }: {
   title: string;
   description?: React.ReactNode;
   action?: React.ReactNode;
   titleAccent?: string;
+  /** In-module strip (Map, Metrics, Share, …) */
+  showNav?: boolean;
 }) {
   return (
     <RelationshipHeader
+      nav={showNav ? <ContainersNav /> : undefined}
       backHref="/dashboard/containers"
       backLabel="Containers overview"
       eyebrow="Container retail network"
