@@ -27,6 +27,10 @@ function markerIconForTone(tone?: MapPin['tone']): L.DivIcon | L.Icon {
     'impact-mid': '#00b4d8',
     'impact-low': '#f59e0b',
     jobs: '#7c3aed',
+    'stock-high': '#0d9488',
+    'stock-mid': '#0891b2',
+    'stock-low': '#dc2626',
+    'stock-empty': '#94a3b8',
   };
   const bg = colors[tone] || '#00b4d8';
   return L.divIcon({
@@ -49,8 +53,17 @@ export type MapPin = {
   subtitle?: string;
   /** Extra popup lines (e.g. impact metrics) */
   detail?: string;
-  /** Marker accent: default | impact-high | impact-mid | impact-low | jobs */
-  tone?: 'default' | 'impact-high' | 'impact-mid' | 'impact-low' | 'jobs';
+  /** Marker accent for impact / stock heat */
+  tone?:
+    | 'default'
+    | 'impact-high'
+    | 'impact-mid'
+    | 'impact-low'
+    | 'jobs'
+    | 'stock-high'
+    | 'stock-mid'
+    | 'stock-low'
+    | 'stock-empty';
 };
 
 interface LocationMapProps {

@@ -80,6 +80,18 @@ export type ContainerImpactRow = {
   people_fed_from_txns: number;
   avg_meal_price: number;
   mapped: boolean;
+  /** Live stock-on-hand from container_inventory */
+  stock_qty: number;
+  stock_skus: number;
+  stock_low: number;
+  stock_value: number;
+  stock_top?: Array<{
+    product_name: string;
+    sku: string | null;
+    qty: number;
+    unit: string;
+    low: boolean;
+  }>;
 };
 
 export type ImpactTotals = {
@@ -93,6 +105,11 @@ export type ImpactTotals = {
   sales_count: number;
   people_fed: number;
   people_fed_per_job: number | null;
+  stock_qty: number;
+  stock_skus: number;
+  stock_low: number;
+  stock_value: number;
+  containers_with_stock: number;
 };
 
 function num(v: unknown, fallback: number): number {
@@ -209,6 +226,10 @@ export function computeContainerImpact(
     people_fed_from_txns: Math.round(people_fed_from_txns),
     avg_meal_price: mealPrice,
     mapped,
+    stock_qty: 0,
+    stock_skus: 0,
+    stock_low: 0,
+    stock_value: 0,
   };
 }
 
@@ -217,6 +238,10 @@ export function sumImpact(rows: ContainerImpactRow[]): ImpactTotals {
   const jobs_support = rows.reduce((s, r) => s + r.jobs_support, 0);
   const jobs_total = rows.reduce((s, r) => s + r.jobs_total, 0);
   const people_fed = rows.reduce((s, r) => s + r.people_fed, 0);
+  const stock_qty = rows.reduce((s, r) => s + (r.stock_qty || 0), 0);
+  const stock_skus = rows.reduce((s, r) => s + (r.stock_skus || 0), 0);
+  const stock_low = rows.reduce((s, r) => s + (r.stock_low || 0), 0);
+  const stock_value = rows.reduce((s, r) => s + (r.stock_value || 0), 0);
   return {
     containers: rows.length,
     staffed: rows.filter((r) => r.staffed).length,
@@ -229,6 +254,11 @@ export function sumImpact(rows: ContainerImpactRow[]): ImpactTotals {
     people_fed,
     people_fed_per_job:
       jobs_total > 0 ? Math.round(people_fed / jobs_total) : null,
+    stock_qty: round1(stock_qty),
+    stock_skus,
+    stock_low,
+    stock_value: round2(stock_value),
+    containers_with_stock: rows.filter((r) => (r.stock_qty || 0) > 0).length,
   };
 }
 

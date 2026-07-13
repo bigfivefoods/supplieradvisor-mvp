@@ -9,6 +9,7 @@ import {
   Briefcase,
   Map as MapIcon,
   Save,
+  Boxes,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePrivy } from '@privy-io/react-auth';
@@ -20,6 +21,7 @@ import {
   type ImpactSettings,
   type ImpactTotals,
 } from '@/lib/containers/impact';
+import { formatQty } from '@/lib/containers/stock';
 import {
   CompanyRequired,
   ContainersHeader,
@@ -58,31 +60,51 @@ function Inner() {
   });
   const [methodology, setMethodology] = useState('');
   const [period, setPeriod] = useState({ from: '', to: '' });
+  const [stockLiveAt, setStockLiveAt] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/containers/impact?companyId=${companyId}`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed');
-      setRows(data.rows || []);
-      setTotals(data.totals || null);
-      setByCity(data.byCity || []);
-      if (data.settings) setSettings(data.settings);
-      setMethodology(
-        data.methodology || data.settings?.methodology_notes || ''
-      );
-      setPeriod(data.period || { from: '', to: '' });
-      if (data.warnings?.length) toast.message(String(data.warnings[0]));
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Load failed');
-    } finally {
-      setLoading(false);
-    }
-  }, [companyId]);
+  const load = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      if (!opts?.silent) setLoading(true);
+      try {
+        const res = await fetch(
+          `/api/containers/impact?companyId=${companyId}`,
+          { cache: 'no-store' }
+        );
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed');
+        setRows(data.rows || []);
+        setTotals(data.totals || null);
+        setByCity(data.byCity || []);
+        if (data.settings) setSettings(data.settings);
+        setMethodology(
+          data.methodology || data.settings?.methodology_notes || ''
+        );
+        setPeriod(data.period || { from: '', to: '' });
+        setStockLiveAt(data.stockLiveAt || null);
+        if (data.warnings?.length && !opts?.silent) {
+          toast.message(String(data.warnings[0]));
+        }
+      } catch (e: unknown) {
+        if (!opts?.silent) {
+          toast.error(e instanceof Error ? e.message : 'Load failed');
+        }
+      } finally {
+        if (!opts?.silent) setLoading(false);
+      }
+    },
+    [companyId]
+  );
 
   useEffect(() => {
     void load();
+  }, [load]);
+
+  // Keep stock dynamic while report is open
+  useEffect(() => {
+    const t = window.setInterval(() => {
+      void load({ silent: true });
+    }, 30_000);
+    return () => window.clearInterval(t);
   }, [load]);
 
   const saveSettings = async () => {
@@ -115,7 +137,7 @@ function Inner() {
       <ContainersHeader
         title="Food security"
         titleAccent="& jobs"
-        description={`Jobs created and people fed per deployed container. Period ${period.from || '…'} → ${period.to || '…'}. Transparent assumptions — edit below.`}
+        description={`Jobs, people fed, and live stock on hand per container. Period ${period.from || '…'} → ${period.to || '…'}. Stock refreshes every 30s.`}
         action={
           <div className="flex flex-wrap gap-2">
             <Link
@@ -141,7 +163,14 @@ function Inner() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
+            <HeroKpi
+              icon={Boxes}
+              label="Units on hand"
+              value={formatQty(totals?.stock_qty ?? 0)}
+              sub={`${totals?.containers_with_stock ?? 0} outlets · ${totals?.stock_skus ?? 0} SKU lines${stockLiveAt ? ` · ${new Date(stockLiveAt).toLocaleTimeString('en-ZA')}` : ''}`}
+              tone="teal"
+            />
             <HeroKpi
               icon={Heart}
               label="People fed"
@@ -162,13 +191,10 @@ function Inner() {
               sub={`${totals?.sales_count ?? 0} transactions logged`}
             />
             <HeroKpi
-              label="People per job"
-              value={
-                totals?.people_fed_per_job != null
-                  ? String(totals.people_fed_per_job)
-                  : '—'
-              }
+              label="Low stock lines"
+              value={String(totals?.stock_low ?? 0)}
               sub={`${totals?.containers ?? 0} outlets · ${totals?.staffed ?? 0} staffed`}
+              tone={(totals?.stock_low ?? 0) > 0 ? 'amber' : 'neutral'}
             />
           </div>
 
@@ -183,6 +209,7 @@ function Inner() {
                     <tr className="border-b border-slate-100 text-left text-[10px] font-bold uppercase tracking-wider text-slate-400">
                       <th className="px-4 py-3">Container</th>
                       <th className="px-3 py-3">Area</th>
+                      <th className="px-3 py-3 text-right">Stock</th>
                       <th className="px-3 py-3 text-right">Jobs</th>
                       <th className="px-3 py-3 text-right">People fed</th>
                       <th className="px-3 py-3 text-right">Sales</th>
@@ -193,7 +220,7 @@ function Inner() {
                     {rows.length === 0 ? (
                       <tr>
                         <td
-                          colSpan={6}
+                          colSpan={7}
                           className="px-4 py-12 text-center text-slate-500"
                         >
                           No containers deployed yet.
@@ -207,7 +234,7 @@ function Inner() {
                         >
                           <td className="px-4 py-3">
                             <Link
-                              href={`/dashboard/containers/${r.container_id}`}
+                              href={`/dashboard/containers/${r.container_id}/inventory`}
                               className="font-semibold text-slate-900 hover:text-[#0077b6]"
                             >
                               {r.name}
@@ -224,6 +251,25 @@ function Inner() {
                                 No GPS
                               </span>
                             )}
+                          </td>
+                          <td className="px-3 py-3 text-right">
+                            <div
+                              className={`font-black tabular-nums ${
+                                (r.stock_qty || 0) <= 0
+                                  ? 'text-slate-400'
+                                  : (r.stock_low || 0) > 0
+                                    ? 'text-red-700'
+                                    : 'text-teal-800'
+                              }`}
+                            >
+                              {formatQty(r.stock_qty || 0)}
+                            </div>
+                            <div className="text-[10px] text-slate-500">
+                              {r.stock_skus || 0} SKU
+                              {(r.stock_low || 0) > 0
+                                ? ` · ${r.stock_low} low`
+                                : ''}
+                            </div>
                           </td>
                           <td className="px-3 py-3 text-right">
                             <div className="font-black text-violet-800">
@@ -409,14 +455,18 @@ function HeroKpi({
   label: string;
   value: string;
   sub?: string;
-  tone?: 'neutral' | 'emerald' | 'violet';
+  tone?: 'neutral' | 'emerald' | 'violet' | 'teal' | 'amber';
 }) {
   const bg =
     tone === 'emerald'
       ? 'border-emerald-100 bg-emerald-50/50'
       : tone === 'violet'
         ? 'border-violet-100 bg-violet-50/50'
-        : 'border-slate-200 bg-white';
+        : tone === 'teal'
+          ? 'border-teal-100 bg-teal-50/50'
+          : tone === 'amber'
+            ? 'border-amber-100 bg-amber-50/50'
+            : 'border-slate-200 bg-white';
   return (
     <div className={`rounded-3xl border p-4 ${bg}`}>
       <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">

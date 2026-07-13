@@ -13,6 +13,11 @@ import {
   sumImpact,
   type ImpactSettings,
 } from '@/lib/containers/impact';
+import {
+  aggregateStockByContainer,
+  emptyStock,
+  type InventoryLine,
+} from '@/lib/containers/stock';
 
 /**
  * GET ?companyId=&from=&to= — food security & jobs impact by container
@@ -75,7 +80,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const [salesRes, settingsRes] = await Promise.all([
+    const [salesRes, settingsRes, invRes] = await Promise.all([
       supabase
         .from('container_sales')
         .select('id, container_id, gross_amount, net_amount, sale_date, items')
@@ -88,6 +93,13 @@ export async function GET(request: NextRequest) {
         .select('*')
         .eq('profile_id', companyId)
         .maybeSingle(),
+      supabase
+        .from('container_inventory')
+        .select(
+          'container_id, product_name, sku, qty_on_hand, unit, reorder_level, unit_cost'
+        )
+        .eq('profile_id', companyId)
+        .limit(20000),
     ]);
 
     const settings = normalizeSettings(
@@ -101,26 +113,51 @@ export async function GET(request: NextRequest) {
       salesRes.error &&
         /does not exist|schema cache/i.test(salesRes.error.message)
     );
+    const inventoryMissing = Boolean(
+      invRes.error &&
+        /does not exist|schema cache/i.test(invRes.error.message)
+    );
     const salesByContainer = salesMissing
       ? new Map()
       : aggregateSalesByContainer(
           (salesRes.data || []) as Array<Record<string, unknown>>
         );
 
-    const rows = containers.map((c) =>
-      computeContainerImpact(
+    const stockByContainer = inventoryMissing
+      ? new Map()
+      : aggregateStockByContainer((invRes.data || []) as InventoryLine[]);
+
+    const rows = containers.map((c) => {
+      const base = computeContainerImpact(
         c as Parameters<typeof computeContainerImpact>[0],
         salesByContainer.get(Number(c.id)),
         settings
-      )
-    );
+      );
+      const stock =
+        stockByContainer.get(Number(c.id)) || emptyStock(Number(c.id));
+      return {
+        ...base,
+        stock_qty: stock.total_qty,
+        stock_skus: stock.sku_count,
+        stock_low: stock.low_stock_count,
+        stock_value: stock.stock_value,
+        stock_top: stock.top_lines,
+      };
+    });
 
     const totals = sumImpact(rows);
 
     // Area rollups for map story
     const byCity = new Map<
       string,
-      { city: string; jobs: number; people_fed: number; containers: number; sales: number }
+      {
+        city: string;
+        jobs: number;
+        people_fed: number;
+        containers: number;
+        sales: number;
+        stock_qty: number;
+      }
     >();
     for (const r of rows) {
       const city = r.city || 'Unknown';
@@ -131,6 +168,7 @@ export async function GET(request: NextRequest) {
           people_fed: 0,
           containers: 0,
           sales: 0,
+          stock_qty: 0,
         });
       }
       const m = byCity.get(city)!;
@@ -138,6 +176,7 @@ export async function GET(request: NextRequest) {
       m.people_fed += r.people_fed;
       m.containers += 1;
       m.sales += r.sales_revenue;
+      m.stock_qty += r.stock_qty || 0;
     }
 
     return NextResponse.json({
@@ -146,15 +185,21 @@ export async function GET(request: NextRequest) {
       settings,
       settingsMissing,
       salesMissing,
+      inventoryMissing,
+      stockLiveAt: new Date().toISOString(),
       totals,
       rows: rows.sort(
-        (a, b) => b.people_fed - a.people_fed || b.jobs_total - a.jobs_total
+        (a, b) =>
+          b.people_fed - a.people_fed ||
+          b.jobs_total - a.jobs_total ||
+          (b.stock_qty || 0) - (a.stock_qty || 0)
       ),
       byCity: Array.from(byCity.values())
         .map((c) => ({
           ...c,
           jobs: Math.round(c.jobs * 10) / 10,
           sales: Math.round(c.sales * 100) / 100,
+          stock_qty: Math.round(c.stock_qty * 10) / 10,
         }))
         .sort((a, b) => b.people_fed - a.people_fed),
       methodology: settings.methodology_notes,
@@ -162,6 +207,9 @@ export async function GET(request: NextRequest) {
         salesMissing
           ? 'No container_sales data yet — people-fed uses sales when logged by operators.'
           : salesRes.error?.message || null,
+        inventoryMissing
+          ? 'No container_inventory table yet — run 20260709_container_ops.sql for live stock.'
+          : invRes.error?.message || null,
         settingsMissing
           ? 'Using default impact assumptions — run 20260713_container_impact.sql to customise.'
           : settingsRes.error?.message || null,
