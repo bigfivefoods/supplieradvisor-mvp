@@ -102,20 +102,25 @@ export async function GET(request: NextRequest) {
         .limit(20000),
     ]);
 
+    const isMissingRelation = (msg?: string | null) =>
+      Boolean(
+        msg &&
+          /does not exist|schema cache|could not find.*table|PGRST205|relation .* does not exist/i.test(
+            msg
+          )
+      );
+
     const settings = normalizeSettings(
       settingsRes.data as Partial<ImpactSettings> | null
     );
     const settingsMissing = Boolean(
-      settingsRes.error &&
-        /does not exist|schema cache/i.test(settingsRes.error.message)
+      settingsRes.error && isMissingRelation(settingsRes.error.message)
     );
     const salesMissing = Boolean(
-      salesRes.error &&
-        /does not exist|schema cache/i.test(salesRes.error.message)
+      salesRes.error && isMissingRelation(salesRes.error.message)
     );
     const inventoryMissing = Boolean(
-      invRes.error &&
-        /does not exist|schema cache/i.test(invRes.error.message)
+      invRes.error && isMissingRelation(invRes.error.message)
     );
     const salesByContainer = salesMissing
       ? new Map()
@@ -206,14 +211,24 @@ export async function GET(request: NextRequest) {
       warnings: [
         salesMissing
           ? 'No container_sales data yet — people-fed uses sales when logged by operators.'
-          : salesRes.error?.message || null,
+          : salesRes.error && !isMissingRelation(salesRes.error.message)
+            ? salesRes.error.message
+            : null,
         inventoryMissing
           ? 'No container_inventory table yet — run 20260709_container_ops.sql for live stock.'
-          : invRes.error?.message || null,
+          : invRes.error && !isMissingRelation(invRes.error.message)
+            ? invRes.error.message
+            : null,
         settingsMissing
-          ? 'Using default impact assumptions — run 20260713_container_impact.sql to customise.'
-          : settingsRes.error?.message || null,
+          ? 'Migration needed: run supabase/migrations/20260713_container_impact.sql in Supabase SQL Editor to create container_impact_settings (defaults are used until then).'
+          : settingsRes.error && !isMissingRelation(settingsRes.error.message)
+            ? settingsRes.error.message
+            : null,
       ].filter(Boolean),
+      migration: {
+        impactSettingsRequired: settingsMissing,
+        sqlFile: 'supabase/migrations/20260713_container_impact.sql',
+      },
     });
   } catch (e: unknown) {
     return NextResponse.json(
@@ -293,12 +308,18 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (error) {
-      if (/does not exist|schema cache/i.test(error.message)) {
+      if (
+        /does not exist|schema cache|could not find.*table|PGRST205/i.test(
+          error.message
+        )
+      ) {
         return NextResponse.json(
           {
-            error: error.message,
-            hint: 'Run supabase/migrations/20260713_container_impact.sql',
+            error:
+              'Impact settings table is not set up yet. Defaults work for map/report reads; saving custom assumptions needs a one-time SQL migration.',
+            hint: 'In Supabase → SQL Editor, run the contents of supabase/migrations/20260713_container_impact.sql',
             code: 'MIGRATION_REQUIRED',
+            sqlFile: 'supabase/migrations/20260713_container_impact.sql',
           },
           { status: 503 }
         );

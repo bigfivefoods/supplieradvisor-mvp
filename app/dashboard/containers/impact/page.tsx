@@ -61,6 +61,7 @@ function Inner() {
   const [methodology, setMethodology] = useState('');
   const [period, setPeriod] = useState({ from: '', to: '' });
   const [stockLiveAt, setStockLiveAt] = useState<string | null>(null);
+  const [migrationNeeded, setMigrationNeeded] = useState(false);
 
   const load = useCallback(
     async (opts?: { silent?: boolean }) => {
@@ -81,9 +82,7 @@ function Inner() {
         );
         setPeriod(data.period || { from: '', to: '' });
         setStockLiveAt(data.stockLiveAt || null);
-        if (data.warnings?.length && !opts?.silent) {
-          toast.message(String(data.warnings[0]));
-        }
+        setMigrationNeeded(Boolean(data.migration?.impactSettingsRequired));
       } catch (e: unknown) {
         if (!opts?.silent) {
           toast.error(e instanceof Error ? e.message : 'Load failed');
@@ -121,8 +120,19 @@ function Inner() {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || data.hint || 'Save failed');
+      if (!res.ok) {
+        if (data.code === 'MIGRATION_REQUIRED') {
+          setMigrationNeeded(true);
+          throw new Error(
+            data.hint ||
+              data.error ||
+              'Run 20260713_container_impact.sql in Supabase SQL Editor first'
+          );
+        }
+        throw new Error(data.error || data.hint || 'Save failed');
+      }
       if (data.settings) setSettings(data.settings);
+      setMigrationNeeded(false);
       toast.success('Impact assumptions saved');
       void load();
     } catch (e: unknown) {
@@ -156,6 +166,27 @@ function Inner() {
           </div>
         }
       />
+
+      {migrationNeeded && (
+        <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          <strong>One-time setup:</strong> create{' '}
+          <code className="text-xs bg-white/80 px-1 rounded">
+            container_impact_settings
+          </code>{' '}
+          in Supabase so you can save custom job/meal assumptions. Map and
+          report still work with defaults until then.
+          <ol className="mt-2 list-decimal list-inside text-xs space-y-1 text-amber-900">
+            <li>Open Supabase → SQL Editor</li>
+            <li>
+              Paste and run{' '}
+              <code className="bg-white/80 px-1 rounded">
+                supabase/migrations/20260713_container_impact.sql
+              </code>
+            </li>
+            <li>Refresh this page, then Save assumptions</li>
+          </ol>
+        </div>
+      )}
 
       {loading ? (
         <div className="py-20 flex justify-center">

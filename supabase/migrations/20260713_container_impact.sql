@@ -1,4 +1,6 @@
 -- Food security + jobs impact per container (assumptions + per-outlet overrides)
+-- Run this in Supabase → SQL Editor if you see:
+--   Could not find the table 'public.container_impact_settings' in the schema cache
 
 CREATE OR REPLACE FUNCTION public.sa_add_column(p_table text, p_column text, p_type text, p_default text DEFAULT NULL)
 RETURNS void LANGUAGE plpgsql AS $$
@@ -31,17 +33,11 @@ SELECT public.sa_add_column('containers', 'impact_notes', 'text');
 CREATE TABLE IF NOT EXISTS public.container_impact_settings (
   id BIGSERIAL PRIMARY KEY,
   profile_id BIGINT NOT NULL UNIQUE,
-  -- Jobs: direct operator roles per deployed container (when staffed)
   jobs_direct_default numeric(8,2) NOT NULL DEFAULT 1,
-  -- Additional supporting jobs attributed per outlet (logistics, packing, etc.)
   jobs_support_default numeric(8,2) NOT NULL DEFAULT 0.5,
-  -- Average ZAR price of one meal / food serving sold
   avg_meal_price_zar numeric(12,2) NOT NULL DEFAULT 45,
-  -- People nourished per meal sold (1 = one person; 3–4 for household share)
   people_per_meal numeric(8,2) NOT NULL DEFAULT 1,
-  -- Optional: people fed per sales transaction if line items unavailable
   people_per_sale_txn numeric(8,2) NOT NULL DEFAULT 2.5,
-  -- Prefer revenue/meal method vs txn method: 'revenue' | 'transactions' | 'both_max'
   people_method text NOT NULL DEFAULT 'revenue',
   currency text NOT NULL DEFAULT 'ZAR',
   methodology_notes text,
@@ -52,6 +48,7 @@ CREATE TABLE IF NOT EXISTS public.container_impact_settings (
 COMMENT ON TABLE public.container_impact_settings IS
   'Assumptions for jobs created and people fed per container (food security impact)';
 
+-- Service role / app uses these; block anon direct access
 DO $$
 BEGIN
   ALTER TABLE public.container_impact_settings ENABLE ROW LEVEL SECURITY;
@@ -61,3 +58,12 @@ BEGIN
 EXCEPTION WHEN others THEN
   RAISE NOTICE 'impact settings RLS skip: %', SQLERRM;
 END $$;
+
+-- Optional: link container stock lines to products catalogue
+SELECT public.sa_add_column('container_inventory', 'product_id', 'bigint');
+
+-- Optional: public embed impact toggle
+SELECT public.sa_add_column('container_network_shares', 'show_impact', 'boolean', 'true');
+
+-- Reload PostgREST schema cache so the new table is visible immediately
+NOTIFY pgrst, 'reload schema';
