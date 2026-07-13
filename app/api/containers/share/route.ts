@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
     }
 
     const token = newShareToken();
-    const row = {
+    const row: Record<string, unknown> = {
       profile_id: companyId,
       token,
       title: body.title || 'Container network',
@@ -134,6 +134,7 @@ export async function POST(request: NextRequest) {
       show_list: body.showList !== false,
       show_contractors: Boolean(body.showContractors),
       show_photos: Boolean(body.showPhotos),
+      show_impact: body.showImpact !== false,
       brand_name: body.brandName || 'Big Five Group',
       brand_url: body.brandUrl || 'https://www.bigfivegroup.africa',
       created_by: gate.userId,
@@ -141,11 +142,26 @@ export async function POST(request: NextRequest) {
       updated_at: now,
     };
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('container_network_shares')
       .insert(row)
       .select('*')
       .single();
+
+    // show_impact column is optional until migration is applied
+    if (
+      error &&
+      /show_impact|column/i.test(error.message)
+    ) {
+      delete row.show_impact;
+      const retry = await supabase
+        .from('container_network_shares')
+        .insert(row)
+        .select('*')
+        .single();
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error) {
       if (/does not exist|schema cache/i.test(error.message)) {
@@ -208,17 +224,31 @@ export async function PATCH(request: NextRequest) {
       updates.show_contractors = Boolean(body.showContractors);
     }
     if (body.showPhotos != null) updates.show_photos = Boolean(body.showPhotos);
+    if (body.showImpact != null) updates.show_impact = Boolean(body.showImpact);
     if (body.brandName != null) updates.brand_name = String(body.brandName);
     if (body.brandUrl != null) updates.brand_url = String(body.brandUrl);
 
     const supabase = getSupabaseServer();
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('container_network_shares')
       .update(updates)
       .eq('id', id)
       .eq('profile_id', companyId)
       .select('*')
       .maybeSingle();
+
+    if (error && /show_impact|column/i.test(error.message)) {
+      delete updates.show_impact;
+      const retry = await supabase
+        .from('container_network_shares')
+        .update(updates)
+        .eq('id', id)
+        .eq('profile_id', companyId)
+        .select('*')
+        .maybeSingle();
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });

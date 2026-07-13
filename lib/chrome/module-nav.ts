@@ -154,10 +154,12 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Overview', href: '/dashboard/containers', exact: true },
       { name: 'Manage', href: '/dashboard/containers/manage' },
       { name: 'Map', href: '/dashboard/containers/map' },
+      { name: 'Impact', href: '/dashboard/containers/impact' },
       { name: 'Add', href: '/dashboard/containers/add' },
       { name: 'Staff', href: '/dashboard/containers/contractors' },
       { name: 'Score', href: '/dashboard/containers/metrics' },
       { name: 'Share', href: '/dashboard/containers/settings' },
+      { name: 'Reports', href: '/dashboard/containers/reports' },
     ],
   },
   {
