@@ -1,13 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { buildPublicNetworkPayload } from '@/lib/containers/public-share';
+import {
+  aggregateSalesByContainer,
+  computeContainerImpact,
+  normalizeSettings,
+  sumImpact,
+  type ImpactSettings,
+} from '@/lib/containers/impact';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 /**
- * GET ?token= — public container network (map pins + metrics) for website embed.
- * No auth. Sanitised fields only.
+ * GET ?token= — public container network (map pins + metrics + impact) for website embed.
+ * No auth. Sanitised fields only (no sales revenue on public payload).
  */
 export async function GET(request: NextRequest) {
   try {
@@ -53,20 +60,104 @@ export async function GET(request: NextRequest) {
       share.brand_name ||
       'Container network';
 
-    const { data: containers, error: cErr } = await supabase
-      .from('containers')
-      .select(
-        'id, container_code, name, status, city, province, country, latitude, longitude, assigned_contractor, photo_url, is_active'
-      )
-      .eq('profile_id', profileId)
-      .order('name', { ascending: true });
+    const baseSelect =
+      'id, container_code, name, status, city, province, country, latitude, longitude, assigned_contractor, contractor_id, photo_url, is_active';
+    const impactSelect = `${baseSelect}, impact_jobs_direct, impact_jobs_support, impact_people_per_sale, impact_avg_meal_price`;
 
-    if (cErr) {
-      return NextResponse.json({ error: cErr.message }, { status: 500 });
+    let containers: Array<Record<string, unknown>> = [];
+    {
+      const withImpact = await supabase
+        .from('containers')
+        .select(impactSelect)
+        .eq('profile_id', profileId)
+        .order('name', { ascending: true });
+
+      if (
+        withImpact.error &&
+        /does not exist|schema cache|column/i.test(withImpact.error.message)
+      ) {
+        const base = await supabase
+          .from('containers')
+          .select(baseSelect)
+          .eq('profile_id', profileId)
+          .order('name', { ascending: true });
+        if (base.error) {
+          return NextResponse.json({ error: base.error.message }, { status: 500 });
+        }
+        containers = (base.data || []) as Array<Record<string, unknown>>;
+      } else if (withImpact.error) {
+        return NextResponse.json(
+          { error: withImpact.error.message },
+          { status: 500 }
+        );
+      } else {
+        containers = (withImpact.data || []) as Array<Record<string, unknown>>;
+      }
     }
 
     // Exclude clearly inactive if flag present
-    const rows = (containers || []).filter((c) => c.is_active !== false);
+    const rows = containers.filter((c) => c.is_active !== false);
+
+    // Rolling 12 months for people-fed story
+    const to = new Date().toISOString().slice(0, 10);
+    const fromDate = new Date();
+    fromDate.setFullYear(fromDate.getFullYear() - 1);
+    const from = fromDate.toISOString().slice(0, 10);
+
+    const [salesRes, settingsRes] = await Promise.all([
+      supabase
+        .from('container_sales')
+        .select('id, container_id, gross_amount, net_amount, sale_date, items')
+        .eq('profile_id', profileId)
+        .gte('sale_date', from)
+        .lte('sale_date', to)
+        .limit(10000),
+      supabase
+        .from('container_impact_settings')
+        .select('*')
+        .eq('profile_id', profileId)
+        .maybeSingle(),
+    ]);
+
+    const settings = normalizeSettings(
+      settingsRes.data as Partial<ImpactSettings> | null
+    );
+    const salesMissing = Boolean(
+      salesRes.error &&
+        /does not exist|schema cache/i.test(salesRes.error.message)
+    );
+    const salesByContainer = salesMissing
+      ? new Map()
+      : aggregateSalesByContainer(
+          (salesRes.data || []) as Array<Record<string, unknown>>
+        );
+
+    const impactRows = rows.map((c) =>
+      computeContainerImpact(
+        c as Parameters<typeof computeContainerImpact>[0],
+        salesByContainer.get(Number(c.id)),
+        settings
+      )
+    );
+    const totals = sumImpact(impactRows);
+    const impactByContainer = new Map(
+      impactRows.map((r) => [
+        r.container_id,
+        {
+          people_fed: r.people_fed,
+          jobs_total: r.jobs_total,
+          jobs_direct: r.jobs_direct,
+          jobs_support: r.jobs_support,
+          staffed: r.staffed,
+        },
+      ])
+    );
+
+    // show_impact column optional — default on when metrics on
+    const showImpact =
+      share.show_impact != null
+        ? Boolean(share.show_impact)
+        : share.show_metrics !== false;
 
     const payload = buildPublicNetworkPayload({
       companyName: String(companyName),
@@ -77,11 +168,22 @@ export async function GET(request: NextRequest) {
       showList: share.show_list !== false,
       showContractors: Boolean(share.show_contractors),
       showPhotos: Boolean(share.show_photos),
-      containers: rows as Array<Record<string, unknown>>,
+      showImpact,
+      containers: rows,
+      impactByContainer,
+      impactTotals: {
+        people_fed: totals.people_fed,
+        jobs_total: totals.jobs_total,
+        jobs_direct: totals.jobs_direct,
+        jobs_support: totals.jobs_support,
+        staffed: totals.staffed,
+        containers: totals.containers,
+      },
+      impactPeriod: { from, to },
+      methodology: settings.methodology_notes,
     });
 
     const res = NextResponse.json({ success: true, network: payload });
-    // Allow embedding on partner sites
     res.headers.set(
       'Cache-Control',
       'public, s-maxage=60, stale-while-revalidate=300'

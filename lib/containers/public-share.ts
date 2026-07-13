@@ -14,6 +14,12 @@ export type PublicContainerPin = {
   longitude: number;
   contractor: string | null;
   photo_url: string | null;
+  /** Food security / jobs (when impact enabled) */
+  people_fed?: number;
+  jobs_total?: number;
+  jobs_direct?: number;
+  jobs_support?: number;
+  staffed?: boolean;
 };
 
 export type PublicNetworkMetrics = {
@@ -26,12 +32,32 @@ export type PublicNetworkMetrics = {
   byStatus: Array<{ status: string; count: number }>;
 };
 
+/** Public food security + jobs story (no revenue amounts) */
+export type PublicImpactMetrics = {
+  people_fed: number;
+  jobs_total: number;
+  jobs_direct: number;
+  jobs_support: number;
+  staffed: number;
+  containers: number;
+  period_from: string;
+  period_to: string;
+  byCity: Array<{
+    city: string;
+    people_fed: number;
+    jobs: number;
+    containers: number;
+  }>;
+  methodology: string | null;
+};
+
 export type PublicNetworkPayload = {
   title: string;
   brandName: string | null;
   brandUrl: string | null;
   companyName: string;
   metrics: PublicNetworkMetrics | null;
+  impact: PublicImpactMetrics | null;
   pins: PublicContainerPin[];
   outlets: Array<{
     id: number;
@@ -43,9 +69,12 @@ export type PublicNetworkPayload = {
     country: string | null;
     mapped: boolean;
     contractor: string | null;
+    people_fed?: number;
+    jobs_total?: number;
   }>;
   showList: boolean;
   showMetrics: boolean;
+  showImpact: boolean;
   generatedAt: string;
 };
 
@@ -65,14 +94,42 @@ export function buildPublicNetworkPayload(opts: {
   showList: boolean;
   showContractors: boolean;
   showPhotos: boolean;
+  /** When true, attach people-fed / jobs (defaults true with metrics) */
+  showImpact?: boolean;
   containers: Array<Record<string, unknown>>;
+  /** Precomputed impact by container id (from impact model) */
+  impactByContainer?: Map<
+    number,
+    {
+      people_fed: number;
+      jobs_total: number;
+      jobs_direct: number;
+      jobs_support: number;
+      staffed: boolean;
+    }
+  >;
+  impactTotals?: {
+    people_fed: number;
+    jobs_total: number;
+    jobs_direct: number;
+    jobs_support: number;
+    staffed: number;
+    containers: number;
+  } | null;
+  impactPeriod?: { from: string; to: string } | null;
+  methodology?: string | null;
 }): PublicNetworkPayload {
   const containers = opts.containers || [];
+  const showImpact = opts.showImpact !== false;
   const pins: PublicContainerPin[] = [];
   const outlets: PublicNetworkPayload['outlets'] = [];
   const byCountry = new Map<string, number>();
   const byCity = new Map<string, number>();
   const byStatus = new Map<string, number>();
+  const impactByCity = new Map<
+    string,
+    { city: string; people_fed: number; jobs: number; containers: number }
+  >();
 
   let mapped = 0;
   let active = 0;
@@ -97,6 +154,23 @@ export function buildPublicNetworkPayload(opts: {
         ? String(c.assigned_contractor)
         : null;
 
+    const impact = opts.impactByContainer?.get(Number(c.id));
+
+    if (showImpact && impact) {
+      if (!impactByCity.has(city)) {
+        impactByCity.set(city, {
+          city,
+          people_fed: 0,
+          jobs: 0,
+          containers: 0,
+        });
+      }
+      const ic = impactByCity.get(city)!;
+      ic.people_fed += impact.people_fed;
+      ic.jobs += impact.jobs_total;
+      ic.containers += 1;
+    }
+
     if (hasGps) {
       pins.push({
         id: Number(c.id),
@@ -111,6 +185,15 @@ export function buildPublicNetworkPayload(opts: {
         contractor,
         photo_url:
           opts.showPhotos && c.photo_url ? String(c.photo_url) : null,
+        ...(showImpact && impact
+          ? {
+              people_fed: impact.people_fed,
+              jobs_total: impact.jobs_total,
+              jobs_direct: impact.jobs_direct,
+              jobs_support: impact.jobs_support,
+              staffed: impact.staffed,
+            }
+          : {}),
       });
     }
 
@@ -125,6 +208,12 @@ export function buildPublicNetworkPayload(opts: {
         country: c.country != null ? String(c.country) : null,
         mapped: hasGps,
         contractor,
+        ...(showImpact && impact
+          ? {
+              people_fed: impact.people_fed,
+              jobs_total: impact.jobs_total,
+            }
+          : {}),
       });
     }
   }
@@ -152,6 +241,29 @@ export function buildPublicNetworkPayload(opts: {
     })),
   };
 
+  const t = opts.impactTotals;
+  const period = opts.impactPeriod;
+  const impact: PublicImpactMetrics | null =
+    showImpact && t && period
+      ? {
+          people_fed: t.people_fed,
+          jobs_total: t.jobs_total,
+          jobs_direct: t.jobs_direct,
+          jobs_support: t.jobs_support,
+          staffed: t.staffed,
+          containers: t.containers,
+          period_from: period.from,
+          period_to: period.to,
+          byCity: Array.from(impactByCity.values())
+            .map((c) => ({
+              ...c,
+              jobs: Math.round(c.jobs * 10) / 10,
+            }))
+            .sort((a, b) => b.people_fed - a.people_fed),
+          methodology: opts.methodology || null,
+        }
+      : null;
+
   return {
     title:
       opts.title?.trim() ||
@@ -160,10 +272,12 @@ export function buildPublicNetworkPayload(opts: {
     brandUrl: opts.brandUrl || null,
     companyName: opts.companyName,
     metrics: opts.showMetrics ? metrics : null,
+    impact,
     pins,
     outlets: opts.showList ? outlets : [],
     showList: opts.showList,
     showMetrics: opts.showMetrics,
+    showImpact: Boolean(impact),
     generatedAt: new Date().toISOString(),
   };
 }
