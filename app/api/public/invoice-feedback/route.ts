@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { parseInvoiceFeedbackToken } from '@/lib/customers/invoice-feedback-token';
+import {
+  normalizeFeedbackToken,
+  parseInvoiceFeedbackToken,
+} from '@/lib/customers/invoice-feedback-token';
 import { docNumber } from '@/lib/customers/documents';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 
@@ -10,34 +13,46 @@ import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
  */
 export async function GET(request: NextRequest) {
   try {
-    const token = String(request.nextUrl.searchParams.get('token') || '');
+    const token = normalizeFeedbackToken(
+      request.nextUrl.searchParams.get('token')
+    );
     const parsed = parseInvoiceFeedbackToken(token);
     if (!parsed) {
-      return NextResponse.json({ error: 'Invalid link' }, { status: 400 });
+      return NextResponse.json(
+        {
+          error: 'Invalid link',
+          detail: 'This feedback link is incomplete or corrupted. Open the link from the invoice PDF or QR again.',
+          code: 'TOKEN_INVALID',
+        },
+        { status: 400 }
+      );
+    }
+
+    const inv = await resolveInvoice(parsed);
+    if (!inv) {
+      return NextResponse.json(
+        {
+          error: 'Invoice not found',
+          detail:
+            'We could not match this invoice. It may have been deleted, or the link was generated for a different workspace.',
+          code: 'INVOICE_NOT_FOUND',
+          parsed: {
+            companyId: parsed.companyId,
+            invoiceId: parsed.invoiceId,
+          },
+        },
+        { status: 404 }
+      );
     }
 
     const supabase = getSupabaseServer();
-    const [{ data: inv }, { data: profile }] = await Promise.all([
-      supabase
-        .from('customer_invoices')
-        .select(
-          'id, invoice_number, total_amount, currency, customer_name, status, profile_id'
-        )
-        .eq('id', parsed.invoiceId)
-        .eq('profile_id', parsed.companyId)
-        .maybeSingle(),
-      supabase
-        .from('profiles')
-        .select(
-          'id, trading_name, legal_name, logo_url, verification_status, is_verified, city, country'
-        )
-        .eq('id', parsed.companyId)
-        .maybeSingle(),
-    ]);
-
-    if (!inv || !profile) {
-      return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
-    }
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select(
+        'id, trading_name, legal_name, logo_url, verification_status, is_verified, city, country'
+      )
+      .eq('id', inv.profile_id)
+      .maybeSingle();
 
     return NextResponse.json({
       success: true,
@@ -50,13 +65,17 @@ export async function GET(request: NextRequest) {
         status: inv.status,
       },
       seller: {
-        name: profile.trading_name || profile.legal_name || 'Seller',
-        logo_url: profile.logo_url,
+        name:
+          profile?.trading_name ||
+          profile?.legal_name ||
+          'Seller',
+        logo_url: profile?.logo_url ?? null,
         verified:
-          profile.is_verified === true ||
-          String(profile.verification_status || '').toLowerCase() === 'verified',
-        city: profile.city,
-        country: profile.country,
+          profile?.is_verified === true ||
+          String(profile?.verification_status || '').toLowerCase() ===
+            'verified',
+        city: profile?.city ?? null,
+        country: profile?.country ?? null,
       },
     });
   } catch (e: unknown) {
@@ -70,9 +89,13 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const parsed = parseInvoiceFeedbackToken(String(body.token || ''));
+    const token = normalizeFeedbackToken(body.token);
+    const parsed = parseInvoiceFeedbackToken(token);
     if (!parsed) {
-      return NextResponse.json({ error: 'Invalid link' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Invalid link', code: 'TOKEN_INVALID' },
+        { status: 400 }
+      );
     }
 
     const rl = checkRateLimit({
@@ -86,19 +109,20 @@ export async function POST(request: NextRequest) {
     }
 
     const action = String(body.action || 'rate').toLowerCase();
-    const supabase = getSupabaseServer();
-
-    const { data: inv } = await supabase
-      .from('customer_invoices')
-      .select('id, invoice_number, customer_id, customer_name, profile_id')
-      .eq('id', parsed.invoiceId)
-      .eq('profile_id', parsed.companyId)
-      .maybeSingle();
+    const inv = await resolveInvoice(parsed);
     if (!inv) {
-      return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Invoice not found', code: 'INVOICE_NOT_FOUND' },
+        { status: 404 }
+      );
     }
 
-    const contactName = body.contact_name ? String(body.contact_name).trim() : null;
+    const companyId = Number(inv.profile_id);
+    const supabase = getSupabaseServer();
+
+    const contactName = body.contact_name
+      ? String(body.contact_name).trim()
+      : null;
     const contactEmail = body.contact_email
       ? String(body.contact_email).toLowerCase().trim()
       : null;
@@ -107,16 +131,20 @@ export async function POST(request: NextRequest) {
     if (action === 'claim' || action === 'riad') {
       const title = String(body.title || '').trim();
       if (!title) {
-        return NextResponse.json({ error: 'Title required for a claim' }, { status: 400 });
+        return NextResponse.json(
+          { error: 'Title required for a claim' },
+          { status: 400 }
+        );
       }
       const { data, error } = await supabase
         .from('customer_claims')
         .insert({
-          profile_id: parsed.companyId,
+          profile_id: companyId,
           customer_id: inv.customer_id || null,
           invoice_id: inv.id,
           claim_number: docNumber('CLM'),
-          claim_type: body.claim_type || (action === 'riad' ? 'service' : 'quality'),
+          claim_type:
+            body.claim_type || (action === 'riad' ? 'service' : 'quality'),
           status: 'open',
           priority: body.priority || 'medium',
           title,
@@ -138,14 +166,18 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (error) {
-        // Soft fallback: activity_log
         await supabase.from('activity_log').insert({
-          profile_id: parsed.companyId,
+          profile_id: companyId,
           action: 'invoice.public_claim',
           entity_type: 'customer_invoice',
           entity_id: String(inv.id),
           summary: title,
-          metadata: { notes, contactName, contactEmail, invoice: inv.invoice_number },
+          metadata: {
+            notes,
+            contactName,
+            contactEmail,
+            invoice: inv.invoice_number,
+          },
         });
         return NextResponse.json({
           success: true,
@@ -175,7 +207,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Prefer soft insert into activity_log + optional invoice_feedback if exists
     const meta = {
       rating: rating || null,
       otifef: otif,
@@ -191,7 +222,7 @@ export async function POST(request: NextRequest) {
     };
 
     const { error: fbErr } = await supabase.from('invoice_feedback').insert({
-      profile_id: parsed.companyId,
+      profile_id: companyId,
       invoice_id: inv.id,
       invoice_number: inv.invoice_number,
       feedback_type: 'rate',
@@ -207,7 +238,7 @@ export async function POST(request: NextRequest) {
 
     if (fbErr) {
       await supabase.from('activity_log').insert({
-        profile_id: parsed.companyId,
+        profile_id: companyId,
         action: 'invoice.public_rating',
         entity_type: 'customer_invoice',
         entity_id: String(inv.id),
@@ -226,4 +257,78 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+type InvoiceRow = {
+  id: number;
+  invoice_number: string | null;
+  total_amount?: number | null;
+  currency?: string | null;
+  customer_name?: string | null;
+  status?: string | null;
+  profile_id: number;
+  customer_id?: number | null;
+};
+
+/**
+ * Resolve invoice flexibly: id+company, then id only, then number+company.
+ * Handles workspace id mismatches and legacy tokens.
+ */
+async function resolveInvoice(parsed: {
+  companyId: number;
+  invoiceId: number;
+  invoiceNumber: string;
+}): Promise<InvoiceRow | null> {
+  const supabase = getSupabaseServer();
+  const select =
+    'id, invoice_number, total_amount, currency, customer_name, status, profile_id, customer_id';
+
+  // 1) Exact match (preferred)
+  {
+    const { data } = await supabase
+      .from('customer_invoices')
+      .select(select)
+      .eq('id', parsed.invoiceId)
+      .eq('profile_id', parsed.companyId)
+      .maybeSingle();
+    if (data) return data as InvoiceRow;
+  }
+
+  // 2) By invoice id alone (company id may have drifted / wrong selected company at print time)
+  {
+    const { data } = await supabase
+      .from('customer_invoices')
+      .select(select)
+      .eq('id', parsed.invoiceId)
+      .maybeSingle();
+    if (data) return data as InvoiceRow;
+  }
+
+  // 3) By invoice number + company (when id was wrong but number was in token)
+  const num = String(parsed.invoiceNumber || '').trim();
+  if (num && parsed.companyId) {
+    const { data } = await supabase
+      .from('customer_invoices')
+      .select(select)
+      .eq('profile_id', parsed.companyId)
+      .eq('invoice_number', num)
+      .order('id', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (data) return data as InvoiceRow;
+  }
+
+  // 4) By invoice number alone
+  if (num) {
+    const { data } = await supabase
+      .from('customer_invoices')
+      .select(select)
+      .eq('invoice_number', num)
+      .order('id', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (data) return data as InvoiceRow;
+  }
+
+  return null;
 }

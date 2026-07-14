@@ -28,14 +28,36 @@ export default function InvoiceFeedbackPage() {
   );
 }
 
+function normalizeClientToken(raw: unknown): string {
+  let t = Array.isArray(raw) ? String(raw[0] ?? '') : String(raw ?? '');
+  t = t.trim();
+  if (!t) return '';
+  const pathMatch = t.match(/\/i\/([^/?#]+)/i);
+  if (pathMatch?.[1]) t = pathMatch[1];
+  t = t.split('?')[0].split('#')[0];
+  for (let i = 0; i < 2; i++) {
+    try {
+      const d = decodeURIComponent(t);
+      if (d === t) break;
+      t = d;
+    } catch {
+      break;
+    }
+  }
+  return t.trim();
+}
+
 function FeedbackInner() {
-  const { token } = useParams() as { token: string };
+  const params = useParams();
+  const rawParam = (params as { token?: string | string[] })?.token;
+  const token = normalizeClientToken(rawParam);
   const search = useSearchParams();
   const [tab, setTab] = useState<'rate' | 'claim'>(
     search.get('tab') === 'claim' ? 'claim' : 'rate'
   );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [errorDetail, setErrorDetail] = useState<string | null>(null);
   const [seller, setSeller] = useState<{
     name: string;
     logo_url?: string | null;
@@ -62,18 +84,34 @@ function FeedbackInner() {
   const [claimType, setClaimType] = useState('quality');
 
   const load = useCallback(async () => {
-    if (!token) return;
+    if (!token) {
+      setError('Invalid link');
+      setErrorDetail(
+        'No feedback token found in the URL. Scan the QR again or open the link from the invoice.'
+      );
+      setLoading(false);
+      return;
+    }
     setLoading(true);
+    setError(null);
+    setErrorDetail(null);
     try {
       const res = await fetch(
-        `/api/public/invoice-feedback?token=${encodeURIComponent(token)}`
+        `/api/public/invoice-feedback?token=${encodeURIComponent(token)}`,
+        { cache: 'no-store' }
       );
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Invalid link');
+      if (!res.ok) {
+        throw Object.assign(new Error(data.error || 'Invalid link'), {
+          detail: data.detail || null,
+        });
+      }
       setSeller(data.seller);
       setInvoice(data.invoice);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to load');
+      const err = e as Error & { detail?: string };
+      setError(err?.message || 'Failed to load');
+      setErrorDetail(err?.detail || null);
     } finally {
       setLoading(false);
     }
@@ -86,6 +124,7 @@ function FeedbackInner() {
   const submit = async () => {
     setSaving(true);
     setDone(null);
+    setError(null);
     try {
       const res = await fetch('/api/public/invoice-feedback', {
         method: 'POST',
@@ -116,7 +155,7 @@ function FeedbackInner() {
         ),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Submit failed');
+      if (!res.ok) throw new Error(data.error || data.detail || 'Submit failed');
       setDone(data.message || 'Thank you!');
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Submit failed');
@@ -139,7 +178,16 @@ function FeedbackInner() {
         <div className="max-w-md text-center bg-white border rounded-3xl p-8 shadow-sm">
           <AlertTriangle className="w-10 h-10 text-amber-500 mx-auto mb-3" />
           <h1 className="text-xl font-black mb-2">Link not valid</h1>
-          <p className="text-sm text-neutral-600">{error}</p>
+          <p className="text-sm text-neutral-600 font-semibold">{error}</p>
+          {errorDetail && (
+            <p className="text-sm text-neutral-500 mt-2 leading-relaxed">
+              {errorDetail}
+            </p>
+          )}
+          <p className="text-xs text-neutral-400 mt-4">
+            Re-open the invoice from Customers → Invoices → Print, then use the
+            Rate or Claim link / QR on that copy.
+          </p>
         </div>
       </div>
     );

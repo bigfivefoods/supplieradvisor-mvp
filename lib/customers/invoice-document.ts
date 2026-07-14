@@ -277,19 +277,30 @@ export function renderCommercialDocumentHtml(doc: DocRenderInput): string {
 
   // Public feedback links + QR (invoices primarily)
   let feedbackBlock = '';
+  const companyIdNum = Number(doc.companyId);
+  const documentIdNum = Number(doc.documentId);
   if (
     doc.kind === 'invoice' &&
-    doc.companyId &&
-    doc.documentId &&
-    Number.isFinite(doc.companyId) &&
-    Number.isFinite(doc.documentId)
+    Number.isFinite(companyIdNum) &&
+    companyIdNum > 0 &&
+    Number.isFinite(documentIdNum) &&
+    documentIdNum > 0
   ) {
-    const token = buildInvoiceFeedbackToken({
-      companyId: doc.companyId,
-      invoiceId: doc.documentId,
-      invoiceNumber: doc.number,
-    });
+    let token = '';
+    try {
+      token = buildInvoiceFeedbackToken({
+        companyId: companyIdNum,
+        invoiceId: documentIdNum,
+        invoiceNumber: doc.number,
+      });
+    } catch {
+      token = '';
+    }
+    if (!token) {
+      feedbackBlock = '';
+    } else {
     const feedbackUrl = invoiceFeedbackUrl(token);
+    // Absolute URLs required for QR scanners & PDF link extraction
     const rateUrl = `${feedbackUrl}?tab=rate`;
     const claimUrl = `${feedbackUrl}?tab=claim`;
     const qrRate = qrImageUrl(rateUrl, 96);
@@ -320,6 +331,7 @@ export function renderCommercialDocumentHtml(doc: DocRenderInput): string {
         </a>
       </div>
     </div>`;
+    }
   }
 
   const paySection = doc.kind === 'invoice' ? bankBlock(doc.seller) : '';
