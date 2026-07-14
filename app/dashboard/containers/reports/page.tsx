@@ -24,6 +24,11 @@ const REPORTS = [
     desc: 'Product, price, brand & packaging stars plus free-text notes from the field — for product development and pricing.',
     href: '/dashboard/containers/resellers/feedback',
   },
+  {
+    title: 'Reseller RIAD log',
+    desc: 'Risks, issues, actions and decisions logged by resellers in the field — stock, quality, pricing and safety problems.',
+    href: '/dashboard/containers/resellers/riad',
+  },
   { title: 'Monthly performance', desc: 'Revenue, margin, and sales by container' },
   { title: 'Contractor payouts', desc: 'Commission calculations and payment history' },
   { title: 'Inventory & stock', desc: 'Stock levels and replenishment summary' },

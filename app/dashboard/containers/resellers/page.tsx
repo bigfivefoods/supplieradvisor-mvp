@@ -16,6 +16,8 @@ import {
   Mail,
   MessageSquareHeart,
   Star,
+  AlertTriangle,
+  MessageCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePrivy } from '@privy-io/react-auth';
@@ -23,6 +25,12 @@ import { getSelectedCompanyId } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
 import { isValidSaIdNumber } from '@/lib/verifynow/client';
 import { RESELLER_VERIFY_FEE_ZAR } from '@/lib/containers/resellers';
+import {
+  buildWhatsAppShareUrl,
+  formatPhoneDisplay,
+  resellerInviteWhatsAppText,
+  toWhatsAppE164Digits,
+} from '@/lib/invites/whatsapp';
 import {
   CompanyRequired,
   ContainersHeader,
@@ -118,11 +126,16 @@ function Inner() {
     overall: number | null;
     topProducts: Array<{ product_name: string; avg_overall: number | null; count: number }>;
   } | null>(null);
+  const [riadSummary, setRiadSummary] = useState<{
+    total: number;
+    open: number;
+    critical: number;
+  } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [rRes, cRes, rateRes, fbRes] = await Promise.all([
+      const [rRes, cRes, rateRes, fbRes, riadRes] = await Promise.all([
         fetch(`/api/containers/resellers?companyId=${companyId}`, {
           cache: 'no-store',
         }).then((r) => r.json()),
@@ -132,6 +145,9 @@ function Inner() {
         ).then((r) => r.json()),
         fetch(
           `/api/containers/resellers/feedback?companyId=${companyId}&limit=200`
+        ).then((r) => r.json()),
+        fetch(
+          `/api/containers/resellers/riad?companyId=${companyId}&limit=200`
         ).then((r) => r.json()),
       ]);
       if (rRes.migration_required) {
@@ -158,6 +174,15 @@ function Inner() {
         });
       } else {
         setFbSummary(null);
+      }
+      if (riadRes?.summary) {
+        setRiadSummary({
+          total: riadRes.summary.total || 0,
+          open: riadRes.summary.open || 0,
+          critical: riadRes.summary.critical || 0,
+        });
+      } else {
+        setRiadSummary(null);
       }
     } catch {
       toast.error('Failed to load resellers');
@@ -191,12 +216,24 @@ function Inner() {
       toast.error('Name required');
       return;
     }
-    if (!form.email.trim() || !form.email.includes('@')) {
-      toast.error('Email is required so we can send the portal invitation');
+    const emailOk = form.email.trim().includes('@');
+    const phoneOk = Boolean(toWhatsAppE164Digits(form.phone));
+    if (!emailOk && !phoneOk) {
+      toast.error('Add an email and/or mobile number to invite them');
+      return;
+    }
+    if (form.email.trim() && !emailOk) {
+      toast.error('Email looks invalid');
+      return;
+    }
+    if (form.phone.trim() && !phoneOk) {
+      toast.error('Mobile looks invalid — use SA format e.g. 082 123 4567');
       return;
     }
     setSaving(true);
     try {
+      const phoneSaved = form.phone;
+      const nameSaved = form.full_name;
       const res = await fetch('/api/containers/resellers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -204,7 +241,7 @@ function Inner() {
           companyId,
           privyUserId,
           full_name: form.full_name,
-          email: form.email || null,
+          email: form.email.trim() || null,
           phone: form.phone || null,
           id_number: form.id_number || null,
           primary_container_id: form.primary_container_id
@@ -223,6 +260,28 @@ function Inner() {
         toast.message('Reseller created', { description: data.warning });
       } else {
         toast.success(data.message || 'Reseller created');
+      }
+      const inviteLink = data.inviteLink || data.reseller?.invite_url || null;
+      if (inviteLink && phoneOk) {
+        toast.message('Send WhatsApp invite?', {
+          description: formatPhoneDisplay(phoneSaved),
+          action: {
+            label: 'Open WhatsApp',
+            onClick: () => {
+              const text = resellerInviteWhatsAppText({
+                resellerName: nameSaved,
+                companyName: 'your SupplierAdvisor network',
+                inviteLink,
+              });
+              window.open(
+                buildWhatsAppShareUrl({ phone: phoneSaved, text }),
+                '_blank',
+                'noopener,noreferrer'
+              );
+            },
+          },
+          duration: 14000,
+        });
       }
       setForm({
         full_name: '',
@@ -269,6 +328,64 @@ function Inner() {
       void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /** Ensure invite link exists, then open WhatsApp (to their phone when available). */
+  const shareWhatsAppInvite = async (r: Reseller) => {
+    const phoneOk = Boolean(toWhatsAppE164Digits(r.phone));
+    if (!phoneOk && !r.phone) {
+      toast.message('No mobile number on file', {
+        description:
+          'Add a phone number on the reseller, or continue to pick a chat in WhatsApp.',
+      });
+    } else if (r.phone && !phoneOk) {
+      toast.error(
+        'Phone number looks invalid — use SA format e.g. 082 123 4567 or +27…'
+      );
+      return;
+    }
+
+    setSaving(true);
+    try {
+      let inviteLink = r.invite_url || null;
+      if (!inviteLink) {
+        const res = await fetch('/api/containers/resellers', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyId,
+            privyUserId,
+            id: r.id,
+            ensure_invite: true,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to create invite link');
+        inviteLink = data.inviteLink || data.reseller?.invite_url || null;
+        void load();
+      }
+      if (!inviteLink) {
+        toast.error('Could not create invite link');
+        return;
+      }
+
+      const text = resellerInviteWhatsAppText({
+        resellerName: r.full_name,
+        companyName: 'your SupplierAdvisor network',
+        inviteLink,
+      });
+      const wa = buildWhatsAppShareUrl({ phone: r.phone, text });
+      window.open(wa, '_blank', 'noopener,noreferrer');
+      toast.success(
+        phoneOk
+          ? `WhatsApp opened for ${formatPhoneDisplay(r.phone)}`
+          : 'WhatsApp opened — pick a contact to send the invite'
+      );
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'WhatsApp share failed');
     } finally {
       setSaving(false);
     }
@@ -400,11 +517,35 @@ function Inner() {
   };
 
   const copyInvite = async (r: Reseller) => {
-    if (!r.invite_url) return;
-    await navigator.clipboard.writeText(r.invite_url);
-    setCopied(r.id);
-    toast.success('Invite link copied');
-    setTimeout(() => setCopied(null), 2000);
+    try {
+      let link = r.invite_url || null;
+      if (!link) {
+        const res = await fetch('/api/containers/resellers', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyId,
+            privyUserId,
+            id: r.id,
+            ensure_invite: true,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed');
+        link = data.inviteLink || data.reseller?.invite_url || null;
+        void load();
+      }
+      if (!link) {
+        toast.error('No invite link available');
+        return;
+      }
+      await navigator.clipboard.writeText(link);
+      setCopied(r.id);
+      toast.success('Invite link copied');
+      setTimeout(() => setCopied(null), 2000);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Copy failed');
+    }
   };
 
   const remove = async (id: number) => {
@@ -428,12 +569,23 @@ function Inner() {
         titleAccent="resellers"
         description={`Add resellers, VerifyNow (R${fee}/person), draw stock from containers, and set dynamic per-item commission. Resellers sell via their portal.`}
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Link
               href="/dashboard/containers/resellers/feedback"
               className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-2"
             >
-              <MessageSquareHeart className="w-4 h-4" /> Customer feedback
+              <MessageSquareHeart className="w-4 h-4" /> Feedback
+            </Link>
+            <Link
+              href="/dashboard/containers/resellers/riad"
+              className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-2"
+            >
+              <AlertTriangle className="w-4 h-4" /> RIAD
+              {riadSummary && riadSummary.open > 0 ? (
+                <span className="rounded-full bg-rose-100 text-rose-800 px-1.5 py-0.5 text-[10px] font-black">
+                  {riadSummary.open}
+                </span>
+              ) : null}
             </Link>
             <button
               type="button"
@@ -472,7 +624,7 @@ function Inner() {
                 <input
                   className="input w-full !p-2.5 !text-sm"
                   type="email"
-                  placeholder="Email * (invitation sent here)"
+                  placeholder="Email (for email invite)"
                   value={form.email}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, email: e.target.value }))
@@ -480,7 +632,7 @@ function Inner() {
                 />
                 <input
                   className="input w-full !p-2.5 !text-sm"
-                  placeholder="Phone"
+                  placeholder="Mobile (WhatsApp) e.g. 082…"
                   value={form.phone}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, phone: e.target.value }))
@@ -512,8 +664,8 @@ function Inner() {
                   ))}
                 </select>
                 <p className="text-[11px] text-slate-500">
-                  We email them a <strong>confirm &amp; open portal</strong> link.
-                  VerifyNow charges <strong>R{fee}</strong> per person when
+                  Invite by <strong>email</strong> and/or <strong>WhatsApp</strong>{' '}
+                  (mobile number). VerifyNow charges <strong>R{fee}</strong> when
                   verification succeeds. Stock only after verify.
                 </p>
                 <button
@@ -527,7 +679,7 @@ function Inner() {
                   ) : (
                     <Plus className="w-4 h-4" />
                   )}
-                  Add &amp; email invite
+                  Add reseller
                 </button>
               </div>
             </Panel>
@@ -719,7 +871,22 @@ function Inner() {
                                   Email invite
                                 </button>
                               )}
-                              {r.invite_url && (
+                              <button
+                                type="button"
+                                disabled={saving}
+                                onClick={() => void shareWhatsAppInvite(r)}
+                                className="flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:underline"
+                                title={
+                                  r.phone
+                                    ? `WhatsApp ${formatPhoneDisplay(r.phone)}`
+                                    : 'Open WhatsApp with invite text (add phone for direct chat)'
+                                }
+                              >
+                                <MessageCircle className="w-3 h-3" />
+                                WhatsApp
+                                {r.phone ? ' invite' : ' share'}
+                              </button>
+                              {(r.invite_url || r.email || r.phone) && (
                                 <button
                                   type="button"
                                   onClick={() => void copyInvite(r)}
@@ -936,12 +1103,56 @@ function Inner() {
               </div>
             </Panel>
 
+            <Panel title="Field RIAD (problems)">
+              <div className="p-4 space-y-3">
+                {riadSummary && riadSummary.total > 0 ? (
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                      <div className="text-[10px] font-bold uppercase text-slate-400">
+                        Total
+                      </div>
+                      <div className="text-lg font-black tabular-nums">
+                        {riadSummary.total}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-sky-100 bg-sky-50/60 px-3 py-2">
+                      <div className="text-[10px] font-bold uppercase text-slate-400">
+                        Open
+                      </div>
+                      <div className="text-lg font-black tabular-nums text-sky-900">
+                        {riadSummary.open}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-rose-100 bg-rose-50/60 px-3 py-2">
+                      <div className="text-[10px] font-bold uppercase text-slate-400">
+                        Critical
+                      </div>
+                      <div className="text-lg font-black tabular-nums text-rose-800">
+                        {riadSummary.critical}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500">
+                    Resellers log risks, issues, actions and decisions in their
+                    portal. Nothing logged yet.
+                  </p>
+                )}
+                <Link
+                  href="/dashboard/containers/resellers/riad"
+                  className="inline-flex items-center gap-1.5 text-sm font-bold text-[#0077b6] hover:underline"
+                >
+                  <AlertTriangle className="w-4 h-4" />
+                  Open RIAD report →
+                </Link>
+              </div>
+            </Panel>
+
             <div className="rounded-2xl border border-sky-100 bg-sky-50/50 px-4 py-3 text-sm text-slate-700">
               <strong className="text-slate-900">Reseller portal:</strong>{' '}
-              <code className="text-xs">/reseller</code> — they sign in with
-              Privy via invite link, see stock drawn to them, log sales, capture
-              customer feedback (stars + free text), and earn commission per item
-              rate.
+              <code className="text-xs">/reseller</code> — stock, sales,
+              customer feedback, and RIAD. Invite via <strong>Email</strong>,{' '}
+              <strong>WhatsApp</strong> (mobile), or copy link.
               <div className="mt-1 flex flex-wrap gap-3 text-xs">
                 <span className="inline-flex items-center gap-1">
                   <Package className="w-3.5 h-3.5 text-[#00b4d8]" /> Draw stock

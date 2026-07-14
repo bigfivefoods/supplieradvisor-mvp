@@ -201,14 +201,18 @@ export async function POST(request: NextRequest) {
       containerName = c?.name || c?.container_code || null;
     }
 
-    const emailResult = await sendResellerInviteEmail({
-      to: row.email,
-      resellerName: row.full_name,
-      companyName,
-      containerName,
-      inviteLink,
-      companyId,
-    });
+    const emailResult = row.email
+      ? await sendResellerInviteEmail({
+          to: row.email,
+          resellerName: row.full_name,
+          companyName,
+          containerName,
+          inviteLink,
+          companyId,
+        })
+      : { sent: false as const, warning: undefined as string | undefined, from: undefined as string | undefined };
+
+    const hasPhone = Boolean(row.phone && String(row.phone).replace(/\D/g, '').length >= 9);
 
     return NextResponse.json({
       success: true,
@@ -219,11 +223,14 @@ export async function POST(request: NextRequest) {
       inviteLink,
       verify_fee_zar: RESELLER_VERIFY_FEE_ZAR,
       emailSent: emailResult.sent,
+      hasPhone,
       message: emailResult.sent
         ? `Reseller created and invitation emailed to ${row.email}`
         : row.email
           ? emailResult.warning || 'Reseller created (email not sent)'
-          : 'Reseller created — add an email and use Send invite to email them',
+          : hasPhone
+            ? 'Reseller created — use WhatsApp invite to send the portal link to their phone'
+            : 'Reseller created — add email and/or phone, then Email or WhatsApp the invite',
       warning: emailResult.warning || undefined,
       from: emailResult.from || undefined,
     });
@@ -270,15 +277,32 @@ export async function PATCH(request: NextRequest) {
         ? Number(body.primary_container_id)
         : null;
     }
-    const sendInvite =
-      Boolean(body.send_invite) || Boolean(body.regenerate_invite);
-    if (body.regenerate_invite || body.send_invite) {
-      updates.invite_token = randomUUID().replace(/-/g, '');
-      updates.invited_at = new Date().toISOString();
-      updates.portal_status = 'invited';
-    }
+    // send_invite → email; regenerate_invite / ensure_invite → token only (for WhatsApp / copy)
+    const wantEmail = Boolean(body.send_invite);
+    const forceNewToken = Boolean(body.regenerate_invite) || wantEmail;
 
     const supabase = getSupabaseServer();
+
+    // Load current row when we may only need ensure_invite
+    let existingToken: string | null = null;
+    if (Boolean(body.ensure_invite) && !forceNewToken) {
+      const { data: cur } = await supabase
+        .from('container_resellers')
+        .select('invite_token')
+        .eq('id', id)
+        .eq('profile_id', companyId)
+        .maybeSingle();
+      existingToken = cur?.invite_token ? String(cur.invite_token) : null;
+    }
+
+    if (forceNewToken || (Boolean(body.ensure_invite) && !existingToken)) {
+      updates.invite_token = randomUUID().replace(/-/g, '');
+      updates.invited_at = new Date().toISOString();
+      if (!updates.portal_status) {
+        updates.portal_status = 'invited';
+      }
+    }
+
     const { data, error } = await supabase
       .from('container_resellers')
       .update(updates)
@@ -304,7 +328,7 @@ export async function PATCH(request: NextRequest) {
       from?: string;
     } = { sent: false };
 
-    if (sendInvite && inviteLink) {
+    if (wantEmail && inviteLink) {
       let companyName = body.companyName || 'Your network operator';
       const { data: profile } = await supabase
         .from('profiles')
@@ -344,9 +368,11 @@ export async function PATCH(request: NextRequest) {
       emailSent: emailResult.sent,
       message: emailResult.sent
         ? `Invitation emailed to ${data.email}`
-        : sendInvite
+        : wantEmail
           ? emailResult.warning || 'Invite link updated'
-          : 'Reseller updated',
+          : body.ensure_invite || body.regenerate_invite
+            ? 'Invite link ready'
+            : 'Reseller updated',
       warning: emailResult.warning || undefined,
       from: emailResult.from || undefined,
     });

@@ -3,7 +3,13 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import AuthGate from '@/components/AuthGate';
-import { Package, ShoppingCart, Home, MessageSquareHeart } from 'lucide-react';
+import {
+  Package,
+  ShoppingCart,
+  Home,
+  MessageSquareHeart,
+  AlertTriangle,
+} from 'lucide-react';
 
 export default function ResellerLayout({
   children,
@@ -27,7 +33,7 @@ export default function ResellerLayout({
                   Reseller portal
                 </div>
               </div>
-              <nav className="flex gap-1">
+              <nav className="flex gap-1 overflow-x-auto max-w-[70vw] pb-0.5 scrollbar-thin">
                 <Link
                   href="/reseller"
                   className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold ${
@@ -67,6 +73,16 @@ export default function ResellerLayout({
                   }`}
                 >
                   <MessageSquareHeart className="w-3.5 h-3.5" /> Feedback
+                </Link>
+                <Link
+                  href="/reseller/riad"
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold ${
+                    path.startsWith('/reseller/riad')
+                      ? 'border-[#00b4d8] bg-[#00b4d8] text-white'
+                      : 'border-slate-200 bg-white text-slate-600'
+                  }`}
+                >
+                  <AlertTriangle className="w-3.5 h-3.5" /> RIAD
                 </Link>
               </nav>
             </div>
