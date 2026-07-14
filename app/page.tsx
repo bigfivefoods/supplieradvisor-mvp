@@ -71,6 +71,10 @@ type PublicCompany = {
   industry: string | null;
   city: string | null;
   country: string | null;
+  logo_url?: string | null;
+  trust_score?: number | null;
+  star_avg?: number | null;
+  star_count?: number;
   badge: 'verified' | 'network';
 };
 
@@ -220,6 +224,7 @@ const TRUST_PILLARS = [
 export default function LandingPage() {
   const [verifiedCompanies, setVerifiedCompanies] = useState<PublicCompany[]>([]);
   const [verifiedCount, setVerifiedCount] = useState(0);
+  const [networkCount, setNetworkCount] = useState(0);
   const [platformTotal, setPlatformTotal] = useState<number | null>(null);
   const [loadingVerified, setLoadingVerified] = useState(true);
   const [activeModule, setActiveModule] = useState(0);
@@ -232,7 +237,8 @@ export default function LandingPage() {
         const data = await res.json();
         if (cancelled) return;
         setVerifiedCompanies(data.companies || []);
-        setVerifiedCount(data.counts?.verified ?? data.companies?.length ?? 0);
+        setVerifiedCount(data.counts?.verified ?? 0);
+        setNetworkCount(data.counts?.network ?? 0);
         setPlatformTotal(
           typeof data.counts?.platformTotal === 'number'
             ? data.counts.platformTotal
@@ -693,17 +699,23 @@ export default function LandingPage() {
         <div className="max-w-screen-2xl mx-auto">
           <div className="text-center mb-10 sm:mb-12">
             <div className="inline-flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-100 px-4 py-1.5 rounded-full text-xs font-bold mb-4">
-              <ShieldCheck size={16} /> Trusted network
+              <ShieldCheck size={16} /> Network businesses
             </div>
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-[-0.04em] text-slate-900 mb-3">
               Businesses on SupplierAdvisor®
             </h2>
             <p className="text-base sm:text-lg text-slate-600 max-w-2xl mx-auto">
-              {verifiedCount > 0
-                ? `${verifiedCount}+ verified companies on the network — discover who you can trade with`
-                : platformTotal
-                  ? `${platformTotal} companies building transparent trade on the platform`
-                  : 'Companies building transparent, ethical trade on the platform'}
+              {platformTotal
+                ? `${platformTotal} companies on the platform${
+                    verifiedCount > 0
+                      ? ` · ${verifiedCount} verified`
+                      : ''
+                  }${
+                    networkCount > 0
+                      ? ` · ${networkCount} building trust`
+                      : ''
+                  } — peer stars and trust scores when available`
+                : 'Verified and joining companies building transparent, ethical trade'}
             </p>
             {!loadingVerified && platformTotal != null && (
               <p className="mt-3 text-sm font-semibold text-violet-800">
@@ -741,10 +753,13 @@ export default function LandingPage() {
                   .filter(Boolean)
                   .join(' · ');
                 const isVerified = company.badge === 'verified';
+                const stars = company.star_avg;
+                const starCount = company.star_count ?? 0;
+                const trust = company.trust_score;
                 return (
                   <div
                     key={company.id}
-                    className="border border-slate-200 rounded-2xl sm:rounded-3xl p-5 sm:p-7 hover:shadow-lg hover:border-cyan-200 transition-all bg-white"
+                    className="border border-slate-200 rounded-2xl sm:rounded-3xl p-5 sm:p-7 hover:shadow-lg hover:border-cyan-200 transition-all bg-white flex flex-col"
                   >
                     <div className="flex items-start justify-between mb-3 gap-3">
                       <div className="min-w-0">
@@ -757,15 +772,54 @@ export default function LandingPage() {
                         className={`px-2.5 py-1 rounded-full text-[10px] font-bold whitespace-nowrap shrink-0 ${
                           isVerified
                             ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
-                            : 'bg-sky-50 text-sky-800 border border-sky-100'
+                            : 'bg-amber-50 text-amber-900 border border-amber-100'
                         }`}
                       >
-                        {isVerified ? 'Verified' : 'On network'}
+                        {isVerified ? 'Verified' : 'Unverified'}
                       </span>
                     </div>
-                    <div className="text-xs sm:text-sm text-slate-500 flex items-center gap-2">
+                    <div className="text-xs sm:text-sm text-slate-500 flex items-center gap-2 mb-4">
                       <Building2 className="w-3.5 h-3.5 text-[#00b4d8] shrink-0" />
                       <span className="truncate">{meta || 'Business on SupplierAdvisor'}</span>
+                    </div>
+
+                    {/* Stars received + trust score */}
+                    <div className="mt-auto pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        {stars != null && starCount > 0 ? (
+                          <>
+                            <span className="text-amber-500 text-sm tracking-tight" aria-hidden>
+                              {'★'.repeat(Math.min(5, Math.round(stars)))}
+                              <span className="text-slate-200">
+                                {'★'.repeat(Math.max(0, 5 - Math.round(stars)))}
+                              </span>
+                            </span>
+                            <span className="text-sm font-black text-slate-900 tabular-nums">
+                              {stars.toFixed(1)}
+                            </span>
+                            <span className="text-[11px] text-slate-400">
+                              ({starCount})
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-[11px] text-slate-400">
+                            No peer ratings yet
+                          </span>
+                        )}
+                      </div>
+                      <div
+                        className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold tabular-nums ${
+                          trust != null && trust >= 70
+                            ? 'bg-emerald-50 border-emerald-100 text-emerald-800'
+                            : trust != null && trust >= 40
+                              ? 'bg-sky-50 border-sky-100 text-sky-800'
+                              : 'bg-slate-50 border-slate-200 text-slate-600'
+                        }`}
+                        title="Trust score"
+                      >
+                        <ShieldCheck className="w-3 h-3 shrink-0" />
+                        Trust {trust != null ? Math.round(trust) : '—'}
+                      </div>
                     </div>
                   </div>
                 );
