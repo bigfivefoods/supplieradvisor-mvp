@@ -239,6 +239,13 @@ export function isCustomerInvitesEnabled(): boolean {
   return !['0', 'false', 'no', 'off'].includes(String(raw).toLowerCase().trim());
 }
 
+/** Feature flag: PO_REVIEWS_ENABLED (default true when unset). */
+export function isPoReviewsEnabled(): boolean {
+  const raw = process.env.PO_REVIEWS_ENABLED;
+  if (raw === undefined || raw === '') return true;
+  return !['0', 'false', 'no', 'off'].includes(String(raw).toLowerCase().trim());
+}
+
 /**
  * SQL-backed invite rate limits (design Security table).
  * - max 20 pending per seller company
