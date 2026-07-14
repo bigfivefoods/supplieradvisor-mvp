@@ -345,6 +345,19 @@ export async function PATCH(request: NextRequest) {
           { status: 400 }
         );
       }
+      const reverseDate =
+        body.entry_date || existing.entry_date || new Date().toISOString().slice(0, 10);
+      const revLock = await isPeriodLocked(companyId, String(reverseDate));
+      if (revLock.locked) {
+        return NextResponse.json(
+          {
+            error: `Period ${revLock.period_key} is locked. Unlock the period to reverse.`,
+            code: 'PERIOD_LOCKED',
+            period_key: revLock.period_key,
+          },
+          { status: 409 }
+        );
+      }
       const { data: lines } = await supabase
         .from('journal_lines')
         .select('account_id, debit, credit, memo, counterparty, tax_code')
@@ -372,8 +385,6 @@ export async function PATCH(request: NextRequest) {
       }
 
       const entryNumber = await nextDocumentNumber(companyId, 'journal');
-      const reverseDate =
-        body.entry_date || existing.entry_date || new Date().toISOString().slice(0, 10);
 
       const { data: revEntry, error: revErr } = await supabase
         .from('journal_entries')
@@ -528,10 +539,10 @@ export async function PATCH(request: NextRequest) {
      * Correct a posted journal: reverse original, then post new lines.
      * body: { action: 'correct', lines, memo?, entry_date? }
      */
-    if (action === 'correct') {
+    if (action === 'correct' || action === 'reclassify' || action === 'edit_posted') {
       if (String(existing.status) !== 'posted') {
         return NextResponse.json(
-          { error: 'Correct is for posted journals. Edit drafts with update_draft.' },
+          { error: 'Correct / reclassify is for posted journals. Edit drafts with update_draft.' },
           { status: 400 }
         );
       }
@@ -546,6 +557,20 @@ export async function PATCH(request: NextRequest) {
             error: `Correction must balance (${balancedNew.debit} ≠ ${balancedNew.credit})`,
           },
           { status: 400 }
+        );
+      }
+
+      const revDate =
+        body.entry_date || existing.entry_date || new Date().toISOString().slice(0, 10);
+      const corrLock = await isPeriodLocked(companyId, String(revDate));
+      if (corrLock.locked) {
+        return NextResponse.json(
+          {
+            error: `Period ${corrLock.period_key} is locked. Unlock the period to reclassify.`,
+            code: 'PERIOD_LOCKED',
+            period_key: corrLock.period_key,
+          },
+          { status: 409 }
         );
       }
 
@@ -566,9 +591,6 @@ export async function PATCH(request: NextRequest) {
         counterparty: l.counterparty || null,
         tax_code: l.tax_code || null,
       }));
-
-      const revDate =
-        body.entry_date || existing.entry_date || new Date().toISOString().slice(0, 10);
       const revNumber = await nextDocumentNumber(companyId, 'journal');
       const { data: revEntry, error: revErr } = await supabase
         .from('journal_entries')
@@ -695,7 +717,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json(
         {
           error:
-            'Nothing to update. Use action void | post | reverse | update_draft | correct',
+            'Nothing to update. Use action void | post | reverse | update_draft | correct | reclassify',
         },
         { status: 400 }
       );

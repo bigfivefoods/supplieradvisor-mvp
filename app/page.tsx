@@ -31,6 +31,8 @@ import {
   Star,
   Fingerprint,
   CreditCard,
+  Container,
+  FolderKanban,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import LandingNav from '@/components/marketing/LandingNav';
@@ -45,6 +47,11 @@ import {
   AccountingMock,
   SheqMock,
   QualityMock,
+  ContainersMock,
+  NetworkMock,
+  ProjectsMock,
+  SustainabilityMock,
+  PRODUCT_MOCK_HEIGHT,
 } from '@/components/marketing/ProductMocks';
 import {
   COMPANY_SUBSCRIPTION_MONTHLY_ZAR,
@@ -84,6 +91,7 @@ const MODULES = [
     id: 'ops',
     code: '01',
     title: 'Operations',
+    short: 'Ops',
     tagline: 'End-to-end control tower',
     body: 'Procure, receive, store, make, ship, and fulfill on one live tower — exceptions surface first so throughput never goes dark.',
     bullets: ['Supplier POs → inbound', 'Warehouse & production WIP', 'Outbound + customer fulfill'],
@@ -94,6 +102,7 @@ const MODULES = [
     id: 'srm',
     code: '02',
     title: 'Suppliers (SRM)',
+    short: 'Suppliers',
     tagline: 'Trust you can measure',
     body: 'Discover verified partners, connect on-platform, raise POs with optional on-chain escrow, and run OTIFEF scorecards after every delivery.',
     bullets: ['Discover & invite', 'OTIFEF scorecards', 'Peer ratings & RIAD'],
@@ -104,6 +113,7 @@ const MODULES = [
     id: 'crm',
     code: '03',
     title: 'Customers (CRM)',
+    short: 'Customers',
     tagline: 'Lead → loyalty in one flow',
     body: 'Pipeline, quotes, sales orders, invoices, and loyalty — plus platform invites that turn buyers into live trading edges.',
     bullets: ['Leads & opportunities', 'Quotes → orders → AR', 'Buyer portal & reviews'],
@@ -111,9 +121,21 @@ const MODULES = [
     icon: ShoppingCart,
   },
   {
-    id: 'inv',
+    id: 'ctr',
     code: '04',
+    title: 'Containers',
+    short: 'Containers',
+    tagline: 'Outlet network that feeds people',
+    body: 'Deploy container retail outlets, contractors and resellers, live stock, impact (jobs & meals), and feasibility models — one command centre for the last mile.',
+    bullets: ['Map, stock & resellers', 'Food security & jobs impact', 'Deploy feasibility model'],
+    Mock: ContainersMock,
+    icon: Container,
+  },
+  {
+    id: 'inv',
+    code: '05',
     title: 'Inventory',
+    short: 'Inventory',
     tagline: 'Every unit has a home',
     body: 'SKU master, multi-site stock, QR receive, GPS transfers, lots & serials, and on-chain product passports when pedigree matters.',
     bullets: ['Products & locations', 'Live stock & transfers', 'Lots, GS1, on-chain ready'],
@@ -122,8 +144,9 @@ const MODULES = [
   },
   {
     id: 'mfg',
-    code: '05',
+    code: '06',
     title: 'Manufacturing',
+    short: 'Make',
     tagline: 'Factory physics, not spreadsheets',
     body: 'BOMs, master production schedules, MRP explosion, work centers, and work orders with OEE-style throughput on every refresh.',
     bullets: ['BOM & work cells', 'MPS / MRP', 'Work order execution'],
@@ -132,8 +155,9 @@ const MODULES = [
   },
   {
     id: 'dst',
-    code: '06',
+    code: '07',
     title: 'Distribution',
+    short: 'Ship',
     tagline: 'Door to destination',
     body: 'Inbound and outbound logistics, carriers, fleet & drivers, Incoterms® 2020, and event-level tracking across road, ocean, and air.',
     bullets: ['Inbound & outbound', 'Carriers & fleet', 'Live tracking & OTIF'],
@@ -141,9 +165,21 @@ const MODULES = [
     icon: Ship,
   },
   {
+    id: 'net',
+    code: '08',
+    title: 'Network',
+    short: 'Network',
+    tagline: 'Verified trading graph',
+    body: 'Company-to-company connections, pricing edges, marketplace reach, and invites — so every PO rides a trusted relationship, not a cold email.',
+    bullets: ['Connection graph', 'Pricing & marketplace', 'Invite businesses'],
+    Mock: NetworkMock,
+    icon: Network,
+  },
+  {
     id: 'sheq',
-    code: '07',
+    code: '09',
     title: 'SHEQ',
+    short: 'SHEQ',
     tagline: 'ISO 45001-ready control tower',
     body: 'Incidents, hazard risk scores, NCRs and CAPAs in one hub — failed QA inspections auto-raise nonconformances so people, product, and process risk never live in separate silos.',
     bullets: ['Incidents & near-misses', 'HIRARC hazard register', 'NCR + CAPA loop'],
@@ -152,8 +188,9 @@ const MODULES = [
   },
   {
     id: 'qa',
-    code: '08',
+    code: '10',
     title: 'Quality & food safety',
+    short: 'Quality',
     tagline: 'Inspect · hold · trace · recall',
     body: 'Live inspections that block shipping on hold, HACCP plans with CCPs, lot pedigree graphs, recall drills, and auditor export packs — built for real release gates, not paperwork theatre.',
     bullets: ['QA holds block ship', 'HACCP monitoring', 'Traceability + recall packs'],
@@ -162,8 +199,9 @@ const MODULES = [
   },
   {
     id: 'fin',
-    code: '09',
+    code: '11',
     title: 'Finance',
+    short: 'Finance',
     tagline: 'One ledger of truth',
     body: 'Double-entry CoA, journals, AR/AP, payments, bank import, VAT, fixed assets, and management accounts — membership-scoped to your company.',
     bullets: ['Journals & GL', 'Bank allocation', 'Management accounts'],
@@ -171,9 +209,32 @@ const MODULES = [
     icon: Wallet,
   },
   {
+    id: 'prj',
+    code: '12',
+    title: 'Projects',
+    short: 'Projects',
+    tagline: 'Portfolio that ships',
+    body: 'Portfolio overview, kanban boards, milestone gates, timesheets, and risk registers — so improvement work and capex land with the same discipline as ops.',
+    bullets: ['Portfolio & boards', 'Milestones & gates', 'Timesheets & risk'],
+    Mock: ProjectsMock,
+    icon: FolderKanban,
+  },
+  {
+    id: 'esg',
+    code: '13',
+    title: 'Impact (ESG)',
+    short: 'Impact',
+    tagline: 'Carbon you can act on',
+    body: 'Scope 1–3 style carbon tracking and report packs wired to the same inventory and logistics reality — not a disconnected ESG spreadsheet.',
+    bullets: ['Carbon tracking', 'ESG report packs', 'Tied to real ops data'],
+    Mock: SustainabilityMock,
+    icon: Leaf,
+  },
+  {
     id: 'bi',
-    code: '10',
+    code: '14',
     title: 'Intelligence',
+    short: 'Insights',
     tagline: 'Signal over noise',
     body: 'Live pulse across network, supply, demand, finance, and ops — plus Super-Cube® leadership development for the humans who run the system.',
     bullets: ['Enterprise health', 'Insights & forecasts', 'Super-Cube® leadership'],
@@ -183,7 +244,7 @@ const MODULES = [
 ] as const;
 
 const STATS = [
-  { label: 'Modules', value: '25+' },
+  { label: 'Modules', value: String(MODULES.length) },
   { label: 'Free trial', value: `${COMPANY_TRIAL_DAYS}d` },
   { label: 'On-chain ready', value: 'Yes' },
   { label: 'From', value: `R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}` },
@@ -387,8 +448,13 @@ export default function LandingPage() {
             <div className="relative min-w-0 lg:col-span-6">
               <div className="pointer-events-none absolute -inset-2 rounded-[2rem] bg-gradient-to-tr from-cyan-200/30 via-transparent to-violet-200/20 blur-2xl sm:-inset-4" />
               <div className="relative min-w-0">
-                <FeaturedMock />
-                <div className="-mx-1 mt-3 flex gap-1.5 overflow-x-auto px-1 pb-1 scrollbar-thin sm:mt-4 sm:justify-center lg:justify-start">
+                {/* Fixed height slot — prevents layout jump when modules rotate */}
+                <div className={`relative w-full ${PRODUCT_MOCK_HEIGHT}`}>
+                  <div className="absolute inset-0">
+                    <FeaturedMock />
+                  </div>
+                </div>
+                <div className="-mx-1 mt-3 flex gap-1.5 overflow-x-auto px-1 pb-1 scrollbar-thin sm:mt-4 sm:flex-wrap sm:justify-center lg:justify-start">
                   {MODULES.map((m, i) => (
                     <button
                       key={m.id}
@@ -400,7 +466,7 @@ export default function LandingPage() {
                           : 'border-slate-200 bg-white text-slate-600 hover:border-cyan-300'
                       }`}
                     >
-                      {m.title.split(' ')[0]}
+                      {m.short}
                     </button>
                   ))}
                 </div>
@@ -509,7 +575,11 @@ export default function LandingPage() {
                     </Link>
                   </div>
                   <div className={`min-w-0 ${reverse ? 'lg:order-1' : ''}`}>
-                    <Mock />
+                    <div className={`relative w-full ${PRODUCT_MOCK_HEIGHT}`}>
+                      <div className="absolute inset-0">
+                        <Mock />
+                      </div>
+                    </div>
                   </div>
                 </div>
               );
@@ -518,18 +588,14 @@ export default function LandingPage() {
 
           <div className="mt-12 grid grid-cols-2 gap-2.5 sm:mt-20 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
             {[
-              { icon: Warehouse, t: 'Containers', d: 'Retail outlet network' },
-              { icon: Network, t: 'Connections', d: 'Company trading graph' },
-              { icon: HardHat, t: 'SHEQ', d: 'Incidents, NCR, CAPA' },
-              { icon: ClipboardCheck, t: 'Quality', d: 'HACCP & recall packs' },
-              { icon: Leaf, t: 'Impact', d: 'Carbon & ESG packs' },
               { icon: Users, t: 'My business', d: 'Profile, team, billing' },
-              { icon: Award, t: 'Projects', d: 'Portfolio & milestones' },
               { icon: ShoppingCart, t: 'Sales portal', d: 'Contractors & commission' },
               { icon: Globe, t: 'Marketplace', d: 'Optional reach' },
               { icon: ShoppingCart, t: 'Buyer portal', d: 'Raise POs as buyer' },
               { icon: BookOpen, t: 'Guide', d: 'In-app how-to paths' },
               { icon: CreditCard, t: 'Billing', d: 'Trial + Paystack ZAR' },
+              { icon: Award, t: 'Resellers', d: 'Field sales + feedback' },
+              { icon: Warehouse, t: 'Lots & GS1', d: 'Pedigree & scan receive' },
             ].map((m) => (
               <div
                 key={m.t}

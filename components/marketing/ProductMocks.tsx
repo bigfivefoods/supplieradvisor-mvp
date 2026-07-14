@@ -4,6 +4,10 @@ import type { LucideIcon } from 'lucide-react';
 
 /** Browser-frame product mockups for landing — light Tesla-style product UI. */
 
+/** Fixed chrome height so hero module rotation never reflows the page. */
+export const PRODUCT_MOCK_HEIGHT =
+  'h-[300px] sm:h-[340px] lg:h-[360px]';
+
 function Frame({
   title,
   children,
@@ -15,9 +19,9 @@ function Frame({
 }) {
   return (
     <div
-      className={`w-full min-w-0 max-w-full overflow-hidden rounded-[1.25rem] border border-slate-200/90 bg-white shadow-[0_25px_60px_-20px_rgba(15,23,42,0.18)] sm:rounded-[1.75rem] ${className}`}
+      className={`flex w-full min-w-0 max-w-full flex-col overflow-hidden rounded-[1.25rem] border border-slate-200/90 bg-white shadow-[0_25px_60px_-20px_rgba(15,23,42,0.18)] sm:rounded-[1.75rem] ${PRODUCT_MOCK_HEIGHT} ${className}`}
     >
-      <div className="flex items-center gap-2 border-b border-slate-100 bg-slate-50/90 px-2.5 py-2 sm:px-4 sm:py-3">
+      <div className="flex shrink-0 items-center gap-2 border-b border-slate-100 bg-slate-50/90 px-2.5 py-2 sm:px-4 sm:py-3">
         <div className="flex shrink-0 gap-1.5">
           <span className="h-2 w-2 rounded-full bg-rose-300 sm:h-2.5 sm:w-2.5" />
           <span className="h-2 w-2 rounded-full bg-amber-300 sm:h-2.5 sm:w-2.5" />
@@ -29,7 +33,7 @@ function Frame({
           </div>
         </div>
       </div>
-      <div className="min-h-[200px] bg-gradient-to-br from-[#f8fafc] via-white to-sky-50/40 p-2.5 sm:min-h-[280px] sm:p-5">
+      <div className="min-h-0 flex-1 overflow-hidden bg-gradient-to-br from-[#f8fafc] via-white to-sky-50/40 p-2.5 sm:p-4">
         {children}
       </div>
     </div>
@@ -439,6 +443,181 @@ export function QualityMock() {
         </div>
         <div className="mt-2 text-[10px] text-emerald-700 font-semibold">
           Ship blocked on open hold · audit pack ready
+        </div>
+      </div>
+    </Frame>
+  );
+}
+
+export function ContainersMock() {
+  return (
+    <Frame title="dashboard/containers">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div>
+          <div className="text-[9px] font-bold uppercase tracking-widest text-emerald-700">
+            Containers · Command
+          </div>
+          <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
+            Outlet network. Jobs & meals.
+          </div>
+        </div>
+        <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[9px] font-black uppercase text-emerald-800">
+          Live map
+        </span>
+      </div>
+      <div className="grid grid-cols-4 gap-1.5 sm:gap-2 mb-3">
+        <Telemetry label="Outlets" value="24" tone="emerald" />
+        <Telemetry label="Resellers" value="18" tone="cyan" />
+        <Telemetry label="Jobs" value="96" tone="violet" />
+        <Telemetry label="Fed /mo" value="12k" tone="amber" />
+      </div>
+      <div className="rounded-xl border border-slate-100 bg-white p-2.5 space-y-1.5">
+        {[
+          { n: 'CPT-07 Woodstock', s: 'Stock OK', t: 'emerald' },
+          { n: 'JHB-12 Alexandra', s: 'Reorder', t: 'amber' },
+          { n: 'DBN-03 Umlazi', s: 'Impact ↑', t: 'cyan' },
+        ].map((r) => (
+          <div
+            key={r.n}
+            className="flex items-center justify-between gap-2 rounded-lg border border-slate-50 px-2 py-1.5 text-[11px]"
+          >
+            <span className="font-semibold text-slate-800 truncate">{r.n}</span>
+            <span
+              className={`shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold ${
+                r.t === 'emerald'
+                  ? 'bg-emerald-50 text-emerald-700'
+                  : r.t === 'amber'
+                    ? 'bg-amber-50 text-amber-800'
+                    : 'bg-sky-50 text-sky-700'
+              }`}
+            >
+              {r.s}
+            </span>
+          </div>
+        ))}
+      </div>
+    </Frame>
+  );
+}
+
+export function NetworkMock() {
+  return (
+    <Frame title="dashboard/connections">
+      <div className="text-[9px] font-bold uppercase tracking-widest text-[#00b4d8] mb-1">
+        Network · Graph
+      </div>
+      <div className="text-sm sm:text-base font-black text-slate-900 mb-3">
+        Verified trading edges.
+      </div>
+      <div className="grid grid-cols-3 gap-1.5 sm:gap-2 mb-3">
+        <Telemetry label="Connected" value="42" tone="cyan" />
+        <Telemetry label="Pending" value="6" tone="amber" />
+        <Telemetry label="Trust avg" value="78" tone="emerald" />
+      </div>
+      <div className="relative h-[7.5rem] rounded-xl border border-slate-100 bg-white overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_40%,rgba(0,180,216,0.12),transparent_55%)]" />
+        <svg viewBox="0 0 280 120" className="absolute inset-0 h-full w-full" aria-hidden>
+          <line x1="40" y1="60" x2="120" y2="30" stroke="#bae6fd" strokeWidth="2" />
+          <line x1="40" y1="60" x2="130" y2="90" stroke="#bae6fd" strokeWidth="2" />
+          <line x1="120" y1="30" x2="220" y2="50" stroke="#c4b5fd" strokeWidth="2" />
+          <line x1="130" y1="90" x2="220" y2="50" stroke="#a7f3d0" strokeWidth="2" />
+          <circle cx="40" cy="60" r="14" fill="#e0f2fe" stroke="#00b4d8" strokeWidth="2" />
+          <circle cx="120" cy="30" r="11" fill="#f5f3ff" stroke="#8b5cf6" strokeWidth="2" />
+          <circle cx="130" cy="90" r="11" fill="#ecfdf5" stroke="#10b981" strokeWidth="2" />
+          <circle cx="220" cy="50" r="13" fill="#fff7ed" stroke="#f59e0b" strokeWidth="2" />
+        </svg>
+        <div className="absolute bottom-2 left-2 right-2 flex justify-between text-[9px] font-bold text-slate-500">
+          <span>You</span>
+          <span>Suppliers · Buyers · Outlets</span>
+        </div>
+      </div>
+    </Frame>
+  );
+}
+
+export function ProjectsMock() {
+  return (
+    <Frame title="dashboard/projects">
+      <div className="text-[9px] font-bold uppercase tracking-widest text-[#00b4d8] mb-1">
+        Projects · Portfolio
+      </div>
+      <div className="text-sm sm:text-base font-black text-slate-900 mb-3">
+        Gates, boards, delivery.
+      </div>
+      <div className="grid grid-cols-3 gap-1.5 sm:gap-2 mb-3">
+        <Telemetry label="Active" value="9" tone="cyan" />
+        <Telemetry label="At risk" value="2" tone="amber" />
+        <Telemetry label="On time" value="87%" tone="emerald" />
+      </div>
+      <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+        {[
+          {
+            col: 'To do',
+            items: ['Spec freeze', 'Vendor RFQ'],
+          },
+          {
+            col: 'Doing',
+            items: ['BOM rev B', 'Pilot site'],
+          },
+          {
+            col: 'Done',
+            items: ['Kickoff', 'Risk log'],
+          },
+        ].map((c) => (
+          <div
+            key={c.col}
+            className="rounded-xl border border-slate-100 bg-white p-2 space-y-1.5"
+          >
+            <div className="text-[9px] font-black uppercase tracking-wider text-slate-400">
+              {c.col}
+            </div>
+            {c.items.map((it) => (
+              <div
+                key={it}
+                className="rounded-lg border border-slate-50 bg-slate-50/80 px-1.5 py-1 text-[10px] font-semibold text-slate-700"
+              >
+                {it}
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </Frame>
+  );
+}
+
+export function SustainabilityMock() {
+  return (
+    <Frame title="dashboard/sustainability">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div>
+          <div className="text-[9px] font-bold uppercase tracking-widest text-emerald-700">
+            Impact · ESG
+          </div>
+          <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
+            Carbon you can act on.
+          </div>
+        </div>
+        <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[9px] font-black uppercase text-emerald-800">
+          Scope 1–3
+        </span>
+      </div>
+      <div className="grid grid-cols-3 gap-1.5 sm:gap-2 mb-3">
+        <Telemetry label="tCO₂e MTD" value="42.6" tone="emerald" />
+        <Telemetry label="vs plan" value="-8%" tone="cyan" />
+        <Telemetry label="Packs" value="3" tone="violet" />
+      </div>
+      <div className="rounded-xl border border-slate-100 bg-white p-3">
+        <div className="text-[10px] font-bold text-slate-500 mb-2">Emissions mix</div>
+        <div className="flex h-3 overflow-hidden rounded-full">
+          <div className="bg-emerald-500 w-[38%]" title="Scope 1" />
+          <div className="bg-cyan-400 w-[27%]" title="Scope 2" />
+          <div className="bg-violet-400 w-[35%]" title="Scope 3" />
+        </div>
+        <div className="mt-2 flex justify-between text-[9px] font-semibold text-slate-500">
+          <span>S1 38%</span>
+          <span>S2 27%</span>
+          <span>S3 35%</span>
         </div>
       </div>
     </Frame>
