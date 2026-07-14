@@ -8,7 +8,11 @@ import {
   Target,
   Briefcase,
   LayoutGrid,
-  List,
+  Users,
+  Mail,
+  Copy,
+  Check,
+  Link2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePrivy } from '@privy-io/react-auth';
@@ -31,6 +35,7 @@ import {
 } from '@/lib/sales-contractor/commission';
 
 type Tab = 'map' | 'leads' | 'list';
+type FormMode = 'opportunity' | 'lead' | 'customer';
 
 /**
  * Sales portal pipeline — same opportunity map as Customers → Leads pipeline,
@@ -46,16 +51,27 @@ export default function SalesPipelinePage() {
   const [tiers, setTiers] = useState<CommissionTier[]>(DEFAULT_COMMISSION_TIERS);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [formMode, setFormMode] = useState<FormMode>('opportunity');
   const [saving, setSaving] = useState(false);
+  const [lastInviteLink, setLastInviteLink] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [form, setForm] = useState({
     name: '',
     company_name: '',
+    trading_name: '',
+    legal_name: '',
+    contact_name: '',
     email: '',
     phone: '',
+    city: '',
+    country: 'South Africa',
     status: 'new',
     stage: 'prospecting',
     amount: '',
     notes: '',
+    invite_message: '',
+    send_invite: true,
+    also_create_opportunity: false,
   });
 
   const load = useCallback(async () => {
@@ -187,6 +203,39 @@ export default function SalesPipelinePage() {
     }
     setSaving(true);
     try {
+      // Optionally create CRM customer + invite from opportunity details
+      let customerId: number | null = null;
+      if (form.send_invite && form.email.trim() && form.email.includes('@')) {
+        const trading =
+          form.company_name.trim() || form.name.trim() || form.email.trim();
+        const cRes = await fetch('/api/customers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyId,
+            privyUserId,
+            trading_name: trading,
+            contact_name: form.name.trim() || null,
+            email: form.email.trim().toLowerCase(),
+            phone: form.phone || null,
+            city: form.city || null,
+            country: form.country || 'South Africa',
+            notes: form.notes || null,
+            source: 'sales_pipeline',
+            sales_rep_user_id: privyUserId || null,
+          }),
+        });
+        const cData = await cRes.json();
+        if (cRes.ok && cData.customer?.id) {
+          customerId = Number(cData.customer.id);
+          await sendInvite(customerId, form.email, form.name);
+        } else if (!cRes.ok) {
+          toast.message('Opportunity will save without invite', {
+            description: cData.error || 'Could not create customer record',
+          });
+        }
+      }
+
       const res = await fetch('/api/customers/opportunities', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -198,6 +247,7 @@ export default function SalesPipelinePage() {
           company_name: form.company_name || null,
           contact_email: form.email || null,
           contact_phone: form.phone || null,
+          customer_id: customerId,
           stage: form.stage,
           amount: Number(form.amount) || 0,
           notes: form.notes || null,
@@ -206,7 +256,11 @@ export default function SalesPipelinePage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
-      toast.success('Opportunity added to the map');
+      toast.success(
+        customerId
+          ? 'Opportunity added · customer created & invite sent'
+          : 'Opportunity added to the map'
+      );
       setShowForm(false);
       resetForm();
       setTab('map');
@@ -218,17 +272,171 @@ export default function SalesPipelinePage() {
     }
   };
 
-  const resetForm = () =>
+  const sendInvite = async (
+    customerId: number,
+    email: string,
+    contactName?: string
+  ) => {
+    if (!companyId || !privyUserId) return null;
+    const res = await fetch('/api/customers/invites', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        companyId,
+        customerId,
+        privyUserId,
+        email: email.trim().toLowerCase(),
+        contactName: contactName?.trim() || undefined,
+        message: form.invite_message.trim() || undefined,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      toast.message('Customer saved — invite not sent', {
+        description: data.error || data.hint || 'Invite failed',
+      });
+      return null;
+    }
+    if (data.inviteLink) {
+      setLastInviteLink(String(data.inviteLink));
+    }
+    if (data.warning) {
+      toast.message('Invitation created', { description: data.warning });
+    } else {
+      toast.success(data.message || 'Invitation sent');
+    }
+    return data.inviteLink as string | undefined;
+  };
+
+  const saveCustomer = async () => {
+    if (!companyId) return;
+    const trading =
+      form.trading_name.trim() ||
+      form.company_name.trim() ||
+      form.contact_name.trim();
+    if (!trading) {
+      toast.error('Customer / trading name is required');
+      return;
+    }
+    if (form.send_invite) {
+      if (!form.email.trim() || !form.email.includes('@')) {
+        toast.error('A valid email is required to send an invitation');
+        return;
+      }
+    }
+    setSaving(true);
+    setLastInviteLink(null);
+    try {
+      const res = await fetch('/api/customers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          trading_name: trading,
+          legal_name: form.legal_name.trim() || null,
+          contact_name:
+            form.contact_name.trim() || form.name.trim() || null,
+          email: form.email.trim().toLowerCase() || null,
+          phone: form.phone.trim() || null,
+          city: form.city.trim() || null,
+          country: form.country.trim() || 'South Africa',
+          notes: form.notes.trim() || null,
+          source: 'sales_pipeline',
+          status: 'active',
+          sales_rep_user_id: privyUserId || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to create customer');
+      const customerId = Number(data.customer?.id);
+      let inviteLink: string | undefined;
+
+      if (form.send_invite && customerId && form.email.trim()) {
+        inviteLink =
+          (await sendInvite(
+            customerId,
+            form.email,
+            form.contact_name || form.name
+          )) || undefined;
+      } else {
+        toast.success('Customer added to your book');
+      }
+
+      if (form.also_create_opportunity && customerId) {
+        await fetch('/api/customers/opportunities', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyId,
+            privyUserId,
+            name:
+              form.name.trim() ||
+              `Deal · ${trading}`,
+            contact_name:
+              form.contact_name.trim() || form.name.trim() || null,
+            company_name: trading,
+            contact_email: form.email || null,
+            contact_phone: form.phone || null,
+            customer_id: customerId,
+            stage: form.stage || 'prospecting',
+            amount: Number(form.amount) || 0,
+            notes: form.notes || null,
+            sales_rep_user_id: privyUserId || null,
+          }),
+        });
+      }
+
+      if (!form.send_invite || !inviteLink) {
+        setShowForm(false);
+        resetForm();
+      }
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const resetForm = () => {
+    setLastInviteLink(null);
+    setLinkCopied(false);
     setForm({
       name: '',
       company_name: '',
+      trading_name: '',
+      legal_name: '',
+      contact_name: '',
       email: '',
       phone: '',
+      city: '',
+      country: 'South Africa',
       status: 'new',
       stage: 'prospecting',
       amount: '',
       notes: '',
+      invite_message: '',
+      send_invite: true,
+      also_create_opportunity: false,
     });
+  };
+
+  const openForm = (mode: FormMode) => {
+    resetForm();
+    setFormMode(mode);
+    setShowForm(true);
+    if (mode === 'lead') setTab('leads');
+    if (mode === 'opportunity') setTab('map');
+  };
+
+  const copyLink = async () => {
+    if (!lastInviteLink) return;
+    await navigator.clipboard.writeText(lastInviteLink);
+    setLinkCopied(true);
+    toast.success('Invite link copied');
+    setTimeout(() => setLinkCopied(false), 2000);
+  };
 
   if (!companyId) {
     return (
@@ -237,8 +445,6 @@ export default function SalesPipelinePage() {
       </p>
     );
   }
-
-  const formIsOpp = tab === 'map' || tab === 'list';
 
   return (
     <div className="space-y-6">
@@ -257,21 +463,23 @@ export default function SalesPipelinePage() {
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => {
-              setTab('map');
-              setShowForm(true);
-            }}
+            onClick={() => openForm('customer')}
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-[#00b4d8] to-[#0077b6] text-white text-sm font-bold shadow-sm"
+          >
+            <Users className="w-4 h-4" />
+            Add customer
+          </button>
+          <button
+            type="button"
+            onClick={() => openForm('opportunity')}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl border border-neutral-200 bg-white text-slate-700 text-sm font-semibold"
           >
             <Plus className="w-4 h-4" />
             New opportunity
           </button>
           <button
             type="button"
-            onClick={() => {
-              setTab('leads');
-              setShowForm(true);
-            }}
+            onClick={() => openForm('lead')}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl border border-neutral-200 bg-white text-slate-700 text-sm font-semibold"
           >
             <Plus className="w-4 h-4" />
@@ -308,101 +516,411 @@ export default function SalesPipelinePage() {
       </div>
 
       {showForm && (
-        <div className="rounded-3xl border border-neutral-200 bg-white p-5 space-y-3">
-          <h2 className="font-bold text-slate-900">
-            {formIsOpp ? 'Add opportunity' : 'Capture lead'}
-          </h2>
-          <div className="grid sm:grid-cols-2 gap-3">
-            <input
-              className="rounded-2xl bg-white border border-neutral-200 px-4 py-3 text-slate-800 text-sm"
-              placeholder={formIsOpp ? 'Opportunity name *' : 'Contact name *'}
-              value={form.name}
-              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-            />
-            <input
-              className="rounded-2xl bg-white border border-neutral-200 px-4 py-3 text-slate-800 text-sm"
-              placeholder="Company"
-              value={form.company_name}
-              onChange={(e) => setForm((f) => ({ ...f, company_name: e.target.value }))}
-            />
-            <input
-              className="rounded-2xl bg-white border border-neutral-200 px-4 py-3 text-slate-800 text-sm"
-              placeholder="Email"
-              value={form.email}
-              onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-            />
-            <input
-              className="rounded-2xl bg-white border border-neutral-200 px-4 py-3 text-slate-800 text-sm"
-              placeholder="Phone"
-              value={form.phone}
-              onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-            />
-            {formIsOpp ? (
-              <>
-                <select
-                  className="rounded-2xl bg-white border border-neutral-200 px-4 py-3 text-slate-800 text-sm"
-                  value={form.stage}
-                  onChange={(e) => setForm((f) => ({ ...f, stage: e.target.value }))}
+        <div className="rounded-3xl border border-neutral-200 bg-white p-5 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="font-bold text-slate-900">
+              {formMode === 'customer'
+                ? 'Add customer & invite to SupplierAdvisor'
+                : formMode === 'opportunity'
+                  ? 'Add opportunity'
+                  : 'Capture lead'}
+            </h2>
+            <div className="flex flex-wrap gap-1.5">
+              {(
+                [
+                  { id: 'customer' as const, label: 'Customer' },
+                  { id: 'opportunity' as const, label: 'Opportunity' },
+                  { id: 'lead' as const, label: 'Lead' },
+                ] as const
+              ).map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => {
+                    setFormMode(m.id);
+                    setLastInviteLink(null);
+                  }}
+                  className={`px-3 py-1.5 rounded-full text-xs font-bold border ${
+                    formMode === m.id
+                      ? 'border-[#00b4d8] bg-[#00b4d8] text-white'
+                      : 'border-slate-200 bg-white text-slate-600'
+                  }`}
                 >
-                  {OPPORTUNITY_STAGES.map((s) => (
-                    <option key={s.value} value={s.value}>
-                      {s.label}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  type="number"
-                  className="rounded-2xl bg-white border border-neutral-200 px-4 py-3 text-slate-800 text-sm"
-                  placeholder="Deal amount (ZAR)"
-                  value={form.amount}
-                  onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
-                />
-                {Number(form.amount) > 0 && (
-                  <div className="sm:col-span-2">
-                    <CommissionBadge amount={Number(form.amount)} />
-                    <p className="text-[11px] text-neutral-500 mt-1.5">
-                      Preview uses your agreement tiers when available; otherwise the default
-                      progressive scale.
-                    </p>
+                  {m.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {formMode === 'customer' ? (
+            <>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Create a CRM customer on your book, then optionally email them an
+                invitation link to join SupplierAdvisor as a buyer.
+              </p>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <label className="block text-xs font-bold text-slate-600 sm:col-span-2">
+                  Trading / business name *
+                  <input
+                    className="mt-1 w-full rounded-2xl border border-neutral-200 px-4 py-3 text-sm"
+                    placeholder="e.g. Soweto Business Access"
+                    value={form.trading_name}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, trading_name: e.target.value }))
+                    }
+                  />
+                </label>
+                <label className="block text-xs font-bold text-slate-600">
+                  Legal name
+                  <input
+                    className="mt-1 w-full rounded-2xl border border-neutral-200 px-4 py-3 text-sm"
+                    value={form.legal_name}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, legal_name: e.target.value }))
+                    }
+                  />
+                </label>
+                <label className="block text-xs font-bold text-slate-600">
+                  Contact person
+                  <input
+                    className="mt-1 w-full rounded-2xl border border-neutral-200 px-4 py-3 text-sm"
+                    placeholder="Primary contact name"
+                    value={form.contact_name}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, contact_name: e.target.value }))
+                    }
+                  />
+                </label>
+                <label className="block text-xs font-bold text-slate-600">
+                  Email {form.send_invite ? '*' : ''}
+                  <input
+                    type="email"
+                    className="mt-1 w-full rounded-2xl border border-neutral-200 px-4 py-3 text-sm"
+                    placeholder="buyer@company.co.za"
+                    value={form.email}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, email: e.target.value }))
+                    }
+                  />
+                </label>
+                <label className="block text-xs font-bold text-slate-600">
+                  Phone
+                  <input
+                    className="mt-1 w-full rounded-2xl border border-neutral-200 px-4 py-3 text-sm"
+                    value={form.phone}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, phone: e.target.value }))
+                    }
+                  />
+                </label>
+                <label className="block text-xs font-bold text-slate-600">
+                  City
+                  <input
+                    className="mt-1 w-full rounded-2xl border border-neutral-200 px-4 py-3 text-sm"
+                    value={form.city}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, city: e.target.value }))
+                    }
+                  />
+                </label>
+                <label className="block text-xs font-bold text-slate-600">
+                  Country
+                  <input
+                    className="mt-1 w-full rounded-2xl border border-neutral-200 px-4 py-3 text-sm"
+                    value={form.country}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, country: e.target.value }))
+                    }
+                  />
+                </label>
+              </div>
+              <textarea
+                className="w-full rounded-2xl border border-neutral-200 px-4 py-3 text-sm min-h-[64px]"
+                placeholder="Notes (internal)"
+                value={form.notes}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, notes: e.target.value }))
+                }
+              />
+
+              <div className="rounded-2xl border border-[#00b4d8]/25 bg-sky-50/50 p-4 space-y-3">
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="mt-1 rounded border-slate-300 text-[#00b4d8]"
+                    checked={form.send_invite}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        send_invite: e.target.checked,
+                      }))
+                    }
+                  />
+                  <span>
+                    <span className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                      <Mail className="w-4 h-4 text-[#00b4d8]" />
+                      Send SupplierAdvisor invitation
+                    </span>
+                    <span className="block text-xs text-slate-600 mt-0.5">
+                      Emails them a link to join the platform and connect as your
+                      buyer. You can also copy the link after send.
+                    </span>
+                  </span>
+                </label>
+                {form.send_invite && (
+                  <textarea
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm min-h-[56px] bg-white"
+                    placeholder="Optional personal message on the invite email"
+                    value={form.invite_message}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        invite_message: e.target.value,
+                      }))
+                    }
+                  />
+                )}
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="mt-1 rounded border-slate-300 text-[#00b4d8]"
+                    checked={form.also_create_opportunity}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        also_create_opportunity: e.target.checked,
+                      }))
+                    }
+                  />
+                  <span className="text-sm text-slate-800">
+                    Also create a pipeline opportunity for this customer
+                  </span>
+                </label>
+                {form.also_create_opportunity && (
+                  <div className="grid sm:grid-cols-2 gap-2">
+                    <input
+                      className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                      placeholder="Opportunity name"
+                      value={form.name}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, name: e.target.value }))
+                      }
+                    />
+                    <input
+                      type="number"
+                      className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                      placeholder="Deal amount (ZAR)"
+                      value={form.amount}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, amount: e.target.value }))
+                      }
+                    />
                   </div>
                 )}
-              </>
-            ) : (
-              <select
-                className="rounded-2xl bg-white border border-neutral-200 px-4 py-3 text-slate-800 text-sm"
-                value={form.status}
-                onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
-              >
-                {LEAD_STATUSES.map((s) => (
-                  <option key={s.value} value={s.value}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
-          <textarea
-            className="w-full rounded-2xl bg-white border border-neutral-200 px-4 py-3 text-slate-800 text-sm min-h-[72px]"
-            placeholder="Notes"
-            value={form.notes}
-            onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-          />
-          <div className="flex gap-2">
+              </div>
+
+              {lastInviteLink && (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 space-y-2">
+                  <div className="text-xs font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
+                    <Link2 className="w-3.5 h-3.5" /> Invitation link ready
+                  </div>
+                  <input
+                    readOnly
+                    className="w-full rounded-xl border border-emerald-100 bg-white px-3 py-2 text-xs font-mono"
+                    value={lastInviteLink}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void copyLink()}
+                    className="inline-flex items-center gap-1.5 text-sm font-bold text-emerald-800"
+                  >
+                    {linkCopied ? (
+                      <Check className="w-4 h-4" />
+                    ) : (
+                      <Copy className="w-4 h-4" />
+                    )}
+                    Copy invite link
+                  </button>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <input
+                  className="rounded-2xl bg-white border border-neutral-200 px-4 py-3 text-slate-800 text-sm"
+                  placeholder={
+                    formMode === 'opportunity'
+                      ? 'Opportunity name *'
+                      : 'Contact name *'
+                  }
+                  value={form.name}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, name: e.target.value }))
+                  }
+                />
+                <input
+                  className="rounded-2xl bg-white border border-neutral-200 px-4 py-3 text-slate-800 text-sm"
+                  placeholder="Company"
+                  value={form.company_name}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, company_name: e.target.value }))
+                  }
+                />
+                <input
+                  className="rounded-2xl bg-white border border-neutral-200 px-4 py-3 text-slate-800 text-sm"
+                  placeholder="Email"
+                  value={form.email}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, email: e.target.value }))
+                  }
+                />
+                <input
+                  className="rounded-2xl bg-white border border-neutral-200 px-4 py-3 text-slate-800 text-sm"
+                  placeholder="Phone"
+                  value={form.phone}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, phone: e.target.value }))
+                  }
+                />
+                {formMode === 'opportunity' ? (
+                  <>
+                    <select
+                      className="rounded-2xl bg-white border border-neutral-200 px-4 py-3 text-slate-800 text-sm"
+                      value={form.stage}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, stage: e.target.value }))
+                      }
+                    >
+                      {OPPORTUNITY_STAGES.map((s) => (
+                        <option key={s.value} value={s.value}>
+                          {s.label}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="number"
+                      className="rounded-2xl bg-white border border-neutral-200 px-4 py-3 text-slate-800 text-sm"
+                      placeholder="Deal amount (ZAR)"
+                      value={form.amount}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, amount: e.target.value }))
+                      }
+                    />
+                    {Number(form.amount) > 0 && (
+                      <div className="sm:col-span-2">
+                        <CommissionBadge amount={Number(form.amount)} />
+                      </div>
+                    )}
+                    <label className="sm:col-span-2 flex items-start gap-2.5 cursor-pointer rounded-2xl border border-sky-100 bg-sky-50/40 px-3 py-2.5">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 rounded border-slate-300 text-[#00b4d8]"
+                        checked={form.send_invite}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            send_invite: e.target.checked,
+                          }))
+                        }
+                      />
+                      <span className="text-xs text-slate-700">
+                        <strong className="text-slate-900">
+                          Also add as CRM customer &amp; send invite
+                        </strong>{' '}
+                        when email is filled — creates the customer and emails a
+                        join link to SupplierAdvisor.
+                      </span>
+                    </label>
+                  </>
+                ) : (
+                  <select
+                    className="rounded-2xl bg-white border border-neutral-200 px-4 py-3 text-slate-800 text-sm"
+                    value={form.status}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, status: e.target.value }))
+                    }
+                  >
+                    {LEAD_STATUSES.map((s) => (
+                      <option key={s.value} value={s.value}>
+                        {s.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              <textarea
+                className="w-full rounded-2xl bg-white border border-neutral-200 px-4 py-3 text-slate-800 text-sm min-h-[72px]"
+                placeholder="Notes"
+                value={form.notes}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, notes: e.target.value }))
+                }
+              />
+              {lastInviteLink && (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-3 flex flex-wrap gap-2 items-center">
+                  <span className="text-xs font-bold text-emerald-800">
+                    Invite link:
+                  </span>
+                  <code className="text-[11px] flex-1 min-w-0 truncate">
+                    {lastInviteLink}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={() => void copyLink()}
+                    className="text-xs font-bold text-emerald-800 inline-flex items-center gap-1"
+                  >
+                    <Copy className="w-3.5 h-3.5" /> Copy
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+
+          <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={() => setShowForm(false)}
+              onClick={() => {
+                setShowForm(false);
+                resetForm();
+              }}
               className="px-4 py-2.5 rounded-2xl border border-neutral-200 text-slate-700 text-sm font-semibold"
             >
-              Cancel
+              {lastInviteLink ? 'Done' : 'Cancel'}
             </button>
             <button
               type="button"
               disabled={saving}
-              onClick={() => void (formIsOpp ? saveOpp() : saveLead())}
+              onClick={() =>
+                void (formMode === 'customer'
+                  ? saveCustomer()
+                  : formMode === 'opportunity'
+                    ? saveOpp()
+                    : saveLead())
+              }
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-[#00b4d8] to-[#0077b6] text-white text-sm font-bold disabled:opacity-50"
             >
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save'}
+              {saving ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : formMode === 'customer' ? (
+                <>
+                  <Users className="w-4 h-4" />
+                  {form.send_invite
+                    ? 'Save customer & send invite'
+                    : 'Save customer'}
+                </>
+              ) : (
+                'Save'
+              )}
             </button>
+            {formMode === 'customer' && (
+              <Link
+                href="/sales/customers"
+                className="px-4 py-2.5 rounded-2xl border border-neutral-200 text-slate-600 text-sm font-semibold inline-flex items-center"
+              >
+                View all customers
+              </Link>
+            )}
           </div>
         </div>
       )}
