@@ -6,7 +6,11 @@ import {
   legacyPrivyFrom,
 } from '@/lib/auth/api-auth';
 import { RESELLER_VERIFY_FEE_ZAR } from '@/lib/containers/resellers';
-import { getAppUrl } from '@/lib/resend';
+import { getAppUrl, getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
+import {
+  buildResellerInviteLink,
+  resellerInviteEmailHtml,
+} from '@/lib/invites/email';
 
 /**
  * GET ?companyId= — list resellers
@@ -86,7 +90,6 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const base = getAppUrl().replace(/\/$/, '');
     const resellers = (data || []).map((r) => {
       const stats = salesByReseller.get(Number(r.id));
       return {
@@ -96,7 +99,7 @@ export async function GET(request: NextRequest) {
         commission_total: Math.round((stats?.commission || 0) * 100) / 100,
         sales_count: stats?.count || 0,
         invite_url: r.invite_token
-          ? `${base}/reseller/invite?token=${r.invite_token}`
+          ? buildResellerInviteLink(String(r.invite_token))
           : null,
         verify_fee_zar: Number(r.verification_fee_zar ?? RESELLER_VERIFY_FEE_ZAR),
       };
@@ -174,14 +177,55 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const base = getAppUrl().replace(/\/$/, '');
+    const inviteLink = buildResellerInviteLink(token);
+    let companyName = body.companyName || 'Your network operator';
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('trading_name, legal_name')
+        .eq('id', companyId)
+        .maybeSingle();
+      companyName =
+        profile?.trading_name || profile?.legal_name || companyName;
+    } catch {
+      /* ignore */
+    }
+
+    let containerName: string | null = null;
+    if (row.primary_container_id) {
+      const { data: c } = await supabase
+        .from('containers')
+        .select('name, container_code')
+        .eq('id', row.primary_container_id)
+        .maybeSingle();
+      containerName = c?.name || c?.container_code || null;
+    }
+
+    const emailResult = await sendResellerInviteEmail({
+      to: row.email,
+      resellerName: row.full_name,
+      companyName,
+      containerName,
+      inviteLink,
+      companyId,
+    });
+
     return NextResponse.json({
       success: true,
       reseller: {
         ...data,
-        invite_url: `${base}/reseller/invite?token=${token}`,
+        invite_url: inviteLink,
       },
+      inviteLink,
       verify_fee_zar: RESELLER_VERIFY_FEE_ZAR,
+      emailSent: emailResult.sent,
+      message: emailResult.sent
+        ? `Reseller created and invitation emailed to ${row.email}`
+        : row.email
+          ? emailResult.warning || 'Reseller created (email not sent)'
+          : 'Reseller created — add an email and use Send invite to email them',
+      warning: emailResult.warning || undefined,
+      from: emailResult.from || undefined,
     });
   } catch (e: unknown) {
     return NextResponse.json(
@@ -226,7 +270,9 @@ export async function PATCH(request: NextRequest) {
         ? Number(body.primary_container_id)
         : null;
     }
-    if (body.regenerate_invite) {
+    const sendInvite =
+      Boolean(body.send_invite) || Boolean(body.regenerate_invite);
+    if (body.regenerate_invite || body.send_invite) {
       updates.invite_token = randomUUID().replace(/-/g, '');
       updates.invited_at = new Date().toISOString();
       updates.portal_status = 'invited';
@@ -248,15 +294,61 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Reseller not found' }, { status: 404 });
     }
 
-    const base = getAppUrl().replace(/\/$/, '');
+    const inviteLink = data.invite_token
+      ? buildResellerInviteLink(String(data.invite_token))
+      : null;
+
+    let emailResult: {
+      sent: boolean;
+      warning?: string;
+      from?: string;
+    } = { sent: false };
+
+    if (sendInvite && inviteLink) {
+      let companyName = body.companyName || 'Your network operator';
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('trading_name, legal_name')
+        .eq('id', companyId)
+        .maybeSingle();
+      companyName =
+        profile?.trading_name || profile?.legal_name || companyName;
+
+      let containerName: string | null = null;
+      if (data.primary_container_id) {
+        const { data: c } = await supabase
+          .from('containers')
+          .select('name, container_code')
+          .eq('id', data.primary_container_id)
+          .maybeSingle();
+        containerName = c?.name || c?.container_code || null;
+      }
+
+      emailResult = await sendResellerInviteEmail({
+        to: data.email,
+        resellerName: data.full_name,
+        companyName,
+        containerName,
+        inviteLink,
+        companyId,
+      });
+    }
+
     return NextResponse.json({
       success: true,
       reseller: {
         ...data,
-        invite_url: data.invite_token
-          ? `${base}/reseller/invite?token=${data.invite_token}`
-          : null,
+        invite_url: inviteLink,
       },
+      inviteLink,
+      emailSent: emailResult.sent,
+      message: emailResult.sent
+        ? `Invitation emailed to ${data.email}`
+        : sendInvite
+          ? emailResult.warning || 'Invite link updated'
+          : 'Reseller updated',
+      warning: emailResult.warning || undefined,
+      from: emailResult.from || undefined,
     });
   } catch (e: unknown) {
     return NextResponse.json(
@@ -304,4 +396,70 @@ function isMissing(msg?: string) {
   return Boolean(
     msg && /does not exist|schema cache|could not find.*table/i.test(msg)
   );
+}
+
+async function sendResellerInviteEmail(opts: {
+  to: string | null | undefined;
+  resellerName: string;
+  companyName: string;
+  containerName?: string | null;
+  inviteLink: string;
+  companyId: number;
+}): Promise<{ sent: boolean; warning?: string; from?: string }> {
+  const email = opts.to ? String(opts.to).toLowerCase().trim() : '';
+  if (!email || !email.includes('@')) {
+    return {
+      sent: false,
+      warning: 'No valid email on the reseller — invitation email not sent',
+    };
+  }
+
+  const from = getResendFrom();
+  try {
+    const resend = getResend();
+    const { data: emailData, error: emailError } = await resend.emails.send({
+      from,
+      replyTo: getResendReplyTo(),
+      to: email,
+      subject: `Confirm & open your reseller portal — ${opts.companyName}`,
+      html: resellerInviteEmailHtml({
+        resellerName: opts.resellerName,
+        companyName: opts.companyName,
+        containerName: opts.containerName,
+        inviteLink: opts.inviteLink,
+      }),
+      tags: [
+        { name: 'type', value: 'reseller_invite' },
+        { name: 'company_id', value: String(opts.companyId) },
+      ],
+    });
+
+    if (emailError) {
+      const msg =
+        typeof emailError === 'object' &&
+        emailError &&
+        'message' in emailError
+          ? String((emailError as { message?: string }).message)
+          : String(emailError);
+      return {
+        sent: false,
+        warning: `Invite created but email failed: ${msg}`,
+        from,
+      };
+    }
+
+    return {
+      sent: true,
+      from,
+      warning: emailData?.id ? undefined : undefined,
+    };
+  } catch (emailErr: unknown) {
+    const msg =
+      emailErr instanceof Error ? emailErr.message : 'Email failed';
+    return {
+      sent: false,
+      warning: `Invite created but email failed: ${msg}. Check RESEND_API_KEY.`,
+      from,
+    };
+  }
 }

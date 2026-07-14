@@ -13,6 +13,7 @@ import {
   Banknote,
   Trash2,
   ArrowRightLeft,
+  Mail,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePrivy } from '@privy-io/react-auth';
@@ -165,6 +166,10 @@ function Inner() {
       toast.error('Name required');
       return;
     }
+    if (!form.email.trim() || !form.email.includes('@')) {
+      toast.error('Email is required so we can send the portal invitation');
+      return;
+    }
     setSaving(true);
     try {
       const res = await fetch('/api/containers/resellers', {
@@ -184,7 +189,16 @@ function Inner() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.hint || data.error || 'Failed');
-      toast.success('Reseller created — verify ID before transferring stock');
+      if (data.emailSent) {
+        toast.success(
+          data.message ||
+            `Invitation emailed to ${form.email} — they can confirm and open the portal`
+        );
+      } else if (data.warning) {
+        toast.message('Reseller created', { description: data.warning });
+      } else {
+        toast.success(data.message || 'Reseller created');
+      }
       setForm({
         full_name: '',
         email: '',
@@ -192,6 +206,41 @@ function Inner() {
         id_number: '',
         primary_container_id: '',
       });
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const sendInviteEmail = async (r: Reseller) => {
+    if (!r.email) {
+      toast.error('Add an email on this reseller first');
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch('/api/containers/resellers', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          id: r.id,
+          send_invite: true,
+          regenerate_invite: true,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to send invite');
+      if (data.emailSent) {
+        toast.success(data.message || `Invitation emailed to ${r.email}`);
+      } else {
+        toast.message(data.message || 'Invite link ready', {
+          description: data.warning,
+        });
+      }
       void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed');
@@ -389,7 +438,8 @@ function Inner() {
                 />
                 <input
                   className="input w-full !p-2.5 !text-sm"
-                  placeholder="Email"
+                  type="email"
+                  placeholder="Email * (invitation sent here)"
                   value={form.email}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, email: e.target.value }))
@@ -429,8 +479,9 @@ function Inner() {
                   ))}
                 </select>
                 <p className="text-[11px] text-slate-500">
+                  We email them a <strong>confirm &amp; open portal</strong> link.
                   VerifyNow charges <strong>R{fee}</strong> per person when
-                  verification succeeds. Stock can only be drawn after verify.
+                  verification succeeds. Stock only after verify.
                 </p>
                 <button
                   type="button"
@@ -443,7 +494,7 @@ function Inner() {
                   ) : (
                     <Plus className="w-4 h-4" />
                   )}
-                  Add reseller
+                  Add &amp; email invite
                 </button>
               </div>
             </Panel>
@@ -623,20 +674,33 @@ function Inner() {
                           </td>
                           <td className="px-3 py-3 text-xs capitalize">
                             {r.portal_status || '—'}
-                            {r.invite_url && (
-                              <button
-                                type="button"
-                                onClick={() => void copyInvite(r)}
-                                className="mt-1 flex items-center gap-1 text-[11px] font-bold text-[#0077b6]"
-                              >
-                                {copied === r.id ? (
-                                  <Check className="w-3 h-3" />
-                                ) : (
-                                  <Copy className="w-3 h-3" />
-                                )}
-                                Invite link
-                              </button>
-                            )}
+                            <div className="mt-1 flex flex-col gap-0.5 items-start">
+                              {r.email && (
+                                <button
+                                  type="button"
+                                  disabled={saving}
+                                  onClick={() => void sendInviteEmail(r)}
+                                  className="flex items-center gap-1 text-[11px] font-bold text-[#0077b6] hover:underline"
+                                >
+                                  <Mail className="w-3 h-3" />
+                                  Email invite
+                                </button>
+                              )}
+                              {r.invite_url && (
+                                <button
+                                  type="button"
+                                  onClick={() => void copyInvite(r)}
+                                  className="flex items-center gap-1 text-[11px] font-bold text-slate-500 hover:underline"
+                                >
+                                  {copied === r.id ? (
+                                    <Check className="w-3 h-3" />
+                                  ) : (
+                                    <Copy className="w-3 h-3" />
+                                  )}
+                                  Copy link
+                                </button>
+                              )}
+                            </div>
                           </td>
                           <td className="px-3 py-3 text-right">
                             <button
