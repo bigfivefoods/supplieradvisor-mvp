@@ -230,19 +230,27 @@ export async function POST(request: NextRequest) {
         items,
         updated_at: now,
       };
-      const { data: order, error: oErr } = await supabase
-        .from('sales_orders')
-        .insert(orderPayload)
-        .select('*')
-        .single();
-      if (oErr) return NextResponse.json({ error: oErr.message }, { status: 500 });
+      const orderIns = await insertDocTolerant(
+        supabase,
+        'sales_orders',
+        orderPayload as Record<string, unknown>
+      );
+      if (!orderIns.ok) {
+        return NextResponse.json({ error: orderIns.error }, { status: 500 });
+      }
+      const order = orderIns.data;
 
       await supabase
         .from('customer_quotes')
         .update({ status: 'converted', order_id: order.id, updated_at: now })
         .eq('id', quote.id);
 
-      return NextResponse.json({ success: true, order, type: 'order', action: 'convert_to_order' });
+      return NextResponse.json({
+        success: true,
+        order,
+        type: 'order',
+        action: 'convert_to_order',
+      });
     }
 
     // ── Convert order → invoice ────────────────────────────────────────────
@@ -275,17 +283,27 @@ export async function POST(request: NextRequest) {
         customer_name: order.customer_name,
         contact_name: order.contact_name,
         contact_email: order.contact_email,
+        contact_phone: order.contact_phone,
         billing_address: order.shipping_address,
         notes: order.notes,
         items,
         updated_at: now,
       };
-      const { data: invoice, error: iErr } = await supabase
-        .from('customer_invoices')
-        .insert(invPayload)
-        .select('*')
-        .single();
-      if (iErr) return NextResponse.json({ error: iErr.message }, { status: 500 });
+      const invIns = await insertDocTolerant(
+        supabase,
+        'customer_invoices',
+        invPayload as Record<string, unknown>
+      );
+      if (!invIns.ok) {
+        return NextResponse.json(
+          {
+            error: invIns.error,
+            hint: 'Run supabase/migrations/20260713_customer_invoices_contact_phone.sql',
+          },
+          { status: 500 }
+        );
+      }
+      const invoice = invIns.data;
 
       await supabase
         .from('sales_orders')
@@ -394,17 +412,69 @@ export async function POST(request: NextRequest) {
     );
     const payload = buildPayload(kind, body, companyId, items, totals, customer);
 
-    const { data, error } = await supabase.from(table).insert(payload).select('*').single();
-    if (error) {
+    const inserted = await insertDocTolerant(supabase, table, payload);
+    if (!inserted.ok) {
       return NextResponse.json(
-        { error: error.message, hint: 'Run 20260709_crm_sales_lifecycle.sql' },
+        {
+          error: inserted.error,
+          hint:
+            /contact_phone/i.test(inserted.error)
+              ? 'Run supabase/migrations/20260713_customer_invoices_contact_phone.sql in Supabase SQL Editor'
+              : 'Run 20260709_crm_sales_lifecycle.sql',
+        },
         { status: 500 }
       );
     }
-    return NextResponse.json({ success: true, document: data, type: kind });
+    return NextResponse.json({
+      success: true,
+      document: inserted.data,
+      type: kind,
+    });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Error' }, { status: 500 });
   }
+}
+
+/** Insert; on missing-column schema errors strip the column and retry (up to 6 times). */
+async function insertDocTolerant(
+  supabase: ReturnType<typeof getSupabaseServer>,
+  table: string,
+  payload: Record<string, unknown>
+): Promise<
+  | { ok: true; data: Record<string, unknown> }
+  | { ok: false; error: string }
+> {
+  let row = { ...payload };
+  let lastError = '';
+
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const { data, error } = await supabase
+      .from(table)
+      .insert(row)
+      .select('*')
+      .single();
+
+    if (!error && data) {
+      return { ok: true, data: data as Record<string, unknown> };
+    }
+
+    lastError = error?.message || 'Insert failed';
+    // e.g. Could not find the 'contact_phone' column of 'customer_invoices' in the schema cache
+    const m =
+      /'([^']+)' column/i.exec(lastError) ||
+      /column [\"']?([a-z0-9_]+)[\"']?/i.exec(lastError);
+    if (
+      m?.[1] &&
+      row[m[1]] !== undefined &&
+      /column|schema cache|does not exist|could not find/i.test(lastError)
+    ) {
+      delete row[m[1]];
+      continue;
+    }
+    break;
+  }
+
+  return { ok: false, error: lastError };
 }
 
 export async function PATCH(request: NextRequest) {
