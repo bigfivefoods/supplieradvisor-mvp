@@ -292,29 +292,29 @@ export function renderCommercialDocumentHtml(doc: DocRenderInput): string {
     const feedbackUrl = invoiceFeedbackUrl(token);
     const rateUrl = `${feedbackUrl}?tab=rate`;
     const claimUrl = `${feedbackUrl}?tab=claim`;
-    const qrRate = qrImageUrl(rateUrl, 128);
-    const qrClaim = qrImageUrl(claimUrl, 128);
+    const qrRate = qrImageUrl(rateUrl, 96);
+    const qrClaim = qrImageUrl(claimUrl, 96);
     feedbackBlock = `
     <div class="feedback">
       <div class="feedback-head">
         <div class="feedback-kicker">After delivery</div>
         <h2>Rate us · log an issue</h2>
-        <p>Your OTIFEF score and claims help keep the SupplierAdvisor® network honest. Scan a QR or open a link — no app install required.</p>
+        <p>Scan a QR or open a link — OTIFEF score &amp; claims keep the network honest.</p>
       </div>
       <div class="feedback-grid">
         <a class="feedback-card" href="${esc(rateUrl)}">
-          <img src="${esc(qrRate)}" alt="Rate QR" width="112" height="112" />
+          <img src="${esc(qrRate)}" alt="Rate QR" width="64" height="64" />
           <div>
             <div class="fc-title">Rate performance (OTIFEF)</div>
-            <div class="fc-body">Score on-time, in-full, quality &amp; communication for this invoice.</div>
+            <div class="fc-body">On-time, in-full, quality &amp; communication.</div>
             <div class="fc-link">Open rating form →</div>
           </div>
         </a>
         <a class="feedback-card" href="${esc(claimUrl)}">
-          <img src="${esc(qrClaim)}" alt="Claim QR" width="112" height="112" />
+          <img src="${esc(qrClaim)}" alt="Claim QR" width="64" height="64" />
           <div>
             <div class="fc-title">Log a claim / RIAD</div>
-            <div class="fc-body">Raise a risk, issue, action or decision linked to this invoice.</div>
+            <div class="fc-body">Risk, issue, action or decision on this invoice.</div>
             <div class="fc-link">Open claim form →</div>
           </div>
         </a>
@@ -331,6 +331,11 @@ export function renderCommercialDocumentHtml(doc: DocRenderInput): string {
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>${esc(title)} ${esc(doc.number)} · ${esc(sellerName)}</title>
   <style>
+    /* Standard ISO A4 — screen preview matches printable page */
+    @page {
+      size: A4 portrait;
+      margin: 10mm;
+    }
     :root {
       --brand: #00b4d8;
       --brand-deep: #0077b6;
@@ -339,242 +344,358 @@ export function renderCommercialDocumentHtml(doc: DocRenderInput): string {
       --line: #e2e8f0;
       --soft: #f8fafc;
       --ok: #047857;
+      --a4-w: 210mm;
+      --a4-h: 297mm;
     }
     * { box-sizing: border-box; }
+    html { background: #eef2f7; }
     body {
       font-family: "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
       color: var(--ink);
       margin: 0;
-      padding: 0;
+      padding: 16px 12px 32px;
       background: #eef2f7;
+      -webkit-font-smoothing: antialiased;
     }
+    /* Physical A4 sheet on screen (WYSIWYG before print) */
     .sheet {
-      max-width: 820px;
-      margin: 24px auto;
+      width: var(--a4-w);
+      min-height: var(--a4-h);
+      max-width: 100%;
+      margin: 0 auto;
       background: #fff;
-      border-radius: 20px;
+      border-radius: 4px;
       overflow: hidden;
       box-shadow: 0 18px 50px rgba(15, 23, 42, 0.08);
       border: 1px solid #e8eef5;
+      display: flex;
+      flex-direction: column;
+    }
+    .sheet-body {
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
     }
     .topbar {
-      height: 6px;
+      height: 5px;
+      flex-shrink: 0;
       background: linear-gradient(90deg, var(--brand), var(--brand-deep), #48cae4);
     }
-    .pad { padding: 36px 40px 28px; }
+    .pad {
+      padding: 14mm 14mm 8mm;
+      flex: 1 1 auto;
+    }
     .hero {
       display: flex;
       justify-content: space-between;
-      gap: 28px;
+      gap: 16px;
       flex-wrap: wrap;
       align-items: flex-start;
-      margin-bottom: 28px;
+      margin-bottom: 12px;
     }
-    .logo { max-height: 64px; max-width: 200px; object-fit: contain; display: block; margin-bottom: 12px; }
+    .logo {
+      max-height: 48px;
+      max-width: 160px;
+      object-fit: contain;
+      display: block;
+      margin-bottom: 8px;
+    }
     .doc-type {
-      font-size: 11px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase;
-      color: var(--brand-deep); margin-bottom: 6px;
+      font-size: 10px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase;
+      color: var(--brand-deep); margin-bottom: 4px;
     }
-    h1 { font-size: 28px; margin: 0 0 6px; letter-spacing: -0.03em; line-height: 1.15; }
+    h1 {
+      font-size: 22px;
+      margin: 0 0 4px;
+      letter-spacing: -0.03em;
+      line-height: 1.15;
+    }
     .verified {
-      display: inline-block; font-size: 10px; font-weight: 700; color: var(--ok);
+      display: inline-block; font-size: 9px; font-weight: 700; color: var(--ok);
       background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 999px;
-      padding: 3px 10px; margin-left: 8px; vertical-align: middle;
+      padding: 2px 8px; margin-left: 6px; vertical-align: middle;
     }
-    .muted { color: var(--muted); font-size: 12.5px; line-height: 1.45; }
-    .seller-block { text-align: right; min-width: 200px; }
-    .seller-block .name { font-weight: 800; font-size: 15px; margin-bottom: 4px; }
+    .muted { color: var(--muted); font-size: 11px; line-height: 1.4; }
+    .seller-block { text-align: right; min-width: 180px; max-width: 48%; }
+    .seller-block .name { font-weight: 800; font-size: 13px; margin-bottom: 2px; }
     .parties {
       display: grid;
       grid-template-columns: 1.2fr 1fr;
-      gap: 20px;
-      margin-bottom: 28px;
+      gap: 12px;
+      margin-bottom: 12px;
     }
     @media (max-width: 640px) {
+      body { padding: 8px; }
+      .sheet { width: 100%; min-height: 0; }
       .parties { grid-template-columns: 1fr; }
-      .pad { padding: 24px 18px; }
-      .seller-block { text-align: left; }
+      .pad { padding: 18px 14px; }
+      .seller-block { text-align: left; max-width: none; }
     }
     .card {
       background: var(--soft);
       border: 1px solid var(--line);
-      border-radius: 16px;
-      padding: 16px 18px;
+      border-radius: 12px;
+      padding: 10px 12px;
     }
     .card-label {
-      font-size: 10px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase;
-      color: var(--muted); margin-bottom: 8px;
+      font-size: 9px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 6px;
     }
-    .card .who { font-weight: 800; font-size: 15px; margin-bottom: 2px; }
-    table.meta { width: 100%; font-size: 13px; border-collapse: collapse; }
-    table.meta td { padding: 4px 0; vertical-align: top; }
-    table.meta td:first-child { color: var(--muted); width: 42%; }
-    table.lines { width: 100%; border-collapse: collapse; margin: 8px 0 20px; font-size: 13px; }
+    .card .who { font-weight: 800; font-size: 13px; margin-bottom: 2px; }
+    table.meta { width: 100%; font-size: 11.5px; border-collapse: collapse; }
+    table.meta td { padding: 2px 0; vertical-align: top; }
+    table.meta td:first-child { color: var(--muted); width: 40%; }
+    table.lines {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 4px 0 12px;
+      font-size: 11.5px;
+    }
     table.lines th {
-      text-align: left; border-bottom: 2px solid var(--ink); padding: 10px 8px;
-      font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted);
+      text-align: left; border-bottom: 1.5px solid var(--ink); padding: 6px 6px;
+      font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted);
     }
-    table.lines td { border-bottom: 1px solid var(--line); padding: 12px 8px; vertical-align: top; }
+    table.lines td {
+      border-bottom: 1px solid var(--line);
+      padding: 7px 6px;
+      vertical-align: top;
+    }
     table.lines tr:last-child td { border-bottom: none; }
-    .idx { color: var(--muted); width: 28px; }
+    .idx { color: var(--muted); width: 22px; }
     .item-name { font-weight: 600; }
-    .sku, .uom { font-size: 11px; color: var(--muted); }
+    .sku, .uom { font-size: 10px; color: var(--muted); }
     .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
     .strong { font-weight: 700; }
-    .totals-wrap { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+    .totals-wrap { display: flex; justify-content: flex-end; margin-bottom: 4px; }
     .totals {
-      width: 280px; background: linear-gradient(160deg, #f0f9ff, #fff);
-      border: 1px solid #bae6fd; border-radius: 16px; padding: 14px 16px; font-size: 13px;
+      width: 240px; background: linear-gradient(160deg, #f0f9ff, #fff);
+      border: 1px solid #bae6fd; border-radius: 12px; padding: 10px 12px; font-size: 11.5px;
     }
-    .totals .line { display: flex; justify-content: space-between; padding: 5px 0; color: #334155; }
+    .totals .line { display: flex; justify-content: space-between; padding: 3px 0; color: #334155; }
     .totals .grand {
-      display: flex; justify-content: space-between; font-size: 17px; font-weight: 900;
-      border-top: 2px solid var(--brand-deep); margin-top: 8px; padding-top: 10px; color: var(--brand-deep);
+      display: flex; justify-content: space-between; font-size: 14px; font-weight: 900;
+      border-top: 2px solid var(--brand-deep); margin-top: 6px; padding-top: 8px; color: var(--brand-deep);
     }
     .pay-box {
       background: linear-gradient(145deg, #ecfeff, #f0f9ff);
-      border: 1px solid #7dd3fc; border-radius: 16px; padding: 16px 18px; margin: 20px 0;
+      border: 1px solid #7dd3fc; border-radius: 12px; padding: 10px 12px; margin: 10px 0;
     }
     .pay-box.warn { background: #fffbeb; border-color: #fcd34d; }
-    .pay-title { font-weight: 800; font-size: 13px; color: var(--brand-deep); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.06em; }
-    .pay-box .hint { font-size: 11px; color: #0369a1; margin: 10px 0 0; }
+    .pay-title {
+      font-weight: 800; font-size: 11px; color: var(--brand-deep);
+      margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .pay-box .hint { font-size: 10px; color: #0369a1; margin: 6px 0 0; }
     .section {
-      margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line);
+      margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line);
     }
     .section h3 {
-      margin: 0 0 8px; font-size: 12px; font-weight: 800; letter-spacing: 0.1em;
+      margin: 0 0 4px; font-size: 10px; font-weight: 800; letter-spacing: 0.1em;
       text-transform: uppercase; color: var(--brand-deep);
     }
-    .section p, .section .body { font-size: 12.5px; line-height: 1.55; color: #334155; margin: 0; }
-    .feedback {
-      margin-top: 28px;
-      background: linear-gradient(145deg, #0c4a6e 0%, #0077b6 55%, #00b4d8 100%);
-      color: #fff; border-radius: 18px; padding: 22px 20px;
+    .section p, .section .body {
+      font-size: 10.5px; line-height: 1.45; color: #334155; margin: 0;
     }
-    .feedback-kicker { font-size: 10px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.85; }
-    .feedback h2 { margin: 6px 0 8px; font-size: 18px; letter-spacing: -0.02em; }
-    .feedback > .feedback-head p { margin: 0 0 16px; font-size: 13px; line-height: 1.5; opacity: 0.92; }
-    .feedback-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .feedback {
+      margin-top: 12px;
+      background: linear-gradient(145deg, #0c4a6e 0%, #0077b6 55%, #00b4d8 100%);
+      color: #fff; border-radius: 12px; padding: 12px 12px;
+      page-break-inside: avoid;
+    }
+    .feedback-kicker {
+      font-size: 9px; font-weight: 800; letter-spacing: 0.14em;
+      text-transform: uppercase; opacity: 0.85;
+    }
+    .feedback h2 { margin: 4px 0 4px; font-size: 14px; letter-spacing: -0.02em; }
+    .feedback > .feedback-head p {
+      margin: 0 0 10px; font-size: 11px; line-height: 1.4; opacity: 0.92;
+    }
+    .feedback-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     @media (max-width: 640px) { .feedback-grid { grid-template-columns: 1fr; } }
     a.feedback-card {
-      display: flex; gap: 12px; align-items: center; text-decoration: none; color: inherit;
+      display: flex; gap: 8px; align-items: center; text-decoration: none; color: inherit;
       background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.25);
-      border-radius: 14px; padding: 12px; backdrop-filter: blur(6px);
+      border-radius: 10px; padding: 8px;
     }
     a.feedback-card img {
-      width: 96px; height: 96px; border-radius: 10px; background: #fff; padding: 6px; flex-shrink: 0;
+      width: 64px; height: 64px; border-radius: 8px; background: #fff; padding: 4px; flex-shrink: 0;
     }
-    .fc-title { font-weight: 800; font-size: 13px; margin-bottom: 4px; }
-    .fc-body { font-size: 11.5px; line-height: 1.4; opacity: 0.9; }
-    .fc-link { font-size: 11px; font-weight: 700; margin-top: 6px; color: #e0f2fe; }
+    .fc-title { font-weight: 800; font-size: 11px; margin-bottom: 2px; }
+    .fc-body { font-size: 10px; line-height: 1.35; opacity: 0.9; }
+    .fc-link { font-size: 10px; font-weight: 700; margin-top: 4px; color: #e0f2fe; }
     .powered {
-      margin-top: 28px; padding: 18px 40px 22px; background: #0f172a; color: #94a3b8;
-      text-align: center; font-size: 11px; line-height: 1.5;
+      flex-shrink: 0;
+      margin-top: 0;
+      padding: 10px 14mm 12px;
+      background: #0f172a;
+      color: #94a3b8;
+      text-align: center;
+      font-size: 10px;
+      line-height: 1.4;
     }
     .powered strong { color: #fff; font-weight: 800; letter-spacing: -0.01em; }
     .powered .reg { color: var(--brand); font-weight: 800; }
     .powered a { color: #7dd3fc; text-decoration: none; }
+
+    /* —— Print / PDF: true A4, same design, tighter fit —— */
     @media print {
-      body { background: #fff; }
-      .sheet { margin: 0; box-shadow: none; border: none; border-radius: 0; max-width: none; }
-      .powered { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      .feedback { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      html, body {
+        width: 210mm;
+        height: 297mm;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #fff !important;
+      }
+      .sheet {
+        width: 100%;
+        min-height: 0;
+        max-width: none;
+        margin: 0;
+        box-shadow: none;
+        border: none;
+        border-radius: 0;
+        overflow: visible;
+      }
+      .pad { padding: 0 0 4mm; }
+      .topbar { height: 4px; }
+      .hero { margin-bottom: 8px; gap: 10px; }
+      .logo { max-height: 40px; max-width: 140px; margin-bottom: 4px; }
+      h1 { font-size: 18px; }
+      .parties { gap: 8px; margin-bottom: 8px; }
+      .card { padding: 8px 10px; border-radius: 8px; }
+      table.lines { margin: 2px 0 8px; font-size: 10.5px; }
+      table.lines th { padding: 4px 4px; }
+      table.lines td { padding: 5px 4px; }
+      .totals { width: 220px; padding: 8px 10px; font-size: 11px; border-radius: 8px; }
+      .totals .grand { font-size: 13px; margin-top: 4px; padding-top: 6px; }
+      .pay-box { margin: 6px 0; padding: 8px 10px; border-radius: 8px; }
+      .section { margin-top: 6px; padding-top: 6px; }
+      .section .body { font-size: 9.5px; line-height: 1.35; }
+      .feedback {
+        margin-top: 8px;
+        padding: 8px 10px;
+        border-radius: 8px;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .feedback h2 { font-size: 12px; }
+      .feedback > .feedback-head p { font-size: 9.5px; margin-bottom: 6px; }
+      a.feedback-card img { width: 48px; height: 48px; }
+      .fc-title { font-size: 10px; }
+      .fc-body { font-size: 9px; }
+      .powered {
+        padding: 8px 0 0;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .topbar, .card, .totals, .pay-box {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      /* Keep key blocks together when possible */
+      .hero, .parties, .totals-wrap, .pay-box, .feedback, .powered {
+        page-break-inside: avoid;
+      }
+      table.lines thead { display: table-header-group; }
+      table.lines tr { page-break-inside: avoid; }
     }
   </style>
 </head>
 <body>
   <div class="sheet">
-    <div class="topbar"></div>
-    <div class="pad">
-      <div class="hero">
-        <div>
-          ${logo}
-          <div class="doc-type">${esc(title)}</div>
-          <h1>${esc(doc.number)}${verifiedBadge}</h1>
-          <div class="muted">Status: ${esc(doc.status || '—')}</div>
+    <div class="sheet-body">
+      <div class="topbar"></div>
+      <div class="pad">
+        <div class="hero">
+          <div>
+            ${logo}
+            <div class="doc-type">${esc(title)}</div>
+            <h1>${esc(doc.number)}${verifiedBadge}</h1>
+            <div class="muted">Status: ${esc(doc.status || '—')}</div>
+          </div>
+          <div class="seller-block">
+            <div class="name">${esc(sellerName)}</div>
+            ${
+              doc.seller.legal_name && doc.seller.legal_name !== sellerName
+                ? `<div class="muted">${esc(doc.seller.legal_name)}</div>`
+                : ''
+            }
+            <div class="muted">${esc(sellerAddress(doc.seller))}</div>
+            <div class="muted">${esc(doc.seller.email || doc.seller.contact_email || '')}</div>
+            <div class="muted">${esc(doc.seller.contact_phone || doc.seller.phone || '')}</div>
+            ${doc.seller.vat_number ? `<div class="muted"><strong>VAT</strong> ${esc(doc.seller.vat_number)}</div>` : ''}
+            ${doc.seller.registration_number ? `<div class="muted"><strong>Reg</strong> ${esc(doc.seller.registration_number)}</div>` : ''}
+          </div>
         </div>
-        <div class="seller-block">
-          <div class="name">${esc(sellerName)}</div>
-          ${
-            doc.seller.legal_name && doc.seller.legal_name !== sellerName
-              ? `<div class="muted">${esc(doc.seller.legal_name)}</div>`
+
+        <div class="parties">
+          <div class="card">
+            <div class="card-label">Bill to</div>
+            <div class="who">${esc(doc.customerName || 'Customer')}</div>
+            <div class="muted">${esc(doc.contactName || '')}</div>
+            <div class="muted">${esc(doc.contactEmail || '')}</div>
+            <div class="muted">${esc(doc.contactPhone || '')}</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Document</div>
+            <table class="meta">
+              ${doc.issuedAt ? `<tr><td>Date</td><td>${esc(String(doc.issuedAt).slice(0, 10))}</td></tr>` : ''}
+              ${doc.dueDate ? `<tr><td>Due date</td><td><strong>${esc(String(doc.dueDate).slice(0, 10))}</strong></td></tr>` : ''}
+              ${doc.validUntil ? `<tr><td>Valid until</td><td>${esc(String(doc.validUntil).slice(0, 10))}</td></tr>` : ''}
+              <tr><td>Currency</td><td>${esc(ccy)}</td></tr>
+            </table>
+          </div>
+        </div>
+
+        <table class="lines">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Description</th>
+              <th class="num">Qty</th>
+              <th class="num">Unit price</th>
+              <th class="num">Amount</th>
+            </tr>
+          </thead>
+          <tbody>${lines || '<tr><td colspan="5" class="muted">No lines</td></tr>'}</tbody>
+        </table>
+
+        <div class="totals-wrap">
+          <div class="totals">
+            <div class="line"><span>Subtotal</span><span>${esc(formatMoney(doc.subtotal, ccy))}</span></div>
+            <div class="line"><span>Tax (${esc(doc.taxRate)}%)</span><span>${esc(formatMoney(doc.taxAmount, ccy))}</span></div>
+            <div class="grand"><span>Total due</span><span>${esc(formatMoney(doc.totalAmount, ccy))}</span></div>
+          </div>
+        </div>
+
+        ${paySection}
+
+        ${
+          doc.kind === 'invoice'
+            ? `<div class="section">
+          <h3>Payment terms</h3>
+          <div class="body">${nl2br(paymentTermsText)}</div>
+        </div>`
+            : commercialTerms
+              ? `<div class="section"><h3>Terms</h3><div class="body">${nl2br(commercialTerms)}</div></div>`
               : ''
-          }
-          <div class="muted">${esc(sellerAddress(doc.seller))}</div>
-          <div class="muted">${esc(doc.seller.email || doc.seller.contact_email || '')}</div>
-          <div class="muted">${esc(doc.seller.contact_phone || doc.seller.phone || '')}</div>
-          ${doc.seller.vat_number ? `<div class="muted"><strong>VAT</strong> ${esc(doc.seller.vat_number)}</div>` : ''}
-          ${doc.seller.registration_number ? `<div class="muted"><strong>Reg</strong> ${esc(doc.seller.registration_number)}</div>` : ''}
+        }
+
+        <div class="section">
+          <h3>Legal &amp; disclaimers</h3>
+          <div class="body">${nl2br(DEFAULT_LEGAL)}</div>
         </div>
+
+        ${doc.notes ? `<div class="section"><h3>Notes</h3><div class="body">${nl2br(String(doc.notes))}</div></div>` : ''}
+
+        ${feedbackBlock}
       </div>
 
-      <div class="parties">
-        <div class="card">
-          <div class="card-label">Bill to</div>
-          <div class="who">${esc(doc.customerName || 'Customer')}</div>
-          <div class="muted">${esc(doc.contactName || '')}</div>
-          <div class="muted">${esc(doc.contactEmail || '')}</div>
-          <div class="muted">${esc(doc.contactPhone || '')}</div>
-        </div>
-        <div class="card">
-          <div class="card-label">Document</div>
-          <table class="meta">
-            ${doc.issuedAt ? `<tr><td>Date</td><td>${esc(String(doc.issuedAt).slice(0, 10))}</td></tr>` : ''}
-            ${doc.dueDate ? `<tr><td>Due date</td><td><strong>${esc(String(doc.dueDate).slice(0, 10))}</strong></td></tr>` : ''}
-            ${doc.validUntil ? `<tr><td>Valid until</td><td>${esc(String(doc.validUntil).slice(0, 10))}</td></tr>` : ''}
-            <tr><td>Currency</td><td>${esc(ccy)}</td></tr>
-          </table>
-        </div>
+      <div class="powered">
+        <div><strong>Powered by <span class="reg">SupplierAdvisor®</span></strong></div>
+        <div>Trade network · OTIFEF performance · quality &amp; claims</div>
+        <div style="margin-top:4px"><a href="https://www.supplieradvisor.com">www.supplieradvisor.com</a></div>
       </div>
-
-      <table class="lines">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Description</th>
-            <th class="num">Qty</th>
-            <th class="num">Unit price</th>
-            <th class="num">Amount</th>
-          </tr>
-        </thead>
-        <tbody>${lines || '<tr><td colspan="5" class="muted">No lines</td></tr>'}</tbody>
-      </table>
-
-      <div class="totals-wrap">
-        <div class="totals">
-          <div class="line"><span>Subtotal</span><span>${esc(formatMoney(doc.subtotal, ccy))}</span></div>
-          <div class="line"><span>Tax (${esc(doc.taxRate)}%)</span><span>${esc(formatMoney(doc.taxAmount, ccy))}</span></div>
-          <div class="grand"><span>Total due</span><span>${esc(formatMoney(doc.totalAmount, ccy))}</span></div>
-        </div>
-      </div>
-
-      ${paySection}
-
-      ${
-        doc.kind === 'invoice'
-          ? `<div class="section">
-        <h3>Payment terms</h3>
-        <div class="body">${nl2br(paymentTermsText)}</div>
-      </div>`
-          : commercialTerms
-            ? `<div class="section"><h3>Terms</h3><div class="body">${nl2br(commercialTerms)}</div></div>`
-            : ''
-      }
-
-      <div class="section">
-        <h3>Legal &amp; disclaimers</h3>
-        <div class="body">${nl2br(DEFAULT_LEGAL)}</div>
-      </div>
-
-      ${doc.notes ? `<div class="section"><h3>Notes</h3><div class="body">${nl2br(String(doc.notes))}</div></div>` : ''}
-
-      ${feedbackBlock}
-    </div>
-
-    <div class="powered">
-      <div><strong>Powered by <span class="reg">SupplierAdvisor®</span></strong></div>
-      <div>Trade network · OTIFEF performance · quality &amp; claims</div>
-      <div style="margin-top:6px"><a href="https://www.supplieradvisor.com">www.supplieradvisor.com</a></div>
     </div>
   </div>
 </body>
