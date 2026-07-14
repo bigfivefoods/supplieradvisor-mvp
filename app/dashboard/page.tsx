@@ -25,6 +25,7 @@ import {
   ArrowRight,
   Landmark,
   Percent,
+  Star,
   type LucideIcon,
 } from 'lucide-react';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -246,6 +247,11 @@ export default function DashboardCommandCenter() {
     invoicesPaidValue?: number;
     invoicesTotalValue?: number;
     invoicesCollectedValue?: number;
+    feedbackCount?: number;
+    feedbackAvgStars?: number | null;
+    feedbackAvgOtifef?: number | null;
+    peerAvgStars?: number | null;
+    peerRatedCount?: number;
     pipelineStages?: Array<{
       stage: string;
       label: string;
@@ -960,18 +966,51 @@ export default function DashboardCommandCenter() {
               summary={`${crm?.opportunitiesOpen ?? kpis?.opportunitiesOpen ?? 0} open deals · ${money(
                 crm?.pipelineValue ?? kpis?.pipelineValue ?? 0,
                 baseCcy
-              )} pipeline · ${money(crm?.pipelineWeighted ?? 0, baseCcy)} weighted`}
+              )} pipeline · ${
+                crm?.feedbackAvgStars != null
+                  ? `${crm.feedbackAvgStars.toFixed(1)}★ feedback`
+                  : 'no feedback yet'
+              }`}
               badge={
-                (crm?.leadsOpen ?? 0) > 0
-                  ? { label: `${crm?.leadsOpen} leads`, tone: 'good' }
-                  : undefined
+                crm?.feedbackAvgStars != null
+                  ? {
+                      label: `${crm.feedbackAvgStars.toFixed(1)}★`,
+                      tone: 'good',
+                    }
+                  : (crm?.leadsOpen ?? 0) > 0
+                    ? { label: `${crm?.leadsOpen} leads`, tone: 'good' }
+                    : undefined
               }
-              href="/dashboard/customers/leads"
+              href="/dashboard/customers/report"
               accent="from-sky-50 to-white border-sky-100"
             >
-              {/* Same headline KPIs as Customers → Leads */}
+              {/* Same headline KPIs as Customers → Leads + customer feedback stars */}
               <MetricGrid
                 metrics={[
+                  {
+                    label: 'Customer feedback ★',
+                    value:
+                      crm?.feedbackAvgStars != null
+                        ? `${crm.feedbackAvgStars.toFixed(1)} ★`
+                        : '—',
+                    sub:
+                      (crm?.feedbackCount ?? 0) > 0
+                        ? `${crm?.feedbackCount} invoice ratings${
+                            crm?.feedbackAvgOtifef != null
+                              ? ` · OTIFEF ${crm.feedbackAvgOtifef}`
+                              : ''
+                          }`
+                        : 'From invoice QR rate links',
+                    href: '/dashboard/customers/report',
+                    tone:
+                      crm?.feedbackAvgStars != null
+                        ? crm.feedbackAvgStars >= 4
+                          ? 'good'
+                          : crm.feedbackAvgStars < 3
+                            ? 'warn'
+                            : 'default'
+                        : 'default',
+                  },
                   {
                     label: 'Open leads',
                     value: crm?.leadsOpen ?? kpis?.leadsOpen ?? 0,
@@ -1006,17 +1045,16 @@ export default function DashboardCommandCenter() {
                     tone: 'good',
                   },
                   {
-                    label: 'Invoiced (pipeline)',
-                    value: money(crm?.invoicedValue ?? 0, baseCcy),
-                    sub: `${crm?.invoicedCount ?? 0} deals at Invoiced stage`,
-                    href: '/dashboard/customers/leads?tab=pipeline',
-                  },
-                  {
-                    label: 'Lost deals',
-                    value: crm?.lostCount ?? 0,
-                    sub: 'Closed-lost count',
-                    href: '/dashboard/customers/leads?tab=pipeline',
-                    tone: (crm?.lostCount ?? 0) > 0 ? 'warn' : 'default',
+                    label: 'Peer stars (you→them)',
+                    value:
+                      crm?.peerAvgStars != null
+                        ? `${crm.peerAvgStars.toFixed(1)} ★`
+                        : '—',
+                    sub:
+                      (crm?.peerRatedCount ?? 0) > 0
+                        ? `${crm?.peerRatedCount} buyers rated`
+                        : 'Rate buyers on Customers → Ratings',
+                    href: '/dashboard/customers/ratings',
                   },
                   {
                     label: 'Customers',
@@ -1124,6 +1162,8 @@ export default function DashboardCommandCenter() {
 
               <SectionLinks
                 links={[
+                  { href: '/dashboard/customers/report', label: 'Customer report' },
+                  { href: '/dashboard/customers/ratings', label: 'Star ratings' },
                   { href: '/dashboard/customers/leads', label: 'Leads' },
                   { href: '/dashboard/customers/leads?tab=pipeline', label: 'Pipeline map' },
                   { href: '/dashboard/customers/quotes', label: 'Quotes' },

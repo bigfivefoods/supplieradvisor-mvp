@@ -91,6 +91,9 @@ export async function POST(request: NextRequest) {
       productsFullRes,
       accountingInvoicesRes,
       marketplaceListingsRes,
+      // CRM feedback stars
+      invoiceFeedbackRes,
+      customerPeerRatingsRes,
     ] = await Promise.all([
       supabase
         .from('business_users')
@@ -310,6 +313,23 @@ export async function POST(request: NextRequest) {
         .select('id, status, title, unit_price, currency, created_at')
         .eq('seller_profile_id', companyId)
         .limit(100),
+
+      // Customer feedback from invoice QR (rate / OTIFEF)
+      supabase
+        .from('invoice_feedback')
+        .select('id, rating, otifef_score, feedback_type, created_at')
+        .eq('profile_id', companyId)
+        .order('created_at', { ascending: false })
+        .limit(500),
+
+      // Peer stars you gave buyers (company_ratings)
+      supabase
+        .from('company_ratings')
+        .select('id, overall, status, ratee_role')
+        .eq('rater_profile_id', companyId)
+        .eq('ratee_role', 'customer')
+        .eq('status', 'published')
+        .limit(500),
     ]);
 
     const team = teamRes.data || [];
@@ -920,6 +940,48 @@ export async function POST(request: NextRequest) {
     );
 
     const custInvoices = customerInvoicesRes.error ? [] : customerInvoicesRes.data || [];
+
+    // Customer feedback KPIs (invoice QR + peer ratings of buyers)
+    const invFeedback = invoiceFeedbackRes.error
+      ? []
+      : invoiceFeedbackRes.data || [];
+    const feedbackRatings = invFeedback
+      .map((f) => (f.rating != null ? Number(f.rating) : NaN))
+      .filter((n) => Number.isFinite(n) && n > 0);
+    const feedbackOtifef = invFeedback
+      .map((f) => (f.otifef_score != null ? Number(f.otifef_score) : NaN))
+      .filter((n) => Number.isFinite(n));
+    const feedbackCount = invFeedback.length;
+    const feedbackAvgStars =
+      feedbackRatings.length > 0
+        ? Math.round(
+            (feedbackRatings.reduce((a, b) => a + b, 0) /
+              feedbackRatings.length) *
+              10
+          ) / 10
+        : null;
+    const feedbackAvgOtifef =
+      feedbackOtifef.length > 0
+        ? Math.round(
+            (feedbackOtifef.reduce((a, b) => a + b, 0) / feedbackOtifef.length) *
+              10
+          ) / 10
+        : null;
+
+    const peerCustomerRatings = customerPeerRatingsRes.error
+      ? []
+      : customerPeerRatingsRes.data || [];
+    const peerStars = peerCustomerRatings
+      .map((r) => (r.overall != null ? Number(r.overall) : NaN))
+      .filter((n) => Number.isFinite(n) && n > 0);
+    const peerAvgStars =
+      peerStars.length > 0
+        ? Math.round(
+            (peerStars.reduce((a, b) => a + b, 0) / peerStars.length) * 10
+          ) / 10
+        : null;
+    const peerRatedCount = peerStars.length;
+
     const openInvStatuses = new Set([
       'draft',
       'sent',
@@ -1234,8 +1296,16 @@ export async function POST(request: NextRequest) {
         invoicesPaidValue,
         invoicesTotalValue,
         invoicesCollectedValue,
+        // Customer feedback (stars)
+        feedbackCount,
+        feedbackAvgStars,
+        feedbackAvgOtifef,
+        peerAvgStars,
+        peerRatedCount,
         href: '/dashboard/customers',
         leadsHref: '/dashboard/customers/leads',
+        reportHref: '/dashboard/customers/report',
+        ratingsHref: '/dashboard/customers/ratings',
       },
       srm: {
         book: srmBook.length,
