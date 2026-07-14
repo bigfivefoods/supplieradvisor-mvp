@@ -20,6 +20,7 @@ import {
   Share2,
   Heart,
   Calculator,
+  Store,
 } from 'lucide-react';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import {
@@ -180,9 +181,17 @@ function HubInner() {
       metricLabel: 'operators',
     },
     {
+      href: '/dashboard/containers/resellers',
+      icon: Store,
+      code: '07',
+      title: 'Resellers',
+      desc: 'VerifyNow (R50), draw stock from containers, dynamic per-item commission.',
+      accent: 'from-violet-50 to-white border-violet-100',
+    },
+    {
       href: '/dashboard/containers/training',
       icon: GraduationCap,
-      code: '07',
+      code: '08',
       title: 'Training hub',
       desc: 'Monitor contractor training and certification status.',
       accent: 'from-amber-50 to-white border-amber-100',
@@ -192,7 +201,7 @@ function HubInner() {
     {
       href: '/dashboard/containers/manage',
       icon: Boxes,
-      code: '08',
+      code: '09',
       title: 'Inventory & orders',
       desc: 'Open an outlet to order, receive, and track stock.',
       accent: 'from-rose-50 to-white border-rose-100',
@@ -200,7 +209,7 @@ function HubInner() {
     {
       href: '/dashboard/containers/riad-log',
       icon: Scale,
-      code: '09',
+      code: '10',
       title: 'Container RIAD',
       desc: 'Risks, issues, actions & decisions — shared with operators.',
       accent: 'from-violet-50 to-white border-violet-100',
@@ -208,7 +217,7 @@ function HubInner() {
     {
       href: '/dashboard/containers/metrics',
       icon: BarChart3,
-      code: '10',
+      code: '11',
       title: 'Network metrics',
       desc: 'Pulse across outlets, contractors, and coverage.',
       accent: 'from-slate-50 to-white border-slate-200',
@@ -216,7 +225,7 @@ function HubInner() {
     {
       href: '/dashboard/containers/settings',
       icon: Share2,
-      code: '11',
+      code: '12',
       title: 'Share on website',
       desc: 'Embed live map + metrics on bigfivegroup.africa (public link / iframe).',
       accent: 'from-violet-50 to-white border-violet-100',
@@ -224,7 +233,7 @@ function HubInner() {
     {
       href: '/dashboard/containers/contractors',
       icon: ShieldCheck,
-      code: '12',
+      code: '13',
       title: 'Verify contractors',
       desc: 'SA ID documents and VerifyNow Home Affairs checks.',
       accent: 'from-sky-50 to-white border-sky-100',

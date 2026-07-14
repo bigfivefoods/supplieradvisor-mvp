@@ -16,6 +16,7 @@ export const CONTAINERS_NAV: readonly NavItem[] = [
   { href: '/dashboard/containers/feasibility', label: 'Feasibility' },
   { href: '/dashboard/containers/add', label: 'Add' },
   { href: '/dashboard/containers/contractors', label: 'Contractors' },
+  { href: '/dashboard/containers/resellers', label: 'Resellers' },
   { href: '/dashboard/containers/training', label: 'Train' },
   { href: '/dashboard/containers/metrics', label: 'Metrics' },
   { href: '/dashboard/containers/settings', label: 'Share' },
