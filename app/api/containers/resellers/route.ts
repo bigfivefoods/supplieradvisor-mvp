@@ -6,7 +6,7 @@ import {
   legacyPrivyFrom,
 } from '@/lib/auth/api-auth';
 import { RESELLER_VERIFY_FEE_ZAR } from '@/lib/containers/resellers';
-import { getAppUrl, getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
+import { getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
 import {
   buildResellerInviteLink,
   resellerInviteEmailHtml,
