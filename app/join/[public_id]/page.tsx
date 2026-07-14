@@ -2,14 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { createClient } from '@/utils/supabase/client';
 import { CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 
 interface SupplierProfile {
   public_id: string;
   trading_name: string;
   legal_name: string | null;
-  email: string;
   contact_name: string | null;
   contact_phone: string | null;
   category: string | null;
@@ -17,7 +15,6 @@ interface SupplierProfile {
 }
 
 export default function JoinSupplierPage() {
-  const supabase = createClient();
   const params = useParams();
   const router = useRouter();
   const publicId = params.public_id as string;
@@ -36,39 +33,42 @@ export default function JoinSupplierPage() {
     confirmPassword: '',
   });
 
-  // Fetch supplier details
+  // Fetch via public API (service role) — never query tables with anon key
   useEffect(() => {
     const fetchSupplier = async () => {
       if (!publicId) return;
 
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('public_id, trading_name, legal_name, email, contact_name, contact_phone, category, supplier_status')
-        .eq('public_id', publicId)
-        .single();
-
-      if (error || !data) {
+      try {
+        const res = await fetch(
+          `/api/public/join-profile?public_id=${encodeURIComponent(publicId)}`,
+          { cache: 'no-store' }
+        );
+        const data = await res.json();
+        if (!res.ok || !data.profile) {
+          setError(
+            data.error ||
+              'This invitation link is invalid or has expired.'
+          );
+        } else {
+          setSupplier(data.profile as SupplierProfile);
+          setFormData((prev) => ({
+            ...prev,
+            contact_name: data.profile.contact_name || '',
+            contact_phone: data.profile.contact_phone || '',
+          }));
+        }
+      } catch {
         setError('This invitation link is invalid or has expired.');
-      } else if (data.supplier_status === 'active') {
-        setError('This supplier has already joined SupplierAdvisor.');
-      } else {
-        setSupplier(data as SupplierProfile);
-        // Pre-fill form with existing data
-        setFormData(prev => ({
-          ...prev,
-          contact_name: data.contact_name || '',
-          contact_phone: data.contact_phone || '',
-        }));
       }
       setLoading(false);
     };
 
-    fetchSupplier();
-  }, [publicId, supabase]);
+    void fetchSupplier();
+  }, [publicId]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleClaim = async (e: React.FormEvent) => {
@@ -90,43 +90,32 @@ export default function JoinSupplierPage() {
     setSubmitting(true);
 
     try {
-      // 1. Create Supabase Auth user
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: supplier.email,
-        password: formData.password,
-        options: {
-          data: {
-            trading_name: supplier.trading_name,
-            public_id: supplier.public_id,
-          },
-        },
-      });
-
-      if (authError) throw authError;
-
-      // 2. Update the profile to active + claimed
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({
-          supplier_status: 'active',
-          claimed_at: new Date().toISOString(),
+      const res = await fetch('/api/public/join-claim', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          public_id: supplier.public_id,
           contact_name: formData.contact_name,
           contact_phone: formData.contact_phone,
-        })
-        .eq('public_id', supplier.public_id);
-
-      if (updateError) throw updateError;
+          password: formData.password,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Claim failed');
 
       setSuccess(true);
 
-      // Redirect to login after 2.5 seconds
+      // Redirect to Privy login after claim
       setTimeout(() => {
         router.push('/login?claimed=true');
       }, 2500);
-
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(err.message || 'Something went wrong. Please try again.');
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Something went wrong. Please try again.'
+      );
     } finally {
       setSubmitting(false);
     }
@@ -212,22 +201,15 @@ export default function JoinSupplierPage() {
             </div>
 
             <div className="pt-4 border-t">
-              <h3 className="font-semibold text-xl tracking-tight mb-6">Create Your Login</h3>
+              <h3 className="font-semibold text-xl tracking-tight mb-6">Confirm &amp; continue</h3>
+              <p className="text-sm text-neutral-500 mb-6">
+                After claiming this profile you will sign in with SupplierAdvisor
+                (Privy). Set a temporary access code to confirm the claim.
+              </p>
 
               <div className="space-y-6">
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">Email Address</label>
-                  <input
-                    type="email"
-                    value={supplier?.email}
-                    disabled
-                    className="w-full px-6 py-4 bg-neutral-100 border border-neutral-200 rounded-2xl text-lg text-neutral-500"
-                  />
-                  <p className="text-xs text-neutral-500 mt-1.5">This email will be used to log in</p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">Password</label>
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">Access code</label>
                   <input
                     type="password"
                     name="password"
@@ -236,12 +218,12 @@ export default function JoinSupplierPage() {
                     required
                     minLength={6}
                     className="w-full px-6 py-4 bg-white border border-neutral-200 rounded-2xl text-lg focus:outline-none focus:border-[#00b4d8]"
-                    placeholder="Create a password"
+                    placeholder="Create an access code"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">Confirm Password</label>
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">Confirm access code</label>
                   <input
                     type="password"
                     name="confirmPassword"

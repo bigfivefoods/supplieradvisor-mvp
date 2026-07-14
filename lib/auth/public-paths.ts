@@ -9,6 +9,7 @@ export const PUBLIC_API_PREFIXES = [
   '/api/invites/validate',
   '/api/banking/webhooks/',
   '/api/inventory/products/public',
+  // join claim/profile are under /api/public/ already
 ] as const;
 
 export function isPublicApiPath(pathname: string): boolean {
