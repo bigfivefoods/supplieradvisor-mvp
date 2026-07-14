@@ -92,7 +92,10 @@ export default function ResellerSellPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Sale failed');
-      toast.success(data.message || 'Sale recorded');
+      toast.success(data.message || 'Sale recorded', {
+        description: 'Capture customer feedback while it is fresh → Feedback tab',
+        duration: 5000,
+      });
       setQty({});
       void load();
     } catch (e: unknown) {

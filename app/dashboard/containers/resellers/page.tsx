@@ -14,6 +14,8 @@ import {
   Trash2,
   ArrowRightLeft,
   Mail,
+  MessageSquareHeart,
+  Star,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePrivy } from '@privy-io/react-auth';
@@ -110,16 +112,26 @@ function Inner() {
     reseller_id: '',
   });
 
+  const [fbSummary, setFbSummary] = useState<{
+    total: number;
+    with_text: number;
+    overall: number | null;
+    topProducts: Array<{ product_name: string; avg_overall: number | null; count: number }>;
+  } | null>(null);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [rRes, cRes, rateRes] = await Promise.all([
+      const [rRes, cRes, rateRes, fbRes] = await Promise.all([
         fetch(`/api/containers/resellers?companyId=${companyId}`, {
           cache: 'no-store',
         }).then((r) => r.json()),
         fetch(`/api/containers?companyId=${companyId}`).then((r) => r.json()),
         fetch(
           `/api/containers/resellers/commissions?companyId=${companyId}`
+        ).then((r) => r.json()),
+        fetch(
+          `/api/containers/resellers/feedback?companyId=${companyId}&limit=200`
         ).then((r) => r.json()),
       ]);
       if (rRes.migration_required) {
@@ -134,6 +146,19 @@ function Inner() {
       setFee(rRes.verify_fee_zar ?? RESELLER_VERIFY_FEE_ZAR);
       setContainers(cRes.containers || []);
       setRates(rateRes.rates || []);
+      if (fbRes?.summary) {
+        const overallDim = (fbRes.summary.dimensions || []).find(
+          (d: { key: string }) => d.key === 'rating_overall'
+        );
+        setFbSummary({
+          total: fbRes.summary.total || 0,
+          with_text: fbRes.summary.with_text || 0,
+          overall: overallDim?.avg ?? null,
+          topProducts: (fbRes.summary.by_product || []).slice(0, 5),
+        });
+      } else {
+        setFbSummary(null);
+      }
     } catch {
       toast.error('Failed to load resellers');
     } finally {
@@ -403,13 +428,21 @@ function Inner() {
         titleAccent="resellers"
         description={`Add resellers, VerifyNow (R${fee}/person), draw stock from containers, and set dynamic per-item commission. Resellers sell via their portal.`}
         action={
-          <button
-            type="button"
-            onClick={() => void load()}
-            className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-2"
-          >
-            <RefreshCw className="w-4 h-4" /> Refresh
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/dashboard/containers/resellers/feedback"
+              className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-2"
+            >
+              <MessageSquareHeart className="w-4 h-4" /> Customer feedback
+            </Link>
+            <button
+              type="button"
+              onClick={() => void load()}
+              className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-2"
+            >
+              <RefreshCw className="w-4 h-4" /> Refresh
+            </button>
+          </div>
         }
       />
 
@@ -832,11 +865,83 @@ function Inner() {
               </div>
             </Panel>
 
+            <Panel title="Field customer feedback">
+              <div className="p-4 space-y-3">
+                {fbSummary && fbSummary.total > 0 ? (
+                  <>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                        <div className="text-[10px] font-bold uppercase text-slate-400">
+                          Responses
+                        </div>
+                        <div className="text-lg font-black tabular-nums">
+                          {fbSummary.total}
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-amber-100 bg-amber-50/50 px-3 py-2">
+                        <div className="text-[10px] font-bold uppercase text-slate-400 flex items-center gap-1">
+                          <Star className="w-3 h-3 text-amber-500" /> Overall
+                        </div>
+                        <div className="text-lg font-black tabular-nums text-amber-800">
+                          {fbSummary.overall != null
+                            ? `${fbSummary.overall.toFixed(1)}★`
+                            : '—'}
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                        <div className="text-[10px] font-bold uppercase text-slate-400">
+                          Notes
+                        </div>
+                        <div className="text-lg font-black tabular-nums">
+                          {fbSummary.with_text}
+                        </div>
+                      </div>
+                    </div>
+                    {fbSummary.topProducts.length > 0 && (
+                      <ul className="text-xs space-y-1">
+                        {fbSummary.topProducts.map((p) => (
+                          <li
+                            key={p.product_name}
+                            className="flex justify-between gap-2 border-b border-slate-50 pb-1"
+                          >
+                            <span className="font-semibold truncate">
+                              {p.product_name}
+                            </span>
+                            <span className="tabular-nums shrink-0 text-amber-700 font-bold">
+                              {p.avg_overall != null
+                                ? `${p.avg_overall.toFixed(1)}★`
+                                : '—'}{' '}
+                              <span className="text-slate-400 font-normal">
+                                ({p.count})
+                              </span>
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-sm text-slate-500">
+                    Resellers capture product / price / brand stars and free-text
+                    notes in their portal. Nothing logged yet.
+                  </p>
+                )}
+                <Link
+                  href="/dashboard/containers/resellers/feedback"
+                  className="inline-flex items-center gap-1.5 text-sm font-bold text-[#0077b6] hover:underline"
+                >
+                  <MessageSquareHeart className="w-4 h-4" />
+                  Open feedback report →
+                </Link>
+              </div>
+            </Panel>
+
             <div className="rounded-2xl border border-sky-100 bg-sky-50/50 px-4 py-3 text-sm text-slate-700">
               <strong className="text-slate-900">Reseller portal:</strong>{' '}
               <code className="text-xs">/reseller</code> — they sign in with
-              Privy via invite link, see stock drawn to them, log sales, and earn
-              commission per item rate.
+              Privy via invite link, see stock drawn to them, log sales, capture
+              customer feedback (stars + free text), and earn commission per item
+              rate.
               <div className="mt-1 flex flex-wrap gap-3 text-xs">
                 <span className="inline-flex items-center gap-1">
                   <Package className="w-3.5 h-3.5 text-[#00b4d8]" /> Draw stock

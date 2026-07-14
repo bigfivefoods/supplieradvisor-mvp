@@ -19,6 +19,11 @@ const REPORTS = [
     desc: 'Region deployment model — cost, uptake, people served, margin per meal, POS & marketing income.',
     href: '/dashboard/containers/feasibility',
   },
+  {
+    title: 'Reseller customer feedback',
+    desc: 'Product, price, brand & packaging stars plus free-text notes from the field — for product development and pricing.',
+    href: '/dashboard/containers/resellers/feedback',
+  },
   { title: 'Monthly performance', desc: 'Revenue, margin, and sales by container' },
   { title: 'Contractor payouts', desc: 'Commission calculations and payment history' },
   { title: 'Inventory & stock', desc: 'Stock levels and replenishment summary' },

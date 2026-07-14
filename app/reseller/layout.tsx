@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import AuthGate from '@/components/AuthGate';
-import { Package, ShoppingCart, Home } from 'lucide-react';
+import { Package, ShoppingCart, Home, MessageSquareHeart } from 'lucide-react';
 
 export default function ResellerLayout({
   children,
@@ -57,6 +57,16 @@ export default function ResellerLayout({
                   }`}
                 >
                   <Package className="w-3.5 h-3.5" /> Stock
+                </Link>
+                <Link
+                  href="/reseller/feedback"
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold ${
+                    path.startsWith('/reseller/feedback')
+                      ? 'border-[#00b4d8] bg-[#00b4d8] text-white'
+                      : 'border-slate-200 bg-white text-slate-600'
+                  }`}
+                >
+                  <MessageSquareHeart className="w-3.5 h-3.5" /> Feedback
                 </Link>
               </nav>
             </div>

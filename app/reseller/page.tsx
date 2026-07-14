@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Loader2, Package, Banknote, ShoppingCart } from 'lucide-react';
+import { Loader2, Package, Banknote, ShoppingCart, MessageSquareHeart } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { getCanonicalUserId, extractEmailFromPrivyUser } from '@/lib/auth/identity';
 
@@ -139,6 +139,17 @@ export default function ResellerHomePage() {
           <div className="font-black text-slate-900">My stock</div>
           <p className="text-xs text-slate-500 mt-1">
             Inventory drawn to you from container outlets.
+          </p>
+        </Link>
+        <Link
+          href="/reseller/feedback"
+          className="rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50/80 to-white p-5 hover:border-amber-400 transition-all sm:col-span-2"
+        >
+          <MessageSquareHeart className="w-6 h-6 text-amber-600 mb-2" />
+          <div className="font-black text-slate-900">Customer feedback</div>
+          <p className="text-xs text-slate-500 mt-1">
+            Capture star ratings on product, price and brand, plus free-text notes
+            for product development and pricing.
           </p>
         </Link>
       </div>

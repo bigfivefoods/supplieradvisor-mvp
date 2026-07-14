@@ -51,7 +51,7 @@ export async function GET() {
       )
       .not('trading_name', 'is', null)
       .order('created_at', { ascending: false, nullsFirst: false })
-      .limit(48);
+      .limit(180);
 
     if (!full.error && full.data) {
       rows = full.data as Row[];
@@ -63,7 +63,7 @@ export async function GET() {
         )
         .not('trading_name', 'is', null)
         .order('id', { ascending: false })
-        .limit(48);
+        .limit(180);
       if (!retry.error && retry.data) rows = retry.data as Row[];
     }
 
@@ -160,12 +160,14 @@ export async function GET() {
       platformTotal = profileCount;
     }
 
-    // Show mix: prefer verified first (already sorted), include unverified in the 12
+    // Full list for client pagination (homepage shows 9 per page)
+    const PAGE_SIZE = 9;
     return NextResponse.json({
       success: true,
-      companies: companies.slice(0, 12),
+      companies,
+      pageSize: PAGE_SIZE,
       counts: {
-        shown: Math.min(12, companies.length),
+        shown: companies.length,
         verified: verifiedCount,
         network: networkCount,
         total: companies.length,
