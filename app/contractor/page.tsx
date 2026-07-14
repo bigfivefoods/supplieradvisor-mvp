@@ -17,6 +17,7 @@ import {
   AlertTriangle,
   RefreshCw,
   Scale,
+  GraduationCap,
 } from 'lucide-react';
 import { extractEmailFromPrivyUser, getCanonicalUserId } from '@/lib/auth/identity';
 import type { ContainerRecord } from '@/lib/containers/types';
@@ -295,6 +296,12 @@ function OutletDashboard({
             icon: Scale,
             title: 'RIAD log',
             desc: 'Log risks, issues, actions & decisions for this outlet',
+          },
+          {
+            href: '/contractor/leadership',
+            icon: GraduationCap,
+            title: 'Leadership training',
+            desc: 'Super-Cube® — grow the skills that lift your outlet and team',
           },
         ].map((card) => (
           <Link

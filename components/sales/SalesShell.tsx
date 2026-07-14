@@ -19,6 +19,7 @@ import {
   FileSignature,
   ArrowLeftRight,
   Sparkles,
+  GraduationCap,
 } from 'lucide-react';
 import { extractEmailFromPrivyUser, getCanonicalUserId } from '@/lib/auth/identity';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -39,6 +40,7 @@ const NAV: {
   { href: '/sales/forecast', label: 'Forecast', icon: TrendingUp },
   { href: '/sales/agreement', label: 'Agreement', icon: FileSignature },
   { href: '/sales/subscribe', label: 'Subscribe', icon: Sparkles },
+  { href: '/sales/leadership', label: 'Leadership', icon: GraduationCap },
 ];
 
 export default function SalesShell({ children }: { children: React.ReactNode }) {

@@ -9,6 +9,7 @@ import {
   Home,
   MessageSquareHeart,
   AlertTriangle,
+  GraduationCap,
 } from 'lucide-react';
 
 export default function ResellerLayout({
@@ -83,6 +84,16 @@ export default function ResellerLayout({
                   }`}
                 >
                   <AlertTriangle className="w-3.5 h-3.5" /> RIAD
+                </Link>
+                <Link
+                  href="/reseller/leadership"
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold ${
+                    path.startsWith('/reseller/leadership')
+                      ? 'border-[#00b4d8] bg-[#00b4d8] text-white'
+                      : 'border-slate-200 bg-white text-slate-600'
+                  }`}
+                >
+                  <GraduationCap className="w-3.5 h-3.5" /> Lead
                 </Link>
               </nav>
             </div>

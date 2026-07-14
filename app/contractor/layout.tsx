@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { usePrivy } from '@privy-io/react-auth';
 import { useEffect } from 'react';
-import { LayoutDashboard, LogOut, Loader2 } from 'lucide-react';
+import { LayoutDashboard, LogOut, Loader2, GraduationCap } from 'lucide-react';
 import { extractEmailFromPrivyUser } from '@/lib/auth/identity';
 
 export default function ContractorLayout({ children }: { children: React.ReactNode }) {
@@ -66,6 +66,17 @@ export default function ContractorLayout({ children }: { children: React.ReactNo
             >
               <LayoutDashboard className="w-4 h-4" />
               <span className="hidden sm:inline">My outlet</span>
+            </Link>
+            <Link
+              href="/contractor/leadership"
+              className={`px-3 py-2 rounded-2xl text-sm font-medium inline-flex items-center gap-1.5 ${
+                pathname?.startsWith('/contractor/leadership')
+                  ? 'bg-[#00b4d8]/10 text-[#00b4d8]'
+                  : 'text-neutral-600 hover:bg-neutral-50'
+              }`}
+            >
+              <GraduationCap className="w-4 h-4" />
+              <span className="hidden sm:inline">Leadership</span>
             </Link>
             <button
               type="button"

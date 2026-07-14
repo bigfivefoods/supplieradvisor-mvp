@@ -13,6 +13,7 @@ import {
   Sparkles,
   AlertTriangle,
   Trophy,
+  GraduationCap,
 } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -256,7 +257,7 @@ export default function SalesCommandCentre() {
         </div>
       </section>
 
-      <section className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <section className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
         {[
           {
             href: '/sales/pipeline',
@@ -285,6 +286,13 @@ export default function SalesCommandCentre() {
             title: '90-day forecast',
             desc: 'Weighted close plan',
             meta: 'Charts',
+          },
+          {
+            href: '/sales/leadership',
+            icon: GraduationCap,
+            title: 'Leadership',
+            desc: 'Super-Cube® skills training',
+            meta: 'Grow yourself',
           },
         ].map((m) => (
           <Link

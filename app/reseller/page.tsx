@@ -9,6 +9,7 @@ import {
   ShoppingCart,
   MessageSquareHeart,
   AlertTriangle,
+  GraduationCap,
 } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { getCanonicalUserId, extractEmailFromPrivyUser } from '@/lib/auth/identity';
@@ -168,6 +169,17 @@ export default function ResellerHomePage() {
           <p className="text-xs text-slate-500 mt-1">
             Report risks, issues, actions and decisions so the network can fix
             problems.
+          </p>
+        </Link>
+        <Link
+          href="/reseller/leadership"
+          className="rounded-3xl border border-violet-200 bg-gradient-to-br from-violet-50/80 to-white p-5 hover:border-violet-400 transition-all sm:col-span-2"
+        >
+          <GraduationCap className="w-6 h-6 text-violet-600 mb-2" />
+          <div className="font-black text-slate-900">Leadership training</div>
+          <p className="text-xs text-slate-500 mt-1">
+            Super-Cube® — grow choices, principles, mental, emotional, physical
+            and purpose skills for field selling and service.
           </p>
         </Link>
       </div>
