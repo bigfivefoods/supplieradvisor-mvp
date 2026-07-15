@@ -206,6 +206,7 @@ export default function SalesAgreementPage() {
     }
   };
 
+  /** Prefer company/signed tiers when set; otherwise platform 4% · 5% · 6% stepped scale. */
   const tiers: CommissionTier[] = (() => {
     if (signed && agreement?.commission_tiers?.length) return agreement.commission_tiers;
     if (program?.commission_tiers?.length) return program.commission_tiers;
@@ -213,6 +214,10 @@ export default function SalesAgreementPage() {
     return DEFAULT_COMMISSION_TIERS;
   })();
   const ratesLabel = tiers.map((t) => `${t.ratePct}%`).join(' · ');
+  const minRate = Math.min(...tiers.map((t) => t.ratePct));
+  const maxRate = Math.max(...tiers.map((t) => t.ratePct));
+  const rateBandLabel =
+    minRate === maxRate ? `${minRate}%` : `${minRate}% – ${maxRate}%`;
   const kpis =
     program?.sales_criteria?.length
       ? program.sales_criteria
@@ -224,6 +229,8 @@ export default function SalesAgreementPage() {
   const emailDomain =
     (program?.email_domain || SALES_CONTRACTOR_EMAIL_DOMAIN).replace(/^@/, '') ||
     SALES_CONTRACTOR_EMAIL_DOMAIN;
+  const linkDealValue = superLinkExampleDealValue();
+  const halfLinkValue = linkDealValue / 2;
 
   if (loading) {
     return (
@@ -247,10 +254,67 @@ export default function SalesAgreementPage() {
           This is the <strong className="text-slate-700">only agreement</strong> governing your
           engagement — a sole Independent Sales Contractor Agreement and non-disclosure undertaking
           under South African law. Sign it, then subscribe (R199/mo · 6 months). Commission is{' '}
-          <strong>personal sales only</strong> — <strong>not multi-level marketing</strong> — at{' '}
-          <strong>{ratesLabel}</strong> on deals <em>you</em> bring. On acceptance you may receive{' '}
-          <strong className="text-slate-700">@{emailDomain}</strong>. All customers and deals
-          belong to the company.
+          <strong>personal sales only</strong> — <strong>not multi-level marketing</strong> — on a
+          stepped <strong>{rateBandLabel}</strong> scale (
+          <strong className="text-amber-700">{ratesLabel || '4% · 5% · 6%'}</strong>) for deals{' '}
+          <em>you</em> bring. Full super-link (~R1.5m) pays at the top rate. On acceptance you may
+          receive <strong className="text-slate-700">@{emailDomain}</strong>. All customers and
+          deals belong to the company.
+        </p>
+      </div>
+
+      {/* Clear 4–6% commission structure banner */}
+      <div className="rounded-3xl border-2 border-amber-300/80 bg-gradient-to-br from-amber-50 via-white to-orange-50 px-5 py-5 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-amber-800">
+              Commission structure
+            </p>
+            <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+              {rateBandLabel}{' '}
+              <span className="text-base font-bold text-slate-500">stepped · whole deal</span>
+            </h2>
+            <p className="text-sm text-slate-600 mt-1">
+              Rates: <strong className="text-amber-800">{ratesLabel || '4% · 5% · 6%'}</strong>
+              {' '}— personal origin only (not multi-level marketing)
+            </p>
+          </div>
+          <div className="shrink-0 rounded-2xl bg-amber-500 text-white px-4 py-3 text-center">
+            <div className="text-[10px] font-bold uppercase tracking-wide opacity-90">
+              Super-link (~R1.5m)
+            </div>
+            <div className="text-2xl font-black">
+              {tiers[tiers.length - 1]?.ratePct ?? 6}%
+            </div>
+          </div>
+        </div>
+        <div className="grid sm:grid-cols-3 gap-2">
+          {tiers.map((t, i) => {
+            const from = i === 0 ? 0 : Number(tiers[i - 1].upTo || 0);
+            const range =
+              t.upTo == null
+                ? `${formatZar(from)}+`
+                : i === 0
+                  ? `Under ${formatZar(t.upTo)}`
+                  : `${formatZar(from)} – under ${formatZar(t.upTo)}`;
+            return (
+              <div
+                key={i}
+                className="rounded-2xl border border-amber-200/80 bg-white px-3 py-3 text-center"
+              >
+                <div className="text-2xl font-black text-amber-600">{t.ratePct}%</div>
+                <div className="text-[11px] font-semibold text-slate-700 mt-0.5">
+                  {t.label || `Band ${i + 1}`}
+                </div>
+                <div className="text-[10px] text-neutral-500 mt-1 leading-snug">{range}</div>
+              </div>
+            );
+          })}
+        </div>
+        <p className="text-[11px] text-neutral-500 mt-3 mb-0">
+          Illustrative anchors: ½ super-link ≈ {formatZar(halfLinkValue)} · full super-link ≈{' '}
+          {formatZar(linkDealValue)} ({SUPER_LINK_UNITS.toLocaleString('en-ZA')} units ×{' '}
+          {formatZar(SUPER_LINK_UNIT_PRICE_ZAR)}). Live catalogue prices may differ.
         </p>
       </div>
 
@@ -314,77 +378,59 @@ export default function SalesAgreementPage() {
         </div>
       )}
 
-      {/* Commission snapshot */}
-      <div className="grid sm:grid-cols-2 gap-3">
-        <div className="rounded-3xl border border-neutral-200 bg-white p-5">
-          <h2 className="text-sm font-bold text-slate-900 mb-3">Commission schedule</h2>
-          <table className="w-full text-sm">
-            <tbody>
-              {tiers.map((t, i) => {
-                const from = i === 0 ? 0 : Number(tiers[i - 1].upTo || 0);
-                const range =
-                  t.upTo == null
-                    ? `${formatZar(from)}+ (full super-link ~R1.5m)`
-                    : i === 0
-                      ? `Below ${formatZar(t.upTo)}`
-                      : `${formatZar(from)} – under ${formatZar(t.upTo)}`;
-                return (
-                  <tr key={i} className="border-b border-neutral-100">
-                    <td className="py-2 text-neutral-500 text-xs sm:text-sm">{range}</td>
-                    <td className="py-2 text-right font-bold text-amber-600">
-                      {t.ratePct}%
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        <div className="rounded-3xl border border-neutral-200 bg-gradient-to-br from-amber-500/15 to-orange-500/5 p-5">
-          <h2 className="text-sm font-bold text-slate-900 mb-3">Example earnings</h2>
-          <ul className="space-y-2">
-            {(() => {
-              const linkDeal = superLinkExampleDealValue();
-              const linkRes = calculateCommission(linkDeal, { tiers });
-              return (
-                <li className="rounded-2xl border border-amber-200/80 bg-white/70 px-3 py-2.5 mb-1">
-                  <div className="text-[10px] font-black uppercase tracking-wider text-amber-800 mb-1">
-                    Super-link load (~{SUPER_LINK_TONNES} t ·{' '}
-                    {SUPER_LINK_UNITS.toLocaleString('en-ZA')} units)
-                  </div>
-                  <div className="flex justify-between text-sm gap-2">
-                    <span className="text-neutral-600">
-                      {SUPER_LINK_UNITS.toLocaleString('en-ZA')} ×{' '}
-                      {formatZar(SUPER_LINK_UNIT_PRICE_ZAR)} ={' '}
-                      <strong className="text-slate-800">{formatZar(linkDeal)}</strong>
-                    </span>
-                    <span className="font-bold text-amber-700 shrink-0">
-                      {formatZarPrecise(linkRes.commissionAmount)}
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-neutral-500 mt-1">
-                    Finished goods @ R{SUPER_LINK_UNIT_PRICE_ZAR} each · whole deal at{' '}
-                    {linkRes.appliedRatePct}% (~R1.5m link value)
-                  </p>
-                </li>
-              );
-            })()}
-            {[50_000, 250_000, 1_000_000].map((amt) => {
-              const r = calculateCommission(amt, { tiers });
-              return (
-                <li key={amt} className="flex justify-between text-sm">
-                  <span className="text-neutral-600">{formatZar(amt)} deal</span>
-                  <span className="font-bold text-amber-700">
-                    {formatZarPrecise(r.commissionAmount)}
+      {/* Example earnings with 4–6% structure */}
+      <div className="rounded-3xl border border-neutral-200 bg-gradient-to-br from-amber-500/15 to-orange-500/5 p-5">
+        <h2 className="text-sm font-bold text-slate-900 mb-1">
+          Example earnings at {ratesLabel || '4% · 5% · 6%'}
+        </h2>
+        <p className="text-xs text-neutral-500 mb-3">
+          Stepped scale — the whole deal is paid at one rate for its size band.
+        </p>
+        <ul className="space-y-2">
+          {(() => {
+            const linkRes = calculateCommission(linkDealValue, { tiers });
+            return (
+              <li className="rounded-2xl border border-amber-200/80 bg-white/70 px-3 py-2.5 mb-1">
+                <div className="text-[10px] font-black uppercase tracking-wider text-amber-800 mb-1">
+                  Super-link load (~{SUPER_LINK_TONNES} t ·{' '}
+                  {SUPER_LINK_UNITS.toLocaleString('en-ZA')} units) → top rate
+                </div>
+                <div className="flex justify-between text-sm gap-2">
+                  <span className="text-neutral-600">
+                    {SUPER_LINK_UNITS.toLocaleString('en-ZA')} ×{' '}
+                    {formatZar(SUPER_LINK_UNIT_PRICE_ZAR)} ={' '}
+                    <strong className="text-slate-800">{formatZar(linkDealValue)}</strong>
                   </span>
-                </li>
-              );
-            })}
-          </ul>
-          <p className="text-[11px] text-neutral-500 mt-3">
-            Company schedule: {ratesLabel} (stepped, whole deal). Personal origin only — not MLM.
-          </p>
-        </div>
+                  <span className="font-bold text-amber-700 shrink-0">
+                    {formatZarPrecise(linkRes.commissionAmount)}{' '}
+                    <span className="text-xs font-semibold">
+                      @ {linkRes.appliedRatePct}%
+                    </span>
+                  </span>
+                </div>
+              </li>
+            );
+          })()}
+          {[50_000, halfLinkValue, 1_000_000].map((amt) => {
+            const r = calculateCommission(amt, { tiers });
+            return (
+              <li key={amt} className="flex justify-between text-sm gap-2">
+                <span className="text-neutral-600">
+                  {formatZar(amt)} deal
+                  <span className="text-[10px] text-neutral-400 ml-1">
+                    → {r.appliedRatePct}%
+                  </span>
+                </span>
+                <span className="font-bold text-amber-700">
+                  {formatZarPrecise(r.commissionAmount)}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+        <p className="text-[11px] text-neutral-500 mt-3 mb-0">
+          Personal sales only — not MLM. No downline or connection-of-connection commission.
+        </p>
       </div>
 
       <div className="rounded-2xl border border-violet-200 bg-violet-50/60 px-4 py-4 text-sm text-slate-700">
@@ -469,11 +515,13 @@ export default function SalesAgreementPage() {
               <strong>only KPIs / sales criteria</strong> are those in clause 4A for this company
               program. I accept that commission is{' '}
               <strong>personal sales only — not multi-level marketing</strong> (no downline or
-              connection-of-connection pay) at {ratesLabel}, R199/month 6-month portal subscription,{' '}
-              <strong>@{emailDomain}</strong> mailbox (where configured), POPIA duties, and that all
-              CRM data and customers belong to <strong>{companyName || 'the Company'}</strong>. I am
-              an independent contractor (not an employee) and am responsible for my own tax
-              compliance unless the law provides otherwise.
+              connection-of-connection pay) on the stepped schedule{' '}
+              <strong>{ratesLabel || '4% · 5% · 6%'}</strong> ({rateBandLabel}), R199/month 6-month
+              portal subscription, <strong>@{emailDomain}</strong> mailbox (where configured), POPIA
+              duties, and that all CRM data and customers belong to{' '}
+              <strong>{companyName || 'the Company'}</strong>. I am an independent contractor (not an
+              employee) and am responsible for my own tax compliance unless the law provides
+              otherwise.
             </span>
           </label>
           <div>

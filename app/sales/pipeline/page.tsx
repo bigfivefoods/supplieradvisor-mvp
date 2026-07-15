@@ -52,6 +52,8 @@ export default function SalesPipelinePage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [formMode, setFormMode] = useState<FormMode>('opportunity');
+  /** When set, opportunity form PATCHes this deal instead of creating. */
+  const [editingOppId, setEditingOppId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [lastInviteLink, setLastInviteLink] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
@@ -203,6 +205,36 @@ export default function SalesPipelinePage() {
     }
     setSaving(true);
     try {
+      // Edit existing deal
+      if (editingOppId) {
+        const res = await fetch('/api/customers/opportunities', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyId,
+            privyUserId,
+            id: editingOppId,
+            name: form.name.trim(),
+            contact_name: form.contact_name.trim() || form.name.trim() || null,
+            company_name: form.company_name.trim() || null,
+            contact_email: form.email.trim() || null,
+            contact_phone: form.phone.trim() || null,
+            stage: form.stage,
+            amount: Number(form.amount) || 0,
+            notes: form.notes.trim() || null,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Could not update deal');
+        toast.success('Deal updated');
+        setShowForm(false);
+        setEditingOppId(null);
+        resetForm();
+        setTab('map');
+        void load();
+        return;
+      }
+
       // Optionally create CRM customer + invite from opportunity details
       let customerId: number | null = null;
       if (form.send_invite && form.email.trim() && form.email.includes('@')) {
@@ -262,6 +294,7 @@ export default function SalesPipelinePage() {
           : 'Opportunity added to the map'
       );
       setShowForm(false);
+      setEditingOppId(null);
       resetForm();
       setTab('map');
       void load();
@@ -402,6 +435,7 @@ export default function SalesPipelinePage() {
   const resetForm = () => {
     setLastInviteLink(null);
     setLinkCopied(false);
+    setEditingOppId(null);
     setForm({
       name: '',
       company_name: '',
@@ -428,6 +462,41 @@ export default function SalesPipelinePage() {
     setShowForm(true);
     if (mode === 'lead') setTab('leads');
     if (mode === 'opportunity') setTab('map');
+  };
+
+  const openEditOpp = (o: OpportunityRecord) => {
+    const amount = Number(
+      (o as { amount?: number }).amount ||
+        (o as { opportunity_size?: number }).opportunity_size ||
+        0
+    );
+    setEditingOppId(o.id);
+    setFormMode('opportunity');
+    setLastInviteLink(null);
+    setForm({
+      name: o.name || '',
+      company_name: o.company_name || '',
+      trading_name: '',
+      legal_name: '',
+      contact_name: o.contact_name || '',
+      email: o.contact_email || '',
+      phone: o.contact_phone || (o as { contact_number?: string }).contact_number || '',
+      city: '',
+      country: 'South Africa',
+      status: 'new',
+      stage: o.stage || 'prospecting',
+      amount: amount > 0 ? String(amount) : '',
+      notes: o.notes || o.description || '',
+      invite_message: '',
+      send_invite: false,
+      also_create_opportunity: false,
+    });
+    setShowForm(true);
+    setTab('map');
+    // Scroll form into view
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   const copyLink = async () => {
@@ -522,33 +591,41 @@ export default function SalesPipelinePage() {
               {formMode === 'customer'
                 ? 'Add customer & invite to SupplierAdvisor'
                 : formMode === 'opportunity'
-                  ? 'Add opportunity'
+                  ? editingOppId
+                    ? 'Edit pipeline deal'
+                    : 'Add opportunity'
                   : 'Capture lead'}
             </h2>
             <div className="flex flex-wrap gap-1.5">
-              {(
-                [
-                  { id: 'customer' as const, label: 'Customer' },
-                  { id: 'opportunity' as const, label: 'Opportunity' },
-                  { id: 'lead' as const, label: 'Lead' },
-                ] as const
-              ).map((m) => (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => {
-                    setFormMode(m.id);
-                    setLastInviteLink(null);
-                  }}
-                  className={`px-3 py-1.5 rounded-full text-xs font-bold border ${
-                    formMode === m.id
-                      ? 'border-[#00b4d8] bg-[#00b4d8] text-white'
-                      : 'border-slate-200 bg-white text-slate-600'
-                  }`}
-                >
-                  {m.label}
-                </button>
-              ))}
+              {!editingOppId &&
+                (
+                  [
+                    { id: 'customer' as const, label: 'Customer' },
+                    { id: 'opportunity' as const, label: 'Opportunity' },
+                    { id: 'lead' as const, label: 'Lead' },
+                  ] as const
+                ).map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => {
+                      setFormMode(m.id);
+                      setLastInviteLink(null);
+                    }}
+                    className={`px-3 py-1.5 rounded-full text-xs font-bold border ${
+                      formMode === m.id
+                        ? 'border-[#00b4d8] bg-[#00b4d8] text-white'
+                        : 'border-slate-200 bg-white text-slate-600'
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              {editingOppId ? (
+                <span className="px-3 py-1.5 rounded-full text-xs font-bold border border-amber-200 bg-amber-50 text-amber-900">
+                  Editing deal #{editingOppId}
+                </span>
+              ) : null}
             </div>
           </div>
 
@@ -812,26 +889,32 @@ export default function SalesPipelinePage() {
                         <CommissionBadge amount={Number(form.amount)} />
                       </div>
                     )}
-                    <label className="sm:col-span-2 flex items-start gap-2.5 cursor-pointer rounded-2xl border border-sky-100 bg-sky-50/40 px-3 py-2.5">
-                      <input
-                        type="checkbox"
-                        className="mt-0.5 rounded border-slate-300 text-[#00b4d8]"
-                        checked={form.send_invite}
-                        onChange={(e) =>
-                          setForm((f) => ({
-                            ...f,
-                            send_invite: e.target.checked,
-                          }))
-                        }
-                      />
-                      <span className="text-xs text-slate-700">
-                        <strong className="text-slate-900">
-                          Also add as CRM customer &amp; send invite
-                        </strong>{' '}
-                        when email is filled — creates the customer and emails a
-                        join link to SupplierAdvisor.
-                      </span>
-                    </label>
+                    {!editingOppId ? (
+                      <label className="sm:col-span-2 flex items-start gap-2.5 cursor-pointer rounded-2xl border border-sky-100 bg-sky-50/40 px-3 py-2.5">
+                        <input
+                          type="checkbox"
+                          className="mt-0.5 rounded border-slate-300 text-[#00b4d8]"
+                          checked={form.send_invite}
+                          onChange={(e) =>
+                            setForm((f) => ({
+                              ...f,
+                              send_invite: e.target.checked,
+                            }))
+                          }
+                        />
+                        <span className="text-xs text-slate-700">
+                          <strong className="text-slate-900">
+                            Also add as CRM customer &amp; send invite
+                          </strong>{' '}
+                          when email is filled — creates the customer and emails a
+                          join link to SupplierAdvisor.
+                        </span>
+                      </label>
+                    ) : (
+                      <p className="sm:col-span-2 text-xs text-slate-500">
+                        Editing deal — change name, stage, amount, contact or notes, then save.
+                      </p>
+                    )}
                   </>
                 ) : (
                   <select
@@ -909,6 +992,8 @@ export default function SalesPipelinePage() {
                     ? 'Save customer & send invite'
                     : 'Save customer'}
                 </>
+              ) : editingOppId ? (
+                'Save deal changes'
               ) : (
                 'Save'
               )}
@@ -936,8 +1021,9 @@ export default function SalesPipelinePage() {
           commissionTiers={tiers}
           onMove={moveOpp}
           onDelete={deleteOpp}
+          onEdit={openEditOpp}
           onCreate={() => {
-            setShowForm(true);
+            openForm('opportunity');
           }}
         />
       ) : tab === 'leads' ? (
@@ -992,17 +1078,35 @@ export default function SalesPipelinePage() {
                         {o.company_name || '—'} · {o.stage || 'prospecting'}
                       </div>
                     </div>
-                    <div className="text-right space-y-1">
-                      <div className="font-bold text-slate-900">{formatMoney(amount)}</div>
-                      {comm && (
-                        <div className="text-xs font-bold text-amber-900">
-                          Earn {formatZarPrecise(comm.commissionAmount)}
-                          <span className="font-semibold text-amber-800/80">
-                            {' '}
-                            · ~{comm.effectiveRatePct.toFixed(2)}%
-                          </span>
-                        </div>
-                      )}
+                    <div className="flex flex-col sm:items-end gap-1.5">
+                      <div className="text-right space-y-1">
+                        <div className="font-bold text-slate-900">{formatMoney(amount)}</div>
+                        {comm && (
+                          <div className="text-xs font-bold text-amber-900">
+                            Earn {formatZarPrecise(comm.commissionAmount)}
+                            <span className="font-semibold text-amber-800/80">
+                              {' '}
+                              · ~{comm.effectiveRatePct.toFixed(2)}%
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openEditOpp(o)}
+                          className="text-xs font-bold text-[#0077b6] hover:underline"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void deleteOpp(o.id)}
+                          className="text-xs font-semibold text-red-600 hover:underline"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </div>
                   </li>
                 );
