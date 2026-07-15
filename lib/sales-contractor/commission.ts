@@ -2,12 +2,12 @@
  * Independent sales contractor commission engine.
  *
  * Stepped scale (whole deal at one rate) — work backwards from a super-link load:
- *   Super-link (32 t) and above  → 6%
- *   Half-link to under full link → 5%
- *   Below half a super-link      → 4%
+ *   Super-link (full load) and above  → 6%
+ *   Half-link to under full link      → 5%
+ *   Below half a super-link           → 4%
  *
- * One super-link payload = 32 tonnes. Illustrative value for thresholds uses
- * SUPER_LINK_EXAMPLE_ZAR_PER_TONNE (not a live price list).
+ * One super-link ≈ 32 000 units of finished goods (≈ 32 t payload class).
+ * Illustrative unit price R45 → deal value R1 440 000 (≈ R1.5m).
  */
 
 export type CommissionTier = {
@@ -18,14 +18,22 @@ export type CommissionTier = {
   label?: string;
 };
 
-/** Super-link payload for commission bands (one “link”). */
+/**
+ * Super-link payload class (~32 t combination).
+ * Commission uses unit count × finished-goods unit price, not R/tonne.
+ */
 export const SUPER_LINK_TONNES = 32;
-/** Illustrative ZAR per tonne for band thresholds and worked examples only. */
-export const SUPER_LINK_EXAMPLE_ZAR_PER_TONNE = 5_000;
+/** Approximate finished-goods units that fill one super-link. */
+export const SUPER_LINK_UNITS = 32_000;
+/** Illustrative finished-goods unit price (ZAR) for band thresholds and examples. */
+export const SUPER_LINK_UNIT_PRICE_ZAR = 45;
 
-/** Deal value of one full super-link load (illustrative). */
+/** @deprecated Use SUPER_LINK_UNIT_PRICE_ZAR — kept as alias for older imports */
+export const SUPER_LINK_EXAMPLE_ZAR_PER_TONNE = SUPER_LINK_UNIT_PRICE_ZAR;
+
+/** Deal value of one full super-link load (illustrative). R45 × 32 000 = R1 440 000. */
 export function superLinkDealValue(): number {
-  return SUPER_LINK_TONNES * SUPER_LINK_EXAMPLE_ZAR_PER_TONNE;
+  return SUPER_LINK_UNITS * SUPER_LINK_UNIT_PRICE_ZAR;
 }
 
 /** Half a super-link (illustrative) — 5% band starts here. */
@@ -54,7 +62,7 @@ export const DEFAULT_COMMISSION_TIERS: CommissionTier[] = [
   {
     upTo: null,
     ratePct: 6,
-    label: 'Super-link (32 t) & above',
+    label: 'Super-link (~32 000 units) & above',
   },
 ];
 
@@ -100,7 +108,7 @@ function normalizeTiers(tiers?: CommissionTier[] | null): CommissionTier[] {
 
 /**
  * Stepped commission: whole deal at one rate.
- * Worked backwards from a full super-link (32 t) at 6%:
+ * Worked backwards from a full super-link at 6%:
  *   ≥ 1 super-link value → 6%
  *   ≥ ½ super-link and < 1 → 5%
  *   < ½ super-link → 4%
@@ -140,7 +148,9 @@ export function calculateCommission(
     ratePct = rate6;
     bandFrom = full;
     bandTo = null;
-    label = tiers.find((t) => t.upTo == null)?.label || 'Super-link (32 t) & above';
+    label =
+      tiers.find((t) => t.upTo == null)?.label ||
+      'Super-link (~32 000 units) & above';
   } else if (amount >= half) {
     ratePct = rate5;
     bandFrom = half;
@@ -205,7 +215,9 @@ export function tiersSummaryText(tiers?: CommissionTier[] | null): string {
     .map((tier, i) => {
       const from = i === 0 ? 0 : (t[i - 1].upTo ?? 0);
       const to =
-        tier.upTo == null ? 'and above (super-link 32 t+)' : `up to ${formatZar(tier.upTo)}`;
+        tier.upTo == null
+          ? 'and above (super-link ~32 000 units)'
+          : `up to ${formatZar(tier.upTo)}`;
       return `${formatZar(from)} ${to}: ${tier.ratePct}% on whole deal`;
     })
     .join(' · ');
@@ -225,7 +237,7 @@ export function parseStoredTiers(raw: unknown): CommissionTier[] {
 }
 
 /**
- * Upgrade legacy scales (old 3.5–5.5 progressive, inverted, etc.) to current DEFAULT.
+ * Upgrade legacy scales (old 3.5–5.5 progressive, old R160k link, etc.) to current DEFAULT.
  */
 export function ensureAscendingCommissionTiers(
   tiers?: CommissionTier[] | null
@@ -236,7 +248,12 @@ export function ensureAscendingCommissionTiers(
   const rawRates = tiers.map((x) => Number(x.ratePct) || 0);
   const firstRaw = rawRates[0];
   const lastRaw = rawRates[rawRates.length - 1];
+  const caps = tiers.map((t) => (t.upTo == null ? null : Number(t.upTo)));
+  const hasLegacyCaps = caps.some(
+    (c) => c != null && (c === 160_000 || c === 80_000 || c === 50_000)
+  );
   const hasLegacy =
+    hasLegacyCaps ||
     rawRates.some((r) => r === 3.5 || r === 5.5 || r === 4.5) ||
     firstRaw < MIN_COMMISSION_PCT - 0.01 ||
     lastRaw < MAX_COMMISSION_PCT - 0.01 ||
@@ -244,11 +261,12 @@ export function ensureAscendingCommissionTiers(
   if (hasLegacy || tiers.length !== 3) {
     return DEFAULT_COMMISSION_TIERS;
   }
-  // Accept only 4 / 5 / 6 structure
-  if (
-    Math.abs(firstRaw - 4) > 0.01 ||
-    Math.abs(lastRaw - 6) > 0.01
-  ) {
+  if (Math.abs(firstRaw - 4) > 0.01 || Math.abs(lastRaw - 6) > 0.01) {
+    return DEFAULT_COMMISSION_TIERS;
+  }
+  // If middle/full caps are far below current super-link value, refresh
+  const fullCap = caps[1];
+  if (fullCap != null && fullCap < superLinkDealValue() * 0.5) {
     return DEFAULT_COMMISSION_TIERS;
   }
   return normalizeTiers(tiers);

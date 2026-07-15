@@ -109,8 +109,8 @@ export default function SalesCommandCentre() {
               you earn commission of{' '}
               <strong className="text-amber-700">4%</strong>,{' '}
               <strong className="text-amber-700">5%</strong> or{' '}
-              <strong className="text-amber-700">6%</strong> — a super-link load (32 t) earns{' '}
-              <strong className="text-amber-700">6%</strong>.
+              <strong className="text-amber-700">6%</strong> — a full super-link load (~R1.5m /
+              ~32 000 units) earns <strong className="text-amber-700">6%</strong>.
             </p>
           </div>
           <div className="flex flex-col sm:flex-row gap-3">

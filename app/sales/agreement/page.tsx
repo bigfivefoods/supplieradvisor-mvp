@@ -16,7 +16,8 @@ import {
 import {
   SALES_CONTRACTOR_EMAIL_DOMAIN,
   SUPER_LINK_TONNES,
-  SUPER_LINK_EXAMPLE_ZAR_PER_TONNE,
+  SUPER_LINK_UNITS,
+  SUPER_LINK_UNIT_PRICE_ZAR,
   superLinkExampleDealValue,
 } from '@/lib/sales-contractor/agreement';
 import type { SalesContractorAgreement } from '@/lib/sales-contractor/types';
@@ -114,17 +115,18 @@ export default function SalesAgreementPage() {
       <div className="text-center sm:text-left">
         <div className="inline-flex items-center gap-2 rounded-full bg-amber-400/15 border border-amber-200 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-amber-700 mb-3">
           <FileSignature className="w-3.5 h-3.5" />
-          Independent Sales Contractor Agreement
+          Sole agreement · NDA · Independent contractor (SA)
         </div>
         <h1 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight">
           Join the {companyName || 'company'} sales team
         </h1>
         <p className="mt-2 text-neutral-500 max-w-2xl">
-          Sign the Independent Sales Contractor Agreement (South African law), then subscribe
-          (R199/mo · 6 months). Commission is <strong>4% · 5% · 6%</strong> (a super-link load of 32 t
-          earns <strong>6%</strong>). On acceptance you receive a corporate mailbox on{' '}
-          <strong className="text-slate-700">@{SALES_CONTRACTOR_EMAIL_DOMAIN}</strong>. All
-          customers and deals are saved under the company.
+          This is the <strong className="text-slate-700">only agreement</strong> governing your
+          engagement — a sole Independent Sales Contractor Agreement and non-disclosure undertaking
+          under South African law. Sign it, then subscribe (R199/mo · 6 months). Commission is{' '}
+          <strong>4% · 5% · 6%</strong> (full super-link ~R1.5m at <strong>6%</strong>). On
+          acceptance you receive <strong className="text-slate-700">@{SALES_CONTRACTOR_EMAIL_DOMAIN}</strong>.
+          All customers and deals belong to the company.
         </p>
       </div>
 
@@ -154,7 +156,7 @@ export default function SalesAgreementPage() {
                 const from = i === 0 ? 0 : Number(tiers[i - 1].upTo || 0);
                 const range =
                   t.upTo == null
-                    ? `${formatZar(from)}+ (super-link 32 t)`
+                    ? `${formatZar(from)}+ (full super-link ~R1.5m)`
                     : i === 0
                       ? `Below ${formatZar(t.upTo)}`
                       : `${formatZar(from)} – under ${formatZar(t.upTo)}`;
@@ -179,11 +181,13 @@ export default function SalesAgreementPage() {
               return (
                 <li className="rounded-2xl border border-amber-200/80 bg-white/70 px-3 py-2.5 mb-1">
                   <div className="text-[10px] font-black uppercase tracking-wider text-amber-800 mb-1">
-                    Super-link load ({SUPER_LINK_TONNES} t)
+                    Super-link load (~{SUPER_LINK_TONNES} t ·{' '}
+                    {SUPER_LINK_UNITS.toLocaleString('en-ZA')} units)
                   </div>
                   <div className="flex justify-between text-sm gap-2">
                     <span className="text-neutral-600">
-                      {SUPER_LINK_TONNES} t × {formatZar(SUPER_LINK_EXAMPLE_ZAR_PER_TONNE)}/t ={' '}
+                      {SUPER_LINK_UNITS.toLocaleString('en-ZA')} ×{' '}
+                      {formatZar(SUPER_LINK_UNIT_PRICE_ZAR)} ={' '}
                       <strong className="text-slate-800">{formatZar(linkDeal)}</strong>
                     </span>
                     <span className="font-bold text-amber-700 shrink-0">
@@ -191,8 +195,8 @@ export default function SalesAgreementPage() {
                     </span>
                   </div>
                   <p className="text-[10px] text-neutral-500 mt-1">
-                    Illustrative only · progressive commission (~
-                    {linkRes.effectiveRatePct.toFixed(2)}% effective)
+                    Finished goods @ R{SUPER_LINK_UNIT_PRICE_ZAR} each · whole deal at{' '}
+                    {linkRes.appliedRatePct}% (~R1.5m link value)
                   </p>
                 </li>
               );
@@ -211,7 +215,8 @@ export default function SalesAgreementPage() {
           </ul>
           <p className="text-[11px] text-neutral-500 mt-3">
             Stepped rates on the whole deal: under ½ link 4% · ½ to under 1 link 5% · full
-            super-link ({SUPER_LINK_TONNES} t) and above 6%.
+            super-link (~
+            {SUPER_LINK_UNITS.toLocaleString('en-ZA')} units / ~R1.5m) and above 6%.
           </p>
         </div>
       </div>
@@ -228,12 +233,19 @@ export default function SalesAgreementPage() {
 
       {/* Full agreement HTML */}
       <div className="rounded-3xl border border-neutral-200 bg-white text-slate-800 overflow-hidden shadow-2xl">
-        <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
-          <Shield className="w-4 h-4 text-[#00b4d8]" />
-          <span className="text-sm font-semibold text-slate-700">Legal agreement</span>
+        <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex flex-wrap items-center gap-2 justify-between">
+          <div className="flex items-center gap-2">
+            <Shield className="w-4 h-4 text-[#00b4d8]" />
+            <span className="text-sm font-semibold text-slate-700">
+              Sole agreement &amp; NDA (binding)
+            </span>
+          </div>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+            Confidential · Scroll to read in full
+          </span>
         </div>
         <div
-          className="px-6 py-6 max-h-[480px] overflow-y-auto prose prose-sm max-w-none"
+          className="px-6 py-6 max-h-[min(70vh,560px)] overflow-y-auto prose prose-sm max-w-none"
           dangerouslySetInnerHTML={{ __html: html }}
         />
       </div>
@@ -248,14 +260,15 @@ export default function SalesAgreementPage() {
               className="mt-1 w-5 h-5 rounded border-slate-600 text-amber-500 focus:ring-amber-400"
             />
             <span className="text-sm text-slate-700">
-              I have read and agree to the Independent Sales Contractor Agreement (South Africa),
-              including the commission schedule (4% · 5% · 6%, super-link 32 t at 6%), the
-              R199/month 6-month portal subscription, allocation of a{' '}
-              <strong>@{SALES_CONTRACTOR_EMAIL_DOMAIN}</strong> email address, POPIA duties, and
-              that all CRM data belongs to{' '}
-              <strong>{companyName || 'the Company'}</strong>. I understand I am an independent
-              contractor (not an employee) and am responsible for my own tax compliance unless the
-              law provides otherwise.
+              I have read and agree to this <strong>sole and entire</strong> Independent Sales
+              Contractor Agreement and Non-Disclosure Undertaking (South Africa). I understand it is
+              the <strong>only agreement</strong> on this subject (no other oral or WhatsApp side
+              deals apply), includes a binding NDA and fair non-solicit, commission 4% · 5% · 6%
+              (super-link ~R1.5m at 6%), R199/month 6-month portal subscription,{' '}
+              <strong>@{SALES_CONTRACTOR_EMAIL_DOMAIN}</strong> mailbox, POPIA duties, and that all
+              CRM data and customers belong to <strong>{companyName || 'the Company'}</strong>. I
+              am an independent contractor (not an employee) and am responsible for my own tax
+              compliance unless the law provides otherwise.
             </span>
           </label>
           <div>
