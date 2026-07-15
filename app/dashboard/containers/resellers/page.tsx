@@ -567,9 +567,15 @@ function Inner() {
       <ContainersHeader
         title="Container"
         titleAccent="resellers"
-        description={`Add resellers, VerifyNow (R${fee}/person), draw stock from containers, and set dynamic per-item commission. Resellers sell via their portal.`}
+        description={`Add resellers, VerifyNow (R${fee}/person), draw stock from containers, and set dynamic per-item commission. Resellers sell via their portal. Configure company reseller criteria under Company → Sales program.`}
         action={
           <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/dashboard/my-business/sales-program"
+              className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-2"
+            >
+              Sales program
+            </Link>
             <Link
               href="/dashboard/containers/resellers/feedback"
               className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-2"

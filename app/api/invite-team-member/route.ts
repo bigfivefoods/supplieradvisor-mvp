@@ -11,6 +11,7 @@ import {
 } from '@/lib/business/permissions';
 import { logActivity } from '@/lib/customers/access';
 import { salesContractorInviteEmailHtml } from '@/lib/sales-contractor/agreement';
+import { resolveProgramSettings } from '@/lib/sales-program';
 import {
   requireCompanyRoles,
   legacyPrivyFrom,
@@ -209,12 +210,20 @@ export async function POST(request: NextRequest) {
 
     let emailId: string | null = null;
     const isSalesContractor = role === 'sales_contractor';
+    const salesProgram = isSalesContractor
+      ? await resolveProgramSettings(companyId)
+      : null;
+    const ratesLabel = salesProgram
+      ? salesProgram.commission_tiers.map((t) => `${t.ratePct}%`).join(' · ')
+      : '4% · 5% · 6%';
     const emailHtml = isSalesContractor
       ? salesContractorInviteEmailHtml({
           inviteeName: name || null,
           companyName: displayCompany,
           invitedBy: inviterName,
           inviteLink,
+          program: salesProgram,
+          programSummary: salesProgram?.program_summary,
         })
       : teamInviteEmailHtml({
           inviteeName: name || null,
@@ -224,7 +233,7 @@ export async function POST(request: NextRequest) {
           inviteLink,
         });
     const emailSubject = isSalesContractor
-      ? `Join the ${displayCompany} customer sales team — earn 4%–6% commission (super-link 6%)`
+      ? `Join the ${displayCompany} sales team — commission ${ratesLabel} (personal sales only)`
       : `Join ${displayCompany} on SupplierAdvisor`;
 
     try {

@@ -11,16 +11,19 @@ import {
   getSalesContractorAgreementHtml,
   SALES_CONTRACTOR_CONTRACT_VERSION,
 } from '@/lib/sales-contractor/agreement';
-import {
-  DEFAULT_COMMISSION_TIERS,
-  tiersSummaryText,
-} from '@/lib/sales-contractor/commission';
+import { buildSalesAgreementPdf } from '@/lib/sales-contractor/agreement-pdf';
+import { tiersSummaryText } from '@/lib/sales-contractor/commission';
 import { logActivity } from '@/lib/customers/access';
-import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import { requireCompanyAccess, legacyPrivyFrom } from '@/lib/auth/api-auth';
+import {
+  programSnapshotForAgreement,
+  resolveProgramSettings,
+} from '@/lib/sales-program';
 
 /**
  * GET ?companyId=&privyUserId=
- * Optional: format=download|html — full document for save / print-to-PDF
+ * Optional: format=download|pdf — PDF attachment
+ *           format=html — full HTML document for print preview
  * Returns agreement status + HTML body for signing.
  */
 export async function GET(request: NextRequest) {
@@ -54,44 +57,79 @@ export async function GET(request: NextRequest) {
       agr.agreement.contractor_name ||
       ctx.name ||
       'Sales Contractor';
+    const program = await resolveProgramSettings(companyId);
+    const reallySigned = isAgreementSigned(agr.agreement);
+    // Signed agreements freeze their snapshot; pending use live company program
+    const tiers = reallySigned
+      ? agr.agreement.commission_tiers
+      : program.commission_tiers;
+    const contractVersion = reallySigned
+      ? agr.agreement.contract_version || program.contract_version
+      : program.contract_version;
     const bodyHtml = getSalesContractorAgreementHtml({
       contractorName,
       companyName: ctx.companyName,
-      tiers: agr.agreement.commission_tiers,
+      tiers,
+      program,
     });
 
     const signed =
-      ctx.subscriptionExempt || isAgreementSigned(agr.agreement);
-    const reallySigned = isAgreementSigned(agr.agreement);
+      ctx.subscriptionExempt || reallySigned;
 
-    if (format === 'download' || format === 'html') {
-      const doc = buildSalesAgreementDownloadDocument({
+    const agreementMeta = {
+      companyName: ctx.companyName,
+      contractorName,
+      contractVersion:
+        contractVersion || SALES_CONTRACTOR_CONTRACT_VERSION,
+      status: (reallySigned ? 'signed' : 'pending') as 'signed' | 'pending',
+      signedAt: agr.agreement.signed_at,
+      signatureName: agr.agreement.signature_name,
+      signatureEmail: agr.agreement.signature_email || ctx.email || null,
+      agreementId: agr.agreement.id,
+    };
+
+    const safeCo = ctx.companyName
+      .replace(/[^\w\-]+/g, '-')
+      .replace(/-+/g, '-')
+      .slice(0, 40);
+    const verSlug = String(contractVersion || SALES_CONTRACTOR_CONTRACT_VERSION)
+      .replace(/[^\w.\-]+/g, '-')
+      .slice(0, 48);
+
+    // PDF download (default download path)
+    if (format === 'download' || format === 'pdf') {
+      const pdf = await buildSalesAgreementPdf({
         bodyHtml,
-        meta: {
-          companyName: ctx.companyName,
-          contractorName,
-          contractVersion:
-            agr.agreement.contract_version || SALES_CONTRACTOR_CONTRACT_VERSION,
-          status: reallySigned ? 'signed' : 'pending',
-          signedAt: agr.agreement.signed_at,
-          signatureName: agr.agreement.signature_name,
-          signatureEmail:
-            agr.agreement.signature_email || ctx.email || null,
-          agreementId: agr.agreement.id,
+        meta: agreementMeta,
+      });
+      const filename = reallySigned
+        ? `sales-contractor-agreement-signed-${safeCo}-v${verSlug}.pdf`
+        : `sales-contractor-agreement-draft-${safeCo}-v${verSlug}.pdf`;
+      return new NextResponse(new Uint8Array(pdf), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; filename="${filename}"`,
+          'Cache-Control': 'no-store',
+          'Content-Length': String(pdf.length),
         },
       });
-      const safeCo = ctx.companyName
-        .replace(/[^\w\-]+/g, '-')
-        .replace(/-+/g, '-')
-        .slice(0, 40);
+    }
+
+    // HTML document for browser print preview
+    if (format === 'html') {
+      const doc = buildSalesAgreementDownloadDocument({
+        bodyHtml,
+        meta: agreementMeta,
+      });
       const filename = reallySigned
-        ? `sales-contractor-agreement-signed-${safeCo}-v${SALES_CONTRACTOR_CONTRACT_VERSION}.html`
-        : `sales-contractor-agreement-draft-${safeCo}-v${SALES_CONTRACTOR_CONTRACT_VERSION}.html`;
+        ? `sales-contractor-agreement-signed-${safeCo}-v${verSlug}.html`
+        : `sales-contractor-agreement-draft-${safeCo}-v${verSlug}.html`;
       return new NextResponse(doc, {
         status: 200,
         headers: {
           'Content-Type': 'text/html; charset=utf-8',
-          'Content-Disposition': `attachment; filename="${filename}"`,
+          'Content-Disposition': `inline; filename="${filename}"`,
           'Cache-Control': 'no-store',
         },
       });
@@ -103,6 +141,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       companyName: ctx.companyName,
+      program: {
+        program_name: program.program_name,
+        program_summary: program.program_summary,
+        contract_version: program.contract_version,
+        contract_title: program.contract_title,
+        commission_tiers: program.commission_tiers,
+        sales_criteria: program.sales_criteria,
+        email_domain: program.email_domain,
+        personal_sales_only: true,
+        using_defaults: program.using_defaults,
+      },
       isSalesContractor: ctx.isSalesContractor,
       subscriptionExempt: ctx.subscriptionExempt,
       // Owner / finance / admin: free full access
@@ -169,9 +218,11 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    const program = await resolveProgramSettings(companyId);
+    const tiers = program.commission_tiers;
+    const snapshot = programSnapshotForAgreement(program);
     const supabase = getSupabaseServer();
     const now = new Date().toISOString();
-    const tiers = DEFAULT_COMMISSION_TIERS;
     const { data, error } = await supabase
       .from('sales_contractor_agreements')
       .update({
@@ -181,12 +232,16 @@ export async function POST(request: NextRequest) {
         signature_email: ctx.email || null,
         user_id: ctx.userId,
         contractor_name: signatureName,
-        contract_version: SALES_CONTRACTOR_CONTRACT_VERSION,
+        contract_version: program.contract_version || SALES_CONTRACTOR_CONTRACT_VERSION,
         commission_tiers: tiers,
+        max_commission_pct: program.max_commission_pct,
+        min_commission_pct: program.min_commission_pct,
+        currency: program.currency || 'ZAR',
         terms_summary: tiersSummaryText(tiers),
         updated_at: now,
         metadata: {
           signed_via: 'sales_portal',
+          program_snapshot: snapshot,
           user_agent:
             typeof body.userAgent === 'string' ? body.userAgent.slice(0, 300) : null,
         },
@@ -206,7 +261,9 @@ export async function POST(request: NextRequest) {
       entity_type: 'sales_contractor_agreement',
       entity_id: String(agr.agreement.id),
       summary: `${signatureName} signed Independent Sales Contractor Agreement`,
-      metadata: { version: SALES_CONTRACTOR_CONTRACT_VERSION },
+      metadata: {
+        version: program.contract_version || SALES_CONTRACTOR_CONTRACT_VERSION,
+      },
     });
 
     return NextResponse.json({

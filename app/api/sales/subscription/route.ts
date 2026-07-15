@@ -15,8 +15,7 @@ import {
   computeSubscriptionInfo,
 } from '@/lib/sales-contractor/subscription';
 import { logActivity } from '@/lib/customers/access';
-import { DEFAULT_COMMISSION_TIERS } from '@/lib/sales-contractor/commission';
-import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import { requireCompanyAccess, legacyPrivyFrom } from '@/lib/auth/api-auth';
 
 /**
  * GET ?companyId=&privyUserId=
@@ -172,7 +171,6 @@ export async function POST(request: NextRequest) {
         subscription_paystack_ref: paystackReference,
         subscription_amount_zar: SALES_SUBSCRIPTION_TOTAL_ZAR,
         subscription_term_months: SALES_SUBSCRIPTION_TERM_MONTHS,
-        commission_tiers: DEFAULT_COMMISSION_TIERS,
         updated_at: now,
       })
       .eq('id', agr.agreement.id)

@@ -13,7 +13,8 @@ import {
   type CommissionTier,
 } from '@/lib/sales-contractor/commission';
 import type { SalesPortalSummary } from '@/lib/sales-contractor/types';
-import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import { requireCompanyAccess, legacyPrivyFrom } from '@/lib/auth/api-auth';
+import { resolveProgramSettings } from '@/lib/sales-program';
 
 function monthKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -47,8 +48,14 @@ export async function GET(request: NextRequest) {
       email: ctx.email,
     });
     const agreement = agrRes.ok ? agrRes.agreement : null;
+    const program = await resolveProgramSettings(companyId);
+    const signed = agreement?.status === 'signed';
     const tiers: CommissionTier[] = ensureAscendingCommissionTiers(
-      agreement?.commission_tiers || []
+      signed && agreement?.commission_tiers?.length
+        ? agreement.commission_tiers
+        : program.commission_tiers?.length
+          ? program.commission_tiers
+          : agreement?.commission_tiers || []
     );
     const variants = userIdMatchVariants(ctx.userId);
     const scopeMine = ctx.isSalesContractor;

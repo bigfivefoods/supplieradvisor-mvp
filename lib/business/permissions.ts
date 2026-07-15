@@ -219,7 +219,7 @@ export const TEAM_ROLE_OPTIONS: ReadonlyArray<{
     value: 'sales_contractor',
     label: 'Sales contractor',
     description:
-      'Independent sales contractors: Sales portal only (not the main ERP). Agreement, R199×6 sub, commission 4%–6% (super-link 6%). Company owns all CRM data.',
+      'Independent sales contractors: Sales portal only (not the main ERP). Agreement, R199×6 sub, commission and criteria from the company Sales program. Company owns all CRM data. Personal sales only (not MLM).',
     rights: 'Sales portal only',
   },
 ] as const;

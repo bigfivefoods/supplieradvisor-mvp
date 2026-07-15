@@ -86,19 +86,42 @@ export type CommissionResult = {
   appliedRatePct: number;
 };
 
-function normalizeTiers(tiers?: CommissionTier[] | null): CommissionTier[] {
+export type NormalizeTiersOpts = {
+  /** Default min rate clamp (inclusive). */
+  minPct?: number;
+  /** Default max rate clamp (inclusive). */
+  maxPct?: number;
+  /** If true and tiers empty, return DEFAULT_COMMISSION_TIERS. Default true. */
+  fallbackDefault?: boolean;
+};
+
+/**
+ * Normalize commission tiers without forcing platform 4/5/6%.
+ * Company programs may define any rates within min/max.
+ */
+export function normalizeCommissionTiers(
+  tiers?: CommissionTier[] | null,
+  opts?: NormalizeTiersOpts
+): CommissionTier[] {
+  const minPct = opts?.minPct ?? 0;
+  const maxPct = opts?.maxPct ?? 100;
+  const fallbackDefault = opts?.fallbackDefault !== false;
   if (!tiers || !Array.isArray(tiers) || tiers.length === 0) {
-    return DEFAULT_COMMISSION_TIERS;
+    return fallbackDefault ? DEFAULT_COMMISSION_TIERS : [];
   }
   return tiers
-    .map((t) => ({
-      upTo: t.upTo == null ? null : Number(t.upTo),
-      ratePct: Math.min(
-        MAX_COMMISSION_PCT,
-        Math.max(MIN_COMMISSION_PCT, Number(t.ratePct) || MIN_COMMISSION_PCT)
-      ),
-      label: t.label,
-    }))
+    .map((t) => {
+      const raw = Number(t.ratePct);
+      const ratePct = Number.isFinite(raw)
+        ? Math.min(maxPct, Math.max(minPct, raw))
+        : minPct;
+      return {
+        upTo: t.upTo == null || t.upTo === ('' as unknown) ? null : Number(t.upTo),
+        ratePct,
+        label: t.label ? String(t.label) : undefined,
+      };
+    })
+    .filter((t) => t.upTo == null || Number.isFinite(t.upTo))
     .sort((a, b) => {
       if (a.upTo == null) return 1;
       if (b.upTo == null) return -1;
@@ -106,63 +129,44 @@ function normalizeTiers(tiers?: CommissionTier[] | null): CommissionTier[] {
     });
 }
 
+/** @deprecated Prefer normalizeCommissionTiers — kept for older call sites. */
+function normalizeTiers(tiers?: CommissionTier[] | null): CommissionTier[] {
+  return normalizeCommissionTiers(tiers);
+}
+
 /**
- * Stepped commission: whole deal at one rate.
- * Worked backwards from a full super-link at 6%:
- *   ≥ 1 super-link value → 6%
- *   ≥ ½ super-link and < 1 → 5%
- *   < ½ super-link → 4%
+ * Stepped commission: whole deal at one rate based on which band the deal falls into.
+ * Works with any company-defined tier list (thresholds ascending, last open-ended).
  */
 export function calculateCommission(
   dealAmount: number,
   opts?: { tiers?: CommissionTier[] | null; currency?: string }
 ): CommissionResult {
   const amount = Math.max(0, Number(dealAmount) || 0);
-  const tiers = normalizeTiers(opts?.tiers);
+  const tiers = normalizeCommissionTiers(opts?.tiers);
   const currency = opts?.currency || 'ZAR';
 
-  // Anchors: prefer tier upTo values when default 3-tier shape, else super-link constants
-  const half =
-    tiers.length >= 2 && tiers[0].upTo != null
-      ? Number(tiers[0].upTo)
-      : halfSuperLinkDealValue();
-  const full =
-    tiers.length >= 2 && tiers[1].upTo != null
-      ? Number(tiers[1].upTo)
-      : superLinkDealValue();
-
-  const rate4 = tiers[0]?.ratePct ?? MIN_COMMISSION_PCT;
-  const rate5 = tiers[1]?.ratePct ?? 5;
-  const rate6 =
-    tiers.find((t) => t.upTo == null)?.ratePct ??
-    tiers[tiers.length - 1]?.ratePct ??
-    MAX_COMMISSION_PCT;
-
-  let ratePct: number;
+  // Ascending thresholds: band i is [prevUp, upTo) ; last open band is [prevUp, ∞)
+  let chosen = tiers[tiers.length - 1];
   let bandFrom = 0;
-  let bandTo: number | null = null;
-  let label: string | undefined;
-
-  // Full super-link and above → top rate (6%)
-  if (amount >= full) {
-    ratePct = rate6;
-    bandFrom = full;
-    bandTo = null;
-    label =
-      tiers.find((t) => t.upTo == null)?.label ||
-      'Super-link (~32 000 units) & above';
-  } else if (amount >= half) {
-    ratePct = rate5;
-    bandFrom = half;
-    bandTo = full;
-    label = tiers[1]?.label || 'Growth (½ to under 1 super-link)';
-  } else {
-    ratePct = rate4;
-    bandFrom = 0;
-    bandTo = half;
-    label = tiers[0]?.label || 'Starter (below ½ super-link)';
+  for (let i = 0; i < tiers.length; i++) {
+    const t = tiers[i];
+    const lower = i === 0 ? 0 : Number(tiers[i - 1].upTo ?? 0);
+    const upper = t.upTo == null ? Infinity : Number(t.upTo);
+    if (amount >= lower && amount < upper) {
+      chosen = t;
+      bandFrom = lower;
+      break;
+    }
+    if (i === tiers.length - 1) {
+      chosen = t;
+      bandFrom = lower;
+    }
   }
 
+  const ratePct = Number(chosen?.ratePct) || 0;
+  const bandTo = chosen?.upTo == null ? null : Number(chosen.upTo);
+  const label = chosen?.label;
   const commission = (amount * ratePct) / 100;
 
   const lines: CommissionBreakdownLine[] = [
@@ -210,64 +214,68 @@ export function formatZarPrecise(n: number): string {
 
 /** Human-readable tier table for agreements / UI */
 export function tiersSummaryText(tiers?: CommissionTier[] | null): string {
-  const t = normalizeTiers(tiers);
+  const t = normalizeCommissionTiers(tiers);
   return t
     .map((tier, i) => {
       const from = i === 0 ? 0 : (t[i - 1].upTo ?? 0);
       const to =
         tier.upTo == null
-          ? 'and above (super-link ~32 000 units)'
+          ? 'and above'
           : `up to ${formatZar(tier.upTo)}`;
       return `${formatZar(from)} ${to}: ${tier.ratePct}% on whole deal`;
     })
     .join(' · ');
 }
 
-export function parseStoredTiers(raw: unknown): CommissionTier[] {
+export function parseStoredTiers(
+  raw: unknown,
+  opts?: NormalizeTiersOpts
+): CommissionTier[] {
   if (!raw) return DEFAULT_COMMISSION_TIERS;
   if (typeof raw === 'string') {
     try {
-      return normalizeTiers(JSON.parse(raw));
+      return normalizeCommissionTiers(JSON.parse(raw), opts);
     } catch {
       return DEFAULT_COMMISSION_TIERS;
     }
   }
-  if (Array.isArray(raw)) return normalizeTiers(raw as CommissionTier[]);
+  if (Array.isArray(raw)) {
+    return normalizeCommissionTiers(raw as CommissionTier[], opts);
+  }
   return DEFAULT_COMMISSION_TIERS;
 }
 
 /**
- * Upgrade legacy scales (old 3.5–5.5 progressive, old R160k link, etc.) to current DEFAULT.
+ * Preserve company/custom tiers. Only upgrade clearly broken or empty data
+ * to platform defaults. Does NOT force 4/5/6%.
  */
 export function ensureAscendingCommissionTiers(
   tiers?: CommissionTier[] | null
 ): CommissionTier[] {
-  if (!tiers || !Array.isArray(tiers) || tiers.length < 2) {
+  if (!tiers || !Array.isArray(tiers) || tiers.length < 1) {
     return DEFAULT_COMMISSION_TIERS;
   }
+  const normalized = normalizeCommissionTiers(tiers);
+  if (!normalized.length) return DEFAULT_COMMISSION_TIERS;
+
+  // Detect old progressive rates that were never company-configured
   const rawRates = tiers.map((x) => Number(x.ratePct) || 0);
-  const firstRaw = rawRates[0];
-  const lastRaw = rawRates[rawRates.length - 1];
   const caps = tiers.map((t) => (t.upTo == null ? null : Number(t.upTo)));
   const hasLegacyCaps = caps.some(
     (c) => c != null && (c === 160_000 || c === 80_000 || c === 50_000)
   );
-  const hasLegacy =
-    hasLegacyCaps ||
-    rawRates.some((r) => r === 3.5 || r === 5.5 || r === 4.5) ||
-    firstRaw < MIN_COMMISSION_PCT - 0.01 ||
-    lastRaw < MAX_COMMISSION_PCT - 0.01 ||
-    firstRaw > lastRaw;
-  if (hasLegacy || tiers.length !== 3) {
+  const hasLegacyRates = rawRates.some(
+    (r) => r === 3.5 || r === 5.5 || r === 4.5
+  );
+  if (hasLegacyCaps && hasLegacyRates) {
     return DEFAULT_COMMISSION_TIERS;
   }
-  if (Math.abs(firstRaw - 4) > 0.01 || Math.abs(lastRaw - 6) > 0.01) {
-    return DEFAULT_COMMISSION_TIERS;
+
+  // Ensure last tier is open-ended
+  if (normalized[normalized.length - 1].upTo != null) {
+    const copy = [...normalized];
+    copy[copy.length - 1] = { ...copy[copy.length - 1], upTo: null };
+    return copy;
   }
-  // If middle/full caps are far below current super-link value, refresh
-  const fullCap = caps[1];
-  if (fullCap != null && fullCap < superLinkDealValue() * 0.5) {
-    return DEFAULT_COMMISSION_TIERS;
-  }
-  return normalizeTiers(tiers);
+  return normalized;
 }

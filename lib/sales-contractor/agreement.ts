@@ -76,7 +76,8 @@ export type AgreementDownloadMeta = {
 };
 
 /**
- * Full standalone HTML document for download / print-to-PDF.
+ * Full standalone HTML document for browser print preview.
+ * PDF downloads use buildSalesAgreementPdf (agreement-pdf.ts).
  * Works before acceptance (draft) and after (signed certificate).
  */
 export function buildSalesAgreementDownloadDocument(params: {
@@ -241,7 +242,7 @@ export function buildSalesAgreementDownloadDocument(params: {
 
   <footer class="footer">
     SupplierAdvisor® · Confidential · Sole agreement &amp; NDA · Governed by the laws of the Republic of South Africa<br/>
-    Print this page (Ctrl/Cmd+P) and choose “Save as PDF” if you need a PDF file.
+    Prefer a PDF? Use Download PDF in the Sales Portal (this view is for print preview).
   </footer>
 </body>
 </html>`;
@@ -255,13 +256,51 @@ function escapeHtml(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
+export type AgreementHtmlProgram = {
+  contract_title?: string | null;
+  contract_version?: string | null;
+  legal_body_html?: string | null;
+  legal_addendum_html?: string | null;
+  email_domain?: string | null;
+  sales_criteria?: Array<{ key: string; title: string; detail: string }> | null;
+  eligibility_notes?: string | null;
+  program_name?: string | null;
+  example_units?: number | null;
+  example_unit_price?: number | null;
+  example_label?: string | null;
+  commission_tiers?: CommissionTier[] | null;
+};
+
 export function getSalesContractorAgreementHtml(params: {
   contractorName: string;
   companyName: string;
   tiers?: CommissionTier[] | null;
+  /** Company sales program (legal, criteria, email domain). */
+  program?: AgreementHtmlProgram | null;
 }): string {
   const { contractorName, companyName } = params;
-  const tiers = params.tiers?.length ? params.tiers : DEFAULT_COMMISSION_TIERS;
+  const program = params.program || null;
+  const tiers =
+    params.tiers?.length
+      ? params.tiers
+      : program?.commission_tiers?.length
+        ? program.commission_tiers
+        : DEFAULT_COMMISSION_TIERS;
+  const contractVersion =
+    program?.contract_version || SALES_CONTRACTOR_CONTRACT_VERSION;
+  const emailDomain =
+    (program?.email_domain || SALES_CONTRACTOR_EMAIL_DOMAIN || '').replace(
+      /^@/,
+      ''
+    ) || SALES_CONTRACTOR_EMAIL_DOMAIN;
+  const salesCriteria =
+    program?.sales_criteria?.length
+      ? program.sales_criteria
+      : SALES_CONTRACTOR_KPIS.map((k) => ({
+          key: k.key,
+          title: k.title,
+          detail: k.detail,
+        }));
   const date = new Date().toLocaleDateString('en-ZA', {
     year: 'numeric',
     month: 'long',
@@ -280,16 +319,81 @@ export function getSalesContractorAgreementHtml(params: {
       return `<tr>
         <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;">${from} – ${to}</td>
         <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;font-weight:700;color:#0077b6;">${t.ratePct}%</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;color:#64748b;">${t.label || ''}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;color:#64748b;">${escape(t.label || '')}</td>
       </tr>`;
     })
     .join('');
 
-  const linkDeal = superLinkExampleDealValue();
+  const exampleUnits = Number(program?.example_units) || SUPER_LINK_UNITS;
+  const exampleUnitPrice =
+    Number(program?.example_unit_price) || SUPER_LINK_UNIT_PRICE_ZAR;
+  const exampleLabel = program?.example_label || 'Super-link (~full load)';
+  const linkDeal =
+    exampleUnits > 0 && exampleUnitPrice > 0
+      ? exampleUnits * exampleUnitPrice
+      : superLinkExampleDealValue();
   const linkComm = calculateCommission(linkDeal, { tiers });
+  const ratesLabel = tiers.map((t) => `${t.ratePct}%`).join(' · ');
+  const topRate = tiers[tiers.length - 1]?.ratePct ?? MAX_COMMISSION_PCT;
   const exampleNameHint = 'name';
   const co = escape(companyName);
   const cn = escape(contractorName || 'the Sales Contractor');
+
+  const kpiRows = salesCriteria
+    .map(
+      (k, i) => `
+        <tr class="${i % 2 ? 'bg-slate-50' : 'bg-white'} border-b border-slate-200">
+          <td class="px-3 py-3 font-black text-[#00b4d8]">${i + 1}</td>
+          <td class="px-3 py-3 font-bold text-slate-900">${escape(k.title)}</td>
+          <td class="px-3 py-3 text-slate-600">${escape(k.detail)}</td>
+        </tr>`
+    )
+    .join('');
+
+  const antiMlmBanner = `
+  <div class="rounded-xl border-2 border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-950 my-3">
+    <p class="font-black uppercase tracking-wide text-xs text-rose-800 mb-1 m-0">Explicit: not multi-level marketing (MLM)</p>
+    <p class="m-0"><strong>This Agreement is not a multi-level marketing, network marketing, pyramid, downline, or residual-override scheme.</strong>
+    The Contractor earns commission <strong>only</strong> on qualifying sales that the Contractor
+    <strong>personally originates and closes</strong> for the Company (“sales you bring to the table”).
+    There is <strong>no</strong> commission, override, residual, or reward on sales made by other contractors,
+    other resellers, other agents, customers’ customers, “connections of connections”, recruited downlines,
+    or any multi-tier network relationship.</p>
+  </div>`;
+
+  // Full custom body: still inject mandatory anti-MLM + certificate framing
+  if (program?.legal_body_html && String(program.legal_body_html).trim()) {
+    const addendum = program.legal_addendum_html
+      ? `<div class="mt-6 pt-4 border-t border-slate-200"><h3 class="font-bold text-slate-900">Company addendum</h3>${program.legal_addendum_html}</div>`
+      : '';
+    return `
+<div class="space-y-5 text-sm leading-relaxed text-slate-700">
+  <div class="rounded-2xl border-2 border-slate-800 bg-slate-50 px-5 py-5 text-center">
+    <p class="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-2">Confidential · Legally binding · Republic of South Africa</p>
+    <h2 class="text-lg sm:text-xl font-black text-slate-900 tracking-tight leading-snug m-0">
+      ${escape(program.contract_title || SALES_CONTRACTOR_CONTRACT_TITLE)}
+    </h2>
+    <p class="text-xs text-slate-500 mt-3 mb-0">
+      Version <strong>${escape(contractVersion)}</strong> · Effective ${date}<br/>
+      <strong>${co}</strong> · ${escape(program.program_name || 'Sales program')}
+    </p>
+  </div>
+  ${antiMlmBanner}
+  <div class="company-legal-body">${program.legal_body_html}</div>
+  ${addendum}
+  <p class="text-xs text-neutral-500">Commission schedule (company program): ${escape(tiersSummaryText(tiers))}</p>
+</div>`.trim();
+  }
+
+  const addendumBlock = program?.legal_addendum_html
+    ? `
+  <h3 class="font-bold text-slate-900 text-base pt-1 border-b border-slate-200 pb-1">COMPANY ADDENDUM</h3>
+  <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">${program.legal_addendum_html}</div>`
+    : '';
+
+  const eligibilityBlock = program?.eligibility_notes
+    ? `<p class="text-sm text-slate-600"><strong>Eligibility / commercial notes:</strong> ${escape(program.eligibility_notes)}</p>`
+    : '';
 
   return `
 <div class="space-y-5 text-sm leading-relaxed text-slate-700">
@@ -297,11 +401,11 @@ export function getSalesContractorAgreementHtml(params: {
   <div class="rounded-2xl border-2 border-slate-800 bg-slate-50 px-5 py-5 text-center">
     <p class="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-2">Confidential · Legally binding · Republic of South Africa</p>
     <h2 class="text-lg sm:text-xl font-black text-slate-900 tracking-tight leading-snug m-0">
-      SOLE INDEPENDENT SALES CONTRACTOR AGREEMENT<br/>
+      ${escape(program?.contract_title || 'SOLE INDEPENDENT SALES CONTRACTOR AGREEMENT')}<br/>
       <span class="text-base font-bold text-slate-700">AND NON-DISCLOSURE UNDERTAKING</span>
     </h2>
     <p class="text-xs text-slate-500 mt-3 mb-0">
-      Version <strong>${SALES_CONTRACTOR_CONTRACT_VERSION}</strong> · Effective ${date}<br/>
+      Version <strong>${escape(contractVersion)}</strong> · Effective ${date}<br/>
       <strong>This is the only agreement</strong> between the Parties on this subject matter.
     </p>
   </div>
@@ -342,7 +446,7 @@ export function getSalesContractorAgreementHtml(params: {
     <li><strong>“Effective Date”</strong> means the date of electronic acceptance under clause 16.</li>
     <li><strong>“Portal”</strong> means the SupplierAdvisor Sales Contractor Portal and related systems.</li>
     <li><strong>“Services”</strong> means the sales and related activities in clause 4.</li>
-    <li><strong>“KPIs”</strong> means the three performance measures in clause 4A only — leadership, increase sales, and reduce costs. No other performance KPIs apply under this Agreement unless added by a written variation under clause 2.3.</li>
+    <li><strong>“KPIs”</strong> means the performance measures / sales criteria listed in clause 4A only (as set by the Company’s sales program). No other performance KPIs apply under this Agreement unless added by a written variation under clause 2.3.</li>
     <li><strong>“Leadership Model”</strong> means the Super-Cube® multidimensional leadership model made available in the Portal (and related Company training).</li>
     <li><strong>“Super-link”</strong> means, for commission examples only, approximately ${SUPER_LINK_UNITS.toLocaleString('en-ZA')} units of finished goods (≈ ${SUPER_LINK_TONNES} t payload class).</li>
   </ul>
@@ -375,39 +479,26 @@ export function getSalesContractorAgreementHtml(params: {
   <p>4.2 The Contractor must not make false, misleading or unauthorised claims about price, product, delivery or financing (including under the Consumer Protection Act where consumers are involved).</p>
   <p>4.3 The Company may set territories, product lines, discount limits and approval rules. The Company may reject deals that breach policy, law or brand standards.</p>
 
-  <h3 class="font-bold text-slate-900 text-base pt-1 border-b border-slate-200 pb-1">4A. PERFORMANCE KPIs (THE ONLY KPIs)</h3>
-  <p>4A.1 The Parties agree that the Contractor’s performance under this Agreement is measured solely against the following <strong>three (3) KPIs</strong>. <strong>These are the only KPIs.</strong> No other scorecard, ranking, quota grid, or informal target constitutes a contractual KPI unless added by a written variation under clause 2.3.</p>
+  <h3 class="font-bold text-slate-900 text-base pt-1 border-b border-slate-200 pb-1">4A. PERFORMANCE KPIs / SALES CRITERIA (THE ONLY KPIs)</h3>
+  <p>4A.1 The Parties agree that the Contractor’s performance under this Agreement is measured solely against the following <strong>${salesCriteria.length} KPI(s) / sales criteria</strong> set by the Company. <strong>These are the only KPIs.</strong> No other scorecard, ranking, quota grid, or informal target constitutes a contractual KPI unless added by a written variation under clause 2.3.</p>
   <div class="overflow-x-auto my-3 rounded-xl border border-slate-800">
     <table class="w-full text-left text-sm">
       <thead>
         <tr class="bg-slate-900 text-white text-xs uppercase tracking-wide">
           <th class="px-3 py-2.5 w-12">#</th>
-          <th class="px-3 py-2.5">KPI</th>
+          <th class="px-3 py-2.5">KPI / criterion</th>
           <th class="px-3 py-2.5">What it means</th>
         </tr>
       </thead>
       <tbody>
-        <tr class="border-b border-slate-200 bg-white">
-          <td class="px-3 py-3 font-black text-[#00b4d8]">1</td>
-          <td class="px-3 py-3 font-bold text-slate-900">Apply the leadership model to your life</td>
-          <td class="px-3 py-3 text-slate-600">Actively apply the Super-Cube® Leadership Model in personal and professional conduct; complete Portal leadership training; and show ongoing growth across the six faces (Choices, Principles, Mental, Emotional, Physical, Spiritual).</td>
-        </tr>
-        <tr class="border-b border-slate-200 bg-slate-50">
-          <td class="px-3 py-3 font-black text-[#00b4d8]">2</td>
-          <td class="px-3 py-3 font-bold text-slate-900">Increase sales</td>
-          <td class="px-3 py-3 text-slate-600">Grow qualifying closed / paid sales of the Company’s products and services through authorised pricing, brand standards and Portal workflows.</td>
-        </tr>
-        <tr class="bg-white">
-          <td class="px-3 py-3 font-black text-[#00b4d8]">3</td>
-          <td class="px-3 py-3 font-bold text-slate-900">Reduce costs</td>
-          <td class="px-3 py-3 text-slate-600">Help reduce avoidable cost and waste — efficient use of time and tools, accurate quoting, fewer failed deals and rework, and commercial discipline that protects the Company’s margin.</td>
-        </tr>
+        ${kpiRows}
       </tbody>
     </table>
   </div>
-  <p>4A.2 The Company may review progress against these three KPIs in good faith (including via Portal activity, paid invoices, leadership training progress, and reasonable discussions). KPI reviews are for alignment and development; they do not create employment, guaranteed earnings, or automatic termination, but serious, sustained failure on the KPIs after fair notice may be treated as material breach under clause 14.</p>
+  ${eligibilityBlock}
+  <p>4A.2 The Company may review progress against these KPIs in good faith (including via Portal activity, paid invoices, training progress, and reasonable discussions). KPI reviews are for alignment and development; they do not create employment, guaranteed earnings, or automatic termination, but serious, sustained failure on the KPIs after fair notice may be treated as material breach under clause 14.</p>
   <p>4A.3 Commission remains as set out in clause 10. KPIs guide behaviour and priorities; they do not replace the commission schedule unless the Parties expressly agree otherwise in writing under clause 2.3.</p>
-  <p>4A.4 No manager, message or dashboard may invent additional contractual KPIs. Operational tips and coaching are welcome; only the three KPIs above are binding performance measures under this Agreement.</p>
+  <p>4A.4 No manager, message or dashboard may invent additional contractual KPIs beyond those listed above unless added by written variation under clause 2.3.</p>
 
   <h3 class="font-bold text-slate-900 text-base pt-1 border-b border-slate-200 pb-1">5. NON-DISCLOSURE AGREEMENT (CONFIDENTIALITY)</h3>
   <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">This clause operates as a mutual NDA for Company Confidential Information disclosed to the Contractor, and is a material term of the engagement.</p>
@@ -436,10 +527,10 @@ export function getSalesContractorAgreementHtml(params: {
   <p>7.2 The Contractor must process personal information only on the Company’s instructions and for the Services; keep it secure and confidential; not engage sub-processors without consent; assist with data subject requests and incidents; and not retain personal information after termination except as law requires.</p>
   <p>7.3 The Contractor must notify the Company without undue delay after becoming aware of a personal information breach.</p>
 
-  <h3 class="font-bold text-slate-900 text-base pt-1 border-b border-slate-200 pb-1">8. CORPORATE EMAIL (@${SALES_CONTRACTOR_EMAIL_DOMAIN})</h3>
+  <h3 class="font-bold text-slate-900 text-base pt-1 border-b border-slate-200 pb-1">8. CORPORATE EMAIL (@${escape(emailDomain)})</h3>
   <p>8.1 <strong>On acceptance of this Agreement</strong>, the Company will allocate a corporate mailbox on
-  <strong>@${SALES_CONTRACTOR_EMAIL_DOMAIN}</strong> (e.g. <strong>${exampleNameHint}@${SALES_CONTRACTOR_EMAIL_DOMAIN}</strong> or a close variant).</p>
-  <p>8.2 The mailbox and systems remain Company / Big Five Group property. Use is limited to authorised sales and operations. Credentials must not be shared. POPIA and IT/security policies apply. Mailbox content may be monitored for legitimate business, security and compliance purposes as permitted by law.</p>
+  <strong>@${escape(emailDomain)}</strong> (e.g. <strong>${exampleNameHint}@${escape(emailDomain)}</strong> or a close variant), where the Company has configured email for this program.</p>
+  <p>8.2 The mailbox and systems remain Company property. Use is limited to authorised sales and operations. Credentials must not be shared. POPIA and IT/security policies apply. Mailbox content may be monitored for legitimate business, security and compliance purposes as permitted by law.</p>
   <p>8.3 On termination or suspension, the Company may revoke, redirect or archive the mailbox immediately. The Contractor must not use the address thereafter.</p>
 
   <h3 class="font-bold text-slate-900 text-base pt-1 border-b border-slate-200 pb-1">9. PLATFORM SUBSCRIPTION</h3>
@@ -450,16 +541,8 @@ export function getSalesContractorAgreementHtml(params: {
   <p>9.3 Fees already paid are non-refundable except where required by the Consumer Protection Act or other applicable law, or the platform’s published refund policy.</p>
 
   <h3 class="font-bold text-slate-900 text-base pt-1 border-b border-slate-200 pb-1">10. COMMISSION — PERSONAL SALES ONLY (NOT MULTI-LEVEL MARKETING)</h3>
-  <div class="rounded-xl border-2 border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-950 my-3">
-    <p class="font-black uppercase tracking-wide text-xs text-rose-800 mb-1 m-0">Explicit: not multi-level marketing (MLM)</p>
-    <p class="m-0"><strong>This Agreement is not a multi-level marketing, network marketing, pyramid, downline, or residual-override scheme.</strong>
-    The Contractor earns commission <strong>only</strong> on qualifying sales that the Contractor
-    <strong>personally originates and closes</strong> for the Company (“sales you bring to the table”).
-    There is <strong>no</strong> commission, override, residual, or reward on sales made by other contractors,
-    other resellers, other agents, customers’ customers, “connections of connections”, recruited downlines,
-    or any multi-tier network relationship.</p>
-  </div>
-  <p>10.1 <strong>Personal origin only.</strong> Commission is payable solely on qualifying closed / paid deal value (ZAR) where the Contractor is recorded in the Portal (or Company systems) as the originating sales contractor for that deal. Commission is calculated on a <strong>stepped scale</strong> (whole deal at one rate), worked backwards from a full super-link load at <strong>${MAX_COMMISSION_PCT}%</strong>:</p>
+  ${antiMlmBanner}
+  <p>10.1 <strong>Personal origin only.</strong> Commission is payable solely on qualifying closed / paid deal value (ZAR) where the Contractor is recorded in the Portal (or Company systems) as the originating sales contractor for that deal. Commission is calculated on a <strong>stepped scale</strong> (whole deal at one rate) per the Company’s program:</p>
   <div class="overflow-x-auto my-3 rounded-xl border border-slate-200">
     <table class="w-full text-left text-sm">
       <thead>
@@ -483,19 +566,18 @@ export function getSalesContractorAgreementHtml(params: {
   <p>10.3 <strong>Disputes on origin.</strong> If two or more people claim the same deal, the Company decides origin in good faith from Portal records (lead owner, quote owner, order attribution). The Company’s determination is final, subject only to fraud or clear system error. Split commission is not default and only applies if the Company confirms a written split under clause 2.3.</p>
   <p>10.4 <strong>Earned commission</strong> accrues when an invoice is marked paid (or as the Company configures) on a deal attributed to the Contractor under this clause. Payouts are subject to Company approval, clawback for cancellations, credit notes or refunds, and tax law (including tax invoices if the Contractor is a VAT vendor). Portal projections are estimates only and never create multi-level rights.</p>
   <p>10.5 Nothing in the SupplierAdvisor platform network graph, connection invites, or community features creates an MLM or override commission. Networking may help the business; <strong>pay is only for your own sales.</strong></p>
-  <p class="text-xs text-neutral-500">Scale summary: ${escape(tiersSummaryText(tiers))}</p>
-  <p class="text-xs text-neutral-500">Illustrative bands: ½ link ${formatZar(halfSuperLinkDealValue())}; full link ${formatZar(linkDeal)} (${SUPER_LINK_UNITS.toLocaleString('en-ZA')} units × ${formatZar(SUPER_LINK_UNIT_PRICE_ZAR)} ≈ R1.5m). Live catalogue prices may differ; rates remain 4% / 5% / 6% with a full link at 6% — always on personal deals only.</p>
+  <p class="text-xs text-neutral-500">Scale summary: ${escape(tiersSummaryText(tiers))} · Rates: ${escape(ratesLabel)}</p>
+  <p class="text-xs text-neutral-500">Illustrative example anchor (${escape(exampleLabel)}): ${exampleUnits.toLocaleString('en-ZA')} units × ${formatZar(exampleUnitPrice)} = ${formatZar(linkDeal)}. Live catalogue prices may differ — always on personal deals only.</p>
 
-  <h3 class="font-bold text-slate-900 text-base pt-1 border-b border-slate-200 pb-1">11. WORKED EXAMPLE — SUPER-LINK (~R1.5m) AT 6%</h3>
-  <p>11.1 For illustration only: one super-link ≈ <strong>${SUPER_LINK_UNITS.toLocaleString('en-ZA')} finished-goods units</strong> (~${SUPER_LINK_TONNES} t class) at <strong>${formatZar(SUPER_LINK_UNIT_PRICE_ZAR)} each</strong>:</p>
+  <h3 class="font-bold text-slate-900 text-base pt-1 border-b border-slate-200 pb-1">11. WORKED EXAMPLE — ${escape(exampleLabel).toUpperCase()} AT ${topRate}%</h3>
+  <p>11.1 For illustration only: one ${escape(exampleLabel)} ≈ <strong>${exampleUnits.toLocaleString('en-ZA')} units</strong> at <strong>${formatZar(exampleUnitPrice)} each</strong>:</p>
   <p class="font-semibold text-slate-900 pl-3 border-l-4 border-[#00b4d8] my-2">
-    ${SUPER_LINK_UNITS.toLocaleString('en-ZA')} × ${formatZar(SUPER_LINK_UNIT_PRICE_ZAR)} =
+    ${exampleUnits.toLocaleString('en-ZA')} × ${formatZar(exampleUnitPrice)} =
     <strong>${formatZar(linkDeal)}</strong>
-    <span class="font-normal text-slate-500"> (approx. R1.5 million)</span>
   </p>
-  <p>11.2 Commission on that deal at <strong>${MAX_COMMISSION_PCT}%</strong> =
-  <strong>${formatZarPrecise(linkComm.commissionAmount)}</strong>.</p>
-  <p>11.3 Working backwards: under ½ link → <strong>4%</strong>; ½ to under 1 full link → <strong>5%</strong>; full super-link and above → <strong>6%</strong> on the whole deal.</p>
+  <p>11.2 Commission on that deal at the applicable stepped rate (illustrative top band <strong>${topRate}%</strong>) =
+  <strong>${formatZarPrecise(linkComm.commissionAmount)}</strong> (actual rate depends on deal size under clause 10).</p>
+  <p>11.3 Company schedule: ${escape(ratesLabel)} on the whole deal at the matching band.</p>
 
   <h3 class="font-bold text-slate-900 text-base pt-1 border-b border-slate-200 pb-1">12. NON-SOLICITATION, NON-CIRCUMVENTION &amp; FAIR RESTRAINT</h3>
   <p>12.1 During the term and for <strong>twelve (12) months</strong> after termination, the Contractor must not, directly or indirectly, for their own account or for any competitor:</p>
@@ -514,7 +596,7 @@ export function getSalesContractorAgreementHtml(params: {
   <h3 class="font-bold text-slate-900 text-base pt-1 border-b border-slate-200 pb-1">14. TERM, SUSPENSION &amp; TERMINATION</h3>
   <p>14.1 This Agreement starts on the Effective Date and continues until terminated by either Party on reasonable written notice (email suffices), or immediately for material breach, fraud, confidentiality or POPIA breach, or unlawful conduct.</p>
   <p>14.2 The Company may suspend Portal or email access pending investigation of suspected material breach.</p>
-  <p>14.3 On termination the Contractor must: stop selling for the Company; stop using @${SALES_CONTRACTOR_EMAIL_DOMAIN} and Company materials; return credentials and property; and confirm destruction of Confidential Information on request.</p>
+  <p>14.3 On termination the Contractor must: stop selling for the Company; stop using @${escape(emailDomain)} and Company materials; return credentials and property; and confirm destruction of Confidential Information on request.</p>
   <p>14.4 Survival: clauses 2, 5, 6, 7, 10.2 (clawback), 12, 15, 16 and 17 survive termination.</p>
 
   <h3 class="font-bold text-slate-900 text-base pt-1 border-b border-slate-200 pb-1">15. LIABILITY &amp; INDEMNITY (BALANCED)</h3>
@@ -526,11 +608,11 @@ export function getSalesContractorAgreementHtml(params: {
   <h3 class="font-bold text-slate-900 text-base pt-1 border-b border-slate-200 pb-1">16. ELECTRONIC ACCEPTANCE (ECTA)</h3>
   <p>16.1 By selecting “I have read and agree”, typing their full legal name, and authenticating, the Contractor:</p>
   <ul class="list-disc pl-5 space-y-1">
-    <li>confirms they have read and understood this entire Agreement (version <strong>${SALES_CONTRACTOR_CONTRACT_VERSION}</strong>);</li>
+    <li>confirms they have read and understood this entire Agreement (version <strong>${escape(contractVersion)}</strong>);</li>
     <li>agrees this is the <strong>sole agreement</strong> (clause 2) and a binding <strong>NDA</strong> (clause 5);</li>
     <li>accepts appointment as an independent sales contractor;</li>
-    <li>accepts that the <strong>only KPIs</strong> are: (1) apply the leadership model to your life; (2) increase sales; (3) reduce costs (clause 4A);</li>
-    <li>accepts that commission is <strong>personal sales only</strong> (not multi-level marketing; no downline, no connections-of-connections) under clause 10, at 4% · 5% · 6% (super-link ~R1.5m at 6%), plus portal subscription and @${SALES_CONTRACTOR_EMAIL_DOMAIN} mailbox rules;</li>
+    <li>accepts that the <strong>only KPIs / sales criteria</strong> are those listed in clause 4A for this Company program;</li>
+    <li>accepts that commission is <strong>personal sales only</strong> (not multi-level marketing; no downline, no connections-of-connections) under clause 10, at rates <strong>${escape(ratesLabel)}</strong>, plus portal subscription and @${escape(emailDomain)} mailbox rules where configured;</li>
     <li>intends this e-signature to have the same effect as a handwritten signature under ECTA.</li>
   </ul>
   <p>16.2 The Company may retain audit logs (timestamp, identity, IP/user agent where available) as evidence of acceptance.</p>
@@ -540,7 +622,8 @@ export function getSalesContractorAgreementHtml(params: {
   <p>17.2 <strong>Severability:</strong> if any provision is unenforceable, it is severed or read down to the minimum extent; the rest remains in force.</p>
   <p>17.3 <strong>Waiver:</strong> no waiver is effective unless in writing. Delay in enforcement is not a waiver.</p>
   <p>17.4 <strong>Cession:</strong> the Contractor may not cede or assign without the Company’s prior written consent. The Company may cede to an affiliate on written notice.</p>
-  <p>17.5 <strong>Notices:</strong> email to the addresses on record (including the allocated @${SALES_CONTRACTOR_EMAIL_DOMAIN} mailbox once issued) is sufficient written notice.</p>
+  <p>17.5 <strong>Notices:</strong> email to the addresses on record (including the allocated @${escape(emailDomain)} mailbox once issued) is sufficient written notice.</p>
+  ${addendumBlock}
   <p>17.6 <strong>Counterparts / e-sign:</strong> electronic counterparts and signatures are valid.</p>
   <p>17.7 <strong>Relationship to fairness:</strong> the Parties intend a commercially fair bargain: the Contractor earns transparent commission and tools to sell; the Company protects its Confidential Information, Customer Data, brand and revenue integrity.</p>
 
@@ -548,8 +631,8 @@ export function getSalesContractorAgreementHtml(params: {
     <p class="font-bold text-slate-800 mb-2">EXECUTION BLOCK (ELECTRONIC)</p>
     <p class="mb-1"><strong>Company:</strong> ${co}</p>
     <p class="mb-1"><strong>Contractor (signatory):</strong> ${cn}</p>
-    <p class="mb-1"><strong>Document:</strong> ${escape(SALES_CONTRACTOR_CONTRACT_TITLE)}</p>
-    <p class="mb-0"><strong>Version:</strong> ${SALES_CONTRACTOR_CONTRACT_VERSION} · <strong>Date:</strong> ${date}</p>
+    <p class="mb-1"><strong>Document:</strong> ${escape(program?.contract_title || SALES_CONTRACTOR_CONTRACT_TITLE)}</p>
+    <p class="mb-0"><strong>Version:</strong> ${escape(contractVersion)} · <strong>Date:</strong> ${date}</p>
     <p class="mt-3 mb-0 italic">Signed by the Contractor typing their full legal name and confirming acceptance in the Portal; logged under ECTA.</p>
   </div>
 </div>
@@ -569,10 +652,31 @@ export function salesContractorInviteEmailHtml(params: {
   companyName: string;
   invitedBy: string;
   inviteLink: string;
+  /** Optional company program for commission / summary copy */
+  program?: AgreementHtmlProgram | null;
+  programSummary?: string | null;
 }): string {
   const { inviteeName, companyName, invitedBy, inviteLink } = params;
-  const linkDeal = superLinkExampleDealValue();
-  const linkComm = calculateCommission(linkDeal);
+  const program = params.program || null;
+  const tiers =
+    program?.commission_tiers?.length
+      ? program.commission_tiers
+      : DEFAULT_COMMISSION_TIERS;
+  const ratesLabel = tiers.map((t) => `${t.ratePct}%`).join(' · ');
+  const emailDomain =
+    (program?.email_domain || SALES_CONTRACTOR_EMAIL_DOMAIN).replace(/^@/, '') ||
+    SALES_CONTRACTOR_EMAIL_DOMAIN;
+  const exampleUnits = Number(program?.example_units) || SUPER_LINK_UNITS;
+  const exampleUnitPrice =
+    Number(program?.example_unit_price) || SUPER_LINK_UNIT_PRICE_ZAR;
+  const linkDeal =
+    exampleUnits > 0 && exampleUnitPrice > 0
+      ? exampleUnits * exampleUnitPrice
+      : superLinkExampleDealValue();
+  const linkComm = calculateCommission(linkDeal, { tiers });
+  const summary =
+    params.programSummary ||
+    `Join as an Independent Sales Contractor — personal-sales-only commission at ${ratesLabel} (not multi-level marketing), company-owned CRM, and a dedicated sales portal.`;
   return `
 <!DOCTYPE html>
 <html>
@@ -584,8 +688,7 @@ export function salesContractorInviteEmailHtml(params: {
         You're invited to sell with ${escape(companyName)}
       </h1>
       <p style="margin:14px 0 0;font-size:15px;opacity:.95;line-height:1.6;max-width:480px;">
-        Join as an <strong>Independent Sales Contractor</strong> under South African law — commission
-        <strong>4% · 5% · 6%</strong> (super-link loads at <strong>6%</strong>), a corporate mailbox on <strong>@${SALES_CONTRACTOR_EMAIL_DOMAIN}</strong> after you accept, and a portal for leads, customers, quotes and earnings.
+        ${escape(summary)}
       </p>
     </div>
     <div style="padding:36px 36px 28px;color:#334155;font-size:16px;line-height:1.7;">
@@ -597,11 +700,11 @@ export function salesContractorInviteEmailHtml(params: {
       <div style="background:linear-gradient(180deg,#fff7ed,#f8fafc);border:1px solid #fed7aa;border-radius:16px;padding:18px 20px;margin:0 0 22px;">
         <div style="font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#c2410c;margin-bottom:8px;">Your portal includes</div>
         <ul style="margin:0;padding-left:18px;color:#475569;font-size:14px;">
-          <li style="margin-bottom:6px;">Independent Sales Contractor Agreement (SA law · ECTA e-signature)</li>
-          <li style="margin-bottom:6px;">Company email: <strong>you@${SALES_CONTRACTOR_EMAIL_DOMAIN}</strong> after acceptance</li>
+          <li style="margin-bottom:6px;">Company sales agreement (SA law · ECTA e-signature)</li>
+          <li style="margin-bottom:6px;">Company email: <strong>you@${escape(emailDomain)}</strong> after acceptance (where configured)</li>
           <li style="margin-bottom:6px;">Platform access: <strong>R${SALES_SUBSCRIPTION_MONTHLY_ZAR}/month</strong> · ${SALES_SUBSCRIPTION_TERM_MONTHS}-month subscription (R${SALES_SUBSCRIPTION_TOTAL_ZAR} prepaid)</li>
-          <li style="margin-bottom:6px;">Commission <strong>4% · 5% · 6%</strong> — full super-link (~R1.5m) at <strong>6%</strong></li>
-          <li style="margin-bottom:6px;">Example: ${SUPER_LINK_UNITS.toLocaleString('en-ZA')} units × R${SUPER_LINK_UNIT_PRICE_ZAR} = ${formatZar(linkDeal)} → commission ${formatZarPrecise(linkComm.commissionAmount)} at 6%</li>
+          <li style="margin-bottom:6px;">Commission <strong>${escape(ratesLabel)}</strong> — personal sales only (not MLM)</li>
+          <li style="margin-bottom:6px;">Example: ${exampleUnits.toLocaleString('en-ZA')} units × ${formatZar(exampleUnitPrice)} = ${formatZar(linkDeal)} → commission about ${formatZarPrecise(linkComm.commissionAmount)}</li>
           <li>All customer data saved under ${escape(companyName)} (POPIA)</li>
         </ul>
       </div>
@@ -615,7 +718,7 @@ export function salesContractorInviteEmailHtml(params: {
       </p>
     </div>
     <div style="background:#f8fafc;padding:18px 36px;font-size:11px;color:#94a3b8;text-align:center;border-top:1px solid #e2e8f0;">
-      SupplierAdvisor® · Independent contractors · Company-owned CRM · Commission 4%–6% (super-link 6%) · @${SALES_CONTRACTOR_EMAIL_DOMAIN}
+      SupplierAdvisor® · Independent contractors · Company-owned CRM · Commission ${escape(ratesLabel)} · Personal sales only · @${escape(emailDomain)}
     </div>
   </div>
 </body>

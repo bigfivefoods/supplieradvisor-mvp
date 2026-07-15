@@ -19,6 +19,7 @@ import {
   formatZar,
   formatZarPrecise,
   calculateCommission,
+  type CommissionTier,
 } from '@/lib/sales-contractor/commission';
 import {
   SALES_CONTRACTOR_EMAIL_DOMAIN,
@@ -29,6 +30,16 @@ import {
   superLinkExampleDealValue,
 } from '@/lib/sales-contractor/agreement';
 import type { SalesContractorAgreement } from '@/lib/sales-contractor/types';
+import type { ProgramCriterion } from '@/lib/sales-program';
+
+type ProgramBrief = {
+  program_name?: string;
+  program_summary?: string;
+  contract_version?: string;
+  commission_tiers?: CommissionTier[];
+  sales_criteria?: ProgramCriterion[];
+  email_domain?: string | null;
+};
 
 export default function SalesAgreementPage() {
   const router = useRouter();
@@ -45,6 +56,7 @@ export default function SalesAgreementPage() {
   const [signatureName, setSignatureName] = useState('');
   const [downloading, setDownloading] = useState(false);
   const [contractVersion, setContractVersion] = useState('');
+  const [program, setProgram] = useState<ProgramBrief | null>(null);
 
   const load = useCallback(async () => {
     if (!companyId || !privyUserId) return;
@@ -61,7 +73,10 @@ export default function SalesAgreementPage() {
       setSigned(Boolean(data.signed));
       setAgreement(data.agreement || null);
       setCompanyName(data.companyName || '');
-      setContractVersion(data.contractVersion || '');
+      setContractVersion(
+        data.program?.contract_version || data.contractVersion || ''
+      );
+      setProgram(data.program || null);
       if (data.agreement?.signature_name) setSignatureName(data.agreement.signature_name);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Load failed');
@@ -81,7 +96,7 @@ export default function SalesAgreementPage() {
       const params = new URLSearchParams({
         companyId: String(companyId),
         privyUserId,
-        format: 'download',
+        format: 'pdf',
       });
       const res = await fetch(`/api/sales/agreement?${params}`, {
         cache: 'no-store',
@@ -96,8 +111,8 @@ export default function SalesAgreementPage() {
       const filename =
         match?.[1] ||
         (signed
-          ? 'sales-contractor-agreement-signed.html'
-          : 'sales-contractor-agreement-draft.html');
+          ? 'sales-contractor-agreement-signed.pdf'
+          : 'sales-contractor-agreement-draft.pdf');
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -108,8 +123,8 @@ export default function SalesAgreementPage() {
       URL.revokeObjectURL(url);
       toast.success(
         signed
-          ? 'Signed agreement downloaded'
-          : 'Draft agreement downloaded — open the file and print to PDF if needed'
+          ? 'Signed agreement PDF downloaded'
+          : 'Draft agreement PDF downloaded'
       );
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Download failed');
@@ -125,7 +140,7 @@ export default function SalesAgreementPage() {
       const params = new URLSearchParams({
         companyId: String(companyId),
         privyUserId,
-        format: 'download',
+        format: 'html',
       });
       const res = await fetch(`/api/sales/agreement?${params}`, {
         cache: 'no-store',
@@ -134,7 +149,7 @@ export default function SalesAgreementPage() {
       const docHtml = await res.text();
       const w = window.open('', '_blank');
       if (!w) {
-        toast.error('Allow pop-ups to print, or use Download instead');
+        toast.error('Allow pop-ups to print, or use Download PDF instead');
         return;
       }
       w.document.open();
@@ -191,9 +206,24 @@ export default function SalesAgreementPage() {
     }
   };
 
-  const tiers = agreement?.commission_tiers?.length
-    ? agreement.commission_tiers
-    : DEFAULT_COMMISSION_TIERS;
+  const tiers: CommissionTier[] = (() => {
+    if (signed && agreement?.commission_tiers?.length) return agreement.commission_tiers;
+    if (program?.commission_tiers?.length) return program.commission_tiers;
+    if (agreement?.commission_tiers?.length) return agreement.commission_tiers;
+    return DEFAULT_COMMISSION_TIERS;
+  })();
+  const ratesLabel = tiers.map((t) => `${t.ratePct}%`).join(' · ');
+  const kpis =
+    program?.sales_criteria?.length
+      ? program.sales_criteria
+      : SALES_CONTRACTOR_KPIS.map((k) => ({
+          key: k.key,
+          title: k.title,
+          detail: k.detail,
+        }));
+  const emailDomain =
+    (program?.email_domain || SALES_CONTRACTOR_EMAIL_DOMAIN).replace(/^@/, '') ||
+    SALES_CONTRACTOR_EMAIL_DOMAIN;
 
   if (loading) {
     return (
@@ -216,13 +246,11 @@ export default function SalesAgreementPage() {
         <p className="mt-2 text-neutral-500 max-w-2xl">
           This is the <strong className="text-slate-700">only agreement</strong> governing your
           engagement — a sole Independent Sales Contractor Agreement and non-disclosure undertaking
-          under South African law. Sign it, then subscribe (R199/mo · 6 months). Your only KPIs are
-          leadership, increase sales, and reduce costs. Commission is{' '}
+          under South African law. Sign it, then subscribe (R199/mo · 6 months). Commission is{' '}
           <strong>personal sales only</strong> — <strong>not multi-level marketing</strong> — at{' '}
-          <strong>4% · 5% · 6%</strong> (full super-link ~R1.5m at <strong>6%</strong>) on deals{' '}
-          <em>you</em> bring. On acceptance you receive{' '}
-          <strong className="text-slate-700">@{SALES_CONTRACTOR_EMAIL_DOMAIN}</strong>. All
-          customers and deals belong to the company.
+          <strong>{ratesLabel}</strong> on deals <em>you</em> bring. On acceptance you may receive{' '}
+          <strong className="text-slate-700">@{emailDomain}</strong>. All customers and deals
+          belong to the company.
         </p>
       </div>
 
@@ -238,7 +266,7 @@ export default function SalesAgreementPage() {
           ) : (
             <Download className="w-4 h-4 text-[#00b4d8]" />
           )}
-          {signed ? 'Download signed agreement' : 'Download agreement (draft)'}
+          {signed ? 'Download signed PDF' : 'Download agreement PDF (draft)'}
         </button>
         <button
           type="button"
@@ -247,7 +275,7 @@ export default function SalesAgreementPage() {
           className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-600 hover:border-slate-300 disabled:opacity-50"
         >
           <Printer className="w-4 h-4" />
-          Print / Save as PDF
+          Print
         </button>
         {contractVersion && (
           <span className="inline-flex items-center text-[11px] font-semibold text-slate-400 px-2">
@@ -281,7 +309,7 @@ export default function SalesAgreementPage() {
             className="shrink-0 inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-white px-4 py-2 text-sm font-bold text-emerald-800 hover:bg-emerald-50"
           >
             <Download className="w-4 h-4" />
-            Download signed copy
+            Download signed PDF
           </button>
         </div>
       )}
@@ -354,20 +382,17 @@ export default function SalesAgreementPage() {
             })}
           </ul>
           <p className="text-[11px] text-neutral-500 mt-3">
-            Stepped rates on the whole deal: under ½ link 4% · ½ to under 1 link 5% · full
-            super-link (~
-            {SUPER_LINK_UNITS.toLocaleString('en-ZA')} units / ~R1.5m) and above 6%. Personal
-            origin only — not MLM.
+            Company schedule: {ratesLabel} (stepped, whole deal). Personal origin only — not MLM.
           </p>
         </div>
       </div>
 
       <div className="rounded-2xl border border-violet-200 bg-violet-50/60 px-4 py-4 text-sm text-slate-700">
         <div className="text-[10px] font-black uppercase tracking-widest text-violet-800 mb-2">
-          The only KPIs under this agreement
+          The only KPIs / sales criteria under this agreement
         </div>
         <ol className="list-decimal pl-5 space-y-1.5">
-          {SALES_CONTRACTOR_KPIS.map((k) => (
+          {kpis.map((k) => (
             <li key={k.key}>
               <strong className="text-slate-900">{k.title}</strong>
               <span className="text-slate-600"> — {k.detail}</span>
@@ -375,7 +400,8 @@ export default function SalesAgreementPage() {
           ))}
         </ol>
         <p className="text-[11px] text-slate-500 mt-2 mb-0">
-          No other contractual performance KPIs apply unless agreed in a written variation.
+          Set by the company sales program. No other contractual performance KPIs apply unless
+          agreed in a written variation.
         </p>
       </div>
 
@@ -390,10 +416,10 @@ export default function SalesAgreementPage() {
         <strong className="text-slate-900">After you accept:</strong> you will be allocated a
         company email address of the form{' '}
         <code className="text-xs font-bold text-[#0077b6]">
-          yourname@{SALES_CONTRACTOR_EMAIL_DOMAIN}
+          yourname@{emailDomain}
         </code>{' '}
-        for authorised sales communication. The mailbox remains company property and is revoked on
-        termination.
+        for authorised sales communication (where configured). The mailbox remains company property
+        and is revoked on termination.
       </div>
 
       {/* Full agreement HTML */}
@@ -413,7 +439,7 @@ export default function SalesAgreementPage() {
               className="inline-flex items-center gap-1.5 text-xs font-bold text-[#0077b6] hover:underline disabled:opacity-50"
             >
               <Download className="w-3.5 h-3.5" />
-              {signed ? 'Download signed' : 'Download draft'}
+              {signed ? 'Download signed PDF' : 'Download draft PDF'}
             </button>
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
               Confidential · Scroll to read in full
@@ -440,15 +466,14 @@ export default function SalesAgreementPage() {
               Contractor Agreement and Non-Disclosure Undertaking (South Africa). I understand it is
               the <strong>only agreement</strong> on this subject (no other oral or WhatsApp side
               deals apply), includes a binding NDA and fair non-solicit, and that the{' '}
-              <strong>only KPIs</strong> are: (1) apply the leadership model to my life; (2) increase
-              sales; (3) reduce costs. I accept that commission is{' '}
+              <strong>only KPIs / sales criteria</strong> are those in clause 4A for this company
+              program. I accept that commission is{' '}
               <strong>personal sales only — not multi-level marketing</strong> (no downline or
-              connection-of-connection pay) at 4% · 5% · 6% (super-link ~R1.5m at 6%), R199/month
-              6-month portal subscription, <strong>@{SALES_CONTRACTOR_EMAIL_DOMAIN}</strong>{' '}
-              mailbox, POPIA duties, and that all CRM data and customers belong to{' '}
-              <strong>{companyName || 'the Company'}</strong>. I am an independent contractor (not
-              an employee) and am responsible for my own tax compliance unless the law provides
-              otherwise.
+              connection-of-connection pay) at {ratesLabel}, R199/month 6-month portal subscription,{' '}
+              <strong>@{emailDomain}</strong> mailbox (where configured), POPIA duties, and that all
+              CRM data and customers belong to <strong>{companyName || 'the Company'}</strong>. I am
+              an independent contractor (not an employee) and am responsible for my own tax
+              compliance unless the law provides otherwise.
             </span>
           </label>
           <div>
@@ -484,7 +509,7 @@ export default function SalesAgreementPage() {
               className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-2xl border border-slate-200 bg-white text-slate-800 font-bold text-sm hover:border-[#00b4d8] disabled:opacity-50"
             >
               <Download className="w-4 h-4" />
-              Download before signing
+              Download PDF before signing
             </button>
           </div>
         </div>

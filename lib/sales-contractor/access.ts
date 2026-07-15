@@ -7,7 +7,6 @@ import {
 } from '@/lib/business/access';
 import { normalizeTeamRole } from '@/lib/business/permissions';
 import {
-  DEFAULT_COMMISSION_TIERS,
   ensureAscendingCommissionTiers,
   parseStoredTiers,
   tiersSummaryText,
@@ -17,6 +16,10 @@ import {
 } from './agreement';
 import { computeSubscriptionInfo } from './subscription';
 import type { SalesContractorAgreement } from './types';
+import {
+  programSnapshotForAgreement,
+  resolveProgramSettings,
+} from '@/lib/sales-program';
 
 export type SalesRepContext = MembershipOk & {
   isSalesContractor: boolean;
@@ -170,6 +173,9 @@ export async function getOrCreateAgreement(opts: {
   }
 
   const now = new Date().toISOString();
+  const program = await resolveProgramSettings(opts.companyId);
+  const tiers = program.commission_tiers;
+  const snapshot = programSnapshotForAgreement(program);
   const insert = {
     profile_id: opts.companyId,
     business_user_id: opts.memberId,
@@ -177,12 +183,13 @@ export async function getOrCreateAgreement(opts: {
     contractor_email: opts.email || null,
     contractor_name: opts.name || null,
     status: 'pending',
-    contract_version: SALES_CONTRACTOR_CONTRACT_VERSION,
-    commission_tiers: DEFAULT_COMMISSION_TIERS,
-    max_commission_pct: 5,
-    min_commission_pct: 1,
-    currency: 'ZAR',
-    terms_summary: tiersSummaryText(DEFAULT_COMMISSION_TIERS),
+    contract_version: program.contract_version || SALES_CONTRACTOR_CONTRACT_VERSION,
+    commission_tiers: tiers,
+    max_commission_pct: program.max_commission_pct,
+    min_commission_pct: program.min_commission_pct,
+    currency: program.currency || 'ZAR',
+    terms_summary: tiersSummaryText(tiers),
+    metadata: { program_snapshot: snapshot },
     created_at: now,
     updated_at: now,
   };
