@@ -57,6 +57,8 @@ export default function SalesAgreementPage() {
   const [downloading, setDownloading] = useState(false);
   const [contractVersion, setContractVersion] = useState('');
   const [program, setProgram] = useState<ProgramBrief | null>(null);
+  /** True only after real e-sign — not owner/admin portal access. */
+  const [agreementSigned, setAgreementSigned] = useState(false);
 
   const load = useCallback(async () => {
     if (!companyId || !privyUserId) return;
@@ -66,11 +68,18 @@ export default function SalesAgreementPage() {
         companyId: String(companyId),
         privyUserId,
       });
-      const res = await fetch(`/api/sales/agreement?${params}`);
+      const res = await fetch(`/api/sales/agreement?${params}`, {
+        cache: 'no-store',
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to load agreement');
       setHtml(data.html || '');
       setSigned(Boolean(data.signed));
+      setAgreementSigned(
+        Boolean(
+          data.agreementSigned ?? data.agreement?.status === 'signed'
+        )
+      );
       setAgreement(data.agreement || null);
       setCompanyName(data.companyName || '');
       setContractVersion(
@@ -206,9 +215,18 @@ export default function SalesAgreementPage() {
     }
   };
 
-  /** Prefer company/signed tiers when set; otherwise platform 4% · 5% · 6% stepped scale. */
+  /**
+   * Commission always follows company Sales program for display/signing,
+   * except after a real e-sign freeze (agreementSigned — not owner exempt).
+   */
   const tiers: CommissionTier[] = (() => {
-    if (signed && agreement?.commission_tiers?.length) return agreement.commission_tiers;
+    if (
+      agreementSigned &&
+      agreement?.status === 'signed' &&
+      agreement?.commission_tiers?.length
+    ) {
+      return agreement.commission_tiers;
+    }
     if (program?.commission_tiers?.length) return program.commission_tiers;
     if (agreement?.commission_tiers?.length) return agreement.commission_tiers;
     return DEFAULT_COMMISSION_TIERS;

@@ -80,22 +80,37 @@ export default function SalesPipelinePage() {
     if (!companyId) return;
     setLoading(true);
     try {
-      const [lRes, oRes, cRes] = await Promise.all([
+      const [lRes, oRes, cRes, pRes] = await Promise.all([
         fetch(`/api/customers/leads?companyId=${companyId}`),
         fetch(`/api/customers/opportunities?companyId=${companyId}`),
         privyUserId
           ? fetch(
               `/api/sales/commission/preview?companyId=${companyId}&privyUserId=${encodeURIComponent(
                 privyUserId
-              )}&amount=100000`
+              )}&amount=100000`,
+              { cache: 'no-store' }
             )
           : Promise.resolve(null),
+        fetch(
+          `/api/sales/program-settings?companyId=${companyId}${
+            privyUserId
+              ? `&privyUserId=${encodeURIComponent(privyUserId)}`
+              : ''
+          }`,
+          { cache: 'no-store' }
+        ),
       ]);
       const lData = await lRes.json();
       const oData = await oRes.json();
       setLeads(lData.leads || []);
       setOpps(oData.opportunities || []);
-      if (cRes) {
+      // Prefer company sales program tiers (4–6% etc.) over stale agreement rows
+      if (pRes.ok) {
+        const pData = await pRes.json();
+        if (Array.isArray(pData.settings?.commission_tiers) && pData.settings.commission_tiers.length) {
+          setTiers(pData.settings.commission_tiers);
+        }
+      } else if (cRes) {
         const cData = await cRes.json();
         if (cRes.ok && Array.isArray(cData.tiers) && cData.tiers.length) {
           setTiers(cData.tiers);

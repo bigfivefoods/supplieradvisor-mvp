@@ -19,6 +19,7 @@ import type { SalesContractorAgreement } from './types';
 import {
   programSnapshotForAgreement,
   resolveProgramSettings,
+  tiersSchedulesDiffer,
 } from '@/lib/sales-program';
 
 export type SalesRepContext = MembershipOk & {
@@ -93,8 +94,8 @@ export function mapAgreementRow(row: Record<string, unknown>): SalesContractorAg
     status: (String(row.status || 'pending') as SalesContractorAgreement['status']),
     contract_version: String(row.contract_version || SALES_CONTRACTOR_CONTRACT_VERSION),
     commission_tiers: tiers,
-    max_commission_pct: Number(row.max_commission_pct ?? 5),
-    min_commission_pct: Number(row.min_commission_pct ?? 1),
+    max_commission_pct: Number(row.max_commission_pct ?? 6),
+    min_commission_pct: Number(row.min_commission_pct ?? 4),
     currency: String(row.currency || 'ZAR'),
     signed_at: row.signed_at ? String(row.signed_at) : null,
     signature_name: row.signature_name ? String(row.signature_name) : null,
@@ -168,12 +169,67 @@ export async function getOrCreateAgreement(opts: {
   if (signed) {
     return { ok: true, agreement: mapAgreementRow(signed as Record<string, unknown>) };
   }
+
+  const program = await resolveProgramSettings(opts.companyId);
+
+  // Pending row: keep in sync with live company sales program (4–6% etc.)
   if (rows[0]) {
-    return { ok: true, agreement: mapAgreementRow(rows[0] as Record<string, unknown>) };
+    const pending = mapAgreementRow(rows[0] as Record<string, unknown>);
+    const programTiers = program.commission_tiers;
+    const needsSync =
+      tiersSchedulesDiffer(pending.commission_tiers, programTiers) ||
+      pending.contract_version !== program.contract_version;
+
+    if (needsSync && pending.status !== 'signed') {
+      const now = new Date().toISOString();
+      const snapshot = programSnapshotForAgreement(program);
+      const { data: updated, error: upErr } = await supabase
+        .from('sales_contractor_agreements')
+        .update({
+          commission_tiers: programTiers,
+          max_commission_pct: program.max_commission_pct,
+          min_commission_pct: program.min_commission_pct,
+          currency: program.currency || 'ZAR',
+          contract_version:
+            program.contract_version || SALES_CONTRACTOR_CONTRACT_VERSION,
+          terms_summary: tiersSummaryText(programTiers),
+          metadata: {
+            ...((rows[0] as { metadata?: Record<string, unknown> }).metadata ||
+              {}),
+            program_snapshot: snapshot,
+            synced_from_program_at: now,
+          },
+          updated_at: now,
+        })
+        .eq('id', pending.id)
+        .eq('status', 'pending')
+        .select('*')
+        .single();
+
+      if (!upErr && updated) {
+        return {
+          ok: true,
+          agreement: mapAgreementRow(updated as Record<string, unknown>),
+        };
+      }
+      // If update fails, still return live program tiers overlaid for the client
+      return {
+        ok: true,
+        agreement: {
+          ...pending,
+          commission_tiers: programTiers,
+          contract_version: program.contract_version || pending.contract_version,
+          max_commission_pct: program.max_commission_pct,
+          min_commission_pct: program.min_commission_pct,
+          terms_summary: tiersSummaryText(programTiers),
+        },
+      };
+    }
+
+    return { ok: true, agreement: pending };
   }
 
   const now = new Date().toISOString();
-  const program = await resolveProgramSettings(opts.companyId);
   const tiers = program.commission_tiers;
   const snapshot = programSnapshotForAgreement(program);
   const insert = {

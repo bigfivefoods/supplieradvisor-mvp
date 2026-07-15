@@ -16,6 +16,7 @@ import { tiersSummaryText } from '@/lib/sales-contractor/commission';
 import { logActivity } from '@/lib/customers/access';
 import { requireCompanyAccess, legacyPrivyFrom } from '@/lib/auth/api-auth';
 import {
+  liveCommissionTiers,
   programSnapshotForAgreement,
   resolveProgramSettings,
 } from '@/lib/sales-program';
@@ -59,10 +60,8 @@ export async function GET(request: NextRequest) {
       'Sales Contractor';
     const program = await resolveProgramSettings(companyId);
     const reallySigned = isAgreementSigned(agr.agreement);
-    // Signed agreements freeze their snapshot; pending use live company program
-    const tiers = reallySigned
-      ? agr.agreement.commission_tiers
-      : program.commission_tiers;
+    // Live company sales program for pending; freeze only after real e-sign
+    const tiers = liveCommissionTiers(program, agr.agreement);
     const contractVersion = reallySigned
       ? agr.agreement.contract_version || program.contract_version
       : program.contract_version;
@@ -70,9 +69,13 @@ export async function GET(request: NextRequest) {
       contractorName,
       companyName: ctx.companyName,
       tiers,
-      program,
+      program: {
+        ...program,
+        commission_tiers: tiers,
+      },
     });
 
+    // Portal access for managers (exempt) vs actual e-signature
     const signed =
       ctx.subscriptionExempt || reallySigned;
 
@@ -146,20 +149,33 @@ export async function GET(request: NextRequest) {
         program_summary: program.program_summary,
         contract_version: program.contract_version,
         contract_title: program.contract_title,
-        commission_tiers: program.commission_tiers,
+        commission_tiers: tiers,
         sales_criteria: program.sales_criteria,
         email_domain: program.email_domain,
+        example_units: program.example_units,
+        example_unit_price: program.example_unit_price,
+        example_label: program.example_label,
         personal_sales_only: true,
         using_defaults: program.using_defaults,
       },
       isSalesContractor: ctx.isSalesContractor,
       subscriptionExempt: ctx.subscriptionExempt,
-      // Owner / finance / admin: free full access
+      // Owner / finance / admin: free full access (not the same as e-signed)
       signed,
+      agreementSigned: reallySigned,
       subscriptionActive: subActive,
       subscription: agr.agreement.subscription || null,
-      agreement: agr.agreement,
-      contractVersion: SALES_CONTRACTOR_CONTRACT_VERSION,
+      // Overlay live program tiers on pending agreements for the client UI
+      agreement: reallySigned
+        ? agr.agreement
+        : {
+            ...agr.agreement,
+            commission_tiers: tiers,
+            contract_version: contractVersion,
+            max_commission_pct: program.max_commission_pct,
+            min_commission_pct: program.min_commission_pct,
+          },
+      contractVersion: contractVersion || SALES_CONTRACTOR_CONTRACT_VERSION,
       html: bodyHtml,
       downloadUrl: `/api/sales/agreement?companyId=${companyId}&privyUserId=${encodeURIComponent(privyUserId || '')}&format=download`,
     });

@@ -22,3 +22,8 @@ export {
   validateCommissionTiers,
   validateCriteria,
 } from './server';
+export {
+  liveCommissionTiers,
+  ratesLabelFromTiers,
+  tiersSchedulesDiffer,
+} from './tiers';

@@ -3,15 +3,17 @@ import {
   assertSalesPortalAccess,
   getOrCreateAgreement,
 } from '@/lib/sales-contractor/access';
+import { calculateCommission } from '@/lib/sales-contractor/commission';
+import { requireCompanyAccess, legacyPrivyFrom } from '@/lib/auth/api-auth';
 import {
-  calculateCommission,
-  ensureAscendingCommissionTiers,
-} from '@/lib/sales-contractor/commission';
-import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+  liveCommissionTiers,
+  resolveProgramSettings,
+} from '@/lib/sales-program';
 
 /**
  * GET ?companyId=&privyUserId=&amount=
  * Live commission preview for a deal amount (quotes / invoices UI).
+ * Uses company sales program rates unless the contractor has e-signed a freeze.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -28,7 +30,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: ctx.error }, { status: ctx.status });
     }
 
-    let tiers = undefined;
+    const program = await resolveProgramSettings(companyId);
+    let agreement = null;
     const agr = await getOrCreateAgreement({
       companyId,
       memberId: ctx.memberId,
@@ -36,10 +39,21 @@ export async function GET(request: NextRequest) {
       name: ctx.name,
       email: ctx.email,
     });
-    if (agr.ok) tiers = ensureAscendingCommissionTiers(agr.agreement.commission_tiers);
+    if (agr.ok) agreement = agr.agreement;
 
+    const tiers = liveCommissionTiers(program, agreement);
     const result = calculateCommission(amount, { tiers });
-    return NextResponse.json({ success: true, ...result });
+    return NextResponse.json({
+      success: true,
+      ...result,
+      tiers,
+      source:
+        agreement?.status === 'signed'
+          ? 'signed_agreement'
+          : program.using_defaults
+            ? 'platform_default'
+            : 'company_sales_program',
+    });
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },
