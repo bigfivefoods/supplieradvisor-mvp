@@ -514,9 +514,11 @@ export function Panel({
   title?: string;
   action?: React.ReactNode;
 }) {
+  // Avoid overflow-hidden: it clips labels/text against large rounded corners
+  // when body content sits flush to the edges.
   return (
     <div
-      className={`rounded-3xl border border-neutral-200 bg-white overflow-hidden ${className}`}
+      className={`rounded-2xl sm:rounded-3xl border border-neutral-200 bg-white shadow-sm min-w-0 ${className}`}
     >
       {(title || action) && (
         <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-neutral-100">

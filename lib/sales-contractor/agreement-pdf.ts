@@ -1,5 +1,5 @@
 /**
- * Generate a downloadable PDF of the Independent Sales Contractor Agreement.
+ * Generate a clean multi-page A4 PDF of the Independent Sales Contractor Agreement.
  * Uses pdfkit (pure Node — works on Vercel serverless).
  */
 import PDFDocument from 'pdfkit';
@@ -15,6 +15,15 @@ type Block =
   | { kind: 'li'; text: string }
   | { kind: 'callout'; text: string }
   | { kind: 'table'; rows: string[][] };
+
+// A4 points: 595.28 × 841.89
+const PAGE_W = 595.28;
+const PAGE_H = 841.89;
+const MARGIN_X = 50;
+const MARGIN_TOP = 46;
+const MARGIN_BOTTOM = 52; // room for footer
+const CONTENT_W = PAGE_W - MARGIN_X * 2;
+const FOOTER_Y = PAGE_H - 34;
 
 function decodeEntities(s: string): string {
   return String(s || '')
@@ -49,9 +58,7 @@ export function htmlBodyToBlocks(html: string): Block[] {
   const blocks: Block[] = [];
   const src = String(html || '');
 
-  // Tokenise by major block tags (non-greedy, case-insensitive)
-  const re =
-    /<(h[1-6]|p|li|div|table|tr)\b([^>]*)>([\s\S]*?)<\/\1>/gi;
+  const re = /<(h[1-6]|p|li|div|table|tr)\b([^>]*)>([\s\S]*?)<\/\1>/gi;
   let m: RegExpExecArray | null;
   const seen = new Set<string>();
 
@@ -83,15 +90,11 @@ export function htmlBodyToBlocks(html: string): Block[] {
       continue;
     }
 
-    if (tag === 'tr') {
-      // Handled inside table
-      continue;
-    }
+    if (tag === 'tr') continue;
 
     const text = stripTags(inner);
     if (!text) continue;
 
-    // Skip nested duplicates from outer wrappers when possible
     const key = `${tag}:${text.slice(0, 120)}`;
     if (seen.has(key) && tag !== 'li') continue;
     seen.add(key);
@@ -100,18 +103,16 @@ export function htmlBodyToBlocks(html: string): Block[] {
       blocks.push({ kind: 'h', text });
       continue;
     }
-
     if (tag === 'li') {
       blocks.push({ kind: 'li', text });
       continue;
     }
-
-    // Callout / highlight boxes (rose, amber, slate banners)
     if (
       tag === 'div' &&
-      /rose|amber|border-2|font-black uppercase|Important/i.test(attrs + inner)
+      /rose|amber|border-2|font-black uppercase|Important|anti.?mlm|not multi-level/i.test(
+        attrs + inner
+      )
     ) {
-      // Prefer inner paragraphs if present
       const innerPs = [...inner.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi)].map(
         (x) => stripTags(x[1])
       );
@@ -119,19 +120,15 @@ export function htmlBodyToBlocks(html: string): Block[] {
       if (calloutText) blocks.push({ kind: 'callout', text: calloutText });
       continue;
     }
-
     if (tag === 'p') {
       blocks.push({ kind: 'p', text });
       continue;
     }
-
-    // Generic div with substantial text (title block etc.)
     if (tag === 'div' && text.length > 40 && !/<div\b/i.test(inner)) {
       blocks.push({ kind: 'p', text });
     }
   }
 
-  // Fallback if parser found almost nothing
   if (blocks.length < 5) {
     const plain = stripTags(src);
     for (const para of plain.split(/\n{2,}/)) {
@@ -143,14 +140,45 @@ export function htmlBodyToBlocks(html: string): Block[] {
   return blocks;
 }
 
-function ensureSpace(
-  doc: PDFKit.PDFDocument,
-  need: number,
-  marginBottom: number
-) {
-  if (doc.y + need > doc.page.height - marginBottom) {
+function ensureSpace(doc: PDFKit.PDFDocument, need: number) {
+  if (doc.y + need > FOOTER_Y - 8) {
     doc.addPage();
+    doc.x = MARGIN_X;
+    doc.y = MARGIN_TOP;
   }
+}
+
+function resetX(doc: PDFKit.PDFDocument) {
+  doc.x = MARGIN_X;
+}
+
+function writeWrapped(
+  doc: PDFKit.PDFDocument,
+  text: string,
+  opts: {
+    font?: string;
+    size?: number;
+    color?: string;
+    width?: number;
+    align?: 'left' | 'center' | 'justify';
+    lineGap?: number;
+    indent?: number;
+  } = {}
+) {
+  const width = opts.width ?? CONTENT_W;
+  doc
+    .font(opts.font || 'Helvetica')
+    .fontSize(opts.size ?? 9)
+    .fillColor(opts.color || '#334155');
+  ensureSpace(doc, 14);
+  resetX(doc);
+  doc.text(text, MARGIN_X, doc.y, {
+    width,
+    align: opts.align || 'left',
+    lineGap: opts.lineGap ?? 1.5,
+    indent: opts.indent || 0,
+  });
+  resetX(doc);
 }
 
 /**
@@ -166,28 +194,32 @@ export async function buildSalesAgreementPdf(params: {
   const generated =
     meta.generatedAt ||
     new Date().toLocaleString('en-ZA', {
-      dateStyle: 'full',
+      dateStyle: 'medium',
       timeStyle: 'short',
     });
 
-  const margin = 48;
-  const pageWidth = 595.28; // A4
-  const contentWidth = pageWidth - margin * 2;
-  const marginBottom = 56;
-
   const blocks = htmlBodyToBlocks(bodyHtml);
+  const title = meta.companyName
+    ? `${SALES_CONTRACTOR_CONTRACT_TITLE}`
+    : SALES_CONTRACTOR_CONTRACT_TITLE;
 
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
       size: 'A4',
-      margins: { top: margin, bottom: marginBottom, left: margin, right: margin },
+      margins: {
+        top: MARGIN_TOP,
+        bottom: MARGIN_BOTTOM,
+        left: MARGIN_X,
+        right: MARGIN_X,
+      },
       info: {
-        Title: SALES_CONTRACTOR_CONTRACT_TITLE,
+        Title: title,
         Author: 'SupplierAdvisor',
         Subject: `${meta.companyName} — ${version}`,
         Creator: 'SupplierAdvisor Sales Portal',
       },
       bufferPages: true,
+      autoFirstPage: true,
     });
 
     const chunks: Buffer[] = [];
@@ -196,292 +228,284 @@ export async function buildSalesAgreementPdf(params: {
     doc.on('error', reject);
 
     // ── Masthead ──────────────────────────────────────────────
+    doc.y = MARGIN_TOP;
+    resetX(doc);
+
     doc
       .fillColor('#0077b6')
       .font('Helvetica-Bold')
-      .fontSize(9)
-      .text('SUPPLIERADVISOR®  ·  SALES CONTRACTOR PORTAL', {
-        characterSpacing: 1.2,
+      .fontSize(8)
+      .text('SUPPLIERADVISOR®  ·  SALES CONTRACTOR PORTAL', MARGIN_X, doc.y, {
+        width: CONTENT_W,
+        characterSpacing: 0.8,
       });
 
-    doc.moveDown(0.4);
-    doc
-      .fillColor('#0f172a')
-      .font('Helvetica-Bold')
-      .fontSize(14)
-      .text(SALES_CONTRACTOR_CONTRACT_TITLE, { width: contentWidth });
-
     doc.moveDown(0.35);
-    doc
-      .fillColor('#64748b')
-      .font('Helvetica')
-      .fontSize(9)
-      .text(
-        `${meta.companyName}  ·  Version ${version}  ·  Generated ${generated}`,
-        { width: contentWidth }
-      );
+    writeWrapped(doc, SALES_CONTRACTOR_CONTRACT_TITLE, {
+      font: 'Helvetica-Bold',
+      size: 12,
+      color: '#0f172a',
+      lineGap: 2,
+    });
 
-    doc.moveDown(0.45);
+    doc.moveDown(0.15);
+    writeWrapped(
+      doc,
+      `${meta.companyName}  ·  Version ${version}  ·  ${generated}`,
+      { size: 8, color: '#64748b', lineGap: 1 }
+    );
+
+    // Status badge
+    doc.moveDown(0.25);
     const badge = isSigned
       ? 'SIGNED COPY'
       : 'DRAFT — FOR REVIEW BEFORE ACCEPTANCE';
     const badgeColor = isSigned ? '#065f46' : '#92400e';
-    const badgeBg = isSigned ? '#ecfdf5' : '#fffbeb';
-    const badgeW = doc.widthOfString(badge) + 16;
-    const badgeH = 16;
-    const bx = margin;
+    const badgeBg = isSigned ? '#d1fae5' : '#fef3c7';
+    doc.font('Helvetica-Bold').fontSize(7.5);
+    const badgeW = Math.min(doc.widthOfString(badge) + 14, CONTENT_W);
+    const badgeH = 14;
+    ensureSpace(doc, badgeH + 12);
     const by = doc.y;
-    doc.roundedRect(bx, by, badgeW, badgeH, 8).fill(badgeBg);
+    doc.roundedRect(MARGIN_X, by, badgeW, badgeH, 4).fill(badgeBg);
     doc
       .fillColor(badgeColor)
-      .font('Helvetica-Bold')
-      .fontSize(8)
-      .text(badge, bx + 8, by + 4, { lineBreak: false });
-    doc.y = by + badgeH + 10;
+      .text(badge, MARGIN_X + 7, by + 3.5, {
+        width: badgeW - 14,
+        lineBreak: false,
+      });
+    doc.y = by + badgeH + 8;
+    resetX(doc);
 
+    // Rule
     doc
-      .moveTo(margin, doc.y)
-      .lineTo(pageWidth - margin, doc.y)
+      .moveTo(MARGIN_X, doc.y)
+      .lineTo(MARGIN_X + CONTENT_W, doc.y)
       .strokeColor('#0f172a')
-      .lineWidth(1.5)
+      .lineWidth(1.25)
       .stroke();
-    doc.moveDown(0.8);
+    doc.y += 10;
+    resetX(doc);
 
-    // ── Certificate / draft status ────────────────────────────
-    ensureSpace(doc, 120, marginBottom);
-    const certTop = doc.y;
-    doc
-      .roundedRect(margin, certTop, contentWidth, 8, 0)
-      .fill(isSigned ? '#0f172a' : '#d97706');
-    // We'll draw a box after content; first write content and measure
-    doc.y = certTop + 12;
+    // ── Certificate / draft status box ────────────────────────
+    const certLines: string[] = isSigned
+      ? [
+          'Certificate of electronic acceptance (ECTA)',
+          `Status: SIGNED / ACCEPTED`,
+          `Signatory: ${meta.signatureName || meta.contractorName || '—'}`,
+          `Email: ${meta.signatureEmail || '—'}`,
+          `Signed at: ${
+            meta.signedAt
+              ? new Date(meta.signedAt).toLocaleString('en-ZA', {
+                  dateStyle: 'full',
+                  timeStyle: 'medium',
+                })
+              : '—'
+          }`,
+          `Version: ${version}  ·  Agreement ID: ${
+            meta.agreementId != null ? String(meta.agreementId) : '—'
+          }`,
+          `Company: ${meta.companyName}`,
+          'Typed legal name + authentication records constitute the Contractor’s signature under ECTA 25 of 2002.',
+        ]
+      : [
+          'Document status: NOT YET SIGNED',
+          'This PDF is for review only. It is not a completed contract until the Contractor accepts electronically in the Sales Portal (checkbox + full legal name + secure sign-in).',
+          `Proposed contractor: ${meta.contractorName}`,
+          `Company: ${meta.companyName}`,
+          `Version: ${version}  ·  Generated: ${generated}`,
+        ];
 
-    if (isSigned) {
-      doc
-        .fillColor('#0f172a')
-        .font('Helvetica-Bold')
-        .fontSize(11)
-        .text('Certificate of electronic acceptance (ECTA)', {
-          width: contentWidth - 16,
-        });
-      doc.moveDown(0.35);
-      const rows: [string, string][] = [
-        ['Status', 'SIGNED / ACCEPTED'],
-        [
-          'Signatory name',
-          meta.signatureName || meta.contractorName || '—',
-        ],
-        ['Signatory email', meta.signatureEmail || '—'],
-        [
-          'Signed at',
-          meta.signedAt
-            ? new Date(meta.signedAt).toLocaleString('en-ZA', {
-                dateStyle: 'full',
-                timeStyle: 'medium',
-              })
-            : '—',
-        ],
-        ['Contract version', version],
-        [
-          'Agreement ID',
-          meta.agreementId != null ? String(meta.agreementId) : '—',
-        ],
-        ['Company', meta.companyName],
-      ];
-      doc.fontSize(9);
-      for (const [k, v] of rows) {
-        doc
-          .font('Helvetica-Bold')
-          .fillColor('#64748b')
-          .text(`${k}: `, { continued: true, width: contentWidth - 16 })
-          .font('Helvetica')
-          .fillColor('#0f172a')
-          .text(v);
-      }
-      doc.moveDown(0.3);
-      doc
-        .font('Helvetica')
-        .fontSize(8)
-        .fillColor('#64748b')
-        .text(
-          'This document was generated from SupplierAdvisor after electronic acceptance. The typed legal name and authentication records constitute the Contractor’s signature under the Electronic Communications and Transactions Act 25 of 2002 (ECTA).',
-          { width: contentWidth - 16 }
-        );
-    } else {
-      doc
-        .fillColor('#92400e')
-        .font('Helvetica-Bold')
-        .fontSize(11)
-        .text('Document status: NOT YET SIGNED', { width: contentWidth - 16 });
-      doc.moveDown(0.3);
-      doc
-        .font('Helvetica')
-        .fontSize(9)
-        .fillColor('#0f172a')
-        .text(
-          'This is a downloadable PDF copy for review before acceptance. It is not a completed contract until the Contractor accepts electronically in the SupplierAdvisor Sales Portal (checkbox + full legal name + secure sign-in).',
-          { width: contentWidth - 16 }
-        );
-      doc.moveDown(0.35);
-      doc.fontSize(9);
-      for (const [k, v] of [
-        ['Proposed contractor', meta.contractorName],
-        ['Company', meta.companyName],
-        ['Contract version', version],
-        ['Generated', generated],
-      ] as [string, string][]) {
-        doc
-          .font('Helvetica-Bold')
-          .fillColor('#64748b')
-          .text(`${k}: `, { continued: true })
-          .font('Helvetica')
-          .fillColor('#0f172a')
-          .text(v);
-      }
+    doc.font('Helvetica').fontSize(8);
+    const certPad = 8;
+    let certTextH = 0;
+    for (let i = 0; i < certLines.length; i++) {
+      const f = i === 0 ? 'Helvetica-Bold' : 'Helvetica';
+      const sz = i === 0 ? 9.5 : 8;
+      doc.font(f).fontSize(sz);
+      certTextH +=
+        doc.heightOfString(certLines[i], {
+          width: CONTENT_W - certPad * 2,
+        }) + (i === 0 ? 4 : 2);
     }
-    doc.moveDown(1);
+    const certBoxH = certTextH + certPad * 2;
+    ensureSpace(doc, certBoxH + 10);
+    const certY = doc.y;
+    doc
+      .roundedRect(MARGIN_X, certY, CONTENT_W, certBoxH, 5)
+      .fillAndStroke(isSigned ? '#f8fafc' : '#fffbeb', isSigned ? '#0f172a' : '#d97706');
+    // accent bar
+    doc.rect(MARGIN_X, certY, 4, certBoxH).fill(isSigned ? '#0f172a' : '#d97706');
+
+    let cy = certY + certPad;
+    for (let i = 0; i < certLines.length; i++) {
+      const f = i === 0 ? 'Helvetica-Bold' : 'Helvetica';
+      const sz = i === 0 ? 9.5 : 8;
+      const col =
+        i === 0
+          ? isSigned
+            ? '#0f172a'
+            : '#92400e'
+          : i === certLines.length - 1 && isSigned
+            ? '#64748b'
+            : '#334155';
+      doc.font(f).fontSize(sz).fillColor(col);
+      doc.text(certLines[i], MARGIN_X + certPad + 4, cy, {
+        width: CONTENT_W - certPad * 2 - 4,
+      });
+      cy = doc.y + (i === 0 ? 3 : 1);
+    }
+    doc.y = certY + certBoxH + 12;
+    resetX(doc);
 
     // ── Agreement body ────────────────────────────────────────
     for (const block of blocks) {
       if (block.kind === 'h') {
-        ensureSpace(doc, 36, marginBottom);
-        doc.moveDown(0.45);
+        ensureSpace(doc, 28);
+        doc.moveDown(0.35);
+        writeWrapped(doc, block.text.toUpperCase(), {
+          font: 'Helvetica-Bold',
+          size: 9.5,
+          color: '#0f172a',
+          lineGap: 1,
+        });
+        const lineY = doc.y + 1;
         doc
-          .fillColor('#0f172a')
-          .font('Helvetica-Bold')
-          .fontSize(11)
-          .text(block.text, { width: contentWidth });
-        doc
-          .moveTo(margin, doc.y + 2)
-          .lineTo(margin + contentWidth, doc.y + 2)
-          .strokeColor('#e2e8f0')
-          .lineWidth(0.6)
+          .moveTo(MARGIN_X, lineY)
+          .lineTo(MARGIN_X + CONTENT_W, lineY)
+          .strokeColor('#cbd5e1')
+          .lineWidth(0.5)
           .stroke();
-        doc.moveDown(0.45);
+        doc.y = lineY + 6;
+        resetX(doc);
         continue;
       }
 
       if (block.kind === 'callout') {
-        ensureSpace(doc, 50, marginBottom);
-        const pad = 8;
+        const pad = 7;
+        doc.font('Helvetica').fontSize(8);
         const textH = doc.heightOfString(block.text, {
-          width: contentWidth - pad * 2,
+          width: CONTENT_W - pad * 2,
         });
         const boxH = textH + pad * 2;
-        ensureSpace(doc, boxH + 8, marginBottom);
+        ensureSpace(doc, boxH + 8);
         const y0 = doc.y;
         doc
-          .roundedRect(margin, y0, contentWidth, boxH, 6)
+          .roundedRect(MARGIN_X, y0, CONTENT_W, boxH, 4)
           .fillAndStroke('#fff1f2', '#fda4af');
         doc
-          .fillColor('#881337')
           .font('Helvetica')
-          .fontSize(9)
-          .text(block.text, margin + pad, y0 + pad, {
-            width: contentWidth - pad * 2,
+          .fontSize(8)
+          .fillColor('#9f1239')
+          .text(block.text, MARGIN_X + pad, y0 + pad, {
+            width: CONTENT_W - pad * 2,
+            lineGap: 1.5,
           });
         doc.y = y0 + boxH + 8;
-        doc.x = margin;
+        resetX(doc);
         continue;
       }
 
       if (block.kind === 'li') {
-        ensureSpace(doc, 22, marginBottom);
-        doc
-          .fillColor('#334155')
-          .font('Helvetica')
-          .fontSize(9.5)
-          .text(`•  ${block.text}`, {
-            width: contentWidth,
-            indent: 8,
-            align: 'left',
-          });
-        doc.moveDown(0.2);
+        ensureSpace(doc, 16);
+        writeWrapped(doc, `•  ${block.text}`, {
+          size: 8.5,
+          color: '#334155',
+          indent: 6,
+          lineGap: 1.2,
+        });
+        doc.y += 2;
         continue;
       }
 
       if (block.kind === 'table') {
         const colCount = Math.max(...block.rows.map((r) => r.length), 1);
-        const colW = contentWidth / colCount;
+        // Weighted columns: first cols get more space when 3-col
+        const colWs: number[] = [];
+        if (colCount === 3) {
+          colWs.push(CONTENT_W * 0.32, CONTENT_W * 0.18, CONTENT_W * 0.5);
+        } else if (colCount === 2) {
+          colWs.push(CONTENT_W * 0.4, CONTENT_W * 0.6);
+        } else {
+          for (let i = 0; i < colCount; i++) colWs.push(CONTENT_W / colCount);
+        }
+
         for (let ri = 0; ri < block.rows.length; ri++) {
           const row = block.rows[ri];
-          const heights = row.map((cell, ci) =>
-            doc.heightOfString(cell || '', {
-              width: colW - 8,
+          doc.font(ri === 0 ? 'Helvetica-Bold' : 'Helvetica').fontSize(7.5);
+          const cellHs = row.map((cell, ci) =>
+            doc.heightOfString(cell || ' ', {
+              width: Math.max(20, (colWs[ci] || CONTENT_W / colCount) - 8),
             })
           );
-          // Use max cell height; measure with current font
-          doc.font(ri === 0 ? 'Helvetica-Bold' : 'Helvetica').fontSize(8.5);
-          const rowH =
-            Math.max(
-              ...row.map((cell) =>
-                doc.heightOfString(cell || ' ', { width: colW - 8 })
-              ),
-              12
-            ) + 8;
-          ensureSpace(doc, rowH + 2, marginBottom);
+          const rowH = Math.max(...cellHs, 10) + 7;
+          ensureSpace(doc, rowH + 1);
           const y0 = doc.y;
           if (ri === 0) {
-            doc.rect(margin, y0, contentWidth, rowH).fill('#f1f5f9');
+            doc.rect(MARGIN_X, y0, CONTENT_W, rowH).fill('#e2e8f0');
           } else if (ri % 2 === 0) {
-            doc.rect(margin, y0, contentWidth, rowH).fill('#f8fafc');
+            doc.rect(MARGIN_X, y0, CONTENT_W, rowH).fill('#f8fafc');
           }
           doc
-            .rect(margin, y0, contentWidth, rowH)
-            .strokeColor('#e2e8f0')
-            .lineWidth(0.5)
+            .rect(MARGIN_X, y0, CONTENT_W, rowH)
+            .strokeColor('#cbd5e1')
+            .lineWidth(0.4)
             .stroke();
+
+          let x = MARGIN_X;
           for (let ci = 0; ci < colCount; ci++) {
+            const w = colWs[ci] || CONTENT_W / colCount;
             doc
-              .fillColor('#0f172a')
               .font(ri === 0 ? 'Helvetica-Bold' : 'Helvetica')
-              .fontSize(8.5)
-              .text(row[ci] || '', margin + ci * colW + 4, y0 + 4, {
-                width: colW - 8,
-                height: rowH - 6,
+              .fontSize(7.5)
+              .fillColor('#0f172a')
+              .text(row[ci] || '', x + 4, y0 + 3.5, {
+                width: w - 8,
+                height: rowH - 5,
+                ellipsis: true,
               });
+            x += w;
           }
           doc.y = y0 + rowH;
-          doc.x = margin;
-          void heights;
+          resetX(doc);
         }
-        doc.moveDown(0.4);
+        doc.y += 6;
+        resetX(doc);
         continue;
       }
 
       // paragraph
-      ensureSpace(doc, 24, marginBottom);
-      doc
-        .fillColor('#334155')
-        .font('Helvetica')
-        .fontSize(9.5)
-        .text(block.text, { width: contentWidth, align: 'left' });
-      doc.moveDown(0.35);
+      writeWrapped(doc, block.text, {
+        size: 8.5,
+        color: '#334155',
+        lineGap: 1.5,
+        align: 'justify',
+      });
+      doc.y += 3;
     }
 
     // ── Page numbers + footer on every page ───────────────────
     const range = doc.bufferedPageRange();
     for (let i = 0; i < range.count; i++) {
       doc.switchToPage(range.start + i);
-      const footerY = doc.page.height - 36;
       doc
-        .moveTo(margin, footerY - 8)
-        .lineTo(pageWidth - margin, footerY - 8)
+        .moveTo(MARGIN_X, FOOTER_Y - 10)
+        .lineTo(MARGIN_X + CONTENT_W, FOOTER_Y - 10)
         .strokeColor('#e2e8f0')
         .lineWidth(0.5)
         .stroke();
       doc
         .font('Helvetica')
-        .fontSize(7.5)
+        .fontSize(7)
         .fillColor('#94a3b8')
         .text(
-          'SupplierAdvisor® · Confidential · Sole agreement & NDA · Laws of the Republic of South Africa',
-          margin,
-          footerY - 2,
-          { width: contentWidth - 60, lineBreak: false }
+          'SupplierAdvisor® · Confidential · Sole agreement & NDA · South Africa',
+          MARGIN_X,
+          FOOTER_Y - 4,
+          { width: CONTENT_W - 70, lineBreak: false }
         );
-      doc.text(`Page ${i + 1} of ${range.count}`, margin, footerY - 2, {
-        width: contentWidth,
+      doc.text(`Page ${i + 1} of ${range.count}`, MARGIN_X, FOOTER_Y - 4, {
+        width: CONTENT_W,
         align: 'right',
         lineBreak: false,
       });
