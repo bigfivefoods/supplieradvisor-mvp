@@ -21,10 +21,32 @@ import {
 } from './subscription';
 
 /** Bump when legal text changes — forces re-sign awareness in UI. */
-export const SALES_CONTRACTOR_CONTRACT_VERSION = 'ISC-2026.8-ZA';
+export const SALES_CONTRACTOR_CONTRACT_VERSION = 'ISC-2026.9-ZA';
 
 export const SALES_CONTRACTOR_CONTRACT_TITLE =
   'Sole Independent Sales Contractor Agreement & Non-Disclosure Undertaking (South Africa)';
+
+/** The only performance KPIs under the sales contractor agreement. */
+export const SALES_CONTRACTOR_KPIS = [
+  {
+    key: 'leadership',
+    title: 'Apply the leadership model to your life',
+    detail:
+      'Actively apply the Super-Cube® leadership model (Choices, Principles, Mental, Emotional, Physical and Spiritual) in personal and professional conduct, complete the Portal leadership training, and demonstrate growth over time.',
+  },
+  {
+    key: 'increase_sales',
+    title: 'Increase sales',
+    detail:
+      'Grow qualifying closed / paid sales of the Company’s products and services in line with authorised pricing, brand standards and Portal workflows.',
+  },
+  {
+    key: 'reduce_costs',
+    title: 'Reduce costs',
+    detail:
+      'Help the Company reduce avoidable cost and waste — including efficient use of tools and travel, accurate quoting, fewer failed deals and rework, and commercial discipline that protects margin.',
+  },
+] as const;
 
 /** Corporate mailbox allocated after acceptance (Big Five Group domain). */
 export const SALES_CONTRACTOR_EMAIL_DOMAIN = 'bigfivegroup.africa';
@@ -320,6 +342,8 @@ export function getSalesContractorAgreementHtml(params: {
     <li><strong>“Effective Date”</strong> means the date of electronic acceptance under clause 16.</li>
     <li><strong>“Portal”</strong> means the SupplierAdvisor Sales Contractor Portal and related systems.</li>
     <li><strong>“Services”</strong> means the sales and related activities in clause 4.</li>
+    <li><strong>“KPIs”</strong> means the three performance measures in clause 4A only — leadership, increase sales, and reduce costs. No other performance KPIs apply under this Agreement unless added by a written variation under clause 2.3.</li>
+    <li><strong>“Leadership Model”</strong> means the Super-Cube® multidimensional leadership model made available in the Portal (and related Company training).</li>
     <li><strong>“Super-link”</strong> means, for commission examples only, approximately ${SUPER_LINK_UNITS.toLocaleString('en-ZA')} units of finished goods (≈ ${SUPER_LINK_TONNES} t payload class).</li>
   </ul>
   <p>1.2 Headings are for convenience only. “Including” means “including without limitation”. “R” / “ZAR” means South African Rand. Singular includes plural and vice versa.</p>
@@ -350,6 +374,40 @@ export function getSalesContractorAgreementHtml(params: {
   <p>4.1 The Company appoints the Contractor, and the Contractor accepts, to promote and sell the Company’s products and services using the Portal, including: capturing and nurturing leads; onboarding customers into the Company’s CRM; preparing quotations; progressing orders; supporting collections workflows; representing the Company lawfully and professionally; and completing leadership and product training as reasonably required.</p>
   <p>4.2 The Contractor must not make false, misleading or unauthorised claims about price, product, delivery or financing (including under the Consumer Protection Act where consumers are involved).</p>
   <p>4.3 The Company may set territories, product lines, discount limits and approval rules. The Company may reject deals that breach policy, law or brand standards.</p>
+
+  <h3 class="font-bold text-slate-900 text-base pt-1 border-b border-slate-200 pb-1">4A. PERFORMANCE KPIs (THE ONLY KPIs)</h3>
+  <p>4A.1 The Parties agree that the Contractor’s performance under this Agreement is measured solely against the following <strong>three (3) KPIs</strong>. <strong>These are the only KPIs.</strong> No other scorecard, ranking, quota grid, or informal target constitutes a contractual KPI unless added by a written variation under clause 2.3.</p>
+  <div class="overflow-x-auto my-3 rounded-xl border border-slate-800">
+    <table class="w-full text-left text-sm">
+      <thead>
+        <tr class="bg-slate-900 text-white text-xs uppercase tracking-wide">
+          <th class="px-3 py-2.5 w-12">#</th>
+          <th class="px-3 py-2.5">KPI</th>
+          <th class="px-3 py-2.5">What it means</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="border-b border-slate-200 bg-white">
+          <td class="px-3 py-3 font-black text-[#00b4d8]">1</td>
+          <td class="px-3 py-3 font-bold text-slate-900">Apply the leadership model to your life</td>
+          <td class="px-3 py-3 text-slate-600">Actively apply the Super-Cube® Leadership Model in personal and professional conduct; complete Portal leadership training; and show ongoing growth across the six faces (Choices, Principles, Mental, Emotional, Physical, Spiritual).</td>
+        </tr>
+        <tr class="border-b border-slate-200 bg-slate-50">
+          <td class="px-3 py-3 font-black text-[#00b4d8]">2</td>
+          <td class="px-3 py-3 font-bold text-slate-900">Increase sales</td>
+          <td class="px-3 py-3 text-slate-600">Grow qualifying closed / paid sales of the Company’s products and services through authorised pricing, brand standards and Portal workflows.</td>
+        </tr>
+        <tr class="bg-white">
+          <td class="px-3 py-3 font-black text-[#00b4d8]">3</td>
+          <td class="px-3 py-3 font-bold text-slate-900">Reduce costs</td>
+          <td class="px-3 py-3 text-slate-600">Help reduce avoidable cost and waste — efficient use of time and tools, accurate quoting, fewer failed deals and rework, and commercial discipline that protects the Company’s margin.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p>4A.2 The Company may review progress against these three KPIs in good faith (including via Portal activity, paid invoices, leadership training progress, and reasonable discussions). KPI reviews are for alignment and development; they do not create employment, guaranteed earnings, or automatic termination, but serious, sustained failure on the KPIs after fair notice may be treated as material breach under clause 14.</p>
+  <p>4A.3 Commission remains as set out in clause 10. KPIs guide behaviour and priorities; they do not replace the commission schedule unless the Parties expressly agree otherwise in writing under clause 2.3.</p>
+  <p>4A.4 No manager, message or dashboard may invent additional contractual KPIs. Operational tips and coaching are welcome; only the three KPIs above are binding performance measures under this Agreement.</p>
 
   <h3 class="font-bold text-slate-900 text-base pt-1 border-b border-slate-200 pb-1">5. NON-DISCLOSURE AGREEMENT (CONFIDENTIALITY)</h3>
   <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">This clause operates as a mutual NDA for Company Confidential Information disclosed to the Contractor, and is a material term of the engagement.</p>
@@ -452,6 +510,7 @@ export function getSalesContractorAgreementHtml(params: {
     <li>confirms they have read and understood this entire Agreement (version <strong>${SALES_CONTRACTOR_CONTRACT_VERSION}</strong>);</li>
     <li>agrees this is the <strong>sole agreement</strong> (clause 2) and a binding <strong>NDA</strong> (clause 5);</li>
     <li>accepts appointment as an independent sales contractor;</li>
+    <li>accepts that the <strong>only KPIs</strong> are: (1) apply the leadership model to your life; (2) increase sales; (3) reduce costs (clause 4A);</li>
     <li>accepts commission 4% · 5% · 6% (super-link ~R1.5m at 6%), portal subscription, and @${SALES_CONTRACTOR_EMAIL_DOMAIN} mailbox rules;</li>
     <li>intends this e-signature to have the same effect as a handwritten signature under ECTA.</li>
   </ul>

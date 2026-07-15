@@ -22,6 +22,7 @@ import {
 } from '@/lib/sales-contractor/commission';
 import {
   SALES_CONTRACTOR_EMAIL_DOMAIN,
+  SALES_CONTRACTOR_KPIS,
   SUPER_LINK_TONNES,
   SUPER_LINK_UNITS,
   SUPER_LINK_UNIT_PRICE_ZAR,
@@ -215,7 +216,8 @@ export default function SalesAgreementPage() {
         <p className="mt-2 text-neutral-500 max-w-2xl">
           This is the <strong className="text-slate-700">only agreement</strong> governing your
           engagement — a sole Independent Sales Contractor Agreement and non-disclosure undertaking
-          under South African law. Sign it, then subscribe (R199/mo · 6 months). Commission is{' '}
+          under South African law. Sign it, then subscribe (R199/mo · 6 months). Your only KPIs are
+          leadership, increase sales, and reduce costs. Commission is{' '}
           <strong>4% · 5% · 6%</strong> (full super-link ~R1.5m at <strong>6%</strong>). On
           acceptance you receive <strong className="text-slate-700">@{SALES_CONTRACTOR_EMAIL_DOMAIN}</strong>.
           All customers and deals belong to the company.
@@ -357,6 +359,23 @@ export default function SalesAgreementPage() {
         </div>
       </div>
 
+      <div className="rounded-2xl border border-violet-200 bg-violet-50/60 px-4 py-4 text-sm text-slate-700">
+        <div className="text-[10px] font-black uppercase tracking-widest text-violet-800 mb-2">
+          The only KPIs under this agreement
+        </div>
+        <ol className="list-decimal pl-5 space-y-1.5">
+          {SALES_CONTRACTOR_KPIS.map((k) => (
+            <li key={k.key}>
+              <strong className="text-slate-900">{k.title}</strong>
+              <span className="text-slate-600"> — {k.detail}</span>
+            </li>
+          ))}
+        </ol>
+        <p className="text-[11px] text-slate-500 mt-2 mb-0">
+          No other contractual performance KPIs apply unless agreed in a written variation.
+        </p>
+      </div>
+
       <div className="rounded-2xl border border-sky-100 bg-sky-50/80 px-4 py-3 text-sm text-slate-700">
         <strong className="text-slate-900">After you accept:</strong> you will be allocated a
         company email address of the form{' '}
@@ -410,8 +429,10 @@ export default function SalesAgreementPage() {
               I have read and agree to this <strong>sole and entire</strong> Independent Sales
               Contractor Agreement and Non-Disclosure Undertaking (South Africa). I understand it is
               the <strong>only agreement</strong> on this subject (no other oral or WhatsApp side
-              deals apply), includes a binding NDA and fair non-solicit, commission 4% · 5% · 6%
-              (super-link ~R1.5m at 6%), R199/month 6-month portal subscription,{' '}
+              deals apply), includes a binding NDA and fair non-solicit, and that the{' '}
+              <strong>only KPIs</strong> are: (1) apply the leadership model to my life; (2) increase
+              sales; (3) reduce costs. I accept commission 4% · 5% · 6% (super-link ~R1.5m at 6%),
+              R199/month 6-month portal subscription,{' '}
               <strong>@{SALES_CONTRACTOR_EMAIL_DOMAIN}</strong> mailbox, POPIA duties, and that all
               CRM data and customers belong to <strong>{companyName || 'the Company'}</strong>. I
               am an independent contractor (not an employee) and am responsible for my own tax
