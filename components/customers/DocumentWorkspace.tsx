@@ -505,7 +505,7 @@ function DocInner({
             </h1>
             <p className="text-sm text-neutral-600 mt-1 max-w-xl">{cfg.description}</p>
             <p className="text-[11px] text-neutral-500 mt-1">
-              Records are saved under your company · commission 3.5%–5.5%
+              Records are saved under your company · commission 4%–6% (super-link 6%)
             </p>
           </div>
           {newBtn}

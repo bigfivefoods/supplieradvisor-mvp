@@ -457,7 +457,7 @@ export default function SalesPipelinePage() {
           <p className="text-sm text-neutral-600 mt-1 max-w-xl">
             Opportunity map (same stages as Customers → Leads) with{' '}
             <strong className="text-amber-900">commission you can earn</strong> on every deal —
-            progressive 3.5%–5.5% scale.
+            4% · 5% · 6% scale (super-link loads at 6%).
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

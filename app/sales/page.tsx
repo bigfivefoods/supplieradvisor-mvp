@@ -106,9 +106,11 @@ export default function SalesCommandCentre() {
             <p className="mt-4 text-neutral-600 max-w-xl text-sm sm:text-base leading-relaxed">
               Your independent contractor workspace for leads, customers, and closed deals. All CRM
               records belong to <strong className="text-slate-900">{summary.companyName}</strong> —
-              you earn progressive commission from{' '}
-              <strong className="text-amber-700">3.5%</strong> up to{' '}
-              <strong className="text-amber-700">5.5%</strong> as deals get bigger.
+              you earn commission of{' '}
+              <strong className="text-amber-700">4%</strong>,{' '}
+              <strong className="text-amber-700">5%</strong> or{' '}
+              <strong className="text-amber-700">6%</strong> — a super-link load (32 t) earns{' '}
+              <strong className="text-amber-700">6%</strong>.
             </p>
           </div>
           <div className="flex flex-col sm:flex-row gap-3">
@@ -228,7 +230,7 @@ export default function SalesCommandCentre() {
           <h2 className="font-bold text-slate-900 text-lg mb-1">What you could make</h2>
           <p className="text-xs text-neutral-600 mb-4">
             Bigger deals → higher rate{' '}
-            <span className="text-amber-700 font-semibold">(3.5% → 5.5%)</span>
+            <span className="text-amber-700 font-semibold">(4% · 5% · 6%)</span>
           </p>
           <ul className="space-y-2.5">
             {summary.commissionPreview.samples.map((s) => (

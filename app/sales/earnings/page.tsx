@@ -73,7 +73,7 @@ export default function SalesEarningsPage() {
           <span className="text-amber-600 font-semibold">Projected</span>
           {' · '}
           <span className="text-emerald-600 font-semibold">Earned</span>
-          {' · commission 3.5% → 5.5%'}
+          {' · commission 4% · 5% · 6% (super-link 6%)'}
         </p>
         <div className="h-72 rounded-2xl bg-slate-50 border border-neutral-100 p-2 sm:p-3">
           <EarningsTrendChart

@@ -13,6 +13,12 @@ import {
   formatZarPrecise,
   calculateCommission,
 } from '@/lib/sales-contractor/commission';
+import {
+  SALES_CONTRACTOR_EMAIL_DOMAIN,
+  SUPER_LINK_TONNES,
+  SUPER_LINK_EXAMPLE_ZAR_PER_TONNE,
+  superLinkExampleDealValue,
+} from '@/lib/sales-contractor/agreement';
 import type { SalesContractorAgreement } from '@/lib/sales-contractor/types';
 
 export default function SalesAgreementPage() {
@@ -114,8 +120,11 @@ export default function SalesAgreementPage() {
           Join the {companyName || 'company'} sales team
         </h1>
         <p className="mt-2 text-neutral-500 max-w-2xl">
-          Sign the agreement, then subscribe (R199/mo · 6 months). Commission grows with deal size
-          from 3.5% up to 5.5%. All customers and deals are saved under the company.
+          Sign the Independent Sales Contractor Agreement (South African law), then subscribe
+          (R199/mo · 6 months). Commission is <strong>4% · 5% · 6%</strong> (a super-link load of 32 t
+          earns <strong>6%</strong>). On acceptance you receive a corporate mailbox on{' '}
+          <strong className="text-slate-700">@{SALES_CONTRACTOR_EMAIL_DOMAIN}</strong>. All
+          customers and deals are saved under the company.
         </p>
       </div>
 
@@ -143,13 +152,18 @@ export default function SalesAgreementPage() {
             <tbody>
               {tiers.map((t, i) => {
                 const from = i === 0 ? 0 : Number(tiers[i - 1].upTo || 0);
+                const range =
+                  t.upTo == null
+                    ? `${formatZar(from)}+ (super-link 32 t)`
+                    : i === 0
+                      ? `Below ${formatZar(t.upTo)}`
+                      : `${formatZar(from)} – under ${formatZar(t.upTo)}`;
                 return (
                   <tr key={i} className="border-b border-neutral-100">
-                    <td className="py-2 text-neutral-500">
-                      {formatZar(from)}
-                      {t.upTo == null ? '+' : ` – ${formatZar(t.upTo)}`}
+                    <td className="py-2 text-neutral-500 text-xs sm:text-sm">{range}</td>
+                    <td className="py-2 text-right font-bold text-amber-600">
+                      {t.ratePct}%
                     </td>
-                    <td className="py-2 text-right font-bold text-amber-600">{t.ratePct}%</td>
                   </tr>
                 );
               })}
@@ -159,6 +173,30 @@ export default function SalesAgreementPage() {
         <div className="rounded-3xl border border-neutral-200 bg-gradient-to-br from-amber-500/15 to-orange-500/5 p-5">
           <h2 className="text-sm font-bold text-slate-900 mb-3">Example earnings</h2>
           <ul className="space-y-2">
+            {(() => {
+              const linkDeal = superLinkExampleDealValue();
+              const linkRes = calculateCommission(linkDeal, { tiers });
+              return (
+                <li className="rounded-2xl border border-amber-200/80 bg-white/70 px-3 py-2.5 mb-1">
+                  <div className="text-[10px] font-black uppercase tracking-wider text-amber-800 mb-1">
+                    Super-link load ({SUPER_LINK_TONNES} t)
+                  </div>
+                  <div className="flex justify-between text-sm gap-2">
+                    <span className="text-neutral-600">
+                      {SUPER_LINK_TONNES} t × {formatZar(SUPER_LINK_EXAMPLE_ZAR_PER_TONNE)}/t ={' '}
+                      <strong className="text-slate-800">{formatZar(linkDeal)}</strong>
+                    </span>
+                    <span className="font-bold text-amber-700 shrink-0">
+                      {formatZarPrecise(linkRes.commissionAmount)}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-neutral-500 mt-1">
+                    Illustrative only · progressive commission (~
+                    {linkRes.effectiveRatePct.toFixed(2)}% effective)
+                  </p>
+                </li>
+              );
+            })()}
             {[50_000, 250_000, 1_000_000].map((amt) => {
               const r = calculateCommission(amt, { tiers });
               return (
@@ -172,9 +210,20 @@ export default function SalesAgreementPage() {
             })}
           </ul>
           <p className="text-[11px] text-neutral-500 mt-3">
-            Progressive bands — not a flat rate on the whole deal.
+            Stepped rates on the whole deal: under ½ link 4% · ½ to under 1 link 5% · full
+            super-link ({SUPER_LINK_TONNES} t) and above 6%.
           </p>
         </div>
+      </div>
+
+      <div className="rounded-2xl border border-sky-100 bg-sky-50/80 px-4 py-3 text-sm text-slate-700">
+        <strong className="text-slate-900">After you accept:</strong> you will be allocated a
+        company email address of the form{' '}
+        <code className="text-xs font-bold text-[#0077b6]">
+          yourname@{SALES_CONTRACTOR_EMAIL_DOMAIN}
+        </code>{' '}
+        for authorised sales communication. The mailbox remains company property and is revoked on
+        termination.
       </div>
 
       {/* Full agreement HTML */}
@@ -199,15 +248,19 @@ export default function SalesAgreementPage() {
               className="mt-1 w-5 h-5 rounded border-slate-600 text-amber-500 focus:ring-amber-400"
             />
             <span className="text-sm text-slate-700">
-              I have read and agree to the Independent Sales Contractor Agreement, including the
-              commission schedule (3.5% → 5.5% as deals grow), the R199/month 6-month portal
-              subscription, and that all CRM data belongs to{' '}
-              <strong>{companyName || 'the Company'}</strong>.
+              I have read and agree to the Independent Sales Contractor Agreement (South Africa),
+              including the commission schedule (4% · 5% · 6%, super-link 32 t at 6%), the
+              R199/month 6-month portal subscription, allocation of a{' '}
+              <strong>@{SALES_CONTRACTOR_EMAIL_DOMAIN}</strong> email address, POPIA duties, and
+              that all CRM data belongs to{' '}
+              <strong>{companyName || 'the Company'}</strong>. I understand I am an independent
+              contractor (not an employee) and am responsible for my own tax compliance unless the
+              law provides otherwise.
             </span>
           </label>
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-1.5">
-              Full legal name (electronic signature)
+              Full legal name (electronic signature under ECTA)
             </label>
             <input
               type="text"

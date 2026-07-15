@@ -243,7 +243,7 @@ export default function SalesSubscribePage() {
           </li>
           <li className="flex gap-2">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-            Live commission preview — rates from <strong>3.5%</strong> up to <strong>5.5%</strong>
+            Live commission preview — rates <strong>4% · 5% · 6%</strong> (super-link at 6%)
           </li>
           <li className="flex gap-2">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />

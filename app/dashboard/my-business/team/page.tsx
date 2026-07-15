@@ -424,7 +424,8 @@ function TeamInner() {
             <p>
               Invite <strong>Sales contractor</strong> for a branded sales-team email. They only
               access the dedicated <strong>/sales</strong> portal (not the main ERP) — agreement,
-              commission <strong>3.5% → 5.5%</strong>, R199×6 sub. <strong>Owners and finance</strong>{' '}
+              commission <strong>4% · 5% · 6%</strong> (super-link 6%), R199×6 sub.{' '}
+              <strong>Owners and finance</strong>{' '}
               get free full sales portal access. All CRM data stays under your company.
             </p>
           </div>

@@ -1,35 +1,62 @@
 /**
  * Independent sales contractor commission engine.
  *
- * Progressive sliding scale — larger deals earn higher rates (3.5% → 5.5% max):
- *   R0 – R50,000          → 3.5%
- *   R50,001 – R150,000    → 4.0%
- *   R150,001 – R400,000   → 4.5%
- *   R400,001 – R1,000,000 → 5.0%
- *   above R1,000,000      → 5.5% (cap)
+ * Stepped scale (whole deal at one rate) — work backwards from a super-link load:
+ *   Super-link (32 t) and above  → 6%
+ *   Half-link to under full link → 5%
+ *   Below half a super-link      → 4%
  *
- * Commission is calculated progressively across bands.
+ * One super-link payload = 32 tonnes. Illustrative value for thresholds uses
+ * SUPER_LINK_EXAMPLE_ZAR_PER_TONNE (not a live price list).
  */
 
 export type CommissionTier = {
-  /** Inclusive upper bound of band (null = infinity) */
+  /** Inclusive upper bound of band (null = infinity) — used for display / stepped caps */
   upTo: number | null;
   /** Percent e.g. 5 for 5% */
   ratePct: number;
   label?: string;
 };
 
-/** Bigger deals → higher commission % (starts at 3.5%, capped at 5.5%). */
-export const DEFAULT_COMMISSION_TIERS: CommissionTier[] = [
-  { upTo: 50_000, ratePct: 3.5, label: 'Starter' },
-  { upTo: 150_000, ratePct: 4, label: 'Growth' },
-  { upTo: 400_000, ratePct: 4.5, label: 'Core' },
-  { upTo: 1_000_000, ratePct: 5, label: 'Enterprise' },
-  { upTo: null, ratePct: 5.5, label: 'Strategic (max)' },
-];
+/** Super-link payload for commission bands (one “link”). */
+export const SUPER_LINK_TONNES = 32;
+/** Illustrative ZAR per tonne for band thresholds and worked examples only. */
+export const SUPER_LINK_EXAMPLE_ZAR_PER_TONNE = 5_000;
 
-export const MAX_COMMISSION_PCT = 5.5;
-export const MIN_COMMISSION_PCT = 3.5;
+/** Deal value of one full super-link load (illustrative). */
+export function superLinkDealValue(): number {
+  return SUPER_LINK_TONNES * SUPER_LINK_EXAMPLE_ZAR_PER_TONNE;
+}
+
+/** Half a super-link (illustrative) — 5% band starts here. */
+export function halfSuperLinkDealValue(): number {
+  return superLinkDealValue() / 2;
+}
+
+export const MAX_COMMISSION_PCT = 6;
+export const MIN_COMMISSION_PCT = 4;
+
+/**
+ * Display / storage tiers — thresholds anchored to super-link value.
+ * Rate applies to the **whole deal** (stepped). Full super-link load → 6%.
+ */
+export const DEFAULT_COMMISSION_TIERS: CommissionTier[] = [
+  {
+    upTo: halfSuperLinkDealValue(),
+    ratePct: 4,
+    label: 'Starter (below ½ super-link)',
+  },
+  {
+    upTo: superLinkDealValue(),
+    ratePct: 5,
+    label: 'Growth (½ to under 1 super-link)',
+  },
+  {
+    upTo: null,
+    ratePct: 6,
+    label: 'Super-link (32 t) & above',
+  },
+];
 
 export type CommissionBreakdownLine = {
   bandFrom: number;
@@ -47,6 +74,8 @@ export type CommissionResult = {
   currency: string;
   lines: CommissionBreakdownLine[];
   tiers: CommissionTier[];
+  /** Stepped rate applied to the whole deal */
+  appliedRatePct: number;
 };
 
 function normalizeTiers(tiers?: CommissionTier[] | null): CommissionTier[] {
@@ -70,7 +99,11 @@ function normalizeTiers(tiers?: CommissionTier[] | null): CommissionTier[] {
 }
 
 /**
- * Progressive commission for a deal amount using sliding bands.
+ * Stepped commission: whole deal at one rate.
+ * Worked backwards from a full super-link (32 t) at 6%:
+ *   ≥ 1 super-link value → 6%
+ *   ≥ ½ super-link and < 1 → 5%
+ *   < ½ super-link → 4%
  */
 export function calculateCommission(
   dealAmount: number,
@@ -79,42 +112,67 @@ export function calculateCommission(
   const amount = Math.max(0, Number(dealAmount) || 0);
   const tiers = normalizeTiers(opts?.tiers);
   const currency = opts?.currency || 'ZAR';
-  const lines: CommissionBreakdownLine[] = [];
-  let remaining = amount;
-  let prevCap = 0;
-  let totalCommission = 0;
 
-  for (const tier of tiers) {
-    if (remaining <= 0) break;
-    const cap = tier.upTo == null ? Infinity : tier.upTo;
-    const bandWidth = cap === Infinity ? remaining : Math.max(0, cap - prevCap);
-    const amountInBand = Math.min(remaining, bandWidth);
-    if (amountInBand <= 0) {
-      prevCap = cap === Infinity ? prevCap : cap;
-      continue;
-    }
-    const commission = (amountInBand * tier.ratePct) / 100;
-    lines.push({
-      bandFrom: prevCap,
-      bandTo: tier.upTo,
-      amountInBand,
-      ratePct: tier.ratePct,
-      commission,
-      label: tier.label,
-    });
-    totalCommission += commission;
-    remaining -= amountInBand;
-    prevCap = cap === Infinity ? prevCap + amountInBand : cap;
+  // Anchors: prefer tier upTo values when default 3-tier shape, else super-link constants
+  const half =
+    tiers.length >= 2 && tiers[0].upTo != null
+      ? Number(tiers[0].upTo)
+      : halfSuperLinkDealValue();
+  const full =
+    tiers.length >= 2 && tiers[1].upTo != null
+      ? Number(tiers[1].upTo)
+      : superLinkDealValue();
+
+  const rate4 = tiers[0]?.ratePct ?? MIN_COMMISSION_PCT;
+  const rate5 = tiers[1]?.ratePct ?? 5;
+  const rate6 =
+    tiers.find((t) => t.upTo == null)?.ratePct ??
+    tiers[tiers.length - 1]?.ratePct ??
+    MAX_COMMISSION_PCT;
+
+  let ratePct: number;
+  let bandFrom = 0;
+  let bandTo: number | null = null;
+  let label: string | undefined;
+
+  // Full super-link and above → top rate (6%)
+  if (amount >= full) {
+    ratePct = rate6;
+    bandFrom = full;
+    bandTo = null;
+    label = tiers.find((t) => t.upTo == null)?.label || 'Super-link (32 t) & above';
+  } else if (amount >= half) {
+    ratePct = rate5;
+    bandFrom = half;
+    bandTo = full;
+    label = tiers[1]?.label || 'Growth (½ to under 1 super-link)';
+  } else {
+    ratePct = rate4;
+    bandFrom = 0;
+    bandTo = half;
+    label = tiers[0]?.label || 'Starter (below ½ super-link)';
   }
 
-  const effectiveRatePct = amount > 0 ? (totalCommission / amount) * 100 : 0;
+  const commission = (amount * ratePct) / 100;
+
+  const lines: CommissionBreakdownLine[] = [
+    {
+      bandFrom,
+      bandTo,
+      amountInBand: amount,
+      ratePct,
+      commission: roundMoney(commission),
+      label,
+    },
+  ];
 
   return {
     dealAmount: amount,
-    commissionAmount: roundMoney(totalCommission),
-    effectiveRatePct: Math.round(effectiveRatePct * 1000) / 1000,
+    commissionAmount: roundMoney(commission),
+    effectiveRatePct: ratePct,
+    appliedRatePct: ratePct,
     currency,
-    lines: lines.map((l) => ({ ...l, commission: roundMoney(l.commission) })),
+    lines,
     tiers,
   };
 }
@@ -145,9 +203,10 @@ export function tiersSummaryText(tiers?: CommissionTier[] | null): string {
   const t = normalizeTiers(tiers);
   return t
     .map((tier, i) => {
-      const from = i === 0 ? 0 : (t[i - 1].upTo ?? 0) + 1;
-      const to = tier.upTo == null ? 'and above' : `up to ${formatZar(tier.upTo)}`;
-      return `${formatZar(from)} ${to}: ${tier.ratePct}%`;
+      const from = i === 0 ? 0 : (t[i - 1].upTo ?? 0);
+      const to =
+        tier.upTo == null ? 'and above (super-link 32 t+)' : `up to ${formatZar(tier.upTo)}`;
+      return `${formatZar(from)} ${to}: ${tier.ratePct}% on whole deal`;
     })
     .join(' · ');
 }
@@ -166,7 +225,7 @@ export function parseStoredTiers(raw: unknown): CommissionTier[] {
 }
 
 /**
- * Upgrade legacy scales (inverted, or starting below 3.5%, or max below 5.5%) to current DEFAULT.
+ * Upgrade legacy scales (old 3.5–5.5 progressive, inverted, etc.) to current DEFAULT.
  */
 export function ensureAscendingCommissionTiers(
   tiers?: CommissionTier[] | null
@@ -177,10 +236,18 @@ export function ensureAscendingCommissionTiers(
   const rawRates = tiers.map((x) => Number(x.ratePct) || 0);
   const firstRaw = rawRates[0];
   const lastRaw = rawRates[rawRates.length - 1];
-  if (
-    firstRaw > lastRaw ||
+  const hasLegacy =
+    rawRates.some((r) => r === 3.5 || r === 5.5 || r === 4.5) ||
     firstRaw < MIN_COMMISSION_PCT - 0.01 ||
-    lastRaw < MAX_COMMISSION_PCT - 0.01
+    lastRaw < MAX_COMMISSION_PCT - 0.01 ||
+    firstRaw > lastRaw;
+  if (hasLegacy || tiers.length !== 3) {
+    return DEFAULT_COMMISSION_TIERS;
+  }
+  // Accept only 4 / 5 / 6 structure
+  if (
+    Math.abs(firstRaw - 4) > 0.01 ||
+    Math.abs(lastRaw - 6) > 0.01
   ) {
     return DEFAULT_COMMISSION_TIERS;
   }

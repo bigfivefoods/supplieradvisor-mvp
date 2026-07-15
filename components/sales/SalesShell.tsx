@@ -204,7 +204,7 @@ export default function SalesShell({ children }: { children: React.ReactNode }) 
       <main className="max-w-7xl mx-auto px-4 py-6 sm:py-8">{children}</main>
 
       <footer className="text-center text-[11px] text-neutral-500 py-10 px-4 border-t border-neutral-100 bg-white">
-        Independent sales contractor · CRM data belongs to the company · Commission 3.5%–5.5% ·
+        Independent sales contractor · CRM data belongs to the company · Commission 4%–6% (super-link 6%) ·
         Contractors: R199/mo · 6-month sub · Owners &amp; finance: free full access · Powered by
         SupplierAdvisor®
       </footer>
