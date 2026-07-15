@@ -7,6 +7,7 @@ import {
   mapAgreementRow,
 } from '@/lib/sales-contractor/access';
 import {
+  buildSalesAgreementDownloadDocument,
   getSalesContractorAgreementHtml,
   SALES_CONTRACTOR_CONTRACT_VERSION,
 } from '@/lib/sales-contractor/agreement';
@@ -19,6 +20,7 @@ import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/li
 
 /**
  * GET ?companyId=&privyUserId=
+ * Optional: format=download|html — full document for save / print-to-PDF
  * Returns agreement status + HTML body for signing.
  */
 export async function GET(request: NextRequest) {
@@ -28,6 +30,9 @@ export async function GET(request: NextRequest) {
     const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
     if (!_gate.ok) return _gate.response;
     const privyUserId = request.nextUrl.searchParams.get('privyUserId');
+    const format = String(
+      request.nextUrl.searchParams.get('format') || ''
+    ).toLowerCase();
     const ctx = await assertSalesPortalAccess(privyUserId, companyId);
     if (!ctx.ok) {
       return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -44,11 +49,53 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: agr.error }, { status: agr.status });
     }
 
-    const html = getSalesContractorAgreementHtml({
-      contractorName: agr.agreement.contractor_name || ctx.name || 'Sales Contractor',
+    const contractorName =
+      agr.agreement.signature_name ||
+      agr.agreement.contractor_name ||
+      ctx.name ||
+      'Sales Contractor';
+    const bodyHtml = getSalesContractorAgreementHtml({
+      contractorName,
       companyName: ctx.companyName,
       tiers: agr.agreement.commission_tiers,
     });
+
+    const signed =
+      ctx.subscriptionExempt || isAgreementSigned(agr.agreement);
+    const reallySigned = isAgreementSigned(agr.agreement);
+
+    if (format === 'download' || format === 'html') {
+      const doc = buildSalesAgreementDownloadDocument({
+        bodyHtml,
+        meta: {
+          companyName: ctx.companyName,
+          contractorName,
+          contractVersion:
+            agr.agreement.contract_version || SALES_CONTRACTOR_CONTRACT_VERSION,
+          status: reallySigned ? 'signed' : 'pending',
+          signedAt: agr.agreement.signed_at,
+          signatureName: agr.agreement.signature_name,
+          signatureEmail:
+            agr.agreement.signature_email || ctx.email || null,
+          agreementId: agr.agreement.id,
+        },
+      });
+      const safeCo = ctx.companyName
+        .replace(/[^\w\-]+/g, '-')
+        .replace(/-+/g, '-')
+        .slice(0, 40);
+      const filename = reallySigned
+        ? `sales-contractor-agreement-signed-${safeCo}-v${SALES_CONTRACTOR_CONTRACT_VERSION}.html`
+        : `sales-contractor-agreement-draft-${safeCo}-v${SALES_CONTRACTOR_CONTRACT_VERSION}.html`;
+      return new NextResponse(doc, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Content-Disposition': `attachment; filename="${filename}"`,
+          'Cache-Control': 'no-store',
+        },
+      });
+    }
 
     const subActive =
       ctx.subscriptionExempt || Boolean(agr.agreement.subscription?.isActive);
@@ -59,12 +106,13 @@ export async function GET(request: NextRequest) {
       isSalesContractor: ctx.isSalesContractor,
       subscriptionExempt: ctx.subscriptionExempt,
       // Owner / finance / admin: free full access
-      signed: ctx.subscriptionExempt || isAgreementSigned(agr.agreement),
+      signed,
       subscriptionActive: subActive,
       subscription: agr.agreement.subscription || null,
       agreement: agr.agreement,
       contractVersion: SALES_CONTRACTOR_CONTRACT_VERSION,
-      html,
+      html: bodyHtml,
+      downloadUrl: `/api/sales/agreement?companyId=${companyId}&privyUserId=${encodeURIComponent(privyUserId || '')}&format=download`,
     });
   } catch (e: unknown) {
     return NextResponse.json(

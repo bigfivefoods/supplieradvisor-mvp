@@ -40,6 +40,199 @@ export function superLinkExampleDealValue(): number {
   return superLinkDealValue();
 }
 
+export type AgreementDownloadMeta = {
+  companyName: string;
+  contractorName: string;
+  contractVersion?: string | null;
+  /** pending | signed */
+  status: 'pending' | 'signed';
+  signedAt?: string | null;
+  signatureName?: string | null;
+  signatureEmail?: string | null;
+  agreementId?: number | null;
+  generatedAt?: string;
+};
+
+/**
+ * Full standalone HTML document for download / print-to-PDF.
+ * Works before acceptance (draft) and after (signed certificate).
+ */
+export function buildSalesAgreementDownloadDocument(params: {
+  bodyHtml: string;
+  meta: AgreementDownloadMeta;
+}): string {
+  const { bodyHtml, meta } = params;
+  const generated =
+    meta.generatedAt ||
+    new Date().toLocaleString('en-ZA', {
+      dateStyle: 'full',
+      timeStyle: 'short',
+    });
+  const version = meta.contractVersion || SALES_CONTRACTOR_CONTRACT_VERSION;
+  const isSigned = meta.status === 'signed';
+  const signedBlock = isSigned
+    ? `
+    <section class="cert">
+      <h2>Certificate of electronic acceptance (ECTA)</h2>
+      <table>
+        <tr><th>Status</th><td><strong>SIGNED / ACCEPTED</strong></td></tr>
+        <tr><th>Signatory name</th><td>${escapeHtml(meta.signatureName || meta.contractorName)}</td></tr>
+        <tr><th>Signatory email</th><td>${escapeHtml(meta.signatureEmail || '—')}</td></tr>
+        <tr><th>Signed at</th><td>${escapeHtml(
+          meta.signedAt
+            ? new Date(meta.signedAt).toLocaleString('en-ZA', {
+                dateStyle: 'full',
+                timeStyle: 'medium',
+              })
+            : '—'
+        )}</td></tr>
+        <tr><th>Contract version</th><td>${escapeHtml(version)}</td></tr>
+        <tr><th>Agreement ID</th><td>${meta.agreementId != null ? String(meta.agreementId) : '—'}</td></tr>
+        <tr><th>Company</th><td>${escapeHtml(meta.companyName)}</td></tr>
+      </table>
+      <p class="note">This document was generated from SupplierAdvisor after electronic acceptance.
+      The typed legal name and authentication records constitute the Contractor’s signature under the
+      Electronic Communications and Transactions Act 25 of 2002 (ECTA).</p>
+    </section>`
+    : `
+    <section class="cert draft">
+      <h2>Document status: NOT YET SIGNED</h2>
+      <p>This is a <strong>downloadable copy for review</strong> before acceptance.
+      It is not a completed contract until the Contractor accepts electronically in the
+      SupplierAdvisor Sales Portal (checkbox + full legal name + secure sign-in).</p>
+      <table>
+        <tr><th>Proposed contractor</th><td>${escapeHtml(meta.contractorName)}</td></tr>
+        <tr><th>Company</th><td>${escapeHtml(meta.companyName)}</td></tr>
+        <tr><th>Contract version</th><td>${escapeHtml(version)}</td></tr>
+        <tr><th>Generated</th><td>${escapeHtml(generated)}</td></tr>
+      </table>
+    </section>`;
+
+  return `<!DOCTYPE html>
+<html lang="en-ZA">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${escapeHtml(SALES_CONTRACTOR_CONTRACT_TITLE)} — ${escapeHtml(meta.companyName)}</title>
+  <style>
+    @page { margin: 18mm 16mm; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      color: #0f172a;
+      line-height: 1.55;
+      font-size: 12.5px;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 24px 20px 48px;
+      background: #fff;
+    }
+    .masthead {
+      border-bottom: 3px solid #0f172a;
+      padding-bottom: 14px;
+      margin-bottom: 20px;
+    }
+    .masthead .brand {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #0077b6;
+    }
+    .masthead h1 {
+      font-size: 18px;
+      margin: 8px 0 6px;
+      line-height: 1.25;
+      letter-spacing: -0.02em;
+    }
+    .masthead .meta {
+      font-size: 11px;
+      color: #64748b;
+    }
+    .badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid #cbd5e1;
+      margin-top: 8px;
+    }
+    .badge.signed { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
+    .badge.draft { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+    .body-wrap { margin: 16px 0 28px; }
+    .body-wrap h2, .body-wrap h3 { page-break-after: avoid; }
+    .cert {
+      border: 2px solid #0f172a;
+      border-radius: 12px;
+      padding: 16px 18px;
+      margin-top: 28px;
+      background: #f8fafc;
+      page-break-inside: avoid;
+    }
+    .cert.draft { border-color: #d97706; background: #fffbeb; }
+    .cert h2 { font-size: 14px; margin: 0 0 10px; }
+    .cert table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .cert th {
+      text-align: left;
+      width: 34%;
+      padding: 6px 8px 6px 0;
+      color: #64748b;
+      font-weight: 600;
+      vertical-align: top;
+    }
+    .cert td { padding: 6px 0; vertical-align: top; }
+    .cert .note { font-size: 11px; color: #64748b; margin: 12px 0 0; }
+    .footer {
+      margin-top: 32px;
+      padding-top: 12px;
+      border-top: 1px solid #e2e8f0;
+      font-size: 10px;
+      color: #94a3b8;
+      text-align: center;
+    }
+    @media print {
+      body { padding: 0; max-width: none; }
+      .no-print { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <header class="masthead">
+    <div class="brand">SupplierAdvisor® · Sales contractor portal</div>
+    <h1>${escapeHtml(SALES_CONTRACTOR_CONTRACT_TITLE)}</h1>
+    <div class="meta">
+      ${escapeHtml(meta.companyName)} · Version ${escapeHtml(version)} · Generated ${escapeHtml(generated)}
+    </div>
+    <div class="badge ${isSigned ? 'signed' : 'draft'}">
+      ${isSigned ? 'Signed copy' : 'Draft — for review before acceptance'}
+    </div>
+  </header>
+
+  ${signedBlock}
+
+  <div class="body-wrap">
+    ${bodyHtml}
+  </div>
+
+  <footer class="footer">
+    SupplierAdvisor® · Confidential · Sole agreement &amp; NDA · Governed by the laws of the Republic of South Africa<br/>
+    Print this page (Ctrl/Cmd+P) and choose “Save as PDF” if you need a PDF file.
+  </footer>
+</body>
+</html>`;
+}
+
+function escapeHtml(s: string): string {
+  return String(s || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 export function getSalesContractorAgreementHtml(params: {
   contractorName: string;
   companyName: string;
