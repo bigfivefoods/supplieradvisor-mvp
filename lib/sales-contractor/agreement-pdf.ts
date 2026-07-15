@@ -212,11 +212,8 @@ function drawRunningHeader(
   });
 }
 
-function drawRunningFooter(
-  doc: PDFKit.PDFDocument,
-  pageNum: number,
-  pageCount: number | null
-) {
+/** Footer line + left legal text only — no page numbers (those are stamped once at the end). */
+function drawFooterChrome(doc: PDFKit.PDFDocument) {
   withOpenMargins(doc, () => {
     doc
       .moveTo(MARGIN_X, FOOTER_Y - 10)
@@ -232,17 +229,28 @@ function drawRunningFooter(
         'Confidential · Sole agreement & NDA · Laws of the Republic of South Africa',
         MARGIN_X,
         FOOTER_Y - 4,
-        { width: CONTENT_W - 80, lineBreak: false }
+        { width: CONTENT_W - 90, lineBreak: false }
       );
-    const label =
-      pageCount != null
-        ? `Page ${pageNum} of ${pageCount}`
-        : `Page ${pageNum}`;
-    doc.text(label, MARGIN_X, FOOTER_Y - 4, {
-      width: CONTENT_W,
-      align: 'right',
-      lineBreak: false,
-    });
+  });
+}
+
+/** Single page number on bottom-right: "Page X of Y" only. */
+function drawPageNumber(
+  doc: PDFKit.PDFDocument,
+  pageNum: number,
+  pageCount: number
+) {
+  withOpenMargins(doc, () => {
+    const label = `Page ${pageNum} of ${pageCount}`;
+    doc
+      .font('Helvetica')
+      .fontSize(7)
+      .fillColor('#94a3b8')
+      .text(label, MARGIN_X, FOOTER_Y - 4, {
+        width: CONTENT_W,
+        align: 'right',
+        lineBreak: false,
+      });
   });
 }
 
@@ -335,19 +343,17 @@ export async function buildSalesAgreementPdf(params: {
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
-    // Running chrome on every NEW page (pageAdded does not fire for page 1)
+    // Running chrome on every NEW page (pageAdded does not fire for page 1).
+    // Page numbers are stamped only once in the final pass (Page X of Y).
     doc.on('pageAdded', () => {
       drawRunningHeader(doc, meta.companyName, version);
-      // Temporary page label; final "of N" stamped at end
-      drawRunningFooter(doc, doc.bufferedPageRange().count, null);
-      // Resume body below header
+      drawFooterChrome(doc);
       doc.x = MARGIN_X;
       doc.y = MARGIN_TOP;
     });
 
     // ── Page 1 masthead (replaces running header on first page) ──
-    // Draw first-page footer now so it's on the same page as content
-    drawRunningFooter(doc, 1, null);
+    drawFooterChrome(doc);
 
     doc.y = MARGIN_TOP;
     resetX(doc);
@@ -618,17 +624,12 @@ export async function buildSalesAgreementPdf(params: {
       doc.y += 3;
     }
 
-    // ── Final pass: correct "Page X of Y" on every existing page ──
-    // Zero margins so stamping never creates blank pages.
+    // ── Final pass: stamp "Page X of Y" once per page (bottom-right only) ──
     const range = doc.bufferedPageRange();
     const total = range.count;
     for (let i = 0; i < total; i++) {
       doc.switchToPage(range.start + i);
-      drawRunningFooter(doc, i + 1, total);
-      // Page 2+ already have running headers from pageAdded; page 1 has masthead
-      if (i > 0) {
-        drawRunningHeader(doc, meta.companyName, version);
-      }
+      drawPageNumber(doc, i + 1, total);
     }
 
     doc.end();
