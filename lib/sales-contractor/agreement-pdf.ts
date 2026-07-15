@@ -1,6 +1,10 @@
 /**
  * Generate a clean multi-page A4 PDF of the Independent Sales Contractor Agreement.
  * Uses pdfkit (pure Node — works on Vercel serverless).
+ *
+ * Header/footer are drawn on the *same* pages as body content. We never write
+ * text inside the bottom margin while margins are active (that creates blank
+ * extra pages — the classic PDFKit "doubled length" bug).
  */
 import PDFDocument from 'pdfkit';
 import {
@@ -20,10 +24,16 @@ type Block =
 const PAGE_W = 595.28;
 const PAGE_H = 841.89;
 const MARGIN_X = 50;
-const MARGIN_TOP = 46;
-const MARGIN_BOTTOM = 52; // room for footer
+/** Top of body area (below running header on page 2+) */
+const MARGIN_TOP = 54;
+/** Reserved bottom strip for footer — body must stop above this */
+const MARGIN_BOTTOM = 48;
 const CONTENT_W = PAGE_W - MARGIN_X * 2;
-const FOOTER_Y = PAGE_H - 34;
+/** Last Y body content may use */
+const CONTENT_BOTTOM = PAGE_H - MARGIN_BOTTOM;
+/** Footer baseline (inside the reserved bottom strip) */
+const FOOTER_Y = PAGE_H - 28;
+const HEADER_Y = 28;
 
 function decodeEntities(s: string): string {
   return String(s || '')
@@ -140,11 +150,105 @@ export function htmlBodyToBlocks(html: string): Block[] {
   return blocks;
 }
 
+/**
+ * Draw in the header/footer zone without PDFKit creating a new page.
+ * Writing inside bottom margin with margins active is what doubles page count.
+ */
+function withOpenMargins(
+  doc: PDFKit.PDFDocument,
+  fn: () => void
+) {
+  const page = doc.page;
+  const saved = {
+    top: page.margins.top,
+    bottom: page.margins.bottom,
+    left: page.margins.left,
+    right: page.margins.right,
+  };
+  page.margins.top = 0;
+  page.margins.bottom = 0;
+  page.margins.left = 0;
+  page.margins.right = 0;
+  try {
+    fn();
+  } finally {
+    page.margins.top = saved.top;
+    page.margins.bottom = saved.bottom;
+    page.margins.left = saved.left;
+    page.margins.right = saved.right;
+  }
+}
+
+function drawRunningHeader(
+  doc: PDFKit.PDFDocument,
+  companyName: string,
+  version: string
+) {
+  withOpenMargins(doc, () => {
+    doc
+      .font('Helvetica')
+      .fontSize(7)
+      .fillColor('#64748b')
+      .text('SupplierAdvisor® · Sales contractor agreement', MARGIN_X, HEADER_Y, {
+        width: CONTENT_W * 0.62,
+        lineBreak: false,
+      });
+    doc.text(
+      `${companyName} · ${version}`.slice(0, 60),
+      MARGIN_X,
+      HEADER_Y,
+      {
+        width: CONTENT_W,
+        align: 'right',
+        lineBreak: false,
+      }
+    );
+    doc
+      .moveTo(MARGIN_X, HEADER_Y + 12)
+      .lineTo(MARGIN_X + CONTENT_W, HEADER_Y + 12)
+      .strokeColor('#e2e8f0')
+      .lineWidth(0.5)
+      .stroke();
+  });
+}
+
+function drawRunningFooter(
+  doc: PDFKit.PDFDocument,
+  pageNum: number,
+  pageCount: number | null
+) {
+  withOpenMargins(doc, () => {
+    doc
+      .moveTo(MARGIN_X, FOOTER_Y - 10)
+      .lineTo(MARGIN_X + CONTENT_W, FOOTER_Y - 10)
+      .strokeColor('#e2e8f0')
+      .lineWidth(0.5)
+      .stroke();
+    doc
+      .font('Helvetica')
+      .fontSize(7)
+      .fillColor('#94a3b8')
+      .text(
+        'Confidential · Sole agreement & NDA · Laws of the Republic of South Africa',
+        MARGIN_X,
+        FOOTER_Y - 4,
+        { width: CONTENT_W - 80, lineBreak: false }
+      );
+    const label =
+      pageCount != null
+        ? `Page ${pageNum} of ${pageCount}`
+        : `Page ${pageNum}`;
+    doc.text(label, MARGIN_X, FOOTER_Y - 4, {
+      width: CONTENT_W,
+      align: 'right',
+      lineBreak: false,
+    });
+  });
+}
+
 function ensureSpace(doc: PDFKit.PDFDocument, need: number) {
-  if (doc.y + need > FOOTER_Y - 8) {
+  if (doc.y + need > CONTENT_BOTTOM - 4) {
     doc.addPage();
-    doc.x = MARGIN_X;
-    doc.y = MARGIN_TOP;
   }
 }
 
@@ -170,7 +274,13 @@ function writeWrapped(
     .font(opts.font || 'Helvetica')
     .fontSize(opts.size ?? 9)
     .fillColor(opts.color || '#334155');
-  ensureSpace(doc, 14);
+
+  // Estimate height and break page first so PDFKit doesn't auto-add mid-write
+  const h = doc.heightOfString(text, {
+    width,
+    lineGap: opts.lineGap ?? 1.5,
+  });
+  ensureSpace(doc, Math.min(h, 40) + 4);
   resetX(doc);
   doc.text(text, MARGIN_X, doc.y, {
     width,
@@ -199,13 +309,11 @@ export async function buildSalesAgreementPdf(params: {
     });
 
   const blocks = htmlBodyToBlocks(bodyHtml);
-  const title = meta.companyName
-    ? `${SALES_CONTRACTOR_CONTRACT_TITLE}`
-    : SALES_CONTRACTOR_CONTRACT_TITLE;
 
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
       size: 'A4',
+      // Body stays inside these margins; header/footer drawn with margins zeroed
       margins: {
         top: MARGIN_TOP,
         bottom: MARGIN_BOTTOM,
@@ -213,7 +321,7 @@ export async function buildSalesAgreementPdf(params: {
         right: MARGIN_X,
       },
       info: {
-        Title: title,
+        Title: SALES_CONTRACTOR_CONTRACT_TITLE,
         Author: 'SupplierAdvisor',
         Subject: `${meta.companyName} — ${version}`,
         Creator: 'SupplierAdvisor Sales Portal',
@@ -227,7 +335,20 @@ export async function buildSalesAgreementPdf(params: {
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
-    // ── Masthead ──────────────────────────────────────────────
+    // Running chrome on every NEW page (pageAdded does not fire for page 1)
+    doc.on('pageAdded', () => {
+      drawRunningHeader(doc, meta.companyName, version);
+      // Temporary page label; final "of N" stamped at end
+      drawRunningFooter(doc, doc.bufferedPageRange().count, null);
+      // Resume body below header
+      doc.x = MARGIN_X;
+      doc.y = MARGIN_TOP;
+    });
+
+    // ── Page 1 masthead (replaces running header on first page) ──
+    // Draw first-page footer now so it's on the same page as content
+    drawRunningFooter(doc, 1, null);
+
     doc.y = MARGIN_TOP;
     resetX(doc);
 
@@ -238,17 +359,18 @@ export async function buildSalesAgreementPdf(params: {
       .text('SUPPLIERADVISOR®  ·  SALES CONTRACTOR PORTAL', MARGIN_X, doc.y, {
         width: CONTENT_W,
         characterSpacing: 0.8,
+        lineBreak: false,
       });
+    doc.y += 12;
 
-    doc.moveDown(0.35);
     writeWrapped(doc, SALES_CONTRACTOR_CONTRACT_TITLE, {
       font: 'Helvetica-Bold',
-      size: 12,
+      size: 11.5,
       color: '#0f172a',
       lineGap: 2,
     });
 
-    doc.moveDown(0.15);
+    doc.y += 2;
     writeWrapped(
       doc,
       `${meta.companyName}  ·  Version ${version}  ·  ${generated}`,
@@ -256,7 +378,7 @@ export async function buildSalesAgreementPdf(params: {
     );
 
     // Status badge
-    doc.moveDown(0.25);
+    doc.y += 4;
     const badge = isSigned
       ? 'SIGNED COPY'
       : 'DRAFT — FOR REVIEW BEFORE ACCEPTANCE';
@@ -268,16 +390,19 @@ export async function buildSalesAgreementPdf(params: {
     ensureSpace(doc, badgeH + 12);
     const by = doc.y;
     doc.roundedRect(MARGIN_X, by, badgeW, badgeH, 4).fill(badgeBg);
-    doc
-      .fillColor(badgeColor)
-      .text(badge, MARGIN_X + 7, by + 3.5, {
-        width: badgeW - 14,
-        lineBreak: false,
-      });
+    withOpenMargins(doc, () => {
+      doc
+        .fillColor(badgeColor)
+        .font('Helvetica-Bold')
+        .fontSize(7.5)
+        .text(badge, MARGIN_X + 7, by + 3.5, {
+          width: badgeW - 14,
+          lineBreak: false,
+        });
+    });
     doc.y = by + badgeH + 8;
     resetX(doc);
 
-    // Rule
     doc
       .moveTo(MARGIN_X, doc.y)
       .lineTo(MARGIN_X + CONTENT_W, doc.y)
@@ -325,7 +450,7 @@ export async function buildSalesAgreementPdf(params: {
       doc.font(f).fontSize(sz);
       certTextH +=
         doc.heightOfString(certLines[i], {
-          width: CONTENT_W - certPad * 2,
+          width: CONTENT_W - certPad * 2 - 4,
         }) + (i === 0 ? 4 : 2);
     }
     const certBoxH = certTextH + certPad * 2;
@@ -333,9 +458,13 @@ export async function buildSalesAgreementPdf(params: {
     const certY = doc.y;
     doc
       .roundedRect(MARGIN_X, certY, CONTENT_W, certBoxH, 5)
-      .fillAndStroke(isSigned ? '#f8fafc' : '#fffbeb', isSigned ? '#0f172a' : '#d97706');
-    // accent bar
-    doc.rect(MARGIN_X, certY, 4, certBoxH).fill(isSigned ? '#0f172a' : '#d97706');
+      .fillAndStroke(
+        isSigned ? '#f8fafc' : '#fffbeb',
+        isSigned ? '#0f172a' : '#d97706'
+      );
+    doc
+      .rect(MARGIN_X, certY, 4, certBoxH)
+      .fill(isSigned ? '#0f172a' : '#d97706');
 
     let cy = certY + certPad;
     for (let i = 0; i < certLines.length; i++) {
@@ -350,10 +479,14 @@ export async function buildSalesAgreementPdf(params: {
             ? '#64748b'
             : '#334155';
       doc.font(f).fontSize(sz).fillColor(col);
-      doc.text(certLines[i], MARGIN_X + certPad + 4, cy, {
+      const lineH = doc.heightOfString(certLines[i], {
         width: CONTENT_W - certPad * 2 - 4,
       });
-      cy = doc.y + (i === 0 ? 3 : 1);
+      doc.text(certLines[i], MARGIN_X + certPad + 4, cy, {
+        width: CONTENT_W - certPad * 2 - 4,
+        lineBreak: true,
+      });
+      cy += lineH + (i === 0 ? 4 : 2);
     }
     doc.y = certY + certBoxH + 12;
     resetX(doc);
@@ -362,7 +495,7 @@ export async function buildSalesAgreementPdf(params: {
     for (const block of blocks) {
       if (block.kind === 'h') {
         ensureSpace(doc, 28);
-        doc.moveDown(0.35);
+        doc.y += 6;
         writeWrapped(doc, block.text.toUpperCase(), {
           font: 'Helvetica-Bold',
           size: 9.5,
@@ -370,12 +503,14 @@ export async function buildSalesAgreementPdf(params: {
           lineGap: 1,
         });
         const lineY = doc.y + 1;
-        doc
-          .moveTo(MARGIN_X, lineY)
-          .lineTo(MARGIN_X + CONTENT_W, lineY)
-          .strokeColor('#cbd5e1')
-          .lineWidth(0.5)
-          .stroke();
+        if (lineY < CONTENT_BOTTOM) {
+          doc
+            .moveTo(MARGIN_X, lineY)
+            .lineTo(MARGIN_X + CONTENT_W, lineY)
+            .strokeColor('#cbd5e1')
+            .lineWidth(0.5)
+            .stroke();
+        }
         doc.y = lineY + 6;
         resetX(doc);
         continue;
@@ -420,7 +555,6 @@ export async function buildSalesAgreementPdf(params: {
 
       if (block.kind === 'table') {
         const colCount = Math.max(...block.rows.map((r) => r.length), 1);
-        // Weighted columns: first cols get more space when 3-col
         const colWs: number[] = [];
         if (colCount === 3) {
           colWs.push(CONTENT_W * 0.32, CONTENT_W * 0.18, CONTENT_W * 0.5);
@@ -463,6 +597,7 @@ export async function buildSalesAgreementPdf(params: {
                 width: w - 8,
                 height: rowH - 5,
                 ellipsis: true,
+                lineBreak: true,
               });
             x += w;
           }
@@ -474,7 +609,6 @@ export async function buildSalesAgreementPdf(params: {
         continue;
       }
 
-      // paragraph
       writeWrapped(doc, block.text, {
         size: 8.5,
         color: '#334155',
@@ -484,31 +618,17 @@ export async function buildSalesAgreementPdf(params: {
       doc.y += 3;
     }
 
-    // ── Page numbers + footer on every page ───────────────────
+    // ── Final pass: correct "Page X of Y" on every existing page ──
+    // Zero margins so stamping never creates blank pages.
     const range = doc.bufferedPageRange();
-    for (let i = 0; i < range.count; i++) {
+    const total = range.count;
+    for (let i = 0; i < total; i++) {
       doc.switchToPage(range.start + i);
-      doc
-        .moveTo(MARGIN_X, FOOTER_Y - 10)
-        .lineTo(MARGIN_X + CONTENT_W, FOOTER_Y - 10)
-        .strokeColor('#e2e8f0')
-        .lineWidth(0.5)
-        .stroke();
-      doc
-        .font('Helvetica')
-        .fontSize(7)
-        .fillColor('#94a3b8')
-        .text(
-          'SupplierAdvisor® · Confidential · Sole agreement & NDA · South Africa',
-          MARGIN_X,
-          FOOTER_Y - 4,
-          { width: CONTENT_W - 70, lineBreak: false }
-        );
-      doc.text(`Page ${i + 1} of ${range.count}`, MARGIN_X, FOOTER_Y - 4, {
-        width: CONTENT_W,
-        align: 'right',
-        lineBreak: false,
-      });
+      drawRunningFooter(doc, i + 1, total);
+      // Page 2+ already have running headers from pageAdded; page 1 has masthead
+      if (i > 0) {
+        drawRunningHeader(doc, meta.companyName, version);
+      }
     }
 
     doc.end();
