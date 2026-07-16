@@ -1,6 +1,6 @@
 /**
- * Company SaaS subscription — R499 / month after 30-day free trial.
- * Payments via Paystack (monthly prepaid period).
+ * Company SaaS subscription — R299 / month after 30-day free trial.
+ * Payments via Paystack (monthly or multi-year prepaid with discounts).
  * Lifetime complimentary: founder companies + first 50 founding partners.
  */
 
@@ -10,7 +10,7 @@ import {
   LIFETIME_PLAN,
 } from '@/lib/billing/lifetime';
 
-export const COMPANY_SUBSCRIPTION_MONTHLY_ZAR = 499;
+export const COMPANY_SUBSCRIPTION_MONTHLY_ZAR = 299;
 /** Paystack amount in cents (ZAR minor units). */
 export const COMPANY_SUBSCRIPTION_MONTHLY_CENTS =
   COMPANY_SUBSCRIPTION_MONTHLY_ZAR * 100;

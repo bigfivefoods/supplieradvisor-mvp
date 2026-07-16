@@ -117,7 +117,7 @@ function HubInner() {
       icon: CreditCard,
       code: '03',
       title: 'Billing',
-      desc: '30-day free trial, then R499/mo via Paystack.',
+      desc: '30-day free trial, then R299/mo via Paystack (save up to 30% prepaid).',
       accent: 'from-amber-50 to-white border-amber-100',
       metric: loading
         ? '—'

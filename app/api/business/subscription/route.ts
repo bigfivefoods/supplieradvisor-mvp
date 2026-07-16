@@ -30,6 +30,12 @@ import {
   LIFETIME_PLAN_FOUNDING,
 } from '@/lib/billing/lifetime';
 import { verifyPaystackTransaction } from '@/lib/billing/paystack';
+import {
+  creditSubscriptionReferralFees,
+  ensureReferralCode,
+  getReferralSummary,
+  referralRatesSummary,
+} from '@/lib/billing/supply-chain-referral';
 
 type ProfileSubRow = {
   id: number;
@@ -316,6 +322,9 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const referral = await getReferralSummary(companyId);
+    const referralCode = await ensureReferralCode(companyId);
+
     return NextResponse.json({
       success: true,
       companyId,
@@ -326,6 +335,14 @@ export async function GET(request: NextRequest) {
       trialJustStarted,
       lifetimeJustGranted,
       foundingFreeSlots: FOUNDING_FREE_COMPANY_LIMIT,
+      referral: {
+        ...referral,
+        code: referralCode,
+        ratesSummary: referralRatesSummary(),
+        invitePath: referralCode
+          ? `/onboarding?ref=${encodeURIComponent(referralCode)}`
+          : `/onboarding?ref=${companyId}`,
+      },
     });
   } catch (e: unknown) {
     return NextResponse.json(
@@ -589,6 +606,15 @@ export async function POST(request: NextRequest) {
       row = data as ProfileSubRow;
       const subscription = computeCompanySubscription(row);
 
+      // Credit L1–L3 supply-chain referral fees (max 10% of payment)
+      const referralResult = await creditSubscriptionReferralFees({
+        sourceProfileId: companyId,
+        baseAmountZar: finalTerm.payZar,
+        sourceRef: verified.reference,
+        termLabel: finalTerm.label,
+        months: finalTerm.months,
+      });
+
       void logActivity({
         profile_id: companyId,
         actor_user_id: gate.userId,
@@ -605,6 +631,15 @@ export async function POST(request: NextRequest) {
           endsAt: periodEnd.toISOString(),
           amountCents: verified.amount,
           channel: verified.channel,
+          referralPayouts:
+            referralResult.ok
+              ? referralResult.payouts.map((p) => ({
+                  level: p.level,
+                  earner: p.earnerProfileId,
+                  rate: p.ratePct,
+                  zar: p.commissionZar,
+                }))
+              : [],
         },
       });
 
@@ -614,6 +649,14 @@ export async function POST(request: NextRequest) {
         pricing: pricingPayload(),
         term: finalTerm,
         periodEnd: periodEnd.toISOString(),
+        referral:
+          referralResult.ok
+            ? {
+                credited: referralResult.inserted,
+                payouts: referralResult.payouts,
+                ratesSummary: referralRatesSummary(),
+              }
+            : { error: referralResult.error },
       });
     }
 

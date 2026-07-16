@@ -158,6 +158,23 @@ export default function BusinessOnboardingWizard() {
 
     setSubmitting(true);
     try {
+      // Supply-chain referrer from ?ref= on /onboarding (company id or code)
+      let referralCode =
+        searchParams.get('ref') || searchParams.get('referral') || null;
+      if (referralCode && typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('sa_referral_code', referralCode);
+        } catch {
+          /* ignore */
+        }
+      } else if (typeof window !== 'undefined') {
+        try {
+          referralCode = localStorage.getItem('sa_referral_code');
+        } catch {
+          /* ignore */
+        }
+      }
+
       const res = await fetch('/api/onboarding/register-business', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -165,6 +182,7 @@ export default function BusinessOnboardingWizard() {
           privyUserId,
           ...form,
           contact_email: form.contact_email || extractEmailFromPrivyUser(user),
+          referralCode: referralCode || undefined,
         }),
       });
       const data = await res.json();

@@ -14,6 +14,7 @@ import {
   LIFETIME_PLAN_FOUNDER,
   LIFETIME_PLAN_FOUNDING,
 } from '@/lib/billing/lifetime';
+import { resolveReferrerFromCode } from '@/lib/billing/supply-chain-referral';
 
 /**
  * POST /api/onboarding/register-business
@@ -36,6 +37,10 @@ export async function POST(request: NextRequest) {
       contact_email,
       contact_phone,
       short_description,
+      // Supply-chain referral: code or company id of inviting company
+      referralCode,
+      referredBy,
+      ref,
     } = body;
 
     const _auth = await requireVerifiedUser(request, { legacyPrivyUserId: privyUserId });
@@ -81,6 +86,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Resolve optional supply-chain referrer (company that invited this business)
+    const refRaw = String(referralCode || referredBy || ref || '').trim();
+    let referredByProfileId: number | null = null;
+    if (refRaw) {
+      referredByProfileId = await resolveReferrerFromCode(refRaw);
+    }
+
     const baseInsert: Record<string, unknown> = {
       trading_name: tradingNameTrim,
       legal_name: legalNameTrim,
@@ -100,6 +112,9 @@ export async function POST(request: NextRequest) {
       user_id: userId,
       created_at: now,
       claimed_at: now,
+      ...(referredByProfileId
+        ? { referred_by_profile_id: referredByProfileId }
+        : {}),
       ...(lifetimePlan
         ? {
             subscription_status: 'lifetime',

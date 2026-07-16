@@ -12,6 +12,7 @@ import {
   Clock,
   AlertTriangle,
   RefreshCw,
+  Users,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePrivy } from '@privy-io/react-auth';
@@ -66,6 +67,18 @@ function BillingInner() {
     useState<CompanySubscriptionInfo | null>(null);
   const [termId, setTermId] = useState<BillingTermId>('1y');
   const selectedTerm = getBillingTerm(termId);
+  const [referral, setReferral] = useState<{
+    code?: string | null;
+    invitePath?: string;
+    ratesSummary?: string;
+    pendingZar?: number;
+    approvedZar?: number;
+    paidZar?: number;
+    totalZar?: number;
+    directReferrals?: number;
+    rates?: readonly number[];
+    totalCapPct?: number;
+  } | null>(null);
 
   const load = useCallback(async () => {
     if (!companyId) return;
@@ -82,6 +95,7 @@ function BillingInner() {
       setCompanyName(data.companyName || '');
       setBillingEmail(data.billingEmail || null);
       setSubscription(data.subscription || null);
+      setReferral(data.referral || null);
       if (data.trialJustStarted) {
         toast.success(`${COMPANY_TRIAL_DAYS}-day free trial started`);
       }
@@ -462,6 +476,72 @@ function BillingInner() {
 
           <Panel className="p-5">
             <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <Users className="w-4 h-4 text-[#00b4d8]" />
+              Supply-chain referral (3 levels)
+            </h3>
+            <p className="mt-2 text-xs text-slate-600 leading-relaxed">
+              Earn a share of platform subscription fees when companies you invite
+              (and their invites, two levels further) pay for SupplierAdvisor.
+              Pool capped at <strong>10% total</strong>:{' '}
+              {referral?.ratesSummary || 'L1 5% · L2 3% · L3 2%'}.
+            </p>
+            <dl className="mt-3 space-y-2 text-sm">
+              <div className="flex justify-between gap-2">
+                <dt className="text-slate-500">Direct referrals</dt>
+                <dd className="font-semibold">{referral?.directReferrals ?? 0}</dd>
+              </div>
+              <div className="flex justify-between gap-2">
+                <dt className="text-slate-500">Approved earnings</dt>
+                <dd className="font-semibold text-emerald-700">
+                  {formatZar(Number(referral?.approvedZar || 0))}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-2">
+                <dt className="text-slate-500">Paid out</dt>
+                <dd className="font-semibold">
+                  {formatZar(Number(referral?.paidZar || 0))}
+                </dd>
+              </div>
+            </dl>
+            {referral?.invitePath ? (
+              <div className="mt-3 space-y-2">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Your invite link
+                </div>
+                <input
+                  readOnly
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-mono"
+                  value={
+                    typeof window !== 'undefined'
+                      ? `${window.location.origin}${referral.invitePath}`
+                      : referral.invitePath
+                  }
+                />
+                <button
+                  type="button"
+                  className="text-xs font-bold text-[#0077b6] hover:underline"
+                  onClick={() => {
+                    const url =
+                      typeof window !== 'undefined'
+                        ? `${window.location.origin}${referral.invitePath}`
+                        : referral.invitePath || '';
+                    void navigator.clipboard.writeText(url);
+                    toast.success('Referral link copied');
+                  }}
+                >
+                  Copy link · code {referral.code || companyId}
+                </button>
+              </div>
+            ) : null}
+            <p className="mt-3 text-[10px] text-slate-400 leading-relaxed">
+              Separate from sales-contractor product commission (personal sales
+              only). This fee is on platform subscription payments in your
+              referral supply chain.
+            </p>
+          </Panel>
+
+          <Panel className="p-5">
+            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
               <Clock className="w-4 h-4 text-[#00b4d8]" />
               How billing works
             </h3>
@@ -471,8 +551,8 @@ function BillingInner() {
                 company.
               </li>
               <li>
-                Pay R{COMPANY_SUBSCRIPTION_MONTHLY_ZAR} via Paystack for one
-                month of access.
+                Pay from R{COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo via Paystack —
+                or prepay 1–3 years and save up to 30%.
               </li>
               <li>
                 Renew from this page before expiry — early renewals extend your
