@@ -35,6 +35,7 @@ import {
   ensureReferralCode,
   getReferralSummary,
   referralRatesSummary,
+  referralSuggestedCopy,
 } from '@/lib/billing/supply-chain-referral';
 
 type ProfileSubRow = {
@@ -338,7 +339,8 @@ export async function GET(request: NextRequest) {
       referral: {
         ...referral,
         code: referralCode,
-        ratesSummary: referralRatesSummary(),
+        ratesSummary: referral.ratesSummary || referralRatesSummary(),
+        suggestedCopy: referral.suggestedCopy || referralSuggestedCopy(),
         invitePath: referralCode
           ? `/onboarding?ref=${encodeURIComponent(referralCode)}`
           : `/onboarding?ref=${companyId}`,

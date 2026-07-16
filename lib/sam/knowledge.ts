@@ -11,7 +11,12 @@ import {
   BILLING_TERMS,
 } from '@/lib/billing/company-subscription';
 import { SALES_SUBSCRIPTION_MONTHLY_ZAR } from '@/lib/sales-contractor/subscription';
-import { REFERRAL_LEVEL_RATES_PCT, REFERRAL_TOTAL_CAP_PCT } from '@/lib/billing/supply-chain-referral';
+import {
+  REFERRAL_LEVEL_RATES_PCT,
+  REFERRAL_TOTAL_CAP_PCT,
+  referralRatesSummary,
+  referralSuggestedCopy,
+} from '@/lib/billing/supply-chain-referral';
 
 export function buildSamKnowledgeBrief(): string {
   const modules = MODULE_NAV.map((m) => {
@@ -63,8 +68,11 @@ Master flow: ${SYSTEM_OVERVIEW.masterFlow.map((n) => n.label).join(' → ')}
 - Sales contractor portal access is a separate fee (about R${SALES_SUBSCRIPTION_MONTHLY_ZAR}/mo term product) after agreement.
 
 ## Supply-chain referral (company-to-company, NOT sales-rep MLM)
-- When companies invite others via referral link (?ref=code), subscription payments can credit up the chain.
-- Rates: L1 ${REFERRAL_LEVEL_RATES_PCT[0]}% · L2 ${REFERRAL_LEVEL_RATES_PCT[1]}% · L3 ${REFERRAL_LEVEL_RATES_PCT[2]}% (max ${REFERRAL_TOTAL_CAP_PCT}% total of the paid subscription amount).
+- When companies invite others via referral link (?ref=code), subscription payments credit up the chain.
+- Suggested split: ${referralRatesSummary()} of the **paid subscription amount**.
+- ${referralSuggestedCopy()}
+- Payout workflow: pending → approved → payout_requested (company requests) → paid (finance marks with bank/ref). Can void before paid.
+- Manage under /dashboard/my-business/billing (referral panel) or /api/business/referrals.
 - Sales contractor product commission remains **personal sales only** (not multi-level recruiting pay) — company Sales program sets 4%/5%/6% stepped bands typically.
 
 ## Sales contractor program
