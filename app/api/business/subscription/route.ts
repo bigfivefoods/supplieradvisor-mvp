@@ -37,6 +37,7 @@ import {
   referralRatesSummary,
   referralSuggestedCopy,
 } from '@/lib/billing/supply-chain-referral';
+import { clawbackReferralForSourceRef } from '@/lib/billing/referral-controls';
 
 type ProfileSubRow = {
   id: number;
@@ -464,6 +465,46 @@ export async function POST(request: NextRequest) {
         success: true,
         subscription: next,
         pricing: pricingPayload(),
+      });
+    }
+
+    // ── refund / reverse: claw back referral fees for a Paystack ref ──
+    if (action === 'refund' || action === 'clawback_referral') {
+      if (!canManageBilling) {
+        return NextResponse.json(
+          { error: 'Only owners, admins, or finance can record refunds.' },
+          { status: 403 }
+        );
+      }
+      const sourceRef = String(
+        body.paystackReference || body.reference || body.sourceRef || ''
+      ).trim();
+      if (!sourceRef) {
+        return NextResponse.json(
+          { error: 'paystackReference required for refund clawback' },
+          { status: 400 }
+        );
+      }
+      const claw = await clawbackReferralForSourceRef({
+        sourceRef,
+        reason: body.reason
+          ? String(body.reason)
+          : 'Subscription payment refunded / reversed',
+        actorUserId: gate.userId,
+      });
+      void logActivity({
+        profile_id: companyId,
+        actor_user_id: gate.userId,
+        action: 'billing.referral_clawback',
+        entity_type: 'profile',
+        entity_id: String(companyId),
+        summary: `Referral clawback for ${sourceRef}: voided ${claw.voided}, open clawbacks ${claw.clawbacksOpened}`,
+        metadata: claw,
+      });
+      return NextResponse.json({
+        success: claw.ok,
+        action: 'refund',
+        clawback: claw,
       });
     }
 

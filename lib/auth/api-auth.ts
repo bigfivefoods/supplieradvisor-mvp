@@ -59,7 +59,7 @@ export function assertCronSecret(request: NextRequest): AuthOk | AuthFail {
   return fail(401, 'Invalid cron secret', 'CRON_UNAUTHORIZED');
 }
 
-function fail(status: number, error: string, code?: string): AuthFail {
+export function fail(status: number, error: string, code?: string): AuthFail {
   return {
     ok: false,
     status,

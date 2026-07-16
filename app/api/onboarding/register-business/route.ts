@@ -18,6 +18,10 @@ import {
   resolveReferrerFromCode,
   resolveReferrerWithRoot,
 } from '@/lib/billing/supply-chain-referral';
+import {
+  detectSelfReferral,
+  recordReferralAttribution,
+} from '@/lib/billing/referral-controls';
 
 /**
  * POST /api/onboarding/register-business
@@ -89,8 +93,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Supply-chain referrer: explicit ref/code, else Big Five Foods (programme root).
-    // Big Five Foods itself stays rootless if registered/matched by founder pattern.
+    // Supply-chain referrer: explicit ref/code only (unless REFERRAL_DEFAULT_ROOT=true)
     const refRaw = String(referralCode || referredBy || ref || '').trim();
     let explicitReferrer: number | null = null;
     if (refRaw) {
@@ -99,9 +102,21 @@ export async function POST(request: NextRequest) {
     const isBffRootName =
       /^big\s*five\s*foods$/i.test(tradingNameTrim) ||
       /^big\s*five\s*foods$/i.test(legalNameTrim);
-    const referredByProfileId = isBffRootName
+    let referredByProfileId = isBffRootName
       ? null
       : resolveReferrerWithRoot(explicitReferrer);
+
+    if (referredByProfileId) {
+      const selfCheck = await detectSelfReferral({
+        referrerProfileId: referredByProfileId,
+        childUserId: userId,
+        childEmail: email,
+      });
+      if (selfCheck.blocked) {
+        // Strip illegal self-referral; do not fail registration
+        referredByProfileId = null;
+      }
+    }
 
     const baseInsert: Record<string, unknown> = {
       trading_name: tradingNameTrim,
@@ -123,7 +138,11 @@ export async function POST(request: NextRequest) {
       created_at: now,
       claimed_at: now,
       ...(referredByProfileId
-        ? { referred_by_profile_id: referredByProfileId }
+        ? {
+            referred_by_profile_id: referredByProfileId,
+            referred_at: now,
+            referral_source: refRaw ? 'ref_link' : 'default_root',
+          }
         : {}),
       ...(lifetimePlan
         ? {
@@ -186,6 +205,17 @@ export async function POST(request: NextRequest) {
         },
         { status: 500 }
       );
+    }
+
+    // Immutable attribution log (first-touch) when referrer was set
+    if (referredByProfileId && profile.id) {
+      await assignReferrerIfEmpty(Number(profile.id), referredByProfileId, {
+        source: refRaw ? 'ref_link' : 'default_root',
+        actorUserId: userId,
+        childUserId: userId,
+        childEmail: email,
+        metadata: { registration: true, ref: refRaw || null },
+      });
     }
 
     const { error: membershipError } = await supabase.from('business_users').insert({

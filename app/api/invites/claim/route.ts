@@ -383,10 +383,15 @@ export async function POST(request: NextRequest) {
       console.error('Network accept after business claim soft-fail:', netErr);
     }
 
-    // Supply-chain referral: inviter (or Big Five Foods root) if not already set
+    // Supply-chain referral: inviter if set (explicit only unless default root enabled)
     try {
       await assignReferrerIfEmpty(Number(profile.id), inviterForReferral, {
-        source: 'business_invite_claim',
+        source: inviterForReferral ? 'claim' : 'unknown',
+        inviteToken: token,
+        actorUserId: userId,
+        childUserId: userId,
+        childEmail: normalizedEmail,
+        metadata: { kind: 'business' },
       });
     } catch (refErr) {
       console.warn('assignReferrerIfEmpty soft-fail:', refErr);
@@ -872,7 +877,12 @@ async function claimCustomerInvite(opts: {
     // First-touch referral: inviting seller becomes L1 if buyer has no referrer yet
     try {
       await assignReferrerIfEmpty(buyerProfileId, sellerProfileId, {
-        source: 'customer_invite_claim',
+        source: 'customer_invite',
+        inviteToken: token,
+        actorUserId: userId,
+        childUserId: userId,
+        childEmail: normalizedEmail,
+        metadata: { kind: 'customer', invitationId },
       });
     } catch (refErr) {
       console.warn('customer claim assignReferrerIfEmpty soft-fail:', refErr);

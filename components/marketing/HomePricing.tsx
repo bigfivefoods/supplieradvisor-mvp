@@ -472,8 +472,8 @@ export default function HomePricing() {
                     {referralRatesSummary()}.
                   </p>
                 </div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 shrink-0">
-                  Illustrative · not a guarantee
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-700/80 shrink-0">
+                  Illustrative only · not a forecast
                 </p>
               </div>
 
@@ -611,12 +611,13 @@ export default function HomePricing() {
                 ))}
               </div>
               <p className="mt-4 text-xs text-slate-500 leading-relaxed">
-                <strong className="text-slate-700">Total after L3</strong> assumes{' '}
-                {scaleScenarios.map((s) => s.count).join(' / ')} companies paying at
-                L1 <em>and</em> the same number at L2 <em>and</em> at L3 — the full
-                stack under you. Real networks mix depths; rows always add. L1 is
-                strongest per company — invite partners who stay so L2 and L3 grow
-                under you.
+                <strong className="text-slate-700">Total after L3</strong> is a{' '}
+                <em>stacked hypothetical</em>: it assumes that many companies pay
+                at L1 <em>and</em> the same count at L2 <em>and</em> L3 at the same
+                time — not a typical network. Real earnings = sum of actual paying
+                companies at each depth only. Fees apply to{' '}
+                <strong>paid subscriptions</strong> after a hold period; refunds
+                reverse unpaid fees.
               </p>
             </div>
 

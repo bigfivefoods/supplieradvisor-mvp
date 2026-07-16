@@ -1,23 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   requireCompanyAccess,
-  requireCompanyRoles,
   legacyPrivyFrom,
-  ROLES_FINANCE_CRITICAL,
 } from '@/lib/auth/api-auth';
 import { logActivity } from '@/lib/customers/access';
 import {
-  approveReferralEarnings,
   ensureReferralCode,
   ensureReferralProgramRoot,
   getReferralSummary,
   isReferralProgramRoot,
-  markReferralPaid,
   referralRatesSummary,
   referralSuggestedCopy,
   requestReferralPayout,
+  REFERRAL_HOLD_DAYS,
+  REFERRAL_KYC_THRESHOLD_ZAR,
+} from '@/lib/billing/supply-chain-referral';
+import {
+  getPayoutKycStatus,
+  getReferralFraudSignals,
+  requireReferralOps,
+} from '@/lib/billing/referral-controls';
+import {
+  approveReferralEarnings,
+  markReferralPaid,
   voidReferralEarnings,
 } from '@/lib/billing/supply-chain-referral';
+import { getSupabaseServer } from '@/lib/supabase/server-client';
 
 /**
  * GET ?companyId= — referral summary + earnings + payout history for this company
@@ -39,6 +47,7 @@ export async function GET(request: NextRequest) {
     }
     const summary = await getReferralSummary(companyId);
     const code = await ensureReferralCode(companyId);
+    const kyc = await getPayoutKycStatus(companyId);
 
     return NextResponse.json({
       success: true,
@@ -47,32 +56,35 @@ export async function GET(request: NextRequest) {
       invitePath: code
         ? `/onboarding?ref=${encodeURIComponent(code)}`
         : `/onboarding?ref=${companyId}`,
-      // isProgramRoot / programRoot* come from summary (...summary below)
+      holdDays: REFERRAL_HOLD_DAYS,
+      kycThresholdZar: REFERRAL_KYC_THRESHOLD_ZAR,
+      payoutKyc: kyc,
+      canSelfApprove: false,
       workflow: [
         {
           status: 'pending',
-          label: 'Pending',
-          meaning: 'Earned when a referral pays — short hold for review',
+          label: 'Pending (hold)',
+          meaning: `Credited on payment — held ${REFERRAL_HOLD_DAYS} days for refunds/fraud review`,
         },
         {
           status: 'approved',
           label: 'Approved',
-          meaning: 'Cleared for payout request',
+          meaning: 'Hold elapsed (auto) or platform ops approved — you may request payout',
         },
         {
           status: 'payout_requested',
           label: 'Payout requested',
-          meaning: 'You asked SupplierAdvisor to pay this amount',
+          meaning: 'You asked SupplierAdvisor to settle this amount',
         },
         {
           status: 'paid',
           label: 'Paid',
-          meaning: 'Settled to your company (see paid ref)',
+          meaning: 'Settled by platform ops (see paid ref)',
         },
         {
           status: 'void',
           label: 'Void',
-          meaning: 'Cancelled (fraud, refund, or error)',
+          meaning: 'Cancelled (refund, fraud, or error)',
         },
       ],
       ...summary,
@@ -88,16 +100,13 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * POST — payout workflow actions
- * Body: {
- *   companyId, privyUserId,
- *   action: 'request_payout' | 'approve' | 'mark_paid' | 'void',
- *   earningIds?: number[],
- *   payoutId?: number,
- *   paidRef?: string,
- *   notes?: string,
- *   reason?: string
- * }
+ * POST — company actions + platform-ops actions
+ *
+ * Company members:
+ *   request_payout | save_payout_kyc
+ *
+ * Platform ops only (REFERRAL_OPS_SECRET / CRON_SECRET / root company owner):
+ *   approve | mark_paid | void | fraud_snapshot
  */
 export async function POST(request: NextRequest) {
   try {
@@ -112,8 +121,7 @@ export async function POST(request: NextRequest) {
       ? body.earningIds.map(Number).filter((n: number) => Number.isFinite(n))
       : null;
 
-    // request_payout: any company member with access
-    // approve / mark_paid / void: owner/admin/finance
+    // ── Company: request payout ─────────────────────────────────────
     if (action === 'request_payout') {
       const gate = await requireCompanyAccess(request, companyId, {
         legacyPrivyUserId: body.privyUserId || legacyPrivyFrom(request),
@@ -147,32 +155,91 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      const summary = await getReferralSummary(companyId);
       return NextResponse.json({
         success: true,
         action,
         ...result,
-        summary,
+        summary: await getReferralSummary(companyId),
       });
     }
 
+    // ── Company: save payout KYC ────────────────────────────────────
+    if (action === 'save_payout_kyc') {
+      const gate = await requireCompanyAccess(request, companyId, {
+        legacyPrivyUserId: body.privyUserId || legacyPrivyFrom(request),
+      });
+      if (!gate.ok) return gate.response;
+
+      const supabase = getSupabaseServer();
+      const updates: Record<string, unknown> = {
+        referral_payout_bank_name: body.bankName
+          ? String(body.bankName).slice(0, 120)
+          : null,
+        referral_payout_account_name: body.accountName
+          ? String(body.accountName).slice(0, 120)
+          : null,
+        referral_payout_account_number: body.accountNumber
+          ? String(body.accountNumber).replace(/\s+/g, '').slice(0, 32)
+          : null,
+        referral_payout_branch_code: body.branchCode
+          ? String(body.branchCode).replace(/\s+/g, '').slice(0, 16)
+          : null,
+        referral_payout_tax_number: body.taxNumber
+          ? String(body.taxNumber).slice(0, 64)
+          : null,
+      };
+
+      const { error } = await supabase
+        .from('profiles')
+        .update(updates)
+        .eq('id', companyId);
+
+      if (error) {
+        if (/column|referral_payout/i.test(error.message)) {
+          return NextResponse.json(
+            {
+              error: error.message,
+              hint: 'Run supabase/migrations/20260716_referral_watertight.sql',
+            },
+            { status: 503 }
+          );
+        }
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        action,
+        payoutKyc: await getPayoutKycStatus(companyId),
+      });
+    }
+
+    // ── Platform ops only ───────────────────────────────────────────
     if (
       action === 'approve' ||
       action === 'mark_paid' ||
-      action === 'void'
+      action === 'void' ||
+      action === 'fraud_snapshot'
     ) {
-      const gate = await requireCompanyRoles(
-        request,
-        companyId,
-        ROLES_FINANCE_CRITICAL,
-        { legacyPrivyUserId: body.privyUserId || legacyPrivyFrom(request) }
-      );
-      if (!gate.ok) return gate.response;
+      const ops = await requireReferralOps(request, {
+        legacyPrivyUserId: body.privyUserId || legacyPrivyFrom(request),
+      });
+      if (!ops.ok) return ops.response;
+
+      if (action === 'fraud_snapshot') {
+        const signals = await getReferralFraudSignals(companyId);
+        return NextResponse.json({
+          success: true,
+          action,
+          companyId,
+          signals,
+        });
+      }
 
       if (action === 'approve') {
         const result = await approveReferralEarnings({
           earnerProfileId: companyId,
-          actorUserId: gate.userId,
+          actorUserId: ops.userId,
           earningIds,
         });
         if (!result.ok) {
@@ -183,10 +250,10 @@ export async function POST(request: NextRequest) {
         }
         void logActivity({
           profile_id: companyId,
-          actor_user_id: gate.userId,
-          action: 'referral.approved',
+          actor_user_id: ops.userId,
+          action: 'referral.ops_approved',
           entity_type: 'supply_chain_referral_earnings',
-          summary: `Approved ${result.count} referral earning(s)`,
+          summary: `Platform ops approved ${result.count} referral earning(s)`,
         });
         return NextResponse.json({
           success: true,
@@ -199,7 +266,7 @@ export async function POST(request: NextRequest) {
       if (action === 'mark_paid') {
         const result = await markReferralPaid({
           earnerProfileId: companyId,
-          actorUserId: gate.userId,
+          actorUserId: ops.userId,
           earningIds,
           payoutId: body.payoutId != null ? Number(body.payoutId) : null,
           paidRef: body.paidRef ? String(body.paidRef) : null,
@@ -213,14 +280,11 @@ export async function POST(request: NextRequest) {
         }
         void logActivity({
           profile_id: companyId,
-          actor_user_id: gate.userId,
-          action: 'referral.paid',
+          actor_user_id: ops.userId,
+          action: 'referral.ops_paid',
           entity_type: 'supply_chain_referral_earnings',
-          summary: `Marked R${result.amountZar} referral earnings paid (${result.count} items)`,
-          metadata: {
-            amountZar: result.amountZar,
-            paidRef: body.paidRef || null,
-          },
+          summary: `Platform ops marked R${result.amountZar} referral earnings paid`,
+          metadata: { paidRef: body.paidRef || null },
         });
         return NextResponse.json({
           success: true,
@@ -239,7 +303,7 @@ export async function POST(request: NextRequest) {
       }
       const result = await voidReferralEarnings({
         earnerProfileId: companyId,
-        actorUserId: gate.userId,
+        actorUserId: ops.userId,
         earningIds,
         reason: body.reason ? String(body.reason) : null,
       });
@@ -251,10 +315,10 @@ export async function POST(request: NextRequest) {
       }
       void logActivity({
         profile_id: companyId,
-        actor_user_id: gate.userId,
-        action: 'referral.voided',
+        actor_user_id: ops.userId,
+        action: 'referral.ops_voided',
         entity_type: 'supply_chain_referral_earnings',
-        summary: `Voided ${result.count} referral earning(s)`,
+        summary: `Platform ops voided ${result.count} referral earning(s)`,
       });
       return NextResponse.json({
         success: true,
@@ -267,7 +331,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error:
-          'Unknown action. Use request_payout | approve | mark_paid | void',
+          'Unknown action. Company: request_payout | save_payout_kyc. Platform ops: approve | mark_paid | void | fraud_snapshot',
       },
       { status: 400 }
     );

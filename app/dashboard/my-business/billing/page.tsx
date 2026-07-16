@@ -611,9 +611,9 @@ function BillingInner() {
 
             {/* Workflow steps */}
             <div className="mt-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5 text-[10px] text-slate-600 leading-relaxed">
-              <strong className="text-slate-800">Payout flow:</strong> Pending →
-              (auto/finance) Approved → <em>Request payout</em> → Finance marks{' '}
-              <em>Paid</em> with a bank/Paystack ref.
+              <strong className="text-slate-800">Payout flow:</strong> Pending
+              (hold) → auto-approved → you <em>Request payout</em> → platform
+              ops settles. KYC bank details required above the payout threshold.
             </div>
 
             <div className="mt-3 flex flex-col gap-2">
@@ -634,39 +634,12 @@ function BillingInner() {
                   ? `(${formatZar(Number(referral?.availableToRequestZar))})`
                   : ''}
               </button>
-              <button
-                type="button"
-                disabled={
-                  referralBusy || Number(referral?.pendingZar || 0) <= 0
-                }
-                onClick={() => void runReferralAction('approve')}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-              >
-                Approve pending (finance)
-              </button>
-              <div className="flex gap-1.5">
-                <input
-                  className="flex-1 min-w-0 rounded-xl border border-slate-200 px-2.5 py-2 text-[11px]"
-                  placeholder="Paid ref (EFT / batch id)"
-                  value={paidRefInput}
-                  onChange={(e) => setPaidRefInput(e.target.value)}
-                />
-                <button
-                  type="button"
-                  disabled={
-                    referralBusy ||
-                    Number(referral?.payoutRequestedZar || 0) <= 0
-                  }
-                  onClick={() =>
-                    void runReferralAction('mark_paid', {
-                      paidRef: paidRefInput || undefined,
-                    })
-                  }
-                  className="shrink-0 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-bold text-emerald-900 disabled:opacity-40"
-                >
-                  Mark paid
-                </button>
-              </div>
+              <p className="text-[10px] text-slate-500 leading-relaxed">
+                Fees stay <strong>pending</strong> during a hold (refunds /
+                fraud). After the hold they <strong>auto-approve</strong>. You
+                request payout; <strong>platform ops</strong> settles payment —
+                companies cannot mark themselves paid.
+              </p>
             </div>
 
             {referral?.invitePath ? (

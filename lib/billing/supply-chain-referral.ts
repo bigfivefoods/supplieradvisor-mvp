@@ -20,6 +20,19 @@
  */
 
 import { getSupabaseServer } from '@/lib/supabase/server-client';
+import {
+  detectSelfReferral,
+  getPayoutKycStatus,
+  holdUntilIso,
+  isDefaultRootEnabled,
+  recordReferralAttribution,
+  resolveReferrerExplicitOnly,
+  sumYtdPaidAndRequested,
+  REFERRAL_ANNUAL_CAP_WITHOUT_KYC_ZAR,
+  REFERRAL_HOLD_DAYS,
+  REFERRAL_KYC_THRESHOLD_ZAR,
+  type AttributionSource,
+} from '@/lib/billing/referral-controls';
 
 export const REFERRAL_MAX_LEVELS = 3;
 /** Hard cap across all levels combined */
@@ -218,47 +231,39 @@ export const REFERRAL_SCALE_SCENARIO_COUNTS = [10, 50, 200] as const;
 
 /**
  * Pick referrer for a new/claimed company:
- * - explicit inviter / ref code company when valid
- * - otherwise Big Five Foods (programme root)
+ * - explicit inviter / ref code when valid
+ * - optional default root only if REFERRAL_DEFAULT_ROOT=true
  * - never points the root company at itself
  */
 export function resolveReferrerWithRoot(
   explicitReferrerId: number | null | undefined,
   forProfileId?: number | null
 ): number | null {
-  const root = getReferralProgramRootId();
-  const forId = forProfileId != null ? Number(forProfileId) : null;
-  if (forId != null && Number.isFinite(forId) && forId === root) {
-    return null; // root has no parent
-  }
-
-  const explicit = Number(explicitReferrerId);
-  if (Number.isFinite(explicit) && explicit > 0 && explicit !== forId) {
-    return explicit;
-  }
-  if (forId != null && Number.isFinite(forId) && forId === root) {
-    return null;
-  }
-  return root;
+  return resolveReferrerExplicitOnly(explicitReferrerId, forProfileId);
 }
 
 /**
  * First-touch attribution: set referred_by_profile_id only if empty.
- * Used by referral links AND supplier/customer/partner invites.
- * When no explicit referrer is given, defaults to Big Five Foods (programme root).
- * Never overwrites an existing referrer; never self-refers; root stays rootless.
+ * Blocks self-referral; writes immutable attribution log.
+ * Default root only when REFERRAL_DEFAULT_ROOT is enabled.
  */
 export async function assignReferrerIfEmpty(
   profileId: number,
   referrerProfileId: number | null | undefined,
-  _opts?: { source?: string }
+  opts?: {
+    source?: AttributionSource | string;
+    inviteToken?: string | null;
+    actorUserId?: string | null;
+    childUserId?: string | null;
+    childEmail?: string | null;
+    metadata?: Record<string, unknown>;
+  }
 ): Promise<{ ok: boolean; assigned: boolean; error?: string }> {
   const child = Number(profileId);
   if (!Number.isFinite(child) || child <= 0) {
     return { ok: false, assigned: false, error: 'Invalid profile id' };
   }
 
-  // Programme root never gets a parent
   if (isReferralProgramRoot(child)) {
     return { ok: true, assigned: false };
   }
@@ -271,10 +276,24 @@ export async function assignReferrerIfEmpty(
     return { ok: true, assigned: false };
   }
 
+  const selfCheck = await detectSelfReferral({
+    childProfileId: child,
+    referrerProfileId: parent,
+    childUserId: opts?.childUserId,
+    childEmail: opts?.childEmail,
+  });
+  if (selfCheck.blocked) {
+    return {
+      ok: false,
+      assigned: false,
+      error: selfCheck.reason || 'Self-referral blocked',
+    };
+  }
+
   const supabase = getSupabaseServer();
   const { data: childRow, error: loadErr } = await supabase
     .from('profiles')
-    .select('id, referred_by_profile_id')
+    .select('id, referred_by_profile_id, email, user_id')
     .eq('id', child)
     .maybeSingle();
 
@@ -291,7 +310,6 @@ export async function assignReferrerIfEmpty(
     return { ok: true, assigned: false };
   }
 
-  // Confirm referrer company exists
   const { data: parentRow } = await supabase
     .from('profiles')
     .select('id')
@@ -301,16 +319,58 @@ export async function assignReferrerIfEmpty(
     return { ok: false, assigned: false, error: 'Referrer company not found' };
   }
 
+  const source = (opts?.source ||
+    (referrerProfileId ? 'unknown' : 'default_root')) as AttributionSource;
+  const now = new Date().toISOString();
+
   const { data: updated, error: updErr } = await supabase
     .from('profiles')
-    .update({ referred_by_profile_id: parent })
+    .update({
+      referred_by_profile_id: parent,
+      referred_at: now,
+      referral_source: source,
+      referral_invite_token: opts?.inviteToken || null,
+    })
     .eq('id', child)
     .is('referred_by_profile_id', null)
     .select('id')
     .maybeSingle();
 
   if (updErr) {
+    // Columns may not exist yet — retry bare field
+    if (/column|referral_/i.test(updErr.message)) {
+      const { data: u2, error: e2 } = await supabase
+        .from('profiles')
+        .update({ referred_by_profile_id: parent })
+        .eq('id', child)
+        .is('referred_by_profile_id', null)
+        .select('id')
+        .maybeSingle();
+      if (e2) return { ok: false, assigned: false, error: e2.message };
+      if (u2?.id) {
+        await recordReferralAttribution({
+          childProfileId: child,
+          referrerProfileId: parent,
+          source,
+          inviteToken: opts?.inviteToken,
+          actorUserId: opts?.actorUserId,
+          metadata: opts?.metadata,
+        });
+      }
+      return { ok: true, assigned: Boolean(u2?.id) };
+    }
     return { ok: false, assigned: false, error: updErr.message };
+  }
+
+  if (updated?.id) {
+    await recordReferralAttribution({
+      childProfileId: child,
+      referrerProfileId: parent,
+      source,
+      inviteToken: opts?.inviteToken,
+      actorUserId: opts?.actorUserId,
+      metadata: opts?.metadata,
+    });
   }
 
   return { ok: true, assigned: Boolean(updated?.id) };
@@ -318,8 +378,7 @@ export async function assignReferrerIfEmpty(
 
 /**
  * Value to include on profile insert for invite shells / registration.
- * Falls back to Big Five Foods when no inviter is provided.
- * Pass forProfileId when known so the root company is not self-attributed.
+ * Explicit inviter only unless REFERRAL_DEFAULT_ROOT is enabled.
  */
 export function referredByInsertField(
   referrerProfileId: number | null | undefined,
@@ -329,6 +388,13 @@ export function referredByInsertField(
   if (parent == null) return {};
   return { referred_by_profile_id: parent };
 }
+
+export {
+  isDefaultRootEnabled,
+  REFERRAL_HOLD_DAYS,
+  REFERRAL_KYC_THRESHOLD_ZAR,
+  REFERRAL_ANNUAL_CAP_WITHOUT_KYC_ZAR,
+};
 
 /**
  * Ensure Big Five Foods remains programme root (no parent) and has a referral code.
@@ -458,10 +524,14 @@ export async function creditSubscriptionReferralFees(opts: {
 
     const supabase = getSupabaseServer();
     const now = new Date().toISOString();
+    const holdUntil = holdUntilIso(new Date(now));
     const directParent = chain.find((c) => c.level === 1)?.profileId ?? null;
     let inserted = 0;
 
     for (const p of payouts) {
+      // Never credit the paying company itself
+      if (p.earnerProfileId === opts.sourceProfileId) continue;
+
       const row = {
         earner_profile_id: p.earnerProfileId,
         source_profile_id: opts.sourceProfileId,
@@ -473,8 +543,10 @@ export async function creditSubscriptionReferralFees(opts: {
         currency: 'ZAR',
         source_type: 'company_subscription',
         source_ref: sourceRef,
-        // Hold briefly as pending so finance can void fraud; earner can still see it
+        // Hold until eligible for auto-approve / payout request
         status: 'pending',
+        hold_until: holdUntil,
+        eligible_at: holdUntil,
         notes: opts.termLabel
           ? `Subscription ${opts.termLabel}${opts.months ? ` · ${opts.months} mo` : ''}`
           : 'Company subscription payment',
@@ -484,6 +556,7 @@ export async function creditSubscriptionReferralFees(opts: {
           rates: [...REFERRAL_LEVEL_RATES_PCT],
           total_cap_pct: REFERRAL_TOTAL_CAP_PCT,
           split_label: referralRatesSummary(),
+          hold_days: REFERRAL_HOLD_DAYS,
         },
         created_at: now,
         updated_at: now,
@@ -588,9 +661,8 @@ export async function getReferralSummary(earnerProfileId: number): Promise<{
       else approvedZar += amt; // approved
     }
 
-    // Auto-surface pending as requestable after credit (simplify UX):
-    // available = pending + approved (not yet requested)
-    const availableToRequestZar = Math.round((pendingZar + approvedZar) * 100) / 100;
+    // Only approved (post-hold) can be requested — not raw pending
+    const availableToRequestZar = Math.round(approvedZar * 100) / 100;
 
     const { count } = await supabase
       .from('profiles')
@@ -696,11 +768,12 @@ export async function requestReferralPayout(opts: {
   const supabase = getSupabaseServer();
   const now = new Date().toISOString();
 
+  // Only approved (hold elapsed / ops-approved) — never raw pending
   let q = supabase
     .from('supply_chain_referral_earnings')
-    .select('id, commission_amount_zar, status')
+    .select('id, commission_amount_zar, status, hold_until, eligible_at')
     .eq('earner_profile_id', opts.earnerProfileId)
-    .in('status', ['pending', 'approved']);
+    .eq('status', 'approved');
 
   if (opts.earningIds?.length) {
     q = q.in('id', opts.earningIds);
@@ -718,15 +791,13 @@ export async function requestReferralPayout(opts: {
     return { ok: false, error: error.message, status: 500 };
   }
 
-  const eligible = (rows || []).filter((r) => {
-    const st = String(r.status || '').toLowerCase();
-    return st === 'pending' || st === 'approved';
-  });
+  const eligible = rows || [];
 
   if (!eligible.length) {
     return {
       ok: false,
-      error: 'No available earnings to request. Wait for new referral credits.',
+      error:
+        'No approved earnings to request. Fees stay pending during the hold period, then auto-approve.',
       status: 400,
     };
   }
@@ -737,6 +808,21 @@ export async function requestReferralPayout(opts: {
       eligible.reduce((s, r) => s + (Number(r.commission_amount_zar) || 0), 0) *
         100
     ) / 100;
+
+  // KYC gate for larger or cumulative payouts
+  const kyc = await getPayoutKycStatus(opts.earnerProfileId);
+  const ytd = await sumYtdPaidAndRequested(opts.earnerProfileId);
+  if (
+    (amountZar >= REFERRAL_KYC_THRESHOLD_ZAR ||
+      ytd + amountZar >= REFERRAL_ANNUAL_CAP_WITHOUT_KYC_ZAR) &&
+    !kyc.complete
+  ) {
+    return {
+      ok: false,
+      error: `Payout KYC required before requesting R${amountZar.toFixed(0)}+. Add bank details on billing (missing: ${kyc.missing.join(', ') || 'details'}).`,
+      status: 400,
+    };
+  }
 
   const { data: batch, error: batchErr } = await supabase
     .from('supply_chain_referral_payouts')
@@ -817,11 +903,12 @@ export async function markReferralPaid(opts: {
     }
   }
 
+  // Platform ops: only settle what was requested (or already approved batch)
   let q = supabase
     .from('supply_chain_referral_earnings')
     .select('id, commission_amount_zar, status')
     .eq('earner_profile_id', opts.earnerProfileId)
-    .in('status', ['payout_requested', 'approved', 'pending']);
+    .in('status', ['payout_requested', 'approved']);
 
   if (ids.length) q = q.in('id', ids);
 
@@ -888,7 +975,10 @@ export async function markReferralPaid(opts: {
   return { ok: true, count: payIds.length, amountZar };
 }
 
-/** Approve pending → approved (finance review). */
+/**
+ * Platform ops only: approve pending → approved.
+ * Prefer auto-approve after hold; this is for manual review / early release.
+ */
 export async function approveReferralEarnings(opts: {
   earnerProfileId: number;
   actorUserId: string;
@@ -901,7 +991,12 @@ export async function approveReferralEarnings(opts: {
   const now = new Date().toISOString();
   let q = supabase
     .from('supply_chain_referral_earnings')
-    .update({ status: 'approved', updated_at: now })
+    .update({
+      status: 'approved',
+      approved_at: now,
+      approved_by: opts.actorUserId,
+      updated_at: now,
+    })
     .eq('earner_profile_id', opts.earnerProfileId)
     .eq('status', 'pending');
 
