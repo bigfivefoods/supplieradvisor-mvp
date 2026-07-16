@@ -1,7 +1,12 @@
-/* SupplierAdvisor service worker — offline shell + static cache
- * Version bump CACHE when deploying shell changes.
+/**
+ * SupplierAdvisor service worker — MINIMAL (installable + offline fallback only).
+ *
+ * IMPORTANT: Do NOT cache /_next/static/* or HTML app shells.
+ * Caching hashed JS after deploy is a common cause of “site broken in Safari/Chrome”.
+ *
+ * v4 — network-only for app code; precache only offline page + icons.
  */
-const CACHE = 'sa-shell-v3';
+const CACHE = 'sa-offline-v4';
 const OFFLINE_URL = '/offline.html';
 const PRECACHE = [
   OFFLINE_URL,
@@ -9,24 +14,26 @@ const PRECACHE = [
   '/sa-icon-192.png',
   '/sa-icon-512.png',
   '/apple-icon.png',
-  '/favicon.ico',
 ];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
     (async () => {
-      const cache = await caches.open(CACHE);
-      // Cache each asset individually so one failure does not block install
-      await Promise.all(
-        PRECACHE.map(async (url) => {
-          try {
-            const res = await fetch(url, { cache: 'reload' });
-            if (res.ok) await cache.put(url, res);
-          } catch {
-            /* ignore single asset failure */
-          }
-        })
-      );
+      try {
+        const cache = await caches.open(CACHE);
+        await Promise.all(
+          PRECACHE.map(async (url) => {
+            try {
+              const res = await fetch(url, { cache: 'no-store' });
+              if (res && res.ok) await cache.put(url, res);
+            } catch (_) {
+              /* ignore */
+            }
+          })
+        );
+      } catch (_) {
+        /* ignore */
+      }
       await self.skipWaiting();
     })()
   );
@@ -35,8 +42,25 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     (async () => {
+      // Wipe ALL previous caches (v1–v3 may hold broken JS)
       const keys = await caches.keys();
-      await Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)));
+      await Promise.all(keys.map((k) => caches.delete(k)));
+      // Re-seed offline assets
+      try {
+        const cache = await caches.open(CACHE);
+        await Promise.all(
+          PRECACHE.map(async (url) => {
+            try {
+              const res = await fetch(url, { cache: 'no-store' });
+              if (res && res.ok) await cache.put(url, res);
+            } catch (_) {
+              /* ignore */
+            }
+          })
+        );
+      } catch (_) {
+        /* ignore */
+      }
       await self.clients.claim();
     })()
   );
@@ -44,9 +68,9 @@ self.addEventListener('activate', (event) => {
 
 /**
  * Fetch handler required for installability.
- * Navigations: network first → offline page.
- * Static assets: cache then network.
- * API / auth: network only.
+ * - API / Next static / almost everything → network only (pass through)
+ * - Document navigations offline → offline.html
+ * - Never cache application JS/CSS
  */
 self.addEventListener('fetch', (event) => {
   const req = event.request;
@@ -55,81 +79,45 @@ self.addEventListener('fetch', (event) => {
   let url;
   try {
     url = new URL(req.url);
-  } catch {
+  } catch (_) {
     return;
   }
   if (url.origin !== self.location.origin) return;
 
+  // Never intercept APIs, Next data, or the SW itself
   if (
     url.pathname.startsWith('/api/') ||
-    url.pathname.startsWith('/_next/data/') ||
-    url.pathname === '/sw.js'
+    url.pathname.startsWith('/_next/') ||
+    url.pathname === '/sw.js' ||
+    url.pathname === '/manifest.webmanifest'
   ) {
-    return;
+    return; // default network
   }
 
-  // HTML navigations
+  // Only special-case full page navigations when offline
   if (req.mode === 'navigate') {
     event.respondWith(
       (async () => {
         try {
-          const res = await fetch(req);
-          if (res.ok) {
-            const cache = await caches.open(CACHE);
-            cache.put(req, res.clone()).catch(() => {});
-          }
-          return res;
-        } catch {
-          const cached = await caches.match(req);
-          if (cached) return cached;
+          // Always network first — never serve cached HTML for the app
+          return await fetch(req);
+        } catch (_) {
           const offline = await caches.match(OFFLINE_URL);
           return (
             offline ||
-            new Response('You are offline. Reconnect and try again.', {
-              status: 503,
-              headers: { 'Content-Type': 'text/plain' },
-            })
+            new Response(
+              '<!DOCTYPE html><html><body style="font-family:system-ui;padding:2rem"><h1>Offline</h1><p>Reconnect and reload.</p><p><a href="/add-to-home.html">Install help</a></p></body></html>',
+              { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+            )
           );
         }
       })()
     );
-    return;
   }
-
-  // Static assets
-  if (
-    url.pathname.startsWith('/_next/static/') ||
-    /\.(png|jpg|jpeg|svg|webp|ico|woff2?|css|js|webmanifest)$/i.test(url.pathname)
-  ) {
-    event.respondWith(
-      (async () => {
-        const cached = await caches.match(req);
-        if (cached) {
-          fetch(req)
-            .then((res) => {
-              if (res.ok) {
-                caches.open(CACHE).then((c) => c.put(req, res)).catch(() => {});
-              }
-            })
-            .catch(() => {});
-          return cached;
-        }
-        try {
-          const res = await fetch(req);
-          if (res.ok) {
-            const copy = res.clone();
-            caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
-          }
-          return res;
-        } catch {
-          return new Response('', { status: 504 });
-        }
-      })()
-    );
-  }
+  // All other requests: browser default (network)
 });
 
-/** Web Push */
+/** Web Push display */
 self.addEventListener('push', (event) => {
   let data = {
     title: 'SupplierAdvisor',
@@ -138,19 +126,14 @@ self.addEventListener('push', (event) => {
     tag: 'sa-push',
   };
   try {
-    if (event.data) {
-      const parsed = event.data.json();
-      data = { ...data, ...parsed };
-    }
-  } catch {
+    if (event.data) data = Object.assign(data, event.data.json());
+  } catch (_) {
     try {
-      const text = event.data && event.data.text();
-      if (text) data.body = text;
-    } catch {
+      if (event.data) data.body = event.data.text();
+    } catch (_) {
       /* ignore */
     }
   }
-
   event.waitUntil(
     self.registration.showNotification(data.title || 'SupplierAdvisor', {
       body: data.body || '',
@@ -158,7 +141,6 @@ self.addEventListener('push', (event) => {
       badge: '/sa-icon-192.png',
       tag: data.tag || 'sa-push',
       data: { url: data.url || '/dashboard' },
-      renotify: true,
     })
   );
 });
@@ -168,10 +150,11 @@ self.addEventListener('notificationclick', (event) => {
   const target =
     (event.notification.data && event.notification.data.url) || '/dashboard';
   event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
-      for (const c of clients) {
-        if ('focus' in c && c.url.includes(self.location.origin)) {
-          c.navigate(target);
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+      for (let i = 0; i < list.length; i++) {
+        const c = list[i];
+        if (c.url && c.url.indexOf(self.location.origin) === 0 && 'focus' in c) {
+          if (c.navigate) c.navigate(target);
           return c.focus();
         }
       }

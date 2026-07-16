@@ -19,6 +19,7 @@ const LINKS = [
 
 const EXTRA_LINKS = [
   { href: '/add-to-home.html', label: 'Add to Home Screen' },
+  { href: '/clear-sw.html', label: 'Fix app cache' },
 ] as const;
 
 export default function LandingNav() {

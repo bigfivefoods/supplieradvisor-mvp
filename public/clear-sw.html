@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Reset app cache · SupplierAdvisor</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 28rem;
+        margin: 2rem auto;
+        padding: 1rem;
+        line-height: 1.5;
+        color: #0f172a;
+      }
+      button {
+        display: block;
+        width: 100%;
+        padding: 0.9rem;
+        border: none;
+        border-radius: 999px;
+        background: #00b4d8;
+        color: #fff;
+        font-weight: 800;
+        font-size: 1rem;
+        margin: 0.75rem 0;
+        cursor: pointer;
+      }
+      a {
+        color: #0077b6;
+        font-weight: 700;
+      }
+      #log {
+        font-size: 0.85rem;
+        white-space: pre-wrap;
+        background: #f1f5f9;
+        padding: 0.75rem;
+        border-radius: 0.75rem;
+        margin-top: 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Fix broken site / install</h1>
+    <p>
+      If Safari or Chrome shows a blank page, old data, or install fails after an
+      update, reset the app cache on this phone, then try again.
+    </p>
+    <button type="button" id="btn">Clear cache &amp; reset</button>
+    <p>
+      After it says done:
+    </p>
+    <ol>
+      <li>Close all SupplierAdvisor tabs</li>
+      <li>Open <a href="/add-to-home.html">Add to Home Screen guide</a></li>
+      <li>Or open <a href="/">the homepage</a></li>
+    </ol>
+    <div id="log">Ready.</div>
+    <script>
+      document.getElementById('btn').onclick = async function () {
+        var log = document.getElementById('log');
+        function line(t) {
+          log.textContent += '\n' + t;
+        }
+        log.textContent = 'Working…';
+        try {
+          if ('serviceWorker' in navigator) {
+            var regs = await navigator.serviceWorker.getRegistrations();
+            for (var i = 0; i < regs.length; i++) {
+              await regs[i].unregister();
+              line('Unregistered service worker');
+            }
+          }
+          if (window.caches && caches.keys) {
+            var keys = await caches.keys();
+            for (var j = 0; j < keys.length; j++) {
+              await caches.delete(keys[j]);
+              line('Deleted cache: ' + keys[j]);
+            }
+          }
+          try {
+            localStorage.removeItem('sa_pwa_install_dismissed_at');
+            line('Cleared install dismiss flag');
+          } catch (e) {}
+          line('DONE. Close this tab, reopen the site.');
+          line('Then open /add-to-home.html to install.');
+        } catch (e) {
+          line('Error: ' + (e && e.message ? e.message : e));
+        }
+      };
+    </script>
+  </body>
+</html>
