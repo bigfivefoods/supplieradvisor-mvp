@@ -53,7 +53,37 @@ import {
   SuppliersPage,
 } from '@/components/suppliers/SuppliersShell';
 import FxRateStrip from '@/components/fx/FxRateStrip';
-import { COMMON_CURRENCIES } from '@/lib/inventory/types';
+import {
+  COMMON_CURRENCIES,
+  type ProductRecord,
+} from '@/lib/inventory/types';
+import { priceForCurrency } from '@/lib/inventory/priceForCurrency';
+
+const PRODUCT_TYPE_LABELS: Record<string, string> = {
+  finished_good: 'Finished goods',
+  raw_material: 'Raw materials',
+  component: 'Components',
+  packaging: 'Packaging',
+  service: 'Services',
+  other: 'Other',
+};
+
+function productTypeLabel(type: string | null | undefined): string {
+  const key = String(type || 'other').toLowerCase();
+  return PRODUCT_TYPE_LABELS[key] || key.replace(/_/g, ' ');
+}
+
+/** PO unit price: prefer cost (procurement), else sell price in doc currency. */
+function inventoryUnitPriceForPo(
+  product: ProductRecord,
+  currency: string
+): number {
+  const priced = priceForCurrency(product, currency);
+  const cost = Number(priced.cost_price);
+  if (Number.isFinite(cost) && cost > 0) return cost;
+  const sell = Number(priced.unit_price);
+  return Number.isFinite(sell) ? sell : 0;
+}
 
 const PO_ESCROW_ADDRESS = getPoEscrowAddress() || CONTRACTS.POEscrowV2.address;
 /** Demo ZAR→ETH rate for fundPO msg.value — override via NEXT_PUBLIC_ETH_DEMO_RATE */
@@ -185,6 +215,11 @@ function PoInner() {
   const [lineItems, setLineItems] = useState<PoLineItem[]>([
     { product_id: null, item_name: '', quantity: 1, unit_price: 0, uom: 'ea' },
   ]);
+  /** Company inventory catalogue for line-item picker */
+  const [inventoryProducts, setInventoryProducts] = useState<ProductRecord[]>(
+    []
+  );
+  const [inventoryLoading, setInventoryLoading] = useState(false);
   const [priceList, setPriceList] = useState<
     Array<{
       id?: number;
@@ -213,6 +248,43 @@ function PoInner() {
 
   const selectedSupplier = suppliers.find((s) => s.id === selectedSrmId) || null;
 
+  // Load company inventory products for line-item dropdown
+  useEffect(() => {
+    if (!companyId) {
+      setInventoryProducts([]);
+      return;
+    }
+    let cancelled = false;
+    setInventoryLoading(true);
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/inventory/products?companyId=${companyId}`,
+          { cache: 'no-store' }
+        );
+        const data = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        const list = Array.isArray(data.products)
+          ? (data.products as ProductRecord[])
+          : [];
+        // Active / sellable-or-purchasable first; keep all for PO flexibility
+        setInventoryProducts(
+          list.filter((p) => {
+            const st = String(p.status || 'active').toLowerCase();
+            return st !== 'archived' && st !== 'inactive' && st !== 'deleted';
+          })
+        );
+      } catch {
+        if (!cancelled) setInventoryProducts([]);
+      } finally {
+        if (!cancelled) setInventoryLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId]);
+
   // Load active list prices when a linked supplier is selected
   useEffect(() => {
     const sellerId = selectedSupplier?.linked_profile_id
@@ -239,6 +311,62 @@ function PoInner() {
     };
   }, [selectedSupplier?.linked_profile_id, companyId]);
 
+  const productsByType = useMemo(() => {
+    const groups = new Map<string, ProductRecord[]>();
+    for (const p of inventoryProducts) {
+      const key = String(p.product_type || 'other').toLowerCase() || 'other';
+      const list = groups.get(key) || [];
+      list.push(p);
+      groups.set(key, list);
+    }
+    // Prefer finished goods, raw materials, then rest
+    const order = [
+      'finished_good',
+      'raw_material',
+      'component',
+      'packaging',
+      'service',
+      'other',
+    ];
+    const keys = [
+      ...order.filter((k) => groups.has(k)),
+      ...[...groups.keys()].filter((k) => !order.includes(k)).sort(),
+    ];
+    return keys.map((k) => ({ type: k, products: groups.get(k) || [] }));
+  }, [inventoryProducts]);
+
+  const applyInventoryProduct = (
+    idx: number,
+    productId: number | null
+  ) => {
+    setLineItems((prev) => {
+      const next = [...prev];
+      if (!productId) {
+        // Switch to free-text custom line
+        next[idx] = {
+          ...next[idx],
+          product_id: null,
+          item_name: '',
+          unit_price: 0,
+          uom: next[idx].uom || 'ea',
+        };
+        return next;
+      }
+      const product = inventoryProducts.find((p) => Number(p.id) === productId);
+      if (!product) return prev;
+      const price = inventoryUnitPriceForPo(product, poCurrency);
+      next[idx] = {
+        ...next[idx],
+        product_id: Number(product.id),
+        item_name: product.name,
+        unit_price: price,
+        uom: product.uom || next[idx].uom || 'ea',
+        primary_image_url: product.primary_image_url || null,
+      };
+      return next;
+    });
+  };
+
   const applyPriceListLine = (line: {
     product_name: string;
     sku?: string | null;
@@ -249,7 +377,9 @@ function PoInner() {
     setLineItems((prev) => {
       const emptyIdx = prev.findIndex((i) => !i.item_name && !i.unit_price);
       const row: PoLineItem = {
-        product_id: line.seller_product_id ? Number(line.seller_product_id) : null,
+        product_id: line.seller_product_id
+          ? Number(line.seller_product_id)
+          : null,
         item_name: line.product_name,
         quantity: 1,
         unit_price: Number(line.list_price) || 0,
@@ -968,14 +1098,44 @@ function PoInner() {
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-medium">Line items *</label>
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                <div>
+                  <label className="text-xs font-medium">Line items *</label>
+                  <p className="text-[10px] text-neutral-500 mt-0.5">
+                    Pick inventory (finished goods, raw materials, …) or enter
+                    free text.
+                    {inventoryLoading
+                      ? ' Loading catalogue…'
+                      : inventoryProducts.length
+                        ? ` ${inventoryProducts.length} products available.`
+                        : ' '}
+                    {!inventoryLoading && inventoryProducts.length === 0 && (
+                      <>
+                        {' '}
+                        No products yet —{' '}
+                        <Link
+                          href="/dashboard/inventory/products"
+                          className="text-[#00b4d8] underline"
+                        >
+                          add inventory
+                        </Link>
+                        .
+                      </>
+                    )}
+                  </p>
+                </div>
                 <button
                   type="button"
                   onClick={() =>
                     setLineItems([
                       ...lineItems,
-                      { product_id: null, item_name: '', quantity: 1, unit_price: 0, uom: 'ea' },
+                      {
+                        product_id: null,
+                        item_name: '',
+                        quantity: 1,
+                        unit_price: 0,
+                        uom: 'ea',
+                      },
                     ])
                   }
                   className="text-xs font-semibold text-[#00b4d8]"
@@ -984,68 +1144,164 @@ function PoInner() {
                 </button>
               </div>
               <div className="space-y-2">
-                {lineItems.map((item, idx) => (
-                  <div
-                    key={idx}
-                    className="grid grid-cols-12 gap-2 items-start border rounded-2xl p-2 bg-neutral-50/50"
-                  >
-                    <input
-                      className="input !p-2 !text-sm col-span-12 sm:col-span-5"
-                      placeholder="Item name"
-                      value={item.item_name}
-                      onChange={(e) => {
-                        const u = [...lineItems];
-                        u[idx] = { ...u[idx], item_name: e.target.value };
-                        setLineItems(u);
-                      }}
-                    />
-                    <input
-                      type="number"
-                      min={0}
-                      className="input !p-2 !text-sm col-span-4 sm:col-span-2"
-                      placeholder="Qty"
-                      value={item.quantity}
-                      onChange={(e) => {
-                        const u = [...lineItems];
-                        u[idx] = { ...u[idx], quantity: Number(e.target.value) };
-                        setLineItems(u);
-                      }}
-                    />
-                    <input
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      className="input !p-2 !text-sm col-span-4 sm:col-span-2"
-                      placeholder="Price"
-                      value={item.unit_price}
-                      onChange={(e) => {
-                        const u = [...lineItems];
-                        u[idx] = { ...u[idx], unit_price: Number(e.target.value) };
-                        setLineItems(u);
-                      }}
-                    />
-                    <input
-                      className="input !p-2 !text-sm col-span-3 sm:col-span-2"
-                      placeholder="UoM"
-                      value={item.uom || ''}
-                      onChange={(e) => {
-                        const u = [...lineItems];
-                        u[idx] = { ...u[idx], uom: e.target.value };
-                        setLineItems(u);
-                      }}
-                    />
-                    <button
-                      type="button"
-                      className="col-span-1 p-2 text-red-500"
-                      onClick={() =>
-                        lineItems.length > 1 &&
-                        setLineItems(lineItems.filter((_, i) => i !== idx))
-                      }
+                {lineItems.map((item, idx) => {
+                  const linkedProduct = item.product_id
+                    ? inventoryProducts.find(
+                        (p) => Number(p.id) === Number(item.product_id)
+                      )
+                    : null;
+                  const selectValue = linkedProduct
+                    ? String(linkedProduct.id)
+                    : 'custom';
+                  const showNameInput = !linkedProduct;
+                  return (
+                    <div
+                      key={idx}
+                      className="grid grid-cols-12 gap-2 items-start border rounded-2xl p-2.5 bg-neutral-50/50"
                     >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
+                      <div className="col-span-12 sm:col-span-5 space-y-1.5">
+                        <select
+                          className="input !p-2 !text-sm w-full font-medium"
+                          value={selectValue}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            if (v === 'custom') {
+                              applyInventoryProduct(idx, null);
+                            } else {
+                              applyInventoryProduct(idx, Number(v));
+                            }
+                          }}
+                          aria-label={`Line ${idx + 1} product`}
+                        >
+                          <option value="custom">
+                            Custom / free text…
+                          </option>
+                          {productsByType.map(({ type, products }) => (
+                            <optgroup
+                              key={type}
+                              label={productTypeLabel(type)}
+                            >
+                              {products.map((p) => {
+                                const unit = inventoryUnitPriceForPo(
+                                  p,
+                                  poCurrency
+                                );
+                                return (
+                                  <option key={p.id} value={p.id}>
+                                    {p.name}
+                                    {p.sku ? ` (${p.sku})` : ''}
+                                    {unit > 0
+                                      ? ` · ${poCurrency} ${unit.toFixed(2)}`
+                                      : ''}
+                                  </option>
+                                );
+                              })}
+                            </optgroup>
+                          ))}
+                        </select>
+                        {showNameInput ? (
+                          <input
+                            className="input !p-2 !text-sm w-full"
+                            placeholder="Item description (free text)"
+                            value={item.item_name}
+                            onChange={(e) => {
+                              const u = [...lineItems];
+                              u[idx] = {
+                                ...u[idx],
+                                product_id: null,
+                                item_name: e.target.value,
+                              };
+                              setLineItems(u);
+                            }}
+                          />
+                        ) : (
+                          <p className="text-[10px] text-neutral-500 px-0.5 leading-relaxed">
+                            <span className="font-semibold text-slate-700">
+                              {item.item_name}
+                            </span>
+                            {' · '}
+                            {productTypeLabel(linkedProduct?.product_type)}
+                            {linkedProduct?.sku
+                              ? ` · SKU ${linkedProduct.sku}`
+                              : ''}
+                            {typeof linkedProduct?.qty_on_hand === 'number'
+                              ? ` · on hand ${linkedProduct.qty_on_hand}`
+                              : ''}
+                            {' · '}
+                            <button
+                              type="button"
+                              className="text-[#00b4d8] font-semibold underline-offset-2 hover:underline"
+                              onClick={() => {
+                                const u = [...lineItems];
+                                u[idx] = {
+                                  ...u[idx],
+                                  product_id: null,
+                                };
+                                setLineItems(u);
+                              }}
+                            >
+                              Edit as free text
+                            </button>
+                          </p>
+                        )}
+                      </div>
+                      <input
+                        type="number"
+                        min={0}
+                        className="input !p-2 !text-sm col-span-4 sm:col-span-2"
+                        placeholder="Qty"
+                        value={item.quantity}
+                        onChange={(e) => {
+                          const u = [...lineItems];
+                          u[idx] = {
+                            ...u[idx],
+                            quantity: Number(e.target.value),
+                          };
+                          setLineItems(u);
+                        }}
+                      />
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        className="input !p-2 !text-sm col-span-4 sm:col-span-2"
+                        placeholder="Price"
+                        value={item.unit_price}
+                        onChange={(e) => {
+                          const u = [...lineItems];
+                          u[idx] = {
+                            ...u[idx],
+                            unit_price: Number(e.target.value),
+                          };
+                          setLineItems(u);
+                        }}
+                      />
+                      <input
+                        className="input !p-2 !text-sm col-span-3 sm:col-span-2"
+                        placeholder="UoM"
+                        value={item.uom || ''}
+                        onChange={(e) => {
+                          const u = [...lineItems];
+                          u[idx] = { ...u[idx], uom: e.target.value };
+                          setLineItems(u);
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="col-span-1 p-2 text-red-500"
+                        onClick={() =>
+                          lineItems.length > 1 &&
+                          setLineItems(
+                            lineItems.filter((_, i) => i !== idx)
+                          )
+                        }
+                        aria-label="Remove line"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
