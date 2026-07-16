@@ -115,7 +115,8 @@ export async function GET(request: NextRequest) {
 /**
  * PATCH /api/customers/purchase-orders
  * Seller status transitions for inbound POs.
- * Body: { companyId, privyUserId, id, status: 'accepted'|'paid'|'completed'|'cancelled' }
+ * Body: { companyId, privyUserId, id, status?: 'accepted'|'paid'|'completed'|'cancelled',
+ *         fulfilmentStatus?: 'preparing'|'shipped'|'ready' }
  */
 export async function PATCH(request: NextRequest) {
   try {
@@ -123,7 +124,14 @@ export async function PATCH(request: NextRequest) {
     const companyId = Number(body.companyId);
     const id = Number(body.id);
     const privyUserId = body.privyUserId;
-    const nextStatus = String(body.status || '').toLowerCase().trim();
+    const nextStatus = body.status
+      ? String(body.status || '').toLowerCase().trim()
+      : '';
+    const fulfilmentStatus = body.fulfilmentStatus
+      ? String(body.fulfilmentStatus).toLowerCase().trim()
+      : body.fulfilment_status
+        ? String(body.fulfilment_status).toLowerCase().trim()
+        : '';
 
     if (!Number.isFinite(companyId) || companyId <= 0) {
       return NextResponse.json({ error: 'companyId is required' }, { status: 400 });
@@ -134,8 +142,11 @@ export async function PATCH(request: NextRequest) {
     if (!Number.isFinite(id) || id <= 0) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 });
     }
-    if (!nextStatus) {
-      return NextResponse.json({ error: 'status is required' }, { status: 400 });
+    if (!nextStatus && !fulfilmentStatus) {
+      return NextResponse.json(
+        { error: 'status or fulfilmentStatus required' },
+        { status: 400 }
+      );
     }
 
     const member = await assertCustomersAccess(privyUserId, companyId, 'write');
@@ -146,7 +157,9 @@ export async function PATCH(request: NextRequest) {
     const supabase = getSupabaseServer();
     const { data: po, error: loadErr } = await supabase
       .from('purchase_orders')
-      .select('id, supplier_profile_id, supplier_id, status, buyer_profile_id')
+      .select(
+        'id, supplier_profile_id, supplier_id, status, buyer_profile_id, metadata'
+      )
       .eq('id', id)
       .maybeSingle();
 
@@ -169,29 +182,64 @@ export async function PATCH(request: NextRequest) {
 
     const statusAsLoaded = String(po.status ?? '');
     const current = statusAsLoaded.toLowerCase();
-    if (!isSellerTransitionAllowed(current, nextStatus)) {
-      return NextResponse.json(
-        {
-          error: `Invalid transition: ${current} → ${nextStatus}`,
-          allowed: SELLER_PO_TRANSITIONS[current] || [],
-        },
-        { status: 409 }
-      );
-    }
-
     const now = new Date().toISOString();
     const updates: Record<string, unknown> = {
-      status: nextStatus,
       updated_at: now,
     };
 
-    // paid / completed / cancelled close the PO when column exists
-    if (nextStatus === 'paid' || nextStatus === 'completed' || nextStatus === 'cancelled') {
-      updates.closed_at = now;
+    // Fulfilment cue without full status change (preparing / shipped)
+    if (fulfilmentStatus) {
+      const allowedFulfil = ['preparing', 'ready', 'shipped'];
+      if (!allowedFulfil.includes(fulfilmentStatus)) {
+        return NextResponse.json(
+          { error: 'fulfilmentStatus must be preparing | ready | shipped' },
+          { status: 400 }
+        );
+      }
+      if (!['accepted', 'funded', 'paid'].includes(current)) {
+        return NextResponse.json(
+          { error: 'Accept the PO before updating fulfilment' },
+          { status: 409 }
+        );
+      }
+      const meta =
+        po.metadata && typeof po.metadata === 'object' && !Array.isArray(po.metadata)
+          ? { ...(po.metadata as Record<string, unknown>) }
+          : {};
+      meta.fulfilment_status = fulfilmentStatus;
+      meta.fulfilment_updated_at = now;
+      if (fulfilmentStatus === 'shipped') {
+        meta.shipped_at = now;
+      }
+      updates.metadata = meta;
     }
-    if (nextStatus === 'accepted') {
-      updates.approved_at = now;
-      updates.approved_by = member.userId;
+
+    if (nextStatus) {
+      if (!isSellerTransitionAllowed(current, nextStatus)) {
+        return NextResponse.json(
+          {
+            error: `Invalid transition: ${current} → ${nextStatus}`,
+            allowed: SELLER_PO_TRANSITIONS[current] || [],
+          },
+          { status: 409 }
+        );
+      }
+      updates.status = nextStatus;
+      // paid / completed / cancelled close the PO when column exists
+      if (nextStatus === 'paid' || nextStatus === 'completed' || nextStatus === 'cancelled') {
+        updates.closed_at = now;
+      }
+      if (nextStatus === 'accepted') {
+        updates.approved_at = now;
+        updates.approved_by = member.userId;
+        const meta =
+          (updates.metadata as Record<string, unknown>) ||
+          (po.metadata && typeof po.metadata === 'object'
+            ? { ...(po.metadata as Record<string, unknown>) }
+            : {});
+        meta.fulfilment_status = meta.fulfilment_status || 'preparing';
+        updates.metadata = meta;
+      }
     }
 
     // Optimistic concurrency: only transition if status is still the loaded value
@@ -231,13 +279,18 @@ export async function PATCH(request: NextRequest) {
     await logActivity({
       profile_id: companyId,
       actor_user_id: member.userId,
-      action: `po.status.${nextStatus}`,
+      action: nextStatus
+        ? `po.status.${nextStatus}`
+        : `po.fulfilment.${fulfilmentStatus || 'update'}`,
       entity_type: 'purchase_order',
       entity_id: String(id),
-      summary: `Seller set PO #${id} ${current} → ${nextStatus}`,
+      summary: nextStatus
+        ? `Seller set PO #${id} ${current} → ${nextStatus}`
+        : `Seller fulfilment PO #${id} → ${fulfilmentStatus}`,
       metadata: {
         from: current,
-        to: nextStatus,
+        to: nextStatus || undefined,
+        fulfilmentStatus: fulfilmentStatus || undefined,
         buyer_profile_id: po.buyer_profile_id,
       },
     });

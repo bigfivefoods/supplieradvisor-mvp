@@ -3,7 +3,11 @@
  * Built from the live guide curriculum + module navigation.
  */
 
-import { GUIDE_SECTIONS, SYSTEM_OVERVIEW } from '@/lib/guide/curriculum';
+import {
+  GUIDE_SECTIONS,
+  SYSTEM_OVERVIEW,
+  OS_PRINCIPLES,
+} from '@/lib/guide/curriculum';
 import { MODULE_NAV } from '@/lib/chrome/module-nav';
 import {
   COMPANY_SUBSCRIPTION_MONTHLY_ZAR,
@@ -27,6 +31,10 @@ export function buildSamKnowledgeBrief(): string {
     return `- **${m.name}** (${m.href})\n${steps}`;
   }).join('\n');
 
+  const principles = OS_PRINCIPLES.map(
+    (p) => `- **${p.title}**: ${p.body}`
+  ).join('\n');
+
   const guide = GUIDE_SECTIONS.map((s) => {
     const procs = s.processes
       .slice(0, 4)
@@ -35,7 +43,11 @@ export function buildSamKnowledgeBrief(): string {
           `  • ${p.name}${p.href ? ` → ${p.href}` : ''}: ${p.summary} Steps: ${p.steps.slice(0, 4).join(' → ')}`
       )
       .join('\n');
-    return `### ${s.title} (/dashboard/guide/${s.slug})\n${s.purpose}\nWho: ${s.who.join(', ')}\n${procs}`;
+    const princ = (s.principles || [])
+      .slice(0, 3)
+      .map((p) => `  ◦ ${p.title}: ${p.body}`)
+      .join('\n');
+    return `### ${s.title} — train at /dashboard/guide/${s.slug}\n${s.purpose}\nWho: ${s.who.join(', ')}\n${princ ? `Principles:\n${princ}\n` : ''}${procs}`;
   }).join('\n\n');
 
   const pricing = BILLING_TERMS.map(
@@ -53,6 +65,16 @@ SupplierAdvisor is a multi-tenant **supply-chain operating system** for B2B/B2G/
 ${SYSTEM_OVERVIEW.subtitle}
 Pillars: ${SYSTEM_OVERVIEW.pillars.map((p) => p.title).join(' · ')}
 Master flow: ${SYSTEM_OVERVIEW.masterFlow.map((n) => n.label).join(' → ')}
+
+## OS principles (always reinforce)
+${principles}
+
+## Trade integration (critical)
+- **Buy:** PO lines from supplier catalogue (agreed prices + their sellable inventory) at /dashboard/suppliers/po
+- **Sell:** Quotes/invoices from YOUR finished goods; inbound POs at /dashboard/customers/orders?tab=inbound
+- After accept: supplier marks preparing/shipped; buyer Receive+OTIFEF then rate
+- Optional: receive PO lines into buyer warehouse stock (match by imported source/SKU/name)
+- Soft-delete company: owner only, Settings danger zone; restore within 14 days
 
 ## Auth & tenancy
 - Sign-in: Privy (email / wallet).

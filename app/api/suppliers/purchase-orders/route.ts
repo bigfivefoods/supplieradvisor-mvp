@@ -312,9 +312,10 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * PATCH — status transitions + OTIFEF delivery capture.
+ * PATCH — status transitions + OTIFEF delivery capture + receive stock.
  * Body: companyId, privyUserId, id, status?, promised_date?, actual_delivery_date?,
- *       delivered_quantity?, damaged_quantity?, order_quantity?, supplier_wallet?
+ *       delivered_quantity?, damaged_quantity?, order_quantity?, supplier_wallet?,
+ *       action?: 'receive_inventory', warehouseId?
  */
 export async function PATCH(request: NextRequest) {
   try {
@@ -322,6 +323,7 @@ export async function PATCH(request: NextRequest) {
     const companyId = Number(body.companyId);
     const id = Number(body.id);
     const privyUserId = body.privyUserId;
+    const action = String(body.action || '').toLowerCase();
 
     if (!Number.isFinite(companyId) || !Number.isFinite(id)) {
       return NextResponse.json({ error: 'companyId and id required' }, { status: 400 });
@@ -344,6 +346,48 @@ export async function PATCH(request: NextRequest) {
     }
     if (!po) {
       return NextResponse.json({ error: 'Purchase order not found' }, { status: 404 });
+    }
+
+    // Receive PO lines into buyer warehouse
+    if (action === 'receive_inventory' || action === 'receive_stock') {
+      const { receivePurchaseOrderToInventory } = await import(
+        '@/lib/procurement/receive-from-po'
+      );
+      const result = await receivePurchaseOrderToInventory({
+        companyId,
+        poId: id,
+        warehouseId: body.warehouseId != null ? Number(body.warehouseId) : null,
+      });
+      if (!result.ok) {
+        return NextResponse.json(
+          {
+            error: result.error || 'Receive failed',
+            warnings: result.warnings,
+            receivedLines: result.receivedLines,
+            skippedLines: result.skippedLines,
+          },
+          { status: result.error === 'ALREADY_RECEIVED' ? 409 : 400 }
+        );
+      }
+      await logActivity({
+        profile_id: companyId,
+        actor_user_id: member.userId,
+        action: 'po.receive_inventory',
+        entity_type: 'purchase_order',
+        entity_id: String(id),
+        summary: `Received ${result.receivedLines} PO lines into stock (qty ${result.qtyTotal})`,
+        metadata: result,
+      });
+      const { data: refreshed } = await supabase
+        .from('purchase_orders')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+      return NextResponse.json({
+        success: true,
+        receive: result,
+        purchaseOrder: refreshed || po,
+      });
     }
 
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };

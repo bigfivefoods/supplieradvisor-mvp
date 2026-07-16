@@ -50,6 +50,7 @@ interface InboundPO {
     uom?: string | null;
   }> | null;
   line_count?: number;
+  metadata?: Record<string, unknown> | null;
 }
 
 const ACTION_LABELS: Record<
@@ -260,6 +261,42 @@ function InboundPosList() {
         status === 'accepted'
           ? `PO #${poId} accepted — buyer notified`
           : `PO #${poId} → ${status}`
+      );
+      await load();
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const setFulfilment = async (
+    poId: number,
+    fulfilmentStatus: 'preparing' | 'ready' | 'shipped'
+  ) => {
+    if (!privyUserId) {
+      toast.error('Sign in required');
+      return;
+    }
+    setBusyId(poId);
+    try {
+      const res = await fetch('/api/customers/purchase-orders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          id: poId,
+          fulfilmentStatus,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error || 'Update failed');
+        return;
+      }
+      toast.success(
+        fulfilmentStatus === 'shipped'
+          ? `PO #${poId} marked shipped — buyer can see the cue`
+          : `PO #${poId} → ${fulfilmentStatus}`
       );
       await load();
     } finally {
@@ -555,11 +592,43 @@ function InboundPosList() {
                           </button>
                         );
                       })}
-                      {allowed.length === 0 && (
-                        <span className="text-xs text-neutral-400 self-center">
-                          No actions
-                        </span>
+                      {['accepted', 'funded', 'paid'].includes(st) && (
+                        <>
+                          <button
+                            type="button"
+                            disabled={busyId === po.id}
+                            onClick={() => void setFulfilment(po.id, 'preparing')}
+                            className="px-3 py-2 rounded-2xl text-xs font-bold border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                          >
+                            Preparing
+                          </button>
+                          <button
+                            type="button"
+                            disabled={busyId === po.id}
+                            onClick={() => void setFulfilment(po.id, 'shipped')}
+                            className="px-3 py-2 rounded-2xl text-xs font-bold border border-sky-200 bg-sky-50 text-sky-900 hover:bg-sky-100 disabled:opacity-50"
+                          >
+                            Mark shipped
+                          </button>
+                        </>
                       )}
+                      {po.metadata &&
+                        typeof po.metadata === 'object' &&
+                        (po.metadata as { fulfilment_status?: string })
+                          .fulfilment_status && (
+                          <span className="text-[10px] font-bold uppercase self-center px-2 py-1 rounded-full bg-slate-100 text-slate-600">
+                            {
+                              (po.metadata as { fulfilment_status?: string })
+                                .fulfilment_status
+                            }
+                          </span>
+                        )}
+                      {allowed.length === 0 &&
+                        !['accepted', 'funded', 'paid'].includes(st) && (
+                          <span className="text-xs text-neutral-400 self-center">
+                            No actions
+                          </span>
+                        )}
                     </div>
                   </div>
                 </div>

@@ -35,13 +35,24 @@ interface Company {
   role: string;
 }
 
+interface DeletedCompany {
+  id: string;
+  trading_name: string;
+  deleted_at: string;
+  restore_until?: string | null;
+}
+
 export default function SelectCompanyPage() {
   const { user: privyUser, ready, logout, authenticated, login } = usePrivy();
   const router = useRouter();
   const [companies, setCompanies] = useState<Company[]>([]);
+  const [deletedCompanies, setDeletedCompanies] = useState<DeletedCompany[]>(
+    []
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sessionEmail, setSessionEmail] = useState<string | null>(null);
+  const [restoreBusy, setRestoreBusy] = useState<string | null>(null);
 
   const loadCompanies = useCallback(async () => {
     if (!ready) return;
@@ -70,7 +81,11 @@ export default function SelectCompanyPage() {
       const res = await fetch('/api/me/companies', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ privyUserId: userId, email }),
+        body: JSON.stringify({
+          privyUserId: userId,
+          email,
+          includeDeleted: true,
+        }),
       });
 
       const data = await res.json();
@@ -79,10 +94,12 @@ export default function SelectCompanyPage() {
         console.error('companies API error:', data);
         setError(data.error || 'Could not load your companies.');
         setCompanies([]);
+        setDeletedCompanies([]);
         return;
       }
 
       setCompanies(data.companies || []);
+      setDeletedCompanies(data.deletedCompanies || []);
     } catch (err) {
       console.error('Error loading companies:', err);
       setError('Network error while loading companies. Check your connection and try again.');
@@ -440,6 +457,84 @@ export default function SelectCompanyPage() {
               </Link>
             </div>
           </>
+        )}
+
+        {deletedCompanies.length > 0 && (
+          <div className="mt-10 rounded-3xl border border-amber-200 bg-amber-50/60 p-5 sm:p-6">
+            <h3 className="text-sm font-black text-amber-950 mb-1">
+              Recently deleted (restore within 14 days)
+            </h3>
+            <p className="text-xs text-amber-900/80 mb-4">
+              Companies you soft-deleted can be restored if the window has not
+              expired. Only the owner who deleted can restore.
+            </p>
+            <ul className="space-y-2">
+              {deletedCompanies.map((d) => {
+                const expired =
+                  d.restore_until &&
+                  new Date(d.restore_until).getTime() < Date.now();
+                return (
+                  <li
+                    key={d.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-amber-100 bg-white px-4 py-3"
+                  >
+                    <div>
+                      <div className="font-bold text-slate-900 text-sm">
+                        {d.trading_name}
+                      </div>
+                      <div className="text-[11px] text-neutral-500">
+                        Deleted {new Date(d.deleted_at).toLocaleString()}
+                        {d.restore_until
+                          ? ` · restore by ${new Date(d.restore_until).toLocaleDateString()}`
+                          : ''}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={Boolean(expired) || restoreBusy === d.id}
+                      onClick={async () => {
+                        setRestoreBusy(d.id);
+                        try {
+                          const res = await fetch('/api/business/company', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              action: 'restore',
+                              companyId: Number(d.id),
+                            }),
+                          });
+                          const data = await res.json().catch(() => ({}));
+                          if (!res.ok) {
+                            throw new Error(
+                              (data as { error?: string }).error ||
+                                'Restore failed'
+                            );
+                          }
+                          toast.success(
+                            `Restored ${data.tradingName || d.trading_name}`
+                          );
+                          await loadCompanies();
+                        } catch (e: unknown) {
+                          toast.error(
+                            e instanceof Error ? e.message : 'Restore failed'
+                          );
+                        } finally {
+                          setRestoreBusy(null);
+                        }
+                      }}
+                      className="rounded-full bg-amber-800 px-4 py-2 text-xs font-bold text-white hover:bg-amber-900 disabled:opacity-40"
+                    >
+                      {restoreBusy === d.id
+                        ? 'Restoring…'
+                        : expired
+                          ? 'Expired'
+                          : 'Restore'}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
         )}
 
         <HubPrinciples

@@ -308,6 +308,13 @@ export async function GET(request: NextRequest) {
       })();
     }
 
+    const { computeCatalogueReadiness } = await import(
+      '@/lib/suppliers/catalogue-readiness'
+    );
+    const readiness = await computeCatalogueReadiness(sellerProfileId, {
+      buyerProfileId: companyId,
+    });
+
     return NextResponse.json({
       success: true,
       sellerProfileId,
@@ -320,6 +327,7 @@ export async function GET(request: NextRequest) {
       items,
       agreementCount: items.filter((i) => i.source === 'agreement').length,
       inventoryCount,
+      readiness,
       warning:
         empty
           ? 'No sellable catalogue from this supplier yet. Use free-text lines, or ask them to publish inventory / share a price list.'

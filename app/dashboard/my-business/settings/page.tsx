@@ -345,7 +345,8 @@ function SettingsInner() {
               <p className="text-xs text-rose-900/80">
                 Soft-delete this company. Only owners can do this. History is
                 retained for audit; the company is removed from your list and
-                the public network.
+                the public network. You can restore within{' '}
+                <strong>14 days</strong> from the company selector.
               </p>
             </div>
           </div>

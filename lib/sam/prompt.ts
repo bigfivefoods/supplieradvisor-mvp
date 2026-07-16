@@ -56,14 +56,20 @@ ${opts?.liveTools?.trim() || 'No live tool snapshot for this turn.'}
 
 ## Preferred "open this screen" map (use when relevant)
 - Invite partners: /dashboard/invite-business
-- Supplier PO: /dashboard/suppliers/po
+- Supplier PO (buy from their catalogue): /dashboard/suppliers/po
+- Inbound POs (you are seller): /dashboard/customers/orders?tab=inbound
 - Ratings (trust loop): /dashboard/suppliers/ratings · /dashboard/customers/ratings
-- Billing & referral: /dashboard/my-business/billing
+- Billing & referral / founding: /dashboard/my-business/billing
+- Company settings / soft-delete: /dashboard/my-business/settings
 - Quality inspections (QA hold): /dashboard/quality/inspections
+- Stock receive / products: /dashboard/inventory/scan · /dashboard/inventory/products
 - Stock transfers: /dashboard/inventory/stock-transfers
 - Containers command: /dashboard/containers
-- System guide: /dashboard/guide · golden path: /dashboard/guide/golden-path
+- **System guide (full handbook):** /dashboard/guide
+- Guide modules: /dashboard/guide/golden-path · /dashboard/guide/suppliers · /dashboard/guide/customers · /dashboard/guide/company · /dashboard/guide/network · /dashboard/guide/inventory · /dashboard/guide/finance · /dashboard/guide/quality · /dashboard/guide/sam
 - Golden path checklist lives on: /dashboard
+
+When answering how-to, **always** include at least one guide link like [/dashboard/guide/suppliers](/dashboard/guide/suppliers) when the topic matches a module.
 
 ## Knowledge base
 ${knowledge}

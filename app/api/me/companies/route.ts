@@ -136,9 +136,50 @@ export async function POST(request: NextRequest) {
         };
       });
 
+    // Soft-deleted companies this user deleted (restore window)
+    let deletedCompanies: Array<{
+      id: string;
+      trading_name: string;
+      deleted_at: string;
+      restore_until?: string | null;
+    }> = [];
+    if (body.includeDeleted) {
+      try {
+        const { data: deletedRows } = await supabase
+          .from('profiles')
+          .select('id, trading_name, deleted_at, deleted_by, deletion_reason')
+          .not('deleted_at', 'is', null)
+          .in('deleted_by', variants)
+          .limit(20);
+        deletedCompanies = (deletedRows || []).map((p) => {
+          let restore_until: string | null = null;
+          let name = String(p.trading_name || '').replace(/^\[Deleted\]\s*/i, '');
+          try {
+            const meta = JSON.parse(String(p.deletion_reason || '{}')) as {
+              original_trading_name?: string;
+              restore_until?: string;
+            };
+            if (meta.original_trading_name) name = meta.original_trading_name;
+            if (meta.restore_until) restore_until = meta.restore_until;
+          } catch {
+            /* ignore */
+          }
+          return {
+            id: String(p.id),
+            trading_name: name,
+            deleted_at: String(p.deleted_at),
+            restore_until,
+          };
+        });
+      } catch {
+        /* column missing */
+      }
+    }
+
     return NextResponse.json({
       success: true,
       companies,
+      deletedCompanies,
       userId,
       email,
       count: companies.length,

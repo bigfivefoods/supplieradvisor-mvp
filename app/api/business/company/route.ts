@@ -4,7 +4,9 @@ import {
   legacyPrivyFrom,
 } from '@/lib/auth/api-auth';
 import {
+  COMPANY_RESTORE_DAYS,
   isCompanyDeleted,
+  restoreCompany,
   softDeleteCompany,
 } from '@/lib/business/delete-company';
 import { getCompanyMembership } from '@/lib/business/access';
@@ -132,9 +134,34 @@ export async function POST(request: NextRequest) {
     const action = String(
       (body as { action?: string }).action || 'delete'
     ).toLowerCase();
+    if (action === 'restore') {
+      const auth = await requireVerifiedUser(request, {
+        legacyPrivyUserId: legacyPrivyFrom(request),
+      });
+      if (!auth.ok) return auth.response;
+      const companyId = Number((body as { companyId?: number }).companyId);
+      const result = await restoreCompany({
+        companyId,
+        privyUserId: auth.userId,
+      });
+      if (!result.ok) {
+        return NextResponse.json(
+          { error: result.error, code: result.code },
+          { status: result.status }
+        );
+      }
+      return NextResponse.json({
+        success: true,
+        restored: true,
+        companyId: result.companyId,
+        tradingName: result.tradingName,
+        message: `Company restored. Select it from your company list. Restore window is ${COMPANY_RESTORE_DAYS} days from deletion.`,
+        next: '/dashboard/select-company',
+      });
+    }
     if (action !== 'delete') {
       return NextResponse.json(
-        { error: 'action must be delete' },
+        { error: 'action must be delete | restore' },
         { status: 400 }
       );
     }

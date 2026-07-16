@@ -129,6 +129,7 @@ type PurchaseOrder = {
   supplier_wallet?: string | null;
   created_at?: string;
   metadata?: Record<string, unknown> | null;
+  fulfilment_status?: string | null;
 };
 
 export default function SupplierPurchaseOrdersPage() {
@@ -221,6 +222,14 @@ function PoInner() {
   const [catalogueLoading, setCatalogueLoading] = useState(false);
   const [catalogueWarning, setCatalogueWarning] = useState<string | null>(null);
   const [catalogueSearch, setCatalogueSearch] = useState('');
+  const [catalogueReadiness, setCatalogueReadiness] = useState<{
+    score: number;
+    level: string;
+    label: string;
+    tips: string[];
+    sellableProducts: number;
+    agreementLines: number;
+  } | null>(null);
   /** Which catalogue key is bound to each line (for dropdown state) */
   const [lineCatalogueKeys, setLineCatalogueKeys] = useState<(string | null)[]>(
     [null]
@@ -247,6 +256,7 @@ function PoInner() {
     if (!companyId || !selectedSrmId) {
       setSupplierCatalogue([]);
       setCatalogueWarning(null);
+      setCatalogueReadiness(null);
       return;
     }
     let cancelled = false;
@@ -281,6 +291,8 @@ function PoInner() {
         setCatalogueWarning(
           (data as { warning?: string | null }).warning || null
         );
+        const r = (data as { readiness?: typeof catalogueReadiness }).readiness;
+        setCatalogueReadiness(r || null);
 
         // Once per session: soft-nudge supplier if catalogue empty but linked
         if (
@@ -917,6 +929,56 @@ function PoInner() {
     }
   };
 
+  const receiveToStock = async (po: PurchaseOrder) => {
+    setBusyId(po.id);
+    try {
+      const res = await fetch('/api/suppliers/purchase-orders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          id: po.id,
+          action: 'receive_inventory',
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const warns = Array.isArray(data.warnings)
+          ? data.warnings.slice(0, 2).join(' · ')
+          : '';
+        throw new Error(
+          [
+            (data as { error?: string }).error || 'Receive failed',
+            warns,
+          ]
+            .filter(Boolean)
+            .join(' — ')
+        );
+      }
+      const r = data.receive as {
+        receivedLines?: number;
+        qtyTotal?: number;
+        skippedLines?: number;
+        warnings?: string[];
+      };
+      toast.success(
+        `Received ${r?.receivedLines || 0} lines (qty ${r?.qtyTotal || 0}) into stock`,
+        {
+          description:
+            r?.skippedLines
+              ? `${r.skippedLines} line(s) skipped — match SKU or import products`
+              : 'Open Inventory → Stock to verify',
+        }
+      );
+      await load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Receive failed');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const openDelivery = (po: PurchaseOrder) => {
     const orderQty =
       Number(po.order_quantity) ||
@@ -1177,7 +1239,35 @@ function PoInner() {
                       : catalogueGroups.unfilteredTotal
                         ? ` · ${catalogueGroups.unfilteredTotal} sellable`
                         : ''}
+                    {catalogueReadiness
+                      ? ` · ${catalogueReadiness.label} (${catalogueReadiness.score})`
+                      : ''}
                   </div>
+                  {catalogueReadiness && (
+                    <div className="mb-2">
+                      <div className="h-1.5 rounded-full bg-white/80 overflow-hidden border border-[#00b4d8]/20">
+                        <div
+                          className={`h-full rounded-full transition-all ${
+                            catalogueReadiness.level === 'strong'
+                              ? 'bg-emerald-500'
+                              : catalogueReadiness.level === 'ready'
+                                ? 'bg-[#00b4d8]'
+                                : catalogueReadiness.level === 'thin'
+                                  ? 'bg-amber-400'
+                                  : 'bg-rose-400'
+                          }`}
+                          style={{
+                            width: `${Math.max(4, catalogueReadiness.score)}%`,
+                          }}
+                        />
+                      </div>
+                      {catalogueReadiness.tips[0] && (
+                        <p className="text-[10px] text-slate-600 mt-1">
+                          {catalogueReadiness.tips[0]}
+                        </p>
+                      )}
+                    </div>
+                  )}
                   <p className="text-[10px] text-neutral-600 mb-2 leading-relaxed">
                     PO lines pull from this supplier’s{' '}
                     <strong>agreed price list</strong> and their published{' '}
@@ -2032,6 +2122,33 @@ function PoInner() {
                               <Package className="w-3 h-3" /> Receive + OTIFEF
                             </button>
                           )}
+                          {['accepted', 'funded', 'sent', 'completed'].includes(
+                            String(po.status)
+                          ) &&
+                            !(
+                              po.metadata &&
+                              typeof po.metadata === 'object' &&
+                              (po.metadata as { inventory_received_at?: string })
+                                .inventory_received_at
+                            ) && (
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => void receiveToStock(po)}
+                                className="btn-secondary !py-1.5 !px-3 text-xs"
+                                title="Match lines to your products by source/SKU/name and increase stock"
+                              >
+                                Receive to stock
+                              </button>
+                            )}
+                          {po.metadata &&
+                            typeof po.metadata === 'object' &&
+                            (po.metadata as { fulfilment_status?: string })
+                              .fulfilment_status === 'shipped' && (
+                              <span className="text-[10px] font-bold uppercase px-2 py-1 rounded-full bg-sky-100 text-sky-800">
+                                Supplier shipped
+                              </span>
+                            )}
                           {escrowEnabled && onchain && po.status === 'funded' && (
                             <button
                               type="button"
