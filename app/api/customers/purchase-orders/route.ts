@@ -325,6 +325,32 @@ export async function PATCH(request: NextRequest) {
       })();
     }
 
+    // Buyer push when supplier marks ready / shipped
+    if (
+      fulfilmentStatus &&
+      (fulfilmentStatus === 'shipped' || fulfilmentStatus === 'ready') &&
+      po.buyer_profile_id
+    ) {
+      void (async () => {
+        try {
+          const { data: supplierProf } = await supabase
+            .from('profiles')
+            .select('trading_name')
+            .eq('id', companyId)
+            .maybeSingle();
+          const { notifyPoFulfilmentPush } = await import('@/lib/push/web-push');
+          await notifyPoFulfilmentPush({
+            buyerProfileId: Number(po.buyer_profile_id),
+            supplierName: supplierProf?.trading_name || null,
+            poId: id,
+            fulfilmentStatus,
+          });
+        } catch (e) {
+          console.warn('PO fulfilment push soft-fail', e);
+        }
+      })();
+    }
+
     return NextResponse.json({ success: true, purchaseOrder: data });
   } catch (e: unknown) {
     return NextResponse.json(

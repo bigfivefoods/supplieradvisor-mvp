@@ -206,6 +206,74 @@ export async function notifyPoAcceptedPush(params: {
   }
 }
 
+/** Buyer raised / sent a PO → alert supplier company devices. */
+export async function notifyInboundPoPush(params: {
+  supplierProfileId: number;
+  buyerName?: string | null;
+  poId: number;
+  totalAmount?: number | null;
+  currency?: string | null;
+}) {
+  try {
+    const amount =
+      params.totalAmount != null && Number.isFinite(Number(params.totalAmount))
+        ? ` · ${params.currency || 'ZAR'} ${Number(params.totalAmount).toLocaleString('en-ZA')}`
+        : '';
+    await pushToCompany(
+      params.supplierProfileId,
+      {
+        title: 'New purchase order',
+        body: params.buyerName
+          ? `${params.buyerName} sent PO #${params.poId}${amount}`
+          : `Inbound PO #${params.poId}${amount}`,
+        url: `/dashboard/customers/orders`,
+        tag: `po-inbound-${params.poId}`,
+      },
+      { topic: 'po' }
+    );
+  } catch (e) {
+    console.warn('notifyInboundPoPush', e);
+  }
+}
+
+/** Supplier marked fulfilment shipped / ready → alert buyer. */
+export async function notifyPoFulfilmentPush(params: {
+  buyerProfileId: number;
+  supplierName?: string | null;
+  poId: number;
+  fulfilmentStatus: string;
+}) {
+  try {
+    const st = String(params.fulfilmentStatus || '').toLowerCase();
+    const title =
+      st === 'shipped'
+        ? 'PO shipped'
+        : st === 'ready'
+          ? 'PO ready'
+          : 'PO fulfilment update';
+    const verb =
+      st === 'shipped'
+        ? 'shipped'
+        : st === 'ready'
+          ? 'marked ready for collection'
+          : `updated fulfilment (${st})`;
+    await pushToCompany(
+      params.buyerProfileId,
+      {
+        title,
+        body: params.supplierName
+          ? `${params.supplierName} ${verb} PO #${params.poId}`
+          : `Supplier ${verb} PO #${params.poId}`,
+        url: `/dashboard/suppliers/po`,
+        tag: `po-fulfilment-${params.poId}-${st}`,
+      },
+      { topic: 'po' }
+    );
+  } catch (e) {
+    console.warn('notifyPoFulfilmentPush', e);
+  }
+}
+
 export async function notifyDealStagePush(params: {
   profileId: number;
   salesRepUserId?: string | null;

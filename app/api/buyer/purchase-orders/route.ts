@@ -198,6 +198,43 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Soft email + push to supplier (inbound PO)
+    if (data?.id && supplierProfileId) {
+      void (async () => {
+        try {
+          const { data: buyerProf } = await supabase
+            .from('profiles')
+            .select('trading_name')
+            .eq('id', buyerCompanyId)
+            .maybeSingle();
+          const buyerName = buyerProf?.trading_name || null;
+          const { notifyInboundPo } = await import(
+            '@/lib/notifications/email-alerts'
+          );
+          await notifyInboundPo({
+            supplierProfileId,
+            buyerProfileId: buyerCompanyId,
+            buyerName,
+            poId: Number(data.id),
+            totalAmount: Number(data.total_amount ?? computedSum),
+            currency: String(data.currency || payload.currency || 'ZAR'),
+            lineCount: normalized.items.length,
+            source: 'customer_portal',
+          });
+          const { notifyInboundPoPush } = await import('@/lib/push/web-push');
+          await notifyInboundPoPush({
+            supplierProfileId,
+            buyerName,
+            poId: Number(data.id),
+            totalAmount: Number(data.total_amount ?? computedSum),
+            currency: String(data.currency || payload.currency || 'ZAR'),
+          });
+        } catch (e) {
+          console.warn('buyer PO inbound notify soft-fail', e);
+        }
+      })();
+    }
+
     return NextResponse.json({ success: true, purchaseOrder: data }, { status: 201 });
   } catch (e: unknown) {
     return NextResponse.json(

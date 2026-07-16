@@ -317,15 +317,24 @@ export async function POST(request: NextRequest) {
           const { notifyInboundPo } = await import(
             '@/lib/notifications/email-alerts'
           );
+          const buyerName = buyerProf?.trading_name || null;
           await notifyInboundPo({
             supplierProfileId,
             buyerProfileId: companyId,
-            buyerName: buyerProf?.trading_name || null,
+            buyerName,
             poId: Number(data.id),
             totalAmount: Number(data.total_amount ?? normalized.total),
             currency: String(data.currency || body.currency || 'ZAR'),
             lineCount: normalized.items.length,
             source: 'srm',
+          });
+          const { notifyInboundPoPush } = await import('@/lib/push/web-push');
+          await notifyInboundPoPush({
+            supplierProfileId,
+            buyerName,
+            poId: Number(data.id),
+            totalAmount: Number(data.total_amount ?? normalized.total),
+            currency: String(data.currency || body.currency || 'ZAR'),
           });
         } catch (e) {
           console.warn('inbound PO notify soft-fail', e);
@@ -498,6 +507,47 @@ export async function PATCH(request: NextRequest) {
       summary: `SRM PO #${id} updated${nextStatus ? ` → ${nextStatus}` : ''}`,
       metadata: updates,
     });
+
+    // Draft → sent: notify supplier (email + push)
+    const prevStatus = String(po.status || '').toLowerCase();
+    if (nextStatus === 'sent' && prevStatus === 'draft') {
+      void (async () => {
+        try {
+          const supplierProfileId = Number(
+            data?.supplier_profile_id ?? po.supplier_profile_id
+          );
+          if (!Number.isFinite(supplierProfileId) || supplierProfileId <= 0) return;
+          const { data: buyerProf } = await supabase
+            .from('profiles')
+            .select('trading_name')
+            .eq('id', companyId)
+            .maybeSingle();
+          const buyerName = buyerProf?.trading_name || null;
+          const { notifyInboundPo } = await import(
+            '@/lib/notifications/email-alerts'
+          );
+          await notifyInboundPo({
+            supplierProfileId,
+            buyerProfileId: companyId,
+            buyerName,
+            poId: id,
+            totalAmount: Number(data?.total_amount ?? po.total_amount ?? 0),
+            currency: String(data?.currency || po.currency || 'ZAR'),
+            source: 'srm',
+          });
+          const { notifyInboundPoPush } = await import('@/lib/push/web-push');
+          await notifyInboundPoPush({
+            supplierProfileId,
+            buyerName,
+            poId: id,
+            totalAmount: Number(data?.total_amount ?? po.total_amount ?? 0),
+            currency: String(data?.currency || po.currency || 'ZAR'),
+          });
+        } catch (e) {
+          console.warn('PO sent notify soft-fail', e);
+        }
+      })();
+    }
 
     // Soft-fail rating prompt when PO is delivered / completed (buyer → supplier)
     const deliveredNow =
