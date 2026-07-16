@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { MapPin, ShieldCheck, ExternalLink, Building2 } from 'lucide-react';
+import { MapPin, ExternalLink, Building2 } from 'lucide-react';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { isEligibleForDiscovery } from '@/lib/business/completeness';
 import CompanyLogo from '@/components/business/CompanyLogo';
@@ -9,7 +9,73 @@ import TrustBadges from '@/components/business/TrustBadges';
 
 type Props = { params: Promise<{ id: string }> };
 
-async function loadCompany(idParam: string) {
+type PublicCompany = {
+  id: number;
+  trading_name: string | null;
+  legal_name: string | null;
+  verification_status: string | null;
+  is_verified: boolean | null;
+  industry: string | null;
+  city: string | null;
+  province: string | null;
+  country: string | null;
+  continent: string | null;
+  logo_url: string | null;
+  website: string | null;
+  short_description: string | null;
+  description: string | null;
+  about: string | null;
+  bee_level: string | null;
+  certifications: unknown;
+  trust_score: number | null;
+  otifef_average: number | null;
+  is_discoverable: boolean | null;
+  registration_number: string | null;
+  bank_verification_status: string | null;
+  metadata: unknown;
+};
+
+function asCompany(row: Record<string, unknown>): PublicCompany {
+  return {
+    id: Number(row.id),
+    trading_name: row.trading_name != null ? String(row.trading_name) : null,
+    legal_name: row.legal_name != null ? String(row.legal_name) : null,
+    verification_status:
+      row.verification_status != null ? String(row.verification_status) : null,
+    is_verified: row.is_verified === true,
+    industry: row.industry != null ? String(row.industry) : null,
+    city: row.city != null ? String(row.city) : null,
+    province: row.province != null ? String(row.province) : null,
+    country: row.country != null ? String(row.country) : null,
+    continent: row.continent != null ? String(row.continent) : null,
+    logo_url: row.logo_url != null ? String(row.logo_url) : null,
+    website: row.website != null ? String(row.website) : null,
+    short_description:
+      row.short_description != null ? String(row.short_description) : null,
+    description: row.description != null ? String(row.description) : null,
+    about: row.about != null ? String(row.about) : null,
+    bee_level: row.bee_level != null ? String(row.bee_level) : null,
+    certifications: row.certifications,
+    trust_score:
+      row.trust_score != null && Number.isFinite(Number(row.trust_score))
+        ? Number(row.trust_score)
+        : null,
+    otifef_average:
+      row.otifef_average != null && Number.isFinite(Number(row.otifef_average))
+        ? Number(row.otifef_average)
+        : null,
+    is_discoverable: row.is_discoverable !== false && row.is_discoverable !== 'false',
+    registration_number:
+      row.registration_number != null ? String(row.registration_number) : null,
+    bank_verification_status:
+      row.bank_verification_status != null
+        ? String(row.bank_verification_status)
+        : null,
+    metadata: row.metadata,
+  };
+}
+
+async function loadCompany(idParam: string): Promise<PublicCompany | null> {
   const id = Number(idParam);
   if (!Number.isFinite(id) || id <= 0) return null;
   const supabase = getSupabaseServer();
@@ -21,17 +87,18 @@ async function loadCompany(idParam: string) {
     .eq('id', id)
     .maybeSingle();
   if (!data) return null;
-  if (!isEligibleForDiscovery(data as Record<string, unknown>).ok) return null;
-  return data as Record<string, unknown>;
+  const raw = data as Record<string, unknown>;
+  if (!isEligibleForDiscovery(raw).ok) return null;
+  return asCompany(raw);
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
   const c = await loadCompany(id);
   if (!c) return { title: 'Company · SupplierAdvisor' };
-  const name = String(c.trading_name || c.legal_name || 'Company');
+  const name = c.trading_name || c.legal_name || 'Company';
   const desc =
-    String(c.short_description || c.description || c.about || '').slice(0, 160) ||
+    (c.short_description || c.description || c.about || '').slice(0, 160) ||
     `${name} on SupplierAdvisor — verified African trade network.`;
   return {
     title: `${name} · SupplierAdvisor Directory`,
@@ -39,7 +106,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     openGraph: {
       title: name,
       description: desc,
-      images: c.logo_url ? [String(c.logo_url)] : undefined,
+      images: c.logo_url ? [c.logo_url] : undefined,
     },
   };
 }
@@ -53,17 +120,28 @@ export default async function PublicCompanyPage({ params }: Props) {
   const c = await loadCompany(id);
   if (!c) notFound();
 
-  const name = String(c.trading_name || c.legal_name || 'Company');
+  const name = c.trading_name || c.legal_name || 'Company';
+  const legalName = c.legal_name;
+  const showLegalName = Boolean(legalName && legalName !== name);
   const verified =
     c.is_verified === true ||
     String(c.verification_status || '').toLowerCase() === 'verified';
   const location = [c.city, c.province, c.country].filter(Boolean).join(', ');
-  const about = String(
-    c.short_description || c.description || c.about || ''
-  ).trim();
+  const about = (c.short_description || c.description || c.about || '').trim();
   const certs = Array.isArray(c.certifications)
-    ? (c.certifications as string[]).map(String)
+    ? c.certifications.map(String)
     : [];
+  const industry = c.industry;
+  const registrationNumber = c.registration_number;
+  const beeLevel = c.bee_level;
+  const website = c.website;
+  const showBankBadge = (() => {
+    const meta =
+      c.metadata && typeof c.metadata === 'object'
+        ? (c.metadata as Record<string, unknown>)
+        : {};
+    return meta.show_bank_verified_public === true;
+  })();
 
   return (
     <div className="min-h-screen bg-[#f8fafc]">
@@ -80,59 +158,34 @@ export default async function PublicCompanyPage({ params }: Props) {
       <main className="mx-auto max-w-3xl px-4 py-10">
         <article className="rounded-3xl border border-neutral-200 bg-white p-6 sm:p-8 shadow-sm">
           <div className="flex items-start gap-4">
-            <CompanyLogo logoUrl={c.logo_url as string} name={name} size="lg" />
+            <CompanyLogo logoUrl={c.logo_url} name={name} size="lg" />
             <div className="min-w-0 flex-1">
               <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">
                 {name}
               </h1>
-              {Boolean(
-                c.legal_name && String(c.legal_name) !== name
-              ) ? (
-                <p className="text-sm text-neutral-500 mt-0.5">
-                  {String(c.legal_name)}
-                </p>
+              {showLegalName ? (
+                <p className="text-sm text-neutral-500 mt-0.5">{legalName}</p>
               ) : null}
               <div className="mt-2">
                 <TrustBadges
                   isVerified={verified}
-                  verificationStatus={
-                    c.verification_status != null
-                      ? String(c.verification_status)
-                      : null
-                  }
-                  bankVerificationStatus={
-                    c.bank_verification_status != null
-                      ? String(c.bank_verification_status)
-                      : null
-                  }
-                  showBankBadge={(() => {
-                    const meta =
-                      c.metadata && typeof c.metadata === 'object'
-                        ? (c.metadata as Record<string, unknown>)
-                        : {};
-                    // Default OFF on public pages — only show when company opts in
-                    return meta.show_bank_verified_public === true;
-                  })()}
-                  trustScore={
-                    c.trust_score != null ? Number(c.trust_score) : null
-                  }
-                  otifefPct={
-                    c.otifef_average != null ? Number(c.otifef_average) : null
-                  }
+                  verificationStatus={c.verification_status}
+                  bankVerificationStatus={c.bank_verification_status}
+                  showBankBadge={showBankBadge}
+                  trustScore={c.trust_score}
+                  otifefPct={c.otifef_average}
                 />
               </div>
             </div>
           </div>
 
           <dl className="mt-6 grid sm:grid-cols-2 gap-3 text-sm">
-            {Boolean(c.industry) ? (
+            {industry ? (
               <div className="rounded-xl bg-neutral-50 p-3">
                 <dt className="text-[10px] font-bold uppercase text-neutral-400">
                   Industry
                 </dt>
-                <dd className="font-semibold text-slate-800 mt-0.5">
-                  {String(c.industry)}
-                </dd>
+                <dd className="font-semibold text-slate-800 mt-0.5">{industry}</dd>
               </div>
             ) : null}
             {location ? (
@@ -146,24 +199,22 @@ export default async function PublicCompanyPage({ params }: Props) {
                 </dd>
               </div>
             ) : null}
-            {Boolean(c.registration_number) ? (
+            {registrationNumber ? (
               <div className="rounded-xl bg-neutral-50 p-3">
                 <dt className="text-[10px] font-bold uppercase text-neutral-400">
                   Registration
                 </dt>
                 <dd className="font-mono text-sm text-slate-800 mt-0.5">
-                  {String(c.registration_number)}
+                  {registrationNumber}
                 </dd>
               </div>
             ) : null}
-            {Boolean(c.bee_level) ? (
+            {beeLevel ? (
               <div className="rounded-xl bg-neutral-50 p-3">
                 <dt className="text-[10px] font-bold uppercase text-neutral-400">
                   B-BBEE
                 </dt>
-                <dd className="font-semibold text-slate-800 mt-0.5">
-                  {String(c.bee_level)}
-                </dd>
+                <dd className="font-semibold text-slate-800 mt-0.5">{beeLevel}</dd>
               </div>
             ) : null}
           </dl>
@@ -186,12 +237,10 @@ export default async function PublicCompanyPage({ params }: Props) {
           ) : null}
 
           <div className="mt-8 flex flex-wrap gap-3">
-            {Boolean(c.website) ? (
+            {website ? (
               <a
                 href={
-                  String(c.website).startsWith('http')
-                    ? String(c.website)
-                    : `https://${c.website}`
+                  website.startsWith('http') ? website : `https://${website}`
                 }
                 target="_blank"
                 rel="noopener noreferrer"
