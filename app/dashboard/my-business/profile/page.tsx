@@ -1119,24 +1119,32 @@ function ProfileInner() {
         }
       : null;
 
+  const inputCls = 'input w-full !py-2 !px-2.5 !text-sm';
+  const bankVerified =
+    String(form.bank_verification_status || bankVerifyResult?.status || '').toLowerCase() ===
+    'verified';
+  const bankFailed =
+    String(form.bank_verification_status || bankVerifyResult?.status || '').toLowerCase() ===
+    'failed';
+
   return (
     <BusinessPage>
       <BusinessHeader
         title="Company"
         titleAccent="profile"
-        description="Identity, contacts, banking, and certifications — full profiles row from Supabase (legacy + modern columns)."
+        description="Identity, CIPC verification, contacts, banking, and compliance — saved to your company profile."
         action={
           <button
             type="button"
             disabled={saving}
             onClick={() => void save()}
-            className="btn-primary !py-2.5 !px-5 text-sm"
+            className="btn-primary !py-2 !px-4 text-sm inline-flex items-center gap-1.5"
           >
             {saving ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
               <>
-                <Save className="w-4 h-4" /> Save profile
+                <Save className="w-4 h-4" /> Save
               </>
             )}
           </button>
@@ -1144,596 +1152,579 @@ function ProfileInner() {
       />
 
       {warning && (
-        <div className="mb-4 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
-          <span>
-            Profile loaded with a membership warning (data still shown): {warning}
-          </span>
+        <div className="mb-3 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900">
+          <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+          <span>Membership warning (data still shown): {warning}</span>
         </div>
       )}
 
-      {/* Completeness + logo strip */}
-      <div className="mb-6 rounded-[1.35rem] border border-neutral-200/90 bg-white p-5">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-          <div className="flex items-center gap-3 min-w-0 flex-1">
-            <div className="h-14 w-14 rounded-2xl border border-neutral-200 bg-neutral-50 overflow-hidden flex items-center justify-center shrink-0">
-              {form.logo_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={String(form.logo_url)}
-                  alt="Company logo"
-                  className="h-full w-full object-contain"
-                />
-              ) : (
-                <ImageIcon className="w-6 h-6 text-neutral-300" />
+      {/* Compact summary strip */}
+      <div className="mb-4 rounded-2xl border border-neutral-200/90 bg-white px-4 py-3">
+        <div className="flex items-center gap-3">
+          <div className="h-11 w-11 rounded-xl border border-neutral-200 bg-neutral-50 overflow-hidden flex items-center justify-center shrink-0">
+            {form.logo_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={String(form.logo_url)}
+                alt=""
+                className="h-full w-full object-contain"
+              />
+            ) : (
+              <ImageIcon className="w-5 h-5 text-neutral-300" />
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-bold text-slate-900 tracking-tight truncate text-sm">
+                {form.trading_name || 'Your company'}
+              </span>
+              {isVerified && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full">
+                  <ShieldCheck className="w-3 h-3" /> CIPC verified
+                </span>
+              )}
+              {bankVerified && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-sky-700 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-full">
+                  <Wallet className="w-3 h-3" /> Bank verified
+                </span>
               )}
             </div>
-            <div className="min-w-0">
-              <div className="font-bold text-slate-900 tracking-tight truncate">
-                {form.trading_name || 'Your company'}
-              </div>
-              <div className="text-xs text-neutral-500 truncate">
-                {[form.industry, form.city, form.country].filter(Boolean).join(' · ') ||
-                  'Complete your profile'}
-              </div>
+            <div className="text-[11px] text-neutral-500 truncate">
+              {[form.industry, form.city, form.country].filter(Boolean).join(' · ') ||
+                'Complete your profile below'}
             </div>
           </div>
-          <div className="sm:text-right shrink-0">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-400">
-              Completeness
+          <div className="shrink-0 text-right w-20">
+            <div className="text-[9px] font-semibold uppercase tracking-wider text-neutral-400">
+              Complete
             </div>
-            <div className="text-2xl font-black tracking-tighter tabular-nums">
+            <div className="text-lg font-black tracking-tighter tabular-nums leading-none">
               {completeness?.pct ?? 0}%
             </div>
           </div>
         </div>
-        <div className="h-2 rounded-full bg-neutral-100 overflow-hidden mt-4">
+        <div className="h-1.5 rounded-full bg-neutral-100 overflow-hidden mt-2.5">
           <div
             className="h-full rounded-full bg-gradient-to-r from-[#00b4d8] to-[#0077b6]"
             style={{ width: `${completeness?.pct ?? 0}%` }}
           />
         </div>
-        {isVerified && (
-          <div className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
-            <ShieldCheck className="w-3.5 h-3.5" /> Verified company
-          </div>
-        )}
-        {form.public_id && (
-          <div className="mt-2 text-[11px] text-neutral-400 font-mono">
-            public_id: {String(form.public_id)}
-          </div>
-        )}
       </div>
 
-      {/* VerifyNow CIPC — Pay R69 via Paystack, then verify in-page (no free path) */}
-      <Panel className="mb-6" title="Company verification">
-        <div className="p-5 space-y-4">
-          <p className="text-sm text-neutral-600 leading-relaxed">
-            Run a live <strong>CIPC company check</strong> through VerifyNow without leaving
-            SupplierAdvisor. We use your registration number (or VAT number) from this profile.
-            Verification costs <strong>R{VERIFY_AMOUNT_ZAR}</strong> per check, paid securely via
-            on-page Paystack checkout — payment is required for every verification.
-          </p>
-
-          <div className="grid sm:grid-cols-2 gap-3">
-            <div className="rounded-xl border border-neutral-200 bg-neutral-50/80 px-3 py-2.5">
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
-                Registration no.
+      <div className="space-y-3 sm:space-y-4">
+        {/* ── Identity + CIPC (grouped) ── */}
+        <Panel
+          title="Identity & CIPC verification"
+          action={
+            isVerified ? (
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700">
+                <ShieldCheck className="w-3.5 h-3.5" /> Verified
+              </span>
+            ) : (
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
+                Unverified
+              </span>
+            )
+          }
+        >
+          <div className="p-4 grid lg:grid-cols-5 gap-4 lg:gap-5">
+            {/* Left: identity fields */}
+            <div className="lg:col-span-3 space-y-2.5 min-w-0">
+              <CardSubhead>Company details</CardSubhead>
+              <div className="grid sm:grid-cols-2 gap-2.5">
+                <Field label="Trading name *">
+                  <input
+                    className={inputCls}
+                    value={form.trading_name || ''}
+                    onChange={(e) => set('trading_name', e.target.value)}
+                  />
+                </Field>
+                <Field label="Legal name">
+                  <input
+                    className={inputCls}
+                    value={form.legal_name || ''}
+                    onChange={(e) => set('legal_name', e.target.value)}
+                  />
+                </Field>
+                <Field label="Business type" className="sm:col-span-2">
+                  <select
+                    className={inputCls}
+                    value={form.business_type || form.category || ''}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      set('business_type', v);
+                      set('category', v);
+                    }}
+                  >
+                    <option value="">Select business type…</option>
+                    {(() => {
+                      const current = String(form.business_type || form.category || '');
+                      if (
+                        current &&
+                        !BUSINESS_TYPE_OPTIONS.includes(
+                          current as (typeof BUSINESS_TYPE_OPTIONS)[number]
+                        )
+                      ) {
+                        return <option value={current}>{current}</option>;
+                      }
+                      return null;
+                    })()}
+                    {BUSINESS_TYPE_OPTIONS.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Registration no. (CIPC)">
+                  <input
+                    className={`${inputCls} font-mono`}
+                    value={form.registration_number || ''}
+                    onChange={(e) => set('registration_number', e.target.value)}
+                    placeholder="2020/123456/07"
+                  />
+                </Field>
+                <Field label="VAT number">
+                  <input
+                    className={`${inputCls} font-mono`}
+                    value={form.vat_number || ''}
+                    onChange={(e) => set('vat_number', e.target.value)}
+                  />
+                </Field>
               </div>
-              <div className="text-sm font-mono text-slate-800 mt-0.5 truncate">
-                {registrationForVerify || (
-                  <span className="text-amber-700 font-sans text-xs">
-                    Fill Identity → Registration no. first
-                  </span>
-                )}
+              <div className="grid sm:grid-cols-2 gap-2.5">
+                <FileUploadField
+                  label="Registration document"
+                  url={form.registration_certificate_url}
+                  compact
+                  uploading={uploading === 'registration'}
+                  onFile={(f) =>
+                    void handleUpload(
+                      f,
+                      'registration',
+                      (url) => set('registration_certificate_url', url),
+                      'registration_certificate_url'
+                    )
+                  }
+                  onClear={() => {
+                    set('registration_certificate_url', null);
+                    void persistPartial({ registration_certificate_url: null }).catch(
+                      () => undefined
+                    );
+                  }}
+                />
+                <FileUploadField
+                  label="VAT certificate"
+                  url={form.vat_certificate_url}
+                  compact
+                  uploading={uploading === 'vat'}
+                  onFile={(f) =>
+                    void handleUpload(
+                      f,
+                      'vat',
+                      (url) => set('vat_certificate_url', url),
+                      'vat_certificate_url'
+                    )
+                  }
+                  onClear={() => {
+                    set('vat_certificate_url', null);
+                    void persistPartial({ vat_certificate_url: null }).catch(() => undefined);
+                  }}
+                />
+              </div>
+              <div className="grid sm:grid-cols-3 gap-2.5">
+                <Field label="About" className="sm:col-span-2">
+                  <textarea
+                    className={`${inputCls} min-h-[72px] resize-y`}
+                    value={String(
+                      form.description || form.short_description || form.about || ''
+                    )}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="What does this company do?"
+                  />
+                </Field>
+                <FileUploadField
+                  label="Logo"
+                  url={form.logo_url}
+                  accept="image/*"
+                  compact
+                  previewImage
+                  uploading={uploading === 'logo'}
+                  onFile={(f) =>
+                    void handleUpload(f, 'logo', (url) => set('logo_url', url), 'logo_url')
+                  }
+                  onClear={() => {
+                    set('logo_url', null);
+                    void persistPartial({ logo_url: null }).catch(() => undefined);
+                  }}
+                />
               </div>
             </div>
-            <div className="rounded-xl border border-neutral-200 bg-neutral-50/80 px-3 py-2.5">
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
-                Status
-              </div>
-              <div className="mt-0.5">
-                {isVerified ? (
-                  <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-emerald-700">
-                    <ShieldCheck className="w-3.5 h-3.5" /> Verified
-                    {form.verified_at
-                      ? ` · ${new Date(String(form.verified_at)).toLocaleDateString()}`
-                      : ''}
-                  </span>
-                ) : verificationStatus === 'mismatch' ? (
-                  <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-amber-700">
-                    <AlertTriangle className="w-3.5 h-3.5" /> Name mismatch — review
-                  </span>
-                ) : verificationStatus === 'failed' ? (
-                  <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-red-700">
-                    <AlertTriangle className="w-3.5 h-3.5" /> Failed
-                  </span>
-                ) : verificationStatus === 'pending' ? (
-                  <span className="text-xs font-semibold text-sky-700">Pending…</span>
-                ) : (
-                  <span className="text-xs font-semibold text-neutral-500">Unverified</span>
-                )}
-              </div>
-            </div>
-          </div>
 
-          <label className="flex items-start gap-2.5 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              className="mt-1 rounded border-neutral-300 text-[#00b4d8] focus:ring-[#00b4d8]"
-              checked={verifyConsent}
-              onChange={(e) => setVerifyConsent(e.target.checked)}
-            />
-            <span className="text-xs text-neutral-600 leading-relaxed">
-              I confirm this company authorises a CIPC registration check via VerifyNow (data
-              processed for KYB / FICA-style business verification). The check runs on this page
-              — you will not be redirected.
-            </span>
-          </label>
+            {/* Right: CIPC verify */}
+            <div className="lg:col-span-2 min-w-0">
+              <div className="h-full rounded-xl border border-[#00b4d8]/20 bg-gradient-to-b from-[#00b4d8]/[0.06] to-white p-3.5 space-y-2.5">
+                <CardSubhead
+                  action={
+                    <span className="text-[10px] font-bold text-[#0077b6] tabular-nums">
+                      R{VERIFY_AMOUNT_ZAR}
+                    </span>
+                  }
+                >
+                  CIPC check
+                </CardSubhead>
+                <p className="text-[11px] text-neutral-600 leading-snug">
+                  Live VerifyNow CIPC lookup using the registration / VAT number on the left.
+                  Pay via Paystack — check runs on this page.
+                </p>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              disabled={
-                verifying ||
-                paying ||
-                !verifyConsent ||
-                (!registrationForVerify && !vatForVerify)
-              }
-              onClick={startVerifyPayment}
-              className="btn-primary !py-2.5 !px-5 text-sm"
-            >
-              {paying || verifying ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <>
-                  <ShieldCheck className="w-4 h-4" />{' '}
-                  {isVerified
-                    ? `Pay R${VERIFY_AMOUNT_ZAR} & re-verify`
-                    : `Pay R${VERIFY_AMOUNT_ZAR} & verify`}
-                </>
-              )}
-            </button>
-          </div>
-          <p className="text-[11px] text-neutral-500">
-            R{VERIFY_AMOUNT_ZAR}.00 ZAR charged via Paystack for each CIPC verification.
-          </p>
-
-          {displayVerification &&
-            (displayVerification.companyName || displayVerification.registrationNumber) && (
-              <div className="rounded-2xl border border-emerald-200/80 bg-emerald-50/50 p-4 space-y-2">
-                <div className="flex items-center gap-2 text-sm font-bold text-emerald-900">
-                  <Building2 className="w-4 h-4" />
-                  CIPC result
-                  {verifyResult?.status === 'verified' || isVerified ? (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  ) : null}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-lg border border-neutral-200/80 bg-white px-2.5 py-2 min-w-0">
+                    <div className="text-[9px] font-semibold uppercase tracking-wider text-neutral-400">
+                      Reg. no.
+                    </div>
+                    <div className="text-xs font-mono text-slate-800 truncate mt-0.5">
+                      {registrationForVerify || (
+                        <span className="font-sans text-amber-700">Enter left</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-neutral-200/80 bg-white px-2.5 py-2 min-w-0">
+                    <div className="text-[9px] font-semibold uppercase tracking-wider text-neutral-400">
+                      Status
+                    </div>
+                    <div className="mt-0.5 text-xs font-bold">
+                      {isVerified ? (
+                        <span className="text-emerald-700 inline-flex items-center gap-1">
+                          <ShieldCheck className="w-3 h-3" /> Verified
+                        </span>
+                      ) : verificationStatus === 'mismatch' ? (
+                        <span className="text-amber-700">Mismatch</span>
+                      ) : verificationStatus === 'failed' ? (
+                        <span className="text-red-700">Failed</span>
+                      ) : verificationStatus === 'pending' ? (
+                        <span className="text-sky-700">Pending…</span>
+                      ) : (
+                        <span className="text-neutral-500 font-semibold">Unverified</span>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <dl className="grid sm:grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
-                  {displayVerification.companyName ? (
+
+                <label className="flex items-start gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 rounded border-neutral-300 text-[#00b4d8] focus:ring-[#00b4d8]"
+                    checked={verifyConsent}
+                    onChange={(e) => setVerifyConsent(e.target.checked)}
+                  />
+                  <span className="text-[11px] text-neutral-600 leading-snug">
+                    Authorise CIPC check via VerifyNow (KYB / FICA-style). No redirect.
+                  </span>
+                </label>
+
+                <button
+                  type="button"
+                  disabled={
+                    verifying ||
+                    paying ||
+                    !verifyConsent ||
+                    (!registrationForVerify && !vatForVerify)
+                  }
+                  onClick={startVerifyPayment}
+                  className="btn-primary w-full !py-2 !px-3 text-xs inline-flex items-center justify-center gap-1.5"
+                >
+                  {paying || verifying ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
                     <>
-                      <dt className="text-neutral-500">Legal name</dt>
-                      <dd className="font-semibold text-slate-800">
-                        {String(displayVerification.companyName)}
-                      </dd>
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                      {isVerified
+                        ? `Pay R${VERIFY_AMOUNT_ZAR} & re-verify`
+                        : `Pay R${VERIFY_AMOUNT_ZAR} & verify CIPC`}
                     </>
-                  ) : null}
-                  {displayVerification.tradeName ? (
-                    <>
-                      <dt className="text-neutral-500">Trade name</dt>
-                      <dd className="text-slate-700">{String(displayVerification.tradeName)}</dd>
-                    </>
-                  ) : null}
-                  {displayVerification.registrationNumber ? (
-                    <>
-                      <dt className="text-neutral-500">Registration</dt>
-                      <dd className="font-mono text-slate-800">
-                        {String(displayVerification.registrationNumber)}
-                      </dd>
-                    </>
-                  ) : null}
-                  {displayVerification.companyStatus ? (
-                    <>
-                      <dt className="text-neutral-500">CIPC status</dt>
-                      <dd className="font-semibold text-slate-800">
-                        {String(displayVerification.companyStatus)}
-                      </dd>
-                    </>
-                  ) : null}
-                  {displayVerification.companyType ? (
-                    <>
-                      <dt className="text-neutral-500">Type</dt>
-                      <dd className="text-slate-700">{String(displayVerification.companyType)}</dd>
-                    </>
-                  ) : null}
-                  {displayVerification.physicalAddress ? (
-                    <>
-                      <dt className="text-neutral-500">Registered address</dt>
-                      <dd className="text-slate-700">
-                        {String(displayVerification.physicalAddress)}
-                      </dd>
-                    </>
-                  ) : null}
-                  {displayVerification.directorCount ? (
-                    <>
-                      <dt className="text-neutral-500">Directors</dt>
-                      <dd className="text-slate-700">{String(displayVerification.directorCount)}</dd>
-                    </>
-                  ) : null}
-                  {displayVerification.nameMatch &&
-                  displayVerification.nameMatch !== 'unknown' ? (
-                    <>
-                      <dt className="text-neutral-500">Name match</dt>
-                      <dd
-                        className={
-                          displayVerification.nameMatch === 'mismatch'
-                            ? 'font-semibold text-amber-800'
-                            : 'text-slate-700'
-                        }
-                      >
-                        {String(displayVerification.nameMatch)}
-                      </dd>
-                    </>
-                  ) : null}
-                </dl>
-                {verifyResult?.message && (
-                  <p className="text-[11px] text-emerald-900/80 pt-1">{verifyResult.message}</p>
-                )}
-                {displayVerification.requestId ? (
-                  <p className="text-[10px] text-neutral-400 font-mono pt-1">
-                    requestId: {String(displayVerification.requestId)}
+                  )}
+                </button>
+
+                {displayVerification &&
+                  (displayVerification.companyName ||
+                    displayVerification.registrationNumber) && (
+                    <div className="rounded-lg border border-emerald-200/80 bg-emerald-50/60 p-2.5 space-y-1">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-900">
+                        <Building2 className="w-3.5 h-3.5" />
+                        CIPC result
+                        {(verifyResult?.status === 'verified' || isVerified) && (
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        )}
+                      </div>
+                      <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-[11px]">
+                        {displayVerification.companyName ? (
+                          <>
+                            <dt className="text-neutral-500">Name</dt>
+                            <dd className="font-semibold text-slate-800 truncate">
+                              {String(displayVerification.companyName)}
+                            </dd>
+                          </>
+                        ) : null}
+                        {displayVerification.registrationNumber ? (
+                          <>
+                            <dt className="text-neutral-500">Reg.</dt>
+                            <dd className="font-mono text-slate-800 truncate">
+                              {String(displayVerification.registrationNumber)}
+                            </dd>
+                          </>
+                        ) : null}
+                        {displayVerification.companyStatus ? (
+                          <>
+                            <dt className="text-neutral-500">Status</dt>
+                            <dd className="font-semibold text-slate-800">
+                              {String(displayVerification.companyStatus)}
+                            </dd>
+                          </>
+                        ) : null}
+                        {displayVerification.nameMatch &&
+                        displayVerification.nameMatch !== 'unknown' ? (
+                          <>
+                            <dt className="text-neutral-500">Match</dt>
+                            <dd
+                              className={
+                                displayVerification.nameMatch === 'mismatch'
+                                  ? 'font-semibold text-amber-800'
+                                  : 'text-slate-700'
+                              }
+                            >
+                              {String(displayVerification.nameMatch)}
+                            </dd>
+                          </>
+                        ) : null}
+                      </dl>
+                    </div>
+                  )}
+                {form.verification_payment_ref ? (
+                  <p className="text-[10px] text-neutral-400 font-mono truncate">
+                    Pay ref: {String(form.verification_payment_ref)}
                   </p>
                 ) : null}
               </div>
-            )}
+            </div>
+          </div>
+        </Panel>
 
-          {form.verification_payment_ref && (
-            <p className="text-[11px] text-neutral-400 font-mono">
-              Payment ref: {String(form.verification_payment_ref)}
-            </p>
-          )}
+        {/* ── Contacts + Location ── */}
+        <div className="grid lg:grid-cols-2 gap-3 sm:gap-4">
+          <Panel title="Contacts">
+            <div className="p-4 space-y-2.5">
+              <div className="grid sm:grid-cols-2 gap-2.5">
+                <Field label="Primary contact">
+                  <input
+                    className={inputCls}
+                    value={form.contact_name || ''}
+                    onChange={(e) => set('contact_name', e.target.value)}
+                  />
+                </Field>
+                <Field label="Email">
+                  <input
+                    type="email"
+                    className={inputCls}
+                    value={form.email || ''}
+                    onChange={(e) => set('email', e.target.value)}
+                  />
+                </Field>
+                <Field label="Phone">
+                  <input
+                    className={inputCls}
+                    value={form.contact_phone || form.contact_number || form.phone || ''}
+                    onChange={(e) => setPhone(e.target.value)}
+                  />
+                </Field>
+                <Field label="Website">
+                  <input
+                    className={inputCls}
+                    value={form.website || ''}
+                    onChange={(e) => set('website', e.target.value)}
+                  />
+                </Field>
+              </div>
+              <Field label="Wallet (on-chain)">
+                <div className="relative">
+                  <input
+                    className={`${inputCls} font-mono pr-9`}
+                    value={form.wallet_address || loginWallet || ''}
+                    onChange={(e) => set('wallet_address', e.target.value)}
+                    placeholder="0x…"
+                  />
+                  <Wallet className="w-3.5 h-3.5 text-neutral-400 absolute right-2.5 top-1/2 -translate-y-1/2" />
+                </div>
+                {loginWallet ? (
+                  <p className="text-[10px] text-neutral-500 mt-1">
+                    Login:{' '}
+                    <span className="font-mono">
+                      {loginWallet.slice(0, 6)}…{loginWallet.slice(-4)}
+                    </span>
+                    {(!form.wallet_address ||
+                      form.wallet_address.toLowerCase() !== loginWallet.toLowerCase()) && (
+                      <button
+                        type="button"
+                        className="ml-1.5 text-[#00b4d8] font-semibold hover:underline"
+                        onClick={() => set('wallet_address', loginWallet)}
+                      >
+                        Use login wallet
+                      </button>
+                    )}
+                  </p>
+                ) : null}
+              </Field>
+            </div>
+          </Panel>
+
+          <Panel title="Location">
+            <div className="p-4 space-y-2.5">
+              <GeoSelectFields value={geo} onChange={onGeoChange} />
+              <div className="grid grid-cols-3 gap-2.5">
+                <Field label="Street" className="col-span-2">
+                  <input
+                    className={inputCls}
+                    value={form.street || form.address || ''}
+                    onChange={(e) => setAddress(e.target.value)}
+                  />
+                </Field>
+                <Field label="Postal">
+                  <input
+                    className={inputCls}
+                    value={form.postal_code || ''}
+                    onChange={(e) => set('postal_code', e.target.value)}
+                  />
+                </Field>
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-neutral-400 mb-1.5">
+                  <MapPin className="w-3 h-3 text-[#00b4d8]" /> Map pin
+                </div>
+                <div className="relative z-0 h-40 w-full rounded-xl overflow-hidden border border-neutral-200 bg-slate-100 isolate">
+                  <LocationMap
+                    onMapClick={(lat, lng) => {
+                      setForm((p) => ({
+                        ...p,
+                        latitude: Number(lat.toFixed(6)),
+                        longitude: Number(lng.toFixed(6)),
+                        lat: Number(lat.toFixed(6)),
+                        lng: Number(lng.toFixed(6)),
+                      }));
+                    }}
+                    selectedPosition={mapPos}
+                    center={mapPos || [-29.0, 24.5]}
+                    zoom={mapPos ? 12 : 5}
+                    height="160px"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2.5 mt-2">
+                  <Field label="Latitude">
+                    <input
+                      className={`${inputCls} font-mono`}
+                      value={form.latitude ?? form.lat ?? ''}
+                      onChange={(e) => {
+                        set('latitude', e.target.value);
+                        set('lat', e.target.value);
+                      }}
+                    />
+                  </Field>
+                  <Field label="Longitude">
+                    <input
+                      className={`${inputCls} font-mono`}
+                      value={form.longitude ?? form.lng ?? ''}
+                      onChange={(e) => {
+                        set('longitude', e.target.value);
+                        set('lng', e.target.value);
+                      }}
+                    />
+                  </Field>
+                </div>
+              </div>
+            </div>
+          </Panel>
         </div>
-      </Panel>
 
-      <div className="grid lg:grid-cols-2 gap-4 sm:gap-5">
-        {/* Identity */}
-        <Panel title="Identity">
-          <div className="p-5 space-y-3">
-            <Field label="Trading name *">
-              <input
-                className="input w-full !p-3 !text-sm"
-                value={form.trading_name || ''}
-                onChange={(e) => set('trading_name', e.target.value)}
-              />
-            </Field>
-            <Field label="Legal name">
-              <input
-                className="input w-full !p-3 !text-sm"
-                value={form.legal_name || ''}
-                onChange={(e) => set('legal_name', e.target.value)}
-              />
-            </Field>
-            <Field label="Business type">
-              <select
-                className="input w-full !p-3 !text-sm"
-                value={form.business_type || form.category || ''}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  set('business_type', v);
-                  set('category', v);
-                }}
-              >
-                <option value="">Select business type…</option>
-                {/* Preserve legacy free-text values not in the list */}
-                {(() => {
-                  const current = String(form.business_type || form.category || '');
-                  if (
-                    current &&
-                    !BUSINESS_TYPE_OPTIONS.includes(
-                      current as (typeof BUSINESS_TYPE_OPTIONS)[number]
-                    )
-                  ) {
-                    return <option value={current}>{current}</option>;
-                  }
-                  return null;
-                })()}
-                {BUSINESS_TYPE_OPTIONS.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Registration no.">
-              <input
-                className="input w-full !p-3 !text-sm"
-                value={form.registration_number || ''}
-                onChange={(e) => set('registration_number', e.target.value)}
-              />
-            </Field>
-            <FileUploadField
-              label="Company registration document"
-              url={form.registration_certificate_url}
-              uploading={uploading === 'registration'}
-              onFile={(f) =>
-                void handleUpload(
-                  f,
-                  'registration',
-                  (url) => set('registration_certificate_url', url),
-                  'registration_certificate_url'
-                )
-              }
-              onClear={() => {
-                set('registration_certificate_url', null);
-                void persistPartial({ registration_certificate_url: null }).catch(() => undefined);
-              }}
-            />
-            <Field label="VAT number">
-              <input
-                className="input w-full !p-3 !text-sm"
-                value={form.vat_number || ''}
-                onChange={(e) => set('vat_number', e.target.value)}
-              />
-            </Field>
-            <FileUploadField
-              label="VAT certificate"
-              url={form.vat_certificate_url}
-              uploading={uploading === 'vat'}
-              onFile={(f) =>
-                void handleUpload(
-                  f,
-                  'vat',
-                  (url) => set('vat_certificate_url', url),
-                  'vat_certificate_url'
-                )
-              }
-              onClear={() => {
-                set('vat_certificate_url', null);
-                void persistPartial({ vat_certificate_url: null }).catch(() => undefined);
-              }}
-            />
-            <Field label="About / short description">
-              <textarea
-                className="input w-full !p-3 !text-sm min-h-[88px]"
-                value={String(
-                  form.description || form.short_description || form.about || ''
-                )}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="What does this company do?"
-              />
-            </Field>
-            <FileUploadField
-              label="Company logo"
-              url={form.logo_url}
-              accept="image/*"
-              uploading={uploading === 'logo'}
-              previewImage
-              onFile={(f) =>
-                void handleUpload(f, 'logo', (url) => set('logo_url', url), 'logo_url')
-              }
-              onClear={() => {
-                set('logo_url', null);
-                void persistPartial({ logo_url: null }).catch(() => undefined);
-              }}
-            />
-          </div>
-        </Panel>
-
-        {/* Contacts */}
-        <Panel title="Contacts">
-          <div className="p-5 space-y-3">
-            <Field label="Primary contact">
-              <input
-                className="input w-full !p-3 !text-sm"
-                value={form.contact_name || ''}
-                onChange={(e) => set('contact_name', e.target.value)}
-              />
-            </Field>
-            <Field label="Email">
-              <input
-                type="email"
-                className="input w-full !p-3 !text-sm"
-                value={form.email || ''}
-                onChange={(e) => set('email', e.target.value)}
-              />
-            </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Phone">
-                <input
-                  className="input w-full !p-3 !text-sm"
-                  value={
-                    form.contact_phone || form.contact_number || form.phone || ''
-                  }
-                  onChange={(e) => setPhone(e.target.value)}
-                />
-              </Field>
-              <Field label="Website">
-                <input
-                  className="input w-full !p-3 !text-sm"
-                  value={form.website || ''}
-                  onChange={(e) => set('website', e.target.value)}
-                />
-              </Field>
-            </div>
-            <Field label="Wallet address (on-chain)">
-              <div className="relative">
-                <input
-                  className="input w-full !p-3 !text-sm font-mono pr-10"
-                  value={form.wallet_address || loginWallet || ''}
-                  onChange={(e) => set('wallet_address', e.target.value)}
-                  placeholder="0x…"
-                />
-                <Wallet className="w-4 h-4 text-neutral-400 absolute right-3 top-1/2 -translate-y-1/2" />
-              </div>
-              {loginWallet && (
-                <p className="text-[11px] text-neutral-500 mt-1.5">
-                  From login credentials
-                  {form.wallet_address &&
-                  form.wallet_address.toLowerCase() !== loginWallet.toLowerCase()
-                    ? ' (profile override saved)'
-                    : ' · auto-filled when empty'}
-                  :{' '}
-                  <span className="font-mono text-neutral-600">
-                    {loginWallet.slice(0, 6)}…{loginWallet.slice(-4)}
-                  </span>
-                  {(!form.wallet_address ||
-                    form.wallet_address.toLowerCase() !== loginWallet.toLowerCase()) && (
+        {/* ── Industry + Certifications ── */}
+        <div className="grid lg:grid-cols-2 gap-3 sm:gap-4">
+          <Panel title="Industry">
+            <div className="p-4 space-y-3">
+              <div>
+                <SectionLabel>Primary industries</SectionLabel>
+                <div className="flex flex-wrap gap-1 mt-1.5">
+                  {COMPANY_INDUSTRIES.map((ind) => (
                     <button
+                      key={ind}
                       type="button"
-                      className="ml-2 text-[#00b4d8] font-semibold hover:underline"
-                      onClick={() => set('wallet_address', loginWallet)}
+                      onClick={() => toggleIndustry(ind)}
+                      className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-all ${
+                        selectedIndustries.includes(ind)
+                          ? 'border-[#00b4d8] bg-[#00b4d8] text-white'
+                          : 'border-neutral-200 text-neutral-600 hover:border-[#00b4d8]/40'
+                      }`}
                     >
-                      Use login wallet
+                      {ind}
                     </button>
-                  )}
-                </p>
-              )}
-              {!loginWallet && (
-                <p className="text-[11px] text-neutral-400 mt-1.5">
-                  No on-chain wallet linked to this login yet — paste an address if you have one.
-                </p>
-              )}
-            </Field>
-          </div>
-        </Panel>
-
-        {/* Location */}
-        <Panel title="Location">
-          <div className="p-5 space-y-4">
-            <GeoSelectFields value={geo} onChange={onGeoChange} />
-            <Field label="Street address">
-              <input
-                className="input w-full !p-3 !text-sm"
-                value={form.street || form.address || ''}
-                onChange={(e) => setAddress(e.target.value)}
-              />
-            </Field>
-            <Field label="Postal code">
-              <input
-                className="input w-full !p-3 !text-sm"
-                value={form.postal_code || ''}
-                onChange={(e) => set('postal_code', e.target.value)}
-              />
-            </Field>
-
-            <div>
-              <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-400 mb-2">
-                <MapPin className="w-3.5 h-3.5 text-[#00b4d8]" /> Drop a pin
-              </div>
-              <p className="text-[11px] text-neutral-500 mb-2">
-                Click the map to set company GPS coordinates.
-              </p>
-              <div className="relative z-0 h-64 min-h-[256px] w-full rounded-3xl overflow-hidden border border-neutral-200 bg-slate-100 isolate">
-                <LocationMap
-                  onMapClick={(lat, lng) => {
-                    setForm((p) => ({
-                      ...p,
-                      latitude: Number(lat.toFixed(6)),
-                      longitude: Number(lng.toFixed(6)),
-                      lat: Number(lat.toFixed(6)),
-                      lng: Number(lng.toFixed(6)),
-                    }));
-                  }}
-                  selectedPosition={mapPos}
-                  center={mapPos || [-29.0, 24.5]}
-                  zoom={mapPos ? 12 : 5}
-                  height="256px"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3 mt-3">
-                <Field label="Latitude">
-                  <input
-                    className="input w-full !p-3 !text-sm font-mono"
-                    value={form.latitude ?? form.lat ?? ''}
-                    onChange={(e) => {
-                      set('latitude', e.target.value);
-                      set('lat', e.target.value);
-                    }}
-                  />
-                </Field>
-                <Field label="Longitude">
-                  <input
-                    className="input w-full !p-3 !text-sm font-mono"
-                    value={form.longitude ?? form.lng ?? ''}
-                    onChange={(e) => {
-                      set('longitude', e.target.value);
-                      set('lng', e.target.value);
-                    }}
-                  />
-                </Field>
-              </div>
-            </div>
-          </div>
-        </Panel>
-
-        {/* Industry & compliance */}
-        <Panel title="Industry & compliance">
-          <div className="p-5 space-y-4">
-            <div>
-              <SectionLabel>Industry (multi-select)</SectionLabel>
-              <div className="flex flex-wrap gap-1.5 mt-2">
-                {COMPANY_INDUSTRIES.map((ind) => (
-                  <button
-                    key={ind}
-                    type="button"
-                    onClick={() => toggleIndustry(ind)}
-                    className={`text-[10px] font-semibold px-2.5 py-1 rounded-full border transition-all ${
-                      selectedIndustries.includes(ind)
-                        ? 'border-[#00b4d8] bg-[#00b4d8] text-white'
-                        : 'border-neutral-200 text-neutral-600 hover:border-[#00b4d8]/40'
-                    }`}
-                  >
-                    {ind}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <SectionLabel>Sub-industry (multi-select)</SectionLabel>
-              <div className="flex flex-wrap gap-1.5 mt-2 max-h-40 overflow-y-auto">
-                {subIndustryOptions.map((sub) => (
-                  <button
-                    key={sub}
-                    type="button"
-                    onClick={() => toggleSubIndustry(sub)}
-                    className={`text-[10px] font-semibold px-2.5 py-1 rounded-full border transition-all ${
-                      selectedSubIndustries.includes(sub)
-                        ? 'border-[#0077b6] bg-[#0077b6]/10 text-[#0077b6]'
-                        : 'border-neutral-200 text-neutral-600 hover:border-[#00b4d8]/40'
-                    }`}
-                  >
-                    {sub}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-          </div>
-        </Panel>
-
-        {/* Certifications */}
-        <Panel title="Certifications & other">
-          <div className="p-5 space-y-4">
-            <div className="grid sm:grid-cols-2 gap-3">
-              <Field label="B-BBEE level">
-                <select
-                  className="input w-full !p-3 !text-sm"
-                  value={form.bee_level || ''}
-                  onChange={(e) => set('bee_level', e.target.value)}
-                >
-                  <option value="">Select…</option>
-                  {BEE.map((b) => (
-                    <option key={b} value={b}>
-                      {b}
-                    </option>
                   ))}
-                </select>
-              </Field>
-              <div className="sm:pt-0">
+                </div>
+              </div>
+              <div>
+                <SectionLabel>Sub-industries</SectionLabel>
+                <div className="flex flex-wrap gap-1 mt-1.5 max-h-32 overflow-y-auto">
+                  {subIndustryOptions.length === 0 ? (
+                    <p className="text-[11px] text-neutral-400">Select an industry first.</p>
+                  ) : (
+                    subIndustryOptions.map((sub) => (
+                      <button
+                        key={sub}
+                        type="button"
+                        onClick={() => toggleSubIndustry(sub)}
+                        className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-all ${
+                          selectedSubIndustries.includes(sub)
+                            ? 'border-[#0077b6] bg-[#0077b6]/10 text-[#0077b6]'
+                            : 'border-neutral-200 text-neutral-600 hover:border-[#00b4d8]/40'
+                        }`}
+                      >
+                        {sub}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </Panel>
+
+          <Panel
+            title="Certifications & B-BBEE"
+            action={
+              <button
+                type="button"
+                onClick={addCustomCert}
+                className="text-[11px] font-semibold text-[#00b4d8] inline-flex items-center gap-0.5"
+              >
+                <Plus className="w-3.5 h-3.5" /> Add
+              </button>
+            }
+          >
+            <div className="p-4 space-y-2.5">
+              <div className="grid grid-cols-2 gap-2.5">
+                <Field label="B-BBEE level">
+                  <select
+                    className={inputCls}
+                    value={form.bee_level || ''}
+                    onChange={(e) => set('bee_level', e.target.value)}
+                  >
+                    <option value="">Select…</option>
+                    {BEE.map((b) => (
+                      <option key={b} value={b}>
+                        {b}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
                 <FileUploadField
                   label="BEE certificate"
                   url={form.bee_certificate_url}
+                  compact
                   uploading={uploading === 'bee'}
                   onFile={(f) =>
                     void handleUpload(
@@ -1749,92 +1740,102 @@ function ProfileInner() {
                   }}
                 />
               </div>
-            </div>
-
-            <SectionLabel>Quick select</SectionLabel>
-            <div className="flex flex-wrap gap-1.5">
-              {CERTS_PRESET.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => togglePresetCert(c)}
-                  className={`text-[10px] font-semibold px-2.5 py-1 rounded-full border transition-all ${
-                    certEntries.some((x) => x.name === c)
-                      ? 'border-[#00b4d8] bg-[#00b4d8] text-white'
-                      : 'border-neutral-200 text-neutral-600 hover:border-[#00b4d8]/40'
-                  }`}
-                >
-                  {c}
-                </button>
-              ))}
-            </div>
-
-            <div className="flex items-center justify-between">
-              <SectionLabel>Certificates (name · dates · file)</SectionLabel>
-              <button
-                type="button"
-                onClick={addCustomCert}
-                className="text-xs font-semibold text-[#00b4d8] inline-flex items-center gap-1"
-              >
-                <Plus className="w-3.5 h-3.5" /> Add
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              {certEntries.length === 0 && (
-                <p className="text-xs text-neutral-400">
-                  No certifications yet — pick presets or add custom.
-                </p>
-              )}
-              {certEntries.map((c, idx) => (
-                <div
-                  key={`${c.name}-${idx}`}
-                  className="rounded-2xl border border-neutral-100 bg-neutral-50/60 p-3 space-y-2"
-                >
-                  <div className="flex gap-2">
-                    <input
-                      className="input flex-1 !p-2.5 !text-sm"
-                      placeholder="Certificate name"
-                      value={c.name}
-                      onChange={(e) => updateCert(idx, { name: e.target.value })}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeCert(idx)}
-                      className="p-2 rounded-xl text-neutral-400 hover:text-red-600 hover:bg-red-50"
-                      aria-label="Remove certification"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Field label="Awarded">
+              <div className="flex flex-wrap gap-1">
+                {CERTS_PRESET.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => togglePresetCert(c)}
+                    className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-all ${
+                      certEntries.some((x) => x.name === c)
+                        ? 'border-[#00b4d8] bg-[#00b4d8] text-white'
+                        : 'border-neutral-200 text-neutral-600 hover:border-[#00b4d8]/40'
+                    }`}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+              <div className="space-y-2 max-h-56 overflow-y-auto">
+                {certEntries.length === 0 && (
+                  <p className="text-[11px] text-neutral-400">
+                    No certs yet — use presets or Add.
+                  </p>
+                )}
+                {certEntries.map((c, idx) => (
+                  <div
+                    key={`${c.name}-${idx}`}
+                    className="rounded-xl border border-neutral-100 bg-neutral-50/50 p-2 space-y-1.5"
+                  >
+                    <div className="flex gap-1.5">
+                      <input
+                        className="input flex-1 !py-1.5 !px-2 !text-xs"
+                        placeholder="Certificate name"
+                        value={c.name}
+                        onChange={(e) => updateCert(idx, { name: e.target.value })}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeCert(idx)}
+                        className="p-1.5 rounded-lg text-neutral-400 hover:text-red-600 hover:bg-red-50"
+                        aria-label="Remove"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
                       <input
                         type="date"
-                        className="input w-full !p-2.5 !text-sm"
+                        className="input w-full !py-1.5 !px-2 !text-xs"
                         value={c.awarded_date || ''}
                         onChange={(e) => updateCert(idx, { awarded_date: e.target.value })}
+                        title="Awarded"
                       />
-                    </Field>
-                    <Field label="Expiry (if any)">
                       <input
                         type="date"
-                        className="input w-full !p-2.5 !text-sm"
+                        className="input w-full !py-1.5 !px-2 !text-xs"
                         value={c.expiry_date || ''}
                         onChange={(e) => updateCert(idx, { expiry_date: e.target.value })}
+                        title="Expiry"
                       />
-                    </Field>
-                  </div>
-                  <FileUploadField
-                    label="Certificate file"
-                    url={c.file_url}
-                    compact
-                    uploading={uploading === `cert-${idx}`}
-                    onFile={(f) =>
-                      void handleUpload(f, `cert-${idx}`, (url) => {
+                    </div>
+                    <FileUploadField
+                      label="File"
+                      url={c.file_url}
+                      compact
+                      uploading={uploading === `cert-${idx}`}
+                      onFile={(f) =>
+                        void handleUpload(f, `cert-${idx}`, (url) => {
+                          setCertEntries((prev) => {
+                            const next = prev.map((entry, i) =>
+                              i === idx ? { ...entry, file_url: url } : entry
+                            );
+                            const cleanCerts = next
+                              .map((entry) => ({
+                                name:
+                                  String(entry.name || '').trim() ||
+                                  (entry.file_url ? 'Certificate' : ''),
+                                awarded_date: entry.awarded_date || null,
+                                expiry_date: entry.expiry_date || null,
+                                file_url: entry.file_url || null,
+                              }))
+                              .filter((entry) => entry.name || entry.file_url);
+                            const names = cleanCerts
+                              .map((entry) => entry.name)
+                              .filter(Boolean);
+                            void persistPartial({
+                              uploaded_certificates: cleanCerts,
+                              certifications: names,
+                              iso_certifications: names,
+                            }).catch(() => undefined);
+                            return next;
+                          });
+                        })
+                      }
+                      onClear={() => {
                         setCertEntries((prev) => {
                           const next = prev.map((entry, i) =>
-                            i === idx ? { ...entry, file_url: url } : entry
+                            i === idx ? { ...entry, file_url: null } : entry
                           );
                           const cleanCerts = next
                             .map((entry) => ({
@@ -1851,301 +1852,221 @@ function ProfileInner() {
                             uploaded_certificates: cleanCerts,
                             certifications: names,
                             iso_certifications: names,
-                          })
-                            .then(() => toast.success('Certificate file saved to Supabase'))
-                            .catch((err: unknown) =>
-                              toast.error(
-                                err instanceof Error
-                                  ? err.message
-                                  : 'Could not sync certificate file — click Save'
-                              )
-                            );
+                          }).catch(() => undefined);
                           return next;
                         });
-                      })
-                    }
-                    onClear={() => {
-                      setCertEntries((prev) => {
-                        const next = prev.map((entry, i) =>
-                          i === idx ? { ...entry, file_url: null } : entry
-                        );
-                        const cleanCerts = next
-                          .map((entry) => ({
-                            name:
-                              String(entry.name || '').trim() ||
-                              (entry.file_url ? 'Certificate' : ''),
-                            awarded_date: entry.awarded_date || null,
-                            expiry_date: entry.expiry_date || null,
-                            file_url: entry.file_url || null,
-                          }))
-                          .filter((entry) => entry.name || entry.file_url);
-                        const names = cleanCerts.map((entry) => entry.name).filter(Boolean);
-                        void persistPartial({
-                          uploaded_certificates: cleanCerts,
-                          certifications: names,
-                          iso_certifications: names,
-                        }).catch(() => undefined);
-                        return next;
-                      });
-                    }}
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-        </Panel>
-
-        {/* Banking + VerifyNow AVS (R50) */}
-        <Panel title="Banking">
-          <div className="p-5 space-y-3">
-            <Field label="Bank name">
-              <input
-                className="input w-full !p-3 !text-sm"
-                value={form.bank_name || ''}
-                onChange={(e) => set('bank_name', e.target.value)}
-                placeholder="e.g. FNB, Standard Bank, Capitec"
-              />
-            </Field>
-            <Field label="Account name">
-              <input
-                className="input w-full !p-3 !text-sm"
-                value={form.account_name || ''}
-                onChange={(e) => set('account_name', e.target.value)}
-                placeholder="Name on the bank account"
-              />
-            </Field>
-            <Field label="Account number">
-              <input
-                className="input w-full !p-3 !text-sm font-mono"
-                value={form.account_number || ''}
-                onChange={(e) => set('account_number', e.target.value)}
-                inputMode="numeric"
-                autoComplete="off"
-              />
-            </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Branch code">
-                <input
-                  className="input w-full !p-3 !text-sm font-mono"
-                  value={form.branch_code || ''}
-                  onChange={(e) =>
-                    set('branch_code', e.target.value.replace(/\D/g, '').slice(0, 6))
-                  }
-                  placeholder="6 digits e.g. 250655"
-                  inputMode="numeric"
-                  maxLength={6}
-                />
-              </Field>
-              <Field label="Account type">
-                <select
-                  className="input w-full !p-3 !text-sm"
-                  value={form.account_type || 'Current'}
-                  onChange={(e) => set('account_type', e.target.value)}
-                >
-                  {BANK_ACCOUNT_TYPES.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="IBAN">
-                <input
-                  className="input w-full !p-3 !text-sm font-mono"
-                  value={form.iban || ''}
-                  onChange={(e) => set('iban', e.target.value)}
-                />
-              </Field>
-              <Field label="SWIFT / BIC">
-                <input
-                  className="input w-full !p-3 !text-sm font-mono"
-                  value={form.swift || ''}
-                  onChange={(e) => set('swift', e.target.value)}
-                />
-              </Field>
-            </div>
-            <FileUploadField
-              label="Bank confirmation letter"
-              url={form.bank_confirmation_url}
-              uploading={uploading === 'bank'}
-              onFile={(f) =>
-                void handleUpload(
-                  f,
-                  'bank',
-                  (url) => set('bank_confirmation_url', url),
-                  'bank_confirmation_url'
-                )
-              }
-              onClear={() => {
-                set('bank_confirmation_url', null);
-                void persistPartial({ bank_confirmation_url: null }).catch(() => undefined);
-              }}
-            />
-
-            {/* VerifyNow bank AVS — Pay R50 via Paystack */}
-            <div className="mt-4 rounded-2xl border border-neutral-200 bg-neutral-50/60 p-4 space-y-3">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
-                    <Wallet className="w-4 h-4 text-[#00b4d8]" />
-                    Bank account verification
+                      }}
+                    />
                   </div>
-                  <p className="text-xs text-neutral-600 mt-1 leading-relaxed">
-                    Confirm this account is open and belongs to your company (or director) via
-                    VerifyNow AVS. Costs <strong>R{BANK_VERIFY_AMOUNT_ZAR}</strong> per check,
-                    paid via Paystack — same pattern as CIPC company verification.
-                  </p>
-                </div>
-                {String(form.bank_verification_status || bankVerifyResult?.status || '')
-                  .toLowerCase() === 'verified' ? (
-                  <span className="shrink-0 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-full">
-                    <ShieldCheck className="w-3 h-3" /> Verified
-                  </span>
-                ) : String(form.bank_verification_status || bankVerifyResult?.status || '')
-                    .toLowerCase() === 'failed' ? (
-                  <span className="shrink-0 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-red-700 bg-red-50 border border-red-200 px-2 py-1 rounded-full">
-                    <AlertTriangle className="w-3 h-3" /> Failed
-                  </span>
-                ) : null}
+                ))}
               </div>
+            </div>
+          </Panel>
+        </div>
 
-              <div className="grid sm:grid-cols-2 gap-2 text-[11px] text-neutral-500">
-                <div>
-                  Identity used:{' '}
-                  <span className="font-semibold text-slate-700">
-                    {String(form.registration_number || '').trim()
-                      ? `Company · ${form.registration_number}`
-                      : String(form.director_id_number || '').trim()
-                        ? 'Director SA ID'
-                        : 'Add reg. no. or director ID'}
-                  </span>
-                </div>
-                {form.bank_verified_at ? (
-                  <div>
-                    Last check:{' '}
-                    <span className="font-semibold text-slate-700">
-                      {new Date(String(form.bank_verified_at)).toLocaleString()}
-                    </span>
-                  </div>
-                ) : null}
-              </div>
-
-              <label className="flex items-start gap-2.5 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  className="mt-1 rounded border-neutral-300 text-[#00b4d8] focus:ring-[#00b4d8]"
-                  checked={bankVerifyConsent}
-                  onChange={(e) => setBankVerifyConsent(e.target.checked)}
-                />
-                <span className="text-xs text-neutral-600 leading-relaxed">
-                  I authorise a bank account ownership check via VerifyNow against the details
-                  above (account number, branch, and company registration or director ID). The
-                  check runs on this page after Paystack payment.
+        {/* ── Banking + Licenses ── */}
+        <div className="grid lg:grid-cols-2 gap-3 sm:gap-4">
+          <Panel
+            title="Banking"
+            action={
+              bankVerified ? (
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase text-emerald-700">
+                  <ShieldCheck className="w-3 h-3" /> Verified
                 </span>
-              </label>
+              ) : bankFailed ? (
+                <span className="text-[10px] font-bold uppercase text-red-600">Failed</span>
+              ) : null
+            }
+          >
+            <div className="p-4 space-y-2.5">
+              <div className="grid grid-cols-2 gap-2.5">
+                <Field label="Bank name">
+                  <input
+                    className={inputCls}
+                    value={form.bank_name || ''}
+                    onChange={(e) => set('bank_name', e.target.value)}
+                    placeholder="FNB, Capitec…"
+                  />
+                </Field>
+                <Field label="Account type">
+                  <select
+                    className={inputCls}
+                    value={form.account_type || 'Current'}
+                    onChange={(e) => set('account_type', e.target.value)}
+                  >
+                    {BANK_ACCOUNT_TYPES.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Account name" className="col-span-2">
+                  <input
+                    className={inputCls}
+                    value={form.account_name || ''}
+                    onChange={(e) => set('account_name', e.target.value)}
+                  />
+                </Field>
+                <Field label="Account number">
+                  <input
+                    className={`${inputCls} font-mono`}
+                    value={form.account_number || ''}
+                    onChange={(e) => set('account_number', e.target.value)}
+                    inputMode="numeric"
+                  />
+                </Field>
+                <Field label="Branch code">
+                  <input
+                    className={`${inputCls} font-mono`}
+                    value={form.branch_code || ''}
+                    onChange={(e) =>
+                      set('branch_code', e.target.value.replace(/\D/g, '').slice(0, 6))
+                    }
+                    placeholder="6 digits"
+                    inputMode="numeric"
+                    maxLength={6}
+                  />
+                </Field>
+                <Field label="IBAN">
+                  <input
+                    className={`${inputCls} font-mono`}
+                    value={form.iban || ''}
+                    onChange={(e) => set('iban', e.target.value)}
+                  />
+                </Field>
+                <Field label="SWIFT">
+                  <input
+                    className={`${inputCls} font-mono`}
+                    value={form.swift || ''}
+                    onChange={(e) => set('swift', e.target.value)}
+                  />
+                </Field>
+              </div>
+              <FileUploadField
+                label="Bank confirmation letter"
+                url={form.bank_confirmation_url}
+                compact
+                uploading={uploading === 'bank'}
+                onFile={(f) =>
+                  void handleUpload(
+                    f,
+                    'bank',
+                    (url) => set('bank_confirmation_url', url),
+                    'bank_confirmation_url'
+                  )
+                }
+                onClear={() => {
+                  set('bank_confirmation_url', null);
+                  void persistPartial({ bank_confirmation_url: null }).catch(() => undefined);
+                }}
+              />
 
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  disabled={bankPaying || bankVerifying}
-                  onClick={startBankVerifyPayment}
-                  className="btn-primary !py-2.5 !px-5 text-sm inline-flex items-center gap-2"
-                >
-                  {bankPaying || bankVerifying ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      {bankVerifying ? 'VerifyNow running…' : 'Paystack…'}
-                    </>
-                  ) : (
-                    <>
-                      <ShieldCheck className="w-4 h-4" />{' '}
-                      {String(form.bank_verification_status || '').toLowerCase() ===
-                      'verified'
-                        ? `Pay R${BANK_VERIFY_AMOUNT_ZAR} & re-verify`
-                        : `Pay R${BANK_VERIFY_AMOUNT_ZAR} & verify bank`}
-                    </>
+              <div className="rounded-xl border border-neutral-200 bg-neutral-50/70 p-3 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-xs font-bold text-slate-800 inline-flex items-center gap-1.5">
+                    <Wallet className="w-3.5 h-3.5 text-[#00b4d8]" />
+                    Bank AVS · R{BANK_VERIFY_AMOUNT_ZAR}
+                  </div>
+                  {bankVerified && (
+                    <span className="text-[10px] font-bold text-emerald-700">Verified</span>
                   )}
-                </button>
-                {(bankPaying || bankVerifying) && (
+                </div>
+                <p className="text-[10px] text-neutral-500 leading-snug">
+                  VerifyNow ownership check. Needs account + branch + reg. no. or director ID.
+                </p>
+                <label className="flex items-start gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 rounded border-neutral-300 text-[#00b4d8] focus:ring-[#00b4d8]"
+                    checked={bankVerifyConsent}
+                    onChange={(e) => setBankVerifyConsent(e.target.checked)}
+                  />
+                  <span className="text-[11px] text-neutral-600 leading-snug">
+                    Authorise bank ownership check via VerifyNow after R
+                    {BANK_VERIFY_AMOUNT_ZAR} payment.
+                  </span>
+                </label>
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
-                    className="text-xs font-semibold text-neutral-500 underline"
-                    onClick={() => {
-                      setBankPaying(false);
-                      setBankVerifying(false);
-                      bankVerifyInFlightRef.current = false;
-                    }}
+                    disabled={bankPaying || bankVerifying}
+                    onClick={startBankVerifyPayment}
+                    className="btn-primary !py-1.5 !px-3 text-xs inline-flex items-center gap-1.5"
                   >
-                    Reset
+                    {bankPaying || bankVerifying ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        {bankVerifying ? 'VerifyNow…' : 'Paystack…'}
+                      </>
+                    ) : (
+                      <>
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                        {bankVerified
+                          ? `Pay R${BANK_VERIFY_AMOUNT_ZAR} & re-verify`
+                          : `Pay R${BANK_VERIFY_AMOUNT_ZAR} & verify`}
+                      </>
+                    )}
                   </button>
-                )}
-              </div>
-              <p className="text-[11px] text-neutral-500">
-                Needs: consent ✓ · account number · 6-digit branch code · account name ·
-                company reg no. <em>or</em> director SA ID · company email. Then Paystack R
-                {BANK_VERIFY_AMOUNT_ZAR} → VerifyNow runs automatically.
-              </p>
-
-              {Boolean(
-                bankVerifyResult?.verification &&
-                  (bankVerifyResult.verification.summary ||
-                    bankVerifyResult.verification.accountFound ||
-                    bankVerifyResult.verification.statusText)
-              ) ? (
+                  {(bankPaying || bankVerifying) && (
+                    <button
+                      type="button"
+                      className="text-[10px] font-semibold text-neutral-500 underline"
+                      onClick={() => {
+                        setBankPaying(false);
+                        setBankVerifying(false);
+                        bankVerifyInFlightRef.current = false;
+                      }}
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+                {Boolean(
+                  bankVerifyResult?.verification &&
+                    (bankVerifyResult.verification.summary ||
+                      bankVerifyResult.verification.accountFound ||
+                      bankVerifyResult.verification.statusText)
+                ) ? (
                   <div
-                    className={`rounded-xl border p-3 space-y-1.5 text-xs ${
+                    className={`rounded-lg border p-2 text-[11px] space-y-1 ${
                       bankVerifyResult?.status === 'verified'
-                        ? 'border-emerald-200/80 bg-emerald-50/50'
-                        : 'border-amber-200/80 bg-amber-50/40'
+                        ? 'border-emerald-200 bg-emerald-50/50'
+                        : 'border-amber-200 bg-amber-50/40'
                     }`}
                   >
-                    <div className="flex items-center gap-2 font-bold text-slate-800">
-                      <Wallet className="w-3.5 h-3.5" />
-                      VerifyNow result
-                      {bankVerifyResult?.status === 'verified' ? (
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                      ) : null}
-                    </div>
                     {bankVerifyResult?.message ? (
-                      <p className="text-slate-700">{bankVerifyResult.message}</p>
+                      <p className="font-semibold text-slate-800">{bankVerifyResult.message}</p>
                     ) : null}
-                    <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
-                      {([
-                        {
-                          label: 'Summary',
-                          value: String(bankVerifyResult?.verification?.summary ?? ''),
-                        },
-                        {
-                          label: 'Account found',
-                          value: String(bankVerifyResult?.verification?.accountFound ?? ''),
-                        },
-                        {
-                          label: 'Account open',
-                          value: String(bankVerifyResult?.verification?.accountOpen ?? ''),
-                        },
-                        {
-                          label: 'Identity match',
-                          value: String(bankVerifyResult?.verification?.identityMatch ?? ''),
-                        },
-                        {
-                          label: 'Type match',
-                          value: String(bankVerifyResult?.verification?.accountTypeMatch ?? ''),
-                        },
-                        {
-                          label: 'Accepts credits',
-                          value: String(bankVerifyResult?.verification?.acceptsCredits ?? ''),
-                        },
-                        {
-                          label: 'Accepts debits',
-                          value: String(bankVerifyResult?.verification?.acceptsDebits ?? ''),
-                        },
-                        {
-                          label: 'Request ID',
-                          value: String(bankVerifyResult?.verification?.requestId ?? ''),
-                        },
-                      ] satisfies Array<{ label: string; value: string }>)
+                    <dl className="grid grid-cols-2 gap-x-2 gap-y-0.5">
+                      {(
+                        [
+                          {
+                            label: 'Found',
+                            value: String(
+                              bankVerifyResult?.verification?.accountFound ?? ''
+                            ),
+                          },
+                          {
+                            label: 'Open',
+                            value: String(
+                              bankVerifyResult?.verification?.accountOpen ?? ''
+                            ),
+                          },
+                          {
+                            label: 'Identity',
+                            value: String(
+                              bankVerifyResult?.verification?.identityMatch ?? ''
+                            ),
+                          },
+                          {
+                            label: 'Credits',
+                            value: String(
+                              bankVerifyResult?.verification?.acceptsCredits ?? ''
+                            ),
+                          },
+                        ] satisfies Array<{ label: string; value: string }>
+                      )
                         .filter((row) => row.value.trim().length > 0)
                         .map((row) => (
                           <div key={row.label} className="contents">
@@ -2156,104 +2077,124 @@ function ProfileInner() {
                     </dl>
                   </div>
                 ) : null}
+              </div>
             </div>
-          </div>
-        </Panel>
+          </Panel>
 
-        {/* Licenses & director */}
-        <Panel title="Licenses & director">
-          <div className="p-5 space-y-4">
-            <Field label="Director ID number">
-              <input
-                className="input w-full !p-3 !text-sm"
-                value={form.director_id_number || ''}
-                onChange={(e) => set('director_id_number', e.target.value)}
-              />
-            </Field>
-
-            <Field label="Import license no.">
-              <input
-                className="input w-full !p-3 !text-sm"
-                value={form.import_license_number || ''}
-                onChange={(e) => set('import_license_number', e.target.value)}
-              />
-            </Field>
-            <FileUploadField
-              label="Import license document"
-              url={form.import_license_url}
-              uploading={uploading === 'import'}
-              onFile={(f) =>
-                void handleUpload(
-                  f,
-                  'import',
-                  (url) => set('import_license_url', url),
-                  'import_license_url'
-                )
-              }
-              onClear={() => {
-                set('import_license_url', null);
-                void persistPartial({ import_license_url: null }).catch(() => undefined);
-              }}
-            />
-
-            <div className="flex items-center justify-between pt-1">
-              <SectionLabel>Export licenses (per country)</SectionLabel>
+          <Panel
+            title="Licenses & director"
+            action={
               <button
                 type="button"
                 onClick={addExportLicense}
-                className="text-xs font-semibold text-[#00b4d8] inline-flex items-center gap-1"
+                className="text-[11px] font-semibold text-[#00b4d8] inline-flex items-center gap-0.5"
               >
-                <Plus className="w-3.5 h-3.5" /> Add country
+                <Plus className="w-3.5 h-3.5" /> Export
               </button>
-            </div>
-            <p className="text-[11px] text-neutral-500 -mt-2">
-              Export licences often apply per destination country — add one row per country.
-            </p>
-
-            {exportLicenses.length === 0 && (
-              <p className="text-xs text-neutral-400">No export licenses yet.</p>
-            )}
-            <div className="space-y-3">
-              {exportLicenses.map((lic, idx) => (
-                <div
-                  key={`exp-${idx}`}
-                  className="rounded-2xl border border-neutral-100 bg-neutral-50/60 p-3 space-y-2"
-                >
-                  <div className="flex gap-2">
-                    <input
-                      className="input flex-1 !p-2.5 !text-sm"
-                      placeholder="Country"
-                      value={lic.country}
-                      onChange={(e) => updateExport(idx, { country: e.target.value })}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeExport(idx)}
-                      className="p-2 rounded-xl text-neutral-400 hover:text-red-600 hover:bg-red-50"
-                      aria-label="Remove export license"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <Field label="License number">
-                    <input
-                      className="input w-full !p-2.5 !text-sm"
-                      value={lic.license_number || ''}
-                      onChange={(e) =>
-                        updateExport(idx, { license_number: e.target.value })
+            }
+          >
+            <div className="p-4 space-y-2.5">
+              <div className="grid sm:grid-cols-2 gap-2.5">
+                <Field label="Director SA ID">
+                  <input
+                    className={`${inputCls} font-mono`}
+                    value={form.director_id_number || ''}
+                    onChange={(e) => set('director_id_number', e.target.value)}
+                    placeholder="For bank AVS if no CIPC reg"
+                  />
+                </Field>
+                <Field label="Import license no.">
+                  <input
+                    className={inputCls}
+                    value={form.import_license_number || ''}
+                    onChange={(e) => set('import_license_number', e.target.value)}
+                  />
+                </Field>
+              </div>
+              <FileUploadField
+                label="Import license document"
+                url={form.import_license_url}
+                compact
+                uploading={uploading === 'import'}
+                onFile={(f) =>
+                  void handleUpload(
+                    f,
+                    'import',
+                    (url) => set('import_license_url', url),
+                    'import_license_url'
+                  )
+                }
+                onClear={() => {
+                  set('import_license_url', null);
+                  void persistPartial({ import_license_url: null }).catch(() => undefined);
+                }}
+              />
+              <CardSubhead>Export licenses (per country)</CardSubhead>
+              {exportLicenses.length === 0 && (
+                <p className="text-[11px] text-neutral-400 -mt-1">None yet.</p>
+              )}
+              <div className="space-y-2 max-h-52 overflow-y-auto">
+                {exportLicenses.map((lic, idx) => (
+                  <div
+                    key={`exp-${idx}`}
+                    className="rounded-xl border border-neutral-100 bg-neutral-50/50 p-2 space-y-1.5"
+                  >
+                    <div className="flex gap-1.5">
+                      <input
+                        className="input flex-1 !py-1.5 !px-2 !text-xs"
+                        placeholder="Country"
+                        value={lic.country}
+                        onChange={(e) => updateExport(idx, { country: e.target.value })}
+                      />
+                      <input
+                        className="input flex-1 !py-1.5 !px-2 !text-xs"
+                        placeholder="License no."
+                        value={lic.license_number || ''}
+                        onChange={(e) =>
+                          updateExport(idx, { license_number: e.target.value })
+                        }
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeExport(idx)}
+                        className="p-1.5 rounded-lg text-neutral-400 hover:text-red-600 hover:bg-red-50"
+                        aria-label="Remove"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <FileUploadField
+                      label="File"
+                      url={lic.file_url}
+                      compact
+                      uploading={uploading === `export-${idx}`}
+                      onFile={(f) =>
+                        void handleUpload(f, `export-${idx}`, (url) => {
+                          setExportLicenses((prev) => {
+                            const next = prev.map((entry, i) =>
+                              i === idx ? { ...entry, file_url: url } : entry
+                            );
+                            const cleanExports = next
+                              .map((entry) => ({
+                                country: String(entry.country || '').trim(),
+                                license_number: entry.license_number || null,
+                                file_url: entry.file_url || null,
+                              }))
+                              .filter((entry) => entry.country);
+                            const first = cleanExports[0];
+                            void persistPartial({
+                              export_licenses: cleanExports,
+                              export_license_number: first?.license_number || null,
+                              export_license_url: first?.file_url || null,
+                            }).catch(() => undefined);
+                            return next;
+                          });
+                        })
                       }
-                    />
-                  </Field>
-                  <FileUploadField
-                    label="Export license file"
-                    url={lic.file_url}
-                    compact
-                    uploading={uploading === `export-${idx}`}
-                    onFile={(f) =>
-                      void handleUpload(f, `export-${idx}`, (url) => {
+                      onClear={() => {
                         setExportLicenses((prev) => {
                           const next = prev.map((entry, i) =>
-                            i === idx ? { ...entry, file_url: url } : entry
+                            i === idx ? { ...entry, file_url: null } : entry
                           );
                           const cleanExports = next
                             .map((entry) => ({
@@ -2270,58 +2211,69 @@ function ProfileInner() {
                           }).catch(() => undefined);
                           return next;
                         });
-                      })
-                    }
-                    onClear={() => {
-                      setExportLicenses((prev) => {
-                        const next = prev.map((entry, i) =>
-                          i === idx ? { ...entry, file_url: null } : entry
-                        );
-                        const cleanExports = next
-                          .map((entry) => ({
-                            country: String(entry.country || '').trim(),
-                            license_number: entry.license_number || null,
-                            file_url: entry.file_url || null,
-                          }))
-                          .filter((entry) => entry.country);
-                        const first = cleanExports[0];
-                        void persistPartial({
-                          export_licenses: cleanExports,
-                          export_license_number: first?.license_number || null,
-                          export_license_url: first?.file_url || null,
-                        }).catch(() => undefined);
-                        return next;
-                      });
-                    }}
-                  />
-                </div>
-              ))}
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        </Panel>
+          </Panel>
+        </div>
       </div>
 
-      <div className="mt-6 flex justify-end">
+      <div className="mt-4 flex justify-end sticky bottom-3 z-10">
         <button
           type="button"
           disabled={saving}
           onClick={() => void save()}
-          className="btn-primary !py-3 !px-8 text-sm"
+          className="btn-primary !py-2.5 !px-6 text-sm shadow-lg shadow-[#00b4d8]/20 inline-flex items-center gap-1.5"
         >
-          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save to Supabase'}
+          {saving ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <>
+              <Save className="w-4 h-4" /> Save profile
+            </>
+          )}
         </button>
       </div>
     </BusinessPage>
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+  className = '',
+}: {
+  label: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <div>
-      <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-400">
+    <div className={`min-w-0 ${className}`}>
+      <label className="text-[10px] font-semibold uppercase tracking-[0.1em] text-neutral-400">
         {label}
       </label>
-      <div className="mt-1">{children}</div>
+      <div className="mt-0.5">{children}</div>
+    </div>
+  );
+}
+
+/** Compact section heading inside a card body */
+function CardSubhead({
+  children,
+  action,
+}: {
+  children: React.ReactNode;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2 mb-2.5">
+      <h4 className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">
+        {children}
+      </h4>
+      {action}
     </div>
   );
 }
@@ -2351,8 +2303,8 @@ function FileUploadField({
         {label}
       </label>
       <div
-        className={`mt-1 rounded-2xl border border-dashed border-neutral-200 bg-neutral-50/40 ${
-          compact ? 'p-2.5' : 'p-3'
+        className={`mt-0.5 rounded-xl border border-dashed border-neutral-200 bg-neutral-50/40 ${
+          compact ? 'p-2' : 'p-2.5'
         }`}
       >
         {url ? (
