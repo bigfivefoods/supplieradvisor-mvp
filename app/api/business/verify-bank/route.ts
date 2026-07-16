@@ -59,16 +59,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Confirm Paystack payment of R50 before burning VerifyNow credits
+    // Confirm Paystack payment of R50 before burning VerifyNow credits.
+    // If secret is missing in non-prod, verifyPaystackTransaction soft-skips (same as billing).
     const pay = await verifyPaystackTransaction(paystackReference, {
       expectedAmountCents: BANK_VERIFY_AMOUNT_CENTS,
       expectedCurrency: 'ZAR',
     });
     if (!pay.ok) {
+      // Still reject unpaid/failed transactions — surface clear message
+      console.error('verify-bank Paystack check failed:', pay.error, paystackReference);
       return NextResponse.json(
         {
-          error: pay.error || 'Could not confirm Paystack payment',
+          error: pay.error || 'Could not confirm Paystack payment of R50',
+          hint:
+            'Complete the R50 Paystack checkout. If you already paid, wait a few seconds and contact support with your payment reference.',
           amount_zar: BANK_VERIFY_AMOUNT_ZAR,
+          paystackReference,
         },
         { status: pay.status && pay.status >= 400 ? pay.status : 402 }
       );
