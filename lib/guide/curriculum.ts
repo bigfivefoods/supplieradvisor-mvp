@@ -21,6 +21,10 @@ export type GuideSection = {
   purpose: string;
   /** Who typically uses it */
   who: string[];
+  /** Design principles for this module */
+  principles?: Array<{ title: string; body: string }>;
+  /** Outcomes after training */
+  outcomes?: string[];
   /** End-to-end process stages */
   flow: FlowNode[];
   /** Step-by-step how-to for critical processes */
@@ -35,19 +39,58 @@ export type GuideSection = {
   concepts?: Array<{ term: string; meaning: string }>;
   /** Checklist to “graduate” the module */
   checklist: string[];
+  /** Related guide slugs */
+  related?: string[];
 };
+
+/** OS-wide design principles (shown on guide home) */
+export const OS_PRINCIPLES = [
+  {
+    title: 'Company-scoped always',
+    body: 'Every screen and API is bound to the selected company. Wrong company → empty data. Switch workspace first.',
+  },
+  {
+    title: 'Network before trade',
+    body: 'Linked platform companies unlock catalogues, pricing agreements, and POs. Free-text is fallback—not the integration story.',
+  },
+  {
+    title: 'Catalogue direction matters',
+    body: 'Buy: pick from the supplier’s sellable products. Sell: pick from your finished goods. Never reverse that mental model.',
+  },
+  {
+    title: 'Physical truth first',
+    body: 'Lots, holds, and transfers beat spreadsheet stock. Ship is blocked when QA fails—by design.',
+  },
+  {
+    title: 'Money follows commerce',
+    body: 'Quotes → orders → invoices → bank allocation → journals → period lock. Don’t post inventively around the flow.',
+  },
+  {
+    title: 'Trust is a loop',
+    body: 'OTIFEF (objective) + peer ratings (subjective) after delivery. Trust packs and scorecards make reputation portable.',
+  },
+  {
+    title: 'Roles over hero accounts',
+    body: 'Owner / admin / finance / ops / sales / viewer. Period lock, QA override, and company delete are intentionally gated.',
+  },
+  {
+    title: 'Honest roadmap',
+    body: 'Live modules have real APIs. Coming-soon screens bridge without over-claiming ESG or PM depth.',
+  },
+];
 
 export const SYSTEM_OVERVIEW = {
   title: 'How SupplierAdvisor works',
-  subtitle: 'One company workspace · trusted network · physical ops · money · quality · insight',
+  subtitle:
+    'The world’s most trusted supply-chain OS — one company workspace, a verified network, physical ops, money, quality, and insight on one canvas.',
   pillars: [
     {
       title: 'Identity',
-      body: 'You sign in, pick a company, and your role (owner, finance, operations…) unlocks the right modules.',
+      body: 'You sign in, pick a company, and your role (owner, finance, operations…) unlocks the right modules. Owners can soft-delete a company from Settings.',
     },
     {
       title: 'Network',
-      body: 'Companies connect as suppliers and customers. Pricing, POs, and escrow ride on those links.',
+      body: 'Companies connect as suppliers and customers. Pricing agreements and sellable catalogues ride on those links.',
     },
     {
       title: 'Flow of goods',
@@ -59,17 +102,54 @@ export const SYSTEM_OVERVIEW = {
     },
     {
       title: 'Trust',
-      body: 'Quality inspections, HACCP, OTIFEF scores, and RIAD risks keep the story auditable.',
+      body: 'QA inspections, HACCP, OTIFEF scores, peer ratings, and RIAD risks keep the story auditable.',
+    },
+    {
+      title: 'Activation',
+      body: 'Golden path (3 days), founding free cohort (first 25), billing trial/prepaid, and SAM for in-app how-to.',
+    },
+  ],
+  layers: [
+    {
+      name: 'Identity & access',
+      body: 'Privy auth · company select · roles · settings · soft-delete · founding / billing',
+      tone: 'slate',
+    },
+    {
+      name: 'Network graph',
+      body: 'Connections · invites · pricing agreements · marketplace · discoverability',
+      tone: 'cyan',
+    },
+    {
+      name: 'Trade (buy & sell)',
+      body: 'Supplier catalogue POs · inbound accept · quotes/orders/invoices from your products',
+      tone: 'violet',
+    },
+    {
+      name: 'Physical ops',
+      body: 'Inventory lots · transfers · make · ship · containers · ops control tower',
+      tone: 'emerald',
+    },
+    {
+      name: 'Assure & account',
+      body: 'QA holds · OTIFEF · bank · journals · period lock · trust pack',
+      tone: 'amber',
+    },
+    {
+      name: 'Insight & leadership',
+      body: 'Pulse · forecast · score · Super-Cube · SAM · Action centre bell',
+      tone: 'rose',
     },
   ],
   masterFlow: [
     { id: '1', label: 'Company', hint: 'Select workspace', tone: 'slate' as const },
-    { id: '2', label: 'Connect', hint: 'Network & trade partners', tone: 'cyan' as const },
-    { id: '3', label: 'Buy / Sell', hint: 'POs, quotes, orders', tone: 'violet' as const },
+    { id: '2', label: 'Connect', hint: 'Network & partners', tone: 'cyan' as const },
+    { id: '3', label: 'Buy / Sell', hint: 'Catalogue POs & CRM', tone: 'violet' as const },
     { id: '4', label: 'Move', hint: 'Receive · make · ship', tone: 'emerald' as const },
     { id: '5', label: 'Assure', hint: 'QA · hold · release', tone: 'amber' as const },
     { id: '6', label: 'Account', hint: 'Bank · post · close', tone: 'cyan' as const },
-    { id: '7', label: 'Learn', hint: 'Scores · forecasts', tone: 'violet' as const },
+    { id: '7', label: 'Trust', hint: 'OTIFEF · rate', tone: 'rose' as const },
+    { id: '8', label: 'Learn', hint: 'Pulse · SAM', tone: 'violet' as const },
   ],
 };
 
@@ -80,8 +160,28 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     title: 'Get live in 3 days',
     tagline: 'Golden path — profile → partners → trade → rate → billing',
     purpose:
-      'New companies get a measurable activation path on the dashboard. Steps auto-complete when you do real work (save profile, invite partners, create a quote/PO, rate a peer, open billing).',
+      'New companies get a measurable activation path on the dashboard. Steps auto-complete when you do real work (save profile, invite partners, create a quote/PO, rate a peer, open billing). Founding free seats (first 25) apply automatically when eligible.',
     who: ['Owner', 'Admin', 'Anyone onboarding a new workspace'],
+    principles: [
+      {
+        title: 'Do real work, don’t tick boxes',
+        body: 'Auto-complete fires from live mutations (profile save, invites, PO, rate). Manual Mark done is emergency only.',
+      },
+      {
+        title: 'Three partners beats one',
+        body: 'First partner unlocks Day 2; three partners complete the network goal and deepen the trade graph.',
+      },
+      {
+        title: 'Trade before polish',
+        body: 'One quote or PO on Day 3 is worth more than perfect branding. Billing visit clarifies the commercial plan.',
+      },
+    ],
+    outcomes: [
+      'Company is discoverable and staffed',
+      'At least one network edge exists',
+      'One commercial document or PO created',
+      'Trust loop and billing are visible',
+    ],
     flow: [
       { id: 'd1a', label: 'Profile', hint: 'Day 1', tone: 'cyan' },
       { id: 'd1b', label: 'Team', hint: 'Day 1', tone: 'violet' },
@@ -151,15 +251,35 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     title: 'Company',
     tagline: 'Your workspace identity, team, and controls',
     purpose:
-      'Everything in SupplierAdvisor is company-scoped. Profile, team roles, documents, and risk logs define who you are and who can act.',
+      'Everything in SupplierAdvisor is company-scoped. Profile, team roles, billing, documents, risk logs, and Settings (including owner soft-delete) define who you are and who can act.',
     who: ['Owner', 'Admin', 'Anyone setting up a new workspace'],
+    principles: [
+      {
+        title: 'One active workspace',
+        body: 'Switch company before troubleshooting empty modules. Data never crosses company boundaries.',
+      },
+      {
+        title: 'Least privilege',
+        body: 'Finance locks periods; ops runs ships; viewers read. Don’t share the owner login.',
+      },
+      {
+        title: 'Delete is soft and rare',
+        body: 'Owners can soft-delete from Settings (name + type DELETE). History stays for audit; membership dies.',
+      },
+    ],
+    outcomes: [
+      'Profile completeness high enough for discovery',
+      'Team roles match real jobs',
+      'Billing / founding status understood',
+    ],
     flow: [
       { id: 'a', label: 'Select', hint: 'Pick company', tone: 'slate' },
       { id: 'b', label: 'Profile', hint: 'Trading identity', tone: 'cyan' },
       { id: 'c', label: 'Team', hint: 'Roles & invites', tone: 'violet' },
-      { id: 'd', label: 'Docs', hint: 'Certificates & files', tone: 'emerald' },
-      { id: 'e', label: 'Risks', hint: 'RIAD log', tone: 'amber' },
-      { id: 'f', label: 'Settings', hint: 'Workspace prefs', tone: 'slate' },
+      { id: 'd', label: 'Billing', hint: 'Trial / founding', tone: 'amber' },
+      { id: 'e', label: 'Docs', hint: 'Certificates', tone: 'emerald' },
+      { id: 'f', label: 'Risks', hint: 'RIAD log', tone: 'rose' },
+      { id: 'g', label: 'Settings', hint: 'Prefs · delete', tone: 'slate' },
     ],
     processes: [
       {
@@ -184,6 +304,29 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         ],
       },
       {
+        name: 'Billing, trial & founding free',
+        href: '/dashboard/my-business/billing',
+        summary: 'Trial starts on first visit; earliest 25 companies may auto-grant free-for-life.',
+        steps: [
+          'Company → Billing — review status and prepaid terms',
+          'If founding-eligible, Refresh to claim free-for-life',
+          'Paystack checkout for monthly or multi-year prepaid',
+        ],
+        tip: 'Founding seats use registration order — not waitlist alone. Ops can Grant lifetime from Founding waitlist.',
+      },
+      {
+        name: 'Soft-delete a company (owner)',
+        href: '/dashboard/my-business/settings',
+        summary: 'Danger zone removes access; keeps audit history. Requires exact name + DELETE.',
+        steps: [
+          'Company → Settings → Danger zone',
+          'Type the exact trading name',
+          'Type DELETE and optional reason',
+          'Confirm — you land on select-company; company vanishes from the list',
+        ],
+        tip: 'Requires migration 20260716_company_soft_delete.sql on the database.',
+      },
+      {
         name: 'Log a company risk (RIAD)',
         href: '/dashboard/my-business/riad-log',
         summary: 'Risks, Issues, Actions, Decisions — lightweight governance without a separate GRC tool.',
@@ -197,12 +340,15 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     concepts: [
       { term: 'Company / profile', meaning: 'The legal or trading entity you operate in the app.' },
       { term: 'Role', meaning: 'Permission matrix for modules (e.g. finance can post; viewer cannot).' },
+      { term: 'Soft-delete', meaning: 'deleted_at set; members deactivated; network hide; not a hard wipe.' },
     ],
     checklist: [
       'Company selected and profile complete',
       'At least one admin/owner active',
       'Team roles match real jobs',
+      'Billing page visited once',
     ],
+    related: ['golden-path', 'roles-security', 'network'],
   },
   {
     slug: 'network',
@@ -210,8 +356,22 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     title: 'Network',
     tagline: 'Graph of companies, pricing, and marketplace',
     purpose:
-      'The network is how two companies become able to trade. Pricing agreements and marketplace listings sit on top of connections.',
+      'The network is how two companies become able to trade. Pricing agreements and marketplace listings sit on top of connections. Without a link, catalogues stay dark.',
     who: ['Commercial leads', 'Procurement', 'Sales'],
+    principles: [
+      {
+        title: 'Connect before you commerce',
+        body: 'Accepted connection (or SRM linked profile) is the gate for supplier catalogues and clean POs.',
+      },
+      {
+        title: 'Price is a shared object',
+        body: 'Agreements are bidirectional commercial truth—buyers see list chips on Order; sellers stay in control of list prices.',
+      },
+      {
+        title: 'Invite is a product',
+        body: 'Bring partners onto the platform; book-only free-text POs are a temporary bridge.',
+      },
+    ],
     flow: [
       { id: 'a', label: 'Graph', hint: 'See links', tone: 'cyan' },
       { id: 'b', label: 'Price', hint: 'Agreements', tone: 'violet' },
@@ -253,27 +413,59 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     title: 'Suppliers',
     tagline: 'Find, book, order — standard or escrow PO',
     purpose:
-      'SRM path: discover trusted suppliers, maintain your book, raise purchase orders (standard or on-chain escrow), and score delivery.',
+      'SRM path: discover trusted suppliers, maintain your book, raise purchase orders from the supplier’s catalogue (or free-text), track pipeline next-steps, record OTIFEF, and rate partners.',
     who: ['Buyer', 'Procurement', 'Ops'],
+    principles: [
+      {
+        title: 'Buy their catalogue',
+        body: 'PO lines load the linked supplier’s agreed list prices and sellable inventory (finished goods/services)—not your stock.',
+      },
+      {
+        title: 'Free-text is fallback',
+        body: 'Custom lines remain for exceptions. Empty catalogue? Connect them or ask them to publish products / share pricing.',
+      },
+      {
+        title: 'Close the loop',
+        body: 'Send → wait accept → Receive+OTIFEF → Rate. Pipeline cards tell you the next step.',
+      },
+    ],
+    outcomes: [
+      'Linked supplier with sellable products or price list',
+      'One standard PO accepted and received',
+      'OTIFEF + rating recorded',
+    ],
     flow: [
       { id: 'a', label: 'Find', hint: 'Discover', tone: 'cyan' },
       { id: 'b', label: 'Book', hint: 'My network', tone: 'slate' },
       { id: 'c', label: 'Invite', hint: 'Pending links', tone: 'violet' },
-      { id: 'd', label: 'Order', hint: 'Standard / escrow', tone: 'emerald' },
-      { id: 'e', label: 'Score', hint: 'OTIFEF', tone: 'amber' },
-      { id: 'f', label: 'Rate', hint: 'Reviews', tone: 'rose' },
+      { id: 'd', label: 'Order', hint: 'Catalogue PO', tone: 'emerald' },
+      { id: 'e', label: 'Accept', hint: 'Supplier inbox', tone: 'amber' },
+      { id: 'f', label: 'Receive', hint: 'OTIFEF', tone: 'cyan' },
+      { id: 'g', label: 'Rate', hint: 'Trust', tone: 'rose' },
     ],
     processes: [
       {
-        name: 'Raise a standard PO',
+        name: 'Raise a standard PO from supplier catalogue',
         href: '/dashboard/suppliers/po',
-        summary: 'Off-chain PO: send, accept, record delivery, rate. No wallet required.',
+        summary: 'Off-chain PO: pick their products, send, wait for accept, receive, rate. No wallet required.',
         steps: [
-          'Suppliers → Order',
-          'Select a connected supplier and line items',
-          'Choose type: Standard PO',
-          'Send standard PO (or Save draft)',
-          'Track in pipeline; record delivery for OTIFEF',
+          'Suppliers → Order · select a linked supplier',
+          'Supplier catalogue panel: search agreed list + their inventory',
+          'Add lines (or Custom free text) · promised date · currency',
+          'Send standard PO (not draft)',
+          'Pipeline shows next step: wait for accept',
+        ],
+        tip: 'Empty catalogue soft-emails the supplier to publish finished goods (once per session).',
+      },
+      {
+        name: 'Receive + OTIFEF + rate',
+        href: '/dashboard/suppliers/po',
+        summary: 'One-tap receive defaults delivered qty to ordered; complete and jump to rate.',
+        steps: [
+          'Pipeline → Receive + OTIFEF on accepted/sent PO',
+          'Fill = ordered for in-full · set actual date · damaged qty',
+          'Complete OTIFEF + rate supplier (deep-link) or Save OTIFEF only',
+          'Score card under Performance uses the same delivery fields',
         ],
       },
       {
@@ -287,29 +479,22 @@ export const GUIDE_SECTIONS: GuideSection[] = [
           'Send escrow PO → confirm createPO in wallet',
           'Fund → supplier markShipped → buyer confirmDelivery',
         ],
-        tip: 'Roles allowed for on-chain attach: owner, admin, finance, operations.',
-      },
-      {
-        name: 'Score supplier performance',
-        href: '/dashboard/suppliers/performance',
-        summary: 'OTIFEF uses delivery capture from completed POs.',
-        steps: [
-          'Record actual delivery on the PO',
-          'Open Score to review OTIFEF',
-          'Rate quality / delivery / communication under Rate',
-        ],
+        tip: 'Roles for on-chain attach: owner, admin, finance, operations.',
       },
     ],
     concepts: [
+      { term: 'Supplier catalogue', meaning: 'Agreed pricing lines + supplier sellable products exposed to you as buyer.' },
       { term: 'Standard PO', meaning: 'Commercial document only — no chain funds.' },
       { term: 'Escrow PO', meaning: 'Same commercial PO + client-signed on-chain lifecycle.' },
-      { term: 'OTIFEF', meaning: 'On-time, in-full, error-free style delivery performance.' },
+      { term: 'OTIFEF', meaning: 'On-time, in-full, error-free delivery performance from capture fields.' },
     ],
     checklist: [
       'Supplier connected on-platform',
-      'One standard PO completed end-to-end',
-      'Optional: one escrow demo on testnet',
+      'One catalogue-based PO sent',
+      'Supplier accepted (or you practiced free-text)',
+      'OTIFEF + rate completed once',
     ],
+    related: ['network', 'customers', 'quality', 'action-centre'],
   },
   {
     slug: 'customers',
@@ -317,27 +502,60 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     title: 'Customers',
     tagline: 'Lead → quote → order → invoice → claim',
     purpose:
-      'CRM and commercial pipeline for demand-side work. Keep the funnel tight: lead, quote, convert, fulfill cash, handle claims.',
-    who: ['Sales', 'Account managers', 'Finance (invoices)'],
+      'CRM and commercial pipeline for demand-side work. Keep the funnel tight: lead, quote (your catalogue), convert, fulfill cash, inbound POs when you are the seller, handle claims.',
+    who: ['Sales', 'Account managers', 'Finance (invoices)', 'Ops (inbound POs)'],
+    principles: [
+      {
+        title: 'Sell your catalogue',
+        body: 'Quotes, orders, and invoices add lines from your sellable finished goods/services—search by type/SKU.',
+      },
+      {
+        title: 'Inbound is the mirror of Order',
+        body: 'When buyers raise POs against you, Customers → Inbound is your accept/decline and fulfilment cue board.',
+      },
+      {
+        title: 'Cash closes the story',
+        body: 'Invoice → AR → bank allocate. Claims stay linked to commercial docs and quality evidence.',
+      },
+    ],
+    outcomes: [
+      'Customer onboarded',
+      'Quote from finished goods',
+      'Inbound PO accepted once (as seller)',
+    ],
     flow: [
       { id: 'a', label: 'Lead', hint: 'Opportunity', tone: 'violet' },
       { id: 'b', label: 'Add', hint: 'Onboard', tone: 'cyan' },
-      { id: 'c', label: 'Quote', hint: 'Offer', tone: 'emerald' },
+      { id: 'c', label: 'Quote', hint: 'Your products', tone: 'emerald' },
       { id: 'd', label: 'Order', hint: 'Confirm', tone: 'amber' },
-      { id: 'e', label: 'Invoice', hint: 'Bill', tone: 'cyan' },
-      { id: 'f', label: 'Claim', hint: 'Exceptions', tone: 'rose' },
+      { id: 'e', label: 'Inbound', hint: 'Accept PO', tone: 'amber' },
+      { id: 'f', label: 'Invoice', hint: 'Bill', tone: 'cyan' },
+      { id: 'g', label: 'Claim', hint: 'Exceptions', tone: 'rose' },
     ],
     processes: [
       {
-        name: 'Win a deal',
-        href: '/dashboard/customers/leads',
-        summary: 'Capture opportunity, quote, convert to order and invoice.',
+        name: 'Win a deal with catalogue lines',
+        href: '/dashboard/customers/quotes',
+        summary: 'Capture opportunity, quote from your finished goods, convert to order and invoice.',
         steps: [
           'Lead — create opportunity with contact',
-          'Quote — commercial offer with lines',
+          'Quote — Add from catalogue (search finished goods / services)',
           'Order — convert when customer accepts',
           'Invoice — bill and push into accounting AR',
         ],
+        tip: 'Document currency re-prices product lines from catalogue when you change it.',
+      },
+      {
+        name: 'Inbound PO inbox (you are the supplier)',
+        href: '/dashboard/customers/orders?tab=inbound',
+        summary: 'Accept, decline, mark paid/complete. Bell notifies awaiting-accept POs.',
+        steps: [
+          'Customers → Inbound (or Action centre badge)',
+          'Open PO — review buyer, lines, promise date',
+          'Accept (buyer is notified) or Decline',
+          'Fulfil — prepare/ship; buyer will record OTIFEF',
+        ],
+        tip: 'Publish sellable products so buyers can pick lines instead of free-text only.',
       },
       {
         name: 'Handle a claim',
@@ -352,9 +570,11 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     ],
     checklist: [
       'Customer profile exists',
-      'One quote → order path practiced',
+      'One quote with catalogue lines',
+      'Inbound path known (as seller)',
       'Know where invoices land in Finance',
     ],
+    related: ['suppliers', 'inventory', 'finance', 'action-centre'],
   },
   {
     slug: 'inventory',
@@ -362,8 +582,22 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     title: 'Inventory',
     tagline: 'Catalog, stock, receive, move, count, lots',
     purpose:
-      'Physical truth of what you hold. Lots feed quality holds and recalls. Transfers ship between warehouses with QA gates.',
-    who: ['Warehouse', 'Ops', 'Quality'],
+      'Physical truth of what you hold. Lots feed quality holds and recalls. Transfers ship between warehouses with QA gates. Sellable finished goods power customer quotes and network catalogues.',
+    who: ['Warehouse', 'Ops', 'Quality', 'Commercial (catalogue)'],
+    principles: [
+      {
+        title: 'Lots or regret',
+        body: 'Receive with lot numbers whenever QA or recall matters. Pedigree starts at the dock.',
+      },
+      {
+        title: 'Sellable flag is public face',
+        body: 'is_sellable finished goods/services appear to connected buyers on POs and power your quotes.',
+      },
+      {
+        title: 'Holds beat heroics',
+        body: 'Open/failed inspections block ship. Override is audited and rare.',
+      },
+    ],
     flow: [
       { id: 'a', label: 'Catalog', hint: 'Products', tone: 'slate' },
       { id: 'b', label: 'Stock', hint: 'On hand', tone: 'cyan' },
@@ -787,8 +1021,18 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     title: 'Action centre',
     tagline: 'Live signals next to the process rail',
     purpose:
-      'The bell on the sticky top rail aggregates holds, unmatched bank, open POs, period locks, and sync errors — so you act without hunting modules.',
+      'The bell on the sticky top rail aggregates holds, unmatched bank, open POs, inbound POs awaiting accept, period locks, rating prompts, and sync errors — so you act without hunting modules.',
     who: ['Everyone'],
+    principles: [
+      {
+        title: 'Derived, not a second inbox',
+        body: 'Signals are computed from live tables. Clearing the source clears the badge.',
+      },
+      {
+        title: 'Critical first',
+        body: 'QA fails and bank errors outrank info. Inbound POs and rating prompts keep the trade loop moving.',
+      },
+    ],
     flow: [
       { id: 'a', label: 'Scan', hint: 'Open bell', tone: 'amber' },
       { id: 'b', label: 'Jump', hint: 'Follow href', tone: 'cyan' },
@@ -801,20 +1045,80 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         steps: [
           'Open Actions on the top rail',
           'Clear QA fails and bank errors first',
-          'Work open POs and period-lock notices',
+          'Inbound PO awaiting accept → Customers → Inbound',
+          'Open buyer POs / period-lock notices / rating prompts',
           'Refresh — list is derived from live data (no separate inbox table)',
         ],
       },
     ],
-    checklist: ['Know what turns the red badge on', 'Never leave failed QA unowned'],
+    checklist: [
+      'Know what turns the red badge on',
+      'Never leave failed QA unowned',
+      'Inbound PO path known if you sell',
+    ],
+  },
+  {
+    slug: 'sam',
+    title: 'SAM · AI guide',
+    tagline: 'Supplier Advisor Messenger (Grok) in the corner',
+    purpose:
+      'Floating Grok-powered assistant for how-to, navigation, and workflow coaching. Path-aware suggestion chips change on PO, inbound, quotes, and products screens.',
+    who: ['Everyone learning the OS'],
+    principles: [
+      {
+        title: 'SAM is how-to, not a second ERP',
+        body: 'Ask where screens live and how processes run. Execute still happens in modules.',
+      },
+      {
+        title: 'Context chips',
+        body: 'On /suppliers/po, /customers/orders, inventory products, etc., chips suggest trade-loop questions.',
+      },
+    ],
+    flow: [
+      { id: 'a', label: 'Open', hint: 'Corner FAB', tone: 'cyan' },
+      { id: 'b', label: 'Ask', hint: 'Chip or type', tone: 'violet' },
+      { id: 'c', label: 'Act', hint: 'Follow links', tone: 'emerald' },
+      { id: 'd', label: 'History', hint: 'Prior chats', tone: 'slate' },
+    ],
+    processes: [
+      {
+        name: 'Learn a module with SAM',
+        summary: 'Open SAM on any dashboard page; use a chip; click /dashboard links in the reply.',
+        steps: [
+          'Click SAM (bottom-right)',
+          'Pick a suggestion chip for the current page',
+          'Follow Open links into the real workbench',
+          'History tab to resume earlier coaching',
+        ],
+        tip: 'Requires XAI_API_KEY on the server. Health check: GET /api/sam/chat.',
+      },
+    ],
+    concepts: [
+      {
+        term: 'SAM',
+        meaning: 'Supplier Advisor Messenger — Grok via xAI Responses API.',
+      },
+    ],
+    checklist: ['SAM opens and answers once', 'Used a path-specific chip'],
+    related: ['golden-path', 'action-centre'],
   },
   {
     slug: 'roles-security',
     title: 'Roles & security',
-    tagline: 'JWT membership, permissions, audit',
+    tagline: 'JWT membership, permissions, audit, delete',
     purpose:
-      'APIs verify Privy access tokens, check company membership, then use service-role Supabase. Sensitive writes need roles (period lock, escrow, QA override).',
+      'APIs verify Privy access tokens, check company membership (and block soft-deleted companies), then use service-role Supabase. Sensitive writes need roles (period lock, escrow, QA override, company delete).',
     who: ['Owner', 'Admin', 'IT'],
+    principles: [
+      {
+        title: 'Service role never in the browser',
+        body: 'Tenant data is gated in Next.js APIs after Privy JWT + business_users checks.',
+      },
+      {
+        title: 'Owner keys for irreversible-ish acts',
+        body: 'Company soft-delete is owner-only with typed confirmation. Period lock is finance-critical roles.',
+      },
+    ],
     flow: [
       { id: 'a', label: 'Auth', hint: 'Privy JWT', tone: 'slate' },
       { id: 'b', label: 'Member', hint: 'business_users', tone: 'cyan' },
@@ -832,6 +1136,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
           'Finance critical: owner / admin / finance',
           'QA override ship: owner / admin only',
           'Escrow attach: owner / admin / finance / operations',
+          'Company delete: owner only (Settings → Danger zone)',
           'Review audit under Finance → Close',
         ],
       },
@@ -839,11 +1144,14 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     concepts: [
       { term: 'AUTH_STRICT', meaning: 'Production requires Bearer tokens on APIs.' },
       { term: 'Audit feed', meaning: 'Soft-written activity_log for critical mutations.' },
+      { term: '410 Gone', meaning: 'Membership APIs return 410 when the company is soft-deleted.' },
     ],
     checklist: [
       'Team roles documented for your org',
       'No shared owner accounts',
+      'Know who can delete a company',
     ],
+    related: ['company', 'action-centre'],
   },
 ];
 

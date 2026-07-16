@@ -1,16 +1,21 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, ArrowRight, CheckCircle2, Lightbulb, MapPin, Users } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowRight,
+  CheckCircle2,
+  Lightbulb,
+  MapPin,
+  Target,
+  Users,
+} from 'lucide-react';
 import type { GuideSection } from '@/lib/guide/curriculum';
 import { ProcessFlow } from '@/components/guide/ProcessFlow';
+import { PrinciplesGrid } from '@/components/guide/GuideDiagrams';
 
 export function GuideShell({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="sa-page max-w-5xl mx-auto pb-16">
-      {children}
-    </div>
-  );
+  return <div className="sa-page max-w-5xl mx-auto pb-16">{children}</div>;
 }
 
 export function GuideHero({
@@ -89,15 +94,41 @@ export function SectionTraining({
         </div>
       </div>
 
+      {section.principles && section.principles.length > 0 && (
+        <PrinciplesGrid principles={section.principles} />
+      )}
+
+      {section.outcomes && section.outcomes.length > 0 && (
+        <div className="mb-10 rounded-3xl border border-violet-100 bg-violet-50/40 p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <Target className="w-4 h-4 text-violet-600" />
+            <h2 className="text-sm font-black uppercase tracking-[0.14em] text-violet-800/80">
+              Outcomes after this module
+            </h2>
+          </div>
+          <ul className="grid sm:grid-cols-2 gap-2">
+            {section.outcomes.map((o) => (
+              <li
+                key={o}
+                className="flex gap-2 text-sm text-violet-950"
+              >
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-violet-600 mt-0.5" />
+                {o}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <h2 className="text-sm font-black uppercase tracking-[0.14em] text-neutral-400 mb-3">
-        Process flow
+        Process flow diagram
       </h2>
       <div className="mb-10">
         <ProcessFlow nodes={section.flow} title="Critical path" />
       </div>
 
       <h2 className="text-sm font-black uppercase tracking-[0.14em] text-neutral-400 mb-3">
-        How to apply
+        How to apply — step by step
       </h2>
       <div className="space-y-4 mb-10">
         {section.processes.map((p, i) => (
@@ -110,7 +141,9 @@ export function SectionTraining({
                 <span className="text-[10px] font-black text-[#00b4d8] mr-2">
                   {String(i + 1).padStart(2, '0')}
                 </span>
-                <h3 className="inline text-base font-bold text-slate-900">{p.name}</h3>
+                <h3 className="inline text-base font-bold text-slate-900">
+                  {p.name}
+                </h3>
               </div>
               {p.href && (
                 <Link
@@ -124,7 +157,9 @@ export function SectionTraining({
               )}
             </div>
             <div className="px-5 py-4">
-              <p className="text-sm text-neutral-600 mb-3 leading-relaxed">{p.summary}</p>
+              <p className="text-sm text-neutral-600 mb-3 leading-relaxed">
+                {p.summary}
+              </p>
               <ol className="space-y-2">
                 {p.steps.map((s, j) => (
                   <li key={j} className="flex gap-3 text-sm text-slate-800">
@@ -160,7 +195,9 @@ export function SectionTraining({
                 className="rounded-2xl border border-neutral-200 bg-white px-4 py-3"
               >
                 <dt className="text-xs font-bold text-[#0077b6]">{c.term}</dt>
-                <dd className="text-xs text-neutral-600 mt-1 leading-relaxed">{c.meaning}</dd>
+                <dd className="text-xs text-neutral-600 mt-1 leading-relaxed">
+                  {c.meaning}
+                </dd>
               </div>
             ))}
           </dl>
@@ -179,13 +216,34 @@ export function SectionTraining({
         ))}
       </ul>
 
+      {section.related && section.related.length > 0 && (
+        <div className="mb-10">
+          <h2 className="text-sm font-black uppercase tracking-[0.14em] text-neutral-400 mb-3">
+            Related training
+          </h2>
+          <div className="flex flex-wrap gap-2">
+            {section.related.map((slug) => (
+              <Link
+                key={slug}
+                href={`/dashboard/guide/${slug}`}
+                className="text-xs font-bold rounded-full border border-slate-200 bg-white px-3 py-1.5 text-slate-700 hover:border-[#00b4d8] hover:text-[#0077b6]"
+              >
+                {slug.replace(/-/g, ' ')}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
       <nav className="flex flex-col sm:flex-row gap-3 justify-between">
         {prev ? (
           <Link
             href={`/dashboard/guide/${prev.slug}`}
             className="flex-1 rounded-2xl border border-neutral-200 bg-white px-4 py-3 hover:border-[#00b4d8]/40 transition-colors"
           >
-            <div className="text-[10px] font-bold uppercase text-neutral-400">Previous</div>
+            <div className="text-[10px] font-bold uppercase text-neutral-400">
+              Previous
+            </div>
             <div className="text-sm font-semibold text-slate-800 flex items-center gap-1">
               <ArrowLeft className="w-3.5 h-3.5" /> {prev.title}
             </div>
@@ -198,7 +256,9 @@ export function SectionTraining({
             href={`/dashboard/guide/${next.slug}`}
             className="flex-1 rounded-2xl border border-cyan-100 bg-[#00b4d8]/5 px-4 py-3 hover:border-[#00b4d8] transition-colors text-right"
           >
-            <div className="text-[10px] font-bold uppercase text-[#0077b6]">Next</div>
+            <div className="text-[10px] font-bold uppercase text-[#0077b6]">
+              Next
+            </div>
             <div className="text-sm font-semibold text-slate-800 inline-flex items-center gap-1">
               {next.title} <ArrowRight className="w-3.5 h-3.5" />
             </div>
@@ -208,8 +268,12 @@ export function SectionTraining({
             href="/dashboard/guide"
             className="flex-1 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-right"
           >
-            <div className="text-[10px] font-bold uppercase text-emerald-700">Complete</div>
-            <div className="text-sm font-semibold text-emerald-900">Back to guide home</div>
+            <div className="text-[10px] font-bold uppercase text-emerald-700">
+              Complete
+            </div>
+            <div className="text-sm font-semibold text-emerald-900">
+              Back to guide home
+            </div>
           </Link>
         )}
       </nav>
