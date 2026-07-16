@@ -34,6 +34,9 @@ export default function manifest(): MetadataRoute.Manifest {
         purpose: 'maskable',
       },
     ],
+    id: '/',
+    display_override: ['standalone', 'browser'],
+    prefer_related_applications: false,
     shortcuts: [
       {
         name: 'Dashboard',
@@ -42,22 +45,22 @@ export default function manifest(): MetadataRoute.Manifest {
         description: 'Command centre',
       },
       {
+        name: 'Sales pipeline',
+        short_name: 'Pipeline',
+        url: '/sales/pipeline',
+        description: 'Deals and team forecast',
+      },
+      {
         name: 'Purchase orders',
         short_name: 'POs',
         url: '/dashboard/suppliers/po',
         description: 'Raise and manage POs',
       },
       {
-        name: 'Quality inspections',
-        short_name: 'QA',
-        url: '/dashboard/quality/inspections',
-        description: 'Lot release gates',
-      },
-      {
-        name: 'Bank allocation',
-        short_name: 'Bank',
-        url: '/dashboard/accounting/bank-reconciliation',
-        description: 'Match bank transactions',
+        name: 'Company directory',
+        short_name: 'Directory',
+        url: '/#directory',
+        description: 'Search companies on the network',
       },
     ],
   };

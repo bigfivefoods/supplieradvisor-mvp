@@ -43,6 +43,20 @@ const NAV: {
   { href: '/sales/leadership', label: 'Leadership', icon: GraduationCap },
 ];
 
+/** Primary destinations for phone thumb bar */
+const MOBILE_TABS: {
+  href: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  exact?: boolean;
+}[] = [
+  { href: '/sales', label: 'Home', icon: LayoutDashboard, exact: true },
+  { href: '/sales/pipeline', label: 'Pipeline', icon: Target },
+  { href: '/sales/quotes', label: 'Quotes', icon: FileText },
+  { href: '/sales/customers', label: 'Customers', icon: Users },
+  { href: '/sales/earnings', label: 'Earn', icon: Wallet },
+];
+
 export default function SalesShell({ children }: { children: React.ReactNode }) {
   const { ready, authenticated, logout, user } = usePrivy();
   const pathname = usePathname();
@@ -162,7 +176,7 @@ export default function SalesShell({ children }: { children: React.ReactNode }) 
             </button>
           </div>
         </div>
-        <nav className="max-w-7xl mx-auto px-2 sm:px-4 pb-2 overflow-x-auto">
+        <nav className="hidden md:block max-w-7xl mx-auto px-2 sm:px-4 pb-2 overflow-x-auto">
           <div className="flex gap-1.5 min-w-max">
             {NAV.map((item) => {
               const Icon = item.icon;
@@ -201,9 +215,54 @@ export default function SalesShell({ children }: { children: React.ReactNode }) 
         </nav>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-6 sm:py-8">{children}</main>
+      <main className="max-w-7xl mx-auto px-4 py-6 sm:py-8 pb-mobile-nav">
+        {children}
+      </main>
 
-      <footer className="text-center text-[11px] text-neutral-500 py-10 px-4 border-t border-neutral-100 bg-white">
+      {/* Mobile thumb bar — primary field actions */}
+      <nav
+        className="md:hidden fixed bottom-0 inset-x-0 z-40 border-t border-neutral-200 bg-white/95 backdrop-blur-xl pb-safe shadow-[0_-4px_20px_-8px_rgba(15,23,42,0.12)]"
+        aria-label="Sales primary navigation"
+      >
+        <div className="grid grid-cols-5 max-w-lg mx-auto">
+          {MOBILE_TABS.map((item) => {
+            const Icon = item.icon;
+            const active = item.exact
+              ? pathname === item.href
+              : pathname === item.href ||
+                pathname?.startsWith(`${item.href}/`);
+            const locked =
+              (needAgreement &&
+                item.href !== '/sales/agreement' &&
+                item.href !== '/sales') ||
+              (needSubscription &&
+                item.href !== '/sales/subscribe' &&
+                item.href !== '/sales/agreement' &&
+                item.href !== '/sales');
+            const lockHref = needAgreement
+              ? '/sales/agreement'
+              : needSubscription
+                ? '/sales/subscribe'
+                : item.href;
+            return (
+              <Link
+                key={item.href}
+                href={locked ? lockHref : item.href}
+                className={`flex flex-col items-center justify-center gap-0.5 py-2 min-h-[3.25rem] text-[10px] font-bold touch-manipulation ${
+                  active ? 'text-[#0077b6]' : 'text-neutral-500'
+                }`}
+              >
+                <Icon
+                  className={`w-5 h-5 ${active ? 'text-[#00b4d8]' : ''}`}
+                />
+                {item.label}
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
+
+      <footer className="hidden md:block text-center text-[11px] text-neutral-500 py-10 px-4 border-t border-neutral-100 bg-white">
         Independent sales contractor · CRM data belongs to the company · Commission 4%–6% (super-link 6%) ·
         Contractors: R199/mo · 6-month sub · Owners &amp; finance: free full access · Powered by
         SupplierAdvisor®

@@ -108,6 +108,9 @@ export const metadata: Metadata = {
   other: {
     'msapplication-TileColor': '#00b4d8',
     'apple-mobile-web-app-title': 'SupplierAdvisor',
+    'apple-mobile-web-app-capable': 'yes',
+    'mobile-web-app-capable': 'yes',
+    'apple-mobile-web-app-status-bar-style': 'default',
   },
 };
 
@@ -115,8 +118,9 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 5,
+  viewportFit: 'cover',
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#f8fafc' },
+    { media: '(prefers-color-scheme: light)', color: '#00b4d8' },
     { media: '(prefers-color-scheme: dark)', color: '#0f172a' },
   ],
   colorScheme: 'light',

@@ -8,6 +8,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RainbowKitProvider, getDefaultConfig } from '@rainbow-me/rainbowkit';
 import { base, baseSepolia, sepolia } from 'wagmi/chains';
 import ApiAuthBridge from '@/components/auth/ApiAuthBridge';
+import InstallAppBanner from '@/components/pwa/InstallAppBanner';
 import '@rainbow-me/rainbowkit/styles.css';
 
 const walletConnectProjectId =
@@ -79,6 +80,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
             */}
             <ApiAuthBridge>
               <div className="min-h-dvh pointer-events-auto isolate">{children}</div>
+              <InstallAppBanner />
             </ApiAuthBridge>
             <Toaster position="top-center" richColors closeButton expand={false} />
           </RainbowKitProvider>
