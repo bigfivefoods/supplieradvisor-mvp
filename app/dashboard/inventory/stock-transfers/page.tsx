@@ -104,6 +104,11 @@ function TransfersInner() {
   const [shipNotes, setShipNotes] = useState('');
   const [receiveNotes, setReceiveNotes] = useState('');
   const [receiveQtys, setReceiveQtys] = useState<Record<number, string>>({});
+  const [preShipHolds, setPreShipHolds] = useState<{
+    blocked: boolean;
+    lots: string[];
+    resolve_href?: string;
+  } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -135,6 +140,52 @@ function TransfersInner() {
     if (searchParams.get('tab') === 'container') setMainTab('container');
     else if (searchParams.get('tab') === 'locations') setMainTab('locations');
   }, [searchParams]);
+
+  // Pre-ship QA hold warning when expanding a draft transfer
+  useEffect(() => {
+    if (!expandedId || !companyId) {
+      setPreShipHolds(null);
+      return;
+    }
+    const t = transfers.find((x) => x.id === expandedId);
+    if (!t || String(t.status) !== 'draft') {
+      setPreShipHolds(null);
+      return;
+    }
+    const lots = [
+      ...new Set(
+        (t.lines || [])
+          .map((l) => (l.lot_number != null ? String(l.lot_number).trim() : ''))
+          .filter(Boolean)
+      ),
+    ];
+    if (!lots.length) {
+      setPreShipHolds(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const qs = new URLSearchParams({
+          companyId: String(companyId),
+          lots: lots.join(','),
+        });
+        const res = await fetch(`/api/quality/holds?${qs}`);
+        const data = await res.json().catch(() => ({}));
+        if (cancelled || !res.ok) return;
+        setPreShipHolds({
+          blocked: Boolean(data.blocked),
+          lots: Array.isArray(data.lots) ? data.lots : [],
+          resolve_href: data.resolve_href || '/dashboard/quality/inspections',
+        });
+      } catch {
+        if (!cancelled) setPreShipHolds(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [expandedId, transfers, companyId]);
 
   const submitContainerSync = async () => {
     if (!containerId || !ctrProductId) {
@@ -823,6 +874,25 @@ function TransfersInner() {
                             Shipping deducts stock from the source location and marks the order in
                             transit. Destination stock updates only on receive.
                           </p>
+                          {preShipHolds?.blocked && (
+                            <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+                              <strong>QA hold:</strong> lot(s){' '}
+                              <span className="font-mono">
+                                {preShipHolds.lots.join(', ')}
+                              </span>{' '}
+                              have open or failed inspections. Ship will be blocked
+                              unless an owner/admin overrides.{' '}
+                              <Link
+                                href={
+                                  preShipHolds.resolve_href ||
+                                  '/dashboard/quality/inspections'
+                                }
+                                className="font-bold underline underline-offset-2"
+                              >
+                                Open inspections →
+                              </Link>
+                            </div>
+                          )}
                           <div className="grid sm:grid-cols-2 gap-2">
                             <input
                               className="input !p-2.5 !text-sm"

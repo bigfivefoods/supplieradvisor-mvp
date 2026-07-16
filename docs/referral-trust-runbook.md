@@ -89,6 +89,8 @@ When founding free slots are full, homepage form POSTs to `/api/public/founding-
 
 Statuses: `waiting` → `contacted` → `invited` → `converted` | `declined`.
 
+Join confirmation email (Resend) fires on public POST when `RESEND_API_KEY` is set.
+
 ## 8. Production checklist (quick)
 
 1. Migrations applied (tables exist)

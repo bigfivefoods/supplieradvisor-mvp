@@ -461,9 +461,38 @@ function Inner() {
           lines,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Transfer failed');
-      toast.success(data.message || 'Stock transferred');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (res.status === 409 && (data as { code?: string }).code === 'QA_HOLD') {
+          const lots = Array.isArray((data as { lots?: string[] }).lots)
+            ? ((data as { lots: string[] }).lots).join(', ')
+            : '';
+          toast.error(
+            (data as { error?: string }).error || 'QA hold blocks transfer',
+            {
+              description: lots
+                ? `Held lot(s): ${lots}`
+                : 'Clear Quality → Inspections first.',
+              duration: 12000,
+              action: {
+                label: 'Inspections',
+                onClick: () => {
+                  window.location.href =
+                    (data as { resolve_href?: string }).resolve_href ||
+                    '/dashboard/quality/inspections';
+                },
+              },
+            }
+          );
+          return;
+        }
+        throw new Error(
+          (data as { error?: string }).error || 'Transfer failed'
+        );
+      }
+      toast.success(
+        (data as { message?: string }).message || 'Stock transferred'
+      );
       setXferQty({});
       // reload stock
       const inv = await fetch(

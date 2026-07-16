@@ -76,8 +76,24 @@ Owners/admins can check **Override QA hold** on the ship panel. Override is **au
 | `POST /api/inventory/transfers` `{ action: "ship", id }` | Returns 409 + `QA_HOLD` when held |
 | Hold helper | `lib/quality/holds.ts` → `qaHoldErrorPayload` |
 
+## Reseller draw stock
+
+Same gate applies when drawing stock to a verified reseller if lines include
+`lot_number` (`POST /api/containers/resellers/transfer`). Expect **409 `QA_HOLD`**
+until inspections are cleared (owner/admin override optional).
+
+## Pre-ship check API
+
+```
+GET /api/quality/holds?companyId=123&lots=DEMO-LOT-001,LOT-2
+→ { blocked, holds, lots, resolve_href, code }
+```
+
+Stock Transfers UI calls this when you expand a draft with lot lines and shows an amber warning before ship.
+
 ## Related
 
 - Guide curriculum: Quality → “Release path”
 - Ops checklist §5: “Ship transfer with held lot”
 - Marketing: compliance as a control (homepage / LandingConversion)
+

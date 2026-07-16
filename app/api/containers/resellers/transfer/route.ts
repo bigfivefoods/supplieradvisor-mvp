@@ -5,14 +5,17 @@ import {
   legacyPrivyFrom,
 } from '@/lib/auth/api-auth';
 import { transferNumber } from '@/lib/containers/resellers';
+import { hasQaHold, qaHoldErrorPayload } from '@/lib/quality/holds';
 
 /**
  * POST — draw stock from a container to a verified reseller.
  * Body: {
  *   companyId, resellerId, containerId,
- *   lines: [{ product_name, sku?, product_id?, quantity, unit?, unit_cost? }]
+ *   lines: [{ product_name, sku?, product_id?, quantity, unit?, unit_cost?, lot_number? }]
+ *   overrideQaHold?: boolean  // owner/admin only
  * }
  * Only verified resellers may receive stock.
+ * Lines with lot_number are blocked when open/failed QA inspections exist (same as warehouse ship).
  */
 export async function POST(request: NextRequest) {
   try {
@@ -78,6 +81,64 @@ export async function POST(request: NextRequest) {
 
     if (!container) {
       return NextResponse.json({ error: 'Container not found' }, { status: 404 });
+    }
+
+    // QA hold gate — same control as warehouse stock ship
+    {
+      const lotNums = lines.map(
+        (l: { lot_number?: string | null }) => l.lot_number
+      );
+      const qa = await hasQaHold(companyId, lotNums);
+      if (qa.blocked) {
+        const lots = [...new Set(qa.holds.map((h) => h.lot_number))];
+        if (body.overrideQaHold) {
+          const { getCompanyMembership } = await import('@/lib/business/access');
+          const { normalizeTeamRole } = await import('@/lib/business/permissions');
+          const mem = await getCompanyMembership(gate.userId, companyId);
+          const role = mem.ok ? normalizeTeamRole(mem.role) : null;
+          if (!role || !['owner', 'admin'].includes(role)) {
+            return NextResponse.json(
+              {
+                error:
+                  'QA hold override requires owner or admin role. Clear inspections first.',
+                code: 'QA_OVERRIDE_FORBIDDEN',
+                holds: qa.holds,
+              },
+              { status: 403 }
+            );
+          }
+          void import('@/lib/audit/log').then(({ auditLog }) =>
+            auditLog({
+              companyId,
+              actorUserId: gate.userId,
+              action: 'override.qa_hold',
+              entityType: 'reseller_stock_transfer',
+              entityId: resellerId,
+              summary: `QA hold override on reseller draw — lot(s) ${lots.join(', ')}`,
+              metadata: { holds: qa.holds, containerId, resellerId },
+            })
+          );
+        } else {
+          void import('@/lib/audit/log').then(({ auditLog }) =>
+            auditLog({
+              companyId,
+              actorUserId: gate.userId,
+              action: 'qa.hold.ship_blocked',
+              entityType: 'reseller_stock_transfer',
+              entityId: resellerId,
+              summary: `Reseller draw blocked by QA hold on lot(s) ${lots.join(', ')}`,
+              metadata: { holds: qa.holds, containerId },
+            })
+          );
+          return NextResponse.json(
+            {
+              ...qaHoldErrorPayload(qa.holds),
+              error: `QA hold: lot(s) ${lots.join(', ')} have open or failed inspections. Clear Quality → Inspections before drawing stock to resellers.`,
+            },
+            { status: 409 }
+          );
+        }
+      }
     }
 
     const transferLines: Array<Record<string, unknown>> = [];
@@ -200,6 +261,7 @@ export async function POST(request: NextRequest) {
         qty,
         unit: stock.unit || 'unit',
         unit_cost: stock.unit_cost ?? 0,
+        lot_number: line.lot_number ? String(line.lot_number) : null,
         from_inventory_id: stock.id,
       });
     }

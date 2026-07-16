@@ -47,6 +47,8 @@ type Summary = {
   contractorsVerified: number;
   trainingCertified: number;
   trainingPending: number;
+  resellers?: number;
+  resellersVerified?: number;
 };
 
 export default function ContainersHub() {
@@ -65,55 +67,79 @@ function HubInner() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [cRes, tRes] = await Promise.all([
-        fetch(`/api/containers?companyId=${companyId}`).then((r) => r.json()),
-        fetch(`/api/containers/contractors?companyId=${companyId}`).then((r) => r.json()),
-      ]);
-      const containers = (cRes.containers || []) as Array<{
-        status?: string | null;
-        latitude?: number | null;
-        longitude?: number | null;
-        contractor_id?: number | null;
-        assigned_contractor?: string | null;
-      }>;
-      const contractors = (tRes.contractors || []) as Array<{
-        training_status?: string | null;
-        verification_status?: string | null;
-      }>;
-
-      const mapped = containers.filter(
-        (c) => c.latitude != null && c.longitude != null
-      ).length;
-      const withContractor = containers.filter(
-        (c) => c.contractor_id || c.assigned_contractor
-      ).length;
-      const active = containers.filter(
-        (c) =>
-          !c.status ||
-          ['active', 'deployed', 'operational', 'open'].includes(
-            String(c.status).toLowerCase()
-          )
-      ).length;
-
+      const res = await fetch(
+        `/api/containers/summary?companyId=${companyId}`,
+        { cache: 'no-store' }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'summary failed');
       setSummary({
-        total: containers.length,
-        active,
-        mapped,
-        unmapped: containers.length - mapped,
-        withContractor,
-        contractors: contractors.length,
-        contractorsVerified: contractors.filter(
-          (c) => String(c.verification_status || '').toLowerCase() === 'verified'
-        ).length,
-        trainingCertified: contractors.filter(
-          (c) => c.training_status === 'certified'
-        ).length,
-        trainingPending: contractors.filter(
-          (c) => !c.training_status || c.training_status === 'pending'
-        ).length,
+        total: Number(data.total) || 0,
+        active: Number(data.active) || 0,
+        mapped: Number(data.mapped) || 0,
+        unmapped: Number(data.unmapped) || 0,
+        withContractor: Number(data.withContractor) || 0,
+        contractors: Number(data.contractors) || 0,
+        contractorsVerified: Number(data.contractorsVerified) || 0,
+        trainingCertified: Number(data.trainingCertified) || 0,
+        trainingPending: Number(data.trainingPending) || 0,
+        resellers: Number(data.resellers) || 0,
+        resellersVerified: Number(data.resellersVerified) || 0,
       });
     } catch {
-      setSummary(null);
+      // Fallback: client fold if summary route missing on old deploy
+      try {
+        const [cRes, tRes] = await Promise.all([
+          fetch(`/api/containers?companyId=${companyId}`).then((r) => r.json()),
+          fetch(`/api/containers/contractors?companyId=${companyId}`).then((r) =>
+            r.json()
+          ),
+        ]);
+        const containers = (cRes.containers || []) as Array<{
+          status?: string | null;
+          latitude?: number | null;
+          longitude?: number | null;
+          contractor_id?: number | null;
+          assigned_contractor?: string | null;
+        }>;
+        const contractors = (tRes.contractors || []) as Array<{
+          training_status?: string | null;
+          verification_status?: string | null;
+        }>;
+        const mapped = containers.filter(
+          (c) => c.latitude != null && c.longitude != null
+        ).length;
+        const withContractor = containers.filter(
+          (c) => c.contractor_id || c.assigned_contractor
+        ).length;
+        const active = containers.filter(
+          (c) =>
+            !c.status ||
+            ['active', 'deployed', 'operational', 'open'].includes(
+              String(c.status).toLowerCase()
+            )
+        ).length;
+        setSummary({
+          total: containers.length,
+          active,
+          mapped,
+          unmapped: containers.length - mapped,
+          withContractor,
+          contractors: contractors.length,
+          contractorsVerified: contractors.filter(
+            (c) =>
+              String(c.verification_status || '').toLowerCase() === 'verified'
+          ).length,
+          trainingCertified: contractors.filter(
+            (c) => c.training_status === 'certified'
+          ).length,
+          trainingPending: contractors.filter(
+            (c) => !c.training_status || c.training_status === 'pending'
+          ).length,
+        });
+      } catch {
+        setSummary(null);
+      }
     } finally {
       setLoading(false);
     }
