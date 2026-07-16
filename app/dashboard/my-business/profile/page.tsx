@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import {
   Loader2,
@@ -176,6 +176,15 @@ function ProfileInner() {
     status?: string;
     message?: string;
     verification?: Record<string, unknown>;
+  } | null>(null);
+  /** Snapshot at Paystack open — callback must not depend on re-renders */
+  const bankVerifyInFlightRef = useRef(false);
+  const bankVerifyPayloadRef = useRef<{
+    accountNumber: string;
+    branchCode: string;
+    bankName: string;
+    accountType: string;
+    accountName: string;
   } | null>(null);
 
   const subIndustryOptions = useMemo(
@@ -763,103 +772,150 @@ function ProfileInner() {
 
   /**
    * After R50 Paystack payment, run VerifyNow bank AVS (server-side).
+   * Uses payload snapshot from click time so React re-renders cannot drop fields.
    */
-  const runBankVerifyNow = async (paystackReference: string) => {
-    if (!paystackReference?.trim()) {
-      toast.error('Payment is required before bank verification (R50).');
-      return;
-    }
-    const accountNumber = String(form.account_number || '').replace(/\s/g, '');
-    const branchCode = String(form.branch_code || '').replace(/\s/g, '');
-    if (!accountNumber) {
-      toast.error('Add a bank account number first, then save.');
-      return;
-    }
-    if (!/^\d{6}$/.test(branchCode)) {
-      toast.error('Add a valid 6-digit branch code first, then save.');
-      return;
-    }
-    if (!bankVerifyConsent) {
-      toast.error('Confirm consent to run a bank account check via VerifyNow.');
-      return;
-    }
-
-    setBankVerifying(true);
-    toast.loading('Payment received — verifying bank account with VerifyNow…', {
-      id: 'vn-bank',
-    });
-    try {
-      // Persist bank fields first so the API has current values
-      try {
-        await persistPartial({
-          bank_name: form.bank_name ?? null,
-          account_name: form.account_name ?? null,
-          account_number: accountNumber,
-          branch_code: branchCode,
-          account_type: form.account_type || 'Current',
-        });
-      } catch {
-        /* continue — API accepts body overrides */
+  const runBankVerifyNow = useCallback(
+    async (paystackReference: string) => {
+      if (!paystackReference?.trim()) {
+        toast.error('Payment is required before bank verification (R50).');
+        setBankPaying(false);
+        bankVerifyInFlightRef.current = false;
+        return;
       }
 
-      const res = await fetch('/api/business/verify-bank', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          companyId,
-          privyUserId,
-          paystackReference,
-          bankAccountNumber: accountNumber,
-          bankBranchCode: branchCode,
-          bankName: form.bank_name || undefined,
-          bankAccountType: form.account_type || 'Current',
-          accountName: form.account_name || undefined,
-          consent: true,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || data.hint || 'Bank verification failed');
+      const snap = bankVerifyPayloadRef.current;
+      const accountNumber =
+        snap?.accountNumber || String(form.account_number || '').replace(/\s/g, '');
+      const branchCode =
+        snap?.branchCode || String(form.branch_code || '').replace(/\s/g, '');
+      const bankName = snap?.bankName || String(form.bank_name || '').trim();
+      const accountType =
+        snap?.accountType || String(form.account_type || 'Current').trim() || 'Current';
+      const accountName =
+        snap?.accountName || String(form.account_name || '').trim();
+
+      if (!accountNumber || !/^\d{6}$/.test(branchCode)) {
+        toast.error(
+          'Bank account number and 6-digit branch code are required. Re-open Paystack after saving details.',
+          { id: 'vn-bank' }
+        );
+        setBankPaying(false);
+        setBankVerifying(false);
+        bankVerifyInFlightRef.current = false;
+        return;
       }
-      if (data.profile) {
-        setForm((prev) => ({
-          ...prev,
-          ...data.profile,
-          bank_verification_status:
-            data.profile?.bank_verification_status || data.status,
-          bank_verified_at: data.profile?.bank_verified_at || prev.bank_verified_at,
-          metadata: data.profile?.metadata || prev.metadata,
-        }));
-      } else if (data.status) {
-        setForm((prev) => ({
-          ...prev,
-          bank_verification_status: data.status,
-          bank_verified_at:
-            data.status === 'verified' ? new Date().toISOString() : prev.bank_verified_at,
-        }));
-      }
-      setBankVerifyResult({
-        status: data.status,
-        message: data.message,
-        verification: data.verification,
-      });
-      toast.success(data.message || 'Bank account verified via VerifyNow', {
-        id: 'vn-bank',
-      });
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Bank verification failed', {
-        id: 'vn-bank',
-      });
-    } finally {
-      setBankVerifying(false);
+
+      bankVerifyInFlightRef.current = true;
+      setBankVerifying(true);
       setBankPaying(false);
+      toast.loading('Payment received — calling VerifyNow bank check…', {
+        id: 'vn-bank',
+      });
+
+      // Best-effort save — never block VerifyNow on profile PATCH
+      void persistPartial({
+        bank_name: bankName || null,
+        account_name: accountName || null,
+        account_number: accountNumber,
+        branch_code: branchCode,
+        account_type: accountType,
+      }).catch(() => undefined);
+
+      try {
+        const res = await fetch('/api/business/verify-bank', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyId,
+            privyUserId,
+            paystackReference,
+            bankAccountNumber: accountNumber,
+            bankBranchCode: branchCode,
+            bankName: bankName || undefined,
+            bankAccountType: accountType,
+            accountName: accountName || undefined,
+            consent: true,
+          }),
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          hint?: string;
+          message?: string;
+          status?: string;
+          profile?: Partial<CompanyProfile>;
+          verification?: Record<string, unknown>;
+        };
+        if (!res.ok) {
+          throw new Error(
+            data.error || data.hint || `Bank verification failed (${res.status})`
+          );
+        }
+        if (data.profile) {
+          setForm((prev) => ({
+            ...prev,
+            ...data.profile,
+            bank_verification_status:
+              data.profile?.bank_verification_status || data.status,
+            bank_verified_at:
+              data.profile?.bank_verified_at || prev.bank_verified_at,
+            metadata: data.profile?.metadata || prev.metadata,
+          }));
+        } else if (data.status) {
+          setForm((prev) => ({
+            ...prev,
+            bank_verification_status: data.status,
+            bank_verified_at:
+              data.status === 'verified'
+                ? new Date().toISOString()
+                : prev.bank_verified_at,
+          }));
+        }
+        setBankVerifyResult({
+          status: data.status,
+          message: data.message,
+          verification: data.verification,
+        });
+        toast.success(data.message || 'Bank account verified via VerifyNow', {
+          id: 'vn-bank',
+        });
+      } catch (e: unknown) {
+        console.error('runBankVerifyNow failed:', e);
+        toast.error(e instanceof Error ? e.message : 'Bank verification failed', {
+          id: 'vn-bank',
+          duration: 8000,
+        });
+      } finally {
+        setBankVerifying(false);
+        setBankPaying(false);
+        bankVerifyInFlightRef.current = false;
+      }
+    },
+    // form fields are fallback only; primary is bankVerifyPayloadRef
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- snapshot ref holds click-time values
+    [companyId, form.account_name, form.account_number, form.account_type, form.bank_name, form.branch_code, privyUserId]
+  );
+
+  /** Wait briefly for Paystack inline.js if the script is still loading */
+  const waitForPaystack = useCallback(async (ms = 4000): Promise<boolean> => {
+    if (typeof window === 'undefined') return false;
+    if (window.PaystackPop?.setup) return true;
+    const start = Date.now();
+    while (Date.now() - start < ms) {
+      await new Promise((r) => setTimeout(r, 150));
+      if (window.PaystackPop?.setup) return true;
     }
-  };
+    return Boolean(window.PaystackPop?.setup);
+  }, []);
 
   /**
    * Pay R50 via Paystack, then VerifyNow bank-account-verification.
    */
-  const startBankVerifyPayment = () => {
+  const startBankVerifyPayment = async () => {
+    if (bankPaying || bankVerifying || bankVerifyInFlightRef.current) {
+      toast.message('Bank verification already in progress…');
+      return;
+    }
+
     const accountNumber = String(form.account_number || '').replace(/\s/g, '');
     const branchCode = String(form.branch_code || '').replace(/\s/g, '');
     if (!accountNumber) {
@@ -875,14 +931,19 @@ function ProfileInner() {
       return;
     }
     const hasCompanyId = Boolean(String(form.registration_number || '').trim());
-    const hasDirectorId = Boolean(String(form.director_id_number || '').replace(/\s/g, ''));
+    const hasDirectorId = Boolean(
+      String(form.director_id_number || '').replace(/\s/g, '')
+    );
     if (!hasCompanyId && !hasDirectorId) {
       toast.error(
         'Add a CIPC registration number or director SA ID (for identity match) before verifying.'
       );
       return;
     }
-    if (!String(form.account_name || form.legal_name || form.trading_name || '').trim()) {
+    const accountName = String(
+      form.account_name || form.legal_name || form.trading_name || ''
+    ).trim();
+    if (!accountName) {
       toast.error('Add an account name (or company legal name) before verifying.');
       return;
     }
@@ -899,20 +960,37 @@ function ProfileInner() {
       );
       return;
     }
-    if (!window.PaystackPop) {
-      toast.error('Paystack is still loading — try again in a moment');
+
+    setBankPaying(true);
+    toast.loading('Opening Paystack for R50…', { id: 'vn-bank-pay' });
+
+    const ready = await waitForPaystack();
+    if (!ready) {
+      setBankPaying(false);
+      toast.error('Paystack is still loading — refresh the page and try again.', {
+        id: 'vn-bank-pay',
+      });
       return;
     }
 
-    setBankPaying(true);
-    const ref = `sa-bank-verify-${companyId}-${Date.now()}`;
+    // Freeze fields used after payment (Paystack callback can fire after re-renders)
+    bankVerifyPayloadRef.current = {
+      accountNumber,
+      branchCode,
+      bankName: String(form.bank_name || '').trim(),
+      accountType: String(form.account_type || 'Current').trim() || 'Current',
+      accountName,
+    };
+
+    const ref = `sa_bank_${companyId}_${Date.now()}`;
     try {
-      const handler = window.PaystackPop.setup({
+      const handler = window.PaystackPop!.setup({
         key,
         email,
         amount: BANK_VERIFY_AMOUNT_CENTS,
         currency: 'ZAR',
         ref,
+        label: `Bank verification · company ${companyId}`,
         metadata: {
           custom_fields: [
             {
@@ -932,17 +1010,36 @@ function ProfileInner() {
             },
           ],
         },
-        callback: (response: { reference?: string }) => {
-          void runBankVerifyNow(response.reference || ref);
+        callback: (response: { reference?: string; status?: string }) => {
+          // Paystack may call callback with reference after success
+          toast.dismiss('vn-bank-pay');
+          const payRef = String(response?.reference || ref).trim();
+          void runBankVerifyNow(payRef);
         },
         onClose: () => {
+          // Don't cancel mid-VerifyNow (callback often races with onClose)
+          if (bankVerifyInFlightRef.current) return;
           setBankPaying(false);
+          toast.dismiss('vn-bank-pay');
+          toast.message('Payment window closed — bank verification not started.', {
+            duration: 4000,
+          });
         },
       });
+      if (!handler || typeof handler.openIframe !== 'function') {
+        throw new Error('Paystack failed to initialise. Try a hard refresh.');
+      }
       handler.openIframe();
+      toast.success('Complete the R50 payment to run VerifyNow', {
+        id: 'vn-bank-pay',
+        duration: 5000,
+      });
     } catch (e: unknown) {
       setBankPaying(false);
-      toast.error(e instanceof Error ? e.message : 'Could not open Paystack');
+      bankVerifyInFlightRef.current = false;
+      toast.error(e instanceof Error ? e.message : 'Could not open Paystack', {
+        id: 'vn-bank-pay',
+      });
     }
   };
 
@@ -2027,15 +2124,21 @@ function ProfileInner() {
                     !String(form.account_number || '').trim() ||
                     !/^\d{6}$/.test(String(form.branch_code || '').replace(/\s/g, ''))
                   }
-                  onClick={startBankVerifyPayment}
-                  className="btn-primary !py-2.5 !px-5 text-sm"
+                  onClick={() => void startBankVerifyPayment()}
+                  className="btn-primary !py-2.5 !px-5 text-sm inline-flex items-center gap-2"
                 >
                   {bankPaying || bankVerifying ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      {bankVerifying
+                        ? 'VerifyNow running…'
+                        : 'Opening Paystack…'}
+                    </>
                   ) : (
                     <>
                       <ShieldCheck className="w-4 h-4" />{' '}
-                      {String(form.bank_verification_status || '').toLowerCase() === 'verified'
+                      {String(form.bank_verification_status || '').toLowerCase() ===
+                      'verified'
                         ? `Pay R${BANK_VERIFY_AMOUNT_ZAR} & re-verify`
                         : `Pay R${BANK_VERIFY_AMOUNT_ZAR} & verify bank`}
                     </>
@@ -2043,8 +2146,9 @@ function ProfileInner() {
                 </button>
               </div>
               <p className="text-[11px] text-neutral-500">
-                R{BANK_VERIFY_AMOUNT_ZAR}.00 ZAR charged via Paystack for each bank verification.
-                Save branch code and account details first if you changed them.
+                Step 1: Paystack charges R{BANK_VERIFY_AMOUNT_ZAR}. Step 2: we call VerifyNow
+                AVS automatically with your account + branch + company reg / director ID. Allow
+                pop-ups if the payment window does not appear.
               </p>
 
               {Boolean(
