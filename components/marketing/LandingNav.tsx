@@ -8,12 +8,11 @@ import { usePrivy } from '@privy-io/react-auth';
 import { useRouter } from 'next/navigation';
 
 const LINKS = [
-  { id: 'platform', label: 'Platform' },
-  { id: 'demo', label: 'See it work' },
+  { id: 'systems', label: 'Systems' },
   { id: 'modules', label: 'Modules' },
   { id: 'trust', label: 'Trust' },
-  { id: 'compare', label: 'Compare' },
-  { id: 'verified', label: 'Network' },
+  { id: 'earn', label: 'Earn' },
+  { id: 'network', label: 'Network' },
   { id: 'audiences', label: "Who it's for" },
 ] as const;
 
@@ -24,7 +23,7 @@ export default function LandingNav() {
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 8);
+    const onScroll = () => setScrolled(window.scrollY > 24);
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
@@ -47,7 +46,6 @@ export default function LandingNav() {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  // Escape closes menu
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -59,7 +57,6 @@ export default function LandingNav() {
 
   const scrollTo = (id: string) => {
     setOpen(false);
-    // Wait for drawer unmount + body scroll unlock before scrolling
     window.setTimeout(() => {
       const el = document.getElementById(id);
       if (!el) return;
@@ -74,15 +71,19 @@ export default function LandingNav() {
     else router.push('/login?next=/dashboard/select-company');
   };
 
+  const solid = scrolled || open;
+
   return (
     <>
       <header
-        className="fixed top-0 left-0 right-0 z-[200] w-full border-b border-slate-200/80 bg-white/95"
+        className={`fixed top-0 left-0 right-0 z-[200] w-full transition-[background,border,box-shadow] duration-300 ${
+          solid
+            ? 'border-b border-white/10 bg-[#05070b]/95 shadow-[0_1px_0_0_rgba(255,255,255,0.06)]'
+            : 'border-b border-transparent bg-transparent'
+        }`}
         style={{
-          backgroundColor: scrolled || open ? 'rgba(255,255,255,0.98)' : 'rgba(255,255,255,0.95)',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
-          boxShadow: scrolled || open ? '0 1px 3px 0 rgb(0 0 0 / 0.06)' : 'none',
+          backdropFilter: solid || open ? 'blur(16px)' : 'none',
+          WebkitBackdropFilter: solid || open ? 'blur(16px)' : 'none',
         }}
       >
         <div className="mx-auto flex h-16 max-w-screen-2xl items-center justify-between gap-3 px-4 sm:h-[4.25rem] sm:px-6 lg:px-10">
@@ -99,7 +100,7 @@ export default function LandingNav() {
               className="h-9 w-9 rounded-2xl object-contain sm:h-10 sm:w-10"
               priority
             />
-            <span className="truncate text-base font-black tracking-tight text-slate-900 sm:text-xl">
+            <span className="truncate text-base font-black tracking-tight text-white sm:text-xl">
               SupplierAdvisor
               <span className="text-[#00b4d8]">®</span>
             </span>
@@ -111,7 +112,7 @@ export default function LandingNav() {
                 key={l.id}
                 type="button"
                 onClick={() => scrollTo(l.id)}
-                className="rounded-full px-2.5 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 hover:text-[#0077b6] lg:px-3.5"
+                className="rounded-full px-2.5 py-2 text-sm font-medium text-white/70 transition-colors hover:bg-white/5 hover:text-white lg:px-3.5"
               >
                 {l.label}
               </button>
@@ -121,28 +122,28 @@ export default function LandingNav() {
           <div className="hidden items-center gap-2 md:flex">
             <Link
               href="/pricing"
-              className="rounded-full px-3 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 hover:text-[#0077b6]"
+              className="rounded-full px-3 py-2 text-sm font-medium text-white/70 transition-colors hover:bg-white/5 hover:text-white"
             >
               Pricing
             </Link>
             <button
               type="button"
               onClick={goLogin}
-              className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition-all hover:border-[#00b4d8] hover:text-[#0077b6] lg:px-5 lg:py-2.5"
+              className="rounded-full border border-white/20 px-4 py-2 text-sm font-semibold text-white transition-all hover:border-white/40 hover:bg-white/5 lg:px-5 lg:py-2.5"
             >
               Log in
             </button>
             <Link
               href="/onboarding?type=business"
-              className="inline-flex items-center gap-1.5 rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#0099b8] lg:px-5 lg:py-2.5"
+              className="inline-flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-950 shadow-sm transition-all hover:bg-white/90 lg:px-5 lg:py-2.5"
             >
-              Start free trial <ArrowRight className="h-4 w-4" />
+              Start free <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
 
           <button
             type="button"
-            className="relative z-[210] inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-800 touch-manipulation md:hidden"
+            className="relative z-[210] inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/15 bg-white/5 text-white touch-manipulation md:hidden"
             aria-label={open ? 'Close menu' : 'Open menu'}
             aria-expanded={open}
             onClick={(e) => {
@@ -155,17 +156,11 @@ export default function LandingNav() {
         </div>
       </header>
 
-      {/*
-        CRITICAL: Only mount the mobile overlay when open.
-        globals.css forces `pointer-events: auto !important` on buttons, so a
-        closed full-screen overlay button would steal all mobile taps.
-      */}
       {open && (
         <div className="fixed inset-0 z-[190] md:hidden" role="dialog" aria-modal="true">
-          {/* Backdrop — separate from nav panel so it never blocks header (z-200) */}
           <div
-            className="absolute inset-0 bg-slate-900/40"
-            style={{ backdropFilter: 'blur(2px)', WebkitBackdropFilter: 'blur(2px)' }}
+            className="absolute inset-0 bg-black/60"
+            style={{ backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
             onClick={() => setOpen(false)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') setOpen(false);
@@ -174,14 +169,14 @@ export default function LandingNav() {
             tabIndex={0}
             aria-label="Close menu"
           />
-          <div className="absolute left-0 right-0 top-16 max-h-[min(80vh,calc(100dvh-4rem))] overflow-y-auto border-b border-slate-200 bg-white shadow-xl sm:top-[4.25rem]">
+          <div className="absolute left-0 right-0 top-16 max-h-[min(80vh,calc(100dvh-4rem))] overflow-y-auto border-b border-white/10 bg-[#0a0d14] shadow-xl sm:top-[4.25rem]">
             <div className="mx-auto flex max-w-screen-2xl flex-col gap-1 px-4 py-4 sm:px-6">
               {LINKS.map((l) => (
                 <button
                   key={l.id}
                   type="button"
                   onClick={() => scrollTo(l.id)}
-                  className="rounded-2xl px-4 py-3.5 text-left text-base font-semibold text-slate-800 touch-manipulation hover:bg-sky-50 hover:text-[#0077b6]"
+                  className="rounded-2xl px-4 py-3.5 text-left text-base font-semibold text-white touch-manipulation hover:bg-white/5"
                 >
                   {l.label}
                 </button>
@@ -189,24 +184,24 @@ export default function LandingNav() {
               <Link
                 href="/pricing"
                 onClick={() => setOpen(false)}
-                className="rounded-2xl px-4 py-3.5 text-left text-base font-semibold text-slate-800 touch-manipulation hover:bg-sky-50 hover:text-[#0077b6]"
+                className="rounded-2xl px-4 py-3.5 text-left text-base font-semibold text-white touch-manipulation hover:bg-white/5"
               >
                 Pricing
               </Link>
-              <div className="mt-1 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3">
+              <div className="mt-1 grid grid-cols-2 gap-2 border-t border-white/10 pt-3">
                 <button
                   type="button"
                   onClick={goLogin}
-                  className="rounded-2xl border border-slate-200 py-3.5 font-semibold text-slate-700 touch-manipulation"
+                  className="rounded-2xl border border-white/15 py-3.5 font-semibold text-white touch-manipulation"
                 >
                   Log in
                 </button>
                 <Link
                   href="/onboarding?type=business"
                   onClick={() => setOpen(false)}
-                  className="rounded-2xl bg-[#00b4d8] py-3.5 text-center font-semibold text-white touch-manipulation"
+                  className="rounded-2xl bg-white py-3.5 text-center font-semibold text-slate-950 touch-manipulation"
                 >
-                  Start free trial
+                  Start free
                 </Link>
               </div>
             </div>
@@ -214,7 +209,7 @@ export default function LandingNav() {
         </div>
       )}
 
-      <div className="h-16 sm:h-[4.25rem]" aria-hidden />
+      {/* No spacer — hero is full-bleed under transparent nav */}
     </>
   );
 }

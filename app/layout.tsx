@@ -7,7 +7,7 @@ const SITE_URL = 'https://www.supplieradvisor.com';
 const SITE_NAME = 'SupplierAdvisor®';
 const DEFAULT_TITLE = 'SupplierAdvisor® — Supply Chain Operating System';
 const DEFAULT_DESCRIPTION =
-  'The verified supply-chain operating system for B2B, B2G & B2C — network trade, inventory, manufacturing, distribution, accounting, banking, and AI intelligence. Light, precise, on-chain ready.';
+  'The supply-chain operating system for verified trade — network, SRM, CRM, inventory, manufacturing, distribution, SHEQ, quality, finance, containers, projects, ESG, sales contractors, and 3-level referral. On-chain ready. From R299/mo.';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
