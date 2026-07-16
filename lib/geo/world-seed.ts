@@ -420,8 +420,6 @@ export const SEED_PROVINCES: SeedProvince[] = [
     'Central', 'Northern', 'Southern',
   ].map((name) => ({ country: 'Malawi', name })),
 
-,
-
   // Angola
   ...[
     'Bengo', 'Benguela', 'Bié', 'Cabinda', 'Cuando Cubango', 'Cuanza Norte',
