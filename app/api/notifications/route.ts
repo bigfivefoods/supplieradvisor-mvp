@@ -37,6 +37,7 @@ export async function GET(request: NextRequest) {
       openInsp,
       failedInsp,
       openPos,
+      inboundPos,
       unmatchedBank,
       lowStock,
       openTransfers,
@@ -67,6 +68,15 @@ export async function GET(request: NextRequest) {
         .in('status', ['sent', 'accepted', 'funded'])
         .order('created_at', { ascending: false })
         .limit(15),
+      supabase
+        .from('purchase_orders')
+        .select('id, status, total_amount, currency, created_at, buyer_profile_id')
+        .or(
+          `supplier_profile_id.eq.${companyId},supplier_id.eq.${companyId}`
+        )
+        .eq('status', 'sent')
+        .order('created_at', { ascending: false })
+        .limit(12),
       supabase
         .from('bank_transactions')
         .select('id, amount, description, transaction_date')
@@ -162,6 +172,24 @@ export async function GET(request: NextRequest) {
         href: '/dashboard/suppliers/po',
         created_at: po.created_at || new Date().toISOString(),
         source: 'procurement',
+      });
+    }
+
+    // Inbound POs awaiting accept (we are the supplier)
+    for (const po of inboundPos.data || []) {
+      const ccy = String(po.currency || 'ZAR').toUpperCase();
+      const amt = Number(po.total_amount || 0);
+      notifications.push({
+        id: `inbound-po-${po.id}`,
+        severity: 'warning',
+        title: `Inbound PO #${po.id} awaiting accept`,
+        body:
+          amt > 0
+            ? `${ccy} ${amt.toLocaleString()} from buyer — accept or decline`
+            : 'New purchase order from a connected buyer — accept or decline',
+        href: '/dashboard/customers/orders?tab=inbound',
+        created_at: po.created_at || new Date().toISOString(),
+        source: 'sales',
       });
     }
 

@@ -55,7 +55,55 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ success: true, purchaseOrders: data || [] });
+    const pos = data || [];
+    const buyerIds = [
+      ...new Set(
+        pos
+          .map((p) => Number(p.buyer_profile_id))
+          .filter((n) => Number.isFinite(n) && n > 0)
+      ),
+    ];
+    const buyerMap: Record<number, string> = {};
+    if (buyerIds.length) {
+      const { data: buyers } = await supabase
+        .from('profiles')
+        .select('id, trading_name, legal_name')
+        .in('id', buyerIds);
+      for (const b of buyers || []) {
+        buyerMap[Number(b.id)] =
+          b.trading_name || b.legal_name || `Buyer ${b.id}`;
+      }
+    }
+
+    const enriched = pos.map((p) => {
+      const items = Array.isArray(p.items) ? p.items : [];
+      const bid = Number(p.buyer_profile_id);
+      return {
+        ...p,
+        buyer_name: Number.isFinite(bid) ? buyerMap[bid] || null : null,
+        line_count: items.length,
+      };
+    });
+
+    const counts = {
+      total: enriched.length,
+      sent: enriched.filter((p) => String(p.status) === 'sent').length,
+      accepted: enriched.filter((p) => String(p.status) === 'accepted').length,
+      open: enriched.filter((p) =>
+        ['sent', 'accepted', 'funded'].includes(String(p.status))
+      ).length,
+      completed: enriched.filter((p) =>
+        ['completed', 'paid'].includes(String(p.status))
+      ).length,
+      cancelled: enriched.filter((p) => String(p.status) === 'cancelled')
+        .length,
+    };
+
+    return NextResponse.json({
+      success: true,
+      purchaseOrders: enriched,
+      counts,
+    });
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },
@@ -193,6 +241,29 @@ export async function PATCH(request: NextRequest) {
         buyer_profile_id: po.buyer_profile_id,
       },
     });
+
+    // Soft email buyer when supplier accepts
+    if (nextStatus === 'accepted' && po.buyer_profile_id) {
+      void (async () => {
+        try {
+          const { data: supplierProf } = await supabase
+            .from('profiles')
+            .select('trading_name')
+            .eq('id', companyId)
+            .maybeSingle();
+          const { notifyPoAccepted } = await import(
+            '@/lib/notifications/email-alerts'
+          );
+          await notifyPoAccepted({
+            buyerProfileId: Number(po.buyer_profile_id),
+            supplierName: supplierProf?.trading_name || null,
+            poId: id,
+          });
+        } catch (e) {
+          console.warn('PO accepted notify soft-fail', e);
+        }
+      })();
+    }
 
     return NextResponse.json({ success: true, purchaseOrder: data });
   } catch (e: unknown) {

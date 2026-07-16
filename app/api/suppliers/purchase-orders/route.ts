@@ -267,6 +267,34 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Soft notify supplier (never blocks create)
+    if (data?.id && initialStatus !== 'draft') {
+      void (async () => {
+        try {
+          const { data: buyerProf } = await supabase
+            .from('profiles')
+            .select('trading_name')
+            .eq('id', companyId)
+            .maybeSingle();
+          const { notifyInboundPo } = await import(
+            '@/lib/notifications/email-alerts'
+          );
+          await notifyInboundPo({
+            supplierProfileId,
+            buyerProfileId: companyId,
+            buyerName: buyerProf?.trading_name || null,
+            poId: Number(data.id),
+            totalAmount: Number(data.total_amount ?? normalized.total),
+            currency: String(data.currency || body.currency || 'ZAR'),
+            lineCount: normalized.items.length,
+            source: 'srm',
+          });
+        } catch (e) {
+          console.warn('inbound PO notify soft-fail', e);
+        }
+      })();
+    }
+
     const goldenPath = await import('@/lib/onboarding/checklist').then(
       ({ markOnboardingSteps }) => markOnboardingSteps(companyId, 'first_trade')
     );

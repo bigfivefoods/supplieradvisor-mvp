@@ -52,6 +52,76 @@ async function sendAlert(params: {
   }
 }
 
+/** Supplier receives a new inbound PO from a buyer (SRM or portal). */
+export async function notifyInboundPo(params: {
+  supplierProfileId: number;
+  buyerProfileId: number;
+  buyerName?: string | null;
+  poId: number;
+  totalAmount?: number | null;
+  currency?: string | null;
+  lineCount?: number;
+  source?: string | null;
+}): Promise<void> {
+  try {
+    const to = await companyEmails(params.supplierProfileId);
+    const href = `${appBase()}/dashboard/customers/orders?tab=inbound`;
+    const buyer = params.buyerName || `Company #${params.buyerProfileId}`;
+    const ccy = (params.currency || 'ZAR').toUpperCase();
+    const total =
+      params.totalAmount != null && Number.isFinite(Number(params.totalAmount))
+        ? `${ccy} ${Number(params.totalAmount).toLocaleString(undefined, {
+            maximumFractionDigits: 2,
+          })}`
+        : '—';
+    const lines =
+      params.lineCount != null ? `${params.lineCount} line(s)` : 'lines attached';
+    await sendAlert({
+      to,
+      subject: `[SupplierAdvisor] New purchase order #${params.poId} from ${buyer}`,
+      html: `
+        <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto">
+          <h2 style="color:#0077b6">Inbound purchase order</h2>
+          <p><strong>${buyer}</strong> raised <strong>PO #${params.poId}</strong> against your company.</p>
+          <p>Total: <strong>${total}</strong> · ${lines}
+          ${params.source ? ` · source <code>${params.source}</code>` : ''}</p>
+          <p>Accept or decline from your inbound orders inbox to keep the trade loop moving.</p>
+          <p><a href="${href}" style="display:inline-block;background:#00b4d8;color:#fff;padding:12px 20px;border-radius:999px;text-decoration:none;font-weight:700">Open inbound POs →</a></p>
+        </div>
+      `,
+    });
+  } catch (e) {
+    console.warn('notifyInboundPo', e);
+  }
+}
+
+/** Buyer notified when supplier accepts their PO. */
+export async function notifyPoAccepted(params: {
+  buyerProfileId: number;
+  supplierName?: string | null;
+  poId: number;
+}): Promise<void> {
+  try {
+    const to = await companyEmails(params.buyerProfileId);
+    const href = `${appBase()}/dashboard/suppliers/po`;
+    const supplier = params.supplierName || 'Your supplier';
+    await sendAlert({
+      to,
+      subject: `[SupplierAdvisor] PO #${params.poId} accepted by ${supplier}`,
+      html: `
+        <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto">
+          <h2 style="color:#047857">Purchase order accepted</h2>
+          <p><strong>${supplier}</strong> accepted <strong>PO #${params.poId}</strong>.</p>
+          <p>Next: track delivery and capture OTIFEF when goods arrive, then rate the partner.</p>
+          <p><a href="${href}" style="color:#00b4d8">Open purchase orders →</a></p>
+        </div>
+      `,
+    });
+  } catch (e) {
+    console.warn('notifyPoAccepted', e);
+  }
+}
+
 export async function notifyQaHold(params: {
   profileId: number;
   inspectionId: number;

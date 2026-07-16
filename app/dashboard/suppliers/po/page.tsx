@@ -220,6 +220,7 @@ function PoInner() {
   >([]);
   const [catalogueLoading, setCatalogueLoading] = useState(false);
   const [catalogueWarning, setCatalogueWarning] = useState<string | null>(null);
+  const [catalogueSearch, setCatalogueSearch] = useState('');
   /** Which catalogue key is bound to each line (for dropdown state) */
   const [lineCatalogueKeys, setLineCatalogueKeys] = useState<(string | null)[]>(
     [null]
@@ -299,11 +300,62 @@ function PoInner() {
       { product_id: null, item_name: '', quantity: 1, unit_price: 0, uom: 'ea' },
     ]);
     setLineCatalogueKeys([null]);
+    setCatalogueSearch('');
   }, [selectedSrmId]);
 
+  // Reprice catalogue-linked lines when supplier catalogue reloads (e.g. currency)
+  useEffect(() => {
+    if (!supplierCatalogue.length) return;
+    setLineItems((prev) => {
+      let changed = false;
+      const next = prev.map((row, idx) => {
+        const key = lineCatalogueKeys[idx];
+        if (!key) return row;
+        const cat = supplierCatalogue.find((c) => c.key === key);
+        if (!cat) return row;
+        const price = Number(cat.unit_price) || 0;
+        if (
+          row.unit_price === price &&
+          row.item_name === cat.product_name &&
+          row.product_id === cat.seller_product_id
+        ) {
+          return row;
+        }
+        changed = true;
+        return {
+          ...row,
+          product_id: cat.seller_product_id,
+          item_name: cat.product_name,
+          unit_price: price,
+          uom: cat.uom || row.uom || 'ea',
+          primary_image_url: cat.primary_image_url || row.primary_image_url,
+        };
+      });
+      return changed ? next : prev;
+    });
+  }, [supplierCatalogue, lineCatalogueKeys]);
+
+  const filteredCatalogue = useMemo(() => {
+    const q = catalogueSearch.trim().toLowerCase();
+    if (!q) return supplierCatalogue;
+    return supplierCatalogue.filter((i) => {
+      const hay = [
+        i.product_name,
+        i.sku,
+        i.product_type,
+        i.agreement_title,
+        i.source,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return hay.includes(q);
+    });
+  }, [supplierCatalogue, catalogueSearch]);
+
   const catalogueGroups = useMemo(() => {
-    const agreement = supplierCatalogue.filter((i) => i.source === 'agreement');
-    const inventory = supplierCatalogue.filter((i) => i.source === 'inventory');
+    const agreement = filteredCatalogue.filter((i) => i.source === 'agreement');
+    const inventory = filteredCatalogue.filter((i) => i.source === 'inventory');
     const byType = new Map<string, SupplierCatalogueItem[]>();
     for (const p of inventory) {
       const key = String(p.product_type || 'other').toLowerCase() || 'other';
@@ -329,8 +381,10 @@ function PoInner() {
         type: k,
         items: byType.get(k) || [],
       })),
+      total: filteredCatalogue.length,
+      unfilteredTotal: supplierCatalogue.length,
     };
-  }, [supplierCatalogue]);
+  }, [filteredCatalogue, supplierCatalogue.length]);
 
   const applyCatalogueItem = (
     idx: number,
@@ -1030,34 +1084,83 @@ function PoInner() {
                     Supplier catalogue
                     {catalogueLoading
                       ? ' · loading…'
-                      : supplierCatalogue.length
-                        ? ` · ${supplierCatalogue.length} sellable`
+                      : catalogueGroups.unfilteredTotal
+                        ? ` · ${catalogueGroups.unfilteredTotal} sellable`
                         : ''}
                   </div>
                   <p className="text-[10px] text-neutral-600 mb-2 leading-relaxed">
                     PO lines pull from this supplier’s{' '}
                     <strong>agreed price list</strong> and their published{' '}
                     <strong>inventory</strong> (finished goods, services, …) —
-                    not your own stock. Free-text lines remain available below.
+                    not your own stock. Prices follow PO currency when available.
+                    Free-text lines remain below.
                   </p>
                   {!selectedSupplier.linked_profile_id && (
-                    <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-100 rounded-xl px-2.5 py-1.5 mb-2">
-                      This supplier is not linked to a platform company yet.
-                      Invite/connect them to unlock their catalogue, or use
-                      free-text lines.
-                    </p>
+                    <div className="text-[11px] text-amber-900 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 mb-2 space-y-1">
+                      <p className="font-bold">Supplier not linked to the platform</p>
+                      <p>
+                        Invite them or accept a network connection so you can buy
+                        from their catalogue. Free-text lines still work.
+                      </p>
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        <Link
+                          href="/dashboard/suppliers/invites"
+                          className="font-bold text-[#00b4d8] underline"
+                        >
+                          Invite supplier
+                        </Link>
+                        <Link
+                          href="/dashboard/connections"
+                          className="font-bold text-slate-600 underline"
+                        >
+                          Network
+                        </Link>
+                      </div>
+                    </div>
                   )}
-                  {catalogueWarning && selectedSupplier.linked_profile_id && (
-                    <p className="text-[11px] text-amber-800 mb-2">
-                      {catalogueWarning}{' '}
-                      <Link
-                        href="/dashboard/connections/pricing"
-                        className="text-[#00b4d8] underline"
-                      >
-                        Pricing agreements
-                      </Link>
-                    </p>
-                  )}
+                  {selectedSupplier.linked_profile_id &&
+                    !catalogueLoading &&
+                    catalogueGroups.unfilteredTotal === 0 && (
+                      <div className="text-[11px] text-amber-900 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 mb-2 space-y-1">
+                        <p className="font-bold">No sellable catalogue yet</p>
+                        <p>
+                          {catalogueWarning ||
+                            'Ask the supplier to publish finished goods/services or share a price list with you.'}
+                        </p>
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          <Link
+                            href="/dashboard/connections/pricing"
+                            className="font-bold text-[#00b4d8] underline"
+                          >
+                            Pricing agreements
+                          </Link>
+                          <Link
+                            href="/dashboard/connections"
+                            className="font-bold text-slate-600 underline"
+                          >
+                            Network
+                          </Link>
+                        </div>
+                      </div>
+                    )}
+                  {selectedSupplier.linked_profile_id &&
+                    catalogueGroups.unfilteredTotal > 0 && (
+                      <input
+                        type="search"
+                        className="input !p-2 !text-sm w-full mb-2 bg-white"
+                        placeholder="Search catalogue (name, SKU, type)…"
+                        value={catalogueSearch}
+                        onChange={(e) => setCatalogueSearch(e.target.value)}
+                      />
+                    )}
+                  {catalogueSearch &&
+                    catalogueGroups.total === 0 &&
+                    catalogueGroups.unfilteredTotal > 0 && (
+                      <p className="text-[11px] text-slate-500 mb-2">
+                        No products match “{catalogueSearch}”. Clear search or use
+                        free text.
+                      </p>
+                    )}
                   {catalogueGroups.agreement.length > 0 && (
                     <>
                       <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
@@ -1082,29 +1185,27 @@ function PoInner() {
                       </div>
                     </>
                   )}
-                  {supplierCatalogue.filter((i) => i.source === 'inventory')
-                    .length > 0 && (
+                  {catalogueGroups.inventoryByType.length > 0 && (
                     <>
                       <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                         Their inventory (
-                        {
-                          supplierCatalogue.filter(
-                            (i) => i.source === 'inventory'
-                          ).length
-                        }
+                        {catalogueGroups.inventoryByType.reduce(
+                          (s, g) => s + g.items.length,
+                          0
+                        )}
                         )
                       </div>
-                      <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
-                        {supplierCatalogue
-                          .filter((i) => i.source === 'inventory')
-                          .slice(0, 40)
+                      <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
+                        {catalogueGroups.inventoryByType
+                          .flatMap((g) => g.items)
+                          .slice(0, 48)
                           .map((l) => (
                             <button
                               key={l.key}
                               type="button"
                               onClick={() => addCatalogueLine(l)}
                               className="text-[11px] font-semibold px-2.5 py-1 rounded-full border border-[#00b4d8]/30 bg-white text-slate-700 hover:bg-[#00b4d8]/10"
-                              title="Add from supplier inventory"
+                              title={`${productTypeLabel(l.product_type)} · add from supplier inventory`}
                             >
                               {l.product_name}
                               {l.sku ? (
@@ -1130,6 +1231,13 @@ function PoInner() {
                       className="text-[#00b4d8] underline"
                     >
                       Network
+                    </Link>
+                    {' · '}
+                    <Link
+                      href="/dashboard/customers/orders?tab=inbound"
+                      className="text-slate-600 underline"
+                    >
+                      Your inbound POs (as seller)
                     </Link>
                   </p>
                 </div>

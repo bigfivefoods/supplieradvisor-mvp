@@ -142,6 +142,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Add', href: '/dashboard/customers/onboard' },
       { name: 'Quote', href: '/dashboard/customers/quotes' },
       { name: 'Order', href: '/dashboard/customers/orders' },
+      { name: 'Inbound', href: '/dashboard/customers/orders?tab=inbound' },
       { name: 'Invoice', href: '/dashboard/customers/invoices' },
       { name: 'Rate', href: '/dashboard/customers/ratings' },
       { name: 'Report', href: '/dashboard/customers/report' },
