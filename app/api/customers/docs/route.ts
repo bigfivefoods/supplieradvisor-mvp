@@ -13,6 +13,7 @@ import {
   assertSellerCustomerNotSuspended,
 } from '@/lib/customers/access';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import { promptAfterInvoicePaid } from '@/lib/ratings/create-prompt';
 
 type DocKind = 'quote' | 'order' | 'invoice';
 
@@ -394,6 +395,24 @@ export async function POST(request: NextRequest) {
             });
           }
         }
+      }
+
+      // Soft-fail mutual rating prompts (seller↔buyer) when customer is on-platform
+      if (String(inv.status || '').toLowerCase() !== 'paid' && inv.customer_id) {
+        const customer = await loadCustomer(supabase, Number(inv.customer_id));
+        const linked = Number(customer?.linked_profile_id);
+        void promptAfterInvoicePaid({
+          sellerProfileId: companyId,
+          customerLinkedProfileId: Number.isFinite(linked) && linked > 0 ? linked : null,
+          customerName:
+            inv.customer_name ||
+            customer?.trading_name ||
+            customer?.legal_name ||
+            customer?.company_name ||
+            null,
+          invoiceId: Number(inv.id),
+          userId: null,
+        }).catch(() => undefined);
       }
 
       return NextResponse.json({ success: true, invoice: updated, action: 'mark_paid' });

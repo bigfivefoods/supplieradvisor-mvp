@@ -14,8 +14,12 @@ Apply pending files under `supabase/migrations/` on the live project (SQL editor
 | `20260711_tier1_rls_hardening.sql` | Anon deny RLS |
 | `20260711_bank_middleware.sql` | Bank connections / match rules |
 | `20260711_vat_tax_categories.sql` | VAT categories |
+| `20260716_referral_*.sql` / `referral_watertight` | SaaS referral + ops payouts |
+| `20260716_platform_improvements.sql` | SAM log, rating prompts, founding waitlist |
 
 Smoke: open Quality → Inspections and Accounting → Settings (period locks) without schema errors.
+
+Also see **`docs/referral-trust-runbook.md`** for referral, rating prompts, Resend nudges, and SAM history.
 
 ## 2. Vercel environment
 
@@ -24,12 +28,13 @@ Smoke: open Quality → Inspections and Accounting → Settings (period locks) w
 | `NEXT_PUBLIC_PRIVY_APP_ID` | Auth / JWT |
 | `SUPABASE_SERVICE_ROLE_KEY` + URL | API data |
 | `AUTH_STRICT` | Leave unset or `true` in production |
-| `RESEND_API_KEY` + `RESEND_FROM_EMAIL` | Email alerts |
+| `RESEND_API_KEY` + `RESEND_FROM_EMAIL` | Email alerts + rating nudges |
+| `XAI_API_KEY` | SAM (Grok) assistant |
 | `TWILIO_ACCOUNT_SID` + `TWILIO_AUTH_TOKEN` + `TWILIO_WHATSAPP_FROM` | WhatsApp |
 | `TWILIO_WHATSAPP_TO_DEFAULT` | Sandbox test recipient |
 | `NEXT_PUBLIC_USDC_ESCROW_*` | USDC escrow UI (after deploy) |
 | `BANKLINK_API_KEY` | Live open banking |
-| `CRON_SECRET` | Cron jobs |
+| `CRON_SECRET` | Cron jobs (incl. referral hold release) |
 
 ## 3. USDC escrow (Base Sepolia)
 
@@ -70,6 +75,9 @@ Trigger once each (email + WhatsApp if configured):
 ```bash
 # Unauth API gates
 npm run test:e2e:auth
+
+# Referral + trust + SAM gates
+npx playwright test e2e/referral-trust-smoke.spec.ts
 
 # Bearer token (from logged-in browser)
 export E2E_ACCESS_TOKEN=eyJ...

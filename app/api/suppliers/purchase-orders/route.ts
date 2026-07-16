@@ -7,6 +7,7 @@ import {
   normalizePoItems,
 } from '@/lib/procurement/types';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import { promptAfterPoDelivered } from '@/lib/ratings/create-prompt';
 
 /**
  * GET ?companyId=&privyUserId=&status=
@@ -380,6 +381,27 @@ export async function PATCH(request: NextRequest) {
       summary: `SRM PO #${id} updated${nextStatus ? ` → ${nextStatus}` : ''}`,
       metadata: updates,
     });
+
+    // Soft-fail rating prompt when PO is delivered / completed (buyer → supplier)
+    const deliveredNow =
+      Boolean(updates.actual_delivery_date) ||
+      updates.status === 'completed' ||
+      updates.status === 'delivered';
+    const wasAlreadyDelivered =
+      Boolean(po.actual_delivery_date) ||
+      ['completed', 'delivered', 'paid'].includes(String(po.status || '').toLowerCase());
+    if (deliveredNow && !wasAlreadyDelivered) {
+      const supplierId = Number(
+        data?.supplier_profile_id ?? data?.supplier_id ?? po.supplier_profile_id ?? po.supplier_id
+      );
+      void promptAfterPoDelivered({
+        buyerProfileId: companyId,
+        supplierProfileId: Number.isFinite(supplierId) ? supplierId : null,
+        supplierName: data?.supplier_name || po.supplier_name || null,
+        poId: id,
+        userId: member.userId,
+      }).catch(() => undefined);
+    }
 
     return NextResponse.json({ success: true, purchaseOrder: data });
   } catch (e: unknown) {

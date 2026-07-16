@@ -9,9 +9,10 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test:e2e": "playwright test",
-    "test:e2e:auth": "playwright test e2e/auth-smoke.spec.ts",
+    "test:e2e:auth": "playwright test e2e/auth-smoke.spec.ts e2e/referral-trust-smoke.spec.ts",
     "test:e2e:session": "playwright test e2e/authenticated-session.spec.ts",
     "test:e2e:storage": "playwright test e2e/storage-state.spec.ts",
+    "test:e2e:referral": "playwright test e2e/referral-trust-smoke.spec.ts",
     "deploy:usdc-escrow": "node scripts/deploy-usdc-escrow.mjs",
     "deploy:usdc-hardhat": "cd contracts/contracts && npx hardhat compile && npx tsx scripts/deploy-usdc.ts"
   },

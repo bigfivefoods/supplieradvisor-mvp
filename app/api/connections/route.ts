@@ -17,6 +17,7 @@ import {
   userOwnsBothCompanies,
 } from '@/lib/connections/sync';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import { promptAfterConnectionAccepted } from '@/lib/ratings/create-prompt';
 
 /** Production-safe profile columns (no is_verified — that column does not exist). */
 const PROFILE_SELECT =
@@ -540,6 +541,13 @@ export async function PATCH(request: NextRequest) {
         connectionType: String(conn.connection_type || 'partner'),
         userId: mem.userId,
       });
+      // Soft mutual rating prompts after network accept
+      void promptAfterConnectionAccepted({
+        companyA: requesterId,
+        companyB: requesteeId,
+        connectionType: String(conn.connection_type || 'partner'),
+        userId: mem.userId,
+      }).catch(() => undefined);
     }
 
     if (action === 'suspend' || action === 'unsuspend') {

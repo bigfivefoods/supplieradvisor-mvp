@@ -7,6 +7,7 @@ import {
   type ShipmentDirection,
 } from '@/lib/distribution/types';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import { promptAfterShipmentDelivered } from '@/lib/ratings/create-prompt';
 
 async function enrichShipments(
   supabase: ReturnType<typeof getSupabaseServer>,
@@ -202,6 +203,13 @@ export async function POST(request: NextRequest) {
         .select('*')
         .single();
 
+      if (shipment && nextStatus === 'delivered') {
+        void promptAfterShipmentDelivered({
+          companyProfileId: companyId,
+          shipment: shipment as Record<string, unknown>,
+        }).catch(() => undefined);
+      }
+
       return NextResponse.json({ success: true, event, shipment });
     }
 
@@ -392,6 +400,14 @@ export async function PATCH(request: NextRequest) {
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+    if (data && String(data.status || '').toLowerCase() === 'delivered') {
+      void promptAfterShipmentDelivered({
+        companyProfileId: companyId,
+        shipment: data as Record<string, unknown>,
+      }).catch(() => undefined);
+    }
+
     return NextResponse.json({ success: true, shipment: data });
   } catch (e: unknown) {
     return NextResponse.json(
