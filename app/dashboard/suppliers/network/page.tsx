@@ -27,6 +27,7 @@ import {
   SuppliersHeader,
   SuppliersPage,
 } from '@/components/suppliers/SuppliersShell';
+import CompanyLogo from '@/components/business/CompanyLogo';
 
 export default function SupplierNetworkPage() {
   return (
@@ -198,7 +199,16 @@ function NetworkInner() {
                     key={s.id}
                     className="px-5 py-4 flex flex-wrap gap-3 justify-between items-start"
                   >
-                    <div className="min-w-0 flex-1">
+                    <div className="min-w-0 flex-1 flex items-start gap-3">
+                      <CompanyLogo
+                        logoUrl={
+                          (s as { logo_url?: string | null }).logo_url ||
+                          (s as { linked_logo_url?: string | null }).linked_logo_url
+                        }
+                        name={s.trading_name}
+                        size="sm"
+                      />
+                      <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2 mb-1">
                         <span className="font-semibold text-slate-800">{s.trading_name}</span>
                         <span
@@ -292,6 +302,7 @@ function NetworkInner() {
                             Invite
                           </button>
                         )}
+                      </div>
                       </div>
                     </div>
                     <div className="text-right text-xs space-y-1 shrink-0">

@@ -35,6 +35,7 @@ import {
   type NetworkEdge,
   type NetworkSummary,
 } from '@/lib/connections/types';
+import CompanyLogo from '@/components/business/CompanyLogo';
 import {
   CompanyRequired,
   ConnectionsPage,
@@ -505,7 +506,9 @@ function EdgeRow({
 
   return (
     <li className="px-5 py-4 flex flex-col lg:flex-row lg:items-center gap-4 justify-between">
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 flex items-start gap-3">
+        <CompanyLogo logoUrl={peer.logo_url} name={name} size="sm" />
+        <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2 mb-1">
           <span className="font-semibold text-slate-800 truncate text-base">{name}</span>
           <span
@@ -536,7 +539,7 @@ function EdgeRow({
         </div>
         {edge.message && (
           <p className="text-xs text-neutral-600 mt-1.5 line-clamp-2 italic">
-            “{edge.message}”
+            &ldquo;{edge.message}&rdquo;
           </p>
         )}
         <div className="text-[10px] text-neutral-400 mt-1.5">
@@ -584,6 +587,7 @@ function EdgeRow({
             )}
           </div>
         )}
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 shrink-0">

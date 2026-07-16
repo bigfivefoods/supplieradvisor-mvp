@@ -56,6 +56,33 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // Prefer logo from linked platform company profile when present
+    const linkedIds = [
+      ...new Set(
+        customers
+          .map((c) => Number(c.linked_profile_id))
+          .filter((n) => Number.isFinite(n) && n > 0)
+      ),
+    ];
+    if (linkedIds.length) {
+      const { data: logos } = await supabase
+        .from('profiles')
+        .select('id, logo_url')
+        .in('id', linkedIds);
+      const logoById: Record<number, string | null> = {};
+      for (const p of logos || []) {
+        logoById[Number(p.id)] = p.logo_url ? String(p.logo_url) : null;
+      }
+      customers = customers.map((c) => ({
+        ...c,
+        logo_url:
+          (c as { logo_url?: string | null }).logo_url ||
+          (c.linked_profile_id
+            ? logoById[Number(c.linked_profile_id)] || null
+            : null),
+      }));
+    }
+
     return NextResponse.json({ success: true, customers });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Error' }, { status: 500 });

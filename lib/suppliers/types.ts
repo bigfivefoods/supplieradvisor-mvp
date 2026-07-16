@@ -137,6 +137,7 @@ export type DiscoverSupplier = {
   public_id?: string | null;
   relationship_type?: string | null;
   is_discoverable?: boolean | null;
+  logo_url?: string | null;
   already_connected?: boolean;
   in_my_book?: boolean;
   connection_pending_out?: boolean;

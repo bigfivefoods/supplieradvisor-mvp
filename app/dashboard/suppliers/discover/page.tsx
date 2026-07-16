@@ -41,6 +41,7 @@ import {
   SuppliersPage,
 } from '@/components/suppliers/SuppliersShell';
 import { CommandWorkbenchBand } from '@/components/relationship/RelationshipChrome';
+import CompanyLogo from '@/components/business/CompanyLogo';
 
 type Facets = {
   countries: string[];
@@ -1004,7 +1005,13 @@ function CompanyCard({
   return (
     <li className="rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm transition-all hover:border-[#00b4d8]/40 hover:shadow-md sm:p-5">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 flex items-start gap-3">
+          <CompanyLogo
+            logoUrl={s.logo_url}
+            name={s.trading_name || s.legal_name}
+            size="md"
+          />
+          <div className="min-w-0 flex-1">
           <div className="mb-1.5 flex flex-wrap items-center gap-2">
             <h3 className="truncate text-lg font-black tracking-tight text-slate-900">
               {s.trading_name}
@@ -1090,6 +1097,7 @@ function CompanyCard({
                 Website
               </a>
             )}
+          </div>
           </div>
         </div>
 

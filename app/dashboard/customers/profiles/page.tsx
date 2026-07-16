@@ -26,6 +26,7 @@ import {
 } from '@/lib/customers/types';
 import { CompanyRequired, CustomersHeader } from '@/components/customers/CustomersShell';
 import InviteCustomerButton from '@/components/customers/InviteCustomerButton';
+import CompanyLogo from '@/components/business/CompanyLogo';
 
 export default function CustomerProfilesPage() {
   return (
@@ -192,8 +193,20 @@ function ProfilesInner() {
                 {customers.map((c) => (
                   <tr key={c.id} className="hover:bg-neutral-50">
                     <td className="px-5 py-3">
-                      <div className="font-semibold">{c.trading_name}</div>
-                      <div className="text-xs text-neutral-500">{c.legal_name || c.industry || '—'}</div>
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {/* linked company logo when on platform; customer book may not have logo */}
+                        <CompanyLogo
+                          logoUrl={(c as { logo_url?: string | null }).logo_url}
+                          name={c.trading_name}
+                          size="sm"
+                        />
+                        <div className="min-w-0">
+                          <div className="font-semibold truncate">{c.trading_name}</div>
+                          <div className="text-xs text-neutral-500 truncate">
+                            {c.legal_name || c.industry || '—'}
+                          </div>
+                        </div>
+                      </div>
                     </td>
                     <td className="px-3 py-3">
                       <div>{c.contact_name || '—'}</div>

@@ -17,6 +17,7 @@ import {
   X,
 } from 'lucide-react';
 import FoundingWaitlist from '@/components/marketing/FoundingWaitlist';
+import CompanyLogo from '@/components/business/CompanyLogo';
 
 export type PublicCompany = {
   id: number;
@@ -179,31 +180,38 @@ function CompanyCard({ company }: { company: PublicCompany }) {
   return (
     <div className="flex flex-col rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm transition-all hover:border-[#00b4d8]/40 hover:shadow-md">
       <div className="mb-3 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="mb-1 flex flex-wrap items-center gap-2">
-            {rank != null && (
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 font-mono text-[10px] font-bold tabular-nums text-slate-600">
-                #{rank}
-              </span>
-            )}
-            {joined && (
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                Joined {joined}
-              </span>
-            )}
-            {company.is_supplier && (
-              <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[9px] font-bold uppercase text-sky-800">
-                Supplier
-              </span>
-            )}
-            {company.is_buyer && (
-              <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[9px] font-bold uppercase text-violet-800">
-                Buyer
-              </span>
-            )}
+        <div className="flex items-start gap-3 min-w-0 flex-1">
+          <CompanyLogo
+            logoUrl={company.logo_url}
+            name={name}
+            size="md"
+          />
+          <div className="min-w-0">
+            <div className="mb-1 flex flex-wrap items-center gap-2">
+              {rank != null && (
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 font-mono text-[10px] font-bold tabular-nums text-slate-600">
+                  #{rank}
+                </span>
+              )}
+              {joined && (
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                  Joined {joined}
+                </span>
+              )}
+              {company.is_supplier && (
+                <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[9px] font-bold uppercase text-sky-800">
+                  Supplier
+                </span>
+              )}
+              {company.is_buyer && (
+                <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[9px] font-bold uppercase text-violet-800">
+                  Buyer
+                </span>
+              )}
+            </div>
+            <h3 className="truncate text-lg font-bold text-slate-900">{name}</h3>
+            {sub && <p className="truncate text-sm text-slate-500">{sub}</p>}
           </div>
-          <h3 className="truncate text-lg font-bold text-slate-900">{name}</h3>
-          {sub && <p className="truncate text-sm text-slate-500">{sub}</p>}
         </div>
         <span
           className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold ${

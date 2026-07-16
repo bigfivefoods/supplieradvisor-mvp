@@ -82,8 +82,32 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Pull platform logos for linked SA profiles
+    const linkedIds = [
+      ...new Set(
+        suppliers
+          .map((s) => Number(s.linked_profile_id))
+          .filter((n) => Number.isFinite(n) && n > 0)
+      ),
+    ];
+    const logoByProfile: Record<number, string | null> = {};
+    if (linkedIds.length) {
+      const { data: logos } = await supabase
+        .from('profiles')
+        .select('id, logo_url')
+        .in('id', linkedIds);
+      for (const p of logos || []) {
+        logoByProfile[Number(p.id)] = p.logo_url ? String(p.logo_url) : null;
+      }
+    }
+
     const enriched = suppliers.map((s) => ({
       ...s,
+      logo_url:
+        (s as { logo_url?: string | null }).logo_url ||
+        (s.linked_profile_id
+          ? logoByProfile[Number(s.linked_profile_id)] || null
+          : null),
       connection_suspended: s.connection_id ? !!suspMap[Number(s.connection_id)] : false,
       trust_score:
         s.trust_score ||
