@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { anchorProductOnChain, getInventoryPassportAddress, getInventoryChain } from '@/lib/inventory/onchain';
+import {
+  anchorProductOnChain,
+  getInventoryPassportAddress,
+  getInventoryChain,
+  getInventoryChainLabel,
+} from '@/lib/inventory/onchain';
 import { hashProductIdentity } from '@/lib/inventory/hash';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
@@ -80,8 +85,7 @@ export async function POST(request: NextRequest) {
       onchain_status: result.mode === 'onchain' ? 'minted' : 'anchored',
       onchain_tx_hash: result.txHash,
       onchain_token_id: result.tokenId || null,
-      onchain_chain:
-        getInventoryChain().id === 8453 ? 'base' : 'base-sepolia',
+      onchain_chain: getInventoryChainLabel(result.chainId),
       onchain_anchored_at: now,
       updated_at: now,
     };
