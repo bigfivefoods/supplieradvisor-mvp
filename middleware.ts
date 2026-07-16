@@ -29,6 +29,10 @@ export function middleware(request: NextRequest) {
     if (isPublicApiPath(pathname)) {
       return response;
     }
+    // SAM lightweight health (GET only) — used by messenger badge
+    if (pathname === '/api/sam/chat' && request.method === 'GET') {
+      return response;
+    }
     // Cron / webhooks use their own secrets
     if (
       pathname.includes('/cron') ||
