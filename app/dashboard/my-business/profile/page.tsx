@@ -2047,13 +2047,15 @@ function ProfileInner() {
                 Save branch code and account details first if you changed them.
               </p>
 
-              {bankVerifyResult?.verification &&
-                (bankVerifyResult.verification.summary ||
-                  bankVerifyResult.verification.accountFound ||
-                  bankVerifyResult.verification.statusText) && (
+              {Boolean(
+                bankVerifyResult?.verification &&
+                  (bankVerifyResult.verification.summary ||
+                    bankVerifyResult.verification.accountFound ||
+                    bankVerifyResult.verification.statusText)
+              ) ? (
                   <div
                     className={`rounded-xl border p-3 space-y-1.5 text-xs ${
-                      bankVerifyResult.status === 'verified'
+                      bankVerifyResult?.status === 'verified'
                         ? 'border-emerald-200/80 bg-emerald-50/50'
                         : 'border-amber-200/80 bg-amber-50/40'
                     }`}
@@ -2061,23 +2063,23 @@ function ProfileInner() {
                     <div className="flex items-center gap-2 font-bold text-slate-800">
                       <Wallet className="w-3.5 h-3.5" />
                       VerifyNow result
-                      {bankVerifyResult.status === 'verified' ? (
+                      {bankVerifyResult?.status === 'verified' ? (
                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                       ) : null}
                     </div>
-                    {bankVerifyResult.message ? (
+                    {bankVerifyResult?.message ? (
                       <p className="text-slate-700">{bankVerifyResult.message}</p>
                     ) : null}
                     <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
                       {[
-                        ['Summary', bankVerifyResult.verification.summary],
-                        ['Account found', bankVerifyResult.verification.accountFound],
-                        ['Account open', bankVerifyResult.verification.accountOpen],
-                        ['Identity match', bankVerifyResult.verification.identityMatch],
-                        ['Type match', bankVerifyResult.verification.accountTypeMatch],
-                        ['Accepts credits', bankVerifyResult.verification.acceptsCredits],
-                        ['Accepts debits', bankVerifyResult.verification.acceptsDebits],
-                        ['Request ID', bankVerifyResult.verification.requestId],
+                        ['Summary', bankVerifyResult?.verification?.summary],
+                        ['Account found', bankVerifyResult?.verification?.accountFound],
+                        ['Account open', bankVerifyResult?.verification?.accountOpen],
+                        ['Identity match', bankVerifyResult?.verification?.identityMatch],
+                        ['Type match', bankVerifyResult?.verification?.accountTypeMatch],
+                        ['Accepts credits', bankVerifyResult?.verification?.acceptsCredits],
+                        ['Accepts debits', bankVerifyResult?.verification?.acceptsDebits],
+                        ['Request ID', bankVerifyResult?.verification?.requestId],
                       ]
                         .filter(([, v]) => v != null && v !== '')
                         .map(([label, value]) => (
@@ -2088,7 +2090,7 @@ function ProfileInner() {
                         ))}
                     </dl>
                   </div>
-                )}
+                ) : null}
             </div>
           </div>
         </Panel>
