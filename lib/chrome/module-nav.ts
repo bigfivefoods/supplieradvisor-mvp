@@ -93,6 +93,8 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Team', href: '/dashboard/my-business/team' },
       { name: 'Sales program', href: '/dashboard/my-business/sales-program' },
       { name: 'Billing', href: '/dashboard/my-business/billing' },
+      { name: 'Trust', href: '/dashboard/my-business/trust' },
+      { name: 'Referral ops', href: '/dashboard/my-business/referral-ops' },
       { name: 'Docs', href: '/dashboard/my-business/documents' },
       { name: 'Risks', href: '/dashboard/my-business/riad-log' },
       { name: 'Settings', href: '/dashboard/my-business/settings' },

@@ -110,7 +110,51 @@ export default function TermsPage() {
             <p>
               Payment, verification, messaging, and blockchain networks may be provided by third
               parties under their terms. On-chain transactions are irreversible once confirmed; you
-              are responsible for wallet security and network fees.
+              are responsible for wallet security and network fees. Company SaaS subscriptions are
+              billed in ZAR via Paystack where enabled.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-bold text-slate-900 mb-2">
+              7A. Supply-chain referral fees
+            </h2>
+            <p className="mb-3">
+              Separate from any sales-contractor product commission (which is personal-sales only),
+              SupplierAdvisor may pay participating companies a share of qualifying{' '}
+              <strong>company platform subscription</strong> payments under a multi-level
+              supply-chain referral programme (default split up to 6% / 3% / 1%, total cap 10%).
+            </p>
+            <ul className="list-disc pl-5 space-y-2 mb-3">
+              <li>
+                <strong>Attribution</strong> is first-touch (referral link or platform invite). We
+                may refuse or reverse self-referral and fraud.
+              </li>
+              <li>
+                <strong>Hold period</strong> applies after payment (default 30 days) before fees are
+                eligible for payout request. Unpaid fees may be voided if the underlying payment is
+                refunded or reversed.
+              </li>
+              <li>
+                Companies may <strong>request payout</strong> only; approval and settlement are
+                performed by SupplierAdvisor platform operators. KYC / bank details may be required
+                above thresholds we publish in-app.
+              </li>
+              <li>
+                Illustrative earnings scenarios on the website are not forecasts or guarantees.
+              </li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-bold text-slate-900 mb-2">
+              7B. Peer ratings &amp; OTIFEF
+            </h2>
+            <p>
+              Companies may rate trading partners (suppliers and customers). Ratings and OTIFEF
+              (On-Time, In-Full, Error-Free) scores may be shown to other users to support trusted
+              trade. You agree to rate fairly and not to manipulate scores. We may hide or remove
+              abusive content.
             </p>
           </section>
 

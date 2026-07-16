@@ -40,6 +40,7 @@ import {
 import { useEffect, useState } from 'react';
 import LandingNav from '@/components/marketing/LandingNav';
 import HomePricing from '@/components/marketing/HomePricing';
+import FoundingWaitlist from '@/components/marketing/FoundingWaitlist';
 import {
   OpsMock,
   SrmMock,
@@ -1114,12 +1115,9 @@ export default function LandingPage() {
                 builds trust you can see before you trade.
               </p>
             </div>
-            {!loadingVerified && platformTotal != null && (
-              <p className="mt-3 text-sm font-semibold text-violet-800">
-                Founding free-for-life: {Math.max(0, FOUNDING_FREE_COMPANY_LIMIT - platformTotal)}{' '}
-                of {FOUNDING_FREE_COMPANY_LIMIT} slots remaining
-              </p>
-            )}
+            <div className="mt-6">
+              <FoundingWaitlist />
+            </div>
           </div>
 
           {loadingVerified ? (
@@ -1234,11 +1232,16 @@ export default function LandingPage() {
                           <div className="mt-0.5 flex items-center justify-center gap-0.5">
                             <ShieldCheck className="h-3 w-3 text-[#00b4d8]" />
                             <span className="text-sm font-black tabular-nums text-slate-900">
-                              {trust != null && Number.isFinite(trust)
+                              {trust != null && Number.isFinite(trust) && trust > 0
                                 ? Math.round(trust)
-                                : '—'}
+                                : 'New'}
                             </span>
                           </div>
+                          {!(trust != null && trust > 0) && (
+                            <p className="text-[8px] text-slate-400 mt-0.5 leading-tight">
+                              Building
+                            </p>
+                          )}
                         </div>
                         <div
                           className="rounded-xl border border-emerald-100 bg-emerald-50/50 px-2 py-2 text-center"
@@ -1252,6 +1255,11 @@ export default function LandingPage() {
                               ? `${Math.round(otifef)}%`
                               : '—'}
                           </div>
+                          {!(otifef != null && otifef > 0) && (
+                            <p className="text-[8px] text-emerald-800/50 mt-0.5 leading-tight">
+                              After deliveries
+                            </p>
+                          )}
                         </div>
                         <div
                           className="rounded-xl border border-amber-100 bg-amber-50/40 px-2 py-2 text-center"
@@ -1271,6 +1279,11 @@ export default function LandingPage() {
                               </span>
                             )}
                           </div>
+                          {!(stars != null && starCount > 0) && (
+                            <p className="text-[8px] text-amber-800/50 mt-0.5 leading-tight">
+                              Rate after trade
+                            </p>
+                          )}
                         </div>
                       </div>
 

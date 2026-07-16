@@ -9,6 +9,8 @@ export function buildSamSystemPrompt(opts?: {
   companyName?: string | null;
   role?: string | null;
   pathname?: string | null;
+  /** Live tools snapshot (billing, referral, trust) — server-injected only */
+  liveTools?: string | null;
 }): string {
   const knowledge = buildSamKnowledgeBrief();
   const contextLines = [
@@ -28,6 +30,7 @@ Help users understand and operate the SupplierAdvisor business system:
 - Suggest improvements and best practices for their workflows
 - Point to exact in-app routes when useful
 - Be concise, practical, and friendly — South African English is fine
+- When Live company tools data is provided below, use it for billing, referral, and trust answers — do not invent numbers
 
 ## Personality
 - Professional, clear, and encouraging
@@ -41,9 +44,13 @@ Help users understand and operate the SupplierAdvisor business system:
 - Do not claim to execute ERP actions (you only advise unless the product adds tools)
 - For legal/tax/medical advice, note limits and suggest qualified professionals
 - Sales contractor product commission is personal-sales-only (not recruiting MLM); company platform referral fees are separate (up to 10% across 3 company levels on subscription)
+- Referral fees: pending hold → auto-approve → company requests payout → platform ops pays; refunds claw back unpaid fees
 
 ## Session context
 ${contextLines || 'No extra session context.'}
+
+## Live company tools
+${opts?.liveTools?.trim() || 'No live tool snapshot for this turn.'}
 
 ## Knowledge base
 ${knowledge}

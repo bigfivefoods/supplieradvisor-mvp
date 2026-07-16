@@ -44,6 +44,8 @@ import {
   type HubModule,
   type TelemetryAccent,
 } from '@/components/chrome/CommandHubChrome';
+import GoldenPathChecklist from '@/components/onboarding/GoldenPathChecklist';
+import RatingPromptBanner from '@/components/ratings/RatingPromptBanner';
 
 type CompanyData = {
   id: number;
@@ -652,6 +654,9 @@ export default function DashboardCommandCenter() {
       </div>
 
       <FxRateStrip currency={baseCcy} className="mb-6" />
+
+      <GoldenPathChecklist />
+      <RatingPromptBanner />
 
       {error && (
         <AlertBanner tone="red">

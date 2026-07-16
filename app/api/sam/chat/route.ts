@@ -5,6 +5,9 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { getXaiApiKey, samComplete } from '@/lib/sam/client';
 import { buildSamSystemPrompt, type SamChatMessage } from '@/lib/sam/prompt';
 import { SAM_MODEL, SAM_NAME } from '@/lib/sam/knowledge';
+import { getReferralSummary } from '@/lib/billing/supply-chain-referral';
+import { computeCompanySubscription } from '@/lib/billing/company-subscription';
+import { getPayoutKycStatus } from '@/lib/billing/referral-controls';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -85,10 +88,40 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Live tools: billing + referral + KYC (server-side only)
+    let liveTools: string | null = null;
+    if (Number.isFinite(companyId) && companyId > 0) {
+      try {
+        const supabase = getSupabaseServer();
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select(
+            'subscription_status, subscription_trial_ends_at, subscription_ends_at, subscription_plan, subscription_amount_zar, trust_score, otifef_average, verification_status'
+          )
+          .eq('id', companyId)
+          .maybeSingle();
+        const sub = prof
+          ? computeCompanySubscription(prof as Parameters<typeof computeCompanySubscription>[0])
+          : null;
+        const ref = await getReferralSummary(companyId);
+        const kyc = await getPayoutKycStatus(companyId);
+        liveTools = [
+          `Billing: status=${sub?.status || 'unknown'}, trialEnds=${sub?.trialEndsAt || 'n/a'}, endsAt=${sub?.endsAt || 'n/a'}, plan=${sub?.plan || 'n/a'}, hasAccess=${sub?.hasAccess}`,
+          `Trust: score=${prof?.trust_score ?? 'n/a'}, otifef=${prof?.otifef_average ?? 'n/a'}, verification=${prof?.verification_status || 'n/a'}`,
+          `Referral: pending=R${ref.pendingZar}, approved=R${ref.approvedZar}, requested=R${ref.payoutRequestedZar}, paid=R${ref.paidZar}, directReferrals=${ref.directReferrals}, rates=${ref.ratesSummary}`,
+          `Payout KYC complete=${kyc.complete}, missing=${kyc.missing.join(',') || 'none'}`,
+          'Routes: /dashboard/my-business/billing, /dashboard/my-business/trust, /dashboard/my-business/referral-ops (ops only)',
+        ].join('\n');
+      } catch {
+        liveTools = 'Live tools unavailable for this company.';
+      }
+    }
+
     const system = buildSamSystemPrompt({
       companyName,
       role,
       pathname: body.pathname ? String(body.pathname).slice(0, 200) : null,
+      liveTools,
     });
 
     const messages: SamChatMessage[] = [
@@ -106,6 +139,24 @@ export async function POST(request: NextRequest) {
     });
 
     if (!result.ok) {
+      // Soft-log failed attempts for company admins / ops
+      try {
+        const lastUser = history[history.length - 1]?.content || '';
+        await getSupabaseServer().from('sam_conversations').insert({
+          profile_id: Number.isFinite(companyId) && companyId > 0 ? companyId : null,
+          user_id: auth.userId,
+          pathname: body.pathname ? String(body.pathname).slice(0, 200) : null,
+          model: SAM_MODEL,
+          api: result.api,
+          user_message: lastUser.slice(0, 8000),
+          assistant_message: null,
+          error: result.error || 'failed',
+          metadata: { status: result.status },
+          created_at: new Date().toISOString(),
+        });
+      } catch {
+        /* table optional until migration */
+      }
       return NextResponse.json(
         {
           error: result.error || 'Grok request failed',
@@ -128,6 +179,28 @@ export async function POST(request: NextRequest) {
           'X-Sam-Api': result.api,
         },
       });
+    }
+
+    // Audit log successful reply
+    try {
+      const lastUser = history[history.length - 1]?.content || '';
+      await getSupabaseServer().from('sam_conversations').insert({
+        profile_id: Number.isFinite(companyId) && companyId > 0 ? companyId : null,
+        user_id: auth.userId,
+        pathname: body.pathname ? String(body.pathname).slice(0, 200) : null,
+        model: SAM_MODEL,
+        api: result.api,
+        user_message: lastUser.slice(0, 8000),
+        assistant_message: (result.text || '').slice(0, 16000),
+        error: null,
+        metadata: {
+          companyName,
+          role,
+        },
+        created_at: new Date().toISOString(),
+      });
+    } catch {
+      /* optional until migration applied */
     }
 
     return NextResponse.json({
