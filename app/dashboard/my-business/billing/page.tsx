@@ -371,8 +371,8 @@ function BillingInner() {
                   This company has free access for life
                   {sub.plan === 'founder_lifetime'
                     ? ' as a founder company'
-                    : sub.plan === 'founding_50'
-                      ? ' as one of the first 50 founding partners'
+                    : sub.plan === 'founding_25' || sub.plan === 'founding_50'
+                      ? ' as one of the first 25 founding partners'
                       : ''}
                   . No payment required — ever.
                 </p>

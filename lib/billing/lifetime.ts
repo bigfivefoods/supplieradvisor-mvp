@@ -2,7 +2,7 @@
  * Lifetime / complimentary company access.
  *
  * - Founder group companies (Big Five + Vuka Fitness)
- * - First 50 companies on the platform (founding partners)
+ * - First 25 companies on the platform (founding partners)
  */
 
 /** Explicit profile IDs known to be founder-owned (production). */
@@ -29,10 +29,13 @@ export const FOUNDER_LIFETIME_NAME_PATTERNS: RegExp[] = [
 ];
 
 /** How many earliest companies get free lifetime access. */
-export const FOUNDING_FREE_COMPANY_LIMIT = 50;
+export const FOUNDING_FREE_COMPANY_LIMIT = 25;
 
 export const LIFETIME_PLAN = 'lifetime_complimentary';
-export const LIFETIME_PLAN_FOUNDING = 'founding_50';
+/** Plan label written for new founding-partner lifetime grants */
+export const LIFETIME_PLAN_FOUNDING = 'founding_25';
+/** Legacy label from when the founding cohort was 50 */
+export const LIFETIME_PLAN_FOUNDING_LEGACY = 'founding_50';
 export const LIFETIME_PLAN_FOUNDER = 'founder_lifetime';
 
 export function parseLifetimeCompanyIdsFromEnv(): number[] {
@@ -73,6 +76,7 @@ export function isLifetimePlan(plan: string | null | undefined): boolean {
   return (
     p === LIFETIME_PLAN ||
     p === LIFETIME_PLAN_FOUNDING ||
+    p === LIFETIME_PLAN_FOUNDING_LEGACY ||
     p === LIFETIME_PLAN_FOUNDER ||
     p === 'lifetime' ||
     p === 'complimentary' ||

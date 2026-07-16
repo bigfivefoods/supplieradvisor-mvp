@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
       ? String(legal_name).trim()
       : tradingNameTrim;
 
-    // Founder names or remaining founding-50 slots → lifetime free
+    // Founder names or remaining founding-25 slots → lifetime free
     let lifetimePlan: string | null = null;
     if (
       isFounderLifetimeCompany({

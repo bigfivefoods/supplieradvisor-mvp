@@ -283,7 +283,7 @@ export async function GET(request: NextRequest) {
     let trialJustStarted = false;
     let lifetimeJustGranted = false;
 
-    // Always try lifetime eligibility (founder + founding 50)
+    // Always try lifetime eligibility (founder + founding 25)
     if (!subscription.isLifetime) {
       const life = await ensureLifetimeIfEligible(companyId, row);
       row = life.row;

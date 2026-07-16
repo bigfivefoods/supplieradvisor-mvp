@@ -1,7 +1,7 @@
 /**
  * Company SaaS subscription — R299 / month after 30-day free trial.
  * Payments via Paystack (monthly or multi-year prepaid with discounts).
- * Lifetime complimentary: founder companies + first 50 founding partners.
+ * Lifetime complimentary: founder companies + first 25 founding partners.
  */
 
 import {
@@ -162,7 +162,7 @@ export type CompanySubscriptionInfo = {
   isTrial: boolean;
   isActive: boolean;
   isExpired: boolean;
-  /** Permanent complimentary access (founder / founding 50) */
+  /** Permanent complimentary access (founder / founding 25) */
   isLifetime: boolean;
   plan: string;
 };
