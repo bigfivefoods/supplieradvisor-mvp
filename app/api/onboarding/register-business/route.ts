@@ -209,11 +209,11 @@ export async function POST(request: NextRequest) {
 
     // Immutable attribution log (first-touch) when referrer was set
     if (referredByProfileId && profile.id) {
-      await assignReferrerIfEmpty(Number(profile.id), referredByProfileId, {
+      await recordReferralAttribution({
+        childProfileId: Number(profile.id),
+        referrerProfileId: referredByProfileId,
         source: refRaw ? 'ref_link' : 'default_root',
         actorUserId: userId,
-        childUserId: userId,
-        childEmail: email,
         metadata: { registration: true, ref: refRaw || null },
       });
     }
