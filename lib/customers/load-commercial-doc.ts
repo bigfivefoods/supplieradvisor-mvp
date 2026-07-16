@@ -36,28 +36,35 @@ export type CommercialDocWarnings = {
   softWarnings: string[];
 };
 
+export type CommercialDocSuccess = {
+  ok: true;
+  doc: Record<string, unknown>;
+  html: string;
+  input: DocRenderInput;
+  toEmail: string | null;
+  bankDetailsIncluded: boolean;
+  bankVerified: boolean;
+  cipcVerified: boolean;
+  bankWarning: string | null;
+  hasLogo: boolean;
+  hasVat: boolean;
+  hasRegistration: boolean;
+  softWarnings: string[];
+};
+
+export type CommercialDocFailure = {
+  ok: false;
+  error: string;
+  status: number;
+};
+
+export type CommercialDocResult = CommercialDocSuccess | CommercialDocFailure;
+
 export async function loadCommercialDocument(opts: {
   companyId: number;
   type: DocKind;
   id: number;
-}): Promise<
-  | {
-      ok: true;
-      doc: Record<string, unknown>;
-      html: string;
-      input: DocRenderInput;
-      toEmail: string | null;
-      bankDetailsIncluded: boolean;
-      bankVerified: boolean;
-      cipcVerified: boolean;
-      bankWarning: string | null;
-      hasLogo: boolean;
-      hasVat: boolean;
-      hasRegistration: boolean;
-      softWarnings: string[];
-    }
-  | { ok: false; error: string; status: number }
-> {
+}): Promise<CommercialDocResult> {
   const { companyId, type, id } = opts;
   if (!TABLES[type]) {
     return { ok: false, error: 'Invalid document type', status: 400 };
@@ -162,7 +169,7 @@ export async function loadCommercialDocument(opts: {
     );
   }
 
-  return {
+  const result: CommercialDocSuccess = {
     ok: true,
     doc: doc as Record<string, unknown>,
     html,
@@ -180,4 +187,5 @@ export async function loadCommercialDocument(opts: {
     hasRegistration,
     softWarnings,
   };
+  return result;
 }
