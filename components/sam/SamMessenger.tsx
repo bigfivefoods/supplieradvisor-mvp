@@ -30,7 +30,7 @@ type HistoryRow = {
   model?: string | null;
 };
 
-const SUGGESTIONS = [
+const DEFAULT_SUGGESTIONS = [
   'How do I invite a supplier to my network?',
   'Explain quotes → orders → invoices',
   'How does sales contractor commission work?',
@@ -39,6 +39,49 @@ const SUGGESTIONS = [
   'Open the screens for QA holds and stock ship',
   'Where is the 3-day golden path and trust ratings?',
 ];
+
+/** Context chips based on current dashboard route */
+function suggestionsForPath(pathname: string | null): string[] {
+  const p = pathname || '';
+  if (p.includes('/suppliers/po')) {
+    return [
+      'How do I raise a PO from a supplier catalogue?',
+      'What is OTIFEF and how do I record delivery?',
+      'Where does the supplier accept my PO?',
+      'How do I rate a supplier after a completed PO?',
+    ];
+  }
+  if (p.includes('/customers/orders')) {
+    return [
+      'How do I accept an inbound purchase order?',
+      'What should I do after I accept a PO?',
+      'How do buyers pick products from my inventory?',
+      'Where do I publish finished goods for the network?',
+    ];
+  }
+  if (p.includes('/customers/quotes') || p.includes('/customers/invoices')) {
+    return [
+      'How do I add finished goods from my catalogue to a quote?',
+      'Explain quotes → orders → invoices',
+      'How do multi-currency product prices work on lines?',
+    ];
+  }
+  if (p.includes('/inventory/products')) {
+    return [
+      'How do I mark products as sellable finished goods?',
+      'How do connected buyers see my catalogue on a PO?',
+      'Where do pricing agreements fit with inventory?',
+    ];
+  }
+  if (p.includes('/suppliers') || p.includes('/connections')) {
+    return [
+      'How do I invite a supplier to my network?',
+      'How do pricing agreements feed purchase orders?',
+      'Where is the 3-day golden path and trust ratings?',
+    ];
+  }
+  return DEFAULT_SUGGESTIONS;
+}
 
 function uid() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -543,7 +586,7 @@ export default function SamMessenger() {
 
               {messages.length <= 2 && (
                 <div className="px-3 pb-2 flex flex-wrap gap-1.5 border-t border-slate-50 bg-white pt-2">
-                  {SUGGESTIONS.map((s) => (
+                  {suggestionsForPath(pathname).map((s) => (
                     <button
                       key={s}
                       type="button"

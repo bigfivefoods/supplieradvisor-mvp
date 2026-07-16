@@ -282,6 +282,32 @@ export async function GET(request: NextRequest) {
       return a.product_name.localeCompare(b.product_name);
     });
 
+    const empty = items.length === 0;
+    const nudge = sp.get('nudge') === '1';
+
+    // Soft-notify supplier once when buyer hits empty catalogue (client rate-limits)
+    if (empty && nudge && sellerProfileId) {
+      void (async () => {
+        try {
+          const { data: buyerProf } = await supabase
+            .from('profiles')
+            .select('trading_name')
+            .eq('id', companyId)
+            .maybeSingle();
+          const { notifyPublishCatalogue } = await import(
+            '@/lib/notifications/email-alerts'
+          );
+          await notifyPublishCatalogue({
+            supplierProfileId: sellerProfileId,
+            buyerProfileId: companyId,
+            buyerName: buyerProf?.trading_name || null,
+          });
+        } catch (e) {
+          console.warn('catalogue nudge soft-fail', e);
+        }
+      })();
+    }
+
     return NextResponse.json({
       success: true,
       sellerProfileId,
@@ -295,9 +321,10 @@ export async function GET(request: NextRequest) {
       agreementCount: items.filter((i) => i.source === 'agreement').length,
       inventoryCount,
       warning:
-        !items.length
+        empty
           ? 'No sellable catalogue from this supplier yet. Use free-text lines, or ask them to publish inventory / share a price list.'
           : undefined,
+      nudged: empty && nudge,
     });
   } catch (e: unknown) {
     return NextResponse.json(

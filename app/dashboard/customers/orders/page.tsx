@@ -392,6 +392,29 @@ function InboundPosList() {
                 : 'Unknown buyer');
             const items = Array.isArray(po.items) ? po.items : [];
             const isOpen = expanded === po.id;
+            const st = String(po.status || '').toLowerCase();
+            const fulfilmentHint =
+              st === 'sent'
+                ? {
+                    title: 'Next: Accept or decline',
+                    body: 'Buyer is waiting. Accept to confirm supply; decline if you cannot fulfil.',
+                  }
+                : st === 'accepted'
+                  ? {
+                      title: 'Next: Fulfil the order',
+                      body: 'Prepare / ship against promised date. Buyer will record delivery (OTIFEF) and may rate you.',
+                    }
+                  : st === 'funded'
+                    ? {
+                        title: 'Next: Escrow funded — ship',
+                        body: 'Complete shipment so the buyer can confirm delivery and release funds.',
+                      }
+                    : st === 'completed' || st === 'paid'
+                      ? {
+                          title: 'Trade complete',
+                          body: 'Buyer may leave a rating. Keep inventory and pricing current for the next PO.',
+                        }
+                      : null;
             return (
               <div
                 key={po.id}
@@ -462,6 +485,38 @@ function InboundPosList() {
                           </li>
                         ))}
                       </ul>
+                    )}
+                    {fulfilmentHint && (
+                      <div
+                        className={`mt-3 rounded-xl border px-3 py-2 text-[11px] leading-relaxed ${
+                          st === 'sent'
+                            ? 'border-amber-100 bg-amber-50/90 text-amber-950'
+                            : st === 'accepted' || st === 'funded'
+                              ? 'border-sky-100 bg-sky-50/90 text-sky-950'
+                              : 'border-emerald-100 bg-emerald-50/80 text-emerald-950'
+                        }`}
+                      >
+                        <span className="font-bold">{fulfilmentHint.title}</span>
+                        {' — '}
+                        {fulfilmentHint.body}
+                        {(st === 'accepted' || st === 'funded') && (
+                          <span className="block mt-1">
+                            <Link
+                              href="/dashboard/inventory/products?type=finished_good"
+                              className="font-bold underline"
+                            >
+                              Keep catalogue current
+                            </Link>
+                            {' · '}
+                            <Link
+                              href="/dashboard/operations/outbound"
+                              className="font-bold underline"
+                            >
+                              Outbound ops
+                            </Link>
+                          </span>
+                        )}
+                      </div>
                     )}
                   </div>
                   <div className="flex flex-col sm:flex-row sm:items-center gap-3 shrink-0">

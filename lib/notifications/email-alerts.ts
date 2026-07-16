@@ -95,6 +95,40 @@ export async function notifyInboundPo(params: {
   }
 }
 
+/**
+ * Soft nudge: a connected buyer tried to raise a PO but your sellable
+ * catalogue / price list is empty. Rate-limit client-side (session).
+ */
+export async function notifyPublishCatalogue(params: {
+  supplierProfileId: number;
+  buyerProfileId: number;
+  buyerName?: string | null;
+}): Promise<void> {
+  try {
+    const to = await companyEmails(params.supplierProfileId);
+    const href = `${appBase()}/dashboard/inventory/products?type=finished_good`;
+    const pricing = `${appBase()}/dashboard/connections/pricing`;
+    const buyer = params.buyerName || `Company #${params.buyerProfileId}`;
+    await sendAlert({
+      to,
+      subject: `[SupplierAdvisor] ${buyer} wants to order — publish your catalogue`,
+      html: `
+        <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto">
+          <h2 style="color:#0077b6">Share what you sell</h2>
+          <p><strong>${buyer}</strong> is connected and ready to raise a purchase order, but your sellable catalogue (finished goods / services) and agreed price list look empty.</p>
+          <p>Publish inventory as sellable finished goods/services, or share a pricing agreement, so they can pick lines instead of free-text only.</p>
+          <p>
+            <a href="${href}" style="display:inline-block;background:#00b4d8;color:#fff;padding:12px 20px;border-radius:999px;text-decoration:none;font-weight:700;margin-right:8px">Add finished goods →</a>
+            <a href="${pricing}" style="color:#0077b6;font-weight:600">Pricing agreements →</a>
+          </p>
+        </div>
+      `,
+    });
+  } catch (e) {
+    console.warn('notifyPublishCatalogue', e);
+  }
+}
+
 /** Buyer notified when supplier accepts their PO. */
 export async function notifyPoAccepted(params: {
   buyerProfileId: number;

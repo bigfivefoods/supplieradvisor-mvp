@@ -140,6 +140,7 @@ function DocInner({
   /** When product has multiple currencies, pick which price to apply */
   const [pendingProductId, setPendingProductId] = useState('');
   const [pendingProductCurrency, setPendingProductCurrency] = useState('');
+  const [productSearch, setProductSearch] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -153,7 +154,17 @@ function DocInner({
       ]);
       setDocs(d.documents || []);
       setCustomers(c.customers || []);
-      setProducts(p.products || []);
+      const raw = (p.products || []) as ProductRecord[];
+      // Prefer active sellable catalogue for commercial docs
+      setProducts(
+        raw.filter((prod) => {
+          const st = String(prod.status || 'active').toLowerCase();
+          if (st === 'archived' || st === 'inactive' || st === 'deleted')
+            return false;
+          if (prod.is_sellable === false) return false;
+          return true;
+        })
+      );
       if (d.warning) toast.message(d.warning, { description: d.hint });
     } finally {
       setLoading(false);
@@ -186,6 +197,43 @@ function DocInner({
     if (!pendingProduct) return [] as string[];
     return productPriceList(pendingProduct).map((r) => r.currency);
   }, [pendingProduct]);
+
+  const productsGrouped = useMemo(() => {
+    const q = productSearch.trim().toLowerCase();
+    const filtered = q
+      ? products.filter((p) => {
+          const hay = [p.name, p.sku, p.product_type, p.category]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
+          return hay.includes(q);
+        })
+      : products;
+    const groups = new Map<string, ProductRecord[]>();
+    for (const p of filtered) {
+      const key = String(p.product_type || 'finished_good').toLowerCase();
+      const list = groups.get(key) || [];
+      list.push(p);
+      groups.set(key, list);
+    }
+    const order = [
+      'finished_good',
+      'service',
+      'raw_material',
+      'component',
+      'packaging',
+      'other',
+    ];
+    const keys = [
+      ...order.filter((k) => groups.has(k)),
+      ...[...groups.keys()].filter((k) => !order.includes(k)).sort(),
+    ];
+    return keys.map((k) => ({
+      type: k,
+      label: k.replace(/_/g, ' '),
+      items: groups.get(k) || [],
+    }));
+  }, [products, productSearch]);
 
   const addProductLine = (productId: string, currencyOverride?: string) => {
     const p = products.find((x) => String(x.id) === productId);
@@ -617,26 +665,53 @@ function DocInner({
           </div>
 
           <div>
-            <label className="text-xs font-medium text-neutral-500">Add from catalogue</label>
+            <label className="text-xs font-medium text-neutral-500">
+              Add from your catalogue (finished goods / services)
+            </label>
+            {products.length > 0 && (
+              <input
+                type="search"
+                className="input mt-1 w-full !p-2.5 !text-sm"
+                placeholder="Search name, SKU, type…"
+                value={productSearch}
+                onChange={(e) => setProductSearch(e.target.value)}
+              />
+            )}
             <select
-              className="input mt-1 w-full !p-3 !text-sm"
+              className="input mt-1.5 w-full !p-3 !text-sm"
               value=""
               onChange={(e) => {
                 if (e.target.value) addProductLine(e.target.value);
               }}
             >
               <option value="">Select product / service…</option>
-              {products.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {productPriceLabel(p, docCurrency)}
-                </option>
+              {productsGrouped.map((g) => (
+                <optgroup key={g.type} label={g.label}>
+                  {g.items.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {productPriceLabel(p, docCurrency)}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
             {products.length === 0 && (
-              <p className="text-[11px] text-amber-700 mt-1">
-                No products yet — add them under Inventory → Products (with multi-currency prices).
+              <p className="text-[11px] text-amber-800 mt-1.5 leading-relaxed">
+                No sellable products yet — add{' '}
+                <strong>finished goods / services</strong> under Inventory →
+                Products (with prices). Free-text lines still work below.
               </p>
             )}
+            {products.length > 0 && productsGrouped.every((g) => !g.items.length) && (
+              <p className="text-[11px] text-slate-500 mt-1">
+                No catalogue match for “{productSearch}”. Clear search or use free
+                text.
+              </p>
+            )}
+            <p className="text-[10px] text-neutral-400 mt-1">
+              Sales docs use <strong>your</strong> inventory. Purchase orders use
+              the <strong>supplier’s</strong> catalogue.
+            </p>
           </div>
 
           {pendingProduct && pendingCurrencies.length > 1 && (

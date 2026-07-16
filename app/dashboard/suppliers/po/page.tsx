@@ -272,14 +272,40 @@ function PoInner() {
           );
           return;
         }
-        setSupplierCatalogue(
-          Array.isArray((data as { items?: SupplierCatalogueItem[] }).items)
-            ? (data as { items: SupplierCatalogueItem[] }).items
-            : []
-        );
+        const list = Array.isArray(
+          (data as { items?: SupplierCatalogueItem[] }).items
+        )
+          ? (data as { items: SupplierCatalogueItem[] }).items
+          : [];
+        setSupplierCatalogue(list);
         setCatalogueWarning(
           (data as { warning?: string | null }).warning || null
         );
+
+        // Once per session: soft-nudge supplier if catalogue empty but linked
+        if (
+          list.length === 0 &&
+          selectedSupplier?.linked_profile_id &&
+          typeof sessionStorage !== 'undefined'
+        ) {
+          const nudgeKey = `sa_cat_nudge_${companyId}_${selectedSrmId}`;
+          try {
+            if (!sessionStorage.getItem(nudgeKey)) {
+              sessionStorage.setItem(nudgeKey, '1');
+              const nudgeQs = new URLSearchParams({
+                companyId: String(companyId),
+                supplierId: String(selectedSrmId),
+                currency: poCurrency,
+                nudge: '1',
+              });
+              void fetch(`/api/suppliers/catalogue?${nudgeQs}`, {
+                cache: 'no-store',
+              });
+            }
+          } catch {
+            /* private mode */
+          }
+        }
       } catch {
         if (!cancelled) {
           setSupplierCatalogue([]);
@@ -292,7 +318,7 @@ function PoInner() {
     return () => {
       cancelled = true;
     };
-  }, [companyId, selectedSrmId, poCurrency]);
+  }, [companyId, selectedSrmId, poCurrency, selectedSupplier?.linked_profile_id]);
 
   // Reset free lines when switching supplier (catalogue is supplier-specific)
   useEffect(() => {
@@ -904,8 +930,10 @@ function PoInner() {
     setDeliveryPo(po);
   };
 
-  const submitDelivery = async () => {
+  const submitDelivery = async (opts?: { rateAfter?: boolean }) => {
     if (!deliveryPo) return;
+    const rateeId =
+      Number(deliveryPo.supplier_profile_id || deliveryPo.supplier_id) || null;
     const updated = await patchPo(deliveryPo.id, {
       status: 'completed',
       actual_delivery_date: deliveryForm.actual_delivery_date,
@@ -918,9 +946,71 @@ function PoInner() {
     });
     if (updated) {
       setDeliveryPo(null);
-      toast.message('OTIFEF inputs saved — view Performance for scorecards');
+      if (opts?.rateAfter && rateeId) {
+        toast.success('OTIFEF saved — rate this supplier to close the trust loop');
+        window.location.href = `/dashboard/suppliers/ratings?ratee=${rateeId}`;
+      } else {
+        toast.message('OTIFEF inputs saved', {
+          description: rateeId
+            ? 'Rate the supplier to complete the trust loop'
+            : 'View Performance for scorecards',
+          action: rateeId
+            ? {
+                label: 'Rate now',
+                onClick: () => {
+                  window.location.href = `/dashboard/suppliers/ratings?ratee=${rateeId}`;
+                },
+              }
+            : undefined,
+        });
+      }
     }
   };
+
+  /** Buyer-facing next step for pipeline cards */
+  function buyerNextStep(po: PurchaseOrder): {
+    title: string;
+    body: string;
+    tone: 'amber' | 'sky' | 'emerald' | 'slate';
+  } | null {
+    const st = String(po.status || '').toLowerCase();
+    if (st === 'draft') {
+      return {
+        title: 'Next: Send PO',
+        body: 'Supplier cannot see drafts. Send when lines and promised date are ready.',
+        tone: 'slate',
+      };
+    }
+    if (st === 'sent') {
+      return {
+        title: 'Next: Wait for supplier accept',
+        body: 'They action this under Customers → Inbound. You can still cancel if needed.',
+        tone: 'amber',
+      };
+    }
+    if (st === 'accepted') {
+      return {
+        title: 'Next: Await fulfilment, then record delivery',
+        body: 'When goods arrive, capture OTIFEF (qty / damage / dates) and rate the supplier.',
+        tone: 'sky',
+      };
+    }
+    if (st === 'funded') {
+      return {
+        title: 'Next: Escrow funded — confirm ship/delivery',
+        body: 'Complete on-chain ship/confirm or record off-chain delivery for OTIFEF.',
+        tone: 'sky',
+      };
+    }
+    if (st === 'completed' || st === 'paid') {
+      return {
+        title: 'Next: Rate supplier',
+        body: 'Peer stars + OTIFEF build network trust for this trade.',
+        tone: 'emerald',
+      };
+    }
+    return null;
+  }
 
   const filtered = useMemo(() => {
     if (filter === 'open') {
@@ -1848,6 +1938,27 @@ function PoInner() {
                                 : ''}
                             </div>
                           )}
+                          {(() => {
+                            const step = buyerNextStep(po);
+                            if (!step) return null;
+                            const tone =
+                              step.tone === 'amber'
+                                ? 'border-amber-100 bg-amber-50/80 text-amber-950'
+                                : step.tone === 'sky'
+                                  ? 'border-sky-100 bg-sky-50/80 text-sky-950'
+                                  : step.tone === 'emerald'
+                                    ? 'border-emerald-100 bg-emerald-50/80 text-emerald-950'
+                                    : 'border-slate-100 bg-slate-50 text-slate-800';
+                            return (
+                              <div
+                                className={`mt-2 rounded-xl border px-3 py-2 text-[11px] leading-relaxed ${tone}`}
+                              >
+                                <span className="font-bold">{step.title}</span>
+                                {' — '}
+                                {step.body}
+                              </div>
+                            );
+                          })()}
                         </div>
 
                         <div className="flex flex-wrap gap-2">
@@ -1916,9 +2027,9 @@ function PoInner() {
                               type="button"
                               disabled={busy}
                               onClick={() => openDelivery(po)}
-                              className="btn-secondary !py-1.5 !px-3 text-xs"
+                              className="btn-primary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
                             >
-                              <Package className="w-3 h-3" /> Record delivery
+                              <Package className="w-3 h-3" /> Receive + OTIFEF
                             </button>
                           )}
                           {escrowEnabled && onchain && po.status === 'funded' && (
@@ -1945,12 +2056,16 @@ function PoInner() {
                                 Confirm & pay
                               </button>
                             )}
-                          {po.status === 'completed' && (
+                          {(po.status === 'completed' || po.status === 'paid') && (
                             <Link
-                              href="/dashboard/suppliers/ratings"
-                              className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
+                              href={
+                                po.supplier_profile_id || po.supplier_id
+                                  ? `/dashboard/suppliers/ratings?ratee=${po.supplier_profile_id || po.supplier_id}`
+                                  : '/dashboard/suppliers/ratings'
+                              }
+                              className="btn-primary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
                             >
-                              <Star className="w-3 h-3" /> Rate
+                              <Star className="w-3 h-3" /> Rate supplier
                             </Link>
                           )}
                           {['draft', 'sent', 'accepted'].includes(String(po.status)) && (
@@ -1985,9 +2100,23 @@ function PoInner() {
               </button>
             </div>
             <p className="text-xs text-neutral-500 mb-4">
-              These fields drive OTIFEF: On-Time (actual ≤ promised), In-Full (delivered / ordered),
-              Error-Free (undamaged / delivered).
+              One-tap receive: delivered qty defaults to ordered lines. OTIFEF =
+              On-Time · In-Full · Error-Free. Then rate the supplier.
             </p>
+            {Array.isArray(deliveryPo.items) && deliveryPo.items.length > 0 && (
+              <ul className="mb-3 text-[11px] text-slate-600 space-y-1 max-h-24 overflow-y-auto rounded-xl border border-slate-100 bg-slate-50/80 px-3 py-2">
+                {deliveryPo.items.map((line, i) => (
+                  <li key={i} className="flex justify-between gap-2">
+                    <span className="truncate">
+                      {line.item_name || 'Line'}
+                    </span>
+                    <span className="shrink-0 tabular-nums text-slate-500">
+                      {line.quantity} {line.uom || 'ea'}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
             <div className="space-y-3">
               <div>
                 <label className="text-xs font-medium">Promised date</label>
@@ -2026,6 +2155,25 @@ function PoInner() {
                       })
                     }
                   />
+                  <button
+                    type="button"
+                    className="mt-1 text-[10px] font-bold text-[#00b4d8] hover:underline"
+                    onClick={() => {
+                      const orderQty =
+                        Number(deliveryPo.order_quantity) ||
+                        (deliveryPo.items || []).reduce(
+                          (s, i) => s + Number(i.quantity || 0),
+                          0
+                        );
+                      setDeliveryForm((f) => ({
+                        ...f,
+                        delivered_quantity: orderQty,
+                        damaged_quantity: 0,
+                      }));
+                    }}
+                  >
+                    Fill = ordered (in-full)
+                  </button>
                 </div>
                 <div>
                   <label className="text-xs font-medium">Damaged qty</label>
@@ -2044,21 +2192,31 @@ function PoInner() {
                 </div>
               </div>
             </div>
-            <div className="flex gap-2 mt-6">
+            <div className="flex flex-col gap-2 mt-6">
               <button
                 type="button"
-                onClick={() => setDeliveryPo(null)}
-                className="btn-secondary flex-1 !py-3"
+                onClick={() => void submitDelivery({ rateAfter: true })}
+                className="btn-primary w-full !py-3 inline-flex items-center justify-center gap-2"
               >
-                Cancel
+                <Star className="w-4 h-4" />
+                Complete OTIFEF + rate supplier
               </button>
-              <button
-                type="button"
-                onClick={() => void submitDelivery()}
-                className="btn-primary flex-1 !py-3"
-              >
-                Complete + save OTIFEF
-              </button>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDeliveryPo(null)}
+                  className="btn-secondary flex-1 !py-2.5 text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void submitDelivery({ rateAfter: false })}
+                  className="btn-secondary flex-1 !py-2.5 text-sm"
+                >
+                  Save OTIFEF only
+                </button>
+              </div>
             </div>
           </div>
         </div>
