@@ -87,6 +87,13 @@ export type CompanyProfile = {
   bank_name?: string | null;
   account_name?: string | null;
   account_number?: string | null;
+  /** SA 6-digit branch code (for invoices + VerifyNow AVS) */
+  branch_code?: string | null;
+  /** e.g. Current, Savings */
+  account_type?: string | null;
+  bank_verification_status?: string | null;
+  bank_verified_at?: string | null;
+  bank_verification_payment_ref?: string | null;
   iban?: string | null;
   swift?: string | null;
   bank_confirmation_url?: string | null;
@@ -231,6 +238,8 @@ export const PROFILE_EDITABLE_FIELDS = [
   'bank_name',
   'account_name',
   'account_number',
+  'branch_code',
+  'account_type',
   'iban',
   'swift',
   'bank_confirmation_url',

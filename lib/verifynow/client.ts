@@ -16,7 +16,7 @@ function getApiKey(): string | null {
 }
 
 async function postVerifyNow(
-  path: '/verify' | '/cipc',
+  path: '/verify' | '/cipc' | '/bank-account-verification',
   body: Record<string, unknown>
 ): Promise<{ ok: boolean; status: number; data: Record<string, unknown>; error?: string }> {
   const apiKey = getApiKey();
@@ -339,4 +339,185 @@ export async function callVerifyNowCipcCompany(params: {
   else body.sole_prop_id_number = sole_prop_id_number;
 
   return postVerifyNow('/cipc', body);
+}
+
+export type BankAccountType =
+  | 'Savings'
+  | 'Current'
+  | 'Cheque'
+  | 'Transmission'
+  | 'Bond'
+  | 'Credit'
+  | string;
+
+export type BankVerificationIdentityType =
+  | 'IDNumber'
+  | 'PassportNumber'
+  | 'CompanyRegNumber'
+  | string;
+
+export type BankAccountVerificationResult = {
+  ok: boolean;
+  statusText: string;
+  summary: string;
+  identityAndAccountVerified: boolean;
+  accountFound: string;
+  accountOpen: string;
+  identityMatch: string;
+  accountTypeMatch: string;
+  acceptsCredits: string;
+  acceptsDebits: string;
+  lengthOpen: string;
+  bankReference: string;
+  bankResponseTimestamp: string;
+  requestId: string;
+  remainingCredits: number | null;
+  mode: string;
+};
+
+function yesNo(value: unknown): string {
+  if (value == null || value === '') return '';
+  const s = String(value).trim();
+  if (/^(yes|true|y|1)$/i.test(s)) return 'Yes';
+  if (/^(no|false|n|0)$/i.test(s)) return 'No';
+  return s;
+}
+
+/**
+ * Parse VerifyNow bank-account-verification response.
+ * Docs: POST /api/external/bank-account-verification
+ */
+export function parseVerifyNowBankResult(
+  result: Record<string, unknown>
+): BankAccountVerificationResult {
+  const results = (result.results || {}) as Record<string, unknown>;
+  const vr =
+    (results.verification_results as Record<string, unknown>) ||
+    (results.VerificationResults as Record<string, unknown>) ||
+    (results as Record<string, unknown>);
+
+  const identityAndAccountVerified =
+    results.identity_and_account_verified === true ||
+    results.identityAndAccountVerified === true ||
+    (/yes|true/i.test(String(vr.identityMatch || vr.IdentityMatch || '')) &&
+      /yes|true/i.test(String(vr.accountFound || vr.AccountFound || '')));
+
+  const summary = String(
+    results.summary || results.Summary || vr.Status || vr.status || result.status || ''
+  ).trim();
+
+  const statusText =
+    String(vr.Status || vr.status || summary || '').trim() ||
+    (identityAndAccountVerified ? 'Verified' : 'Unknown');
+
+  const successFlag =
+    result.success === true ||
+    identityAndAccountVerified ||
+    /verified|success|verifiednoerrors/i.test(statusText);
+
+  const failed =
+    result.success === false ||
+    /invalid|failed|error|not found|rejected|no match/i.test(statusText) ||
+    /no/i.test(String(vr.accountFound || '')) ||
+    /no/i.test(String(vr.identityMatch || ''));
+
+  const remaining =
+    result.remaining_credits != null
+      ? Number(result.remaining_credits)
+      : result.remainingCredits != null
+        ? Number(result.remainingCredits)
+        : null;
+
+  return {
+    ok: successFlag && !failed,
+    statusText,
+    summary:
+      summary ||
+      (successFlag && !failed ? 'Identity and Bank Account Verified' : statusText),
+    identityAndAccountVerified: Boolean(identityAndAccountVerified && !failed),
+    accountFound: yesNo(vr.accountFound ?? vr.AccountFound),
+    accountOpen: yesNo(vr.accountOpen ?? vr.AccountOpen),
+    identityMatch: yesNo(vr.identityMatch ?? vr.IdentityMatch),
+    accountTypeMatch: yesNo(vr.accountTypeMatch ?? vr.AccountTypeMatch),
+    acceptsCredits: yesNo(vr.acceptsCredits ?? vr.AcceptsCredits),
+    acceptsDebits: yesNo(vr.acceptsDebits ?? vr.AcceptsDebits),
+    lengthOpen: yesNo(vr.lengthOpen ?? vr.LengthOpen),
+    bankReference: String(vr.bankReference || vr.BankReference || '').trim(),
+    bankResponseTimestamp: String(
+      vr.bankResponseTimestamp || vr.BankResponseTimestamp || ''
+    ).trim(),
+    requestId: String(result.requestId || result.request_id || ''),
+    remainingCredits: Number.isFinite(remaining as number) ? (remaining as number) : null,
+    mode: String(result.mode || ''),
+  };
+}
+
+/**
+ * Bank account ownership verification (AVS).
+ * Individual: firstName + surname + IDNumber
+ * Company: type "Company", surname = company name, identityType CompanyRegNumber
+ * Docs: https://www.verifynow.co.za/api-docs — POST /api/external/bank-account-verification
+ */
+export async function callVerifyNowBankAccount(params: {
+  type?: 'Individual' | 'Company';
+  firstName?: string;
+  surname: string;
+  identityNumber: string;
+  identityType: BankVerificationIdentityType;
+  bankAccountNumber: string;
+  bankBranchCode: string;
+  bankName?: string;
+  bankAccountType: BankAccountType;
+  mode?: VerifyNowMode;
+}): Promise<{ ok: boolean; status: number; data: Record<string, unknown>; error?: string }> {
+  const mode = resolveMode(params.mode);
+  const bankAccountNumber = String(params.bankAccountNumber || '').replace(/\s/g, '');
+  const bankBranchCode = String(params.bankBranchCode || '').replace(/\s/g, '');
+  const identityNumber = String(params.identityNumber || '').trim();
+  const surname = String(params.surname || '').trim();
+  const bankAccountType = String(params.bankAccountType || '').trim();
+
+  if (!surname) {
+    return { ok: false, status: 400, data: {}, error: 'Account holder surname / company name is required' };
+  }
+  if (!identityNumber) {
+    return { ok: false, status: 400, data: {}, error: 'Identity number (ID or company registration) is required' };
+  }
+  if (!bankAccountNumber || bankAccountNumber.length < 7 || bankAccountNumber.length > 16) {
+    return {
+      ok: false,
+      status: 400,
+      data: {},
+      error: 'Bank account number must be 7–16 digits',
+    };
+  }
+  if (!/^\d{6}$/.test(bankBranchCode)) {
+    return {
+      ok: false,
+      status: 400,
+      data: {},
+      error: 'Branch code must be a 6-digit SA bank branch code',
+    };
+  }
+  if (!bankAccountType) {
+    return { ok: false, status: 400, data: {}, error: 'Bank account type is required (e.g. Current, Savings)' };
+  }
+
+  const body: Record<string, unknown> = {
+    type: params.type || 'Individual',
+    surname,
+    identityNumber,
+    identityType: params.identityType || 'IDNumber',
+    bankAccountNumber,
+    bankBranchCode,
+    bankAccountType,
+    mode,
+  };
+
+  const firstName = String(params.firstName || '').trim();
+  if (firstName) body.firstName = firstName;
+  const bankName = String(params.bankName || '').trim();
+  if (bankName) body.bankName = bankName;
+
+  return postVerifyNow('/bank-account-verification', body);
 }

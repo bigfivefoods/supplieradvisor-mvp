@@ -97,6 +97,11 @@ const BUSINESS_TYPE_OPTIONS = [
 
 const VERIFY_AMOUNT_ZAR = 69;
 const VERIFY_AMOUNT_CENTS = VERIFY_AMOUNT_ZAR * 100;
+/** Bank account AVS via VerifyNow — R50 Paystack */
+const BANK_VERIFY_AMOUNT_ZAR = 50;
+const BANK_VERIFY_AMOUNT_CENTS = BANK_VERIFY_AMOUNT_ZAR * 100;
+
+const BANK_ACCOUNT_TYPES = ['Current', 'Savings', 'Cheque', 'Transmission', 'Bond', 'Credit'] as const;
 
 declare global {
   interface Window {
@@ -160,6 +165,14 @@ function ProfileInner() {
   const [verifying, setVerifying] = useState(false);
   const [verifyConsent, setVerifyConsent] = useState(false);
   const [verifyResult, setVerifyResult] = useState<{
+    status?: string;
+    message?: string;
+    verification?: Record<string, unknown>;
+  } | null>(null);
+  const [bankPaying, setBankPaying] = useState(false);
+  const [bankVerifying, setBankVerifying] = useState(false);
+  const [bankVerifyConsent, setBankVerifyConsent] = useState(false);
+  const [bankVerifyResult, setBankVerifyResult] = useState<{
     status?: string;
     message?: string;
     verification?: Record<string, unknown>;
@@ -229,11 +242,39 @@ function ProfileInner() {
       setCompleteness(data.completeness || null);
       setWarning(typeof data.warning === 'string' ? data.warning : null);
 
-      // Restore last VerifyNow CIPC snapshot from metadata (no external navigation)
+      // Restore last VerifyNow CIPC + bank AVS snapshots from metadata
       const meta =
         profile.metadata && typeof profile.metadata === 'object'
-          ? (profile.metadata as { verification?: Record<string, unknown> })
+          ? (profile.metadata as {
+              verification?: Record<string, unknown>;
+              bank_verification?: Record<string, unknown>;
+            })
           : null;
+      if (meta?.bank_verification && typeof meta.bank_verification === 'object') {
+        const bv = meta.bank_verification;
+        setBankVerifyResult({
+          status: String(
+            bv.status || profile.bank_verification_status || ''
+          ),
+          message: bv.summary
+            ? `Last bank check: ${String(bv.summary)}`
+            : undefined,
+          verification: {
+            summary: bv.summary,
+            statusText: bv.status_text,
+            identityAndAccountVerified: bv.identity_and_account_verified,
+            accountFound: bv.account_found,
+            accountOpen: bv.account_open,
+            identityMatch: bv.identity_match,
+            accountTypeMatch: bv.account_type_match,
+            acceptsCredits: bv.accepts_credits,
+            acceptsDebits: bv.accepts_debits,
+            bankReference: bv.bank_reference,
+            requestId: bv.request_id,
+            holderType: bv.holder_type,
+          },
+        });
+      }
       if (meta?.verification && typeof meta.verification === 'object') {
         const v = meta.verification;
         setVerifyResult({
@@ -434,6 +475,8 @@ function ProfileInner() {
       bank_name: form.bank_name ?? null,
       account_name: form.account_name ?? null,
       account_number: form.account_number ?? null,
+      branch_code: form.branch_code ?? null,
+      account_type: form.account_type ?? null,
       iban: form.iban ?? null,
       swift: form.swift ?? null,
       bank_confirmation_url: form.bank_confirmation_url ?? null,
@@ -715,6 +758,191 @@ function ProfileInner() {
     } finally {
       setVerifying(false);
       setPaying(false);
+    }
+  };
+
+  /**
+   * After R50 Paystack payment, run VerifyNow bank AVS (server-side).
+   */
+  const runBankVerifyNow = async (paystackReference: string) => {
+    if (!paystackReference?.trim()) {
+      toast.error('Payment is required before bank verification (R50).');
+      return;
+    }
+    const accountNumber = String(form.account_number || '').replace(/\s/g, '');
+    const branchCode = String(form.branch_code || '').replace(/\s/g, '');
+    if (!accountNumber) {
+      toast.error('Add a bank account number first, then save.');
+      return;
+    }
+    if (!/^\d{6}$/.test(branchCode)) {
+      toast.error('Add a valid 6-digit branch code first, then save.');
+      return;
+    }
+    if (!bankVerifyConsent) {
+      toast.error('Confirm consent to run a bank account check via VerifyNow.');
+      return;
+    }
+
+    setBankVerifying(true);
+    toast.loading('Payment received — verifying bank account with VerifyNow…', {
+      id: 'vn-bank',
+    });
+    try {
+      // Persist bank fields first so the API has current values
+      try {
+        await persistPartial({
+          bank_name: form.bank_name ?? null,
+          account_name: form.account_name ?? null,
+          account_number: accountNumber,
+          branch_code: branchCode,
+          account_type: form.account_type || 'Current',
+        });
+      } catch {
+        /* continue — API accepts body overrides */
+      }
+
+      const res = await fetch('/api/business/verify-bank', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          paystackReference,
+          bankAccountNumber: accountNumber,
+          bankBranchCode: branchCode,
+          bankName: form.bank_name || undefined,
+          bankAccountType: form.account_type || 'Current',
+          accountName: form.account_name || undefined,
+          consent: true,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || data.hint || 'Bank verification failed');
+      }
+      if (data.profile) {
+        setForm((prev) => ({
+          ...prev,
+          ...data.profile,
+          bank_verification_status:
+            data.profile?.bank_verification_status || data.status,
+          bank_verified_at: data.profile?.bank_verified_at || prev.bank_verified_at,
+          metadata: data.profile?.metadata || prev.metadata,
+        }));
+      } else if (data.status) {
+        setForm((prev) => ({
+          ...prev,
+          bank_verification_status: data.status,
+          bank_verified_at:
+            data.status === 'verified' ? new Date().toISOString() : prev.bank_verified_at,
+        }));
+      }
+      setBankVerifyResult({
+        status: data.status,
+        message: data.message,
+        verification: data.verification,
+      });
+      toast.success(data.message || 'Bank account verified via VerifyNow', {
+        id: 'vn-bank',
+      });
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Bank verification failed', {
+        id: 'vn-bank',
+      });
+    } finally {
+      setBankVerifying(false);
+      setBankPaying(false);
+    }
+  };
+
+  /**
+   * Pay R50 via Paystack, then VerifyNow bank-account-verification.
+   */
+  const startBankVerifyPayment = () => {
+    const accountNumber = String(form.account_number || '').replace(/\s/g, '');
+    const branchCode = String(form.branch_code || '').replace(/\s/g, '');
+    if (!accountNumber) {
+      toast.error('Add a bank account number before verifying.');
+      return;
+    }
+    if (!/^\d{6}$/.test(branchCode)) {
+      toast.error('Add a valid 6-digit branch code before verifying.');
+      return;
+    }
+    if (!bankVerifyConsent) {
+      toast.error('Confirm consent before paying for bank verification.');
+      return;
+    }
+    const hasCompanyId = Boolean(String(form.registration_number || '').trim());
+    const hasDirectorId = Boolean(String(form.director_id_number || '').replace(/\s/g, ''));
+    if (!hasCompanyId && !hasDirectorId) {
+      toast.error(
+        'Add a CIPC registration number or director SA ID (for identity match) before verifying.'
+      );
+      return;
+    }
+    if (!String(form.account_name || form.legal_name || form.trading_name || '').trim()) {
+      toast.error('Add an account name (or company legal name) before verifying.');
+      return;
+    }
+
+    const email = String(form.email || user?.email?.address || '').trim();
+    if (!email) {
+      toast.error('Add a company email before paying for bank verification');
+      return;
+    }
+    const key = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY;
+    if (!key) {
+      toast.error(
+        'Paystack is not configured. Set NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY to enable R50 bank verification.'
+      );
+      return;
+    }
+    if (!window.PaystackPop) {
+      toast.error('Paystack is still loading — try again in a moment');
+      return;
+    }
+
+    setBankPaying(true);
+    const ref = `sa-bank-verify-${companyId}-${Date.now()}`;
+    try {
+      const handler = window.PaystackPop.setup({
+        key,
+        email,
+        amount: BANK_VERIFY_AMOUNT_CENTS,
+        currency: 'ZAR',
+        ref,
+        metadata: {
+          custom_fields: [
+            {
+              display_name: 'Company ID',
+              variable_name: 'company_id',
+              value: String(companyId),
+            },
+            {
+              display_name: 'Purpose',
+              variable_name: 'purpose',
+              value: 'verifynow_bank_verification',
+            },
+            {
+              display_name: 'Amount ZAR',
+              variable_name: 'amount_zar',
+              value: String(BANK_VERIFY_AMOUNT_ZAR),
+            },
+          ],
+        },
+        callback: (response: { reference?: string }) => {
+          void runBankVerifyNow(response.reference || ref);
+        },
+        onClose: () => {
+          setBankPaying(false);
+        },
+      });
+      handler.openIframe();
+    } catch (e: unknown) {
+      setBankPaying(false);
+      toast.error(e instanceof Error ? e.message : 'Could not open Paystack');
     }
   };
 
@@ -1638,7 +1866,7 @@ function ProfileInner() {
           </div>
         </Panel>
 
-        {/* Banking */}
+        {/* Banking + VerifyNow AVS (R50) */}
         <Panel title="Banking">
           <div className="p-5 space-y-3">
             <Field label="Bank name">
@@ -1646,6 +1874,7 @@ function ProfileInner() {
                 className="input w-full !p-3 !text-sm"
                 value={form.bank_name || ''}
                 onChange={(e) => set('bank_name', e.target.value)}
+                placeholder="e.g. FNB, Standard Bank, Capitec"
               />
             </Field>
             <Field label="Account name">
@@ -1653,15 +1882,45 @@ function ProfileInner() {
                 className="input w-full !p-3 !text-sm"
                 value={form.account_name || ''}
                 onChange={(e) => set('account_name', e.target.value)}
+                placeholder="Name on the bank account"
               />
             </Field>
             <Field label="Account number">
               <input
-                className="input w-full !p-3 !text-sm"
+                className="input w-full !p-3 !text-sm font-mono"
                 value={form.account_number || ''}
                 onChange={(e) => set('account_number', e.target.value)}
+                inputMode="numeric"
+                autoComplete="off"
               />
             </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Branch code">
+                <input
+                  className="input w-full !p-3 !text-sm font-mono"
+                  value={form.branch_code || ''}
+                  onChange={(e) =>
+                    set('branch_code', e.target.value.replace(/\D/g, '').slice(0, 6))
+                  }
+                  placeholder="6 digits e.g. 250655"
+                  inputMode="numeric"
+                  maxLength={6}
+                />
+              </Field>
+              <Field label="Account type">
+                <select
+                  className="input w-full !p-3 !text-sm"
+                  value={form.account_type || 'Current'}
+                  onChange={(e) => set('account_type', e.target.value)}
+                >
+                  {BANK_ACCOUNT_TYPES.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <Field label="IBAN">
                 <input
@@ -1695,6 +1954,142 @@ function ProfileInner() {
                 void persistPartial({ bank_confirmation_url: null }).catch(() => undefined);
               }}
             />
+
+            {/* VerifyNow bank AVS — Pay R50 via Paystack */}
+            <div className="mt-4 rounded-2xl border border-neutral-200 bg-neutral-50/60 p-4 space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                    <Wallet className="w-4 h-4 text-[#00b4d8]" />
+                    Bank account verification
+                  </div>
+                  <p className="text-xs text-neutral-600 mt-1 leading-relaxed">
+                    Confirm this account is open and belongs to your company (or director) via
+                    VerifyNow AVS. Costs <strong>R{BANK_VERIFY_AMOUNT_ZAR}</strong> per check,
+                    paid via Paystack — same pattern as CIPC company verification.
+                  </p>
+                </div>
+                {String(form.bank_verification_status || bankVerifyResult?.status || '')
+                  .toLowerCase() === 'verified' ? (
+                  <span className="shrink-0 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-full">
+                    <ShieldCheck className="w-3 h-3" /> Verified
+                  </span>
+                ) : String(form.bank_verification_status || bankVerifyResult?.status || '')
+                    .toLowerCase() === 'failed' ? (
+                  <span className="shrink-0 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-red-700 bg-red-50 border border-red-200 px-2 py-1 rounded-full">
+                    <AlertTriangle className="w-3 h-3" /> Failed
+                  </span>
+                ) : null}
+              </div>
+
+              <div className="grid sm:grid-cols-2 gap-2 text-[11px] text-neutral-500">
+                <div>
+                  Identity used:{' '}
+                  <span className="font-semibold text-slate-700">
+                    {String(form.registration_number || '').trim()
+                      ? `Company · ${form.registration_number}`
+                      : String(form.director_id_number || '').trim()
+                        ? 'Director SA ID'
+                        : 'Add reg. no. or director ID'}
+                  </span>
+                </div>
+                {form.bank_verified_at ? (
+                  <div>
+                    Last check:{' '}
+                    <span className="font-semibold text-slate-700">
+                      {new Date(String(form.bank_verified_at)).toLocaleString()}
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+
+              <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  className="mt-1 rounded border-neutral-300 text-[#00b4d8] focus:ring-[#00b4d8]"
+                  checked={bankVerifyConsent}
+                  onChange={(e) => setBankVerifyConsent(e.target.checked)}
+                />
+                <span className="text-xs text-neutral-600 leading-relaxed">
+                  I authorise a bank account ownership check via VerifyNow against the details
+                  above (account number, branch, and company registration or director ID). The
+                  check runs on this page after Paystack payment.
+                </span>
+              </label>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  disabled={
+                    bankPaying ||
+                    bankVerifying ||
+                    !bankVerifyConsent ||
+                    !String(form.account_number || '').trim() ||
+                    !/^\d{6}$/.test(String(form.branch_code || '').replace(/\s/g, ''))
+                  }
+                  onClick={startBankVerifyPayment}
+                  className="btn-primary !py-2.5 !px-5 text-sm"
+                >
+                  {bankPaying || bankVerifying ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>
+                      <ShieldCheck className="w-4 h-4" />{' '}
+                      {String(form.bank_verification_status || '').toLowerCase() === 'verified'
+                        ? `Pay R${BANK_VERIFY_AMOUNT_ZAR} & re-verify`
+                        : `Pay R${BANK_VERIFY_AMOUNT_ZAR} & verify bank`}
+                    </>
+                  )}
+                </button>
+              </div>
+              <p className="text-[11px] text-neutral-500">
+                R{BANK_VERIFY_AMOUNT_ZAR}.00 ZAR charged via Paystack for each bank verification.
+                Save branch code and account details first if you changed them.
+              </p>
+
+              {bankVerifyResult?.verification &&
+                (bankVerifyResult.verification.summary ||
+                  bankVerifyResult.verification.accountFound ||
+                  bankVerifyResult.verification.statusText) && (
+                  <div
+                    className={`rounded-xl border p-3 space-y-1.5 text-xs ${
+                      bankVerifyResult.status === 'verified'
+                        ? 'border-emerald-200/80 bg-emerald-50/50'
+                        : 'border-amber-200/80 bg-amber-50/40'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 font-bold text-slate-800">
+                      <Wallet className="w-3.5 h-3.5" />
+                      VerifyNow result
+                      {bankVerifyResult.status === 'verified' ? (
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      ) : null}
+                    </div>
+                    {bankVerifyResult.message ? (
+                      <p className="text-slate-700">{bankVerifyResult.message}</p>
+                    ) : null}
+                    <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
+                      {[
+                        ['Summary', bankVerifyResult.verification.summary],
+                        ['Account found', bankVerifyResult.verification.accountFound],
+                        ['Account open', bankVerifyResult.verification.accountOpen],
+                        ['Identity match', bankVerifyResult.verification.identityMatch],
+                        ['Type match', bankVerifyResult.verification.accountTypeMatch],
+                        ['Accepts credits', bankVerifyResult.verification.acceptsCredits],
+                        ['Accepts debits', bankVerifyResult.verification.acceptsDebits],
+                        ['Request ID', bankVerifyResult.verification.requestId],
+                      ]
+                        .filter(([, v]) => v != null && v !== '')
+                        .map(([label, value]) => (
+                          <div key={String(label)} className="contents">
+                            <dt className="text-neutral-500">{label}</dt>
+                            <dd className="font-semibold text-slate-800">{String(value)}</dd>
+                          </div>
+                        ))}
+                    </dl>
+                  </div>
+                )}
+            </div>
           </div>
         </Panel>
 
