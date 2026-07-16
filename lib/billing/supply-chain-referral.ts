@@ -46,20 +46,21 @@ export async function resolveReferralChain(
 
   for (let level = 1; level <= REFERRAL_MAX_LEVELS; level++) {
     if (currentId == null) break;
-    const res = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const res: { data: any; error: any } = await supabase
       .from('profiles')
       .select('id, referred_by_profile_id')
       .eq('id', currentId)
       .maybeSingle();
 
     if (res.error || !res.data) break;
-    const rawParent = (res.data as { referred_by_profile_id?: number | null })
-      .referred_by_profile_id;
+    const rawParent: unknown = res.data.referred_by_profile_id;
+    const parentNum = Number(rawParent);
     const parentId: number | null =
-      rawParent != null && Number.isFinite(Number(rawParent))
-        ? Number(rawParent)
+      rawParent != null && Number.isFinite(parentNum) && parentNum > 0
+        ? parentNum
         : null;
-    if (!parentId || parentId <= 0) break;
+    if (parentId == null) break;
     if (seen.has(parentId)) break; // cycle guard
     seen.add(parentId);
     chain.push({ level: level as 1 | 2 | 3, profileId: parentId });

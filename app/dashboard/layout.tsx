@@ -12,14 +12,17 @@ import { usePrivy } from '@privy-io/react-auth';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
 import { normalizeTeamRole } from '@/lib/business/permissions';
+import SamMessenger from '@/components/sam/SamMessenger';
 /**
  * Dashboard shell — collapsible icon sidebar + single sticky process / Action centre rail.
+ * SAM (Supplier Advisor Messenger) is available on every authenticated dashboard screen.
  */
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <AuthGate>
       <SidebarProvider>
         <DashboardChrome>{children}</DashboardChrome>
+        <SamMessenger />
       </SidebarProvider>
     </AuthGate>
   );
