@@ -53,11 +53,7 @@ import {
   SuppliersPage,
 } from '@/components/suppliers/SuppliersShell';
 import FxRateStrip from '@/components/fx/FxRateStrip';
-import {
-  COMMON_CURRENCIES,
-  type ProductRecord,
-} from '@/lib/inventory/types';
-import { priceForCurrency } from '@/lib/inventory/priceForCurrency';
+import { COMMON_CURRENCIES } from '@/lib/inventory/types';
 
 const PRODUCT_TYPE_LABELS: Record<string, string> = {
   finished_good: 'Finished goods',
@@ -73,17 +69,20 @@ function productTypeLabel(type: string | null | undefined): string {
   return PRODUCT_TYPE_LABELS[key] || key.replace(/_/g, ' ');
 }
 
-/** PO unit price: prefer cost (procurement), else sell price in doc currency. */
-function inventoryUnitPriceForPo(
-  product: ProductRecord,
-  currency: string
-): number {
-  const priced = priceForCurrency(product, currency);
-  const cost = Number(priced.cost_price);
-  if (Number.isFinite(cost) && cost > 0) return cost;
-  const sell = Number(priced.unit_price);
-  return Number.isFinite(sell) ? sell : 0;
-}
+/** Sellable line from supplier agreement catalogue or supplier inventory */
+type SupplierCatalogueItem = {
+  key: string;
+  source: 'agreement' | 'inventory';
+  seller_product_id: number | null;
+  product_name: string;
+  sku: string | null;
+  product_type: string | null;
+  uom: string | null;
+  unit_price: number;
+  currency: string;
+  agreement_title?: string | null;
+  primary_image_url?: string | null;
+};
 
 const PO_ESCROW_ADDRESS = getPoEscrowAddress() || CONTRACTS.POEscrowV2.address;
 /** Demo ZAR→ETH rate for fundPO msg.value — override via NEXT_PUBLIC_ETH_DEMO_RATE */
@@ -215,22 +214,16 @@ function PoInner() {
   const [lineItems, setLineItems] = useState<PoLineItem[]>([
     { product_id: null, item_name: '', quantity: 1, unit_price: 0, uom: 'ea' },
   ]);
-  /** Company inventory catalogue for line-item picker */
-  const [inventoryProducts, setInventoryProducts] = useState<ProductRecord[]>(
-    []
-  );
-  const [inventoryLoading, setInventoryLoading] = useState(false);
-  const [priceList, setPriceList] = useState<
-    Array<{
-      id?: number;
-      product_name: string;
-      sku?: string | null;
-      list_price: number;
-      uom?: string | null;
-      seller_product_id?: number | null;
-      currency?: string | null;
-    }>
+  /** Selected supplier’s sellable catalogue (agreements + their inventory) */
+  const [supplierCatalogue, setSupplierCatalogue] = useState<
+    SupplierCatalogueItem[]
   >([]);
+  const [catalogueLoading, setCatalogueLoading] = useState(false);
+  const [catalogueWarning, setCatalogueWarning] = useState<string | null>(null);
+  /** Which catalogue key is bound to each line (for dropdown state) */
+  const [lineCatalogueKeys, setLineCatalogueKeys] = useState<(string | null)[]>(
+    [null]
+  );
 
   const [deliveryPo, setDeliveryPo] = useState<PurchaseOrder | null>(null);
   const [deliveryForm, setDeliveryForm] = useState({
@@ -248,151 +241,174 @@ function PoInner() {
 
   const selectedSupplier = suppliers.find((s) => s.id === selectedSrmId) || null;
 
-  // Load company inventory products for line-item dropdown
+  // Load selected supplier’s catalogue (price agreements + their inventory)
   useEffect(() => {
-    if (!companyId) {
-      setInventoryProducts([]);
+    if (!companyId || !selectedSrmId) {
+      setSupplierCatalogue([]);
+      setCatalogueWarning(null);
       return;
     }
     let cancelled = false;
-    setInventoryLoading(true);
+    setCatalogueLoading(true);
+    setCatalogueWarning(null);
     void (async () => {
       try {
-        const res = await fetch(
-          `/api/inventory/products?companyId=${companyId}`,
-          { cache: 'no-store' }
-        );
+        const qs = new URLSearchParams({
+          companyId: String(companyId),
+          supplierId: String(selectedSrmId),
+          currency: poCurrency,
+        });
+        const res = await fetch(`/api/suppliers/catalogue?${qs}`, {
+          cache: 'no-store',
+        });
         const data = await res.json().catch(() => ({}));
         if (cancelled) return;
-        const list = Array.isArray(data.products)
-          ? (data.products as ProductRecord[])
-          : [];
-        // Active / sellable-or-purchasable first; keep all for PO flexibility
-        setInventoryProducts(
-          list.filter((p) => {
-            const st = String(p.status || 'active').toLowerCase();
-            return st !== 'archived' && st !== 'inactive' && st !== 'deleted';
-          })
+        if (!res.ok) {
+          setSupplierCatalogue([]);
+          setCatalogueWarning(
+            (data as { error?: string }).error ||
+              'Could not load supplier catalogue'
+          );
+          return;
+        }
+        setSupplierCatalogue(
+          Array.isArray((data as { items?: SupplierCatalogueItem[] }).items)
+            ? (data as { items: SupplierCatalogueItem[] }).items
+            : []
+        );
+        setCatalogueWarning(
+          (data as { warning?: string | null }).warning || null
         );
       } catch {
-        if (!cancelled) setInventoryProducts([]);
+        if (!cancelled) {
+          setSupplierCatalogue([]);
+          setCatalogueWarning('Failed to load supplier catalogue');
+        }
       } finally {
-        if (!cancelled) setInventoryLoading(false);
+        if (!cancelled) setCatalogueLoading(false);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [companyId]);
+  }, [companyId, selectedSrmId, poCurrency]);
 
-  // Load active list prices when a linked supplier is selected
+  // Reset free lines when switching supplier (catalogue is supplier-specific)
   useEffect(() => {
-    const sellerId = selectedSupplier?.linked_profile_id
-      ? Number(selectedSupplier.linked_profile_id)
-      : null;
-    if (!sellerId || !companyId) {
-      setPriceList([]);
-      return;
-    }
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await fetch(
-          `/api/pricing/lookup?companyId=${companyId}&sellerProfileId=${sellerId}&catalogue=1`
-        );
-        const data = await res.json();
-        if (!cancelled) setPriceList(data.lines || []);
-      } catch {
-        if (!cancelled) setPriceList([]);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedSupplier?.linked_profile_id, companyId]);
+    setLineItems([
+      { product_id: null, item_name: '', quantity: 1, unit_price: 0, uom: 'ea' },
+    ]);
+    setLineCatalogueKeys([null]);
+  }, [selectedSrmId]);
 
-  const productsByType = useMemo(() => {
-    const groups = new Map<string, ProductRecord[]>();
-    for (const p of inventoryProducts) {
+  const catalogueGroups = useMemo(() => {
+    const agreement = supplierCatalogue.filter((i) => i.source === 'agreement');
+    const inventory = supplierCatalogue.filter((i) => i.source === 'inventory');
+    const byType = new Map<string, SupplierCatalogueItem[]>();
+    for (const p of inventory) {
       const key = String(p.product_type || 'other').toLowerCase() || 'other';
-      const list = groups.get(key) || [];
+      const list = byType.get(key) || [];
       list.push(p);
-      groups.set(key, list);
+      byType.set(key, list);
     }
-    // Prefer finished goods, raw materials, then rest
-    const order = [
+    const typeOrder = [
       'finished_good',
+      'service',
       'raw_material',
       'component',
       'packaging',
-      'service',
       'other',
     ];
-    const keys = [
-      ...order.filter((k) => groups.has(k)),
-      ...[...groups.keys()].filter((k) => !order.includes(k)).sort(),
+    const typeKeys = [
+      ...typeOrder.filter((k) => byType.has(k)),
+      ...[...byType.keys()].filter((k) => !typeOrder.includes(k)).sort(),
     ];
-    return keys.map((k) => ({ type: k, products: groups.get(k) || [] }));
-  }, [inventoryProducts]);
+    return {
+      agreement,
+      inventoryByType: typeKeys.map((k) => ({
+        type: k,
+        items: byType.get(k) || [],
+      })),
+    };
+  }, [supplierCatalogue]);
 
-  const applyInventoryProduct = (
+  const applyCatalogueItem = (
     idx: number,
-    productId: number | null
+    catalogueKey: string | null
   ) => {
-    setLineItems((prev) => {
-      const next = [...prev];
-      if (!productId) {
-        // Switch to free-text custom line
+    if (!catalogueKey) {
+      setLineItems((prev) => {
+        const next = [...prev];
         next[idx] = {
           ...next[idx],
           product_id: null,
           item_name: '',
           unit_price: 0,
           uom: next[idx].uom || 'ea',
+          primary_image_url: null,
         };
         return next;
-      }
-      const product = inventoryProducts.find((p) => Number(p.id) === productId);
-      if (!product) return prev;
-      const price = inventoryUnitPriceForPo(product, poCurrency);
+      });
+      setLineCatalogueKeys((prev) => {
+        const next = [...prev];
+        while (next.length <= idx) next.push(null);
+        next[idx] = null;
+        return next;
+      });
+      return;
+    }
+    const item = supplierCatalogue.find((c) => c.key === catalogueKey);
+    if (!item) return;
+    setLineItems((prev) => {
+      const next = [...prev];
       next[idx] = {
         ...next[idx],
-        product_id: Number(product.id),
-        item_name: product.name,
-        unit_price: price,
-        uom: product.uom || next[idx].uom || 'ea',
-        primary_image_url: product.primary_image_url || null,
+        product_id: item.seller_product_id,
+        item_name: item.product_name,
+        unit_price: Number(item.unit_price) || 0,
+        uom: item.uom || next[idx].uom || 'ea',
+        primary_image_url: item.primary_image_url || null,
       };
+      return next;
+    });
+    setLineCatalogueKeys((prev) => {
+      const next = [...prev];
+      while (next.length <= idx) next.push(null);
+      next[idx] = catalogueKey;
       return next;
     });
   };
 
-  const applyPriceListLine = (line: {
-    product_name: string;
-    sku?: string | null;
-    list_price: number;
-    uom?: string | null;
-    seller_product_id?: number | null;
-  }) => {
+  const addCatalogueLine = (item: SupplierCatalogueItem) => {
     setLineItems((prev) => {
       const emptyIdx = prev.findIndex((i) => !i.item_name && !i.unit_price);
       const row: PoLineItem = {
-        product_id: line.seller_product_id
-          ? Number(line.seller_product_id)
-          : null,
-        item_name: line.product_name,
+        product_id: item.seller_product_id,
+        item_name: item.product_name,
         quantity: 1,
-        unit_price: Number(line.list_price) || 0,
-        uom: line.uom || 'ea',
+        unit_price: Number(item.unit_price) || 0,
+        uom: item.uom || 'ea',
+        primary_image_url: item.primary_image_url || null,
       };
       if (emptyIdx >= 0) {
         const next = [...prev];
         next[emptyIdx] = row;
+        setLineCatalogueKeys((keys) => {
+          const k = [...keys];
+          while (k.length <= emptyIdx) k.push(null);
+          k[emptyIdx] = item.key;
+          return k;
+        });
         return next;
       }
+      setLineCatalogueKeys((keys) => [...keys, item.key]);
       return [...prev, row];
     });
-    toast.success(`Added ${line.product_name} at list price`);
+    toast.success(
+      item.source === 'agreement'
+        ? `Added ${item.product_name} at agreed list price`
+        : `Added ${item.product_name} from supplier catalogue`
+    );
   };
 
   const load = useCallback(async () => {
@@ -789,6 +805,7 @@ function PoInner() {
       setDescription('');
       setPromisedDate('');
       setLineItems([{ product_id: null, item_name: '', quantity: 1, unit_price: 0, uom: 'ea' }]);
+      setLineCatalogueKeys([null]);
       setUseEscrow(false);
       setTab('pipeline');
       await load();
@@ -1007,44 +1024,115 @@ function PoInner() {
                   .
                 </p>
               )}
-              {selectedSupplier?.linked_profile_id && priceList.length > 0 && (
+              {selectedSupplier && (
                 <div className="mt-3 p-3 rounded-2xl border border-[#00b4d8]/20 bg-[#00b4d8]/5">
-                  <div className="text-[11px] font-bold uppercase tracking-wider text-[#0077b6] mb-2">
-                    Agreed list prices ({priceList.length})
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-[#0077b6] mb-1">
+                    Supplier catalogue
+                    {catalogueLoading
+                      ? ' · loading…'
+                      : supplierCatalogue.length
+                        ? ` · ${supplierCatalogue.length} sellable`
+                        : ''}
                   </div>
-                  <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
-                    {priceList.map((l) => (
-                      <button
-                        key={l.id || `${l.sku}-${l.product_name}`}
-                        type="button"
-                        onClick={() => applyPriceListLine(l)}
-                        className="text-[11px] font-semibold px-2.5 py-1 rounded-full border border-[#00b4d8]/30 bg-white text-slate-700 hover:bg-[#00b4d8]/10"
-                        title="Add line at list price"
+                  <p className="text-[10px] text-neutral-600 mb-2 leading-relaxed">
+                    PO lines pull from this supplier’s{' '}
+                    <strong>agreed price list</strong> and their published{' '}
+                    <strong>inventory</strong> (finished goods, services, …) —
+                    not your own stock. Free-text lines remain available below.
+                  </p>
+                  {!selectedSupplier.linked_profile_id && (
+                    <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-100 rounded-xl px-2.5 py-1.5 mb-2">
+                      This supplier is not linked to a platform company yet.
+                      Invite/connect them to unlock their catalogue, or use
+                      free-text lines.
+                    </p>
+                  )}
+                  {catalogueWarning && selectedSupplier.linked_profile_id && (
+                    <p className="text-[11px] text-amber-800 mb-2">
+                      {catalogueWarning}{' '}
+                      <Link
+                        href="/dashboard/connections/pricing"
+                        className="text-[#00b4d8] underline"
                       >
-                        {l.product_name}
-                        <span className="text-neutral-400 font-normal ml-1">
-                          @ {Number(l.list_price).toFixed(2)}{' '}
-                          {l.currency || poCurrency}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
+                        Pricing agreements
+                      </Link>
+                    </p>
+                  )}
+                  {catalogueGroups.agreement.length > 0 && (
+                    <>
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                        Agreed list ({catalogueGroups.agreement.length})
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto mb-2">
+                        {catalogueGroups.agreement.map((l) => (
+                          <button
+                            key={l.key}
+                            type="button"
+                            onClick={() => addCatalogueLine(l)}
+                            className="text-[11px] font-semibold px-2.5 py-1 rounded-full border border-emerald-300/50 bg-white text-slate-700 hover:bg-emerald-50"
+                            title="Add line at agreed list price"
+                          >
+                            {l.product_name}
+                            <span className="text-neutral-400 font-normal ml-1">
+                              @ {Number(l.unit_price).toFixed(2)}{' '}
+                              {l.currency || poCurrency}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                  {supplierCatalogue.filter((i) => i.source === 'inventory')
+                    .length > 0 && (
+                    <>
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                        Their inventory (
+                        {
+                          supplierCatalogue.filter(
+                            (i) => i.source === 'inventory'
+                          ).length
+                        }
+                        )
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                        {supplierCatalogue
+                          .filter((i) => i.source === 'inventory')
+                          .slice(0, 40)
+                          .map((l) => (
+                            <button
+                              key={l.key}
+                              type="button"
+                              onClick={() => addCatalogueLine(l)}
+                              className="text-[11px] font-semibold px-2.5 py-1 rounded-full border border-[#00b4d8]/30 bg-white text-slate-700 hover:bg-[#00b4d8]/10"
+                              title="Add from supplier inventory"
+                            >
+                              {l.product_name}
+                              {l.sku ? (
+                                <span className="text-neutral-400 font-normal ml-1">
+                                  {l.sku}
+                                </span>
+                              ) : null}
+                            </button>
+                          ))}
+                      </div>
+                    </>
+                  )}
                   <p className="text-[10px] text-neutral-500 mt-2">
-                    From active pricing agreements ·{' '}
-                    <Link href="/dashboard/connections/pricing" className="text-[#00b4d8] underline">
-                      manage
+                    <Link
+                      href="/dashboard/connections/pricing"
+                      className="text-[#00b4d8] underline"
+                    >
+                      Manage pricing agreements
+                    </Link>
+                    {' · '}
+                    <Link
+                      href="/dashboard/connections"
+                      className="text-[#00b4d8] underline"
+                    >
+                      Network
                     </Link>
                   </p>
                 </div>
-              )}
-              {selectedSupplier?.linked_profile_id && priceList.length === 0 && (
-                <p className="text-[11px] text-neutral-500 mt-2">
-                  No active price list with this supplier yet.{' '}
-                  <Link href="/dashboard/connections/pricing" className="text-[#00b4d8] underline">
-                    Create or import pricing
-                  </Link>
-                  .
-                </p>
               )}
             </div>
 
@@ -1102,31 +1190,18 @@ function PoInner() {
                 <div>
                   <label className="text-xs font-medium">Line items *</label>
                   <p className="text-[10px] text-neutral-500 mt-0.5">
-                    Pick inventory (finished goods, raw materials, …) or enter
-                    free text.
-                    {inventoryLoading
-                      ? ' Loading catalogue…'
-                      : inventoryProducts.length
-                        ? ` ${inventoryProducts.length} products available.`
-                        : ' '}
-                    {!inventoryLoading && inventoryProducts.length === 0 && (
-                      <>
-                        {' '}
-                        No products yet —{' '}
-                        <Link
-                          href="/dashboard/inventory/products"
-                          className="text-[#00b4d8] underline"
-                        >
-                          add inventory
-                        </Link>
-                        .
-                      </>
-                    )}
+                    {selectedSrmId
+                      ? catalogueLoading
+                        ? 'Loading this supplier’s catalogue…'
+                        : supplierCatalogue.length
+                          ? `Pick from ${selectedSupplier?.trading_name || 'supplier'} catalogue (${supplierCatalogue.length}) or free text.`
+                          : 'No supplier catalogue yet — free-text lines still work. Connect them and share pricing/inventory.'
+                      : 'Select a supplier first to load their catalogue.'}
                   </p>
                 </div>
                 <button
                   type="button"
-                  onClick={() =>
+                  onClick={() => {
                     setLineItems([
                       ...lineItems,
                       {
@@ -1136,8 +1211,9 @@ function PoInner() {
                         unit_price: 0,
                         uom: 'ea',
                       },
-                    ])
-                  }
+                    ]);
+                    setLineCatalogueKeys((k) => [...k, null]);
+                  }}
                   className="text-xs font-semibold text-[#00b4d8]"
                 >
                   + Add line
@@ -1145,15 +1221,20 @@ function PoInner() {
               </div>
               <div className="space-y-2">
                 {lineItems.map((item, idx) => {
-                  const linkedProduct = item.product_id
-                    ? inventoryProducts.find(
-                        (p) => Number(p.id) === Number(item.product_id)
-                      )
-                    : null;
-                  const selectValue = linkedProduct
-                    ? String(linkedProduct.id)
-                    : 'custom';
-                  const showNameInput = !linkedProduct;
+                  const catKey = lineCatalogueKeys[idx] || null;
+                  const linked =
+                    catKey
+                      ? supplierCatalogue.find((c) => c.key === catKey)
+                      : item.product_id
+                        ? supplierCatalogue.find(
+                            (c) =>
+                              c.seller_product_id != null &&
+                              Number(c.seller_product_id) ===
+                                Number(item.product_id)
+                          )
+                        : null;
+                  const selectValue = linked?.key || 'custom';
+                  const showNameInput = !linked;
                   return (
                     <div
                       key={idx}
@@ -1163,41 +1244,51 @@ function PoInner() {
                         <select
                           className="input !p-2 !text-sm w-full font-medium"
                           value={selectValue}
+                          disabled={!selectedSrmId}
                           onChange={(e) => {
                             const v = e.target.value;
                             if (v === 'custom') {
-                              applyInventoryProduct(idx, null);
+                              applyCatalogueItem(idx, null);
                             } else {
-                              applyInventoryProduct(idx, Number(v));
+                              applyCatalogueItem(idx, v);
                             }
                           }}
-                          aria-label={`Line ${idx + 1} product`}
+                          aria-label={`Line ${idx + 1} supplier product`}
                         >
                           <option value="custom">
                             Custom / free text…
                           </option>
-                          {productsByType.map(({ type, products }) => (
-                            <optgroup
-                              key={type}
-                              label={productTypeLabel(type)}
-                            >
-                              {products.map((p) => {
-                                const unit = inventoryUnitPriceForPo(
-                                  p,
-                                  poCurrency
-                                );
-                                return (
-                                  <option key={p.id} value={p.id}>
-                                    {p.name}
+                          {catalogueGroups.agreement.length > 0 && (
+                            <optgroup label="Agreed list prices">
+                              {catalogueGroups.agreement.map((p) => (
+                                <option key={p.key} value={p.key}>
+                                  {p.product_name}
+                                  {p.sku ? ` (${p.sku})` : ''}
+                                  {p.unit_price > 0
+                                    ? ` · ${p.currency} ${Number(p.unit_price).toFixed(2)}`
+                                    : ''}
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                          {catalogueGroups.inventoryByType.map(
+                            ({ type, items }) => (
+                              <optgroup
+                                key={type}
+                                label={`Supplier · ${productTypeLabel(type)}`}
+                              >
+                                {items.map((p) => (
+                                  <option key={p.key} value={p.key}>
+                                    {p.product_name}
                                     {p.sku ? ` (${p.sku})` : ''}
-                                    {unit > 0
-                                      ? ` · ${poCurrency} ${unit.toFixed(2)}`
+                                    {p.unit_price > 0
+                                      ? ` · ${p.currency} ${Number(p.unit_price).toFixed(2)}`
                                       : ''}
                                   </option>
-                                );
-                              })}
-                            </optgroup>
-                          ))}
+                                ))}
+                              </optgroup>
+                            )
+                          )}
                         </select>
                         {showNameInput ? (
                           <input
@@ -1212,6 +1303,12 @@ function PoInner() {
                                 item_name: e.target.value,
                               };
                               setLineItems(u);
+                              setLineCatalogueKeys((keys) => {
+                                const k = [...keys];
+                                while (k.length <= idx) k.push(null);
+                                k[idx] = null;
+                                return k;
+                              });
                             }}
                           />
                         ) : (
@@ -1220,12 +1317,12 @@ function PoInner() {
                               {item.item_name}
                             </span>
                             {' · '}
-                            {productTypeLabel(linkedProduct?.product_type)}
-                            {linkedProduct?.sku
-                              ? ` · SKU ${linkedProduct.sku}`
-                              : ''}
-                            {typeof linkedProduct?.qty_on_hand === 'number'
-                              ? ` · on hand ${linkedProduct.qty_on_hand}`
+                            {linked?.source === 'agreement'
+                              ? 'Agreed list'
+                              : productTypeLabel(linked?.product_type)}
+                            {linked?.sku ? ` · SKU ${linked.sku}` : ''}
+                            {linked?.agreement_title
+                              ? ` · ${linked.agreement_title}`
                               : ''}
                             {' · '}
                             <button
@@ -1238,6 +1335,12 @@ function PoInner() {
                                   product_id: null,
                                 };
                                 setLineItems(u);
+                                setLineCatalogueKeys((keys) => {
+                                  const k = [...keys];
+                                  while (k.length <= idx) k.push(null);
+                                  k[idx] = null;
+                                  return k;
+                                });
                               }}
                             >
                               Edit as free text
@@ -1289,12 +1392,13 @@ function PoInner() {
                       <button
                         type="button"
                         className="col-span-1 p-2 text-red-500"
-                        onClick={() =>
-                          lineItems.length > 1 &&
-                          setLineItems(
-                            lineItems.filter((_, i) => i !== idx)
-                          )
-                        }
+                        onClick={() => {
+                          if (lineItems.length <= 1) return;
+                          setLineItems(lineItems.filter((_, i) => i !== idx));
+                          setLineCatalogueKeys((keys) =>
+                            keys.filter((_, i) => i !== idx)
+                          );
+                        }}
                         aria-label="Remove line"
                       >
                         <Trash2 className="w-4 h-4" />
