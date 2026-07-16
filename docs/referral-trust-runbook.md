@@ -91,6 +91,11 @@ Statuses: `waiting` → `contacted` → `invited` → `converted` | `declined`.
 
 Join confirmation email (Resend) fires on public POST when `RESEND_API_KEY` is set.
 
+Ops status changes:
+- `invited` → email “claim your founding seat” + `/onboarding` CTA
+- `converted` → welcome email + `/login` CTA
+- Set from `/dashboard/my-business/founding-waitlist` (optional `skipEmail: true` on API)
+
 ## 8. Golden path onboarding
 
 Dashboard shows **Get live in 3 days** (`GoldenPathChecklist`).

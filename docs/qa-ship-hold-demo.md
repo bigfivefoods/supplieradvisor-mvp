@@ -82,6 +82,13 @@ Same gate applies when drawing stock to a verified reseller if lines include
 `lot_number` (`POST /api/containers/resellers/transfer`). Expect **409 `QA_HOLD`**
 until inspections are cleared (owner/admin override optional).
 
+**UI:** Containers → Resellers → Draw stock — enter **Lot (QA)** per line.
+
+## Warehouse ↔ container sync
+
+`POST /api/inventory/sync-transfer` with `lot_number` is also gated by `QA_HOLD`
+(Inventory → Stock transfers → Container tab).
+
 ## Pre-ship check API
 
 ```

@@ -118,7 +118,23 @@ function WaitlistInner() {
           (data as { error?: string }).error || 'Update failed'
         );
       }
-      toast.success(`Marked ${status}`);
+      const emailed = Boolean((data as { emailSent?: boolean }).emailSent);
+      toast.success(
+        emailed
+          ? `Marked ${status} · invitation email sent`
+          : `Marked ${status}`
+      );
+      if (
+        (status === 'invited' || status === 'converted') &&
+        (data as { onboardingUrl?: string }).onboardingUrl
+      ) {
+        toast.message('Share link', {
+          description:
+            status === 'converted'
+              ? 'Direct them to sign in at /login'
+              : 'Direct them to /onboarding to claim the seat',
+        });
+      }
       await load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Update failed');

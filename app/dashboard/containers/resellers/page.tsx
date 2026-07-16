@@ -110,6 +110,8 @@ function Inner() {
   const [xferContainer, setXferContainer] = useState<number | ''>('');
   const [containerStock, setContainerStock] = useState<InvLine[]>([]);
   const [xferQty, setXferQty] = useState<Record<number, string>>({});
+  /** Optional lot per inventory line — enables QA hold gate on draw */
+  const [xferLot, setXferLot] = useState<Record<number, string>>({});
   const [xfering, setXfering] = useState(false);
 
   // Commission form
@@ -440,6 +442,7 @@ function Inner() {
         sku: item.sku,
         quantity: Number(xferQty[item.id] || 0),
         unit: item.unit,
+        lot_number: (xferLot[item.id] || '').trim() || undefined,
       }))
       .filter((l) => l.quantity > 0);
 
@@ -494,6 +497,7 @@ function Inner() {
         (data as { message?: string }).message || 'Stock transferred'
       );
       setXferQty({});
+      setXferLot({});
       // reload stock
       const inv = await fetch(
         `/api/containers/inventory?companyId=${companyId}&containerId=${xferContainer}`
@@ -1011,42 +1015,64 @@ function Inner() {
                         </Link>
                       </p>
                     ) : (
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="bg-slate-50 text-[10px] uppercase text-slate-400">
-                            <th className="text-left px-3 py-2">Product</th>
-                            <th className="text-right px-3 py-2">On hand</th>
-                            <th className="text-right px-3 py-2">Transfer qty</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {containerStock.map((item) => (
-                            <tr key={item.id} className="border-t">
-                              <td className="px-3 py-2 font-medium">
-                                {item.product_name}
-                              </td>
-                              <td className="px-3 py-2 text-right tabular-nums">
-                                {item.qty_on_hand} {item.unit}
-                              </td>
-                              <td className="px-3 py-2 text-right">
-                                <input
-                                  type="number"
-                                  min={0}
-                                  max={Number(item.qty_on_hand)}
-                                  className="input !p-1.5 !text-sm !w-24 text-right"
-                                  value={xferQty[item.id] || ''}
-                                  onChange={(e) =>
-                                    setXferQty((q) => ({
-                                      ...q,
-                                      [item.id]: e.target.value,
-                                    }))
-                                  }
-                                />
-                              </td>
+                      <>
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="bg-slate-50 text-[10px] uppercase text-slate-400">
+                              <th className="text-left px-3 py-2">Product</th>
+                              <th className="text-right px-3 py-2">On hand</th>
+                              <th className="text-right px-3 py-2">Qty</th>
+                              <th className="text-left px-3 py-2">Lot (QA)</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody>
+                            {containerStock.map((item) => (
+                              <tr key={item.id} className="border-t">
+                                <td className="px-3 py-2 font-medium">
+                                  {item.product_name}
+                                </td>
+                                <td className="px-3 py-2 text-right tabular-nums">
+                                  {item.qty_on_hand} {item.unit}
+                                </td>
+                                <td className="px-3 py-2 text-right">
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    max={Number(item.qty_on_hand)}
+                                    className="input !p-1.5 !text-sm !w-24 text-right"
+                                    value={xferQty[item.id] || ''}
+                                    onChange={(e) =>
+                                      setXferQty((q) => ({
+                                        ...q,
+                                        [item.id]: e.target.value,
+                                      }))
+                                    }
+                                  />
+                                </td>
+                                <td className="px-3 py-2">
+                                  <input
+                                    type="text"
+                                    placeholder="Lot #"
+                                    className="input !p-1.5 !text-sm !w-28 font-mono"
+                                    value={xferLot[item.id] || ''}
+                                    onChange={(e) =>
+                                      setXferLot((q) => ({
+                                        ...q,
+                                        [item.id]: e.target.value,
+                                      }))
+                                    }
+                                    title="Optional lot number — blocks draw if open/failed QA inspection"
+                                  />
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        <p className="px-3 py-2 text-[11px] text-slate-500 border-t border-slate-100">
+                          Lot numbers enable the same QA hold as warehouse ship —
+                          open/failed inspections block the draw until cleared.
+                        </p>
+                      </>
                     )}
                   </div>
                 )}

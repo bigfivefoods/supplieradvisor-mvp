@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { hashMovement } from '@/lib/inventory/hash';
-import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import {
+  requireCompanyAccess,
+  legacyPrivyFrom,
+} from '@/lib/auth/api-auth';
+import { hasQaHold, qaHoldErrorPayload } from '@/lib/quality/holds';
 
 /**
  * POST — auto-sync transfer between warehouse stock and container inventory
@@ -12,7 +16,8 @@ import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/li
  *   quantity,
  *   warehouseId?,
  *   containerId,
- *   lot_number?, notes?
+ *   lot_number?, notes?,
+ *   overrideQaHold?
  * }
  */
 export async function POST(request: NextRequest) {
@@ -28,6 +33,67 @@ export async function POST(request: NextRequest) {
         { error: 'companyId, containerId, and positive quantity required' },
         { status: 400 }
       );
+    }
+
+    const gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request) || body.privyUserId,
+    });
+    if (!gate.ok) return gate.response;
+
+    // QA hold — same gate as warehouse ship when a lot is specified
+    const lotNumber = body.lot_number ? String(body.lot_number).trim() : '';
+    if (lotNumber) {
+      const qa = await hasQaHold(companyId, [lotNumber]);
+      if (qa.blocked) {
+        const lots = [...new Set(qa.holds.map((h) => h.lot_number))];
+        if (body.overrideQaHold) {
+          const { getCompanyMembership } = await import('@/lib/business/access');
+          const { normalizeTeamRole } = await import('@/lib/business/permissions');
+          const mem = await getCompanyMembership(gate.userId, companyId);
+          const role = mem.ok ? normalizeTeamRole(mem.role) : null;
+          if (!role || !['owner', 'admin'].includes(role)) {
+            return NextResponse.json(
+              {
+                error:
+                  'QA hold override requires owner or admin role. Clear inspections first.',
+                code: 'QA_OVERRIDE_FORBIDDEN',
+                holds: qa.holds,
+              },
+              { status: 403 }
+            );
+          }
+          void import('@/lib/audit/log').then(({ auditLog }) =>
+            auditLog({
+              companyId,
+              actorUserId: gate.userId,
+              action: 'override.qa_hold',
+              entityType: 'inventory_sync_transfer',
+              entityId: containerId,
+              summary: `QA hold override on container sync — lot(s) ${lots.join(', ')}`,
+              metadata: { holds: qa.holds, direction },
+            })
+          );
+        } else {
+          void import('@/lib/audit/log').then(({ auditLog }) =>
+            auditLog({
+              companyId,
+              actorUserId: gate.userId,
+              action: 'qa.hold.ship_blocked',
+              entityType: 'inventory_sync_transfer',
+              entityId: containerId,
+              summary: `Container sync blocked by QA hold on lot(s) ${lots.join(', ')}`,
+              metadata: { holds: qa.holds, direction },
+            })
+          );
+          return NextResponse.json(
+            {
+              ...qaHoldErrorPayload(qa.holds),
+              error: `QA hold: lot(s) ${lots.join(', ')} have open or failed inspections. Clear Quality → Inspections before container sync.`,
+            },
+            { status: 409 }
+          );
+        }
+      }
     }
 
     const supabase = getSupabaseServer();

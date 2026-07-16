@@ -206,9 +206,41 @@ function TransfersInner() {
           lot_number: ctrLot || undefined,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Sync failed');
-      toast.success(`Container sync complete · ${String(data.onchain_hash || '').slice(0, 12)}…`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (
+          res.status === 409 &&
+          (data as { code?: string }).code === 'QA_HOLD'
+        ) {
+          const lots = Array.isArray((data as { lots?: string[] }).lots)
+            ? ((data as { lots: string[] }).lots).join(', ')
+            : ctrLot || '';
+          toast.error(
+            (data as { error?: string }).error || 'QA hold blocks sync',
+            {
+              description: lots
+                ? `Held lot(s): ${lots}`
+                : 'Clear Quality → Inspections first.',
+              duration: 12000,
+              action: {
+                label: 'Inspections',
+                onClick: () => {
+                  window.location.href =
+                    (data as { resolve_href?: string }).resolve_href ||
+                    '/dashboard/quality/inspections';
+                },
+              },
+            }
+          );
+          return;
+        }
+        throw new Error(
+          (data as { error?: string }).error || 'Sync failed'
+        );
+      }
+      toast.success(
+        `Container sync complete · ${String((data as { onchain_hash?: string }).onchain_hash || '').slice(0, 12)}…`
+      );
       void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed');

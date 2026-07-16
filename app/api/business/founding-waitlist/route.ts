@@ -125,6 +125,16 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = getSupabaseServer();
+    const { data: existing } = await supabase
+      .from('founding_waitlist')
+      .select('id, email, company_name, status')
+      .eq('id', id)
+      .maybeSingle();
+    if (!existing) {
+      return NextResponse.json({ error: 'Entry not found' }, { status: 404 });
+    }
+
+    const prevStatus = String(existing.status || '').toLowerCase();
     const updates: Record<string, unknown> = { status };
     if (body.notes != null) {
       updates.notes = String(body.notes).slice(0, 500);
@@ -143,7 +153,35 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Entry not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true, entry: data });
+    // Soft-email on invite / convert transitions
+    let emailSent = false;
+    if (
+      (status === 'invited' || status === 'converted') &&
+      prevStatus !== status &&
+      body.skipEmail !== true
+    ) {
+      const { sendFoundingStatusEmail } = await import(
+        '@/lib/billing/founding-waitlist-email'
+      );
+      const mail = await sendFoundingStatusEmail({
+        to: String(data.email),
+        companyName: data.company_name,
+        status,
+      });
+      emailSent = Boolean(mail.ok && !mail.skipped);
+    }
+
+    return NextResponse.json({
+      success: true,
+      entry: data,
+      emailSent,
+      onboardingUrl:
+        status === 'invited' || status === 'converted'
+          ? status === 'converted'
+            ? '/login'
+            : '/onboarding'
+          : null,
+    });
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },

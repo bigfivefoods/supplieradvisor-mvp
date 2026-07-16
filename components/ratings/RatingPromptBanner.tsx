@@ -6,6 +6,8 @@ import { Star, X } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
+import { RateCompanyForm } from './RateCompanyForm';
+import type { RateeRole } from '@/lib/ratings/company-rating';
 
 type Prompt = {
   id: number;
@@ -15,6 +17,8 @@ type Prompt = {
   context_type?: string;
   context_id?: string | null;
 };
+
+type Peer = { profileId: number; trading_name: string; role?: string };
 
 function rateHref(p: Prompt): string {
   const base =
@@ -40,10 +44,21 @@ function contextLabel(p: Prompt): string {
   return 'after trade';
 }
 
+function asRateeRole(r?: string): RateeRole {
+  if (r === 'customer' || r === 'partner') return r;
+  return 'supplier';
+}
+
+/**
+ * Dashboard banner for pending rating prompts + in-place rate modal.
+ */
 export default function RatingPromptBanner() {
   const { user } = usePrivy();
   const companyId = getSelectedCompanyId();
+  const privyUserId = getCanonicalUserId(user?.id);
   const [prompts, setPrompts] = useState<Prompt[]>([]);
+  const [active, setActive] = useState<Prompt | null>(null);
+  const [peers, setPeers] = useState<Peer[]>([]);
 
   const load = useCallback(async () => {
     if (!companyId) return;
@@ -63,6 +78,58 @@ export default function RatingPromptBanner() {
     void load();
   }, [load]);
 
+  // Light peer list for modal (connections) when opening rate
+  useEffect(() => {
+    if (!active || !companyId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/connections?companyId=${companyId}${
+            privyUserId
+              ? `&privyUserId=${encodeURIComponent(privyUserId)}`
+              : ''
+          }`
+        );
+        const data = await res.json();
+        if (cancelled || !res.ok) return;
+        const map = new Map<number, Peer>();
+        for (const e of data.edges || []) {
+          if (e.status !== 'accepted' || e.suspended) continue;
+          const id = Number(e.peer?.id);
+          if (!id) continue;
+          const name = e.peer?.trading_name || e.peer?.legal_name;
+          if (!name) continue;
+          map.set(id, {
+            profileId: id,
+            trading_name: name,
+            role: e.role || e.connection_type || 'partner',
+          });
+        }
+        // Ensure prompt counterparty is present
+        const cid = Number(active.counterparty_profile_id);
+        if (
+          Number.isFinite(cid) &&
+          cid > 0 &&
+          !map.has(cid) &&
+          active.counterparty_name
+        ) {
+          map.set(cid, {
+            profileId: cid,
+            trading_name: String(active.counterparty_name),
+            role: active.ratee_role || 'partner',
+          });
+        }
+        setPeers(Array.from(map.values()));
+      } catch {
+        if (!cancelled) setPeers([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [active, companyId, privyUserId]);
+
   const dismiss = async (promptId: number) => {
     if (!companyId) return;
     try {
@@ -73,50 +140,146 @@ export default function RatingPromptBanner() {
           companyId,
           action: 'dismiss',
           promptId,
-          privyUserId: getCanonicalUserId(user?.id),
+          privyUserId,
         }),
       });
       setPrompts((p) => p.filter((x) => x.id !== promptId));
+      if (active?.id === promptId) setActive(null);
     } catch {
       /* ignore */
     }
   };
 
-  if (!prompts.length) return null;
+  const onRated = async () => {
+    if (active && companyId) {
+      // Mark prompt completed (also done server-side by afterPeerRatingPublished)
+      try {
+        await fetch('/api/business/rating-prompts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyId,
+            action: 'complete',
+            promptId: active.id,
+            privyUserId,
+          }),
+        });
+      } catch {
+        /* ignore */
+      }
+      setPrompts((p) => p.filter((x) => x.id !== active.id));
+    }
+    setActive(null);
+    void load();
+  };
+
+  if (!prompts.length && !active) return null;
 
   return (
-    <div className="mb-4 space-y-2">
-      {prompts.map((p) => (
+    <>
+      {prompts.length > 0 && (
+        <div className="mb-4 space-y-2">
+          {prompts.map((p) => (
+            <div
+              key={p.id}
+              className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 relative"
+            >
+              <button
+                type="button"
+                className="absolute right-2 top-2 p-1 text-amber-800/50 hover:text-amber-900"
+                onClick={() => void dismiss(p.id)}
+                aria-label="Dismiss"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              <Star className="w-5 h-5 text-amber-600 shrink-0" />
+              <div className="min-w-0 flex-1 pr-6">
+                <div className="text-sm font-bold text-amber-950">
+                  Rate {p.counterparty_name || 'your trading partner'}
+                </div>
+                <p className="text-xs text-amber-900/80 mt-0.5 leading-relaxed">
+                  Prompted {contextLabel(p)}. Suppliers and customers rate each
+                  other — peer stars and OTIFEF build trust for the network.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setActive(p)}
+                  className="rounded-full bg-amber-800 px-4 py-2 text-xs font-bold text-white hover:bg-amber-900"
+                >
+                  Rate now
+                </button>
+                <Link
+                  href={rateHref(p)}
+                  className="rounded-full border border-amber-300 bg-white px-3 py-2 text-xs font-bold text-amber-950 hover:bg-amber-100"
+                >
+                  Full page
+                </Link>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {active && companyId && (
         <div
-          key={p.id}
-          className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 relative"
+          className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Rate trading partner"
         >
           <button
             type="button"
-            className="absolute right-2 top-2 p-1 text-amber-800/50 hover:text-amber-900"
-            onClick={() => void dismiss(p.id)}
-            aria-label="Dismiss"
-          >
-            <X className="w-4 h-4" />
-          </button>
-          <Star className="w-5 h-5 text-amber-600 shrink-0" />
-          <div className="min-w-0 flex-1 pr-6">
-            <div className="text-sm font-bold text-amber-950">
-              Rate {p.counterparty_name || 'your trading partner'}
+            className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px]"
+            aria-label="Close"
+            onClick={() => setActive(null)}
+          />
+          <div className="relative w-full sm:max-w-lg max-h-[92dvh] overflow-y-auto rounded-t-3xl sm:rounded-3xl bg-white shadow-2xl border border-slate-200">
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-slate-100 bg-white/95 px-4 py-3 backdrop-blur">
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-amber-700">
+                  Trust loop
+                </div>
+                <div className="font-black text-slate-900 text-sm sm:text-base">
+                  Rate {active.counterparty_name || 'partner'}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActive(null)}
+                className="p-2 rounded-xl text-slate-500 hover:bg-slate-100"
+                aria-label="Close modal"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
-            <p className="text-xs text-amber-900/80 mt-0.5 leading-relaxed">
-              Prompted {contextLabel(p)}. Suppliers and customers rate each
-              other — peer stars and OTIFEF build trust for the network.
-            </p>
+            <div className="p-3 sm:p-4">
+              <RateCompanyForm
+                companyId={companyId}
+                privyUserId={privyUserId}
+                rateeRole={asRateeRole(active.ratee_role)}
+                peers={peers}
+                initialRateeId={active.counterparty_profile_id}
+                initialRateeName={active.counterparty_name}
+                lockRatee={Boolean(active.counterparty_profile_id)}
+                compact
+                hideLegend
+                onSaved={() => void onRated()}
+              />
+              <p className="text-center text-[11px] text-slate-400 mt-3 pb-2">
+                Prefer the full form?{' '}
+                <Link
+                  href={rateHref(active)}
+                  className="font-semibold text-sky-700 hover:underline"
+                >
+                  Open ratings page
+                </Link>
+              </p>
+            </div>
           </div>
-          <Link
-            href={rateHref(p)}
-            className="shrink-0 rounded-full bg-amber-800 px-4 py-2 text-xs font-bold text-white hover:bg-amber-900"
-          >
-            Rate now
-          </Link>
         </div>
-      ))}
-    </div>
+      )}
+    </>
   );
 }
