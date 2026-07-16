@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import LandingNav from '@/components/marketing/LandingNav';
+import HomePricing from '@/components/marketing/HomePricing';
 import {
   OpsMock,
   SrmMock,
@@ -63,10 +64,7 @@ import {
 import { FOUNDING_FREE_COMPANY_LIMIT } from '@/lib/billing/lifetime';
 import {
   REFERRAL_LEVEL_RATES_PCT,
-  REFERRAL_SCALE_SCENARIO_COUNTS,
   REFERRAL_TOTAL_CAP_PCT,
-  referralChainScaleScenario,
-  referralRatesSummary,
 } from '@/lib/billing/supply-chain-referral';
 
 type PublicCompany = {
@@ -415,11 +413,6 @@ export default function LandingPage() {
     networkPageSafe * NETWORK_PAGE_SIZE + NETWORK_PAGE_SIZE
   );
 
-  const exampleFee = (pct: number) =>
-    Math.round(((COMPANY_SUBSCRIPTION_MONTHLY_ZAR * pct) / 100) * 100) / 100;
-  const scaleScenarios = REFERRAL_SCALE_SCENARIO_COUNTS.map((count) =>
-    referralChainScaleScenario(count, COMPANY_SUBSCRIPTION_MONTHLY_ZAR)
-  );
 
   return (
     <div className="relative z-0 min-h-dvh bg-[#f8fafc] text-slate-900 antialiased selection:bg-cyan-100">
@@ -491,9 +484,9 @@ export default function LandingPage() {
             <p className="mt-6 text-sm text-slate-500">
               From {formatZar(COMPANY_SUBSCRIPTION_MONTHLY_ZAR)}/mo · first{' '}
               {FOUNDING_FREE_COMPANY_LIMIT} companies free for life ·{' '}
-              <Link href="/pricing" className="font-semibold text-[#0077b6] underline decoration-sky-200 underline-offset-4 hover:text-[#00b4d8]">
+              <a href="#pricing" className="font-semibold text-[#0077b6] underline decoration-sky-200 underline-offset-4 hover:text-[#00b4d8]">
                 Pricing & referral
-              </Link>
+              </a>
             </p>
 
             {/* Telemetry strip */}
@@ -775,184 +768,8 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ═══════════ EARN / REFERRAL / PRICING ═══════════ */}
-      <section id="earn" className="border-t border-slate-200 bg-[#f8fafc] py-20 sm:py-28">
-        <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10">
-          <div className="mx-auto mb-12 max-w-3xl text-center">
-            <SectionLabel>Paid to do good</SectionLabel>
-            <h2 className="text-3xl font-black tracking-tight text-slate-900 sm:text-5xl">
-              The system that pays you
-              <span className="mt-1 block text-slate-500">to build a better network.</span>
-            </h2>
-            <p className="mt-4 text-base leading-relaxed text-slate-600">
-              Invite real partners. Help them run clean ops. When they subscribe, you earn.
-              Good trade — verified companies, on-time delivery, quality that holds —
-              is what the system rewards.
-            </p>
-          </div>
-
-          <div className="grid items-start gap-10 lg:grid-cols-2 lg:gap-16">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-wider text-slate-500">
-                Two clean programmes
-              </p>
-              <ul className="mt-5 space-y-4">
-                <li className="flex gap-3">
-                  <Handshake className="mt-0.5 h-5 w-5 shrink-0 text-[#00b4d8]" />
-                  <div>
-                    <div className="font-bold text-slate-900">Sales contractors</div>
-                    <p className="mt-1 text-sm text-slate-600">
-                      Personal product sales only (company-set 4–6%). Pipeline, quotes,
-                      orders, invoices in the sales portal — no multi-level product MLM.
-                    </p>
-                  </div>
-                </li>
-                <li className="flex gap-3">
-                  <Gift className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
-                  <div>
-                    <div className="font-bold text-slate-900">Company referral</div>
-                    <p className="mt-1 text-sm text-slate-600">
-                      When companies you invite (link or supplier/customer invite) pay for
-                      SupplierAdvisor, you earn a share of their{' '}
-                      <strong className="text-slate-800">subscription</strong> —{' '}
-                      {referralRatesSummary()}.
-                    </p>
-                  </div>
-                </li>
-                <li className="flex gap-3">
-                  <Bot className="mt-0.5 h-5 w-5 shrink-0 text-violet-400" />
-                  <div>
-                    <div className="font-bold text-slate-900">SAM — in-app help</div>
-                    <p className="mt-1 text-sm text-slate-600">
-                      Supplier Advisor Messenger (Grok) answers how-to questions inside the
-                      dashboard so teams ramp without a training manual.
-                    </p>
-                  </div>
-                </li>
-              </ul>
-              <div className="mt-8 flex flex-wrap gap-3">
-                <Link
-                  href="/pricing#referral"
-                  className="inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-6 py-3 text-sm font-semibold text-white hover:bg-[#0099b8]"
-                >
-                  Full fees & scenarios <ArrowRight className="h-4 w-4" />
-                </Link>
-                <Link
-                  href="/pricing"
-                  className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-6 py-3 text-sm font-semibold text-slate-900 hover:border-slate-300"
-                >
-                  Pricing tiers
-                </Link>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="rounded-[2rem] border border-slate-200 bg-gradient-to-br from-emerald-50/80 via-white to-sky-50/50 p-5 sm:p-7">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Down the chain · what it could mean
-                </div>
-                <p className="mt-2 text-sm text-slate-600 leading-relaxed">
-                  If{' '}
-                  <strong className="text-slate-800">10, 50, or 200</strong> companies
-                  below you each pay {formatZar(COMPANY_SUBSCRIPTION_MONTHLY_ZAR)}/mo —
-                  at L1 (you invited), L2 (their invites), or L3 (one hop further).
-                </p>
-
-                <div className="mt-5 overflow-x-auto">
-                  <table className="w-full min-w-[20rem] text-left text-xs sm:text-sm">
-                    <thead>
-                      <tr className="border-b border-slate-200 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                        <th className="py-2 pr-2">Depth</th>
-                        {scaleScenarios.map((s) => (
-                          <th key={s.count} className="py-2 px-1 text-center">
-                            {s.count}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {([0, 1, 2] as const).map((li) => (
-                        <tr key={li}>
-                          <td className="py-2.5 pr-2 font-bold text-slate-800 whitespace-nowrap">
-                            L{li + 1} · {REFERRAL_LEVEL_RATES_PCT[li]}%
-                          </td>
-                          {scaleScenarios.map((s) => (
-                            <td
-                              key={`${s.count}-${li}`}
-                              className="py-2.5 px-1 text-center tabular-nums"
-                            >
-                              <div className="font-black text-emerald-700">
-                                {formatZar(s.levels[li].monthlyZar)}
-                              </div>
-                              <div className="text-[10px] text-slate-500">
-                                /mo · {formatZar(s.levels[li].annualZar)}/yr
-                              </div>
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
-                      <tr className="border-t-2 border-emerald-300 bg-emerald-50">
-                        <td className="py-3 pr-2 font-black text-emerald-950 whitespace-nowrap">
-                          Total after L3
-                        </td>
-                        {scaleScenarios.map((s) => (
-                          <td
-                            key={`tot-${s.count}`}
-                            className="py-3 px-1 text-center tabular-nums"
-                          >
-                            <div className="text-base font-black text-emerald-950">
-                              {formatZar(s.totalMonthlyZar)}
-                            </div>
-                            <div className="text-[10px] font-bold text-emerald-800">
-                              /mo · {formatZar(s.totalAnnualZar)}/yr
-                            </div>
-                          </td>
-                        ))}
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                <p className="mt-3 text-[11px] text-slate-500 leading-relaxed">
-                  <strong className="text-slate-700">Total</strong> = L1 + L2 + L3 if
-                  that many companies pay at <em>each</em> depth. Full detail on{' '}
-                  <Link href="/pricing#referral" className="font-semibold text-[#0077b6] hover:underline">
-                    pricing
-                  </Link>
-                  . Cap {REFERRAL_TOTAL_CAP_PCT}% per payment.
-                </p>
-              </div>
-
-              <div className="rounded-[2rem] border border-slate-200 bg-white p-5 sm:p-6">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  One payment · chain split
-                </div>
-                <p className="mt-1.5 text-sm text-slate-600">
-                  You → A → B → C. When C pays {formatZar(COMPANY_SUBSCRIPTION_MONTHLY_ZAR)}:
-                </p>
-                <div className="mt-3 space-y-2">
-                  {[
-                    { who: 'B (direct to C)', level: 'L1', pct: REFERRAL_LEVEL_RATES_PCT[0] },
-                    { who: 'A', level: 'L2', pct: REFERRAL_LEVEL_RATES_PCT[1] },
-                    { who: 'You', level: 'L3', pct: REFERRAL_LEVEL_RATES_PCT[2] },
-                  ].map((row) => (
-                    <div
-                      key={row.level}
-                      className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5 text-sm"
-                    >
-                      <span className="text-slate-700">
-                        {row.who} · {row.level} {row.pct}%
-                      </span>
-                      <span className="font-bold tabular-nums text-emerald-700">
-                        {formatZar(exampleFee(row.pct))}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+      {/* ═══════════ PRICING + REFERRAL (same site) ═══════════ */}
+      <HomePricing />
 
       {/* ═══════════ NETWORK ═══════════ */}
       <section id="network" className="border-t border-slate-200 bg-white py-20 sm:py-28">
@@ -1231,9 +1048,9 @@ export default function LandingPage() {
               {COMPANY_TRIAL_DAYS}-day free trial
             </span>
             <span>From R{COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo · Paystack</span>
-            <Link href="/pricing" className="text-slate-600 underline underline-offset-4 hover:text-slate-900">
+            <a href="#pricing" className="text-slate-600 underline underline-offset-4 hover:text-slate-900">
               Pricing
-            </Link>
+            </a>
           </div>
         </div>
       </section>
@@ -1262,9 +1079,9 @@ export default function LandingPage() {
                 <a href="#modules" className="block text-slate-600 hover:text-slate-900">
                   Modules
                 </a>
-                <Link href="/pricing" className="block text-slate-600 hover:text-slate-900">
+                <a href="#pricing" className="block text-slate-600 hover:text-slate-900">
                   Pricing
-                </Link>
+                </a>
                 <Link href="/login" className="block text-slate-600 hover:text-slate-900">
                   Log in
                 </Link>

@@ -64,7 +64,7 @@ Master flow: ${SYSTEM_OVERVIEW.masterFlow.map((n) => n.label).join(' → ')}
 - List: **R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/month** after **${COMPANY_TRIAL_DAYS}-day free trial**.
 - Prepaid terms: ${pricing}.
 - Billing UI: /dashboard/my-business/billing
-- Public pricing: /pricing
+- Public pricing & referral: /#pricing and /#referral (same homepage)
 - Sales contractor portal access is a separate fee (about R${SALES_SUBSCRIPTION_MONTHLY_ZAR}/mo term product) after agreement.
 
 ## Supply-chain referral (company-to-company, NOT sales-rep MLM)

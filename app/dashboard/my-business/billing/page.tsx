@@ -761,7 +761,7 @@ function BillingInner() {
               </li>
             </ol>
             <Link
-              href="/pricing"
+              href="/#pricing"
               className="mt-4 inline-flex text-sm font-semibold text-[#00b4d8] hover:underline"
             >
               View public pricing →

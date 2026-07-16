@@ -11,7 +11,8 @@ const LINKS = [
   { id: 'systems', label: 'Systems' },
   { id: 'modules', label: 'Modules' },
   { id: 'trust', label: 'Trust' },
-  { id: 'earn', label: 'Earn' },
+  { id: 'pricing', label: 'Pricing' },
+  { id: 'referral', label: 'Referral' },
   { id: 'network', label: 'Network' },
   { id: 'audiences', label: "Who it's for" },
 ] as const;
@@ -116,12 +117,6 @@ export default function LandingNav() {
           </nav>
 
           <div className="hidden items-center gap-2 md:flex">
-            <Link
-              href="/pricing"
-              className="rounded-full px-3 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 hover:text-[#0077b6]"
-            >
-              Pricing
-            </Link>
             <button
               type="button"
               onClick={goLogin}
@@ -177,13 +172,6 @@ export default function LandingNav() {
                   {l.label}
                 </button>
               ))}
-              <Link
-                href="/pricing"
-                onClick={() => setOpen(false)}
-                className="rounded-2xl px-4 py-3.5 text-left text-base font-semibold text-slate-800 touch-manipulation hover:bg-sky-50 hover:text-[#0077b6]"
-              >
-                Pricing
-              </Link>
               <div className="mt-1 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3">
                 <button
                   type="button"

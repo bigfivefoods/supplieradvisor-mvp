@@ -125,7 +125,7 @@ export function FoundingBanner({
             Claim a free slot <ArrowRight className="h-4 w-4" />
           </Link>
           <Link
-            href="/pricing"
+            href="/#pricing"
             className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-6 py-3 text-sm font-bold text-slate-800 hover:border-violet-300"
           >
             View pricing
