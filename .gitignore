@@ -59,3 +59,5 @@ e2e/.auth.json
 e2e/.auth.*.json
 CRON_SECRET.txt
 INVENTORY_PASSPORT_VERCEL.env
+contracts/lib/
+test-results/
