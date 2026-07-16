@@ -36,6 +36,10 @@ import {
   type DiscoverSupplier,
 } from '@/lib/suppliers/types';
 import {
+  SEED_CONTINENTS,
+  SEED_COUNTRIES,
+} from '@/lib/geo/world-seed';
+import {
   CompanyRequired,
   SuppliersHeader,
   SuppliersPage,
@@ -55,6 +59,11 @@ type Facets = {
   certifications: string[];
   beeLevels: string[];
   relationships: string[];
+  /** Countries that currently have discoverable companies */
+  countriesInNetwork?: string[];
+  continentsInNetwork?: string[];
+  /** Full seed lists keyed by continent name */
+  countriesByContinent?: Record<string, string[]>;
 };
 
 const CONTINENTS_FALLBACK = [
@@ -123,6 +132,9 @@ function DiscoverInner() {
   const [facets, setFacets] = useState<Facets | null>(null);
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState<number | null>(null);
+  /** Geo provinces for selected country (full cascade, not only network) */
+  const [geoProvinces, setGeoProvinces] = useState<string[]>([]);
+  const [geoLoading, setGeoLoading] = useState(false);
 
   const activeFilterCount = useMemo(() => {
     let n = 0;
@@ -267,6 +279,65 @@ function DiscoverInner() {
     return () => clearTimeout(t);
   }, [load]);
 
+  // When continent changes, drop country if it doesn't belong to that continent
+  useEffect(() => {
+    if (!continent || !country || !facets?.countriesByContinent) return;
+    const list = facets.countriesByContinent[continent] || [];
+    if (list.length && !list.some((c) => c.toLowerCase() === country.toLowerCase())) {
+      setCountry('');
+      setProvince('');
+      setCity('');
+    }
+  }, [continent, country, facets?.countriesByContinent]);
+
+  // Load provinces for selected country from geo reference (all African states etc.)
+  useEffect(() => {
+    if (!country) {
+      setGeoProvinces([]);
+      return;
+    }
+    let cancelled = false;
+    setGeoLoading(true);
+    (async () => {
+      try {
+        const boot = await fetch('/api/geo?resource=bootstrap', {
+          cache: 'force-cache',
+        });
+        const bootData = await boot.json().catch(() => ({}));
+        const countries: Array<{ id: number; name: string }> = Array.isArray(
+          bootData.countries
+        )
+          ? bootData.countries
+          : [];
+        const match = countries.find(
+          (c) =>
+            String(c.name || '').toLowerCase() === country.toLowerCase()
+        );
+        if (!match?.id) {
+          if (!cancelled) setGeoProvinces([]);
+          return;
+        }
+        const res = await fetch(
+          `/api/geo?resource=provinces&countryId=${match.id}`,
+          { cache: 'force-cache' }
+        );
+        const data = await res.json().catch(() => ({}));
+        const names = (Array.isArray(data.provinces) ? data.provinces : [])
+          .map((p: { name?: string }) => String(p.name || '').trim())
+          .filter(Boolean)
+          .sort((a: string, b: string) => a.localeCompare(b));
+        if (!cancelled) setGeoProvinces(names);
+      } catch {
+        if (!cancelled) setGeoProvinces([]);
+      } finally {
+        if (!cancelled) setGeoLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [country]);
+
   const clearAll = () => {
     setQ('');
     setCountry('');
@@ -363,7 +434,15 @@ function DiscoverInner() {
     }
   };
 
-  const continents = facets?.continents?.length ? facets.continents : CONTINENTS_FALLBACK;
+  /** Always prefer full seed continents so Africa is never missing */
+  const continents = useMemo(() => {
+    const seed = SEED_CONTINENTS.map((c) => c.name);
+    const fromApi = facets?.continents || [];
+    return Array.from(new Set([...seed, ...fromApi, ...CONTINENTS_FALLBACK])).sort(
+      (a, b) => a.localeCompare(b)
+    );
+  }, [facets?.continents]);
+
   const industries = facets?.industries?.length
     ? facets.industries
     : [...SUPPLIER_INDUSTRIES];
@@ -372,11 +451,61 @@ function DiscoverInner() {
     : [...SUPPLIER_CERTIFICATIONS];
   const beeLevels = facets?.beeLevels?.length ? facets.beeLevels : BEE_FALLBACK;
 
-  // Cascading province/city lists when country selected
+  const networkCountrySet = useMemo(() => {
+    // Prefer explicit network-only list so seed countries don't all show "on network"
+    const src = facets?.countriesInNetwork;
+    if (src?.length) {
+      return new Set(src.map((c) => c.toLowerCase()));
+    }
+    return new Set<string>();
+  }, [facets?.countriesInNetwork]);
+
+  const seedByContinent = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    for (const c of SEED_COUNTRIES) {
+      if (!map[c.continent]) map[c.continent] = [];
+      map[c.continent].push(c.name);
+    }
+    for (const k of Object.keys(map)) {
+      map[k] = map[k].sort((a, b) => a.localeCompare(b));
+    }
+    return map;
+  }, []);
+
+  /** Full country list: cascade by continent (all African countries when Africa) */
+  const countryOptions = useMemo(() => {
+    const byCont = {
+      ...seedByContinent,
+      ...(facets?.countriesByContinent || {}),
+    };
+    // Prefer seed lists for known continents so Africa is complete
+    if (continent) {
+      const seedList = seedByContinent[continent] || [];
+      const apiList = facets?.countriesByContinent?.[continent] || [];
+      const networkOnly = (facets?.countriesInNetwork || []).filter((c) => {
+        // keep network countries that might use alternate spellings
+        if (!seedList.length) return true;
+        return !seedList.some((s) => s.toLowerCase() === c.toLowerCase());
+      });
+      return Array.from(
+        new Set([...seedList, ...apiList, ...networkOnly])
+      ).sort((a, b) => a.localeCompare(b));
+    }
+    const all = new Set<string>();
+    for (const list of Object.values(byCont)) {
+      for (const c of list) all.add(c);
+    }
+    for (const c of facets?.countries || []) if (c) all.add(c);
+    for (const c of SEED_COUNTRIES) all.add(c.name);
+    return Array.from(all).sort((a, b) => a.localeCompare(b));
+  }, [continent, facets, seedByContinent]);
+
+  // Cascading province/city: geo seed first, merge network facet values
   const provinces = useMemo(() => {
-    const list = facets?.provinces || [];
-    return list;
-  }, [facets]);
+    const fromNetwork = facets?.provinces || [];
+    const set = new Set<string>([...geoProvinces, ...fromNetwork].filter(Boolean));
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [facets?.provinces, geoProvinces]);
   const cities = useMemo(() => facets?.cities || [], [facets]);
 
   return (
@@ -552,7 +681,12 @@ function DiscoverInner() {
               <select
                 className={selectCls}
                 value={continent}
-                onChange={(e) => setContinent(e.target.value)}
+                onChange={(e) => {
+                  setContinent(e.target.value);
+                  // Reset deeper location when continent changes
+                  setProvince('');
+                  setCity('');
+                }}
               >
                 <option value="">All continents</option>
                 {continents.map((c) => (
@@ -566,23 +700,51 @@ function DiscoverInner() {
               <select
                 className={selectCls}
                 value={country}
-                onChange={(e) => setCountry(e.target.value)}
+                onChange={(e) => {
+                  setCountry(e.target.value);
+                  setProvince('');
+                  setCity('');
+                }}
               >
-                <option value="">All countries</option>
-                {(facets?.countries || []).map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
+                <option value="">
+                  {continent
+                    ? `All countries in ${continent}`
+                    : 'All countries'}
+                </option>
+                {countryOptions.map((c) => {
+                  const inNetwork = networkCountrySet.has(c.toLowerCase());
+                  return (
+                    <option key={c} value={c}>
+                      {c}
+                      {inNetwork ? ' · on network' : ''}
+                    </option>
+                  );
+                })}
               </select>
+              <p className="mt-1 text-[10px] text-neutral-400 leading-snug">
+                Full world list
+                {continent === 'Africa'
+                  ? ' — all African countries'
+                  : continent
+                    ? ` — ${continent}`
+                    : ''}
+                . “On network” means at least one discoverable company today.
+              </p>
             </Field>
             <Field label="Province / state">
               <select
                 className={selectCls}
                 value={province}
                 onChange={(e) => setProvince(e.target.value)}
+                disabled={!country && provinces.length === 0}
               >
-                <option value="">All provinces</option>
+                <option value="">
+                  {geoLoading
+                    ? 'Loading provinces…'
+                    : country
+                      ? 'All provinces / states'
+                      : 'Select a country first'}
+                </option>
                 {provinces.map((c) => (
                   <option key={c} value={c}>
                     {c}
@@ -591,8 +753,16 @@ function DiscoverInner() {
               </select>
             </Field>
             <Field label="City">
-              <select className={selectCls} value={city} onChange={(e) => setCity(e.target.value)}>
-                <option value="">All cities</option>
+              <select
+                className={selectCls}
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+              >
+                <option value="">
+                  {cities.length
+                    ? 'All cities (on network)'
+                    : 'All cities — type in free search if needed'}
+                </option>
                 {cities.map((c) => (
                   <option key={c} value={c}>
                     {c}

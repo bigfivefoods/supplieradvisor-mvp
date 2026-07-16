@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import type { DiscoverSupplier } from '@/lib/suppliers/types';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import { SEED_COUNTRIES, SEED_CONTINENTS } from '@/lib/geo/world-seed';
 
 /**
  * Deep metadata marketplace search across platform profiles.
@@ -9,7 +10,37 @@ import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/li
  *   &continent=&province=&city=&bee=&sub_industry=&category=&relationship=
  *   &hasWallet=&role=supplier|buyer|both&connection=connected|pending|none
  *   &registeredOnly=&includeHidden=
+ *
+ * Location filters use case-insensitive match. Continent also matches via
+ * country→continent seed map when profile.continent is blank.
+ * Facets include full geo reference lists (not only countries already in pool).
  */
+
+/** country name (lower) → continent name */
+const COUNTRY_TO_CONTINENT = new Map(
+  SEED_COUNTRIES.map((c) => [c.name.trim().toLowerCase(), c.continent])
+);
+
+function norm(s: unknown): string {
+  return String(s || '')
+    .trim()
+    .toLowerCase();
+}
+
+function profileContinent(r: {
+  continent?: string | null;
+  country?: string | null;
+}): string {
+  const direct = String(r.continent || '').trim();
+  if (direct) return direct;
+  const fromCountry = COUNTRY_TO_CONTINENT.get(norm(r.country));
+  return fromCountry || '';
+}
+
+function eqLoose(a: unknown, b: string): boolean {
+  if (!b) return true;
+  return norm(a) === norm(b);
+}
 const DISCOVER_SELECT =
   `id, trading_name, legal_name, email, industry, sub_industry, category,
    city, province, country, continent, certifications, trust_score, otifef_average,
@@ -228,12 +259,18 @@ export async function GET(request: NextRequest) {
         return hay.includes(q);
       });
     }
-    if (country) rows = rows.filter((r) => r.country === country);
-    if (continent) rows = rows.filter((r) => r.continent === continent);
-    if (province) rows = rows.filter((r) => r.province === province);
+    if (country) {
+      rows = rows.filter((r) => eqLoose(r.country, country));
+    }
+    if (continent) {
+      const want = norm(continent);
+      rows = rows.filter((r) => norm(profileContinent(r)) === want);
+    }
+    if (province) {
+      rows = rows.filter((r) => eqLoose(r.province, province));
+    }
     if (city) {
-      const c = city.toLowerCase();
-      rows = rows.filter((r) => String(r.city || '').toLowerCase() === c);
+      rows = rows.filter((r) => eqLoose(r.city, city));
     }
     if (industry) rows = rows.filter((r) => r.industry === industry);
     if (subIndustry) rows = rows.filter((r) => r.sub_industry === subIndustry);
@@ -342,9 +379,28 @@ export async function GET(request: NextRequest) {
       };
     });
 
+    // Facets from live pool + full geo seed so dropdowns aren't limited to
+    // countries already present (e.g. only Kenya).
+    const poolCountries = uniqueSorted(facetPool.map((r) => r.country));
+    const poolContinents = uniqueSorted(
+      facetPool.map((r) => profileContinent(r) || r.continent)
+    );
+    const allGeoCountries = uniqueSorted(SEED_COUNTRIES.map((c) => c.name));
+    const allGeoContinents = uniqueSorted(SEED_CONTINENTS.map((c) => c.name));
+    const countriesByContinent: Record<string, string[]> = {};
+    for (const c of SEED_COUNTRIES) {
+      const cont = c.continent;
+      if (!countriesByContinent[cont]) countriesByContinent[cont] = [];
+      countriesByContinent[cont].push(c.name);
+    }
+    for (const k of Object.keys(countriesByContinent)) {
+      countriesByContinent[k] = uniqueSorted(countriesByContinent[k]);
+    }
+
     const facets = {
-      countries: uniqueSorted(facetPool.map((r) => r.country)),
-      continents: uniqueSorted(facetPool.map((r) => r.continent)),
+      // Prefer full geo lists so every African (and world) country is selectable
+      countries: uniqueSorted([...allGeoCountries, ...poolCountries]),
+      continents: uniqueSorted([...allGeoContinents, ...poolContinents]),
       provinces: uniqueSorted(facetPool.map((r) => r.province)),
       cities: uniqueSorted(facetPool.map((r) => r.city)),
       industries: uniqueSorted(facetPool.map((r) => r.industry)),
@@ -353,6 +409,10 @@ export async function GET(request: NextRequest) {
       certifications: uniqueSorted(facetPool.flatMap((r) => r.certifications || [])),
       beeLevels: uniqueSorted(facetPool.map((r) => r.bee_level)),
       relationships: uniqueSorted(facetPool.map((r) => r.relationship_type)),
+      /** Countries present in the discoverable pool (for badges / empty-state hints) */
+      countriesInNetwork: poolCountries,
+      continentsInNetwork: poolContinents,
+      countriesByContinent,
     };
 
     const connectedMatches = enriched.filter((r) => r.already_connected);
