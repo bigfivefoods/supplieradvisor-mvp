@@ -267,6 +267,10 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    void import('@/lib/onboarding/checklist').then(({ markOnboardingSteps }) =>
+      markOnboardingSteps(companyId, 'first_trade')
+    );
+
     return NextResponse.json({ success: true, purchaseOrder: data }, { status: 201 });
   } catch (e: unknown) {
     return NextResponse.json(

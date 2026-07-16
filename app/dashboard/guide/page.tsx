@@ -57,6 +57,27 @@ export default function SystemGuideHome() {
       </section>
 
       <section className="mb-10">
+        <Link
+          href="/dashboard/guide/golden-path"
+          className="block rounded-[2rem] border border-violet-200 bg-gradient-to-br from-violet-50 via-white to-sky-50 p-6 sm:p-7 shadow-sm hover:border-violet-300 hover:shadow-md transition group"
+        >
+          <div className="inline-flex items-center gap-2 rounded-full border border-violet-200 bg-white px-3 py-1 text-[10px] font-black uppercase tracking-widest text-violet-800 mb-3">
+            New companies
+          </div>
+          <h2 className="text-xl font-black text-slate-900 group-hover:text-[#0077b6] transition">
+            Get live in 3 days
+          </h2>
+          <p className="text-sm text-slate-600 mt-1.5 max-w-xl leading-relaxed">
+            Golden path training: profile → team → partners → first trade → rate
+            → billing. The dashboard checklist auto-ticks as you work.
+          </p>
+          <span className="inline-flex items-center gap-1.5 mt-4 text-sm font-bold text-violet-800">
+            Open walkthrough <ArrowRight className="w-4 h-4" />
+          </span>
+        </Link>
+      </section>
+
+      <section className="mb-10">
         <div className="flex items-center gap-2 mb-2">
           <Compass className="w-4 h-4 text-[#00b4d8]" />
           <h2 className="text-sm font-black uppercase tracking-[0.14em] text-neutral-400">

@@ -108,6 +108,19 @@ API: `GET/POST /api/business/onboarding` — `action: sync | dismiss | mark`.
 
 Rating a partner completes pending `rating_prompts` and marks `rate_partner`.
 
+**Live auto-marks (soft):**
+
+| Action | Step |
+|--------|------|
+| PATCH business profile | `profile` |
+| Team invite sent | `team` |
+| Invite business / connection accept | `invite_partners` |
+| Create quote / SO / invoice / PO | `first_trade` |
+| Open billing page | `billing` |
+| Publish peer rating | `rate_partner` |
+
+Guide: `/dashboard/guide/golden-path`
+
 ## 9. Production checklist (quick)
 
 1. Migrations applied (tables exist)

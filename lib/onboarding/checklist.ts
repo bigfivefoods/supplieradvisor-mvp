@@ -235,6 +235,57 @@ export function mergeOnboardingSteps(
 }
 
 /**
+ * Soft-mark one or more golden-path steps (never throws, never un-marks).
+ */
+export async function markOnboardingSteps(
+  companyId: number,
+  stepIds: OnboardingStepId | OnboardingStepId[]
+): Promise<void> {
+  const id = Number(companyId);
+  if (!Number.isFinite(id) || id <= 0) return;
+  const list = (Array.isArray(stepIds) ? stepIds : [stepIds]).filter((s) =>
+    ONBOARDING_STEPS.some((x) => x.id === s)
+  );
+  if (!list.length) return;
+
+  try {
+    const supabase = getSupabaseServer();
+    const now = new Date().toISOString();
+    const { data: existing } = await supabase
+      .from('company_onboarding_progress')
+      .select('steps')
+      .eq('profile_id', id)
+      .maybeSingle();
+
+    const steps: Record<string, boolean> = {
+      ...((existing?.steps || {}) as Record<string, boolean>),
+    };
+    let changed = false;
+    for (const s of list) {
+      if (!steps[s]) {
+        steps[s] = true;
+        changed = true;
+      }
+    }
+    if (!changed) return;
+
+    const pct = progressPercent(steps);
+    await supabase.from('company_onboarding_progress').upsert(
+      {
+        profile_id: id,
+        steps,
+        completed_at: pct >= 100 ? now : null,
+        updated_at: now,
+        created_at: now,
+      },
+      { onConflict: 'profile_id' }
+    );
+  } catch (e) {
+    console.warn('markOnboardingSteps soft-fail:', e);
+  }
+}
+
+/**
  * Soft-complete rate_partner + matching rating_prompts after a peer rating is published.
  */
 export async function afterPeerRatingPublished(opts: {
@@ -261,28 +312,7 @@ export async function afterPeerRatingPublished(opts: {
       .eq('counterparty_profile_id', ratee)
       .eq('status', 'pending');
 
-    // Mark golden path rate_partner
-    const { data: existing } = await supabase
-      .from('company_onboarding_progress')
-      .select('steps')
-      .eq('profile_id', companyId)
-      .maybeSingle();
-
-    const steps = {
-      ...((existing?.steps || {}) as Record<string, boolean>),
-      rate_partner: true,
-    };
-    const pct = progressPercent(steps);
-    await supabase.from('company_onboarding_progress').upsert(
-      {
-        profile_id: companyId,
-        steps,
-        completed_at: pct >= 100 ? now : null,
-        updated_at: now,
-        created_at: now,
-      },
-      { onConflict: 'profile_id' }
-    );
+    await markOnboardingSteps(companyId, 'rate_partner');
   } catch (e) {
     console.warn('afterPeerRatingPublished soft-fail:', e);
   }

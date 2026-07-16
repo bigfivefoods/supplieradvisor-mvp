@@ -75,6 +75,77 @@ export const SYSTEM_OVERVIEW = {
 
 export const GUIDE_SECTIONS: GuideSection[] = [
   {
+    slug: 'golden-path',
+    moduleId: 'my-business',
+    title: 'Get live in 3 days',
+    tagline: 'Golden path — profile → partners → trade → rate → billing',
+    purpose:
+      'New companies get a measurable activation path on the dashboard. Steps auto-complete when you do real work (save profile, invite partners, create a quote/PO, rate a peer, open billing).',
+    who: ['Owner', 'Admin', 'Anyone onboarding a new workspace'],
+    flow: [
+      { id: 'd1a', label: 'Profile', hint: 'Day 1', tone: 'cyan' },
+      { id: 'd1b', label: 'Team', hint: 'Day 1', tone: 'violet' },
+      { id: 'd2', label: 'Partners', hint: 'Day 2', tone: 'emerald' },
+      { id: 'd3a', label: 'Trade', hint: 'Day 3', tone: 'amber' },
+      { id: 'd3b', label: 'Rate', hint: 'Day 3', tone: 'rose' },
+      { id: 'd3c', label: 'Billing', hint: 'Day 3', tone: 'slate' },
+    ],
+    processes: [
+      {
+        name: 'Day 1 — Identity & team',
+        href: '/dashboard/my-business/profile',
+        summary: 'Make the company findable and staffed.',
+        steps: [
+          'Company → Profile — trading name, industry, contacts (completeness ≥ 60% auto-ticks)',
+          'Company → Team — invite at least one colleague',
+          'Return to Dashboard — golden path shows Auto badges when detected',
+        ],
+        tip: 'Dismiss hides the card; use Sync from activity to re-check progress.',
+      },
+      {
+        name: 'Day 2 — Trading partners',
+        href: '/dashboard/invite-business',
+        summary: 'Grow the verified network you actually trade with.',
+        steps: [
+          'Invite business / Invite supplier / Customers onboard',
+          'Or accept an incoming connection in Network',
+          'One accepted edge or book row ticks Invite partners',
+        ],
+      },
+      {
+        name: 'Day 3 — First trade, rate, billing',
+        href: '/dashboard/customers/quotes',
+        summary: 'Commerce + trust loop + plan clarity.',
+        steps: [
+          'Create a quote, sales order, invoice, or purchase order',
+          'After delivery/paid events, rate the partner (or open Ratings from the amber banner)',
+          'Company → Billing — review trial / prepaid (visit marks the step)',
+        ],
+        tip: 'Rating prompts appear on the dashboard after PO delivered, invoice paid, shipment delivered, or connection accept.',
+      },
+    ],
+    concepts: [
+      {
+        term: 'Golden path',
+        meaning: 'Six steps across three days that get a company operational without a manual.',
+      },
+      {
+        term: 'Auto vs Mark done',
+        meaning: 'Auto means the platform inferred the step from live data; Mark done is manual override.',
+      },
+      {
+        term: 'Trust loop',
+        meaning: 'Suppliers and customers rate each other after trade; OTIFEF is objective PO performance.',
+      },
+    ],
+    checklist: [
+      'Profile saved with trading name',
+      'At least one partner invited or connected',
+      'One quote or PO created',
+      'Billing page opened once',
+    ],
+  },
+  {
     slug: 'company',
     moduleId: 'my-business',
     title: 'Company',

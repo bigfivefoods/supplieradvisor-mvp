@@ -306,6 +306,10 @@ export async function POST(request: NextRequest) {
       metadata: { email: normalizedEmail, role },
     });
 
+    void import('@/lib/onboarding/checklist').then(({ markOnboardingSteps }) =>
+      markOnboardingSteps(companyId, 'team')
+    );
+
     return NextResponse.json({
       success: true,
       message: `Invitation sent to ${normalizedEmail}`,

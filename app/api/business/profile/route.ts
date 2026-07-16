@@ -367,6 +367,11 @@ export async function PATCH(request: NextRequest) {
       },
     });
 
+    // Golden path: profile step
+    void import('@/lib/onboarding/checklist').then(({ markOnboardingSteps }) =>
+      markOnboardingSteps(companyId, 'profile')
+    );
+
     return NextResponse.json({
       success: true,
       profile,

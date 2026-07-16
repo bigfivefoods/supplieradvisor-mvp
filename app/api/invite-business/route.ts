@@ -128,6 +128,13 @@ export async function POST(request: NextRequest) {
       }),
     });
 
+    // Golden path: first partner invite
+    if (inviterId && Number.isFinite(inviterId)) {
+      void import('@/lib/onboarding/checklist').then(({ markOnboardingSteps }) =>
+        markOnboardingSteps(inviterId, 'invite_partners')
+      );
+    }
+
     if (emailError) {
       console.error('Invite business email error:', emailError);
       return NextResponse.json({

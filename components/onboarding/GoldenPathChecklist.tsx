@@ -40,15 +40,11 @@ export default function GoldenPathChecklist() {
 
   const load = useCallback(async () => {
     if (!companyId) return;
+    let locallyDismissed = false;
     try {
-      // Local dismiss for this company (session UX)
       try {
-        const raw = localStorage.getItem(`${DISMISS_KEY}_${companyId}`);
-        if (raw === '1') {
-          setHidden(true);
-          setLoading(false);
-          return;
-        }
+        locallyDismissed =
+          localStorage.getItem(`${DISMISS_KEY}_${companyId}`) === '1';
       } catch {
         /* private mode */
       }
@@ -62,9 +58,11 @@ export default function GoldenPathChecklist() {
         setSteps(data.steps || []);
         setPct(Number(data.progressPercent) || 0);
         setWarning(data.warning || null);
-        if (data.completedAt && Number(data.progressPercent) >= 100) {
-          setHidden(true);
-        }
+        const done =
+          (data.completedAt && Number(data.progressPercent) >= 100) ||
+          Number(data.progressPercent) >= 100;
+        // Keep full card hidden if 100% or user dismissed; still load for resume strip
+        setHidden(Boolean(done || locallyDismissed));
       }
     } catch {
       /* optional */
@@ -152,7 +150,19 @@ export default function GoldenPathChecklist() {
     }
   };
 
-  if (!companyId || hidden || loading) {
+  const restore = () => {
+    if (!companyId) return;
+    try {
+      localStorage.removeItem(`${DISMISS_KEY}_${companyId}`);
+    } catch {
+      /* ignore */
+    }
+    setHidden(false);
+    setLoading(true);
+    void load();
+  };
+
+  if (!companyId || loading) {
     if (loading && companyId) {
       return (
         <div className="mb-4 flex items-center gap-2 text-sm text-slate-500">
@@ -163,7 +173,49 @@ export default function GoldenPathChecklist() {
     return null;
   }
 
-  if (!steps.length) return null;
+  // Dismissed but not finished — compact resume strip
+  if (hidden && steps.length && pct < 100) {
+    const next = steps.find((s) => !s.done);
+    return (
+      <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+        <p className="text-sm text-slate-600">
+          <span className="font-bold text-slate-900">Setup {pct}% complete.</span>{' '}
+          {next ? (
+            <>
+              Next: <span className="font-semibold">{next.title}</span>
+            </>
+          ) : (
+            'Almost done — sync to refresh.'
+          )}
+        </p>
+        <div className="flex flex-wrap gap-2 shrink-0">
+          {next && (
+            <Link
+              href={next.href}
+              className="text-xs font-bold rounded-full bg-[#00b4d8] text-white px-3 py-1.5 hover:bg-[#0077b6]"
+            >
+              {next.cta}
+            </Link>
+          )}
+          <button
+            type="button"
+            onClick={restore}
+            className="text-xs font-bold text-slate-600 hover:text-slate-900 underline underline-offset-2"
+          >
+            Show checklist
+          </button>
+          <Link
+            href="/dashboard/guide/golden-path"
+            className="text-xs font-bold text-sky-700 hover:underline"
+          >
+            Guide
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (hidden || !steps.length) return null;
 
   const byDay = [1, 2, 3].map((day) => ({
     day,
@@ -190,7 +242,13 @@ export default function GoldenPathChecklist() {
           </h2>
           <p className="text-sm text-slate-600 mt-0.5">
             Golden path: profile → partners → first trade → rate → billing.
-            Progress auto-detects when you complete real work.
+            Progress auto-detects when you complete real work.{' '}
+            <Link
+              href="/dashboard/guide/golden-path"
+              className="font-semibold text-sky-700 hover:underline"
+            >
+              Full walkthrough →
+            </Link>
           </p>
           <div className="mt-2 h-2 w-full max-w-xs rounded-full bg-slate-100 overflow-hidden">
             <div

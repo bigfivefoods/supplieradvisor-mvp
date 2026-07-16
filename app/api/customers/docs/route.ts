@@ -444,6 +444,11 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    void import('@/lib/onboarding/checklist').then(({ markOnboardingSteps }) =>
+      markOnboardingSteps(companyId, 'first_trade')
+    );
+
     return NextResponse.json({
       success: true,
       document: inserted.data,

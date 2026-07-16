@@ -146,7 +146,7 @@ function BillingInner() {
         privyUserId,
       }),
     }).catch(() => undefined);
-  }, [companyId, privyUserId]);
+  }, [companyId, privyUserId]); // once per company session on this page
 
   const runReferralAction = async (
     action: 'request_payout' | 'approve' | 'mark_paid' | 'void',
