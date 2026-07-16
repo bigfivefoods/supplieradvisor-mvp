@@ -235,7 +235,15 @@ export const SEED_COUNTRIES: SeedCountry[] = [
 ];
 
 /** Provinces / states for major markets (others can be added over time) */
-export const SEED_PROVINCES: SeedProvince[] = [
+
+function buildSeedProvinces(
+  entries: Array<SeedProvince | false | null | undefined>
+): SeedProvince[] {
+  return entries.filter((e): e is SeedProvince => Boolean(e && e.country && e.name));
+}
+
+export const SEED_PROVINCES: SeedProvince[] = buildSeedProvinces([
+
   // South Africa
   ...[
     'Eastern Cape',
@@ -449,4 +457,5 @@ export const SEED_PROVINCES: SeedProvince[] = [
     'Tanganyika', 'Haut-Lomami', 'Lualaba', 'Haut-Katanga',
   ].map((name) => ({ country: 'Democratic Republic of the Congo', name })),
 
-];
+]);
+
