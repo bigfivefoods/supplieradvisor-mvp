@@ -253,8 +253,41 @@ function TransfersInner() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ companyId, id, action, ...extra }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Action failed');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        // Structured QA hold — deep link to clear inspections
+        if (
+          res.status === 409 &&
+          (data as { code?: string }).code === 'QA_HOLD'
+        ) {
+          const lots = Array.isArray((data as { lots?: string[] }).lots)
+            ? ((data as { lots: string[] }).lots).join(', ')
+            : '';
+          const href =
+            (data as { resolve_href?: string }).resolve_href ||
+            '/dashboard/quality/inspections';
+          toast.error(
+            (data as { error?: string }).error ||
+              'QA hold blocks this shipment',
+            {
+              description: lots
+                ? `Held lot(s): ${lots}. Pass or release the inspection before shipping.`
+                : 'Open or failed inspections hold these lots.',
+              duration: 14000,
+              action: {
+                label: 'Open inspections',
+                onClick: () => {
+                  window.location.href = href;
+                },
+              },
+            }
+          );
+          return;
+        }
+        throw new Error(
+          (data as { error?: string }).error || 'Action failed'
+        );
+      }
       toast.success(
         action === 'ship'
           ? 'Shipped — stock left source, now in transit'

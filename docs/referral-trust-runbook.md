@@ -78,7 +78,18 @@ export PLAYWRIGHT_BASE_URL=https://www.supplieradvisor.com
 npm run test:e2e:session
 ```
 
-## 7. Production checklist (quick)
+## 7. Founding waitlist (ops)
+
+When founding free slots are full, homepage form POSTs to `/api/public/founding-waitlist`.
+
+| Surface | Path |
+|---------|------|
+| Ops UI | `/dashboard/my-business/founding-waitlist` |
+| Ops API | `GET/POST /api/business/founding-waitlist` (same auth as referral ops) |
+
+Statuses: `waiting` → `contacted` → `invited` → `converted` | `declined`.
+
+## 8. Production checklist (quick)
 
 1. Migrations applied (tables exist)
 2. Resend + XAI keys live on Vercel
@@ -86,3 +97,5 @@ npm run test:e2e:session
 4. Cron scheduled with `CRON_SECRET`
 5. One PO complete → pending row in `rating_prompts`
 6. One SAM question → row in `sam_conversations` + visible in history panel
+7. QA ship-hold demo (`docs/qa-ship-hold-demo.md`)
+8. Founding waitlist ops page reachable for root admins

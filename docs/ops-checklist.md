@@ -69,6 +69,16 @@ Trigger once each (email + WhatsApp if configured):
 4. Fund escrow on a PO
 5. Export quality regulatory pack
 6. Fail a bank sync (or wait for real error)
+7. QA ship-hold demo — see `docs/qa-ship-hold-demo.md` (expect 409 `QA_HOLD`)
+8. Founding waitlist ops — `/dashboard/my-business/founding-waitlist` (platform ops)
+
+```sql
+-- Waitlist peek when table exists
+SELECT id, email, company_name, status, created_at
+FROM public.founding_waitlist
+ORDER BY created_at DESC
+LIMIT 50;
+```
 
 ## 6. E2E
 

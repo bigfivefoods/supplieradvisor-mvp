@@ -168,6 +168,17 @@ export default function ReferralOpsPage() {
         />
 
         <div className="max-w-3xl space-y-6">
+          <div className="rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3 text-sm text-sky-950 flex flex-wrap items-center justify-between gap-2">
+            <span>
+              Also manage the free founding cohort waitlist when slots fill.
+            </span>
+            <a
+              href="/dashboard/my-business/founding-waitlist"
+              className="font-bold text-sky-800 underline underline-offset-2 shrink-0"
+            >
+              Founding waitlist →
+            </a>
+          </div>
           <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
             <Shield className="w-4 h-4 inline mr-1.5" />
             Companies cannot mark themselves paid. Only platform ops settle

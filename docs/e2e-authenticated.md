@@ -30,6 +30,22 @@ npm run test:e2e:session
 
 Tests assert valid Bearer → not 401 (200/403/500 ok depending on membership).
 
+### Trust loop + QA hold
+
+```bash
+export E2E_ACCESS_TOKEN="eyJ..."
+export E2E_COMPANY_ID="123"
+# Optional for full PO → rating_prompts chain:
+export E2E_SUPPLIER_PROFILE_ID="456"   # other on-platform company
+# Optional for ship-block 409 assertion:
+export E2E_TRANSFER_ID="789"          # draft transfer with held lot
+
+npx playwright test e2e/po-rating-prompt.spec.ts e2e/qa-ship-hold.spec.ts
+```
+
+- `po-rating-prompt` always exercises `POST/GET rating-prompts`; completes a PO when supplier id is set.
+- `qa-ship-hold` creates an open inspection; with `E2E_TRANSFER_ID` asserts `code: QA_HOLD`.
+
 ## Full UI login (storageState)
 
 Privy email OTP is hard to automate. Prefer a one-time browser seed:

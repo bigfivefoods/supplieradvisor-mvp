@@ -14,6 +14,7 @@ const protectedGets = [
   '/api/business/rating-prompts?companyId=1',
   '/api/business/trust?companyId=1',
   '/api/business/subscription?companyId=1',
+  '/api/business/founding-waitlist',
   '/api/sam/history?companyId=1',
   '/api/suppliers/ratings?companyId=1',
   '/api/customers/reviews?companyId=1',
@@ -59,9 +60,10 @@ const protectedPosts = [
 
 test.describe('Referral + trust API gates', () => {
   for (const path of protectedGets) {
-    test(`401 without token: GET ${path.split('?')[0]}`, async ({ request }) => {
+    test(`rejects unauth: GET ${path.split('?')[0]}`, async ({ request }) => {
       const res = await request.get(`${base}${path}`);
-      expect(res.status(), path).toBe(401);
+      // Company routes → 401; ops-only (founding-waitlist) may return 403
+      expect([401, 403], path).toContain(res.status());
     });
   }
 

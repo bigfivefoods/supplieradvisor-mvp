@@ -161,6 +161,27 @@ export default function QualityInspectionsPage() {
         }
       />
 
+      {/* Demo callout — ship blocks while open/failed */}
+      <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50/90 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div className="flex items-start gap-2 text-sm text-amber-950">
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+          <p>
+            <strong>Ship block demo:</strong> create an inspection with status{' '}
+            <code className="text-[11px] bg-white/80 px-1 rounded">open</code> or{' '}
+            <code className="text-[11px] bg-white/80 px-1 rounded">failed</code>{' '}
+            on a lot, then try Inventory → Transfers → Ship with that lot. Expect{' '}
+            <code className="text-[11px] bg-white/80 px-1 rounded">QA_HOLD</code>{' '}
+            (HTTP 409) until you pass/release.
+          </p>
+        </div>
+        <Link
+          href="/dashboard/inventory/stock-transfers"
+          className="shrink-0 text-xs font-bold text-amber-900 underline underline-offset-2"
+        >
+          Open transfers →
+        </Link>
+      </div>
+
       {/* Guided food-safety path */}
       <div className="mb-6 rounded-3xl border border-cyan-100 bg-gradient-to-br from-white via-sky-50/80 to-cyan-50 p-4 sm:p-5">
         <p className="text-[10px] font-black uppercase tracking-[0.14em] text-neutral-400 mb-2">

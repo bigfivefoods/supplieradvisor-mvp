@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { FileText, Download, Heart, ArrowRight } from 'lucide-react';
+import { FileText, Heart, ArrowRight } from 'lucide-react';
 import {
   CompanyRequired,
   ContainersHeader,
@@ -64,12 +64,9 @@ export default function ContainersReports() {
                       Open <ArrowRight className="w-3.5 h-3.5" />
                     </span>
                   ) : (
-                    <button
-                      type="button"
-                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-500 hover:text-[#0077b6] cursor-pointer"
-                    >
-                      <Download className="w-3.5 h-3.5" /> Export
-                    </button>
+                    <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-50 border border-slate-100 px-2 py-1 rounded-full">
+                      Coming soon
+                    </span>
                   )}
                 </div>
                 <h3 className="font-bold text-slate-800 mb-1 group-hover:text-[#0077b6]">

@@ -185,6 +185,22 @@ function HubInner() {
       metric: s?.openRiads ?? '—',
       metricLabel: 'open',
     },
+    {
+      href: '/dashboard/my-business/trust',
+      icon: CheckCircle2,
+      code: '09',
+      title: 'Trust',
+      desc: 'OTIFEF, peer stars, and how the trust score is built.',
+      accent: 'from-emerald-50 to-white border-emerald-100',
+    },
+    {
+      href: '/dashboard/my-business/founding-waitlist',
+      icon: UserPlus,
+      code: '10',
+      title: 'Founding waitlist',
+      desc: 'Platform ops: manage homepage waitlist when founding slots are full.',
+      accent: 'from-violet-50 to-white border-violet-100',
+    },
   ];
 
   return (
