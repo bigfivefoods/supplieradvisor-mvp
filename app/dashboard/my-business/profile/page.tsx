@@ -2071,19 +2071,21 @@ function ProfileInner() {
                       <p className="text-slate-700">{bankVerifyResult.message}</p>
                     ) : null}
                     <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
-                      {[
-                        ['Summary', bankVerifyResult?.verification?.summary],
-                        ['Account found', bankVerifyResult?.verification?.accountFound],
-                        ['Account open', bankVerifyResult?.verification?.accountOpen],
-                        ['Identity match', bankVerifyResult?.verification?.identityMatch],
-                        ['Type match', bankVerifyResult?.verification?.accountTypeMatch],
-                        ['Accepts credits', bankVerifyResult?.verification?.acceptsCredits],
-                        ['Accepts debits', bankVerifyResult?.verification?.acceptsDebits],
-                        ['Request ID', bankVerifyResult?.verification?.requestId],
-                      ]
+                      {(
+                        [
+                          ['Summary', bankVerifyResult?.verification?.summary],
+                          ['Account found', bankVerifyResult?.verification?.accountFound],
+                          ['Account open', bankVerifyResult?.verification?.accountOpen],
+                          ['Identity match', bankVerifyResult?.verification?.identityMatch],
+                          ['Type match', bankVerifyResult?.verification?.accountTypeMatch],
+                          ['Accepts credits', bankVerifyResult?.verification?.acceptsCredits],
+                          ['Accepts debits', bankVerifyResult?.verification?.acceptsDebits],
+                          ['Request ID', bankVerifyResult?.verification?.requestId],
+                        ] as Array<[string, unknown]>
+                      )
                         .filter(([, v]) => v != null && v !== '')
                         .map(([label, value]) => (
-                          <div key={String(label)} className="contents">
+                          <div key={label} className="contents">
                             <dt className="text-neutral-500">{label}</dt>
                             <dd className="font-semibold text-slate-800">{String(value)}</dd>
                           </div>
