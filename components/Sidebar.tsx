@@ -4,13 +4,11 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { toast } from 'sonner';
 import {
   ChevronDown,
   ArrowLeftRight,
   PanelLeftClose,
   PanelLeftOpen,
-  Sparkles,
 } from 'lucide-react';
 import { useCompanyRole } from '@/lib/business/useCompanyRole';
 import { SIDEBAR_MODULE_RESOURCE } from '@/lib/business/permissions';
@@ -150,18 +148,6 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
           >
             <ArrowLeftRight className="w-4 h-4" />
           </Link>
-          <button
-            type="button"
-            title="Ask Grok"
-            className="w-11 h-11 flex items-center justify-center rounded-2xl bg-[#00b4d8] text-white hover:bg-[#0096c7]"
-            onClick={() =>
-              toast.message('Grok AI Assistant', {
-                description: 'Context-aware help across modules.',
-              })
-            }
-          >
-            <Sparkles className="w-4 h-4" />
-          </button>
         </div>
       </div>
     );
@@ -271,19 +257,6 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
 
       <div className="p-3 border-t border-neutral-100 space-y-2">
         <SystemHealthBadge />
-        <button
-          type="button"
-          className="w-full bg-[#00b4d8] text-white py-2.5 rounded-2xl flex items-center justify-center gap-2 font-medium hover:bg-[#0096c7] transition-colors shadow-sm cursor-pointer text-sm"
-          title="AI assistant"
-          onClick={() =>
-            toast.message('Grok AI Assistant', {
-              description: 'Context-aware help across modules.',
-            })
-          }
-        >
-          <Sparkles className="w-4 h-4" />
-          Ask Grok
-        </button>
         <p className="text-[10px] text-center text-neutral-400 font-medium">
           Critical processes only
         </p>
