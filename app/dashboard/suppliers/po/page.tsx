@@ -1412,9 +1412,18 @@ function PoInner() {
                             type="button"
                             onClick={() => addCatalogueLine(l)}
                             className="text-[11px] font-semibold px-2.5 py-1 rounded-full border border-emerald-300/50 bg-white text-slate-700 hover:bg-emerald-50"
-                            title="Add line at agreed list price"
+                            title={
+                              l.public_id
+                                ? `Add line · passport /p/${l.public_id}`
+                                : 'Add line at agreed list price'
+                            }
                           >
                             {l.product_name}
+                            {l.public_id ? (
+                              <span className="text-emerald-700 ml-0.5" title="Has product passport">
+                                ◆
+                              </span>
+                            ) : null}
                             <span className="text-neutral-400 font-normal ml-1">
                               @ {Number(l.unit_price).toFixed(2)}{' '}
                               {l.currency || poCurrency}
@@ -1444,9 +1453,18 @@ function PoInner() {
                               type="button"
                               onClick={() => addCatalogueLine(l)}
                               className="text-[11px] font-semibold px-2.5 py-1 rounded-full border border-[#00b4d8]/30 bg-white text-slate-700 hover:bg-[#00b4d8]/10"
-                              title={`${productTypeLabel(l.product_type)} · add from supplier inventory`}
+                              title={
+                                l.public_id
+                                  ? `${productTypeLabel(l.product_type)} · passport /p/${l.public_id}`
+                                  : `${productTypeLabel(l.product_type)} · add from supplier inventory`
+                              }
                             >
                               {l.product_name}
+                              {l.public_id ? (
+                                <span className="text-emerald-700 ml-0.5" title="Has product passport">
+                                  ◆
+                                </span>
+                              ) : null}
                               {l.sku ? (
                                 <span className="text-neutral-400 font-normal ml-1">
                                   {l.sku}
