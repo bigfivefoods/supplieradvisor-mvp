@@ -171,7 +171,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    if (type === 'network' || type === 'outlets') {
+    if (type === 'network' || type === 'outlets' || type === 'regional') {
       const { data, error } = await supabase
         .from('containers')
         .select(
@@ -183,6 +183,69 @@ export async function GET(request: NextRequest) {
 
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      if (type === 'regional') {
+        // Roll up outlet counts by province/country
+        type Reg = {
+          country: string;
+          province: string;
+          outlets: number;
+          active: number;
+          staffed: number;
+        };
+        const reg = new Map<string, Reg>();
+        for (const c of data || []) {
+          const country = String(c.country || 'Unknown');
+          const province = String(c.province || c.city || 'Unknown');
+          const k = `${country}|${province}`;
+          const row = reg.get(k) || {
+            country,
+            province,
+            outlets: 0,
+            active: 0,
+            staffed: 0,
+          };
+          row.outlets += 1;
+          if (
+            !c.status ||
+            ['active', 'deployed', 'operational', 'open'].includes(
+              String(c.status).toLowerCase()
+            )
+          ) {
+            row.active += 1;
+          }
+          if (c.contractor_id || c.assigned_contractor) row.staffed += 1;
+          reg.set(k, row);
+        }
+        const header = [
+          'country',
+          'province',
+          'outlets',
+          'active',
+          'staffed',
+          'staffed_pct',
+        ];
+        const rows = [...reg.values()]
+          .sort((a, b) => b.outlets - a.outlets)
+          .map((r) =>
+            [
+              r.country,
+              r.province,
+              r.outlets,
+              r.active,
+              r.staffed,
+              r.outlets
+                ? Math.round((r.staffed / r.outlets) * 1000) / 10
+                : 0,
+            ]
+              .map(csvCell)
+              .join(',')
+          );
+        return csvResponse(
+          [header.join(','), ...rows].join('\n'),
+          `containers-regional-${stamp}.csv`
+        );
       }
 
       const header = [

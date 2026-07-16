@@ -94,6 +94,35 @@ export function progressPercent(steps: Record<string, boolean>): number {
   return Math.round((done / total) * 100);
 }
 
+/** Count of trading partners (max of connections vs supplier+customer book). */
+export async function getPartnerCount(companyId: number): Promise<number> {
+  if (!Number.isFinite(companyId) || companyId <= 0) return 0;
+  try {
+    const supabase = getSupabaseServer();
+    const [connRes, sInv, cInv] = await Promise.all([
+      supabase
+        .from('business_connections')
+        .select('id', { count: 'exact', head: true })
+        .or(
+          `requester_profile_id.eq.${companyId},requestee_profile_id.eq.${companyId}`
+        ),
+      supabase
+        .from('suppliers')
+        .select('id', { count: 'exact', head: true })
+        .eq('profile_id', companyId),
+      supabase
+        .from('customers')
+        .select('id', { count: 'exact', head: true })
+        .eq('profile_id', companyId),
+    ]);
+    const connCount = connRes.error ? 0 : connRes.count ?? 0;
+    const bookCount = (sInv.count || 0) + (cInv.count || 0);
+    return Math.max(connCount, bookCount);
+  } catch {
+    return 0;
+  }
+}
+
 /**
  * Infer which golden-path steps are already true from live data.
  * Soft-fail each query — never throws for missing tables.
@@ -211,6 +240,7 @@ export async function inferOnboardingSteps(
     const partnerCount = Math.max(connCount, bookCount);
     empty.invite_first_partner = partnerCount >= 1;
     empty.invite_partners = partnerCount >= INVITE_PARTNERS_GOAL;
+    // partnerCount available via getPartnerCount() for UI meters
 
     const tradeCount =
       (poBuyerRes.error ? 0 : poBuyerRes.count || 0) +

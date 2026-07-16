@@ -24,6 +24,8 @@ type Step = {
   cta: string;
   done: boolean;
   inferred?: boolean;
+  partnerCount?: number;
+  partnerGoal?: number;
 };
 
 const DISMISS_KEY = 'sa_golden_path_dismissed';
@@ -223,31 +225,31 @@ export default function GoldenPathChecklist() {
   }));
 
   return (
-    <div className="mb-6 rounded-3xl border border-sky-100 bg-gradient-to-br from-sky-50 via-white to-white p-5 sm:p-6 shadow-sm relative">
+    <div className="mb-4 sm:mb-6 rounded-2xl sm:rounded-3xl border border-sky-100 bg-gradient-to-br from-sky-50 via-white to-white p-4 sm:p-6 shadow-sm relative">
       <button
         type="button"
         onClick={() => void dismiss()}
-        className="absolute right-3 top-3 p-1.5 rounded-lg text-slate-400 hover:bg-slate-100"
+        className="absolute right-2 top-2 sm:right-3 sm:top-3 p-2 rounded-lg text-slate-400 hover:bg-slate-100 touch-manipulation"
         aria-label="Dismiss"
       >
         <X className="w-4 h-4" />
       </button>
-      <div className="flex items-start gap-3 mb-4 pr-8">
-        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#00b4d8]/10 text-[#00b4d8]">
-          <Rocket className="w-5 h-5" />
+      <div className="flex items-start gap-2.5 sm:gap-3 mb-4 pr-8">
+        <div className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-2xl bg-[#00b4d8]/10 text-[#00b4d8]">
+          <Rocket className="w-4 h-4 sm:w-5 sm:h-5" />
         </div>
         <div className="min-w-0 flex-1">
-          <h2 className="text-lg font-black text-slate-900">
+          <h2 className="text-base sm:text-lg font-black text-slate-900">
             Get live in 3 days
           </h2>
-          <p className="text-sm text-slate-600 mt-0.5">
-            Golden path: profile → partners → first trade → rate → billing.
-            Progress auto-detects when you complete real work.{' '}
+          <p className="text-xs sm:text-sm text-slate-600 mt-0.5 leading-relaxed">
+            Profile → partners → trade → rate → billing. Auto-detects real
+            work.{' '}
             <Link
               href="/dashboard/guide/golden-path"
               className="font-semibold text-sky-700 hover:underline"
             >
-              Full walkthrough →
+              Walkthrough →
             </Link>
           </p>
           <div className="mt-2 h-2 w-full max-w-xs rounded-full bg-slate-100 overflow-hidden">
@@ -315,12 +317,47 @@ export default function GoldenPathChecklist() {
                           <p className="text-xs text-slate-500 leading-relaxed">
                             {s.body}
                           </p>
+                          {s.id === 'invite_partners' &&
+                            !s.done &&
+                            typeof s.partnerCount === 'number' &&
+                            typeof s.partnerGoal === 'number' && (
+                              <div className="mt-2 max-w-xs">
+                                <div className="flex justify-between text-[10px] font-bold text-slate-500 mb-0.5">
+                                  <span>
+                                    {Math.min(s.partnerCount, s.partnerGoal)} of{' '}
+                                    {s.partnerGoal} partners
+                                  </span>
+                                  <span>
+                                    {Math.min(
+                                      100,
+                                      Math.round(
+                                        (s.partnerCount / s.partnerGoal) * 100
+                                      )
+                                    )}
+                                    %
+                                  </span>
+                                </div>
+                                <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                                  <div
+                                    className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-[#00b4d8] transition-all"
+                                    style={{
+                                      width: `${Math.min(
+                                        100,
+                                        Math.round(
+                                          (s.partnerCount / s.partnerGoal) * 100
+                                        )
+                                      )}%`,
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                            )}
                         </div>
                       </div>
-                      <div className="flex gap-2 sm:shrink-0 pl-7 sm:pl-0">
+                      <div className="flex flex-wrap gap-2 sm:shrink-0 pl-7 sm:pl-0">
                         <Link
                           href={s.href}
-                          className="text-xs font-bold text-[#0077b6] hover:underline"
+                          className="text-xs font-bold text-[#0077b6] hover:underline py-1 touch-manipulation"
                         >
                           {s.cta}
                         </Link>
@@ -328,7 +365,7 @@ export default function GoldenPathChecklist() {
                           <button
                             type="button"
                             onClick={() => void markDone(s.id)}
-                            className="text-xs font-bold text-slate-500 hover:text-slate-800"
+                            className="text-xs font-bold text-slate-500 hover:text-slate-800 py-1 touch-manipulation"
                           >
                             Mark done
                           </button>

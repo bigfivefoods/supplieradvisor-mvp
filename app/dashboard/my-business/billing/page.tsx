@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   Loader2,
@@ -112,6 +112,8 @@ function BillingInner() {
   const [referralBusy, setReferralBusy] = useState(false);
   const [paidRefInput, setPaidRefInput] = useState('');
   const [kycBusy, setKycBusy] = useState(false);
+  const [kycHighlight, setKycHighlight] = useState(false);
+  const kycSectionRef = useRef<HTMLDivElement>(null);
   const [kycForm, setKycForm] = useState({
     bankName: '',
     accountName: '',
@@ -238,7 +240,27 @@ function BillingInner() {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Action failed');
+      if (!res.ok) {
+        if (
+          action === 'request_payout' &&
+          (data.code === 'KYC_REQUIRED' ||
+            /KYC|bank details/i.test(String(data.error || '')))
+        ) {
+          setKycHighlight(true);
+          kycSectionRef.current?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center',
+          });
+          toast.error(data.error || 'Complete payout KYC first', {
+            description: Array.isArray(data.missing)
+              ? `Missing: ${data.missing.map((m: string) => String(m).replace(/_/g, ' ')).join(', ')}`
+              : 'Save bank details in the form below, then try again.',
+            duration: 10000,
+          });
+          return;
+        }
+        throw new Error(data.error || 'Action failed');
+      }
       if (data.summary) {
         setReferral((prev) => ({
           ...(prev || {}),
@@ -247,6 +269,9 @@ function BillingInner() {
           invitePath: prev?.invitePath,
           ratesSummary: data.summary.ratesSummary || prev?.ratesSummary,
           suggestedCopy: data.summary.suggestedCopy || prev?.suggestedCopy,
+          holdDays: prev?.holdDays,
+          kycThresholdZar: prev?.kycThresholdZar,
+          payoutKyc: prev?.payoutKyc,
         }));
       } else {
         void load();
@@ -714,7 +739,15 @@ function BillingInner() {
             </div>
 
             {/* KYC form + checklist */}
-            <div className="mt-3 rounded-xl border border-violet-100 bg-violet-50/50 px-3 py-3 space-y-2">
+            <div
+              ref={kycSectionRef}
+              id="payout-kyc"
+              className={`mt-3 rounded-xl border px-3 py-3 space-y-2 transition-shadow ${
+                kycHighlight
+                  ? 'border-amber-400 bg-amber-50 ring-2 ring-amber-300/60 shadow-md'
+                  : 'border-violet-100 bg-violet-50/50'
+              }`}
+            >
               <div className="flex items-center justify-between gap-2">
                 <div className="text-[10px] font-bold uppercase tracking-wider text-violet-800">
                   Payout KYC
@@ -815,13 +848,32 @@ function BillingInner() {
             </div>
 
             <div className="mt-3 flex flex-col gap-2">
+              {!referral?.payoutKyc?.complete &&
+                Number(referral?.availableToRequestZar || 0) > 0 && (
+                  <p className="text-[11px] text-amber-900 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                    Complete <strong>Payout KYC</strong> above before requesting{' '}
+                    {formatZar(Number(referral?.availableToRequestZar || 0))}.
+                  </p>
+                )}
               <button
                 type="button"
                 disabled={
                   referralBusy ||
                   Number(referral?.availableToRequestZar || 0) <= 0
                 }
-                onClick={() => void runReferralAction('request_payout')}
+                onClick={() => {
+                  if (
+                    !referral?.payoutKyc?.complete &&
+                    Number(referral?.availableToRequestZar || 0) > 0
+                  ) {
+                    setKycHighlight(true);
+                    kycSectionRef.current?.scrollIntoView({
+                      behavior: 'smooth',
+                      block: 'center',
+                    });
+                  }
+                  void runReferralAction('request_payout');
+                }}
                 className="w-full rounded-xl bg-gradient-to-r from-[#00b4d8] to-[#0077b6] px-3 py-2.5 text-xs font-bold text-white disabled:opacity-40"
               >
                 {referralBusy ? (

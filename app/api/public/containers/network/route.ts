@@ -8,6 +8,7 @@ import {
   sumImpact,
   type ImpactSettings,
 } from '@/lib/containers/impact';
+import { clientIp, rateLimit } from '@/lib/security/rate-limit';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -18,6 +19,22 @@ export const revalidate = 0;
  */
 export async function GET(request: NextRequest) {
   try {
+    const ip = clientIp(request);
+    const rl = rateLimit({
+      key: `public-containers:${ip}`,
+      limit: 120,
+      windowMs: 60 * 1000,
+    });
+    if (!rl.ok) {
+      return NextResponse.json(
+        { error: 'Rate limit exceeded' },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(rl.retryAfterSec) },
+        }
+      );
+    }
+
     const token = String(request.nextUrl.searchParams.get('token') || '').trim();
     if (!token || token.length < 16) {
       return NextResponse.json({ error: 'Valid token required' }, { status: 400 });

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { FOUNDING_FREE_COMPANY_LIMIT } from '@/lib/billing/lifetime';
 import { getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
+import { clientIp, rateLimit } from '@/lib/security/rate-limit';
 
 /**
  * GET — remaining founding slots
@@ -35,6 +36,22 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = clientIp(request);
+    const rl = rateLimit({
+      key: `founding-waitlist:${ip}`,
+      limit: 8,
+      windowMs: 60 * 60 * 1000,
+    });
+    if (!rl.ok) {
+      return NextResponse.json(
+        { error: 'Too many waitlist attempts. Try again later.' },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(rl.retryAfterSec) },
+        }
+      );
+    }
+
     const body = await request.json();
     const email = String(body.email || '')
       .toLowerCase()

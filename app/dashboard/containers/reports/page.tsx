@@ -16,7 +16,12 @@ type ReportCard = {
   desc: string;
   href?: string;
   /** CSV export type for /api/containers/reports/export */
-  exportType?: 'inventory' | 'network' | 'contractors' | 'performance';
+  exportType?:
+    | 'inventory'
+    | 'network'
+    | 'contractors'
+    | 'performance'
+    | 'regional';
 };
 
 const REPORTS: ReportCard[] = [
@@ -61,12 +66,13 @@ const REPORTS: ReportCard[] = [
     exportType: 'contractors',
   },
   {
-    title: 'Contractor payouts',
-    desc: 'Commission calculations and payment history — use performance CSV commission column for now.',
+    title: 'Regional summary',
+    desc: 'CSV by country × province — outlet counts, active, staffed %.',
+    exportType: 'regional',
   },
   {
-    title: 'Regional summary',
-    desc: 'Performance breakdown by province/region — use network CSV + impact for now.',
+    title: 'Contractor payouts',
+    desc: 'Commission calculations and payment history — use performance CSV commission column for now.',
   },
 ];
 

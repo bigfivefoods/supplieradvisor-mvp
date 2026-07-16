@@ -9,6 +9,8 @@ import {
   progressPercent,
   inferOnboardingSteps,
   mergeOnboardingSteps,
+  getPartnerCount,
+  INVITE_PARTNERS_GOAL,
   type OnboardingStepId,
 } from '@/lib/onboarding/checklist';
 
@@ -54,6 +56,7 @@ export async function GET(request: NextRequest) {
 
     const steps = mergeOnboardingSteps(stored, inferred);
     const pct = progressPercent(steps);
+    const partnerCount = await getPartnerCount(companyId);
 
     // Soft-persist inference when table exists and something newly true
     if (!tableMissing) {
@@ -73,8 +76,16 @@ export async function GET(request: NextRequest) {
         done: Boolean(steps[s.id]),
         inferred: Boolean(inferred[s.id]),
         manual: Boolean(stored[s.id]),
+        ...(s.id === 'invite_partners'
+          ? {
+              partnerCount,
+              partnerGoal: INVITE_PARTNERS_GOAL,
+            }
+          : {}),
       })),
       progressPercent: pct,
+      partnerCount,
+      partnerGoal: INVITE_PARTNERS_GOAL,
       completedAt: completedAt || (pct >= 100 ? new Date().toISOString() : null),
       inferred: true,
       warning: tableMissing

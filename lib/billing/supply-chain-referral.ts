@@ -763,7 +763,14 @@ export async function requestReferralPayout(opts: {
   notes?: string | null;
 }): Promise<
   | { ok: true; payoutId: number; amountZar: number; count: number }
-  | { ok: false; error: string; status: number }
+  | {
+      ok: false;
+      error: string;
+      status: number;
+      code?: string;
+      missing?: string[];
+      amountZar?: number;
+    }
 > {
   const supabase = getSupabaseServer();
   const now = new Date().toISOString();
@@ -821,6 +828,9 @@ export async function requestReferralPayout(opts: {
       ok: false,
       error: `Payout KYC required before requesting R${amountZar.toFixed(0)}+. Add bank details on billing (missing: ${kyc.missing.join(', ') || 'details'}).`,
       status: 400,
+      code: 'KYC_REQUIRED',
+      missing: kyc.missing,
+      amountZar,
     };
   }
 

@@ -211,6 +211,8 @@ export default function RatingPromptBanner() {
     }
   };
 
+  const [showTrustNudge, setShowTrustNudge] = useState(false);
+
   const onRated = async () => {
     if (active && companyId) {
       // Mark prompt completed (also done server-side by afterPeerRatingPublished)
@@ -231,19 +233,50 @@ export default function RatingPromptBanner() {
       setPrompts((p) => p.filter((x) => x.id !== active.id));
     }
     setActive(null);
+    setShowTrustNudge(true);
     void load();
   };
 
-  if (!prompts.length && !active) return null;
+  if (!prompts.length && !active && !showTrustNudge) return null;
 
   return (
     <>
+      {showTrustNudge && (
+        <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-bold text-emerald-950">
+              Rating published — thank you
+            </div>
+            <p className="text-xs text-emerald-900/80 mt-0.5 leading-relaxed">
+              Peer stars feed trust for the network. OTIFEF (objective delivery)
+              still lives on supplier scorecards.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2 shrink-0">
+            <Link
+              href="/dashboard/my-business/trust"
+              className="rounded-full bg-emerald-800 px-4 py-2.5 text-xs font-bold text-white touch-manipulation"
+              onClick={() => setShowTrustNudge(false)}
+            >
+              View trust score
+            </Link>
+            <button
+              type="button"
+              className="rounded-full border border-emerald-300 bg-white px-3 py-2.5 text-xs font-bold text-emerald-950 touch-manipulation"
+              onClick={() => setShowTrustNudge(false)}
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
       {prompts.length > 0 && (
         <div className="mb-4 space-y-2">
           {prompts.map((p) => (
             <div
               key={p.id}
-              className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 relative"
+              className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 sm:px-4 py-3 relative"
             >
               <button
                 type="button"
@@ -285,7 +318,7 @@ export default function RatingPromptBanner() {
 
       {active && companyId && (
         <div
-          className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4"
+          className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 safe-area-pb"
           role="dialog"
           aria-modal="true"
           aria-label="Rate trading partner"
@@ -296,20 +329,20 @@ export default function RatingPromptBanner() {
             aria-label="Close"
             onClick={() => setActive(null)}
           />
-          <div className="relative w-full sm:max-w-lg max-h-[92dvh] overflow-y-auto rounded-t-3xl sm:rounded-3xl bg-white shadow-2xl border border-slate-200">
-            <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-slate-100 bg-white/95 px-4 py-3 backdrop-blur">
-              <div>
+          <div className="relative w-full sm:max-w-lg max-h-[min(92dvh,100%)] overflow-y-auto rounded-t-3xl sm:rounded-3xl bg-white shadow-2xl border border-slate-200 pb-[env(safe-area-inset-bottom)]">
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-slate-100 bg-white/95 px-3 sm:px-4 py-3 backdrop-blur">
+              <div className="min-w-0">
                 <div className="text-[10px] font-bold uppercase tracking-wider text-amber-700">
                   Trust loop
                 </div>
-                <div className="font-black text-slate-900 text-sm sm:text-base">
+                <div className="font-black text-slate-900 text-sm sm:text-base truncate">
                   Rate {active.counterparty_name || 'partner'}
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setActive(null)}
-                className="p-2 rounded-xl text-slate-500 hover:bg-slate-100"
+                className="p-2.5 rounded-xl text-slate-500 hover:bg-slate-100 touch-manipulation shrink-0"
                 aria-label="Close modal"
               >
                 <X className="w-5 h-5" />
@@ -328,7 +361,7 @@ export default function RatingPromptBanner() {
                 hideLegend
                 onSaved={() => void onRated()}
               />
-              <p className="text-center text-[11px] text-slate-400 mt-3 pb-2">
+              <p className="text-center text-[11px] text-slate-400 mt-3 pb-4 sm:pb-2">
                 Prefer the full form?{' '}
                 <Link
                   href={rateHref(active)}

@@ -73,6 +73,8 @@ Trigger once each (email + WhatsApp if configured):
 8. Founding waitlist ops — `/dashboard/my-business/founding-waitlist` (platform ops)
 9. Referral clawback drill — `docs/referral-clawback-drill.md`
 10. Container embed views — open public share URL; confirm view_count on Share settings
+11. Subscription reminders — `GET /api/business/subscription/cron` (trial 7d/1d, expiry 7d/1d)
+12. Migration `20260716_subscription_reminders.sql` for `subscription_reminder_meta`
 
 ```sql
 -- Waitlist peek when table exists

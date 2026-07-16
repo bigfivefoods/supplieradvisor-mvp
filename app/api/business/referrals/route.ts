@@ -136,7 +136,12 @@ export async function POST(request: NextRequest) {
       });
       if (!result.ok) {
         return NextResponse.json(
-          { error: result.error },
+          {
+            error: result.error,
+            code: (result as { code?: string }).code,
+            missing: (result as { missing?: string[] }).missing,
+            amountZar: (result as { amountZar?: number }).amountZar,
+          },
           { status: result.status }
         );
       }

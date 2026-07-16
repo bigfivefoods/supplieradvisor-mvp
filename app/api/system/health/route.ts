@@ -26,6 +26,20 @@ export async function GET() {
         : undefined,
   };
 
+  // Soft config observability (never fails health ok)
+  checks.resend = {
+    ok: Boolean(process.env.RESEND_API_KEY),
+    error: process.env.RESEND_API_KEY ? undefined : 'RESEND_API_KEY not set',
+  };
+  checks.xai = {
+    ok: Boolean(process.env.XAI_API_KEY),
+    error: process.env.XAI_API_KEY ? undefined : 'XAI_API_KEY not set (SAM)',
+  };
+  checks.cron_secret = {
+    ok: Boolean(process.env.CRON_SECRET),
+    error: process.env.CRON_SECRET ? undefined : 'CRON_SECRET not set',
+  };
+
   if (!checks.env.ok) {
     return NextResponse.json({
       ok: false,
