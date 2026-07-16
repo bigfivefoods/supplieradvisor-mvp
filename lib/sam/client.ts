@@ -9,8 +9,11 @@ import type { SamChatMessage } from './prompt';
 const XAI_BASE = process.env.XAI_BASE_URL || 'https://api.x.ai/v1';
 
 export function getXaiApiKey(): string | null {
-  const key = process.env.XAI_API_KEY || process.env.GROK_API_KEY || '';
-  return key.trim() || null;
+  // Use bracket access so Next.js does not bake an empty value in at build time
+  // when XAI_API_KEY was missing during a previous compile.
+  const env = process.env as Record<string, string | undefined>;
+  const key = (env['XAI_API_KEY'] || env['GROK_API_KEY'] || '').trim();
+  return key || null;
 }
 
 export async function samChatCompletion(opts: {
