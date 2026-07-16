@@ -84,6 +84,11 @@ type SupplierCatalogueItem = {
   currency: string;
   agreement_title?: string | null;
   primary_image_url?: string | null;
+  public_id?: string | null;
+  onchain_hash?: string | null;
+  onchain_status?: string | null;
+  onchain_tx_hash?: string | null;
+  onchain_chain?: string | null;
 };
 
 const PO_ESCROW_ADDRESS = getPoEscrowAddress() || CONTRACTS.POEscrowV2.address;
@@ -1666,7 +1671,26 @@ function PoInner() {
                             {linked?.agreement_title
                               ? ` · ${linked.agreement_title}`
                               : ''}
+                            {linked?.onchain_status ? (
+                              <span className="ml-1 capitalize text-emerald-700 font-semibold">
+                                · passport {linked.onchain_status}
+                              </span>
+                            ) : null}
                             {' · '}
+                            {linked?.public_id ? (
+                              <>
+                                <a
+                                  href={`/p/${linked.public_id}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-emerald-700 font-semibold underline-offset-2 hover:underline"
+                                  title="Open public product passport (hash / on-chain proof)"
+                                >
+                                  Passport
+                                </a>
+                                {' · '}
+                              </>
+                            ) : null}
                             <button
                               type="button"
                               className="text-[#00b4d8] font-semibold underline-offset-2 hover:underline"

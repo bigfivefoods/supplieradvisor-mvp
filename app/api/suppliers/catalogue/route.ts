@@ -36,6 +36,12 @@ export type SupplierCatalogueItem = {
   agreement_title?: string | null;
   primary_image_url?: string | null;
   short_description?: string | null;
+  /** Public inventory passport QR destination */
+  public_id?: string | null;
+  onchain_hash?: string | null;
+  onchain_status?: string | null;
+  onchain_tx_hash?: string | null;
+  onchain_chain?: string | null;
 };
 
 export async function GET(request: NextRequest) {
@@ -216,7 +222,7 @@ export async function GET(request: NextRequest) {
     const { data: products, error: prodErr } = await supabase
       .from('products')
       .select(
-        'id, name, sku, product_type, uom, status, is_sellable, sell_price, cost_price, base_currency, prices, primary_image_url, short_description, category'
+        'id, name, sku, product_type, uom, status, is_sellable, sell_price, cost_price, base_currency, prices, primary_image_url, short_description, category, public_id, onchain_hash, onchain_status, onchain_tx_hash, onchain_chain'
       )
       .eq('profile_id', sellerProfileId)
       .order('name');
@@ -252,6 +258,13 @@ export async function GET(request: NextRequest) {
           ? Number(priced.unit_price)
           : Number(priced.cost_price) || 0;
 
+      const prod = p as ProductRecord & {
+        public_id?: string | null;
+        onchain_hash?: string | null;
+        onchain_status?: string | null;
+        onchain_tx_hash?: string | null;
+        onchain_chain?: string | null;
+      };
       items.push({
         key: `inventory:${p.id}`,
         source: 'inventory',
@@ -267,8 +280,55 @@ export async function GET(request: NextRequest) {
         agreement_title: null,
         primary_image_url: p.primary_image_url || null,
         short_description: p.short_description || null,
+        public_id: prod.public_id ? String(prod.public_id) : null,
+        onchain_hash: prod.onchain_hash ? String(prod.onchain_hash) : null,
+        onchain_status: prod.onchain_status ? String(prod.onchain_status) : null,
+        onchain_tx_hash: prod.onchain_tx_hash
+          ? String(prod.onchain_tx_hash)
+          : null,
+        onchain_chain: prod.onchain_chain ? String(prod.onchain_chain) : null,
       });
       inventoryCount += 1;
+    }
+
+    // Enrich agreement lines with passport fields from product ids
+    const needPassport = [
+      ...new Set(
+        items
+          .filter((i) => i.seller_product_id && !i.public_id)
+          .map((i) => Number(i.seller_product_id))
+          .filter((n) => Number.isFinite(n) && n > 0)
+      ),
+    ];
+    if (needPassport.length) {
+      const { data: passports } = await supabase
+        .from('products')
+        .select(
+          'id, public_id, onchain_hash, onchain_status, onchain_tx_hash, onchain_chain, primary_image_url'
+        )
+        .in('id', needPassport);
+      const byId = new Map(
+        (passports || []).map((row) => [Number(row.id), row])
+      );
+      for (const item of items) {
+        if (!item.seller_product_id || item.public_id) continue;
+        const row = byId.get(Number(item.seller_product_id));
+        if (!row) continue;
+        item.public_id = row.public_id ? String(row.public_id) : null;
+        item.onchain_hash = row.onchain_hash ? String(row.onchain_hash) : null;
+        item.onchain_status = row.onchain_status
+          ? String(row.onchain_status)
+          : null;
+        item.onchain_tx_hash = row.onchain_tx_hash
+          ? String(row.onchain_tx_hash)
+          : null;
+        item.onchain_chain = row.onchain_chain
+          ? String(row.onchain_chain)
+          : null;
+        if (!item.primary_image_url && row.primary_image_url) {
+          item.primary_image_url = String(row.primary_image_url);
+        }
+      }
     }
 
     // Stable sort: agreements first, then by type/name
