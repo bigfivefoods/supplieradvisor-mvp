@@ -35,31 +35,39 @@ export function referralRatesSummary(): string {
   return `L1 ${REFERRAL_LEVEL_RATES_PCT[0]}% · L2 ${REFERRAL_LEVEL_RATES_PCT[1]}% · L3 ${REFERRAL_LEVEL_RATES_PCT[2]}% (max ${REFERRAL_TOTAL_CAP_PCT}% total)`;
 }
 
+/** Fetch one hop up the referral tree (avoids TS circular inference on the loop). */
+async function fetchReferredByParentId(
+  childProfileId: number
+): Promise<number | null> {
+  const supabase = getSupabaseServer();
+  const result = await supabase
+    .from('profiles')
+    .select('referred_by_profile_id')
+    .eq('id', childProfileId)
+    .maybeSingle();
+
+  if (result.error || !result.data) return null;
+
+  const row = result.data as { referred_by_profile_id?: number | string | null };
+  if (row.referred_by_profile_id == null || row.referred_by_profile_id === '') {
+    return null;
+  }
+  const parentNum = Number(row.referred_by_profile_id);
+  if (!Number.isFinite(parentNum) || parentNum <= 0) return null;
+  return parentNum;
+}
+
 /** Walk referred_by_profile_id up to 3 parents (closest = level 1). */
 export async function resolveReferralChain(
   sourceProfileId: number
 ): Promise<Array<{ level: 1 | 2 | 3; profileId: number }>> {
-  const supabase = getSupabaseServer();
   const chain: Array<{ level: 1 | 2 | 3; profileId: number }> = [];
   let currentId: number | null = sourceProfileId;
   const seen = new Set<number>([sourceProfileId]);
 
   for (let level = 1; level <= REFERRAL_MAX_LEVELS; level++) {
     if (currentId == null) break;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const res: { data: any; error: any } = await supabase
-      .from('profiles')
-      .select('id, referred_by_profile_id')
-      .eq('id', currentId)
-      .maybeSingle();
-
-    if (res.error || !res.data) break;
-    const rawParent: unknown = res.data.referred_by_profile_id;
-    const parentNum = Number(rawParent);
-    const parentId: number | null =
-      rawParent != null && Number.isFinite(parentNum) && parentNum > 0
-        ? parentNum
-        : null;
+    const parentId = await fetchReferredByParentId(currentId);
     if (parentId == null) break;
     if (seen.has(parentId)) break; // cycle guard
     seen.add(parentId);
