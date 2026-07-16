@@ -61,3 +61,4 @@ CRON_SECRET.txt
 INVENTORY_PASSPORT_VERCEL.env
 contracts/lib/
 test-results/
+WALLET_ADDRESS.txt
