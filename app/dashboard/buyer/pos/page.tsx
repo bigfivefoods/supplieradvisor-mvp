@@ -289,6 +289,80 @@ export default function BuyerPurchaseOrdersPage() {
     }
   }, [selectedSupplier?.supplierProfileId, selectedSupplier?.wallet_address]);
 
+  // Load supplier sellable catalogue + passport ids for picker
+  useEffect(() => {
+    if (!companyId || !selectedSupplierId || !privyUserId) {
+      setCatalogue([]);
+      setCatalogueWarning(null);
+      return;
+    }
+    let cancelled = false;
+    setCatalogueLoading(true);
+    setCatalogueWarning(null);
+    (async () => {
+      try {
+        const params = new URLSearchParams({
+          companyId: String(companyId),
+          sellerProfileId: String(selectedSupplierId),
+          privyUserId,
+        });
+        const res = await fetch(`/api/suppliers/catalogue?${params}`);
+        const data = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        if (!res.ok) {
+          setCatalogue([]);
+          setCatalogueWarning(
+            data.error || 'Catalogue unavailable — use free-text lines.'
+          );
+          return;
+        }
+        setCatalogue(Array.isArray(data.items) ? data.items : []);
+        setCatalogueWarning(
+          typeof data.warning === 'string' ? data.warning : null
+        );
+      } catch {
+        if (!cancelled) {
+          setCatalogue([]);
+          setCatalogueWarning('Could not load catalogue');
+        }
+      } finally {
+        if (!cancelled) setCatalogueLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId, selectedSupplierId, privyUserId]);
+
+  const addFromCatalogue = (item: {
+    product_name: string;
+    seller_product_id: number | null;
+    unit_price: number;
+    uom: string | null;
+    public_id?: string | null;
+  }) => {
+    setLineItems((prev) => {
+      const emptyIdx = prev.findIndex(
+        (l) => !l.item_name.trim() && l.product_id == null
+      );
+      const row: LineItem = {
+        product_id: item.seller_product_id,
+        item_name: item.product_name,
+        quantity: 1,
+        unit_price: Number(item.unit_price) || 0,
+        uom: item.uom,
+        public_id: item.public_id || null,
+      };
+      if (emptyIdx >= 0) {
+        const next = [...prev];
+        next[emptyIdx] = row;
+        return next;
+      }
+      return [...prev, row];
+    });
+    toast.success(`Added ${item.product_name}`);
+  };
+
   // Surface async wallet reject / writeContract failures (try/catch around writeContract is sync-only)
   useEffect(() => {
     if (!isWriteError || !writeError) return;
@@ -948,6 +1022,56 @@ export default function BuyerPurchaseOrdersPage() {
                     <Plus className="w-4 h-4" /> Add item
                   </button>
                 </div>
+
+                {selectedSupplierId ? (
+                  <div className="mb-4 rounded-2xl border border-cyan-100 bg-sky-50/50 p-3">
+                    <div className="text-xs font-bold uppercase tracking-wider text-[#0077b6] mb-2">
+                      Supplier catalogue
+                      {catalogueLoading ? ' · loading…' : ''}
+                    </div>
+                    {catalogueWarning ? (
+                      <p className="text-xs text-amber-800 mb-2">{catalogueWarning}</p>
+                    ) : null}
+                    {!catalogueLoading && catalogue.length === 0 ? (
+                      <p className="text-xs text-neutral-500">
+                        No sellable lines published — use free-text items below, or ask the
+                        supplier to publish finished goods.
+                      </p>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto">
+                        {catalogue.map((c) => (
+                          <button
+                            key={c.key}
+                            type="button"
+                            onClick={() => addFromCatalogue(c)}
+                            className="inline-flex items-center gap-1 rounded-full border border-cyan-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-800 hover:border-[#00b4d8] hover:bg-[#e0f7fc]"
+                            title={
+                              c.public_id
+                                ? `Add line · passport /p/${c.public_id}`
+                                : 'Add line from catalogue'
+                            }
+                          >
+                            {c.product_name}
+                            {c.public_id ? (
+                              <span className="text-emerald-700" title="Has product passport">
+                                ◆
+                              </span>
+                            ) : null}
+                            <span className="text-neutral-400 font-normal">
+                              R{Number(c.unit_price || 0).toLocaleString()}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {catalogue.some((c) => c.public_id) ? (
+                      <p className="mt-2 text-[10px] text-neutral-500">
+                        ◆ = product passport available after add (opens /p/… from your PO list).
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
+
                 {lineItems.map((item, index) => (
                   <div
                     key={index}
@@ -961,6 +1085,16 @@ export default function BuyerPurchaseOrdersPage() {
                         className="w-full px-3 py-2 border rounded-xl"
                         placeholder="Product or service"
                       />
+                      {item.public_id ? (
+                        <a
+                          href={`/p/${item.public_id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[11px] font-semibold text-emerald-700 hover:underline mt-1 inline-block"
+                        >
+                          Passport /p/{item.public_id}
+                        </a>
+                      ) : null}
                     </div>
                     <div className="sm:col-span-2">
                       <label className="text-xs text-neutral-500">Qty</label>
