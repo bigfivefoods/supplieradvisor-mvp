@@ -119,8 +119,7 @@ Rating a partner completes pending `rating_prompts` and marks `rate_partner`.
 |--------|------|
 | PATCH business profile | `profile` |
 | Team invite sent | `team` |
-| Invite business / connection accept | `invite_partners` |
-| Supplier invite (`/api/suppliers/invites`) | `invite_partners` |
+| Invite / connection / supplier invite | `invite_first_partner` (+ `invite_partners` at count ≥ 3) |
 | Create quote / SO / invoice / PO | `first_trade` |
 | Open billing page | `billing` |
 | Publish peer rating | `rate_partner` |

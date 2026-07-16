@@ -100,8 +100,7 @@ export async function POST(request: NextRequest) {
     let goldenPath = { newlyMarked: [] as string[], progressPercent: 0 };
     if (inviterId && Number.isFinite(inviterId)) {
       goldenPath = await import('@/lib/onboarding/checklist').then(
-        ({ markOnboardingSteps }) =>
-          markOnboardingSteps(inviterId, 'invite_partners')
+        ({ afterPartnerNetworkEvent }) => afterPartnerNetworkEvent(inviterId)
       );
     }
 

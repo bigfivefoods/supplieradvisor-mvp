@@ -85,6 +85,15 @@ function BillingInner() {
     isProgramRoot?: boolean;
     programRootId?: number;
     programRootName?: string;
+    holdDays?: number;
+    kycThresholdZar?: number;
+    payoutKyc?: {
+      complete?: boolean;
+      missing?: string[];
+      verified?: boolean;
+      bankName?: string | null;
+      accountName?: string | null;
+    };
     recent?: Array<{
       id: number;
       level: number;
@@ -625,10 +634,60 @@ function BillingInner() {
             </dl>
 
             {/* Workflow steps */}
-            <div className="mt-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5 text-[10px] text-slate-600 leading-relaxed">
-              <strong className="text-slate-800">Payout flow:</strong> Pending
-              (hold) → auto-approved → you <em>Request payout</em> → platform
-              ops settles. KYC bank details required above the payout threshold.
+            <div className="mt-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5 text-[10px] text-slate-600 leading-relaxed space-y-1.5">
+              <p>
+                <strong className="text-slate-800">Payout flow:</strong> Pending
+                (hold {referral?.holdDays ?? '—'} days) → auto-approved → you{' '}
+                <em>Request payout</em> → platform ops settles.
+              </p>
+              <p>
+                Hold protects against refunds/fraud. KYC bank details required
+                above{' '}
+                <strong>
+                  {formatZar(Number(referral?.kycThresholdZar || 0))}
+                </strong>{' '}
+                (or annual cap rules).
+              </p>
+            </div>
+
+            {/* KYC checklist */}
+            <div className="mt-3 rounded-xl border border-violet-100 bg-violet-50/50 px-3 py-2.5">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-violet-800 mb-1.5">
+                Payout KYC
+              </div>
+              {referral?.payoutKyc?.complete ? (
+                <p className="text-[11px] text-emerald-800 font-semibold">
+                  Bank details on file
+                  {referral.payoutKyc.bankName
+                    ? ` · ${referral.payoutKyc.bankName}`
+                    : ''}
+                  {referral.payoutKyc.verified ? ' · verified' : ''}
+                </p>
+              ) : (
+                <div className="text-[11px] text-violet-950 space-y-1">
+                  <p className="font-semibold">
+                    Missing for payouts:
+                  </p>
+                  <ul className="list-disc list-inside text-violet-900/90">
+                    {(
+                      referral?.payoutKyc?.missing || [
+                        'bank_name',
+                        'account_name',
+                        'account_number',
+                        'branch_code',
+                      ]
+                    ).map((m) => (
+                      <li key={m} className="capitalize">
+                        {String(m).replace(/_/g, ' ')}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-[10px] text-violet-800/80 pt-1">
+                    Save bank details via request payout flow or ask support —
+                    ops verifies before first settlement.
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="mt-3 flex flex-col gap-2">
@@ -660,33 +719,68 @@ function BillingInner() {
             {referral?.invitePath ? (
               <div className="mt-3 space-y-2">
                 <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  Your referral link
+                  Share your referral link
                 </div>
-                <input
-                  readOnly
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-mono"
-                  value={
-                    typeof window !== 'undefined'
-                      ? `${window.location.origin}${referral.invitePath}`
-                      : referral.invitePath
-                  }
-                />
-                <button
-                  type="button"
-                  className="text-xs font-bold text-[#0077b6] hover:underline"
-                  onClick={() => {
-                    const url =
+                <div className="rounded-xl border border-sky-100 bg-sky-50/80 px-3 py-2.5">
+                  <div className="text-[10px] font-bold text-sky-800 mb-1">
+                    Code · {referral.code || companyId}
+                  </div>
+                  <input
+                    readOnly
+                    className="w-full rounded-lg border border-sky-100 bg-white px-2.5 py-1.5 text-[11px] font-mono text-slate-800"
+                    value={
                       typeof window !== 'undefined'
                         ? `${window.location.origin}${referral.invitePath}`
-                        : referral.invitePath || '';
-                    void navigator.clipboard.writeText(url);
-                    toast.success('Referral link copied');
-                  }}
-                >
-                  Copy link · code {referral.code || companyId}
-                </button>
+                        : referral.invitePath
+                    }
+                    onFocus={(e) => e.target.select()}
+                  />
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      className="rounded-full bg-[#0077b6] px-3 py-1.5 text-[11px] font-bold text-white"
+                      onClick={() => {
+                        const url =
+                          typeof window !== 'undefined'
+                            ? `${window.location.origin}${referral.invitePath}`
+                            : referral.invitePath || '';
+                        void navigator.clipboard.writeText(url);
+                        toast.success('Referral link copied');
+                      }}
+                    >
+                      Copy link
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-full border border-sky-200 bg-white px-3 py-1.5 text-[11px] font-bold text-sky-900"
+                      onClick={() => {
+                        const url =
+                          typeof window !== 'undefined'
+                            ? `${window.location.origin}${referral.invitePath}`
+                            : referral.invitePath || '';
+                        const text = encodeURIComponent(
+                          `Join SupplierAdvisor with my referral link: ${url}`
+                        );
+                        window.open(
+                          `https://wa.me/?text=${text}`,
+                          '_blank',
+                          'noopener,noreferrer'
+                        );
+                      }}
+                    >
+                      Share WhatsApp
+                    </button>
+                    <Link
+                      href="/dashboard/invite-business"
+                      className="rounded-full border border-sky-200 bg-white px-3 py-1.5 text-[11px] font-bold text-sky-900"
+                    >
+                      Invite business
+                    </Link>
+                  </div>
+                </div>
                 <p className="text-[10px] text-slate-500 leading-relaxed">
-                  Also counts: inviting from Suppliers, Customers, or Invite business — when they claim the invite and pay for the platform.
+                  First-touch only: link, supplier invite, customer invite, or
+                  partner invite — never overwrites an existing referrer.
                 </p>
               </div>
             ) : null}

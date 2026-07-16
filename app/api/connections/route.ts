@@ -548,11 +548,13 @@ export async function PATCH(request: NextRequest) {
         connectionType: String(conn.connection_type || 'partner'),
         userId: mem.userId,
       }).catch(() => undefined);
-      // Golden path: partners connected
-      void import('@/lib/onboarding/checklist').then(({ markOnboardingSteps }) => {
-        void markOnboardingSteps(requesterId, 'invite_partners');
-        void markOnboardingSteps(requesteeId, 'invite_partners');
-      });
+      // Golden path: partners connected (first + 3-partner goal when count hits)
+      void import('@/lib/onboarding/checklist').then(
+        ({ afterPartnerNetworkEvent }) => {
+          void afterPartnerNetworkEvent(requesterId);
+          void afterPartnerNetworkEvent(requesteeId);
+        }
+      );
     }
 
     if (action === 'suspend' || action === 'unsuspend') {

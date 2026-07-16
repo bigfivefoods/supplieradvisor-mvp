@@ -326,6 +326,12 @@ export async function GET(request: NextRequest) {
 
     const referral = await getReferralSummary(companyId);
     const referralCode = await ensureReferralCode(companyId);
+    const {
+      getPayoutKycStatus,
+      REFERRAL_HOLD_DAYS,
+      REFERRAL_KYC_THRESHOLD_ZAR,
+    } = await import('@/lib/billing/referral-controls');
+    const payoutKyc = await getPayoutKycStatus(companyId);
 
     return NextResponse.json({
       success: true,
@@ -345,6 +351,9 @@ export async function GET(request: NextRequest) {
         invitePath: referralCode
           ? `/onboarding?ref=${encodeURIComponent(referralCode)}`
           : `/onboarding?ref=${companyId}`,
+        holdDays: REFERRAL_HOLD_DAYS,
+        kycThresholdZar: REFERRAL_KYC_THRESHOLD_ZAR,
+        payoutKyc,
       },
     });
   } catch (e: unknown) {

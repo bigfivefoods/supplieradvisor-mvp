@@ -109,7 +109,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         steps: [
           'Invite business / Invite supplier / Customers onboard',
           'Or accept an incoming connection in Network',
-          'One accepted edge or book row ticks Invite partners',
+          'First partner ticks Day 2 “first partner”; three partners completes the network goal',
         ],
       },
       {

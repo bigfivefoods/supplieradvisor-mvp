@@ -130,8 +130,8 @@ export async function POST(request: NextRequest) {
 
     // Golden path: first partner invite
     if (inviterId && Number.isFinite(inviterId)) {
-      void import('@/lib/onboarding/checklist').then(({ markOnboardingSteps }) =>
-        markOnboardingSteps(inviterId, 'invite_partners')
+      void import('@/lib/onboarding/checklist').then(
+        ({ afterPartnerNetworkEvent }) => afterPartnerNetworkEvent(inviterId)
       );
     }
 

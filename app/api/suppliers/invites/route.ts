@@ -240,7 +240,7 @@ export async function POST(request: NextRequest) {
     });
 
     const goldenPath = await import('@/lib/onboarding/checklist').then(
-      ({ markOnboardingSteps }) => markOnboardingSteps(companyId, 'invite_partners')
+      ({ afterPartnerNetworkEvent }) => afterPartnerNetworkEvent(companyId)
     );
 
     return NextResponse.json({

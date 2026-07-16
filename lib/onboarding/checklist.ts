@@ -11,6 +11,7 @@ import { computeCompanySubscription } from '@/lib/billing/company-subscription';
 export type OnboardingStepId =
   | 'profile'
   | 'team'
+  | 'invite_first_partner'
   | 'invite_partners'
   | 'first_trade'
   | 'billing'
@@ -24,6 +25,9 @@ export type OnboardingStep = {
   href: string;
   cta: string;
 };
+
+/** Partner count threshold for the “3 partners” golden-path step */
+export const INVITE_PARTNERS_GOAL = 3;
 
 export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
   {
@@ -43,12 +47,20 @@ export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
     cta: 'Open team',
   },
   {
-    id: 'invite_partners',
+    id: 'invite_first_partner',
     day: 2,
-    title: 'Invite 3 trading partners',
-    body: 'Suppliers or customers — grow the verified network you actually trade with.',
+    title: 'Invite your first partner',
+    body: 'Connect or invite one supplier, customer, or business partner.',
     href: '/dashboard/invite-business',
     cta: 'Invite business',
+  },
+  {
+    id: 'invite_partners',
+    day: 2,
+    title: `Grow to ${INVITE_PARTNERS_GOAL} trading partners`,
+    body: `Reach ${INVITE_PARTNERS_GOAL} connections or book entries — network density unlocks trade and trust.`,
+    href: '/dashboard/invite-business',
+    cta: 'Invite more',
   },
   {
     id: 'first_trade',
@@ -92,6 +104,7 @@ export async function inferOnboardingSteps(
   const empty: Record<OnboardingStepId, boolean> = {
     profile: false,
     team: false,
+    invite_first_partner: false,
     invite_partners: false,
     first_trade: false,
     billing: false,
@@ -179,9 +192,9 @@ export async function inferOnboardingSteps(
     const teamCount = teamRes.count ?? 0;
     empty.team = teamCount >= 2;
 
-    // Partners: connections or invite book
+    // Partners: max of connections vs supplier+customer book (dedupe-ish density signal)
     const connCount = connRes.error ? 0 : connRes.count ?? 0;
-    let inviteCount = 0;
+    let bookCount = 0;
     try {
       const { count: sInv } = await supabase
         .from('suppliers')
@@ -191,12 +204,13 @@ export async function inferOnboardingSteps(
         .from('customers')
         .select('id', { count: 'exact', head: true })
         .eq('profile_id', companyId);
-      inviteCount = (sInv || 0) + (cInv || 0);
+      bookCount = (sInv || 0) + (cInv || 0);
     } catch {
       /* optional */
     }
-    // Step asks for 3 — mark done at 1+ to reward first partner, show 3 as aspirational in copy
-    empty.invite_partners = connCount >= 1 || inviteCount >= 1;
+    const partnerCount = Math.max(connCount, bookCount);
+    empty.invite_first_partner = partnerCount >= 1;
+    empty.invite_partners = partnerCount >= INVITE_PARTNERS_GOAL;
 
     const tradeCount =
       (poBuyerRes.error ? 0 : poBuyerRes.count || 0) +
@@ -223,6 +237,7 @@ export function mergeOnboardingSteps(
   const out: Record<OnboardingStepId, boolean> = {
     profile: false,
     team: false,
+    invite_first_partner: false,
     invite_partners: false,
     first_trade: false,
     billing: false,
@@ -231,7 +246,37 @@ export function mergeOnboardingSteps(
   for (const s of ONBOARDING_STEPS) {
     out[s.id] = Boolean(stored[s.id] || inferred[s.id]);
   }
+  // Completing 3-partners implies first partner
+  if (out.invite_partners) out.invite_first_partner = true;
   return out;
+}
+
+/**
+ * After any partner invite/connection: mark first partner and re-infer for the 3-goal.
+ */
+export async function afterPartnerNetworkEvent(
+  companyId: number
+): Promise<MarkOnboardingResult> {
+  const id = Number(companyId);
+  if (!Number.isFinite(id) || id <= 0) {
+    return { newlyMarked: [], progressPercent: 0 };
+  }
+  // Always credit first partner on explicit invite action
+  const first = await markOnboardingSteps(id, 'invite_first_partner');
+  // Re-infer so count ≥ 3 flips invite_partners without manual mark
+  try {
+    const inferred = await inferOnboardingSteps(id);
+    if (inferred.invite_partners) {
+      const three = await markOnboardingSteps(id, 'invite_partners');
+      return {
+        newlyMarked: [...first.newlyMarked, ...three.newlyMarked],
+        progressPercent: three.progressPercent || first.progressPercent,
+      };
+    }
+  } catch {
+    /* soft */
+  }
+  return first;
 }
 
 export type MarkOnboardingResult = {

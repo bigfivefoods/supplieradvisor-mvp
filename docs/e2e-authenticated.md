@@ -46,6 +46,29 @@ npx playwright test e2e/po-rating-prompt.spec.ts e2e/qa-ship-hold.spec.ts
 - `po-rating-prompt` always exercises `POST/GET rating-prompts`; completes a PO when supplier id is set.
 - `qa-ship-hold` creates an open inspection; with `E2E_TRANSFER_ID` asserts `code: QA_HOLD`.
 
+### Fixture pack (recommended for hard assertions)
+
+| Variable | How to obtain |
+|----------|----------------|
+| `E2E_ACCESS_TOKEN` | Logged-in session → Privy access JWT |
+| `E2E_COMPANY_ID` | Buyer company id (member of token user) |
+| `E2E_SUPPLIER_PROFILE_ID` | Another on-platform company (accepted connection ideal) |
+| `E2E_TRANSFER_ID` | Create draft transfer with lot; create open QA inspection on that lot; use transfer id |
+
+**One-time setup script (manual UI or API):**
+
+1. Company A (buyer) + Company B (supplier) connected.
+2. Receive stock with lot `E2E-QA-DEMO`.
+3. Quality → inspection **open** on `E2E-QA-DEMO`.
+4. Inventory → draft transfer lines with that lot → note transfer id.
+5. Run session tests with all four env vars set.
+
+```bash
+export E2E_ACCESS_TOKEN=... E2E_COMPANY_ID=... \
+  E2E_SUPPLIER_PROFILE_ID=... E2E_TRANSFER_ID=...
+npm run test:e2e:trust
+```
+
 ## Full UI login (storageState)
 
 Privy email OTP is hard to automate. Prefer a one-time browser seed:

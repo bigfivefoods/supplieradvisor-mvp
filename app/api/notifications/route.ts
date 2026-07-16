@@ -44,6 +44,7 @@ export async function GET(request: NextRequest) {
       marketInq,
       periodLocks,
       bankSyncFail,
+      ratingPrompts,
     ] = await Promise.all([
       supabase
         .from('quality_inspections')
@@ -110,6 +111,15 @@ export async function GET(request: NextRequest) {
         .eq('profile_id', companyId)
         .not('last_error', 'is', null)
         .limit(5),
+      supabase
+        .from('rating_prompts')
+        .select(
+          'id, counterparty_name, counterparty_profile_id, ratee_role, context_type, created_at, due_at'
+        )
+        .eq('profile_id', companyId)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(8),
     ]);
 
     for (const r of openInsp.data || []) {
@@ -253,6 +263,45 @@ export async function GET(request: NextRequest) {
           href: '/dashboard/accounting/bank-reconciliation',
           created_at: bc.updated_at || bc.last_sync_at || new Date().toISOString(),
           source: 'banking',
+        });
+      }
+    }
+
+    // Trust loop — pending peer ratings (also emailed via digest cron)
+    if (!ratingPrompts.error && (ratingPrompts.data || []).length) {
+      const rows = ratingPrompts.data || [];
+      // Summary badge + top few detail cards
+      notifications.push({
+        id: 'rating-prompts-summary',
+        severity: rows.length >= 3 ? 'warning' : 'info',
+        title: `${rows.length} partner rating${rows.length === 1 ? '' : 's'} waiting`,
+        body: 'Rate suppliers and customers after trade — builds OTIFEF & trust.',
+        href: '/dashboard',
+        created_at: rows[0].created_at || new Date().toISOString(),
+        source: 'trust',
+      });
+      for (const p of rows.slice(0, 4)) {
+        const role = String(p.ratee_role || 'supplier');
+        const base =
+          role === 'customer'
+            ? '/dashboard/customers/ratings'
+            : '/dashboard/suppliers/ratings';
+        const qs = new URLSearchParams();
+        if (p.counterparty_profile_id) {
+          qs.set('ratee', String(p.counterparty_profile_id));
+        }
+        if (p.id) qs.set('promptId', String(p.id));
+        const q = qs.toString();
+        notifications.push({
+          id: `rating-prompt-${p.id}`,
+          severity: 'info',
+          title: `Rate ${p.counterparty_name || 'trading partner'}`,
+          body: p.context_type
+            ? `After ${String(p.context_type)} — dashboard Rate now or ratings page`
+            : 'Peer stars after trade',
+          href: q ? `${base}?${q}` : base,
+          created_at: p.created_at || new Date().toISOString(),
+          source: 'trust',
         });
       }
     }
