@@ -513,12 +513,20 @@ function DocInner({
       if (data.hasVat) bits.push('VAT');
       if (data.hasRegistration) bits.push('reg no.');
       if (data.sellerVerified) bits.push('verified');
+      if (data.bankVerified) bits.push('bank AVS');
       const stamp = bits.length ? ` · ${bits.join(', ')} on document` : '';
       toast.success(
         `${data.resend ? 'Resent' : 'Emailed'} ${data.to}${
           data.cc?.length ? ` (CC ${data.cc.join(', ')})` : ''
         }${stamp}`
       );
+      if (data.bankWarning || !data.bankDetailsIncluded) {
+        toast.message(
+          data.bankWarning ||
+            'No bank details on this invoice — add them under My Business → Profile → Banking.',
+          { duration: 7000 }
+        );
+      }
       void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Send failed');
