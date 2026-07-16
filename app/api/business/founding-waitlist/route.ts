@@ -12,6 +12,8 @@ import { FOUNDING_FREE_COMPANY_LIMIT } from '@/lib/billing/lifetime';
  *
  * GET  ?status=&limit=
  * POST { action: 'set_status', id, status }
+ * POST { action: 'bulk_invite', status?: 'waiting', limit?, setStatus?: true }
+ * POST { action: 'bulk_slots_open', status?: 'waiting', limit? }
  */
 export async function GET(request: NextRequest) {
   try {
@@ -103,9 +105,82 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const action = String(body.action || '').toLowerCase();
 
+    if (action === 'bulk_invite' || action === 'bulk_slots_open') {
+      const supabase = getSupabaseServer();
+      const statusFilter = String(body.status || 'waiting').toLowerCase();
+      const limit = Math.min(
+        80,
+        Math.max(1, Number(body.limit) || 40)
+      );
+      const setStatus = body.setStatus !== false && action === 'bulk_invite';
+
+      let q = supabase
+        .from('founding_waitlist')
+        .select('id, email, company_name, status')
+        .order('created_at', { ascending: true })
+        .limit(limit);
+      if (statusFilter && statusFilter !== 'all') {
+        q = q.eq('status', statusFilter);
+      }
+      const { data: rows, error } = await q;
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      const {
+        sendFoundingStatusEmail,
+        sendFoundingSlotsOpenEmail,
+      } = await import('@/lib/billing/founding-waitlist-email');
+
+      let emailed = 0;
+      let failed = 0;
+      let updated = 0;
+      const results: Array<{ id: number; email: string; ok: boolean }> = [];
+
+      for (const row of rows || []) {
+        const to = String(row.email || '');
+        let mail: { ok: boolean; skipped?: boolean };
+        if (action === 'bulk_invite') {
+          mail = await sendFoundingStatusEmail({
+            to,
+            companyName: row.company_name,
+            status: 'invited',
+          });
+          if (mail.ok && !mail.skipped && setStatus) {
+            const { error: uErr } = await supabase
+              .from('founding_waitlist')
+              .update({ status: 'invited' })
+              .eq('id', row.id);
+            if (!uErr) updated += 1;
+          }
+        } else {
+          mail = await sendFoundingSlotsOpenEmail({
+            to,
+            companyName: row.company_name,
+          });
+        }
+        if (mail.ok && !mail.skipped) emailed += 1;
+        else if (!mail.ok) failed += 1;
+        results.push({ id: Number(row.id), email: to, ok: Boolean(mail.ok) });
+      }
+
+      return NextResponse.json({
+        success: true,
+        action,
+        scanned: (rows || []).length,
+        emailed,
+        failed,
+        updated,
+        results,
+      });
+    }
+
     if (action !== 'set_status') {
       return NextResponse.json(
-        { error: 'action must be set_status' },
+        {
+          error:
+            'action must be set_status | bulk_invite | bulk_slots_open',
+        },
         { status: 400 }
       );
     }

@@ -13,6 +13,7 @@ import { getSelectedCompanyId } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
 import { normalizeTeamRole } from '@/lib/business/permissions';
 import SamMessenger from '@/components/sam/SamMessenger';
+import SubscriptionAccessBanner from '@/components/billing/SubscriptionAccessBanner';
 /**
  * Dashboard shell — collapsible icon sidebar + single sticky process / Action centre rail.
  * SAM (Supplier Advisor Messenger) is available on every authenticated dashboard screen.
@@ -102,6 +103,7 @@ function DashboardChrome({ children }: { children: React.ReactNode }) {
           <div className="sticky top-0 z-40">
             {/* One rail only: mobile menu · process steps · Action centre */}
             <ModuleProcessBar onOpenMobileMenu={() => setIsMobileMenuOpen(true)} />
+            <SubscriptionAccessBanner />
           </div>
         )}
 

@@ -9,7 +9,9 @@ import {
   ArrowRight,
   Loader2,
   CheckCircle2,
+  Download,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { usePrivy } from '@privy-io/react-auth';
 import {
   CompanyRequired,
@@ -51,8 +53,39 @@ export default function TrustScorePage() {
   const { user } = usePrivy();
   const companyId = getSelectedCompanyId();
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
   const [data, setData] = useState<TrustPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const exportPack = async () => {
+    if (!companyId) return;
+    setExporting(true);
+    try {
+      const res = await fetch(
+        `/api/business/trust/export?companyId=${companyId}`,
+        { cache: 'no-store' }
+      );
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error((j as { error?: string }).error || 'Export failed');
+      }
+      const blob = await res.blob();
+      const dispo = res.headers.get('Content-Disposition') || '';
+      const match = /filename="([^"]+)"/.exec(dispo);
+      const filename = match?.[1] || `trust-pack-${companyId}.csv`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('Trust pack downloaded');
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Export failed');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const load = useCallback(async () => {
     if (!companyId) return;
@@ -86,6 +119,21 @@ export default function TrustScorePage() {
       <BusinessHeader
         title="Trust score"
         description="How your company is scored — and how suppliers and customers improve the network together."
+        action={
+          <button
+            type="button"
+            disabled={exporting || !companyId}
+            onClick={() => void exportPack()}
+            className="btn-secondary !py-2 !px-3 text-sm inline-flex items-center gap-2 disabled:opacity-40"
+          >
+            {exporting ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Download className="w-4 h-4" />
+            )}
+            Trust pack CSV
+          </button>
+        }
       />
       {loading ? (
         <div className="flex items-center gap-2 text-slate-500 py-12 justify-center">

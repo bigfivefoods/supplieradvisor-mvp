@@ -63,6 +63,7 @@ function WaitlistInner() {
   const [warning, setWarning] = useState<string | null>(null);
   const [forbidden, setForbidden] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -169,6 +170,45 @@ function WaitlistInner() {
     toast.success('CSV downloaded');
   };
 
+  const bulkAction = async (action: 'bulk_invite' | 'bulk_slots_open') => {
+    const label =
+      action === 'bulk_invite'
+        ? 'Send invite emails and mark invited?'
+        : 'Email “slots may be open — register” (status unchanged)?';
+    if (!confirm(`${label}\n\nUses current filter (${filter}). Max 40 per run.`)) {
+      return;
+    }
+    setBulkBusy(true);
+    try {
+      const res = await fetch('/api/business/founding-waitlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action,
+          status: filter === 'all' ? 'waiting' : filter,
+          limit: 40,
+          setStatus: action === 'bulk_invite',
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(
+          (data as { error?: string }).error || 'Bulk action failed'
+        );
+      }
+      toast.success(
+        `Emailed ${data.emailed || 0}/${data.scanned || 0}` +
+          (data.updated ? ` · updated ${data.updated}` : '') +
+          (data.failed ? ` · failed ${data.failed}` : '')
+      );
+      await load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Bulk failed');
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
   return (
     <BusinessPage>
       <BusinessHeader
@@ -186,6 +226,29 @@ function WaitlistInner() {
                 className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`}
               />
               Refresh
+            </button>
+            <button
+              type="button"
+              disabled={bulkBusy || forbidden}
+              onClick={() => void bulkAction('bulk_slots_open')}
+              className="btn-secondary !py-2 !px-3 text-sm inline-flex items-center gap-2 disabled:opacity-40"
+              title="Email waitlist that seats may be available"
+            >
+              {bulkBusy ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Mail className="w-4 h-4" />
+              )}
+              Email waiting
+            </button>
+            <button
+              type="button"
+              disabled={bulkBusy || forbidden}
+              onClick={() => void bulkAction('bulk_invite')}
+              className="btn-primary !py-2 !px-3 text-sm inline-flex items-center gap-2 disabled:opacity-40"
+              title="Send invite emails and mark status invited"
+            >
+              Bulk invite
             </button>
             <button
               type="button"

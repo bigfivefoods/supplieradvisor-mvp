@@ -2,6 +2,8 @@
 
 Run this after each significant deploy. Code can be ahead of **configuration**.
 
+**Full dry-run + migration table:** see **`docs/production-ops-checklist.md`**.
+
 ## 1. Database migrations
 
 Apply pending files under `supabase/migrations/` on the live project (SQL editor or CLI):
