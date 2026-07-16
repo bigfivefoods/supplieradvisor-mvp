@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
+import { SEED_CONTINENTS, SEED_COUNTRIES } from '@/lib/geo/world-seed';
+import { continentFromCountry } from '@/lib/geo/continent-from-country';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -326,20 +328,46 @@ export async function GET(request: NextRequest) {
 
     companies = companies.map((c, i) => ({ ...c, join_rank: i + 1 }));
 
-    // Facets from full discoverable set (before filters)
+    // Facets: full geo seed + network values so country is never "only Kenya"
+    const poolCountries = uniqSorted(companies.map((c) => c.country));
+    const poolContinents = uniqSorted(
+      companies.map(
+        (c) => c.continent || continentFromCountry(c.country) || null
+      )
+    );
+    const countriesByContinent: Record<string, string[]> = {};
+    for (const c of SEED_COUNTRIES) {
+      if (!countriesByContinent[c.continent]) {
+        countriesByContinent[c.continent] = [];
+      }
+      countriesByContinent[c.continent].push(c.name);
+    }
+    for (const k of Object.keys(countriesByContinent)) {
+      countriesByContinent[k] = uniqSorted(countriesByContinent[k]);
+    }
+
     const facets = {
       industries: uniqSorted(companies.map((c) => c.industry)),
       subIndustries: uniqSorted(companies.map((c) => c.sub_industry)),
-      countries: uniqSorted(companies.map((c) => c.country)),
+      countries: uniqSorted([
+        ...SEED_COUNTRIES.map((c) => c.name),
+        ...poolCountries,
+      ]),
       cities: uniqSorted(companies.map((c) => c.city)),
       provinces: uniqSorted(companies.map((c) => c.province)),
-      continents: uniqSorted(companies.map((c) => c.continent)),
+      continents: uniqSorted([
+        ...SEED_CONTINENTS.map((c) => c.name),
+        ...poolContinents,
+      ]),
       businessTypes: uniqSorted(companies.map((c) => c.business_type)),
       categories: uniqSorted(companies.map((c) => c.category)),
       beeLevels: uniqSorted(companies.map((c) => c.bee_level)),
       certifications: uniqSorted(
         companies.flatMap((c) => c.certifications || [])
       ),
+      countriesInNetwork: poolCountries,
+      continentsInNetwork: poolContinents,
+      countriesByContinent,
     };
 
     // Apply filters
@@ -400,9 +428,14 @@ export async function GET(request: NextRequest) {
       );
     }
     if (continent) {
-      companies = companies.filter(
-        (c) => String(c.continent || '').toLowerCase() === continent
-      );
+      companies = companies.filter((c) => {
+        const direct = String(c.continent || '').toLowerCase();
+        if (direct === continent) return true;
+        const inferred = String(
+          continentFromCountry(c.country) || ''
+        ).toLowerCase();
+        return inferred === continent;
+      });
     }
     if (businessType) {
       companies = companies.filter((c) =>

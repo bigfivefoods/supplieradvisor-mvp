@@ -19,6 +19,10 @@ import {
 import FoundingWaitlist from '@/components/marketing/FoundingWaitlist';
 import CompanyLogo from '@/components/business/CompanyLogo';
 import TrustBadges from '@/components/business/TrustBadges';
+import {
+  SEED_CONTINENTS,
+  SEED_COUNTRIES,
+} from '@/lib/geo/world-seed';
 
 export type PublicCompany = {
   id: number;
@@ -67,6 +71,8 @@ type Facets = {
   categories: string[];
   beeLevels: string[];
   certifications: string[];
+  countriesInNetwork?: string[];
+  countriesByContinent?: Record<string, string[]>;
 };
 
 const EMPTY_FACETS: Facets = {
@@ -633,6 +639,69 @@ export default function CompanyNetworkSection() {
     return facets.provinces; // server facets are global; OK for marketing
   }, [facets.provinces, country]);
 
+  const seedByContinent = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    for (const c of SEED_COUNTRIES) {
+      if (!map[c.continent]) map[c.continent] = [];
+      map[c.continent].push(c.name);
+    }
+    for (const k of Object.keys(map)) {
+      map[k] = [...map[k]].sort((a, b) => a.localeCompare(b));
+    }
+    return map;
+  }, []);
+
+  const continentOptions = useMemo(() => {
+    const seed = SEED_CONTINENTS.map((c) => c.name);
+    return Array.from(
+      new Set([...seed, ...(facets.continents || [])])
+    ).sort((a, b) => a.localeCompare(b));
+  }, [facets.continents]);
+
+  const countryOptions = useMemo(() => {
+    const byCont = {
+      ...seedByContinent,
+      ...(facets.countriesByContinent || {}),
+    };
+    if (continent && byCont[continent]?.length) {
+      const networkOnly = (facets.countriesInNetwork || []).filter(
+        (c) =>
+          !byCont[continent].some(
+            (s) => s.toLowerCase() === c.toLowerCase()
+          )
+      );
+      return Array.from(
+        new Set([...byCont[continent], ...networkOnly])
+      ).sort((a, b) => a.localeCompare(b));
+    }
+    const all = new Set<string>();
+    for (const list of Object.values(byCont)) {
+      for (const c of list) all.add(c);
+    }
+    for (const c of facets.countries || []) if (c) all.add(c);
+    return Array.from(all).sort((a, b) => a.localeCompare(b));
+  }, [continent, facets, seedByContinent]);
+
+  const networkCountrySet = useMemo(
+    () =>
+      new Set(
+        (facets.countriesInNetwork || []).map((c) => c.toLowerCase())
+      ),
+    [facets.countriesInNetwork]
+  );
+
+  // Drop country if it doesn't belong to selected continent
+  useEffect(() => {
+    if (!continent || !country) return;
+    const list = countryOptions;
+    if (
+      list.length &&
+      !list.some((c) => c.toLowerCase() === country.toLowerCase())
+    ) {
+      setCountry('');
+    }
+  }, [continent, country, countryOptions]);
+
   const busy = loading || searching;
 
   return (
@@ -768,15 +837,43 @@ export default function CompanyNetworkSection() {
                 <SelectField
                   label="Continent"
                   value={continent}
-                  onChange={setContinent}
-                  options={facets.continents}
+                  onChange={(v) => {
+                    setContinent(v);
+                    setProvince('');
+                    setCity('');
+                  }}
+                  options={continentOptions}
                 />
-                <SelectField
-                  label="Country"
-                  value={country}
-                  onChange={setCountry}
-                  options={facets.countries}
-                />
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  Country
+                  <select
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800"
+                    value={country}
+                    onChange={(e) => {
+                      setCountry(e.target.value);
+                      setProvince('');
+                      setCity('');
+                    }}
+                  >
+                    <option value="">
+                      {continent
+                        ? `All countries in ${continent}`
+                        : 'All countries'}
+                    </option>
+                    {countryOptions.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                        {networkCountrySet.has(c.toLowerCase())
+                          ? ' · on network'
+                          : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="mt-1 block text-[10px] font-medium normal-case tracking-normal text-slate-400">
+                    Full world list
+                    {continent === 'Africa' ? ' — all African countries' : ''}.
+                  </span>
+                </label>
                 <SelectField
                   label="Province / region"
                   value={province}

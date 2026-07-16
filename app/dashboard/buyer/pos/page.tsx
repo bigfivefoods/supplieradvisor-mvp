@@ -62,6 +62,8 @@ interface LineItem {
   quantity: number;
   unit_price: number;
   uom: string | null;
+  /** Product passport public id when linked to inventory */
+  public_id?: string | null;
 }
 
 interface ConnectedSupplier {
@@ -218,8 +220,44 @@ export default function BuyerPurchaseOrdersPage() {
       toast.error(json.error || 'Failed to load purchase orders');
       return;
     }
-    setPurchaseOrders(json.purchaseOrders || []);
-  }, [companyId, privyUserId]);
+    let pos = (json.purchaseOrders || []) as PurchaseOrder[];
+    // Enrich line items with product passport public_id when product_id is set
+    const productIds = new Set<number>();
+    for (const po of pos) {
+      for (const it of po.items || []) {
+        if (it.product_id != null && Number.isFinite(Number(it.product_id))) {
+          productIds.add(Number(it.product_id));
+        }
+      }
+    }
+    if (productIds.size > 0) {
+      try {
+        const { data: prods } = await supabase
+          .from('products')
+          .select('id, public_id')
+          .in('id', [...productIds]);
+        const map = new Map(
+          (prods || []).map((p: { id: number; public_id?: string | null }) => [
+            Number(p.id),
+            p.public_id ? String(p.public_id) : null,
+          ])
+        );
+        pos = pos.map((po) => ({
+          ...po,
+          items: (po.items || []).map((it) => ({
+            ...it,
+            public_id:
+              it.public_id ||
+              (it.product_id != null ? map.get(Number(it.product_id)) : null) ||
+              null,
+          })),
+        }));
+      } catch {
+        /* soft — passport optional */
+      }
+    }
+    setPurchaseOrders(pos);
+  }, [companyId, privyUserId, supabase]);
 
   useEffect(() => {
     if (!companyId) {
@@ -1043,6 +1081,40 @@ export default function BuyerPurchaseOrdersPage() {
                                 ? new Date(po.created_at).toLocaleString()
                                 : ''}
                             </div>
+                            {Array.isArray(po.items) && po.items.length > 0 ? (
+                              <ul className="mt-2 space-y-1 text-xs text-neutral-600">
+                                {po.items.slice(0, 6).map((it, idx) => (
+                                  <li
+                                    key={`${po.id}-line-${idx}`}
+                                    className="flex flex-wrap items-center gap-x-2 gap-y-0.5"
+                                  >
+                                    <span className="font-medium text-slate-700">
+                                      {it.item_name || 'Line'}
+                                    </span>
+                                    <span className="text-neutral-400">
+                                      × {it.quantity}
+                                      {it.uom ? ` ${it.uom}` : ''}
+                                    </span>
+                                    {it.public_id ? (
+                                      <a
+                                        href={`/p/${it.public_id}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-emerald-700 font-semibold underline-offset-2 hover:underline"
+                                        title="Open product passport"
+                                      >
+                                        Passport
+                                      </a>
+                                    ) : null}
+                                  </li>
+                                ))}
+                                {po.items.length > 6 ? (
+                                  <li className="text-neutral-400">
+                                    +{po.items.length - 6} more lines
+                                  </li>
+                                ) : null}
+                              </ul>
+                            ) : null}
                           </div>
                           <div className="flex items-center gap-3">
                             <div className="text-right">

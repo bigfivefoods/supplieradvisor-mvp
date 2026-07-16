@@ -36,6 +36,7 @@ import {
   type HubModule,
 } from '@/components/chrome/CommandHubChrome';
 import JourneyChecklist from '@/components/journey/JourneyChecklist';
+import CatalogueEmptyBanner from '@/components/business/CatalogueEmptyBanner';
 
 type Summary = {
   total: number;
@@ -234,6 +235,7 @@ function HubInner() {
       />
 
       <JourneyChecklist role="supplier" />
+      <CatalogueEmptyBanner />
 
       {warning && (
         <AlertBanner>

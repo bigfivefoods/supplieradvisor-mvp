@@ -106,7 +106,22 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // Self-readiness (own catalogue empty banner) — skip PO-against-self rule
+    const readinessOnly = sp.get('readinessOnly') === '1';
     if (sellerProfileId === companyId) {
+      if (readinessOnly) {
+        const { computeCatalogueReadiness } = await import(
+          '@/lib/suppliers/catalogue-readiness'
+        );
+        const readiness = await computeCatalogueReadiness(companyId);
+        return NextResponse.json({
+          success: true,
+          sellerProfileId: companyId,
+          items: [],
+          readiness,
+          self: true,
+        });
+      }
       return NextResponse.json(
         { error: 'Cannot raise a PO against your own company' },
         { status: 400 }

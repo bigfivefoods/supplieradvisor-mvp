@@ -94,11 +94,23 @@ npx playwright test e2e/trade-loop-smoke.spec.ts
 | Connection workspace next-action CTA | Shipped |
 | Email/in-app on connection accept + invoice send | Shipped |
 
-Batch continent backfill (ops):
+## Mini-sprint (directory / passport / bell / catalogue)
+
+| Item | Status |
+|------|--------|
+| Homepage directory continent→country cascade (full Africa) | Shipped |
+| Public API continent filter via country map | Shipped |
+| Buyer PO product passport links | Shipped |
+| Notification bell deep-links + inbox/activity merge | Shipped |
+| Catalogue-empty banner (dashboard + suppliers hub) | Shipped |
+
+Batch continent backfill (ops — run after deploy):
 
 ```bash
 curl -sS -X POST -H "Authorization: Bearer $CRON_SECRET" \
   -H "Content-Type: application/json" \
   -d '{"limit":200}' \
   "$APP_URL/api/business/location-backfill"
+
+curl -sS "$APP_URL/api/system/health" | jq '{ok,deploy,degraded}'
 ```

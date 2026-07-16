@@ -169,7 +169,7 @@ export async function GET(request: NextRequest) {
         body: escrow
           ? 'On-chain escrow linked — complete ship/confirm lifecycle'
           : 'Progress status or record delivery for OTIFEF',
-        href: '/dashboard/suppliers/po',
+        href: `/dashboard/suppliers/po?highlight=${po.id}`,
         created_at: po.created_at || new Date().toISOString(),
         source: 'procurement',
       });
@@ -187,10 +187,127 @@ export async function GET(request: NextRequest) {
           amt > 0
             ? `${ccy} ${amt.toLocaleString()} from buyer — accept or decline`
             : 'New purchase order from a connected buyer — accept or decline',
-        href: '/dashboard/customers/orders?tab=inbound',
+        href: `/dashboard/customers/orders?tab=inbound&po=${po.id}`,
         created_at: po.created_at || new Date().toISOString(),
         source: 'sales',
       });
+    }
+
+    // Pending connection requests (inbound)
+    {
+      const { data: pendingIn } = await supabase
+        .from('business_connections')
+        .select(
+          'id, requester_profile_id, created_at, requested_at, message, status'
+        )
+        .eq('requestee_profile_id', companyId)
+        .eq('status', 'pending')
+        .order('requested_at', { ascending: false })
+        .limit(8);
+      for (const edge of pendingIn || []) {
+        const peerId = Number(edge.requester_profile_id);
+        notifications.push({
+          id: `conn-in-${edge.id}`,
+          severity: 'warning',
+          title: 'Connection request awaiting response',
+          body: edge.message
+            ? String(edge.message).slice(0, 120)
+            : `Company #${peerId} wants to connect`,
+          href: peerId
+            ? `/dashboard/connections/${peerId}`
+            : '/dashboard/connections',
+          created_at:
+            edge.requested_at ||
+            edge.created_at ||
+            new Date().toISOString(),
+          source: 'network',
+        });
+      }
+    }
+
+    // Recent activity-log notify.* events (connection accepted, invoice sent, etc.)
+    {
+      const { data: acts } = await supabase
+        .from('activity_log')
+        .select('id, action, summary, created_at, entity_id, metadata')
+        .eq('profile_id', companyId)
+        .like('action', 'notify.%')
+        .order('created_at', { ascending: false })
+        .limit(12);
+      for (const a of acts || []) {
+        const action = String(a.action || '');
+        const meta =
+          a.metadata && typeof a.metadata === 'object'
+            ? (a.metadata as Record<string, unknown>)
+            : {};
+        let href = '/dashboard';
+        if (action.includes('connection_accepted')) {
+          const peer = Number(meta.peerProfileId || meta.requesteeId || 0);
+          href = peer
+            ? `/dashboard/connections/${peer}`
+            : '/dashboard/connections';
+        } else if (action.includes('connection_request')) {
+          href = '/dashboard/connections';
+        } else if (action.includes('invoice') || action.includes('po_received')) {
+          href = action.includes('invoice')
+            ? '/dashboard/customers/invoices'
+            : '/dashboard/customers/orders?tab=inbound';
+        } else if (action.includes('verification')) {
+          href = '/dashboard/my-business/profile';
+        }
+        notifications.push({
+          id: `act-notify-${a.id}`,
+          severity: action.includes('fail') ? 'warning' : 'positive',
+          title: String(a.summary || action.replace('notify.', '')),
+          body: 'From your notification feed',
+          href,
+          created_at: a.created_at || new Date().toISOString(),
+          source: 'notifications',
+        });
+      }
+    }
+
+    // Persisted notifications table rows (best-effort)
+    {
+      const { data: rows } = await supabase
+        .from('notifications')
+        .select('id, type, title, body, metadata, created_at, read')
+        .eq('profile_id', companyId)
+        .eq('read', false)
+        .order('created_at', { ascending: false })
+        .limit(15);
+      for (const n of rows || []) {
+        const type = String(n.type || '');
+        const meta =
+          n.metadata && typeof n.metadata === 'object'
+            ? (n.metadata as Record<string, unknown>)
+            : {};
+        let href = '/dashboard';
+        if (type === 'connection_accepted' || type === 'connection_request') {
+          const peer = Number(meta.peerProfileId || meta.requesterProfileId || 0);
+          href = peer
+            ? `/dashboard/connections/${peer}`
+            : '/dashboard/connections';
+        } else if (type === 'invoice_sent' || type === 'invoice_overdue') {
+          href = '/dashboard/customers/invoices';
+        } else if (type === 'po_received') {
+          href = '/dashboard/customers/orders?tab=inbound';
+        } else if (type.includes('verif')) {
+          href = '/dashboard/my-business/profile';
+        }
+        notifications.push({
+          id: `ntab-${n.id}`,
+          severity:
+            type.includes('fail') || type.includes('overdue')
+              ? 'warning'
+              : 'info',
+          title: String(n.title || type),
+          body: String(n.body || ''),
+          href,
+          created_at: n.created_at || new Date().toISOString(),
+          source: 'inbox',
+        });
+      }
     }
 
     // Unmatched bank — only if query succeeded with rows

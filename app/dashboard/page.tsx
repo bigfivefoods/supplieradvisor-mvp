@@ -47,6 +47,7 @@ import {
 import GoldenPathChecklist from '@/components/onboarding/GoldenPathChecklist';
 import RatingPromptBanner from '@/components/ratings/RatingPromptBanner';
 import FirstHourKickstart from '@/components/dashboard/FirstHourKickstart';
+import CatalogueEmptyBanner from '@/components/business/CatalogueEmptyBanner';
 
 type CompanyData = {
   id: number;
@@ -666,6 +667,7 @@ export default function DashboardCommandCenter() {
       />
 
       <GoldenPathChecklist />
+      <CatalogueEmptyBanner />
       <Suspense fallback={null}>
         <RatingPromptBanner />
       </Suspense>
