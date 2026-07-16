@@ -152,6 +152,10 @@ function TeamInner() {
         );
       }
       toast.success(data.message || 'Invitation sent via email');
+      const { toastGoldenPathFromResponse } = await import(
+        '@/lib/onboarding/toast-client'
+      );
+      toastGoldenPathFromResponse(data);
       setForm({ name: '', email: '', role: 'member' });
       void load();
     } catch (e: unknown) {

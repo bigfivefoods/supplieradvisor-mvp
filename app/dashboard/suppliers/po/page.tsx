@@ -647,6 +647,10 @@ function PoInner() {
             ? `PO #${po.id} created — confirm escrow in wallet…`
             : `Standard PO #${po.id} sent`
       );
+      const { toastGoldenPathFromResponse } = await import(
+        '@/lib/onboarding/toast-client'
+      );
+      toastGoldenPathFromResponse(data);
 
       if (wantEscrow && supplierWallet) {
         submitCreateOnchain(po.id, supplierWallet, Number(po.total_amount || totalAmount));

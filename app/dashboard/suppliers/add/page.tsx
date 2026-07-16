@@ -91,6 +91,10 @@ function AddInner() {
             ? 'Supplier added — share invite link manually (email failed)'
             : 'Invitation sent — supplier can claim and take over'
         );
+        const { toastGoldenPathFromResponse } = await import(
+          '@/lib/onboarding/toast-client'
+        );
+        toastGoldenPathFromResponse(data);
         if (data.inviteLink) {
           try {
             await navigator.clipboard.writeText(data.inviteLink);

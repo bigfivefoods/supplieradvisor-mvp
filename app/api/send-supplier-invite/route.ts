@@ -96,6 +96,15 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    const inviterId = inviterProfileId ? Number(inviterProfileId) : null;
+    let goldenPath = { newlyMarked: [] as string[], progressPercent: 0 };
+    if (inviterId && Number.isFinite(inviterId)) {
+      goldenPath = await import('@/lib/onboarding/checklist').then(
+        ({ markOnboardingSteps }) =>
+          markOnboardingSteps(inviterId, 'invite_partners')
+      );
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Invitation sent successfully',
@@ -103,6 +112,7 @@ export async function POST(request: NextRequest) {
       inviteToken,
       inviteLink,
       expiresInDays: INVITE_EXPIRY_DAYS,
+      goldenPath,
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';

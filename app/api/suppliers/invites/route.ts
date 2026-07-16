@@ -239,12 +239,17 @@ export async function POST(request: NextRequest) {
       metadata: { supplierId, targetProfileId },
     });
 
+    const goldenPath = await import('@/lib/onboarding/checklist').then(
+      ({ markOnboardingSteps }) => markOnboardingSteps(companyId, 'invite_partners')
+    );
+
     return NextResponse.json({
       success: true,
       invitation: inv,
       supplierId,
       inviteLink,
       expiresInDays: INVITE_EXPIRY_DAYS,
+      goldenPath,
       warning: emailWarning
         ? 'Invite created but email failed — share the link manually.'
         : undefined,

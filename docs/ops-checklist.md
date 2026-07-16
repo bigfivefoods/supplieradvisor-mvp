@@ -34,7 +34,7 @@ Also see **`docs/referral-trust-runbook.md`** for referral, rating prompts, Rese
 | `TWILIO_WHATSAPP_TO_DEFAULT` | Sandbox test recipient |
 | `NEXT_PUBLIC_USDC_ESCROW_*` | USDC escrow UI (after deploy) |
 | `BANKLINK_API_KEY` | Live open banking |
-| `CRON_SECRET` | Cron jobs (incl. referral hold release) |
+| `CRON_SECRET` | Cron jobs (referral holds + rating digests) |
 
 ## 3. USDC escrow (Base Sepolia)
 

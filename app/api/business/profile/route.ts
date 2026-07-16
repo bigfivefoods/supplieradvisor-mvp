@@ -368,8 +368,8 @@ export async function PATCH(request: NextRequest) {
     });
 
     // Golden path: profile step
-    void import('@/lib/onboarding/checklist').then(({ markOnboardingSteps }) =>
-      markOnboardingSteps(companyId, 'profile')
+    const goldenPath = await import('@/lib/onboarding/checklist').then(
+      ({ markOnboardingSteps }) => markOnboardingSteps(companyId, 'profile')
     );
 
     return NextResponse.json({
@@ -378,6 +378,7 @@ export async function PATCH(request: NextRequest) {
       completeness: computeDetailedCompleteness(profile as Record<string, unknown>),
       written: Object.keys(safe).filter((k) => k !== 'updated_at'),
       droppedAliases: dropped,
+      goldenPath,
     });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Error' }, { status: 500 });

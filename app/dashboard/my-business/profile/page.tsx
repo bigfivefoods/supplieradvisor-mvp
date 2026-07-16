@@ -619,6 +619,10 @@ function ProfileInner() {
       applySavedProfile(data.profile);
       setCompleteness(data.completeness || null);
       toast.success('Profile saved to Supabase');
+      const { toastGoldenPathFromResponse } = await import(
+        '@/lib/onboarding/toast-client'
+      );
+      toastGoldenPathFromResponse(data);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Save failed');
     } finally {

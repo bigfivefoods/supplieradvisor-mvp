@@ -306,8 +306,8 @@ export async function POST(request: NextRequest) {
       metadata: { email: normalizedEmail, role },
     });
 
-    void import('@/lib/onboarding/checklist').then(({ markOnboardingSteps }) =>
-      markOnboardingSteps(companyId, 'team')
+    const goldenPath = await import('@/lib/onboarding/checklist').then(
+      ({ markOnboardingSteps }) => markOnboardingSteps(companyId, 'team')
     );
 
     return NextResponse.json({
@@ -319,6 +319,7 @@ export async function POST(request: NextRequest) {
       role,
       emailId,
       from: getResendFrom(),
+      goldenPath,
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';

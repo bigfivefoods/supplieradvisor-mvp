@@ -267,11 +267,14 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    void import('@/lib/onboarding/checklist').then(({ markOnboardingSteps }) =>
-      markOnboardingSteps(companyId, 'first_trade')
+    const goldenPath = await import('@/lib/onboarding/checklist').then(
+      ({ markOnboardingSteps }) => markOnboardingSteps(companyId, 'first_trade')
     );
 
-    return NextResponse.json({ success: true, purchaseOrder: data }, { status: 201 });
+    return NextResponse.json(
+      { success: true, purchaseOrder: data, goldenPath },
+      { status: 201 }
+    );
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },

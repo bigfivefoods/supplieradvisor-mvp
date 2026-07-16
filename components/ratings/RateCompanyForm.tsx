@@ -95,6 +95,10 @@ export function RateCompanyForm({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || data.hint || 'Failed to save rating');
       toast.success(data.updated ? 'Rating updated' : 'Rating published');
+      const { toastGoldenPathStep } = await import(
+        '@/lib/onboarding/toast-client'
+      );
+      toastGoldenPathStep('rate_partner');
       setComment('');
       onSaved?.();
     } catch (e: unknown) {

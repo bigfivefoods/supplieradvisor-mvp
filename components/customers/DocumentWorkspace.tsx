@@ -291,6 +291,10 @@ function DocInner({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || data.hint || 'Failed');
       toast.success(`${cfg.title.slice(0, -1)} created (${docCurrency})`);
+      const { toastGoldenPathFromResponse } = await import(
+        '@/lib/onboarding/toast-client'
+      );
+      toastGoldenPathFromResponse(data);
       setShowForm(false);
       setLines([
         {

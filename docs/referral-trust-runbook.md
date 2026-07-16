@@ -115,11 +115,21 @@ Rating a partner completes pending `rating_prompts` and marks `rate_partner`.
 | PATCH business profile | `profile` |
 | Team invite sent | `team` |
 | Invite business / connection accept | `invite_partners` |
+| Supplier invite (`/api/suppliers/invites`) | `invite_partners` |
 | Create quote / SO / invoice / PO | `first_trade` |
 | Open billing page | `billing` |
 | Publish peer rating | `rate_partner` |
 
 Guide: `/dashboard/guide/golden-path`
+
+Client toasts: successful first-time step marks show **Golden path updated** (via `toastGoldenPathFromResponse`).
+
+### Rating prompt email digest
+
+- Cron: `GET /api/business/rating-prompts/cron` daily 08:00 UTC (`vercel.json`)
+- Auth: `CRON_SECRET`
+- Sends Resend digest for pending prompts ≥ ~20h old; sets `metadata.digest_sent_at`
+- Ops manual: `POST` with referral ops auth
 
 ## 9. Production checklist (quick)
 

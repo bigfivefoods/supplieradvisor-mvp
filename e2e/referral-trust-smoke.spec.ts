@@ -57,6 +57,10 @@ const protectedPosts = [
       connectionId: 1,
     },
   },
+  {
+    path: '/api/business/rating-prompts/cron',
+    data: { action: 'run' },
+  },
 ];
 
 test.describe('Referral + trust API gates', () => {

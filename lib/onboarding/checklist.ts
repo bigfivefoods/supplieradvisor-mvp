@@ -234,19 +234,26 @@ export function mergeOnboardingSteps(
   return out;
 }
 
+export type MarkOnboardingResult = {
+  newlyMarked: OnboardingStepId[];
+  progressPercent: number;
+};
+
 /**
  * Soft-mark one or more golden-path steps (never throws, never un-marks).
+ * Returns which steps were newly flipped true (for client toasts).
  */
 export async function markOnboardingSteps(
   companyId: number,
   stepIds: OnboardingStepId | OnboardingStepId[]
-): Promise<void> {
+): Promise<MarkOnboardingResult> {
+  const empty: MarkOnboardingResult = { newlyMarked: [], progressPercent: 0 };
   const id = Number(companyId);
-  if (!Number.isFinite(id) || id <= 0) return;
+  if (!Number.isFinite(id) || id <= 0) return empty;
   const list = (Array.isArray(stepIds) ? stepIds : [stepIds]).filter((s) =>
     ONBOARDING_STEPS.some((x) => x.id === s)
-  );
-  if (!list.length) return;
+  ) as OnboardingStepId[];
+  if (!list.length) return empty;
 
   try {
     const supabase = getSupabaseServer();
@@ -260,14 +267,16 @@ export async function markOnboardingSteps(
     const steps: Record<string, boolean> = {
       ...((existing?.steps || {}) as Record<string, boolean>),
     };
-    let changed = false;
+    const newlyMarked: OnboardingStepId[] = [];
     for (const s of list) {
       if (!steps[s]) {
         steps[s] = true;
-        changed = true;
+        newlyMarked.push(s);
       }
     }
-    if (!changed) return;
+    if (!newlyMarked.length) {
+      return { newlyMarked: [], progressPercent: progressPercent(steps) };
+    }
 
     const pct = progressPercent(steps);
     await supabase.from('company_onboarding_progress').upsert(
@@ -280,9 +289,16 @@ export async function markOnboardingSteps(
       },
       { onConflict: 'profile_id' }
     );
+    return { newlyMarked, progressPercent: pct };
   } catch (e) {
     console.warn('markOnboardingSteps soft-fail:', e);
+    return empty;
   }
+}
+
+/** Step title for toast copy */
+export function onboardingStepTitle(id: string): string {
+  return ONBOARDING_STEPS.find((s) => s.id === id)?.title || id;
 }
 
 /**

@@ -445,14 +445,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    void import('@/lib/onboarding/checklist').then(({ markOnboardingSteps }) =>
-      markOnboardingSteps(companyId, 'first_trade')
+    const goldenPath = await import('@/lib/onboarding/checklist').then(
+      ({ markOnboardingSteps }) => markOnboardingSteps(companyId, 'first_trade')
     );
 
     return NextResponse.json({
       success: true,
       document: inserted.data,
       type: kind,
+      goldenPath,
     });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Error' }, { status: 500 });

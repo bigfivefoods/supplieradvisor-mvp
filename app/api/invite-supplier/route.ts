@@ -115,11 +115,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to send invitation email' }, { status: 500 });
     }
 
+    // Optional company context for golden path (body.companyId / inviterProfileId)
+    const companyId = Number(
+      (body as { companyId?: number; inviterProfileId?: number }).companyId ||
+        (body as { inviterProfileId?: number }).inviterProfileId
+    );
+    let goldenPath = { newlyMarked: [] as string[], progressPercent: 0 };
+    if (Number.isFinite(companyId) && companyId > 0) {
+      goldenPath = await import('@/lib/onboarding/checklist').then(
+        ({ markOnboardingSteps }) =>
+          markOnboardingSteps(companyId, 'invite_partners')
+      );
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Invitation sent successfully',
       supplierId: newSupplier?.id,
       inviteToken,
+      goldenPath,
     });
 
   } catch (error) {

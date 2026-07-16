@@ -102,6 +102,10 @@ function NetworkInner() {
           ? 'Invite created — share the link manually (email failed)'
           : 'Invitation sent'
       );
+      const { toastGoldenPathFromResponse } = await import(
+        '@/lib/onboarding/toast-client'
+      );
+      toastGoldenPathFromResponse(data);
       if (data.inviteLink) {
         try {
           await navigator.clipboard.writeText(data.inviteLink);
