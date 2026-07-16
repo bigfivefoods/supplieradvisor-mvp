@@ -13,6 +13,9 @@ import {
   Globe2,
   CreditCard,
   Clock,
+  Gift,
+  Link2,
+  Network,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import {
@@ -23,6 +26,13 @@ import {
   type BillingTerm,
 } from '@/lib/billing/company-subscription';
 import { FOUNDING_FREE_COMPANY_LIMIT } from '@/lib/billing/lifetime';
+import {
+  REFERRAL_LEVEL_LABELS,
+  REFERRAL_LEVEL_RATES_PCT,
+  REFERRAL_PROGRAM_ROOT_NAME,
+  REFERRAL_TOTAL_CAP_PCT,
+  referralRatesSummary,
+} from '@/lib/billing/supply-chain-referral';
 
 const INCLUDED = [
   'Unlimited team users per company',
@@ -63,10 +73,21 @@ function termCta(t: BillingTerm): string {
   return 'Choose 1 year';
 }
 
+/** Round to cents for display */
+function feeZar(base: number, ratePct: number): number {
+  return Math.round(((base * ratePct) / 100) * 100) / 100;
+}
+
 export default function Pricing() {
   const router = useRouter();
   const annual = BILLING_TERMS.find((t) => t.id === '1y')!;
   const best = BILLING_TERMS.find((t) => t.id === '3y')!;
+  const exampleBase = COMPANY_SUBSCRIPTION_MONTHLY_ZAR;
+  const exampleFees = REFERRAL_LEVEL_RATES_PCT.map((rate) => ({
+    rate,
+    amount: feeZar(exampleBase, rate),
+  }));
+  const exampleTotal = exampleFees.reduce((s, f) => s + f.amount, 0);
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900">
@@ -152,6 +173,13 @@ export default function Pricing() {
                 className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-6 py-3.5 text-base font-bold text-slate-700 hover:bg-slate-50 transition"
               >
                 Compare tiers
+              </a>
+              <a
+                href="#referral"
+                className="inline-flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-6 py-3.5 text-base font-bold text-emerald-900 hover:bg-emerald-100/80 transition"
+              >
+                <Gift className="w-4 h-4" />
+                Referral fees
               </a>
             </div>
             <p className="mt-4 text-xs text-slate-500 inline-flex items-center gap-1.5 justify-center">
@@ -396,8 +424,226 @@ export default function Pricing() {
           </div>
         </section>
 
+        {/* Supply-chain referral programme */}
+        <section
+          id="referral"
+          className="border-y border-slate-200/80 bg-gradient-to-b from-emerald-50/40 via-white to-white"
+        >
+          <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-14 sm:py-16">
+            <div className="text-center max-w-2xl mx-auto mb-10">
+              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-wider text-emerald-900 mb-4">
+                <Network className="w-3.5 h-3.5" />
+                Supply-chain referral
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">
+                Earn when companies you invite pay
+              </h2>
+              <p className="mt-3 text-slate-600 text-sm sm:text-base leading-relaxed">
+                Company-to-company rewards on{' '}
+                <strong className="text-slate-800">platform subscription</strong>{' '}
+                payments — not product sales. Up to{' '}
+                <strong className="text-slate-800">
+                  {REFERRAL_TOTAL_CAP_PCT}%
+                </strong>{' '}
+                of each paid fee is shared across three levels (
+                {referralRatesSummary()}). Programme launched by{' '}
+                <strong className="text-slate-800">
+                  {REFERRAL_PROGRAM_ROOT_NAME}
+                </strong>
+                , who sit at the top of the network; companies with no other
+                inviter join under them.
+              </p>
+            </div>
+
+            {/* Process */}
+            <div className="grid md:grid-cols-3 gap-4 mb-10">
+              {[
+                {
+                  step: '1',
+                  icon: Link2,
+                  title: 'Invite',
+                  body: 'Share your referral link from Billing, or invite suppliers, customers, and partners from the dashboard. First invite wins (first-touch).',
+                },
+                {
+                  step: '2',
+                  icon: Building2,
+                  title: 'They join & pay',
+                  body: `They register (or claim your invite), run their free trial, then subscribe — monthly or prepaid multi-year from R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo.`,
+                },
+                {
+                  step: '3',
+                  icon: Gift,
+                  title: 'You earn',
+                  body: 'A share of their subscription payment credits to your company. Request payout after review — pending → approved → paid.',
+                },
+              ].map((s) => (
+                <div
+                  key={s.step}
+                  className="rounded-[1.5rem] border border-slate-200 bg-white p-6 shadow-sm"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-100 text-sm font-black text-emerald-900">
+                      {s.step}
+                    </span>
+                    <div className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-sky-50 text-[#00b4d8]">
+                      <s.icon className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <h3 className="mt-4 font-bold text-slate-900">{s.title}</h3>
+                  <p className="mt-1.5 text-sm text-slate-600 leading-relaxed">
+                    {s.body}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            {/* Fees + example */}
+            <div className="grid lg:grid-cols-2 gap-5 lg:gap-6 items-stretch">
+              <div className="rounded-[1.75rem] border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
+                <h3 className="text-lg font-black text-slate-900">
+                  Referral fee split
+                </h3>
+                <p className="mt-1.5 text-sm text-slate-600">
+                  Of every qualifying subscription payment by a company in your
+                  chain:
+                </p>
+                <ul className="mt-5 space-y-3">
+                  {REFERRAL_LEVEL_RATES_PCT.map((rate, i) => (
+                    <li
+                      key={i}
+                      className="flex items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3"
+                    >
+                      <div>
+                        <div className="text-sm font-bold text-slate-900">
+                          {REFERRAL_LEVEL_LABELS[i]}
+                        </div>
+                        <div className="text-xs text-slate-500 mt-0.5">
+                          {i === 0
+                            ? 'Company you invited directly'
+                            : i === 1
+                              ? 'Company invited by your referral'
+                              : 'One more level deeper'}
+                        </div>
+                      </div>
+                      <div className="text-2xl font-black text-emerald-700 tabular-nums">
+                        {rate}%
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-4 flex items-center justify-between rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm">
+                  <span className="font-semibold text-emerald-950">
+                    Combined cap
+                  </span>
+                  <span className="font-black text-emerald-900">
+                    {REFERRAL_TOTAL_CAP_PCT}% max
+                  </span>
+                </div>
+                <p className="mt-4 text-xs text-slate-500 leading-relaxed">
+                  Separate from sales-contractor product commission (personal
+                  sales only). Referral fees apply only to company platform
+                  subscription payments.
+                </p>
+              </div>
+
+              <div className="rounded-[1.75rem] border border-sky-200 bg-gradient-to-br from-sky-50 via-white to-emerald-50/50 p-6 sm:p-8 shadow-sm">
+                <h3 className="text-lg font-black text-slate-900">
+                  Example
+                </h3>
+                <p className="mt-1.5 text-sm text-slate-600 leading-relaxed">
+                  <strong className="text-slate-800">You</strong> invite{' '}
+                  <strong className="text-slate-800">Company A</strong>. They
+                  invite <strong className="text-slate-800">Company B</strong>.
+                  B invites <strong className="text-slate-800">Company C</strong>
+                  . When <strong className="text-slate-800">C</strong> pays a
+                  monthly subscription of{' '}
+                  <strong className="text-slate-800">
+                    {formatZar(exampleBase)}
+                  </strong>
+                  :
+                </p>
+
+                <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-100 bg-slate-50 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                        <th className="px-4 py-2.5">Who earns</th>
+                        <th className="px-4 py-2.5">Level</th>
+                        <th className="px-4 py-2.5 text-right">Fee</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      <tr>
+                        <td className="px-4 py-3 font-semibold text-slate-800">
+                          Company B
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">
+                          L1 · {REFERRAL_LEVEL_RATES_PCT[0]}%
+                        </td>
+                        <td className="px-4 py-3 text-right font-bold text-emerald-700 tabular-nums">
+                          {formatZar(exampleFees[0].amount)}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="px-4 py-3 font-semibold text-slate-800">
+                          Company A
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">
+                          L2 · {REFERRAL_LEVEL_RATES_PCT[1]}%
+                        </td>
+                        <td className="px-4 py-3 text-right font-bold text-emerald-700 tabular-nums">
+                          {formatZar(exampleFees[1].amount)}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="px-4 py-3 font-semibold text-slate-800">
+                          You
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">
+                          L3 · {REFERRAL_LEVEL_RATES_PCT[2]}%
+                        </td>
+                        <td className="px-4 py-3 text-right font-bold text-emerald-700 tabular-nums">
+                          {formatZar(exampleFees[2].amount)}
+                        </td>
+                      </tr>
+                      <tr className="bg-emerald-50/80">
+                        <td
+                          colSpan={2}
+                          className="px-4 py-3 font-bold text-slate-900"
+                        >
+                          Total shared (of {formatZar(exampleBase)})
+                        </td>
+                        <td className="px-4 py-3 text-right font-black text-emerald-900 tabular-nums">
+                          {formatZar(exampleTotal)}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <p className="mt-4 text-xs text-slate-600 leading-relaxed">
+                  If you invited C directly, you would earn L1 (
+                  {formatZar(exampleFees[0].amount)}) instead. Prepaid terms use
+                  the same percentages on the amount actually paid (e.g.{' '}
+                  {formatZar(annual.payZar)} for 1 year).
+                </p>
+                <p className="mt-2 text-xs text-slate-500 leading-relaxed">
+                  Copy your link in{' '}
+                  <Link
+                    href="/dashboard/my-business/billing"
+                    className="font-semibold text-[#0077b6] hover:underline"
+                  >
+                    My Business → Billing
+                  </Link>{' '}
+                  after you create a company.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* Bottom CTA */}
-        <section className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pb-16 sm:pb-20">
+        <section className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pb-16 sm:pb-20 pt-14 sm:pt-16">
           <div className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-[#0077b6] via-[#00b4d8] to-sky-400 px-6 sm:px-12 py-12 sm:py-14 text-center text-white shadow-xl shadow-sky-200/40">
             <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_20%_20%,white,transparent_45%)]" />
             <div className="relative">
