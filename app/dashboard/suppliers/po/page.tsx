@@ -34,6 +34,8 @@ import {
   poStatusBadgeClass,
   type PoLineItem,
 } from '@/lib/procurement/types';
+import { purchaseOrderWhatsAppText } from '@/lib/invites/whatsapp';
+import WhatsAppShareButton from '@/components/ui/WhatsAppShareButton';
 import { CONTRACTS } from '@/lib/contracts/config';
 import POEscrowV2ABI from '@/lib/contracts/abi/POEscrowV2.json';
 import {
@@ -105,6 +107,9 @@ type BookSupplier = {
   status?: string | null;
   verified?: boolean | null;
   otifef_pct?: number | null;
+  phone?: string | null;
+  contact_name?: string | null;
+  email?: string | null;
 };
 
 type PurchaseOrder = {
@@ -113,6 +118,8 @@ type PurchaseOrder = {
   supplier_id?: number | null;
   supplier_profile_id?: number | null;
   supplier_name?: string | null;
+  supplier_phone?: string | null;
+  supplier_contact_name?: string | null;
   total_amount?: number | null;
   status: string;
   description?: string | null;
@@ -1027,6 +1034,53 @@ function PoInner() {
         });
       }
     }
+  };
+
+  const resolvePoSupplier = (po: PurchaseOrder): BookSupplier | null => {
+    if (po.supplier_id) {
+      const byId = suppliers.find((s) => Number(s.id) === Number(po.supplier_id));
+      if (byId) return byId;
+    }
+    if (po.supplier_profile_id) {
+      const byProfile = suppliers.find(
+        (s) => Number(s.linked_profile_id) === Number(po.supplier_profile_id)
+      );
+      if (byProfile) return byProfile;
+    }
+    return null;
+  };
+
+  const resolvePoPhone = (po: PurchaseOrder): string | null => {
+    const fromPo = String(po.supplier_phone || '').trim();
+    if (fromPo) return fromPo;
+    const sup = resolvePoSupplier(po);
+    return String(sup?.phone || '').trim() || null;
+  };
+
+  const buildPoWhatsAppText = (po: PurchaseOrder): string => {
+    const sup = resolvePoSupplier(po);
+    const items = Array.isArray(po.items) ? po.items : [];
+    const lineSummary = items
+      .filter((l) => l?.item_name)
+      .slice(0, 10)
+      .map((l) => {
+        const qty = Number(l.quantity || 0);
+        const uom = l.uom ? ` ${l.uom}` : '';
+        const price = Number(l.unit_price || 0);
+        return `${l.item_name} × ${qty}${uom} @ R${price.toLocaleString()}`;
+      });
+    return purchaseOrderWhatsAppText({
+      poId: po.id,
+      supplierName: po.supplier_name || sup?.trading_name || null,
+      contactName:
+        po.supplier_contact_name || sup?.contact_name || null,
+      amount: Number(po.total_amount || 0),
+      currency: po.currency || 'ZAR',
+      status: po.status || null,
+      promisedDate: po.promised_date || null,
+      description: po.description || null,
+      lineSummary,
+    });
   };
 
   /** Buyer-facing next step for pipeline cards */
@@ -2052,6 +2106,12 @@ function PoInner() {
                         </div>
 
                         <div className="flex flex-wrap gap-2">
+                          <WhatsAppShareButton
+                            text={buildPoWhatsAppText(po)}
+                            phone={resolvePoPhone(po)}
+                            label="WhatsApp"
+                            title="Share this PO on WhatsApp with your supplier"
+                          />
                           {po.status === 'draft' && (
                             <button
                               type="button"

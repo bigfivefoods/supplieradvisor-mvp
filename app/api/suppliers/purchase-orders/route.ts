@@ -46,32 +46,70 @@ export async function GET(request: NextRequest) {
     }
 
     const pos = data || [];
-    const supplierIds = [
+    const profileIds = [
       ...new Set(
         pos
-          .map((p) => Number(p.supplier_profile_id ?? p.supplier_id))
+          .map((p) => Number(p.supplier_profile_id))
+          .filter((id) => Number.isFinite(id) && id > 0)
+      ),
+    ];
+    const srmIds = [
+      ...new Set(
+        pos
+          .map((p) => Number(p.supplier_id))
           .filter((id) => Number.isFinite(id) && id > 0)
       ),
     ];
     const nameMap: Record<number, string> = {};
     const walletMap: Record<number, string | null> = {};
-    if (supplierIds.length) {
+    const phoneBySrm: Record<number, string | null> = {};
+    const contactBySrm: Record<number, string | null> = {};
+    const nameBySrm: Record<number, string> = {};
+    /** phone keyed by linked platform profile id (from srm book) */
+    const phoneByLinkedProfile: Record<number, string | null> = {};
+
+    if (profileIds.length) {
       const { data: profiles } = await supabase
         .from('profiles')
         .select('id, trading_name, wallet_address')
-        .in('id', supplierIds);
+        .in('id', profileIds);
       for (const p of profiles || []) {
         nameMap[Number(p.id)] = p.trading_name || `Supplier ${p.id}`;
         walletMap[Number(p.id)] = p.wallet_address || null;
       }
     }
 
+    if (srmIds.length) {
+      const { data: srmRows } = await supabase
+        .from('srm_suppliers')
+        .select('id, trading_name, phone, contact_name, linked_profile_id')
+        .in('id', srmIds);
+      for (const s of srmRows || []) {
+        const id = Number(s.id);
+        nameBySrm[id] = s.trading_name || `Supplier ${id}`;
+        phoneBySrm[id] = (s.phone as string) || null;
+        contactBySrm[id] = (s.contact_name as string) || null;
+        const lp = Number(s.linked_profile_id);
+        if (lp > 0 && s.trading_name && !nameMap[lp]) {
+          nameMap[lp] = s.trading_name;
+        }
+        if (lp > 0 && s.phone) {
+          phoneByLinkedProfile[lp] = s.phone as string;
+        }
+      }
+    }
+
     const enriched = pos.map((p) => {
-      const sid = Number(p.supplier_profile_id ?? p.supplier_id);
+      const profileId = Number(p.supplier_profile_id);
+      const srmId = Number(p.supplier_id);
       return {
         ...p,
-        supplier_name: nameMap[sid] || null,
-        supplier_wallet: p.supplier_wallet || walletMap[sid] || null,
+        supplier_name:
+          nameMap[profileId] || nameBySrm[srmId] || null,
+        supplier_wallet: p.supplier_wallet || walletMap[profileId] || null,
+        supplier_phone:
+          phoneBySrm[srmId] || phoneByLinkedProfile[profileId] || null,
+        supplier_contact_name: contactBySrm[srmId] || null,
       };
     });
 

@@ -31,9 +31,11 @@ import {
   priceForCurrency,
   productPriceLabel,
 } from '@/lib/inventory/priceForCurrency';
+import { commercialDocWhatsAppText } from '@/lib/invites/whatsapp';
 import { CompanyRequired, CustomersHeader } from '@/components/customers/CustomersShell';
 import CommissionBadge from '@/components/sales/CommissionBadge';
 import FxRateStrip from '@/components/fx/FxRateStrip';
+import WhatsAppShareButton from '@/components/ui/WhatsAppShareButton';
 
 type DocType = 'quote' | 'order' | 'invoice';
 
@@ -417,6 +419,49 @@ function DocInner({
   const openPrintPdf = (id: number) => {
     const url = `/api/customers/docs/render?companyId=${companyId}&type=${type}&id=${id}`;
     window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const resolveDocPhone = (doc: DocRecord): string | null => {
+    const fromDoc = String(
+      doc.contact_phone || doc.phone || doc.contact_number || ''
+    ).trim();
+    if (fromDoc) return fromDoc;
+    const cid = Number(doc.customer_id || 0);
+    if (!cid) return null;
+    const c = customers.find((x) => Number(x.id) === cid);
+    if (!c) return null;
+    return String(c.phone || '').trim() || null;
+  };
+
+  const buildDocWhatsAppText = (doc: DocRecord): string => {
+    const num = String(doc[cfg.numberField] || doc.id);
+    const items = Array.isArray(doc.items) ? (doc.items as DocLineItem[]) : [];
+    const lineSummary = items
+      .filter((l) => l?.name)
+      .slice(0, 8)
+      .map((l) => {
+        const qty = Number(l.quantity || 0);
+        const uom = l.uom ? ` ${l.uom}` : '';
+        const price = formatMoney(
+          Number(l.unit_price || 0),
+          String(doc.currency || 'ZAR')
+        );
+        return `${l.name} × ${qty}${uom} @ ${price}`;
+      });
+    return commercialDocWhatsAppText({
+      kind: type,
+      number: num,
+      customerName: (doc.customer_name as string) || null,
+      contactName: (doc.contact_name as string) || null,
+      amount: Number(doc.total_amount || 0),
+      currency: String(doc.currency || 'ZAR'),
+      status: doc.status || null,
+      dueDate: (doc.due_date as string) || null,
+      validUntil: (doc.valid_until as string) || null,
+      promisedDate: (doc.promised_date as string) || null,
+      notes: (doc.notes as string) || null,
+      lineSummary,
+    });
   };
 
   /**
@@ -1001,6 +1046,12 @@ function DocInner({
                         </>
                       )}
                     </button>
+                    <WhatsAppShareButton
+                      text={buildDocWhatsAppText(d)}
+                      phone={resolveDocPhone(d)}
+                      label="WhatsApp"
+                      title="Share this document on WhatsApp to your customer"
+                    />
                     <button
                       type="button"
                       disabled={busyId === d.id}
