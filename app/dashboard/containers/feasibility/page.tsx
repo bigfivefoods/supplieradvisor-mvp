@@ -260,33 +260,42 @@ function Inner() {
           {/* Inputs */}
           <div className="xl:col-span-7 space-y-4">
             <Panel title="Region & scenario">
-              <div className="p-4 space-y-3">
-                <Field label="Scenario name">
+              <div className="p-4 grid sm:grid-cols-2 gap-3">
+                <Field label="Scenario name" className="sm:col-span-2">
                   <input
                     className="input w-full !p-2.5 !text-sm"
                     value={inputs.name}
                     onChange={(e) => setField('name', e.target.value)}
                   />
                 </Field>
-                <GeoSelectFields
-                  compact
-                  countryRequired={false}
-                  value={{
-                    continent: '',
-                    country: inputs.region_country || '',
-                    province: inputs.region_province || '',
-                    city: inputs.region_city || '',
-                  }}
-                  onChange={(g: GeoValue) => {
-                    setInputs((s) => ({
-                      ...s,
-                      region_country: g.country,
-                      region_province: g.province,
-                      region_city: g.city,
-                    }));
-                  }}
-                />
-                <Field label="Notes">
+                <Field label="City / township">
+                  <input
+                    className="input w-full !p-2.5 !text-sm"
+                    value={inputs.region_city}
+                    onChange={(e) => setField('region_city', e.target.value)}
+                    placeholder="e.g. Umlazi"
+                  />
+                </Field>
+                <Field label="Province">
+                  <input
+                    className="input w-full !p-2.5 !text-sm"
+                    value={inputs.region_province}
+                    onChange={(e) =>
+                      setField('region_province', e.target.value)
+                    }
+                    placeholder="e.g. KwaZulu-Natal"
+                  />
+                </Field>
+                <Field label="Country">
+                  <input
+                    className="input w-full !p-2.5 !text-sm"
+                    value={inputs.region_country}
+                    onChange={(e) =>
+                      setField('region_country', e.target.value)
+                    }
+                  />
+                </Field>
+                <Field label="Notes" className="sm:col-span-2">
                   <textarea
                     className="input w-full !p-2.5 !text-sm min-h-[64px]"
                     value={inputs.notes}

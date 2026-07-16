@@ -450,29 +450,24 @@ function OnboardInner() {
                 onChange={(v) => set('shipping_address', v)}
                 multiline
               />
-              <GeoSelectFields
-                compact
-                countryRequired={false}
-                value={{
-                  continent: '',
-                  country: form.country || '',
-                  province: form.region || '',
-                  city: form.city || '',
-                }}
-                onChange={(g: GeoValue) => {
-                  setForm((prev) => ({
-                    ...prev,
-                    country: g.country,
-                    region: g.province,
-                    city: g.city,
-                  }));
-                }}
-              />
-              <Field
-                label="Postal code"
-                value={form.postal_code}
-                onChange={(v) => set('postal_code', v)}
-              />
+              <div className="grid sm:grid-cols-2 gap-3">
+                <Field label="City" value={form.city} onChange={(v) => set('city', v)} />
+                <Field
+                  label="Region / province"
+                  value={form.region}
+                  onChange={(v) => set('region', v)}
+                />
+                <Field
+                  label="Country"
+                  value={form.country}
+                  onChange={(v) => set('country', v)}
+                />
+                <Field
+                  label="Postal code"
+                  value={form.postal_code}
+                  onChange={(v) => set('postal_code', v)}
+                />
+              </div>
             </div>
           </Panel>
 
