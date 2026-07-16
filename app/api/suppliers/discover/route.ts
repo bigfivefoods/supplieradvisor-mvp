@@ -145,7 +145,10 @@ export async function GET(request: NextRequest) {
     });
 
     if (!includeHidden) {
-      rows = rows.filter((r) => r.is_discoverable !== false);
+      const { isEligibleForDiscovery } = await import(
+        '@/lib/business/completeness'
+      );
+      rows = rows.filter((r) => isEligibleForDiscovery(r as Record<string, unknown>).ok);
     }
 
     // Facets from full visible pool (before user filters) so deep search stays comprehensive

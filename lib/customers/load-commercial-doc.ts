@@ -131,5 +131,11 @@ export async function loadCommercialDocument(opts: {
     input,
     toEmail: contact.contactEmail,
     bankDetailsIncluded,
+    bankVerified:
+      String(seller.bank_verification_status || '').toLowerCase() === 'verified',
+    cipcVerified: Boolean(seller.is_verified),
+    bankWarning: bankDetailsIncluded
+      ? null
+      : 'Add bank details on My Business → Profile → Banking so invoices show EFT payment instructions.',
   };
 }

@@ -356,4 +356,68 @@ export const SEED_PROVINCES: SeedProvince[] = [
     'Marlborough', 'Nelson', 'Northland', 'Otago', 'Southland', 'Taranaki', 'Tasman',
     'Waikato', 'Wellington', 'West Coast',
   ].map((name) => ({ country: 'New Zealand', name })),
+
+  // Mozambique
+  ...[
+    'Cabo Delgado', 'Gaza', 'Inhambane', 'Manica', 'Maputo', 'Maputo City',
+    'Nampula', 'Niassa', 'Sofala', 'Tete', 'Zambézia',
+  ].map((name) => ({ country: 'Mozambique', name })),
+
+  // Zimbabwe
+  ...[
+    'Bulawayo', 'Harare', 'Manicaland', 'Mashonaland Central', 'Mashonaland East',
+    'Mashonaland West', 'Masvingo', 'Matabeleland North', 'Matabeleland South', 'Midlands',
+  ].map((name) => ({ country: 'Zimbabwe', name })),
+
+  // Tanzania
+  ...[
+    'Arusha', 'Dar es Salaam', 'Dodoma', 'Geita', 'Iringa', 'Kagera', 'Katavi',
+    'Kigoma', 'Kilimanjaro', 'Lindi', 'Manyara', 'Mara', 'Mbeya', 'Morogoro',
+    'Mtwara', 'Mwanza', 'Njombe', 'Pwani', 'Rukwa', 'Ruvuma', 'Shinyanga',
+    'Simiyu', 'Singida', 'Songwe', 'Tabora', 'Tanga', 'Zanzibar North',
+    'Zanzibar South and Central', 'Zanzibar Urban/West', 'Pemba North', 'Pemba South',
+  ].map((name) => ({ country: 'Tanzania', name })),
+
+  // Uganda
+  ...[
+    'Central', 'Eastern', 'Northern', 'Western',
+  ].map((name) => ({ country: 'Uganda', name })),
+
+  // Zambia
+  ...[
+    'Central', 'Copperbelt', 'Eastern', 'Luapula', 'Lusaka', 'Muchinga',
+    'Northern', 'North-Western', 'Southern', 'Western',
+  ].map((name) => ({ country: 'Zambia', name })),
+
+  // Rwanda
+  ...[
+    'East', 'Kigali', 'North', 'South', 'West',
+  ].map((name) => ({ country: 'Rwanda', name })),
+
+  // Egypt
+  ...[
+    'Alexandria', 'Aswan', 'Asyut', 'Beheira', 'Beni Suef', 'Cairo', 'Dakahlia',
+    'Damietta', 'Faiyum', 'Gharbia', 'Giza', 'Ismailia', 'Kafr El Sheikh', 'Luxor',
+    'Matruh', 'Minya', 'Monufia', 'New Valley', 'North Sinai', 'Port Said', 'Qalyubia',
+    'Qena', 'Red Sea', 'Sharqia', 'Sohag', 'South Sinai', 'Suez',
+  ].map((name) => ({ country: 'Egypt', name })),
+
+  // Ethiopia
+  ...[
+    'Addis Ababa', 'Afar', 'Amhara', 'Benishangul-Gumuz', 'Dire Dawa', 'Gambela',
+    'Harari', 'Oromia', 'Sidama', 'Somali', 'South Ethiopia', 'South West Ethiopia',
+    'Tigray', 'Central Ethiopia',
+  ].map((name) => ({ country: 'Ethiopia', name })),
+
+  // Senegal
+  ...[
+    'Dakar', 'Diourbel', 'Fatick', 'Kaffrine', 'Kaolack', 'Kédougou', 'Kolda',
+    'Louga', 'Matam', 'Saint-Louis', 'Sédhiou', 'Tambacounda', 'Thiès', 'Ziguinchor',
+  ].map((name) => ({ country: 'Senegal', name })),
+
+  // Malawi
+  ...[
+    'Central', 'Northern', 'Southern',
+  ].map((name) => ({ country: 'Malawi', name })),
+
 ];

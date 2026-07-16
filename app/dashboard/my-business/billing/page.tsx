@@ -710,7 +710,7 @@ function BillingInner() {
             </dl>
           </Panel>
 
-          <Panel className="p-5">
+          <Panel id="referrals" className="p-5 scroll-mt-16">
             <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
               <Users className="w-4 h-4 text-[#00b4d8]" />
               Supply-chain referral
@@ -937,8 +937,31 @@ function BillingInner() {
                 Fees stay <strong>pending</strong> during a hold (refunds /
                 fraud). After the hold they <strong>auto-approve</strong>. You
                 request payout; <strong>platform ops</strong> settles payment —
-                companies cannot mark themselves paid.
+                companies cannot mark themselves paid. Use verified bank details
+                from profile Banking when possible.
               </p>
+              {(referral?.payouts || []).length > 0 && (
+                <div className="mt-3 rounded-xl border border-neutral-100 overflow-hidden">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-2.5 py-1.5 bg-neutral-50">
+                    Payout history
+                  </div>
+                  <ul className="divide-y divide-neutral-100 max-h-40 overflow-y-auto text-[11px]">
+                    {(referral?.payouts || []).slice(0, 12).map((row, i) => (
+                      <li
+                        key={String(row.id || i)}
+                        className="px-2.5 py-1.5 flex justify-between gap-2"
+                      >
+                        <span className="font-semibold text-slate-700 capitalize">
+                          {String(row.status || 'unknown')}
+                        </span>
+                        <span className="tabular-nums text-slate-600">
+                          {formatZar(Number(row.amount_zar || row.amount || 0))}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
 
             {referral?.invitePath ? (

@@ -759,7 +759,21 @@ function ProfileInner() {
         throw new Error(data.error || data.hint || 'VerifyNow verification failed');
       }
       applyVerifyResponse(data);
-      toast.success(data.message || 'Company verified via VerifyNow', { id: 'vn-company' });
+      const credits =
+        data.verification?.remainingCredits != null
+          ? Number(data.verification.remainingCredits)
+          : null;
+      toast.success(
+        credits != null && Number.isFinite(credits)
+          ? `${data.message || 'Company verified'} · VerifyNow credits left: ${credits}`
+          : data.message || 'Company verified via VerifyNow',
+        { id: 'vn-company' }
+      );
+      if (credits != null && credits < 20) {
+        toast.message('VerifyNow credits running low — top up at verifynow.co.za', {
+          duration: 6000,
+        });
+      }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Verification failed', {
         id: 'vn-company',
@@ -850,9 +864,21 @@ function ProfileInner() {
         message: data.message,
         verification: data.verification,
       });
-      toast.success(data.message || 'Bank account verified via VerifyNow', {
-        id: 'vn-bank',
-      });
+      const bankCredits =
+        data.verification?.remainingCredits != null
+          ? Number(data.verification.remainingCredits)
+          : null;
+      toast.success(
+        bankCredits != null && Number.isFinite(bankCredits)
+          ? `${data.message || 'Bank verified'} · VerifyNow credits left: ${bankCredits}`
+          : data.message || 'Bank account verified via VerifyNow',
+        { id: 'vn-bank' }
+      );
+      if (bankCredits != null && bankCredits < 20) {
+        toast.message('VerifyNow credits running low — top up at verifynow.co.za', {
+          duration: 6000,
+        });
+      }
     } catch (e: unknown) {
       console.error('runBankVerifyNow failed:', e);
       toast.error(e instanceof Error ? e.message : 'Bank verification failed', {
@@ -1158,6 +1184,31 @@ function ProfileInner() {
         </div>
       )}
 
+      <nav
+        className="sticky top-0 z-20 mb-3 flex gap-1 overflow-x-auto rounded-xl border border-neutral-200 bg-white/95 px-2 py-1.5 shadow-sm backdrop-blur"
+        aria-label="Profile sections"
+      >
+        {[
+          { id: 'identity', label: 'Identity & CIPC' },
+          { id: 'contacts', label: 'Contacts' },
+          { id: 'location', label: 'Location' },
+          { id: 'industry', label: 'Industry' },
+          { id: 'banking', label: 'Banking' },
+          { id: 'licenses', label: 'Licenses' },
+        ].map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            className="shrink-0 rounded-lg px-2.5 py-1 text-[11px] font-bold text-slate-600 hover:bg-[#00b4d8]/10 hover:text-[#0077b6]"
+            onClick={() =>
+              document.getElementById(s.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            }
+          >
+            {s.label}
+          </button>
+        ))}
+      </nav>
+
       {/* Compact summary strip */}
       <div className="mb-4 rounded-2xl border border-neutral-200/90 bg-white px-4 py-3">
         <div className="flex items-center gap-3">
@@ -1214,6 +1265,7 @@ function ProfileInner() {
       <div className="space-y-3 sm:space-y-4">
         {/* ── Identity + CIPC (grouped) ── */}
         <Panel
+          id="identity"
           title="Identity & CIPC verification"
           action={
             isVerified ? (
@@ -1512,7 +1564,7 @@ function ProfileInner() {
 
         {/* ── Contacts + Location ── */}
         <div className="grid lg:grid-cols-2 gap-3 sm:gap-4">
-          <Panel title="Contacts">
+          <Panel id="contacts" title="Contacts">
             <div className="p-4 space-y-2.5">
               <div className="grid sm:grid-cols-2 gap-2.5">
                 <Field label="Primary contact">
@@ -1577,7 +1629,7 @@ function ProfileInner() {
             </div>
           </Panel>
 
-          <Panel title="Location">
+          <Panel id="location" title="Location">
             <div className="p-4 space-y-2.5">
               <GeoSelectFields
                 value={geo}
@@ -1652,7 +1704,7 @@ function ProfileInner() {
 
         {/* ── Industry + Certifications ── */}
         <div className="grid lg:grid-cols-2 gap-3 sm:gap-4">
-          <Panel title="Industry">
+          <Panel id="industry" title="Industry">
             <div className="p-4 space-y-3">
               <div>
                 <SectionLabel>Primary industries</SectionLabel>
@@ -1873,6 +1925,7 @@ function ProfileInner() {
         {/* ── Banking + Licenses ── */}
         <div className="grid lg:grid-cols-2 gap-3 sm:gap-4">
           <Panel
+            id="banking"
             title="Banking"
             action={
               bankVerified ? (
@@ -2088,6 +2141,7 @@ function ProfileInner() {
           </Panel>
 
           <Panel
+            id="licenses"
             title="Licenses & director"
             action={
               <button

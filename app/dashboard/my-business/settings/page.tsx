@@ -265,10 +265,14 @@ function SettingsInner() {
           <div className="p-5 space-y-1">
             <Toggle
               label="Discoverable on network"
-              desc="Appear in supplier discovery and marketplace search"
+              desc="Appear in directory / discover when profile is ≥60% complete (logo, location, registration help)"
               on={settings.is_discoverable}
               onToggle={() => toggle('is_discoverable')}
             />
+            <p className="text-[11px] text-neutral-500 px-1 pb-2">
+              Turning this on is not enough alone — finish My Business → Profile (name,
+              location, registration, logo) so the public directory and discover APIs list you.
+            </p>
             <Toggle
               label="Act as buyer"
               desc="Enable SRM procurement features for this company"

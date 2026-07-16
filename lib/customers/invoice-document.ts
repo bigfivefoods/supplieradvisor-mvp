@@ -37,6 +37,7 @@ export type SellerProfile = {
   logo_url?: string | null;
   is_verified?: boolean;
   verification_status?: string | null;
+  bank_verification_status?: string | null;
   payment_terms?: string | null;
   default_payment_terms?: string | null;
 };
@@ -119,9 +120,21 @@ function bankBlock(s: SellerProfile): string {
     return `
       <div class="pay-box warn">
         <div class="pay-title">Payment details</div>
-        <p>Bank details are not on file for this seller. Please contact them for payment instructions.</p>
+        <p>Bank details are not on file for this seller. Please contact them for payment instructions or complete Banking on the company profile.</p>
       </div>`;
   }
+  const bankVerified =
+    String(s.bank_verification_status || '').toLowerCase() === 'verified';
+  const cipcLine = s.is_verified
+    ? `<p class="hint trust">✓ Seller CIPC-verified on SupplierAdvisor${
+        s.registration_number
+          ? ` · Reg ${esc(String(s.registration_number))}`
+          : ''
+      }</p>`
+    : '';
+  const bankLine = bankVerified
+    ? `<p class="hint trust">✓ Bank account verified via VerifyNow AVS</p>`
+    : '';
   return `
     <div class="pay-box">
       <div class="pay-title">Pay by EFT / bank transfer</div>
@@ -132,6 +145,8 @@ function bankBlock(s: SellerProfile): string {
         )
         .join('')}</table>
       <p class="hint">Use the invoice number as your payment reference.</p>
+      ${cipcLine}
+      ${bankLine}
     </div>`;
 }
 
@@ -159,6 +174,23 @@ export function extractBankFromProfile(row: Record<string, unknown>): SellerProf
     p.is_verified === true ||
     String(p.verification_status || '').toLowerCase() === 'verified';
 
+  const bankingMeta =
+    meta.banking && typeof meta.banking === 'object' && !Array.isArray(meta.banking)
+      ? (meta.banking as Record<string, unknown>)
+      : {};
+  const pickBank = (...keys: string[]) => {
+    for (const k of keys) {
+      const v =
+        (p as Record<string, unknown>)[k] ??
+        row[k] ??
+        bankingMeta[k] ??
+        meta[k] ??
+        settings[k];
+      if (v != null && String(v).trim()) return String(v).trim();
+    }
+    return null;
+  };
+
   return {
     trading_name: pick('trading_name'),
     legal_name: pick('legal_name'),
@@ -178,17 +210,25 @@ export function extractBankFromProfile(row: Record<string, unknown>): SellerProf
     province: pick('province', 'region', 'state'),
     country: pick('country'),
     postal_code: pick('postal_code', 'zip'),
-    bank_name: pick('bank_name', 'bank'),
-    account_name: pick('account_name', 'bank_account_name'),
-    account_number: pick('account_number', 'bank_account_number'),
-    iban: pick('iban'),
-    swift: pick('swift', 'bic', 'swift_code'),
-    branch_code: pick('branch_code', 'branch', 'sort_code'),
-    account_type: pick('account_type'),
+    bank_name: pickBank('bank_name', 'bank'),
+    account_name: pickBank('account_name', 'bank_account_name'),
+    account_number: pickBank('account_number', 'bank_account_number'),
+    iban: pickBank('iban'),
+    swift: pickBank('swift', 'bic', 'swift_code'),
+    branch_code: pickBank('branch_code', 'branch', 'sort_code'),
+    account_type: pickBank('account_type'),
     primary_currency: pick('primary_currency') || 'ZAR',
     logo_url: pick('logo_url', 'company_logo', 'logo'),
     is_verified: verified,
     verification_status: p.verification_status || (verified ? 'verified' : null),
+    bank_verification_status:
+      pick('bank_verification_status') ||
+      (meta.bank_verification &&
+      typeof meta.bank_verification === 'object'
+        ? String(
+            (meta.bank_verification as { status?: string }).status || ''
+          ) || null
+        : null),
     payment_terms: pick('payment_terms', 'default_payment_terms'),
     default_payment_terms: pick('default_payment_terms', 'payment_terms'),
   };

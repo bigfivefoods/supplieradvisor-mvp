@@ -123,7 +123,8 @@ export async function GET(request: NextRequest) {
     const minTrust = Number(sp.get('minTrust') || 0);
     const minOtifef = Number(sp.get('minOtifef') || 0);
     const sort = (sp.get('sort') || 'joined').trim().toLowerCase();
-    const includeHidden = sp.get('includeHidden') === '1';
+    const includeHidden = sp.get('includeHidden') === '1';    const page = Math.max(1, Number(sp.get('page') || 1) || 1);
+    const pageSize = Math.min(50, Math.max(1, Number(sp.get('pageSize') || 9) || 9));
 
     const supabase = getSupabaseServer();
 
@@ -150,12 +151,12 @@ export async function GET(request: NextRequest) {
       (p) => String(p.trading_name || p.legal_name || '').trim().length > 1
     );
 
-    // Hide companies that opted out of discoverability (when column exists)
+    // Hide companies that opted out OR lack minimum profile completeness
     if (!includeHidden) {
-      rows = rows.filter((p) => {
-        if (p.is_discoverable === false || p.is_discoverable === 'false') return false;
-        return true;
-      });
+      const { isEligibleForDiscovery } = await import(
+        '@/lib/business/completeness'
+      );
+      rows = rows.filter((p) => isEligibleForDiscovery(p).ok);
     }
 
     rows.sort((a, b) => {
@@ -460,6 +461,7 @@ export async function GET(request: NextRequest) {
 
     const verifiedCount = companies.filter((c) => c.badge === 'verified').length;
     const networkCount = companies.filter((c) => c.badge === 'network').length;
+    const filteredTotal = companies.length;
 
     let platformTotal = companies.length;
     const { count: profileCount } = await supabase
@@ -470,18 +472,31 @@ export async function GET(request: NextRequest) {
       platformTotal = profileCount;
     }
 
+    // Server pagination when ?page= is provided; otherwise full filtered set
+    // (marketing client still paginates in-browser for facets).
+    const wantsPage = sp.has('page') || sp.has('pageSize');
+    const pageCount = Math.max(1, Math.ceil(filteredTotal / pageSize));
+    const pageSafe = Math.min(page, pageCount);
+    const start = (pageSafe - 1) * pageSize;
+    const paged = wantsPage
+      ? companies.slice(start, start + pageSize)
+      : companies;
+
     return NextResponse.json({
       success: true,
-      companies,
+      companies: paged,
+      allCount: filteredTotal,
       facets,
-      pageSize: 9,
+      page: wantsPage ? pageSafe : 1,
+      pageSize: wantsPage ? pageSize : filteredTotal || pageSize,
+      pageCount: wantsPage ? pageCount : 1,
       feedbackLoop:
         'Companies are rated by their suppliers and customers — a continuous loop of feedback that helps every business improve.',
       counts: {
-        shown: companies.length,
+        shown: paged.length,
         verified: verifiedCount,
         network: networkCount,
-        total: companies.length,
+        total: filteredTotal,
         platformTotal,
       },
     });

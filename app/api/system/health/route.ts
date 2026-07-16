@@ -1,15 +1,20 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseServer, hasServiceRole } from '@/lib/supabase/server-client';
+import {
+  deploymentMeta,
+  probeProfileColumns,
+} from '@/lib/system/schema-probe';
 
 /**
  * GET /api/system/health
- * Lightweight Supabase connectivity + schema probe for the control tower.
+ * Connectivity + table probes + column schema gate + deploy identity.
  */
 export async function GET() {
   const started = Date.now();
+  const deploy = deploymentMeta();
   const checks: Record<
     string,
-    { ok: boolean; ms?: number; error?: string; count?: number | null }
+    { ok: boolean; ms?: number; error?: string; count?: number | null; detail?: unknown }
   > = {};
 
   const hasUrl = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL);
@@ -26,7 +31,6 @@ export async function GET() {
         : undefined,
   };
 
-  // Soft config observability (never fails health ok)
   checks.resend = {
     ok: Boolean(process.env.RESEND_API_KEY),
     error: process.env.RESEND_API_KEY ? undefined : 'RESEND_API_KEY not set',
@@ -39,12 +43,40 @@ export async function GET() {
     ok: Boolean(process.env.CRON_SECRET),
     error: process.env.CRON_SECRET ? undefined : 'CRON_SECRET not set',
   };
+  checks.paystack = {
+    ok: Boolean(
+      process.env.PAYSTACK_SECRET_KEY ||
+        process.env.PAYSTACK_SECRET ||
+        process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY
+    ),
+    error:
+      process.env.PAYSTACK_SECRET_KEY || process.env.PAYSTACK_SECRET
+        ? undefined
+        : 'PAYSTACK_SECRET_KEY not set (payment verify soft-fails in prod)',
+  };
+  checks.verifynow = {
+    ok: Boolean(process.env.VERIFYNOW_API_KEY),
+    error: process.env.VERIFYNOW_API_KEY
+      ? undefined
+      : 'VERIFYNOW_API_KEY not set',
+  };
+  checks.inventory_passport = {
+    ok: Boolean(
+      process.env.INVENTORY_PASSPORT_ADDRESS ||
+        process.env.INVENTORY_PASSPORT_ADDRES
+    ),
+    error:
+      process.env.INVENTORY_PASSPORT_ADDRESS || process.env.INVENTORY_PASSPORT_ADDRES
+        ? undefined
+        : 'INVENTORY_PASSPORT_ADDRESS not set (anchors may simulate)',
+  };
 
   if (!checks.env.ok) {
     return NextResponse.json({
       ok: false,
       serviceRole: hasServiceRole(),
       latencyMs: Date.now() - started,
+      deploy,
       checks,
       at: new Date().toISOString(),
     });
@@ -54,7 +86,6 @@ export async function GET() {
     const supabase = getSupabaseServer();
     const t0 = Date.now();
 
-    // Core identity table — must exist
     const profiles = await supabase
       .from('profiles')
       .select('id', { count: 'exact', head: true });
@@ -65,13 +96,15 @@ export async function GET() {
       count: profiles.count ?? null,
     };
 
-    // Trade / ops tables (soft — report but do not hard-fail health)
     const softTables = [
       'products',
       'purchase_orders',
       'shipments',
       'manufacturing_production_orders',
       'stock_levels',
+      'continents',
+      'countries',
+      'provinces',
     ] as const;
 
     for (const table of softTables) {
@@ -85,23 +118,43 @@ export async function GET() {
       };
     }
 
+    // Column-level gate for banking / discovery
+    const colProbe = await probeProfileColumns();
+    checks.profiles_columns = {
+      ok: colProbe.ok,
+      error: colProbe.hint,
+      detail: { missing: colProbe.missing },
+    };
+
     const coreOk = checks.env.ok && checks.profiles.ok;
     const softOk = softTables.filter((t) => checks[t]?.ok).length;
     const softTotal = softTables.length;
+    const schemaColumnsOk = colProbe.ok;
+    const degraded =
+      coreOk &&
+      (softOk < softTotal ||
+        !schemaColumnsOk ||
+        !checks.paystack.ok ||
+        !checks.verifynow.ok);
 
     return NextResponse.json({
       ok: coreOk,
-      degraded: coreOk && softOk < softTotal,
+      degraded,
       serviceRole: hasServiceRole(),
       latencyMs: Date.now() - started,
       schemaReady: softOk,
       schemaTotal: softTotal,
+      schemaColumnsOk,
+      schemaMissingColumns: colProbe.missing,
+      deploy,
       checks,
       at: new Date().toISOString(),
       hint:
-        softOk < softTotal
-          ? 'Some module tables missing — run latest supabase/migrations/*.sql on production'
-          : undefined,
+        !schemaColumnsOk
+          ? colProbe.hint
+          : softOk < softTotal
+            ? 'Some module tables missing — run latest supabase/migrations/*.sql on production'
+            : undefined,
     });
   } catch (e: unknown) {
     return NextResponse.json(
@@ -109,6 +162,7 @@ export async function GET() {
         ok: false,
         serviceRole: hasServiceRole(),
         latencyMs: Date.now() - started,
+        deploy,
         checks: {
           ...checks,
           exception: {

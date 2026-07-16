@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import FoundingWaitlist from '@/components/marketing/FoundingWaitlist';
 import CompanyLogo from '@/components/business/CompanyLogo';
+import TrustBadges from '@/components/business/TrustBadges';
 
 export type PublicCompany = {
   id: number;
@@ -178,7 +179,10 @@ function CompanyCard({ company }: { company: PublicCompany }) {
       : null;
 
   return (
-    <div className="flex flex-col rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm transition-all hover:border-[#00b4d8]/40 hover:shadow-md">
+    <Link
+      href={`/c/${company.id}`}
+      className="flex flex-col rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm transition-all hover:border-[#00b4d8]/40 hover:shadow-md"
+    >
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="flex items-start gap-3 min-w-0 flex-1">
           <CompanyLogo
@@ -211,6 +215,17 @@ function CompanyCard({ company }: { company: PublicCompany }) {
             </div>
             <h3 className="truncate text-lg font-bold text-slate-900">{name}</h3>
             {sub && <p className="truncate text-sm text-slate-500">{sub}</p>}
+            <div className="mt-1.5">
+              <TrustBadges
+                compact
+                isVerified={isVerified}
+                verificationStatus={company.verification_status}
+                trustScore={trust}
+                starAvg={stars}
+                starCount={starCount}
+                otifefPct={otifef}
+              />
+            </div>
           </div>
         </div>
         <span
@@ -336,21 +351,14 @@ function CompanyCard({ company }: { company: PublicCompany }) {
       </div>
 
       {company.website && (
-        <a
-          href={
-            company.website.startsWith('http')
-              ? company.website
-              : `https://${company.website}`
-          }
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-2 truncate text-[11px] font-semibold text-[#0077b6] hover:underline"
-          onClick={(e) => e.stopPropagation()}
+        <span
+          className="mt-2 truncate text-[11px] font-semibold text-[#0077b6]"
+          onClick={(e) => e.preventDefault()}
         >
           {company.website.replace(/^https?:\/\//, '')}
-        </a>
+        </span>
       )}
-    </div>
+    </Link>
   );
 }
 

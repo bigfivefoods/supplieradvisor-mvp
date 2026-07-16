@@ -680,20 +680,47 @@ function ProductsInner() {
                       {Number(p.qty_on_hand ?? 0)} {p.uom || ''}
                     </td>
                     <td className="px-4 py-4">
-                      <span
-                        className={`text-[11px] px-2 py-0.5 rounded-full capitalize ${onchainStatusClass(p.onchain_status)}`}
-                        title={
-                          (p.onchain_status || '').toLowerCase() === 'anchored'
-                            ? 'Simulated passport — deploy InventoryPassport + set env for real mint'
-                            : undefined
-                        }
-                      >
-                        {(p.onchain_status || '').toLowerCase() === 'anchored'
-                          ? 'simulated'
-                          : (p.onchain_status || 'pending').toLowerCase() === 'minted'
-                            ? 'minted'
-                            : p.onchain_status || 'pending'}
-                      </span>
+                      <div className="flex flex-col gap-0.5 items-start">
+                        <span
+                          className={`text-[11px] px-2 py-0.5 rounded-full capitalize ${onchainStatusClass(p.onchain_status)}`}
+                          title={
+                            (p.onchain_status || '').toLowerCase() === 'anchored'
+                              ? 'Simulated passport — set INVENTORY_PASSPORT_ADDRESS + PRIVATE_KEY for real mint'
+                              : 'Content hash of product identity recorded for integrity'
+                          }
+                        >
+                          {(p.onchain_status || '').toLowerCase() === 'anchored'
+                            ? 'simulated'
+                            : (p.onchain_status || 'pending').toLowerCase() === 'minted'
+                              ? 'minted'
+                              : p.onchain_status || 'pending'}
+                        </span>
+                        {p.onchain_tx_hash ? (
+                          <a
+                            href={
+                              String(p.onchain_chain || '')
+                                .toLowerCase()
+                                .includes('sepolia')
+                                ? `https://sepolia.etherscan.io/tx/${p.onchain_tx_hash}`
+                                : String(p.onchain_chain || '')
+                                      .toLowerCase()
+                                      .includes('base')
+                                  ? `https://basescan.org/tx/${p.onchain_tx_hash}`
+                                  : `https://etherscan.io/tx/${p.onchain_tx_hash}`
+                            }
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[10px] font-bold text-[#0077b6] hover:underline"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            View tx →
+                          </a>
+                        ) : p.onchain_hash ? (
+                          <span className="text-[10px] text-neutral-400 font-mono truncate max-w-[7rem]" title={String(p.onchain_hash)}>
+                            {String(p.onchain_hash).slice(0, 10)}…
+                          </span>
+                        ) : null}
+                      </div>
                     </td>
                     <td className="px-5 py-4" onClick={(e) => e.stopPropagation()}>
                       <div className="flex justify-end gap-1">

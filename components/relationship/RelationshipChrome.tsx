@@ -508,17 +508,21 @@ export function Panel({
   className = '',
   title,
   action,
+  id,
 }: {
   children: React.ReactNode;
   className?: string;
   title?: string;
   action?: React.ReactNode;
+  /** Optional anchor id for in-page sticky section nav */
+  id?: string;
 }) {
   // Avoid overflow-hidden: it clips labels/text against large rounded corners
   // when body content sits flush to the edges.
   return (
     <div
-      className={`rounded-2xl sm:rounded-3xl border border-neutral-200 bg-white shadow-sm min-w-0 ${className}`}
+      id={id}
+      className={`rounded-2xl sm:rounded-3xl border border-neutral-200 bg-white shadow-sm min-w-0 scroll-mt-16 ${className}`}
     >
       {(title || action) && (
         <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-neutral-100">

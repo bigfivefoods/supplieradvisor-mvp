@@ -135,7 +135,7 @@ export default function InstallAppBanner() {
             ? '…'
             : deferred
               ? 'Install app'
-              : 'iPhone: Add to Home Screen'}
+              : 'Add to Home Screen'}
         </button>
         <button
           type="button"
@@ -150,7 +150,7 @@ export default function InstallAppBanner() {
         href="/add-to-home.html"
         className="pointer-events-auto text-[11px] font-bold text-[#0077b6] bg-white/95 border border-slate-200 rounded-full px-3 py-1 shadow-sm"
       >
-        Open install steps →
+        Safari/iOS &amp; Android install steps →
       </Link>
     </div>
   );

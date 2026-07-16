@@ -42,6 +42,7 @@ import {
 } from '@/components/suppliers/SuppliersShell';
 import { CommandWorkbenchBand } from '@/components/relationship/RelationshipChrome';
 import CompanyLogo from '@/components/business/CompanyLogo';
+import TrustBadges from '@/components/business/TrustBadges';
 
 type Facets = {
   countries: string[];
@@ -1016,11 +1017,6 @@ function CompanyCard({
             <h3 className="truncate text-lg font-black tracking-tight text-slate-900">
               {s.trading_name}
             </h3>
-            {verified && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black uppercase text-emerald-800">
-                <ShieldCheck className="h-3 w-3" /> Verified
-              </span>
-            )}
             {s.already_connected && (
               <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-black uppercase text-sky-800">
                 <CheckCircle2 className="h-3 w-3" /> Connected
@@ -1036,6 +1032,15 @@ function CompanyCard({
                 Registered
               </span>
             )}
+          </div>
+          <div className="mb-1.5">
+            <TrustBadges
+              compact
+              isVerified={verified}
+              verificationStatus={s.verification_status}
+              trustScore={s.trust_score}
+              otifefPct={s.otifef_average}
+            />
           </div>
 
           {s.legal_name && s.legal_name !== s.trading_name && (

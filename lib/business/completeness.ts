@@ -19,6 +19,9 @@ export type CompletenessResult = {
   map: Record<string, boolean>;
 };
 
+/** Minimum hub completeness % to appear in public / discover directories */
+export const DISCOVERABLE_MIN_COMPLETENESS_PCT = 60;
+
 export function computeProfileCompleteness(
   p: Record<string, unknown> | null | undefined
 ): CompletenessResult {
@@ -34,6 +37,12 @@ export function computeProfileCompleteness(
   const industry =
     p.industry ||
     (Array.isArray(p.industries) ? (p.industries as unknown[])[0] : p.industries);
+
+  const logo = p.logo_url;
+  const bankOk = !!(p.account_number || p.bank_name);
+  const verified =
+    p.is_verified === true ||
+    String(p.verification_status || '').toLowerCase() === 'verified';
 
   const checks: CompletenessCheck[] = [
     { key: 'trading_name', label: 'Trading name', ok: !!p.trading_name },
@@ -60,6 +69,9 @@ export function computeProfileCompleteness(
       ok: Array.isArray(certs) && certs.length > 0,
     },
     { key: 'wallet', label: 'Wallet', ok: !!p.wallet_address },
+    { key: 'logo', label: 'Logo', ok: !!logo },
+    { key: 'banking', label: 'Banking', ok: bankOk },
+    { key: 'verified', label: 'CIPC verified', ok: verified },
   ];
 
   // Hub checklist uses a stable subset (same keys as My Business overview historically)
@@ -74,6 +86,7 @@ export function computeProfileCompleteness(
     'registration',
     'certs',
     'wallet',
+    'logo',
   ] as const;
 
   const hubChecks = hubKeys.map((key) => {
@@ -95,6 +108,34 @@ export function computeProfileCompleteness(
     checks,
     map,
   };
+}
+
+/**
+ * Whether a company should appear in public directory / discover.
+ * Requires explicit is_discoverable and a minimum profile completeness.
+ */
+export function isEligibleForDiscovery(
+  p: Record<string, unknown> | null | undefined
+): { ok: boolean; reason?: string; completeness: CompletenessResult } {
+  const completeness = computeProfileCompleteness(p);
+  if (!p) {
+    return { ok: false, reason: 'No profile', completeness };
+  }
+  if (p.is_discoverable === false || p.is_discoverable === 'false') {
+    return {
+      ok: false,
+      reason: 'Company opted out of discovery',
+      completeness,
+    };
+  }
+  if (completeness.pct < DISCOVERABLE_MIN_COMPLETENESS_PCT) {
+    return {
+      ok: false,
+      reason: `Profile ${completeness.pct}% complete — need ${DISCOVERABLE_MIN_COMPLETENESS_PCT}%+ to appear in directory`,
+      completeness,
+    };
+  }
+  return { ok: true, completeness };
 }
 
 /** Detailed % using all profile-page fields (kept for profile page bar). */
