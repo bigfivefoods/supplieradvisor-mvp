@@ -1,7 +1,15 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-// useEffect used for load
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  Suspense,
+  type ReactNode,
+} from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   Loader2,
   Plus,
@@ -101,7 +109,15 @@ export default function DocumentWorkspace({
 }) {
   return (
     <CompanyRequired>
-      <DocInner type={type} beforeHeader={beforeHeader} variant={variant} />
+      <Suspense
+        fallback={
+          <div className="flex justify-center py-20">
+            <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
+          </div>
+        }
+      >
+        <DocInner type={type} beforeHeader={beforeHeader} variant={variant} />
+      </Suspense>
     </CompanyRequired>
   );
 }
@@ -119,12 +135,18 @@ function DocInner({
   const companyId = getSelectedCompanyId()!;
   const { user } = usePrivy();
   const privyUserId = getCanonicalUserId(user?.id);
+  const searchParams = useSearchParams();
+  const fromPo = Number(searchParams.get('fromPo') || 0) || null;
+  const buyerProfileIdParam =
+    Number(searchParams.get('buyerProfileId') || 0) || null;
+  const fromPoApplied = useRef(false);
   const cfg = CONFIG[type];
   const [docs, setDocs] = useState<DocRecord[]>([]);
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
   const [products, setProducts] = useState<ProductRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [fromPoBanner, setFromPoBanner] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [statusFilter, setStatusFilter] = useState('all');
@@ -176,6 +198,124 @@ function DocInner({
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Prefill invoice form from inbound PO (?fromPo=)
+  useEffect(() => {
+    if (type !== 'invoice' || !fromPo || fromPoApplied.current || loading) {
+      return;
+    }
+    if (!customers.length && !privyUserId) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const params = new URLSearchParams({
+          companyId: String(companyId),
+        });
+        if (privyUserId) params.set('privyUserId', privyUserId);
+        const res = await fetch(`/api/customers/purchase-orders?${params}`);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || cancelled) return;
+        const pos = (data.purchaseOrders || []) as Array<{
+          id: number;
+          buyer_profile_id?: number | null;
+          buyer_name?: string | null;
+          currency?: string | null;
+          items?: Array<{
+            item_name?: string;
+            name?: string;
+            quantity?: number;
+            unit_price?: number;
+            uom?: string | null;
+          }>;
+          description?: string | null;
+          total_amount?: number | null;
+        }>;
+        const po = pos.find((p) => Number(p.id) === fromPo);
+        if (!po) {
+          toast.message(`PO #${fromPo} not found in inbound list`);
+          return;
+        }
+
+        const buyerId = Number(
+          buyerProfileIdParam || po.buyer_profile_id || 0
+        );
+        // Match CRM customer by linked platform profile
+        let match = customers.find(
+          (c) =>
+            buyerId > 0 &&
+            Number(
+              (c as { linked_profile_id?: number | null }).linked_profile_id
+            ) === buyerId
+        );
+        if (!match && po.buyer_name) {
+          const bn = String(po.buyer_name).toLowerCase();
+          match = customers.find((c) => {
+            const n = String(
+              c.trading_name || c.legal_name || c.company_name || ''
+            ).toLowerCase();
+            return n && (n.includes(bn) || bn.includes(n));
+          });
+        }
+
+        const poLines = (Array.isArray(po.items) ? po.items : [])
+          .map((it) => {
+            const name = String(it.item_name || it.name || '').trim();
+            const quantity = Number(it.quantity) || 1;
+            const unit_price = Number(it.unit_price) || 0;
+            return {
+              name: name || 'Line',
+              quantity,
+              unit_price,
+              line_total: calcLineTotal(quantity, unit_price),
+              uom: it.uom || 'unit',
+              currency: String(po.currency || 'ZAR'),
+            };
+          })
+          .filter((l) => l.name);
+
+        if (cancelled) return;
+        fromPoApplied.current = true;
+        setShowForm(true);
+        if (match?.id) setCustomerId(String(match.id));
+        if (po.currency) setDocCurrency(String(po.currency));
+        if (poLines.length) setLines(poLines);
+        setNotes(
+          [
+            `From purchase order #${po.id}`,
+            po.description ? String(po.description) : '',
+            buyerId ? `Buyer profile #${buyerId}` : '',
+          ]
+            .filter(Boolean)
+            .join(' · ')
+        );
+        const due = new Date();
+        due.setDate(due.getDate() + 30);
+        setDueDate(due.toISOString().slice(0, 10));
+        setFromPoBanner(
+          match
+            ? `Prefilling invoice from PO #${po.id} → ${match.trading_name || match.legal_name || 'customer'}`
+            : `Prefilling invoice from PO #${po.id}${
+                po.buyer_name ? ` (${po.buyer_name})` : ''
+              }. Select customer if not linked.`
+        );
+        toast.success(`Invoice form prefilled from PO #${po.id}`);
+      } catch {
+        /* soft */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    type,
+    fromPo,
+    buyerProfileIdParam,
+    loading,
+    customers,
+    companyId,
+    privyUserId,
+  ]);
 
   const totals = useMemo(
     () => calcDocTotals(lines.filter((l) => l.name), Number(taxRate) || 0),
@@ -724,6 +864,12 @@ function DocInner({
             <Package className={`w-4 h-4 ${sales ? 'text-[#00b4d8]' : 'text-[#00b4d8]'}`} />{' '}
             Build {type} — multi-currency catalogue
           </h2>
+
+          {fromPoBanner ? (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-950 font-medium">
+              {fromPoBanner}
+            </div>
+          ) : null}
 
           <FxRateStrip currency={docCurrency} />
 

@@ -403,7 +403,8 @@ export async function notifyConnectionRequest(params: {
 }): Promise<void> {
   try {
     const to = await companyEmails(params.requesteeProfileId);
-    const href = `${appBase()}/dashboard/connections`;
+    // Deep-link opens Connections with pending inbox focused
+    const href = `${appBase()}/dashboard/connections?focus=incoming`;
     const who = params.requesterName || 'A company';
     await sendAlert({
       to,
@@ -417,7 +418,7 @@ export async function notifyConnectionRequest(params: {
               ? `<p style="color:#475569;font-style:italic">“${String(params.message).slice(0, 400)}”</p>`
               : ''
           }
-          <p><a href="${href}" style="display:inline-block;background:#00b4d8;color:#fff;padding:12px 20px;border-radius:999px;text-decoration:none;font-weight:700">Review connections →</a></p>
+          <p><a href="${href}" style="display:inline-block;background:#00b4d8;color:#fff;padding:12px 20px;border-radius:999px;text-decoration:none;font-weight:700">Open pending inbox →</a></p>
         </div>
       `,
     });

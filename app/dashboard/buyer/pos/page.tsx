@@ -158,6 +158,8 @@ export default function BuyerPurchaseOrdersPage() {
   >([]);
   const [catalogueLoading, setCatalogueLoading] = useState(false);
   const [catalogueWarning, setCatalogueWarning] = useState<string | null>(null);
+  /** Qty to use when adding a catalogue chip (default 1) */
+  const [catalogueQty, setCatalogueQty] = useState(1);
 
   const totalAmount = useMemo(
     () => lineItems.reduce((sum, item) => sum + item.quantity * item.unit_price, 0),
@@ -341,14 +343,30 @@ export default function BuyerPurchaseOrdersPage() {
     uom: string | null;
     public_id?: string | null;
   }) => {
+    const qty = Math.max(1, Number(catalogueQty) || 1);
     setLineItems((prev) => {
+      // Merge qty if same product already on the PO
+      const existingIdx = prev.findIndex(
+        (l) =>
+          item.seller_product_id != null &&
+          l.product_id === item.seller_product_id
+      );
+      if (existingIdx >= 0) {
+        const next = [...prev];
+        const cur = next[existingIdx];
+        next[existingIdx] = {
+          ...cur,
+          quantity: Number(cur.quantity || 0) + qty,
+        };
+        return next;
+      }
       const emptyIdx = prev.findIndex(
         (l) => !l.item_name.trim() && l.product_id == null
       );
       const row: LineItem = {
         product_id: item.seller_product_id,
         item_name: item.product_name,
-        quantity: 1,
+        quantity: qty,
         unit_price: Number(item.unit_price) || 0,
         uom: item.uom,
         public_id: item.public_id || null,
@@ -360,7 +378,7 @@ export default function BuyerPurchaseOrdersPage() {
       }
       return [...prev, row];
     });
-    toast.success(`Added ${item.product_name}`);
+    toast.success(`Added ${item.product_name} × ${qty}`);
   };
 
   // Surface async wallet reject / writeContract failures (try/catch around writeContract is sync-only)
@@ -1025,9 +1043,26 @@ export default function BuyerPurchaseOrdersPage() {
 
                 {selectedSupplierId ? (
                   <div className="mb-4 rounded-2xl border border-cyan-100 bg-sky-50/50 p-3">
-                    <div className="text-xs font-bold uppercase tracking-wider text-[#0077b6] mb-2">
-                      Supplier catalogue
-                      {catalogueLoading ? ' · loading…' : ''}
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                      <div className="text-xs font-bold uppercase tracking-wider text-[#0077b6]">
+                        Supplier catalogue
+                        {catalogueLoading ? ' · loading…' : ''}
+                      </div>
+                      <label className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-700">
+                        Qty
+                        <input
+                          type="number"
+                          min={1}
+                          step={1}
+                          value={catalogueQty}
+                          onChange={(e) =>
+                            setCatalogueQty(
+                              Math.max(1, parseInt(e.target.value, 10) || 1)
+                            )
+                          }
+                          className="w-16 rounded-lg border border-cyan-200 bg-white px-2 py-1 text-sm font-bold tabular-nums"
+                        />
+                      </label>
                     </div>
                     {catalogueWarning ? (
                       <p className="text-xs text-amber-800 mb-2">{catalogueWarning}</p>
@@ -1047,8 +1082,8 @@ export default function BuyerPurchaseOrdersPage() {
                             className="inline-flex items-center gap-1 rounded-full border border-cyan-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-800 hover:border-[#00b4d8] hover:bg-[#e0f7fc]"
                             title={
                               c.public_id
-                                ? `Add line · passport /p/${c.public_id}`
-                                : 'Add line from catalogue'
+                                ? `Add ×${catalogueQty} · passport /p/${c.public_id}`
+                                : `Add ×${catalogueQty} from catalogue`
                             }
                           >
                             {c.product_name}
@@ -1066,7 +1101,11 @@ export default function BuyerPurchaseOrdersPage() {
                     )}
                     {catalogue.some((c) => c.public_id) ? (
                       <p className="mt-2 text-[10px] text-neutral-500">
-                        ◆ = product passport available after add (opens /p/… from your PO list).
+                        Set qty, then tap a chip. ◆ = product passport. Same product merges qty.
+                      </p>
+                    ) : catalogue.length > 0 ? (
+                      <p className="mt-2 text-[10px] text-neutral-500">
+                        Set qty above, then tap a product chip to add it.
                       </p>
                     ) : null}
                   </div>

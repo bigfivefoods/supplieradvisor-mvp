@@ -131,6 +131,16 @@ npx playwright test e2e/trade-loop-smoke.spec.ts
 | PO accept → Create invoice CTA | Shipped |
 | Profile discoverable toggle on visibility card | Shipped |
 
+## Mini-sprint 5 (fromPo prefill / email inbox / qty / ratings / cron)
+
+| Item | Status |
+|------|--------|
+| Invoice form prefill from `?fromPo=` | Shipped |
+| Connection request email → `?focus=incoming` | Shipped |
+| Buyer catalogue qty + merge lines | Shipped |
+| Rating prompts on PO completed/paid | Shipped |
+| Daily location-backfill cron (04:15 UTC) | Shipped |
+
 Ops after every major deploy:
 
 ```bash

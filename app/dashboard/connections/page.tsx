@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, Suspense } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import {
   Handshake,
   Inbox,
@@ -109,7 +110,17 @@ const EMPTY_SUMMARY: NetworkSummary = {
 export default function ConnectionsHubPage() {
   return (
     <CompanyRequired>
-      <HubInner />
+      <Suspense
+        fallback={
+          <ConnectionsPage>
+            <div className="py-20 flex justify-center">
+              <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
+            </div>
+          </ConnectionsPage>
+        }
+      >
+        <HubInner />
+      </Suspense>
     </CompanyRequired>
   );
 }
@@ -118,14 +129,22 @@ function HubInner() {
   const companyId = getSelectedCompanyId()!;
   const { user } = usePrivy();
   const privyUserId = getCanonicalUserId(user?.id);
+  const searchParams = useSearchParams();
+  const focusIncoming =
+    searchParams.get('focus') === 'incoming' ||
+    searchParams.get('tab') === 'pending_in';
 
   const [edges, setEdges] = useState<NetworkEdge[]>([]);
   const [summary, setSummary] = useState<NetworkSummary>(EMPTY_SUMMARY);
   const [loading, setLoading] = useState(true);
   const [warning, setWarning] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>('all');
+  const [tab, setTab] = useState<Tab>(focusIncoming ? 'pending_in' : 'all');
   const [q, setQ] = useState('');
   const [busyId, setBusyId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (focusIncoming) setTab('pending_in');
+  }, [focusIncoming]);
 
   const load = useCallback(async () => {
     setLoading(true);

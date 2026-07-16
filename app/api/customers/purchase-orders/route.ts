@@ -351,6 +351,50 @@ export async function PATCH(request: NextRequest) {
       })();
     }
 
+    // Rating prompts when trade completes (buyer rates supplier; seller rates buyer)
+    if (
+      (nextStatus === 'completed' || nextStatus === 'paid') &&
+      po.buyer_profile_id
+    ) {
+      void (async () => {
+        try {
+          const { data: supplierProf } = await supabase
+            .from('profiles')
+            .select('trading_name')
+            .eq('id', companyId)
+            .maybeSingle();
+          const { data: buyerProf } = await supabase
+            .from('profiles')
+            .select('trading_name')
+            .eq('id', Number(po.buyer_profile_id))
+            .maybeSingle();
+          const {
+            promptAfterPoDelivered,
+            createRatingPrompt,
+          } = await import('@/lib/ratings/create-prompt');
+          await promptAfterPoDelivered({
+            buyerProfileId: Number(po.buyer_profile_id),
+            supplierProfileId: companyId,
+            supplierName: supplierProf?.trading_name || null,
+            poId: id,
+            userId: member.userId,
+          });
+          // Seller rates buyer/customer
+          await createRatingPrompt({
+            profileId: companyId,
+            counterpartyProfileId: Number(po.buyer_profile_id),
+            counterpartyName: buyerProf?.trading_name || null,
+            rateeRole: 'customer',
+            contextType: 'po',
+            contextId: String(id),
+            userId: member.userId,
+          });
+        } catch (e) {
+          console.warn('PO complete rating prompt soft-fail', e);
+        }
+      })();
+    }
+
     return NextResponse.json({ success: true, purchaseOrder: data });
   } catch (e: unknown) {
     return NextResponse.json(
