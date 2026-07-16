@@ -144,6 +144,20 @@ export default function BuyerPurchaseOrdersPage() {
   const [lineItems, setLineItems] = useState<LineItem[]>([
     { product_id: null, item_name: '', quantity: 1, unit_price: 0, uom: null },
   ]);
+  const [catalogue, setCatalogue] = useState<
+    Array<{
+      key: string;
+      product_name: string;
+      seller_product_id: number | null;
+      unit_price: number;
+      uom: string | null;
+      public_id?: string | null;
+      product_type?: string | null;
+      sku?: string | null;
+    }>
+  >([]);
+  const [catalogueLoading, setCatalogueLoading] = useState(false);
+  const [catalogueWarning, setCatalogueWarning] = useState<string | null>(null);
 
   const totalAmount = useMemo(
     () => lineItems.reduce((sum, item) => sum + item.quantity * item.unit_price, 0),

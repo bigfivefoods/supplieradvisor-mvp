@@ -492,6 +492,47 @@ function DocInner({
 
     setBusyId(Number(doc.id));
     try {
+      // Pre-send quality checklist (bank / logo / VAT / reg)
+      try {
+        const qParams = new URLSearchParams({
+          companyId: String(companyId),
+          type,
+          id: String(doc.id),
+        });
+        const qRes = await fetch(`/api/customers/docs/quality?${qParams}`);
+        const qData = await qRes.json().catch(() => ({}));
+        if (qRes.ok && qData.checklist) {
+          const lines = (qData.checklist as Array<{
+            label: string;
+            ok: boolean;
+            required?: boolean;
+          }>)
+            .map(
+              (c) =>
+                `${c.ok ? '✓' : c.required ? '✗' : '○'} ${c.label}${
+                  c.required && !c.ok ? ' (required for invoices)' : ''
+                }`
+            )
+            .join('\n');
+          const soft = Array.isArray(qData.softWarnings)
+            ? (qData.softWarnings as string[]).slice(0, 3).join('\n• ')
+            : '';
+          const msg = [
+            `Document quality before send:\n${lines}`,
+            soft ? `\nTips:\n• ${soft}` : '',
+            qData.ready === false
+              ? '\n\nContinue anyway? (Bank details can be forced on invoices.)'
+              : '\n\nSend email now?',
+          ].join('');
+          if (!window.confirm(msg)) {
+            setBusyId(null);
+            return;
+          }
+        }
+      } catch {
+        /* non-blocking if quality API fails */
+      }
+
       const res = await fetch('/api/customers/docs/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -502,6 +543,7 @@ function DocInner({
           ccMe: true,
           privyUserId,
           resend: isResend,
+          acknowledgeSoftWarnings: true,
           ...(toOverride ? { to: toOverride } : {}),
         }),
       });

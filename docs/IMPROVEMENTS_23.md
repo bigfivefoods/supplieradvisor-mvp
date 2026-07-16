@@ -104,13 +104,21 @@ npx playwright test e2e/trade-loop-smoke.spec.ts
 | Notification bell deep-links + inbox/activity merge | Shipped |
 | Catalogue-empty banner (dashboard + suppliers hub) | Shipped |
 
-Batch continent backfill (ops — run after deploy):
+## Mini-sprint 2 (connect / quality / buyer catalogue / inbound deep-link)
+
+| Item | Status |
+|------|--------|
+| Public `/c/[id]` Request connection | Shipped (`PublicConnectButton`) |
+| Invoice pre-send quality checklist | Shipped (`/api/customers/docs/quality` + confirm) |
+| Buyer PO supplier catalogue picker + passport chips | Shipped |
+| Inbound PO deep-link `?tab=inbound&po=` expand/highlight | Shipped |
+
+Ops after every major deploy:
 
 ```bash
+curl -sS "$APP_URL/api/system/health" | jq '{ok,deploy,degraded}'
 curl -sS -X POST -H "Authorization: Bearer $CRON_SECRET" \
   -H "Content-Type: application/json" \
   -d '{"limit":200}' \
   "$APP_URL/api/business/location-backfill"
-
-curl -sS "$APP_URL/api/system/health" | jq '{ok,deploy,degraded}'
 ```

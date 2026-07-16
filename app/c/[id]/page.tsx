@@ -6,6 +6,7 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { isEligibleForDiscovery } from '@/lib/business/completeness';
 import CompanyLogo from '@/components/business/CompanyLogo';
 import TrustBadges from '@/components/business/TrustBadges';
+import PublicConnectButton from '@/components/business/PublicConnectButton';
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -236,7 +237,8 @@ export default async function PublicCompanyPage({ params }: Props) {
             </div>
           ) : null}
 
-          <div className="mt-8 flex flex-wrap gap-3">
+          <div className="mt-8 flex flex-wrap gap-3 items-center">
+            <PublicConnectButton peerId={c.id} peerName={name} />
             {website ? (
               <a
                 href={
@@ -251,15 +253,9 @@ export default async function PublicCompanyPage({ params }: Props) {
             ) : null}
             <Link
               href="/#directory"
-              className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center gap-1.5"
+              className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-1.5"
             >
               <Building2 className="w-4 h-4" /> Browse directory
-            </Link>
-            <Link
-              href="/login"
-              className="text-sm font-semibold text-[#0077b6] hover:underline self-center"
-            >
-              Log in to connect →
             </Link>
           </div>
         </article>

@@ -173,6 +173,8 @@ function InboundPosList() {
   const { user } = usePrivy();
   const companyId = getSelectedCompanyId()!;
   const privyUserId = getCanonicalUserId(user?.id);
+  const searchParams = useSearchParams();
+  const deepPoId = Number(searchParams.get('po') || 0) || null;
   const [pos, setPos] = useState<InboundPO[]>([]);
   const [counts, setCounts] = useState({
     total: 0,
@@ -218,6 +220,20 @@ function InboundPosList() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Deep-link from notification: ?tab=inbound&po=123
+  useEffect(() => {
+    if (!deepPoId || loading || !pos.length) return;
+    const hit = pos.find((p) => Number(p.id) === deepPoId);
+    if (!hit) return;
+    setExpanded(deepPoId);
+    if (String(hit.status) === 'sent') setFilter('sent');
+    // Scroll into view once
+    const el = document.getElementById(`inbound-po-${deepPoId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [deepPoId, loading, pos]);
 
   const filtered = useMemo(() => {
     if (filter === 'all') return pos;
@@ -454,8 +470,13 @@ function InboundPosList() {
                       : null;
             return (
               <div
+                id={`inbound-po-${po.id}`}
                 key={po.id}
-                className="border border-neutral-200 rounded-2xl p-5"
+                className={`border rounded-2xl p-5 ${
+                  deepPoId === po.id
+                    ? 'border-[#00b4d8] ring-2 ring-[#00b4d8]/25 bg-sky-50/40'
+                    : 'border-neutral-200'
+                }`}
               >
                 <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                   <div className="min-w-0 flex-1">
