@@ -19,6 +19,10 @@ type PublicCompany = {
   star_avg?: number | null;
   star_count?: number;
   badge: 'verified' | 'network';
+  /** When the company joined (ISO); used for first → latest ordering */
+  created_at?: string | null;
+  /** 1-based join rank among companies returned (first joiner = 1) */
+  join_rank?: number;
 };
 
 function isVerifiedStatus(status?: string | null): boolean {
@@ -44,14 +48,16 @@ export async function GET() {
     let rows: Row[] = [];
 
     // All companies on the platform with a public trading identity
+    // First joiner → latest (created_at ascending, then id)
     const full = await supabase
       .from('profiles')
       .select(
         'id, legal_name, trading_name, verification_status, verified_at, business_type, industry, city, country, logo_url, trust_score, created_at'
       )
       .not('trading_name', 'is', null)
-      .order('created_at', { ascending: false, nullsFirst: false })
-      .limit(180);
+      .order('created_at', { ascending: true, nullsFirst: false })
+      .order('id', { ascending: true })
+      .limit(500);
 
     if (!full.error && full.data) {
       rows = full.data as Row[];
@@ -62,23 +68,20 @@ export async function GET() {
           'id, legal_name, trading_name, verification_status, business_type, industry, city, country, created_at'
         )
         .not('trading_name', 'is', null)
-        .order('id', { ascending: false })
-        .limit(180);
+        .order('id', { ascending: true })
+        .limit(500);
       if (!retry.error && retry.data) rows = retry.data as Row[];
     }
 
     // Soft-filter junk / empty names
     rows = rows.filter((p) => String(p.trading_name || p.legal_name || '').trim().length > 1);
 
-    // Sort: verified first, then by trust_score, then recency
+    // Stable first → latest (join order)
     rows.sort((a, b) => {
-      const av = isVerifiedStatus(a.verification_status as string) ? 1 : 0;
-      const bv = isVerifiedStatus(b.verification_status as string) ? 1 : 0;
-      if (bv !== av) return bv - av;
-      const at = Number(a.trust_score ?? 0);
-      const bt = Number(b.trust_score ?? 0);
-      if (bt !== at) return bt - at;
-      return Number(b.id) - Number(a.id);
+      const ac = a.created_at ? new Date(String(a.created_at)).getTime() : 0;
+      const bc = b.created_at ? new Date(String(b.created_at)).getTime() : 0;
+      if (ac !== bc) return ac - bc;
+      return Number(a.id) - Number(b.id);
     });
 
     // Peer star ratings received (ratee = this company)
@@ -136,10 +139,11 @@ export async function GET() {
             : null,
         star_count: stars?.count ?? 0,
         badge: verified ? ('verified' as const) : ('network' as const),
+        created_at: (p.created_at as string | null) ?? null,
       };
     });
 
-    // Deduplicate by trading name
+    // Deduplicate by trading name (keep earliest join)
     const seen = new Set<string>();
     companies = companies.filter((c) => {
       const key = (c.trading_name || c.legal_name || String(c.id)).toLowerCase();
@@ -147,6 +151,9 @@ export async function GET() {
       seen.add(key);
       return true;
     });
+
+    // Join rank after dedupe, still first → latest
+    companies = companies.map((c, i) => ({ ...c, join_rank: i + 1 }));
 
     const verifiedCount = companies.filter((c) => c.badge === 'verified').length;
     const networkCount = companies.filter((c) => c.badge === 'network').length;

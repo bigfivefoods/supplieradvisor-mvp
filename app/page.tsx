@@ -83,6 +83,8 @@ type PublicCompany = {
   star_avg?: number | null;
   star_count?: number;
   badge: 'verified' | 'network';
+  created_at?: string | null;
+  join_rank?: number;
 };
 
 const MODULES = [
@@ -1052,20 +1054,26 @@ export default function LandingPage() {
       {/* ═══════════ PRICING + REFERRAL (same site) ═══════════ */}
       <HomePricing />
 
-      {/* ═══════════ NETWORK ═══════════ */}
-      <section id="network" className="border-t border-slate-200 bg-white py-20 sm:py-28">
+      {/* ═══════════ COMPANIES THAT HAVE JOINED (9 per page) ═══════════ */}
+      <section
+        id="network"
+        className="scroll-mt-20 border-t border-slate-200 bg-white py-20 sm:py-28"
+      >
         <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10">
-          <div className="mb-12 text-center">
-            <SectionLabel>Network</SectionLabel>
+          <div className="mb-10 text-center sm:mb-12">
+            <SectionLabel>Who has joined</SectionLabel>
             <h2 className="text-3xl font-black tracking-tight text-slate-900 sm:text-5xl">
-              Businesses on SupplierAdvisor®
+              Companies on SupplierAdvisor®
             </h2>
             <p className="mx-auto mt-4 max-w-2xl text-slate-600">
               {platformTotal
                 ? `${platformTotal} companies on the platform${
                     verifiedCount > 0 ? ` · ${verifiedCount} verified` : ''
                   }${networkCount > 0 ? ` · ${networkCount} building trust` : ''}`
-                : 'Verified and joining companies building transparent trade'}
+                : 'Companies joining the verified supply-chain network'}
+              . Shown{' '}
+              <strong className="text-slate-800">first to join → latest</strong>,{' '}
+              {NETWORK_PAGE_SIZE} at a time.
             </p>
             {!loadingVerified && platformTotal != null && (
               <p className="mt-3 text-sm font-semibold text-violet-800">
@@ -1080,12 +1088,32 @@ export default function LandingPage() {
               {Array.from({ length: NETWORK_PAGE_SIZE }, (_, i) => (
                 <div
                   key={i}
-                  className="h-40 animate-pulse rounded-3xl border border-slate-200 bg-white"
+                  className="h-44 animate-pulse rounded-3xl border border-slate-200 bg-slate-50"
                 />
               ))}
             </div>
           ) : verifiedCompanies.length > 0 ? (
             <>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-sm text-slate-500">
+                <span>
+                  Showing{' '}
+                  <strong className="tabular-nums text-slate-800">
+                    {networkPageSafe * NETWORK_PAGE_SIZE + 1}–
+                    {Math.min(
+                      (networkPageSafe + 1) * NETWORK_PAGE_SIZE,
+                      verifiedCompanies.length
+                    )}
+                  </strong>{' '}
+                  of{' '}
+                  <strong className="tabular-nums text-slate-800">
+                    {verifiedCompanies.length}
+                  </strong>
+                </span>
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  Page {networkPageSafe + 1} of {networkPageCount}
+                </span>
+              </div>
+
               <div className="grid min-h-[22rem] grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {pagedCompanies.map((company) => {
                   const name =
@@ -1107,13 +1135,33 @@ export default function LandingPage() {
                   const stars = company.star_avg;
                   const starCount = company.star_count ?? 0;
                   const trust = company.trust_score;
+                  const rank = company.join_rank;
+                  const joined =
+                    company.created_at && !Number.isNaN(Date.parse(company.created_at))
+                      ? new Date(company.created_at).toLocaleDateString(undefined, {
+                          year: 'numeric',
+                          month: 'short',
+                        })
+                      : null;
                   return (
                     <div
                       key={company.id}
-                      className="flex flex-col rounded-3xl border border-slate-200 bg-white p-6 transition-all hover:border-slate-300 hover:bg-sky-50/50"
+                      className="flex flex-col rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-all hover:border-[#00b4d8]/40 hover:shadow-md"
                     >
                       <div className="mb-3 flex items-start justify-between gap-3">
                         <div className="min-w-0">
+                          <div className="mb-1 flex flex-wrap items-center gap-2">
+                            {rank != null && (
+                              <span className="rounded-full bg-slate-100 px-2 py-0.5 font-mono text-[10px] font-bold tabular-nums text-slate-600">
+                                #{rank}
+                              </span>
+                            )}
+                            {joined && (
+                              <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                                Joined {joined}
+                              </span>
+                            )}
+                          </div>
                           <h3 className="truncate text-lg font-bold text-slate-900">{name}</h3>
                           {sub && <p className="truncate text-sm text-slate-500">{sub}</p>}
                         </div>
@@ -1121,20 +1169,25 @@ export default function LandingPage() {
                           className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold ${
                             isVerified
                               ? 'border border-emerald-200 bg-emerald-50 text-emerald-700'
-                              : 'border border-amber-200 bg-amber-50 text-amber-900'
+                              : 'border border-sky-200 bg-sky-50 text-sky-800'
                           }`}
                         >
-                          {isVerified ? 'Verified' : 'Unverified'}
+                          {isVerified ? 'Verified' : 'Member'}
                         </span>
                       </div>
                       <div className="mb-4 flex items-center gap-2 text-xs text-slate-500">
                         <Building2 className="h-3.5 w-3.5 text-[#00b4d8] shrink-0" />
-                        <span className="truncate">{meta || 'Business on SupplierAdvisor'}</span>
+                        <span className="truncate">
+                          {meta || 'Joined SupplierAdvisor'}
+                        </span>
                       </div>
-                      <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-3">
+                      <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
                         <div className="flex items-center gap-1.5">
                           {stars != null && starCount > 0 ? (
                             <>
+                              <span className="text-amber-500 text-xs" aria-hidden>
+                                ★
+                              </span>
                               <span className="text-sm font-black tabular-nums text-slate-900">
                                 {stars.toFixed(1)}
                               </span>
@@ -1153,38 +1206,75 @@ export default function LandingPage() {
                   );
                 })}
               </div>
+
+              {/* Pagination: 9 per page, first → latest */}
               {networkPageCount > 1 && (
-                <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-                  <button
-                    type="button"
-                    disabled={networkPageSafe <= 0}
-                    onClick={() => setNetworkPage((p) => Math.max(0, p - 1))}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-900 disabled:opacity-40"
+                <div className="mt-10 flex flex-col items-center gap-4">
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    <button
+                      type="button"
+                      disabled={networkPageSafe <= 0}
+                      onClick={() => setNetworkPage((p) => Math.max(0, p - 1))}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-800 shadow-sm transition-colors hover:border-[#00b4d8] hover:text-[#0077b6] disabled:pointer-events-none disabled:opacity-40"
+                      aria-label="Previous 9 companies"
+                    >
+                      <ChevronLeft className="h-4 w-4" /> Previous 9
+                    </button>
+                    <button
+                      type="button"
+                      disabled={networkPageSafe >= networkPageCount - 1}
+                      onClick={() =>
+                        setNetworkPage((p) => Math.min(networkPageCount - 1, p + 1))
+                      }
+                      className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-800 shadow-sm transition-colors hover:border-[#00b4d8] hover:text-[#0077b6] disabled:pointer-events-none disabled:opacity-40"
+                      aria-label="Next 9 companies"
+                    >
+                      Next 9 <ChevronRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <div
+                    className="flex flex-wrap items-center justify-center gap-1.5"
+                    role="tablist"
+                    aria-label="Company pages"
                   >
-                    <ChevronLeft className="h-4 w-4" /> Previous
-                  </button>
-                  <span className="text-xs font-semibold tabular-nums text-slate-500">
-                    {networkPageSafe + 1} / {networkPageCount}
-                  </span>
-                  <button
-                    type="button"
-                    disabled={networkPageSafe >= networkPageCount - 1}
-                    onClick={() =>
-                      setNetworkPage((p) => Math.min(networkPageCount - 1, p + 1))
-                    }
-                    className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-900 disabled:opacity-40"
-                  >
-                    Next <ChevronRight className="h-4 w-4" />
-                  </button>
+                    {Array.from({ length: networkPageCount }, (_, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        role="tab"
+                        aria-selected={i === networkPageSafe}
+                        aria-label={`Page ${i + 1} of ${networkPageCount}`}
+                        onClick={() => setNetworkPage(i)}
+                        className={`h-2.5 rounded-full transition-all ${
+                          i === networkPageSafe
+                            ? 'w-7 bg-[#00b4d8]'
+                            : 'w-2.5 bg-slate-200 hover:bg-slate-300'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Navigate pages to move from early joiners to the latest companies
+                  </p>
                 </div>
               )}
+
+              <div className="mt-10 text-center">
+                <Link
+                  href="/onboarding?type=business"
+                  className="inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-6 py-3 text-sm font-bold text-white shadow-sm hover:bg-[#0099b8]"
+                >
+                  Join the network <ArrowRight className="h-4 w-4" />
+                </Link>
+              </div>
             </>
           ) : (
-            <div className="rounded-3xl border border-dashed border-slate-200 bg-white py-14 text-center">
+            <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 py-14 text-center">
               <ShieldCheck className="mx-auto mb-3 h-10 w-10 text-[#00b4d8]" />
               <p className="font-semibold text-slate-900">Be among the first on the network</p>
               <p className="mx-auto mt-2 max-w-md text-sm text-slate-500">
-                Complete company onboarding — your trading name can appear here.
+                Complete company onboarding — your trading name will appear here for others
+                to discover.
               </p>
               <Link
                 href="/onboarding?type=business"

@@ -13,7 +13,7 @@ const LINKS = [
   { id: 'systems', label: 'Systems' },
   { id: 'trust', label: 'Trust' },
   { id: 'pricing', label: 'Pricing' },
-  { id: 'network', label: 'Network' },
+  { id: 'network', label: 'Companies' },
 ] as const;
 
 export default function LandingNav() {
