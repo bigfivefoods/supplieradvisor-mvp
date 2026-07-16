@@ -277,6 +277,7 @@ export async function PATCH(request: NextRequest) {
       'next_step',
       'next_step_date',
       'owner_name',
+      'sales_rep_user_id',
       'competitor',
       'lost_reason',
       'source',
@@ -327,6 +328,16 @@ export async function PATCH(request: NextRequest) {
     if (body.location !== undefined) updates.opportunity_location = body.location || null;
     if (body.description !== undefined && body.notes === undefined) {
       updates.notes = body.description || null;
+    }
+    if (body.sales_rep_user_id !== undefined) {
+      updates.sales_rep_user_id = body.sales_rep_user_id
+        ? String(body.sales_rep_user_id)
+        : null;
+    }
+    if (body.owner_user_id !== undefined && body.sales_rep_user_id === undefined) {
+      updates.sales_rep_user_id = body.owner_user_id
+        ? String(body.owner_user_id)
+        : null;
     }
     // Never send empty strings to date columns
     for (const key of Object.keys(updates)) {

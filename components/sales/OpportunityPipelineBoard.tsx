@@ -1,7 +1,14 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Briefcase, ChevronRight, GripVertical, Wallet } from 'lucide-react';
+import {
+  Briefcase,
+  Calendar,
+  ChevronRight,
+  GripVertical,
+  User,
+  Wallet,
+} from 'lucide-react';
 import {
   OPPORTUNITY_STAGES,
   formatMoney,
@@ -14,12 +21,27 @@ import {
   DEFAULT_COMMISSION_TIERS,
 } from '@/lib/sales-contractor/commission';
 
+export type TeamMemberOption = {
+  user_id: string;
+  name: string;
+  email?: string | null;
+};
+
 export type OpportunityPipelineBoardProps = {
   opportunities: OpportunityRecord[];
   onEdit?: (o: OpportunityRecord) => void;
   onMove?: (id: number, stage: string) => void;
   onDelete?: (id: number) => void;
   onCreate?: () => void;
+  /** Assign company team member who owns the deal */
+  onAssignOwner?: (
+    id: number,
+    salesRepUserId: string | null,
+    ownerName: string | null
+  ) => void;
+  /** Expected close / land date */
+  onSetCloseDate?: (id: number, date: string | null) => void;
+  teamMembers?: TeamMemberOption[];
   showCommission?: boolean;
   commissionTiers?: CommissionTier[] | null;
   compact?: boolean;
@@ -54,6 +76,9 @@ export default function OpportunityPipelineBoard({
   onMove,
   onDelete,
   onCreate,
+  onAssignOwner,
+  onSetCloseDate,
+  teamMembers = [],
   showCommission = false,
   commissionTiers,
   compact = false,
@@ -61,6 +86,11 @@ export default function OpportunityPipelineBoard({
   const tiers = commissionTiers?.length ? commissionTiers : DEFAULT_COMMISSION_TIERS;
   const [draggingId, setDraggingId] = useState<number | null>(null);
   const [overStage, setOverStage] = useState<string | null>(null);
+
+  const memberName = (userId?: string | null) => {
+    if (!userId) return null;
+    return teamMembers.find((m) => m.user_id === userId)?.name || null;
+  };
 
   const totals = useMemo(() => {
     let pipeline = 0;
@@ -249,9 +279,85 @@ export default function OpportunityPipelineBoard({
                           {formatMoney(amt, o.currency || 'ZAR')}
                         </div>
                         <div className="text-[10px] text-neutral-400 mt-0.5">
-                          Weighted {formatMoney(o.weighted_amount ?? (amt * prob) / 100)} ·
-                          close {o.expected_close_date || '—'}
+                          Weighted{' '}
+                          {formatMoney(o.weighted_amount ?? (amt * prob) / 100)}
                         </div>
+
+                        {/* Team owner + expected close (sales portal) */}
+                        {(onAssignOwner || onSetCloseDate || o.owner_name || o.sales_rep_user_id) && (
+                          <div className="mt-2 space-y-1.5">
+                            {onAssignOwner && teamMembers.length > 0 ? (
+                              <label className="block">
+                                <span className="text-[9px] font-bold uppercase tracking-wide text-slate-400 flex items-center gap-0.5 mb-0.5">
+                                  <User className="w-2.5 h-2.5" /> Team owner
+                                </span>
+                                <select
+                                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-[11px] font-semibold text-slate-800"
+                                  value={
+                                    (o as { sales_rep_user_id?: string | null })
+                                      .sales_rep_user_id || ''
+                                  }
+                                  onClick={(e) => e.stopPropagation()}
+                                  onChange={(e) => {
+                                    e.stopPropagation();
+                                    const uid = e.target.value || null;
+                                    const name = uid
+                                      ? teamMembers.find((m) => m.user_id === uid)
+                                          ?.name || null
+                                      : null;
+                                    onAssignOwner(o.id, uid, name);
+                                  }}
+                                >
+                                  <option value="">Unassigned</option>
+                                  {teamMembers.map((m) => (
+                                    <option key={m.user_id} value={m.user_id}>
+                                      {m.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                            ) : (
+                              (o.owner_name ||
+                                memberName(
+                                  (o as { sales_rep_user_id?: string | null })
+                                    .sales_rep_user_id
+                                )) && (
+                                <div className="text-[10px] text-slate-600 flex items-center gap-1">
+                                  <User className="w-3 h-3" />
+                                  {o.owner_name ||
+                                    memberName(
+                                      (o as { sales_rep_user_id?: string | null })
+                                        .sales_rep_user_id
+                                    )}
+                                </div>
+                              )
+                            )}
+                            {onSetCloseDate ? (
+                              <label className="block">
+                                <span className="text-[9px] font-bold uppercase tracking-wide text-slate-400 flex items-center gap-0.5 mb-0.5">
+                                  <Calendar className="w-2.5 h-2.5" /> Expected land
+                                </span>
+                                <input
+                                  type="date"
+                                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-[11px] font-semibold text-slate-800"
+                                  value={o.expected_close_date || ''}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onChange={(e) => {
+                                    e.stopPropagation();
+                                    onSetCloseDate(
+                                      o.id,
+                                      e.target.value || null
+                                    );
+                                  }}
+                                />
+                              </label>
+                            ) : (
+                              <div className="text-[10px] text-neutral-500">
+                                Close {o.expected_close_date || '—'}
+                              </div>
+                            )}
+                          </div>
+                        )}
 
                         {comm && (
                           <div className="mt-2 rounded-xl border border-amber-300/70 bg-gradient-to-r from-amber-50 to-orange-50 px-2.5 py-2">

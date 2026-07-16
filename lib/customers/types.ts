@@ -109,6 +109,8 @@ export type OpportunityRecord = {
   next_step?: string | null;
   next_step_date?: string | null;
   owner_name?: string | null;
+  /** Privy user id of company team member owning the deal */
+  sales_rep_user_id?: string | null;
   competitor?: string | null;
   lost_reason?: string | null;
   source?: string | null;

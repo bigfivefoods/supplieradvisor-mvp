@@ -27,6 +27,7 @@ import {
 } from '@/lib/customers/types';
 import CommissionBadge from '@/components/sales/CommissionBadge';
 import OpportunityPipelineBoard from '@/components/sales/OpportunityPipelineBoard';
+import TeamDealsReport from '@/components/sales/TeamDealsReport';
 import {
   calculateCommission,
   DEFAULT_COMMISSION_TIERS,
@@ -34,8 +35,15 @@ import {
   type CommissionTier,
 } from '@/lib/sales-contractor/commission';
 
-type Tab = 'map' | 'leads' | 'list';
+type Tab = 'map' | 'leads' | 'list' | 'team';
 type FormMode = 'opportunity' | 'lead' | 'customer';
+
+type TeamMember = {
+  user_id: string;
+  name: string;
+  email?: string | null;
+  role?: string | null;
+};
 
 /**
  * Sales portal pipeline — same opportunity map as Customers → Leads pipeline,
@@ -48,6 +56,7 @@ export default function SalesPipelinePage() {
   const [tab, setTab] = useState<Tab>('map');
   const [leads, setLeads] = useState<LeadRecord[]>([]);
   const [opps, setOpps] = useState<OpportunityRecord[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [tiers, setTiers] = useState<CommissionTier[]>(DEFAULT_COMMISSION_TIERS);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -74,13 +83,16 @@ export default function SalesPipelinePage() {
     invite_message: '',
     send_invite: true,
     also_create_opportunity: false,
+    sales_rep_user_id: '',
+    owner_name: '',
+    expected_close_date: '',
   });
 
   const load = useCallback(async () => {
     if (!companyId) return;
     setLoading(true);
     try {
-      const [lRes, oRes, cRes, pRes] = await Promise.all([
+      const [lRes, oRes, cRes, pRes, tRes] = await Promise.all([
         fetch(`/api/customers/leads?companyId=${companyId}`),
         fetch(`/api/customers/opportunities?companyId=${companyId}`),
         privyUserId
@@ -99,11 +111,22 @@ export default function SalesPipelinePage() {
           }`,
           { cache: 'no-store' }
         ),
+        fetch(`/api/sales/team-members?companyId=${companyId}`, {
+          cache: 'no-store',
+        }),
       ]);
       const lData = await lRes.json();
       const oData = await oRes.json();
       setLeads(lData.leads || []);
       setOpps(oData.opportunities || []);
+      if (tRes.ok) {
+        const tData = await tRes.json();
+        setTeamMembers(
+          Array.isArray(tData.members) ? (tData.members as TeamMember[]) : []
+        );
+      } else {
+        setTeamMembers([]);
+      }
       // Prefer company sales program tiers (4–6% etc.) over stale agreement rows
       if (pRes.ok) {
         const pData = await pRes.json();
@@ -126,6 +149,64 @@ export default function SalesPipelinePage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const patchOpp = async (
+    id: number,
+    patch: Record<string, unknown>,
+    optimistic?: Partial<OpportunityRecord>
+  ) => {
+    if (!companyId) return false;
+    if (optimistic) {
+      setOpps((prev) =>
+        prev.map((o) => (o.id === id ? { ...o, ...optimistic } : o))
+      );
+    }
+    const res = await fetch('/api/customers/opportunities', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        companyId,
+        privyUserId,
+        id,
+        ...patch,
+      }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      toast.error(data.error || 'Could not update deal');
+      void load();
+      return false;
+    }
+    return true;
+  };
+
+  const assignOwner = async (
+    id: number,
+    salesRepUserId: string | null,
+    ownerName: string | null
+  ) => {
+    const ok = await patchOpp(
+      id,
+      {
+        sales_rep_user_id: salesRepUserId,
+        owner_name: ownerName,
+      },
+      {
+        sales_rep_user_id: salesRepUserId,
+        owner_name: ownerName,
+      }
+    );
+    if (ok) toast.success(ownerName ? `Assigned to ${ownerName}` : 'Unassigned');
+  };
+
+  const setCloseDate = async (id: number, date: string | null) => {
+    const ok = await patchOpp(
+      id,
+      { expected_close_date: date },
+      { expected_close_date: date }
+    );
+    if (ok) toast.success(date ? `Land date ${date}` : 'Land date cleared');
+  };
 
   const moveOpp = async (id: number, stage: string) => {
     if (!companyId) return;
@@ -237,6 +318,13 @@ export default function SalesPipelinePage() {
             stage: form.stage,
             amount: Number(form.amount) || 0,
             notes: form.notes.trim() || null,
+            sales_rep_user_id: form.sales_rep_user_id || null,
+            owner_name:
+              form.owner_name ||
+              teamMembers.find((m) => m.user_id === form.sales_rep_user_id)
+                ?.name ||
+              null,
+            expected_close_date: form.expected_close_date || null,
           }),
         });
         const data = await res.json();
@@ -298,7 +386,16 @@ export default function SalesPipelinePage() {
           stage: form.stage,
           amount: Number(form.amount) || 0,
           notes: form.notes || null,
-          sales_rep_user_id: privyUserId || null,
+          sales_rep_user_id:
+            form.sales_rep_user_id || privyUserId || null,
+          owner_name:
+            form.owner_name ||
+            teamMembers.find(
+              (m) =>
+                m.user_id === (form.sales_rep_user_id || privyUserId)
+            )?.name ||
+            null,
+          expected_close_date: form.expected_close_date || null,
         }),
       });
       const data = await res.json();
@@ -468,6 +565,9 @@ export default function SalesPipelinePage() {
       invite_message: '',
       send_invite: true,
       also_create_opportunity: false,
+      sales_rep_user_id: privyUserId || '',
+      owner_name: '',
+      expected_close_date: '',
     });
   };
 
@@ -505,6 +605,10 @@ export default function SalesPipelinePage() {
       invite_message: '',
       send_invite: false,
       also_create_opportunity: false,
+      sales_rep_user_id:
+        (o as { sales_rep_user_id?: string | null }).sales_rep_user_id || '',
+      owner_name: o.owner_name || '',
+      expected_close_date: o.expected_close_date || '',
     });
     setShowForm(true);
     setTab('map');
@@ -577,6 +681,7 @@ export default function SalesPipelinePage() {
           [
             { id: 'map' as const, label: 'Opportunity map', icon: LayoutGrid },
             { id: 'list' as const, label: 'Deal list', icon: Briefcase },
+            { id: 'team' as const, label: 'Team report', icon: Users },
             { id: 'leads' as const, label: 'Leads', icon: Target },
           ] as const
         ).map((t) => (
@@ -899,6 +1004,44 @@ export default function SalesPipelinePage() {
                         setForm((f) => ({ ...f, amount: e.target.value }))
                       }
                     />
+                    <label className="block text-xs font-bold text-slate-600">
+                      Team owner (whose deal)
+                      <select
+                        className="mt-1 w-full rounded-2xl bg-white border border-neutral-200 px-4 py-3 text-slate-800 text-sm font-semibold"
+                        value={form.sales_rep_user_id}
+                        onChange={(e) => {
+                          const uid = e.target.value;
+                          const mem = teamMembers.find((m) => m.user_id === uid);
+                          setForm((f) => ({
+                            ...f,
+                            sales_rep_user_id: uid,
+                            owner_name: mem?.name || '',
+                          }));
+                        }}
+                      >
+                        <option value="">Unassigned</option>
+                        {teamMembers.map((m) => (
+                          <option key={m.user_id} value={m.user_id}>
+                            {m.name}
+                            {m.role ? ` · ${m.role}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block text-xs font-bold text-slate-600">
+                      Expected land / close date
+                      <input
+                        type="date"
+                        className="mt-1 w-full rounded-2xl bg-white border border-neutral-200 px-4 py-3 text-slate-800 text-sm"
+                        value={form.expected_close_date}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            expected_close_date: e.target.value,
+                          }))
+                        }
+                      />
+                    </label>
                     {Number(form.amount) > 0 && (
                       <div className="sm:col-span-2">
                         <CommissionBadge amount={Number(form.amount)} />
@@ -1034,12 +1177,21 @@ export default function SalesPipelinePage() {
           opportunities={opps}
           showCommission
           commissionTiers={tiers}
+          teamMembers={teamMembers}
           onMove={moveOpp}
           onDelete={deleteOpp}
           onEdit={openEditOpp}
+          onAssignOwner={assignOwner}
+          onSetCloseDate={setCloseDate}
           onCreate={() => {
             openForm('opportunity');
           }}
+        />
+      ) : tab === 'team' ? (
+        <TeamDealsReport
+          opportunities={opps}
+          members={teamMembers}
+          commissionTiers={tiers}
         />
       ) : tab === 'leads' ? (
         <div className="rounded-3xl border border-neutral-200 bg-white overflow-hidden">
