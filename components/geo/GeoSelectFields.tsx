@@ -19,18 +19,24 @@ interface GeoSelectFieldsProps {
   compact?: boolean;
   /** Hide city field when parent renders it separately */
   hideCity?: boolean;
-  /** Optional required marker on country */
+  /** Show required marker on country (default true) */
   countryRequired?: boolean;
+  /** Show required marker on continent */
+  continentRequired?: boolean;
+  /** Show required marker on province */
+  provinceRequired?: boolean;
   className?: string;
 }
 
 /**
- * Cascading Continent → Country → Province/State (+ City) dropdowns.
- * Data from Supabase via /api/geo (continents, countries, provinces).
+ * Cascading Location selector:
+ *   1. Continent (all continents)
+ *   2. Country (only countries on that continent)
+ *   3. Province / State (only provinces in that country)
+ *   4. City (free text)
  *
- * Use ONLY where a real location is required (e.g. company profile Location,
- * container site). Do not use for optional free-text region notes, filters,
- * or addresses that are not formal geo fields.
+ * Data: Supabase continents → countries → provinces via /api/geo
+ * (auto-seeded world list when tables are sparse).
  */
 export default function GeoSelectFields({
   value,
@@ -39,6 +45,8 @@ export default function GeoSelectFields({
   compact = false,
   hideCity = false,
   countryRequired = true,
+  continentRequired = false,
+  provinceRequired = false,
   className = '',
 }: GeoSelectFieldsProps) {
   const [continents, setContinents] = useState<GeoContinent[]>([]);
@@ -61,18 +69,18 @@ export default function GeoSelectFields({
   const gapCls = compact ? 'gap-2.5' : 'gap-3';
   const spaceCls = compact ? 'space-y-2.5' : 'space-y-3';
 
-  // Bootstrap continents + countries from API (server uses service role when available)
+  // Bootstrap all continents + countries
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch('/api/geo', { cache: 'force-cache' });
+        const res = await fetch('/api/geo?resource=bootstrap', {
+          cache: 'no-store',
+        });
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          throw new Error(data.error || `Geo API ${res.status}`);
-        }
+        if (!res.ok) throw new Error(data.error || `Geo API ${res.status}`);
         if (cancelled) return;
 
         const conts: GeoContinent[] = Array.isArray(data.continents)
@@ -84,9 +92,9 @@ export default function GeoSelectFields({
         setContinents(conts);
         setCountries(ctrys);
 
-        // Resolve IDs from existing saved names
         let contId: number | null = null;
         let ctryId: number | null = null;
+        let nextValue = value;
 
         if (value.continent) {
           const c = conts.find(
@@ -101,10 +109,11 @@ export default function GeoSelectFields({
           if (c) {
             ctryId = c.id;
             if (!contId && c.continent_id) {
-              contId = c.continent_id;
-              const cont = conts.find((x) => x.id === c.continent_id);
+              contId = Number(c.continent_id);
+              const cont = conts.find((x) => x.id === contId);
               if (cont && !value.continent) {
-                onChange({ ...value, continent: cont.name });
+                nextValue = { ...value, continent: cont.name };
+                onChange(nextValue);
               }
             }
           }
@@ -112,9 +121,9 @@ export default function GeoSelectFields({
         setSelectedContinentId(contId);
         setSelectedCountryId(ctryId);
 
-        if (conts.length === 0 && ctrys.length === 0) {
+        if (conts.length === 0) {
           setError(
-            'No location data in Supabase. Run migration 20260716_geo_reference_public_read.sql and seed continents/countries/provinces.'
+            'No continents loaded. Check Supabase continents table / SUPABASE keys.'
           );
         }
       } catch (e: unknown) {
@@ -130,11 +139,10 @@ export default function GeoSelectFields({
     return () => {
       cancelled = true;
     };
-    // Only bootstrap once on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Keep IDs in sync when parent value changes (e.g. form load)
+  // Sync IDs when parent hydrates saved profile values
   useEffect(() => {
     if (loading || continents.length === 0) return;
     if (value.continent) {
@@ -143,11 +151,16 @@ export default function GeoSelectFields({
       );
       if (c && c.id !== selectedContinentId) setSelectedContinentId(c.id);
     }
-    if (value.country) {
+    if (value.country && countries.length) {
       const c = countries.find(
         (x) => x.name.toLowerCase() === value.country.toLowerCase()
       );
-      if (c && c.id !== selectedCountryId) setSelectedCountryId(c.id);
+      if (c && c.id !== selectedCountryId) {
+        setSelectedCountryId(c.id);
+        if (c.continent_id && !selectedContinentId) {
+          setSelectedContinentId(Number(c.continent_id));
+        }
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value.continent, value.country, loading, continents, countries]);
@@ -157,14 +170,12 @@ export default function GeoSelectFields({
     try {
       const res = await fetch(
         `/api/geo?resource=provinces&countryId=${countryId}`,
-        { cache: 'force-cache' }
+        { cache: 'no-store' }
       );
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setProvinces([]);
-        return;
-      }
-      setProvinces(Array.isArray(data.provinces) ? data.provinces : []);
+      setProvinces(
+        res.ok && Array.isArray(data.provinces) ? data.provinces : []
+      );
     } catch {
       setProvinces([]);
     } finally {
@@ -180,27 +191,33 @@ export default function GeoSelectFields({
     void loadProvincesForCountry(selectedCountryId);
   }, [selectedCountryId, loadProvincesForCountry]);
 
+  /** Countries on the selected continent only */
   const filteredCountries = useMemo(() => {
-    if (!selectedContinentId) return countries;
-    return countries.filter((c) => c.continent_id === selectedContinentId);
+    if (!selectedContinentId) return [];
+    return countries
+      .filter((c) => Number(c.continent_id) === selectedContinentId)
+      .sort((a, b) => a.name.localeCompare(b.name));
   }, [countries, selectedContinentId]);
 
   const handleContinent = (name: string) => {
     if (!name) {
       setSelectedContinentId(null);
       setSelectedCountryId(null);
+      setProvinces([]);
       onChange({ continent: '', country: '', province: '', city: value.city });
       return;
     }
     const c = continents.find((x) => x.name === name);
     setSelectedContinentId(c?.id ?? null);
     setSelectedCountryId(null);
+    setProvinces([]);
     onChange({ continent: name, country: '', province: '', city: value.city });
   };
 
   const handleCountry = (name: string) => {
     if (!name) {
       setSelectedCountryId(null);
+      setProvinces([]);
       onChange({ ...value, country: '', province: '' });
       return;
     }
@@ -208,7 +225,7 @@ export default function GeoSelectFields({
     setSelectedCountryId(c?.id ?? null);
     let continent = value.continent;
     if (c?.continent_id) {
-      const cont = continents.find((x) => x.id === c.continent_id);
+      const cont = continents.find((x) => x.id === Number(c.continent_id));
       if (cont) {
         continent = cont.name;
         setSelectedContinentId(cont.id);
@@ -221,7 +238,6 @@ export default function GeoSelectFields({
     onChange({ ...value, province: name });
   };
 
-  // If saved province name is not in list yet (still loading), keep it as option
   const provinceOptions = useMemo(() => {
     const names = new Set(provinces.map((p) => p.name));
     if (value.province && !names.has(value.province)) {
@@ -239,15 +255,18 @@ export default function GeoSelectFields({
       )}
       <div className={`grid grid-cols-1 sm:grid-cols-2 ${gapCls}`}>
         <div className="min-w-0">
-          <label className={labelCls}>Continent</label>
+          <label className={labelCls}>
+            Continent{continentRequired ? ' *' : ''}
+          </label>
           <select
             className={selectCls}
             disabled={disabled || loading}
             value={value.continent || ''}
             onChange={(e) => handleContinent(e.target.value)}
+            required={continentRequired}
           >
             <option value="">
-              {loading ? 'Loading…' : 'Select continent'}
+              {loading ? 'Loading continents…' : 'Select continent'}
             </option>
             {continents.map((c) => (
               <option key={c.id} value={c.name}>
@@ -262,13 +281,19 @@ export default function GeoSelectFields({
           </label>
           <select
             className={selectCls}
-            disabled={disabled || loading}
+            disabled={disabled || loading || !selectedContinentId}
             value={value.country || ''}
             onChange={(e) => handleCountry(e.target.value)}
             required={countryRequired}
           >
             <option value="">
-              {loading ? 'Loading…' : 'Select country'}
+              {!selectedContinentId
+                ? 'Select continent first'
+                : loading
+                  ? 'Loading…'
+                  : filteredCountries.length === 0
+                    ? 'No countries for this continent'
+                    : 'Select country'}
             </option>
             {filteredCountries.map((c) => (
               <option key={c.id} value={c.name}>
@@ -283,22 +308,29 @@ export default function GeoSelectFields({
         className={`grid grid-cols-1 ${hideCity ? '' : 'sm:grid-cols-2'} ${gapCls}`}
       >
         <div className="min-w-0">
-          <label className={labelCls}>Province / State</label>
+          <label className={labelCls}>
+            Province / State{provinceRequired ? ' *' : ''}
+          </label>
           <select
             className={selectCls}
             disabled={
-              disabled || loading || !selectedCountryId || loadingProvinces
+              disabled ||
+              loading ||
+              !selectedCountryId ||
+              loadingProvinces ||
+              (provinceOptions.length === 0 && !value.province)
             }
             value={value.province || ''}
             onChange={(e) => handleProvince(e.target.value)}
+            required={provinceRequired}
           >
             <option value="">
               {!selectedCountryId
                 ? 'Select country first'
                 : loadingProvinces
-                  ? 'Loading…'
+                  ? 'Loading provinces…'
                   : provinceOptions.length === 0
-                    ? 'No provinces listed'
+                    ? 'No provinces listed for this country'
                     : 'Select province / state'}
             </option>
             {provinceOptions.map((p) => (
@@ -311,7 +343,8 @@ export default function GeoSelectFields({
             !loadingProvinces &&
             provinces.length === 0 && (
               <p className="text-[10px] text-neutral-500 mt-0.5">
-                No provinces in Supabase for this country yet.
+                No provinces seeded for this country yet — city can still be
+                entered.
               </p>
             )}
         </div>

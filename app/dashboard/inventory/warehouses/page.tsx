@@ -31,6 +31,7 @@ import {
   type WarehouseRecord,
 } from '@/lib/inventory/types';
 import { CompanyRequired, InventoryHeader } from '@/components/inventory/InventoryShell';
+import GeoSelectFields, { type GeoValue } from '@/components/geo/GeoSelectFields';
 
 const LocationMap = dynamic(() => import('@/components/LocationMap'), {
   ssr: false,
@@ -482,32 +483,30 @@ function WarehousesInner() {
               value={form.address}
               onChange={(e) => setForm({ ...form, address: e.target.value })}
             />
-            <div className="grid grid-cols-2 gap-2">
-              <input
-                className="input !p-3 !text-sm"
-                placeholder="City"
-                value={form.city}
-                onChange={(e) => setForm({ ...form, city: e.target.value })}
-              />
-              <input
-                className="input !p-3 !text-sm"
-                placeholder="Country"
-                value={form.country}
-                onChange={(e) => setForm({ ...form, country: e.target.value })}
-              />
-              <input
-                className="input !p-3 !text-sm"
-                placeholder="Postal code"
-                value={form.postal_code}
-                onChange={(e) => setForm({ ...form, postal_code: e.target.value })}
-              />
-              <input
-                className="input !p-3 !text-sm"
-                placeholder="Region / province"
-                value={form.region}
-                onChange={(e) => setForm({ ...form, region: e.target.value })}
-              />
-            </div>
+            <GeoSelectFields
+              compact
+              countryRequired={false}
+              value={{
+                continent: '',
+                country: form.country || '',
+                province: form.region || '',
+                city: form.city || '',
+              }}
+              onChange={(g: GeoValue) =>
+                setForm((f) => ({
+                  ...f,
+                  country: g.country,
+                  region: g.province,
+                  city: g.city,
+                }))
+              }
+            />
+            <input
+              className="input !p-3 !text-sm"
+              placeholder="Postal code"
+              value={form.postal_code}
+              onChange={(e) => setForm({ ...form, postal_code: e.target.value })}
+            />
 
             {/* Physical GPS — used as collection / destination for transfers */}
             <div className="border-t pt-3 space-y-2">

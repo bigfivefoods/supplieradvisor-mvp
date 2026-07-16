@@ -1583,6 +1583,7 @@ function ProfileInner() {
                 value={geo}
                 onChange={onGeoChange}
                 compact
+                continentRequired
                 countryRequired
               />
               <div className="grid grid-cols-3 gap-2.5">

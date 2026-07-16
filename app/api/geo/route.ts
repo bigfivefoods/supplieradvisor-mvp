@@ -58,7 +58,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Bootstrap: all continents + all countries (client filters by continent)
+    // Bootstrap: seed if needed, then all continents + countries
+    // (client filters countries by selected continent)
     const [continents, countries] = await Promise.all([
       loadContinents(),
       loadCountries(),
@@ -74,7 +75,12 @@ export async function GET(request: NextRequest) {
           countries: countries.length,
         },
       },
-      { headers: cacheHeaders() }
+      // no-store on bootstrap so seeding is visible immediately after deploy
+      {
+        headers: {
+          'Cache-Control': 'no-store',
+        },
+      }
     );
   } catch (e: unknown) {
     console.error('api/geo GET:', e);

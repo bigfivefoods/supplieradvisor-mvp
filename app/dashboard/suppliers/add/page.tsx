@@ -13,6 +13,7 @@ import {
   SuppliersHeader,
   SuppliersPage
 } from '@/components/suppliers/SuppliersShell';
+import GeoSelectFields, { type GeoValue } from '@/components/geo/GeoSelectFields';
 
 export default function AddSupplierPage() {
   return (
@@ -211,20 +212,23 @@ function AddInner() {
               placeholder="e.g. Dairy ingredients"
             />
           </div>
-          <div>
-            <label className="text-xs font-medium">City</label>
-            <input
-              className="input mt-1 w-full !p-3 !text-sm"
-              value={form.city}
-              onChange={(e) => setForm({ ...form, city: e.target.value })}
-            />
-          </div>
-          <div>
-            <label className="text-xs font-medium">Country</label>
-            <input
-              className="input mt-1 w-full !p-3 !text-sm"
-              value={form.country}
-              onChange={(e) => setForm({ ...form, country: e.target.value })}
+          <div className="sm:col-span-2">
+            <GeoSelectFields
+              compact
+              countryRequired={false}
+              value={{
+                continent: '',
+                country: form.country || '',
+                province: '',
+                city: form.city || '',
+              }}
+              onChange={(g: GeoValue) =>
+                setForm((f) => ({
+                  ...f,
+                  country: g.country,
+                  city: g.city,
+                }))
+              }
             />
           </div>
           <div className="sm:col-span-2">

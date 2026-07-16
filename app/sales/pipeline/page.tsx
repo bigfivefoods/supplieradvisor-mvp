@@ -15,6 +15,7 @@ import {
   Link2,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import GeoSelectFields, { type GeoValue } from '@/components/geo/GeoSelectFields';
 import { usePrivy } from '@privy-io/react-auth';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
@@ -839,26 +840,25 @@ export default function SalesPipelinePage() {
                     }
                   />
                 </label>
-                <label className="block text-xs font-bold text-slate-600">
-                  City
-                  <input
-                    className="mt-1 w-full rounded-2xl border border-neutral-200 px-4 py-3 text-sm"
-                    value={form.city}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, city: e.target.value }))
+                <div className="sm:col-span-2">
+                  <GeoSelectFields
+                    compact
+                    countryRequired={false}
+                    value={{
+                      continent: '',
+                      country: form.country || '',
+                      province: '',
+                      city: form.city || '',
+                    }}
+                    onChange={(g: GeoValue) =>
+                      setForm((f) => ({
+                        ...f,
+                        country: g.country,
+                        city: g.city,
+                      }))
                     }
                   />
-                </label>
-                <label className="block text-xs font-bold text-slate-600">
-                  Country
-                  <input
-                    className="mt-1 w-full rounded-2xl border border-neutral-200 px-4 py-3 text-sm"
-                    value={form.country}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, country: e.target.value }))
-                    }
-                  />
-                </label>
+                </div>
               </div>
               <textarea
                 className="w-full rounded-2xl border border-neutral-200 px-4 py-3 text-sm min-h-[64px]"

@@ -33,6 +33,7 @@ import {
 } from '@/lib/customers/types';
 import { CompanyRequired, CustomersHeader } from '@/components/customers/CustomersShell';
 import OpportunityPipelineBoard from '@/components/sales/OpportunityPipelineBoard';
+import GeoSelectFields, { type GeoValue } from '@/components/geo/GeoSelectFields';
 
 type Tab = 'leads' | 'pipeline';
 
@@ -591,11 +592,24 @@ function LeadsInner() {
               />
             </div>
             <Input label="Source detail" value={leadForm.source_detail} onChange={(v) => setLeadForm({ ...leadForm, source_detail: v })} />
-            <div className="grid sm:grid-cols-3 gap-3">
-              <Input label="Industry" value={leadForm.industry} onChange={(v) => setLeadForm({ ...leadForm, industry: v })} />
-              <Input label="City" value={leadForm.city} onChange={(v) => setLeadForm({ ...leadForm, city: v })} />
-              <Input label="Country" value={leadForm.country} onChange={(v) => setLeadForm({ ...leadForm, country: v })} />
-            </div>
+            <Input label="Industry" value={leadForm.industry} onChange={(v) => setLeadForm({ ...leadForm, industry: v })} />
+            <GeoSelectFields
+              compact
+              countryRequired={false}
+              value={{
+                continent: '',
+                country: leadForm.country || '',
+                province: '',
+                city: leadForm.city || '',
+              }}
+              onChange={(g: GeoValue) =>
+                setLeadForm((f) => ({
+                  ...f,
+                  country: g.country,
+                  city: g.city,
+                }))
+              }
+            />
             <Input label="Address" value={leadForm.address} onChange={(v) => setLeadForm({ ...leadForm, address: v })} />
             <div className="grid sm:grid-cols-3 gap-3">
               <Input label="Est. value" value={leadForm.value_estimate} onChange={(v) => setLeadForm({ ...leadForm, value_estimate: v })} type="number" />

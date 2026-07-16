@@ -13,6 +13,7 @@ import {
   CompanyRequired,
 } from '@/components/accounting/AccountingShell';
 import { Panel } from '@/components/relationship/RelationshipChrome';
+import GeoSelectFields, { type GeoValue } from '@/components/geo/GeoSelectFields';
 
 export default function EntitiesPage() {
   return (
@@ -216,24 +217,28 @@ function Inner() {
                   className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2 text-sm"
                 />
               </label>
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block text-xs font-semibold text-neutral-600">
-                  Country
-                  <input
-                    value={form.country}
-                    onChange={(e) => setForm({ ...form, country: e.target.value })}
-                    className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2 text-sm"
-                  />
-                </label>
-                <label className="block text-xs font-semibold text-neutral-600">
-                  Tax number
-                  <input
-                    value={form.tax_number}
-                    onChange={(e) => setForm({ ...form, tax_number: e.target.value })}
-                    className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2 text-sm"
-                  />
-                </label>
-              </div>
+              <GeoSelectFields
+                compact
+                hideCity
+                countryRequired={false}
+                value={{
+                  continent: '',
+                  country: form.country || '',
+                  province: '',
+                  city: '',
+                }}
+                onChange={(g: GeoValue) =>
+                  setForm((f) => ({ ...f, country: g.country }))
+                }
+              />
+              <label className="block text-xs font-semibold text-neutral-600">
+                Tax number
+                <input
+                  value={form.tax_number}
+                  onChange={(e) => setForm({ ...form, tax_number: e.target.value })}
+                  className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2 text-sm"
+                />
+              </label>
               <label className="block text-xs font-semibold text-neutral-600">
                 Registration number
                 <input
