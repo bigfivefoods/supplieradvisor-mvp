@@ -85,23 +85,39 @@ export default async function PublicCompanyPage({ params }: Props) {
               <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">
                 {name}
               </h1>
-              {c.legal_name && c.legal_name !== name && (
-                <p className="text-sm text-neutral-500 mt-0.5">{String(c.legal_name)}</p>
-              )}
+              {Boolean(
+                c.legal_name && String(c.legal_name) !== name
+              ) ? (
+                <p className="text-sm text-neutral-500 mt-0.5">
+                  {String(c.legal_name)}
+                </p>
+              ) : null}
               <div className="mt-2">
                 <TrustBadges
                   isVerified={verified}
-                  verificationStatus={c.verification_status as string}
-                  bankVerificationStatus={c.bank_verification_status as string}
-                  trustScore={c.trust_score as number}
-                  otifefPct={c.otifef_average as number}
+                  verificationStatus={
+                    c.verification_status != null
+                      ? String(c.verification_status)
+                      : null
+                  }
+                  bankVerificationStatus={
+                    c.bank_verification_status != null
+                      ? String(c.bank_verification_status)
+                      : null
+                  }
+                  trustScore={
+                    c.trust_score != null ? Number(c.trust_score) : null
+                  }
+                  otifefPct={
+                    c.otifef_average != null ? Number(c.otifef_average) : null
+                  }
                 />
               </div>
             </div>
           </div>
 
           <dl className="mt-6 grid sm:grid-cols-2 gap-3 text-sm">
-            {c.industry ? (
+            {Boolean(c.industry) ? (
               <div className="rounded-xl bg-neutral-50 p-3">
                 <dt className="text-[10px] font-bold uppercase text-neutral-400">
                   Industry
@@ -122,7 +138,7 @@ export default async function PublicCompanyPage({ params }: Props) {
                 </dd>
               </div>
             ) : null}
-            {c.registration_number ? (
+            {Boolean(c.registration_number) ? (
               <div className="rounded-xl bg-neutral-50 p-3">
                 <dt className="text-[10px] font-bold uppercase text-neutral-400">
                   Registration
@@ -132,7 +148,7 @@ export default async function PublicCompanyPage({ params }: Props) {
                 </dd>
               </div>
             ) : null}
-            {c.bee_level ? (
+            {Boolean(c.bee_level) ? (
               <div className="rounded-xl bg-neutral-50 p-3">
                 <dt className="text-[10px] font-bold uppercase text-neutral-400">
                   B-BBEE
@@ -162,7 +178,7 @@ export default async function PublicCompanyPage({ params }: Props) {
           ) : null}
 
           <div className="mt-8 flex flex-wrap gap-3">
-            {c.website ? (
+            {Boolean(c.website) ? (
               <a
                 href={
                   String(c.website).startsWith('http')
