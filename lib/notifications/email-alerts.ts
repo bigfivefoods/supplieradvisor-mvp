@@ -129,6 +129,80 @@ export async function notifyPublishCatalogue(params: {
   }
 }
 
+/** Peer was accepted into the network (notify the original requester). */
+export async function notifyConnectionAccepted(params: {
+  requesterProfileId: number;
+  peerName?: string | null;
+  peerProfileId?: number | null;
+}): Promise<void> {
+  try {
+    const to = await companyEmails(params.requesterProfileId);
+    const peer = params.peerName || 'Your partner';
+    const href =
+      params.peerProfileId != null
+        ? `${appBase()}/dashboard/connections/${params.peerProfileId}`
+        : `${appBase()}/dashboard/connections`;
+    await sendAlert({
+      to,
+      subject: `[SupplierAdvisor] ${peer} accepted your connection`,
+      html: `
+        <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto">
+          <h2 style="color:#047857">Connection accepted</h2>
+          <p><strong>${peer}</strong> is now in your network.</p>
+          <p>Next: raise a purchase order, share pricing, or rate the partnership after delivery.</p>
+          <p><a href="${href}" style="display:inline-block;background:#00b4d8;color:#fff;padding:12px 20px;border-radius:999px;text-decoration:none;font-weight:700">Open connection workspace →</a></p>
+        </div>
+      `,
+    });
+  } catch (e) {
+    console.warn('notifyConnectionAccepted', e);
+  }
+}
+
+/** Customer / buyer notified when a commercial invoice is emailed. */
+export async function notifyInvoiceSent(params: {
+  /** Seller company that sent the invoice */
+  sellerProfileId: number;
+  customerEmail: string;
+  invoiceNumber: string;
+  sellerName?: string | null;
+  totalAmount?: number | null;
+  currency?: string | null;
+  resend?: boolean;
+}): Promise<void> {
+  try {
+    // Customer already receives the document via docs/send; this is a seller-side audit email
+    const to = await companyEmails(params.sellerProfileId);
+    const href = `${appBase()}/dashboard/customers/invoices`;
+    const seller = params.sellerName || 'Your company';
+    const ccy = (params.currency || 'ZAR').toUpperCase();
+    const total =
+      params.totalAmount != null && Number.isFinite(Number(params.totalAmount))
+        ? `${ccy} ${Number(params.totalAmount).toLocaleString(undefined, {
+            maximumFractionDigits: 2,
+          })}`
+        : '';
+    await sendAlert({
+      to,
+      subject: `[SupplierAdvisor] Invoice ${params.invoiceNumber} ${
+        params.resend ? 're-sent' : 'sent'
+      } to ${params.customerEmail}`,
+      html: `
+        <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto">
+          <h2 style="color:#0077b6">Invoice ${params.resend ? 're-sent' : 'sent'}</h2>
+          <p><strong>${seller}</strong> ${
+            params.resend ? 're-sent' : 'sent'
+          } invoice <strong>${params.invoiceNumber}</strong> to <code>${params.customerEmail}</code>.</p>
+          ${total ? `<p>Total: <strong>${total}</strong></p>` : ''}
+          <p><a href="${href}" style="color:#00b4d8">Open invoices →</a></p>
+        </div>
+      `,
+    });
+  } catch (e) {
+    console.warn('notifyInvoiceSent', e);
+  }
+}
+
 /** Buyer notified when supplier accepts their PO. */
 export async function notifyPoAccepted(params: {
   buyerProfileId: number;

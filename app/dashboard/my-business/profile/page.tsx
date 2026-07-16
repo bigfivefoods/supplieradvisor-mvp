@@ -312,6 +312,31 @@ function ProfileInner() {
       if (!profile.wallet_address && loginWallet) {
         setForm((prev) => ({ ...prev, wallet_address: loginWallet }));
       }
+
+      // Soft backfill continent from country when missing (server also derives on save)
+      if (profile.country && !profile.continent) {
+        void fetch('/api/business/location-backfill', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ companyId, privyUserId }),
+        })
+          .then((r) => r.json())
+          .then((d) => {
+            if (d?.updated && d.continent) {
+              setForm((prev) => ({
+                ...prev,
+                country: d.country || prev.country,
+                continent: d.continent,
+              }));
+              setGeo((g) => ({
+                ...g,
+                country: String(d.country || g.country || ''),
+                continent: String(d.continent || g.continent || ''),
+              }));
+            }
+          })
+          .catch(() => undefined);
+      }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Load failed');
     } finally {

@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Loader2, UserPlus } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
@@ -14,11 +14,22 @@ import {
   SuppliersPage
 } from '@/components/suppliers/SuppliersShell';
 import GeoSelectFields, { type GeoValue } from '@/components/geo/GeoSelectFields';
+import { continentFromCountry } from '@/lib/geo/continent-from-country';
 
 export default function AddSupplierPage() {
   return (
     <CompanyRequired>
-      <AddInner />
+      <Suspense
+        fallback={
+          <SuppliersPage>
+            <div className="py-20 flex justify-center">
+              <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
+            </div>
+          </SuppliersPage>
+        }
+      >
+        <AddInner />
+      </Suspense>
     </CompanyRequired>
   );
 }
@@ -28,8 +39,14 @@ function AddInner() {
   const { user } = usePrivy();
   const privyUserId = getCanonicalUserId(user?.id);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const prefillCountry = (searchParams.get('country') || '').trim();
+  const prefillContinent = (searchParams.get('continent') || '').trim();
   const [saving, setSaving] = useState(false);
   const [sendInvite, setSendInvite] = useState(true);
+  const initialCountry = prefillCountry || 'South Africa';
+  const initialContinent =
+    prefillContinent || continentFromCountry(initialCountry) || 'Africa';
   const [form, setForm] = useState({
     trading_name: '',
     legal_name: '',
@@ -40,10 +57,15 @@ function AddInner() {
     industry: '',
     category: '',
     city: '',
-    country: 'South Africa',
+    country: initialCountry,
+    continent: initialContinent,
     notes: '',
     certifications: [] as string[],
   });
+  const geoHint = useMemo(() => {
+    if (prefillCountry) return `Prefilled from Discover: ${prefillCountry}`;
+    return null;
+  }, [prefillCountry]);
 
   const toggleCert = (c: string) => {
     setForm((f) => ({
@@ -213,11 +235,14 @@ function AddInner() {
             />
           </div>
           <div className="sm:col-span-2">
+            {geoHint ? (
+              <p className="mb-2 text-[11px] font-semibold text-[#0077b6]">{geoHint}</p>
+            ) : null}
             <GeoSelectFields
               compact
               countryRequired={false}
               value={{
-                continent: '',
+                continent: form.continent || '',
                 country: form.country || '',
                 province: '',
                 city: form.city || '',
@@ -225,6 +250,10 @@ function AddInner() {
               onChange={(g: GeoValue) =>
                 setForm((f) => ({
                   ...f,
+                  continent:
+                    g.continent ||
+                    continentFromCountry(g.country) ||
+                    f.continent,
                   country: g.country,
                   city: g.city,
                 }))

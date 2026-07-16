@@ -9,6 +9,7 @@ import {
 import { computeDetailedCompleteness } from '@/lib/business/completeness';
 import { expandDocumentUrlWrites } from '@/lib/business/documentFields';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import { applyLocationDefaults } from '@/lib/geo/continent-from-country';
 
 /**
  * GET ?companyId=&privyUserId=
@@ -142,6 +143,16 @@ export async function PATCH(request: NextRequest) {
       }
 
       updates[f] = body[f] === '' ? null : body[f];
+    }
+
+    // Location: canonical country + always set continent from country seed map
+    if (updates.country !== undefined || updates.continent !== undefined) {
+      const loc = applyLocationDefaults({
+        country: updates.country,
+        continent: updates.continent,
+      });
+      if (loc.country !== undefined) updates.country = loc.country || null;
+      if (loc.continent !== undefined) updates.continent = loc.continent || null;
     }
 
     // Dual-write aliases so legacy + new columns stay consistent

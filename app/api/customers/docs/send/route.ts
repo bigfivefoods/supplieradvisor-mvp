@@ -253,6 +253,36 @@ export async function POST(request: NextRequest) {
         summary: `${isResend ? 'Resent' : 'Sent'} ${LABELS[type].toLowerCase()} ${number} to ${to}`,
         metadata: { to, cc, emailId: sent?.id, resend: isResend },
       });
+
+      if (type === 'invoice') {
+        void (async () => {
+          try {
+            const { notifyInvoiceSent } = await import(
+              '@/lib/notifications/email-alerts'
+            );
+            await notifyInvoiceSent({
+              sellerProfileId: companyId,
+              customerEmail: to,
+              invoiceNumber: number,
+              sellerName:
+                input.seller.trading_name || input.seller.legal_name || null,
+              totalAmount: Number(input.totalAmount || 0),
+              currency: String(input.currency || 'ZAR'),
+              resend: isResend,
+            });
+            void supabase.from('notifications').insert({
+              profile_id: companyId,
+              type: 'invoice_sent',
+              title: isResend ? 'Invoice re-sent' : 'Invoice sent',
+              body: `${number} → ${to}`,
+              metadata: { invoiceId: id, to, resend: isResend },
+              read: false,
+            });
+          } catch {
+            /* soft */
+          }
+        })();
+      }
     }
 
     return NextResponse.json({

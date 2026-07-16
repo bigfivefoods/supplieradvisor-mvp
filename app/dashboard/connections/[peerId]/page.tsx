@@ -13,6 +13,8 @@ import {
   MessageSquare,
   Activity,
   ExternalLink,
+  Rocket,
+  ArrowRight,
 } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -185,6 +187,81 @@ function PeerInner() {
     })}`;
   };
 
+  /** Single primary CTA based on connection + open trade state */
+  const nextAction = (() => {
+    if (edge.suspended) {
+      return {
+        title: 'Connection suspended',
+        body: 'Unsuspend from Network before raising new POs.',
+        href: '/dashboard/connections',
+        cta: 'Open network',
+      };
+    }
+    const st = String(edge.status || '').toLowerCase();
+    if (st === 'pending') {
+      if (edge.direction === 'received') {
+        return {
+          title: 'Respond to connection request',
+          body: `${name} is waiting — accept to unlock POs and documents.`,
+          href: '/dashboard/connections',
+          cta: 'Review request',
+        };
+      }
+      return {
+        title: 'Waiting for acceptance',
+        body: `Your request to ${name} is still pending.`,
+        href: '/dashboard/connections',
+        cta: 'View network',
+      };
+    }
+    if (st !== 'accepted') {
+      return {
+        title: 'Connect first',
+        body: 'Accept or request a connection to trade with this company.',
+        href: '/dashboard/suppliers/discover',
+        cta: 'Discover partners',
+      };
+    }
+    if ((wsMeta.poOpen ?? openPos.length) > 0) {
+      return {
+        title: 'Continue open purchase orders',
+        body: `${wsMeta.poOpen ?? openPos.length} open PO(s) with ${name}. Track delivery, accept, or invoice.`,
+        href: edge.hrefs.po || '/dashboard/suppliers/po',
+        cta: 'Open POs',
+      };
+    }
+    if ((wsMeta.invOpen ?? openInvs.length) > 0) {
+      return {
+        title: 'Follow up on open invoices',
+        body: `${wsMeta.invOpen ?? openInvs.length} open invoice(s) with this partner.`,
+        href: '/dashboard/customers/invoices',
+        cta: 'Open invoices',
+      };
+    }
+    if (edge.role === 'supplier' || edge.role === 'seller') {
+      return {
+        title: 'Raise a purchase order',
+        body: `You're ready to buy from ${name}. Pick catalogue lines and send a PO.`,
+        href: edge.hrefs.po || '/dashboard/suppliers/po',
+        cta: 'Raise PO',
+      };
+    }
+    if (edge.role === 'customer' || edge.role === 'buyer') {
+      return {
+        title: 'Send a quote or invoice',
+        body: `${name} is a customer connection — share commercial documents next.`,
+        href: '/dashboard/customers/invoices',
+        cta: 'Open invoices',
+      };
+    }
+    return {
+      title: 'Start the trade loop',
+      body: 'Raise a PO, share pricing, or rate this partner after delivery.',
+      href: edge.hrefs.po || '/dashboard/suppliers/po',
+      cta: 'Raise PO',
+    };
+  })();
+
   return (
     <ConnectionsPage>
       <ConnectionsHeader
@@ -200,6 +277,26 @@ function PeerInner() {
           </Link>
         }
       />
+
+      <div className="mb-4 rounded-2xl border border-[#00b4d8]/30 bg-gradient-to-br from-[#e0f7fc] to-white p-4 flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+        <div className="min-w-0 flex items-start gap-2">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#00b4d8]/15 text-[#0077b6]">
+            <Rocket className="h-4 w-4" />
+          </span>
+          <div>
+            <p className="text-sm font-black text-slate-900">{nextAction.title}</p>
+            <p className="text-xs text-neutral-600 mt-0.5 leading-relaxed">
+              {nextAction.body}
+            </p>
+          </div>
+        </div>
+        <Link
+          href={nextAction.href}
+          className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center gap-1.5 shrink-0"
+        >
+          {nextAction.cta} <ArrowRight className="w-4 h-4" />
+        </Link>
+      </div>
 
       <div className="rounded-3xl border border-neutral-200 bg-white p-6 space-y-4">
         <div className="flex items-start gap-4">

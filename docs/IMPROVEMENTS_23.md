@@ -83,3 +83,22 @@ curl -sS "$APP_URL/api/public/verified-companies?page=1&pageSize=3" | jq .pageCo
 # With E2E_ACCESS_TOKEN + E2E_COMPANY_ID:
 npx playwright test e2e/trade-loop-smoke.spec.ts
 ```
+
+## Sprint follow-up (location + trade loop)
+
+| Item | Status |
+|------|--------|
+| Discover empty → invite CTA with country prefill | Shipped |
+| Profile save derives continent from country | Shipped (`applyLocationDefaults`) |
+| Location backfill API | `POST /api/business/location-backfill` (company or cron) |
+| Connection workspace next-action CTA | Shipped |
+| Email/in-app on connection accept + invoice send | Shipped |
+
+Batch continent backfill (ops):
+
+```bash
+curl -sS -X POST -H "Authorization: Bearer $CRON_SECRET" \
+  -H "Content-Type: application/json" \
+  -d '{"limit":200}' \
+  "$APP_URL/api/business/location-backfill"
+```

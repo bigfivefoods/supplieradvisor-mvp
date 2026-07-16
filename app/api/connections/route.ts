@@ -581,6 +581,57 @@ export async function PATCH(request: NextRequest) {
           void afterPartnerNetworkEvent(requesteeId);
         }
       );
+      // Email + in-app: tell the original requester they were accepted
+      void (async () => {
+        try {
+          const peerId =
+            requesterId === companyId ? requesteeId : requesterId;
+          const notifyId = requesterId; // always the party who requested
+          const { data: peerProf } = await supabase
+            .from('profiles')
+            .select('trading_name, legal_name')
+            .eq('id', peerId === requesterId ? requesteeId : peerId)
+            .maybeSingle();
+          // peer of the requester is the requestee
+          const { data: acceptor } = await supabase
+            .from('profiles')
+            .select('trading_name, legal_name')
+            .eq('id', requesteeId)
+            .maybeSingle();
+          const peerName =
+            acceptor?.trading_name ||
+            acceptor?.legal_name ||
+            peerProf?.trading_name ||
+            null;
+          const { notifyConnectionAccepted } = await import(
+            '@/lib/notifications/email-alerts'
+          );
+          await notifyConnectionAccepted({
+            requesterProfileId: notifyId,
+            peerName,
+            peerProfileId: requesteeId,
+          });
+          await supabase.from('activity_log').insert({
+            profile_id: notifyId,
+            actor_user_id: mem.userId,
+            action: 'notify.connection_accepted',
+            entity_type: 'business_connections',
+            entity_id: String(connectionId),
+            summary: `${peerName || 'Partner'} accepted your connection`,
+            metadata: { connectionId, requesteeId, requesterId },
+          });
+          void supabase.from('notifications').insert({
+            profile_id: notifyId,
+            type: 'connection_accepted',
+            title: 'Connection accepted',
+            body: `${peerName || 'A partner'} accepted your connection request`,
+            metadata: { connectionId, peerProfileId: requesteeId },
+            read: false,
+          });
+        } catch {
+          /* soft */
+        }
+      })();
     }
 
     if (action === 'suspend' || action === 'unsuspend') {

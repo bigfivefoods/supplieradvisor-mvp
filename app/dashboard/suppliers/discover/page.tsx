@@ -1052,17 +1052,46 @@ function DiscoverInner() {
         ) : others.length === 0 && connected.length === 0 ? (
           <div className="rounded-[2rem] border border-dashed border-cyan-200 bg-gradient-to-br from-white to-sky-50/60 px-6 py-16 text-center">
             <Search className="mx-auto mb-3 h-10 w-10 text-neutral-300" />
-            <p className="font-black text-slate-800">No companies match these criteria</p>
+            <p className="font-black text-slate-800">
+              {country
+                ? `No partners in ${country} yet`
+                : continent
+                  ? `No partners match in ${continent}`
+                  : 'No companies match these criteria'}
+            </p>
             <p className="mx-auto mt-2 max-w-md text-sm text-neutral-500">
-              Broaden location, lower trust/OTIFEF thresholds, or clear certifications. You can also
-              invite a supplier not yet on SupplierAdvisor.
+              {country ? (
+                <>
+                  Deep search is working — the network just doesn&apos;t have a discoverable company in{' '}
+                  <strong>{country}</strong> yet
+                  {continent ? ` (${continent})` : ''}. Invite a supplier there to grow the network,
+                  or broaden filters.
+                </>
+              ) : (
+                <>
+                  Broaden location, lower trust/OTIFEF thresholds, or clear certifications. You can
+                  also invite a supplier not yet on SupplierAdvisor.
+                </>
+              )}
             </p>
             <div className="mt-6 flex flex-wrap justify-center gap-3">
               <button type="button" onClick={clearAll} className="btn-secondary !py-2.5 !px-5 text-sm">
                 Clear all filters
               </button>
-              <Link href="/dashboard/suppliers/add" className="btn-primary !py-2.5 !px-5 text-sm">
-                Invite supplier
+              <Link
+                href={
+                  country || continent
+                    ? `/dashboard/suppliers/add?${new URLSearchParams({
+                        ...(country ? { country } : {}),
+                        ...(continent ? { continent } : {}),
+                      }).toString()}`
+                    : '/dashboard/suppliers/add'
+                }
+                className="btn-primary !py-2.5 !px-5 text-sm"
+              >
+                {country
+                  ? `Invite a supplier in ${country}`
+                  : 'Invite supplier'}
               </Link>
             </div>
           </div>
