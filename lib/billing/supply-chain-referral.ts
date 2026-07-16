@@ -77,11 +77,88 @@ export function referralRatesSummary(): string {
 
 export function referralSuggestedCopy(): string {
   return (
-    `When a company you invite pays for SupplierAdvisor, you earn ${REFERRAL_LEVEL_RATES_PCT[0]}% of that payment. ` +
+    `Earn from companies that join via your referral link or when you invite them as a supplier, customer, or partner. ` +
+    `When they pay for SupplierAdvisor, you earn ${REFERRAL_LEVEL_RATES_PCT[0]}% of that payment. ` +
     `If they invite someone who pays, you earn ${REFERRAL_LEVEL_RATES_PCT[1]}%. ` +
     `One level further pays ${REFERRAL_LEVEL_RATES_PCT[2]}%. ` +
     `Combined rewards never exceed ${REFERRAL_TOTAL_CAP_PCT}% of the paying company's subscription fee.`
   );
+}
+
+/**
+ * First-touch attribution: set referred_by_profile_id only if empty.
+ * Used by referral links AND supplier/customer/partner invites.
+ * Never overwrites an existing referrer; never self-refers.
+ */
+export async function assignReferrerIfEmpty(
+  profileId: number,
+  referrerProfileId: number | null | undefined,
+  _opts?: { source?: string }
+): Promise<{ ok: boolean; assigned: boolean; error?: string }> {
+  const child = Number(profileId);
+  const parent = Number(referrerProfileId);
+  if (!Number.isFinite(child) || child <= 0) {
+    return { ok: false, assigned: false, error: 'Invalid profile id' };
+  }
+  if (!Number.isFinite(parent) || parent <= 0) {
+    return { ok: true, assigned: false };
+  }
+  if (child === parent) {
+    return { ok: true, assigned: false };
+  }
+
+  const supabase = getSupabaseServer();
+  const { data: childRow, error: loadErr } = await supabase
+    .from('profiles')
+    .select('id, referred_by_profile_id')
+    .eq('id', child)
+    .maybeSingle();
+
+  if (loadErr || !childRow) {
+    return {
+      ok: false,
+      assigned: false,
+      error: loadErr?.message || 'Profile not found',
+    };
+  }
+
+  const existing = childRow.referred_by_profile_id;
+  if (existing != null && existing !== '' && Number(existing) > 0) {
+    return { ok: true, assigned: false };
+  }
+
+  // Confirm referrer company exists
+  const { data: parentRow } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('id', parent)
+    .maybeSingle();
+  if (!parentRow) {
+    return { ok: false, assigned: false, error: 'Referrer company not found' };
+  }
+
+  const { data: updated, error: updErr } = await supabase
+    .from('profiles')
+    .update({ referred_by_profile_id: parent })
+    .eq('id', child)
+    .is('referred_by_profile_id', null)
+    .select('id')
+    .maybeSingle();
+
+  if (updErr) {
+    return { ok: false, assigned: false, error: updErr.message };
+  }
+
+  return { ok: true, assigned: Boolean(updated?.id) };
+}
+
+/** Value to include on profile insert for invite shells */
+export function referredByInsertField(
+  referrerProfileId: number | null | undefined
+): { referred_by_profile_id: number } | Record<string, never> {
+  const parent = Number(referrerProfileId);
+  if (!Number.isFinite(parent) || parent <= 0) return {};
+  return { referred_by_profile_id: parent };
 }
 
 /** Fetch one hop up the referral tree. */

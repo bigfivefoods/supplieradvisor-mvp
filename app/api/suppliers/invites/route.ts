@@ -12,6 +12,7 @@ import {
 } from '@/lib/suppliers/access';
 import { resolveSoleTargetProfileIdByEmail, logActivity } from '@/lib/customers/access';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import { referredByInsertField } from '@/lib/billing/supply-chain-referral';
 
 /**
  * GET ?companyId=&privyUserId= — list supplier invitations (no tokens)
@@ -160,6 +161,7 @@ export async function POST(request: NextRequest) {
 
     // Also create a claimable profile shell so existing /onboarding?invite= works
     // AND keep srm book as source of truth for the buyer.
+    // Inviting buyer is L1 referrer for subscription fees when this supplier pays
     const { data: shell } = await supabase
       .from('profiles')
       .insert({
@@ -176,6 +178,7 @@ export async function POST(request: NextRequest) {
         invite_token: token,
         invited_by: body.invitedBy || 'Buyer',
         invited_at: new Date().toISOString(),
+        ...referredByInsertField(companyId),
       })
       .select('id')
       .maybeSingle();

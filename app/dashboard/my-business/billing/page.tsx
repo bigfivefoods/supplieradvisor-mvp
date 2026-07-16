@@ -553,7 +553,10 @@ function BillingInner() {
             </h3>
             <p className="mt-2 text-xs text-slate-600 leading-relaxed">
               {referral?.suggestedCopy ||
-                'When companies you invite pay for SupplierAdvisor, you earn a share of their subscription — up to 10% across 3 levels.'}
+                'Earn when companies join via your referral link or when you invite them as a supplier, customer, or partner — up to 10% across 3 levels of their subscription.'}
+            </p>
+            <p className="mt-1.5 text-[11px] text-slate-500 leading-relaxed">
+              Attribution is first-touch: your referral link, supplier invite, customer invite, or partner invite all count. Existing referrers are never overwritten.
             </p>
             <div className="mt-3 grid grid-cols-3 gap-1.5 text-center">
               {(referral?.rates || [6, 3, 1]).map((rate, i) => (
@@ -666,7 +669,7 @@ function BillingInner() {
             {referral?.invitePath ? (
               <div className="mt-3 space-y-2">
                 <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  Your invite link
+                  Your referral link
                 </div>
                 <input
                   readOnly
@@ -691,6 +694,9 @@ function BillingInner() {
                 >
                   Copy link · code {referral.code || companyId}
                 </button>
+                <p className="text-[10px] text-slate-500 leading-relaxed">
+                  Also counts: inviting from Suppliers, Customers, or Invite business — when they claim the invite and pay for the platform.
+                </p>
               </div>
             ) : null}
 

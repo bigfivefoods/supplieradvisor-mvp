@@ -9,6 +9,10 @@ import { isCustomerInvitesEnabled, logActivity } from '@/lib/customers/access';
 import { upsertSupplierConnection } from '@/lib/suppliers/access';
 import { syncBooksOnAccept } from '@/lib/connections/sync';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import {
+  assignReferrerIfEmpty,
+  referredByInsertField,
+} from '@/lib/billing/supply-chain-referral';
 
 /** Stuck claiming lease — only same-user restore after this age (matches design reaper window). */
 const CLAIMING_STALE_MS = 5 * 60 * 1000;
@@ -246,6 +250,7 @@ export async function POST(request: NextRequest) {
     // SRM: if this token came from a buyer supplier invite, link book + on-chain-ready edge
     let srmLinked: { buyerProfileId: number; supplierId: number; connectionId?: number } | null =
       null;
+    let inviterForReferral: number | null = null;
     try {
       const { data: srmInv } = await supabase
         .from('supplier_invitations')
@@ -276,6 +281,7 @@ export async function POST(request: NextRequest) {
 
       if (inviteRow?.profile_id && inviteRow?.supplier_id) {
         const buyerId = Number(inviteRow.profile_id);
+        inviterForReferral = buyerId;
         const srmId = Number(inviteRow.supplier_id);
         const conn = await upsertSupplierConnection({
           buyerProfileId: buyerId,
@@ -362,6 +368,9 @@ export async function POST(request: NextRequest) {
           continue;
         }
         networkAccepted = Number(edge.id);
+        if (!inviterForReferral && edge.requester_profile_id) {
+          inviterForReferral = Number(edge.requester_profile_id);
+        }
         await syncBooksOnAccept({
           requesterId: Number(edge.requester_profile_id),
           requesteeId: Number(edge.requestee_profile_id),
@@ -372,6 +381,17 @@ export async function POST(request: NextRequest) {
       }
     } catch (netErr) {
       console.error('Network accept after business claim soft-fail:', netErr);
+    }
+
+    // Supply-chain referral: inviter becomes L1 if not already set (link or invite)
+    if (inviterForReferral) {
+      try {
+        await assignReferrerIfEmpty(Number(profile.id), inviterForReferral, {
+          source: 'business_invite_claim',
+        });
+      } catch (refErr) {
+        console.warn('assignReferrerIfEmpty soft-fail:', refErr);
+      }
     }
 
     return NextResponse.json({
@@ -789,6 +809,8 @@ async function claimCustomerInvite(opts: {
             claimed_at: now,
             created_at: now,
             onboarding_complete: false,
+            // Inviting seller is L1 referrer for the new buyer company
+            ...referredByInsertField(sellerProfileId),
             metadata: {
               source: 'customer_invite',
               invitation_id: invitationId,
@@ -847,6 +869,15 @@ async function claimCustomerInvite(opts: {
         { error: 'Could not resolve buyer company profile.' },
         { status: 500 }
       );
+    }
+
+    // First-touch referral: inviting seller becomes L1 if buyer has no referrer yet
+    try {
+      await assignReferrerIfEmpty(buyerProfileId, sellerProfileId, {
+        source: 'customer_invite_claim',
+      });
+    } catch (refErr) {
+      console.warn('customer claim assignReferrerIfEmpty soft-fail:', refErr);
     }
 
     // UPSERT business_connections on (requester, requestee) — retype to customer/accepted

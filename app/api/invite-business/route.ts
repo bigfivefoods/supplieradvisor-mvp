@@ -5,6 +5,7 @@ import { getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
 import { buildBusinessInviteLink, businessInviteEmailHtml } from '@/lib/invites/email';
 import { INVITE_EXPIRY_DAYS } from '@/lib/auth/identity';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import { referredByInsertField } from '@/lib/billing/supply-chain-referral';
 
 /**
  * POST /api/invite-business
@@ -46,6 +47,8 @@ export async function POST(request: NextRequest) {
     const connectionType =
       rt === 'supplier' ? 'supplier' : rt === 'customer' ? 'customer' : 'partner';
 
+    const inviterIdForRef = inviterProfileId ? Number(inviterProfileId) : null;
+
     const { data: newProfile, error: insertError } = await supabase
       .from('profiles')
       .insert({
@@ -63,6 +66,8 @@ export async function POST(request: NextRequest) {
         invited_by: invitedBy,
         invited_at: now,
         created_at: now,
+        // Inviting company is L1 referrer when invitee subscribes
+        ...referredByInsertField(inviterIdForRef),
       })
       .select('id')
       .single();
@@ -79,7 +84,7 @@ export async function POST(request: NextRequest) {
     }
 
     let connectionId: number | null = null;
-    const inviterId = inviterProfileId ? Number(inviterProfileId) : null;
+    const inviterId = inviterIdForRef;
     if (inviterId && Number.isFinite(inviterId) && newProfile?.id) {
       // Pending network edge so the inviter sees the request in Connections hub
       const { data: conn, error: connErr } = await supabase

@@ -4,6 +4,7 @@ import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import { getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
 import { buildBusinessInviteLink, businessInviteEmailHtml } from '@/lib/invites/email';
 import { INVITE_EXPIRY_DAYS } from '@/lib/auth/identity';
+import { referredByInsertField } from '@/lib/billing/supply-chain-referral';
 
 export async function POST(request: NextRequest) {
   try {
@@ -49,6 +50,9 @@ export async function POST(request: NextRequest) {
         invited_by: invitedBy,
         invited_at: now,
         created_at: now,
+        ...referredByInsertField(
+          inviterProfileId ? Number(inviterProfileId) : null
+        ),
       })
       .select()
       .single();
