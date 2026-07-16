@@ -1,26 +1,57 @@
 import type { MetadataRoute } from 'next';
+import { getSupabaseServer } from '@/lib/supabase/server-client';
+import { isEligibleForDiscovery } from '@/lib/business/completeness';
 
-const SITE = 'https://www.supplieradvisor.com';
+const BASE =
+  process.env.NEXT_PUBLIC_APP_URL ||
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  'https://supplieradvisor.com';
 
-export default function sitemap(): MetadataRoute.Sitemap {
-  const now = new Date();
-
-  const routes: Array<{
-    path: string;
-    changeFrequency: MetadataRoute.Sitemap[0]['changeFrequency'];
-    priority: number;
-  }> = [
-    { path: '/', changeFrequency: 'weekly', priority: 1 },
-    // Pricing lives on the homepage (#pricing)
-    { path: '/onboarding', changeFrequency: 'monthly', priority: 0.7 },
-    { path: '/privacy', changeFrequency: 'yearly', priority: 0.3 },
-    { path: '/terms', changeFrequency: 'yearly', priority: 0.3 },
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const staticRoutes: MetadataRoute.Sitemap = [
+    { url: `${BASE}/`, changeFrequency: 'daily', priority: 1 },
+    { url: `${BASE}/#directory`, changeFrequency: 'daily', priority: 0.9 },
+    { url: `${BASE}/login`, changeFrequency: 'monthly', priority: 0.5 },
+    { url: `${BASE}/add-to-home.html`, changeFrequency: 'monthly', priority: 0.3 },
   ];
 
-  return routes.map((r) => ({
-    url: `${SITE}${r.path}`,
-    lastModified: now,
-    changeFrequency: r.changeFrequency,
-    priority: r.priority,
-  }));
+  try {
+    const supabase = getSupabaseServer();
+    const { data: companies } = await supabase
+      .from('profiles')
+      .select(
+        'id, trading_name, legal_name, is_discoverable, logo_url, email, city, country, registration_number, verification_status, is_verified, industry, updated_at'
+      )
+      .not('trading_name', 'is', null)
+      .order('updated_at', { ascending: false })
+      .limit(500);
+
+    const companyUrls: MetadataRoute.Sitemap = (companies || [])
+      .filter((p) => isEligibleForDiscovery(p as Record<string, unknown>).ok)
+      .map((p) => ({
+        url: `${BASE}/c/${p.id}`,
+        lastModified: p.updated_at ? new Date(String(p.updated_at)) : undefined,
+        changeFrequency: 'weekly' as const,
+        priority: 0.7,
+      }));
+
+    const { data: products } = await supabase
+      .from('products')
+      .select('public_id, updated_at')
+      .not('public_id', 'is', null)
+      .limit(500);
+
+    const productUrls: MetadataRoute.Sitemap = (products || [])
+      .filter((p) => p.public_id)
+      .map((p) => ({
+        url: `${BASE}/p/${p.public_id}`,
+        lastModified: p.updated_at ? new Date(String(p.updated_at)) : undefined,
+        changeFrequency: 'weekly' as const,
+        priority: 0.6,
+      }));
+
+    return [...staticRoutes, ...companyUrls, ...productUrls];
+  } catch {
+    return staticRoutes;
+  }
 }

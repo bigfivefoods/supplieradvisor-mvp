@@ -420,4 +420,35 @@ export const SEED_PROVINCES: SeedProvince[] = [
     'Central', 'Northern', 'Southern',
   ].map((name) => ({ country: 'Malawi', name })),
 
+,
+
+  // Angola
+  ...[
+    'Bengo', 'Benguela', 'Bié', 'Cabinda', 'Cuando Cubango', 'Cuanza Norte',
+    'Cuanza Sul', 'Cunene', 'Huambo', 'Huíla', 'Luanda', 'Lunda Norte',
+    'Lunda Sul', 'Malanje', 'Moxico', 'Namibe', 'Uíge', 'Zaire',
+  ].map((name) => ({ country: 'Angola', name })),
+
+  // Côte d'Ivoire
+  ...[
+    'Abidjan', 'Bas-Sassandra', 'Comoé', 'Denguélé', 'Gôh-Djiboua', 'Lacs',
+    'Lagunes', 'Montagnes', 'Sassandra-Marahoué', 'Savanes', 'Vallée du Bandama',
+    'Woroba', 'Yamoussoukro', 'Zanzan',
+  ].map((name) => ({ country: "Côte d'Ivoire", name })),
+
+  // Cameroon
+  ...[
+    'Adamawa', 'Centre', 'East', 'Far North', 'Littoral', 'North',
+    'Northwest', 'South', 'Southwest', 'West',
+  ].map((name) => ({ country: 'Cameroon', name })),
+
+  // DRC
+  ...[
+    'Kinshasa', 'Kongo Central', 'Kwango', 'Kwilu', 'Mai-Ndombe', 'Kasaï',
+    'Kasaï-Central', 'Kasaï-Oriental', 'Lomami', 'Sankuru', 'Maniema',
+    'South Kivu', 'North Kivu', 'Ituri', 'Haut-Uele', 'Tshopo', 'Bas-Uele',
+    'Nord-Ubangi', 'Mongala', 'Sud-Ubangi', 'Équateur', 'Tshuapa',
+    'Tanganyika', 'Haut-Lomami', 'Lualaba', 'Haut-Katanga',
+  ].map((name) => ({ country: 'Democratic Republic of the Congo', name })),
+
 ];

@@ -510,7 +510,12 @@ function EdgeRow({
         <CompanyLogo logoUrl={peer.logo_url} name={name} size="sm" />
         <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2 mb-1">
-          <span className="font-semibold text-slate-800 truncate text-base">{name}</span>
+          <Link
+            href={`/dashboard/connections/${peer.id}`}
+            className="font-semibold text-slate-800 truncate text-base hover:text-[#0077b6]"
+          >
+            {name}
+          </Link>
           <span
             className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${roleBadgeClass(edge.role)}`}
           >
@@ -647,12 +652,18 @@ function EdgeRow({
             <PlayCircle className="w-3.5 h-3.5" /> Restore
           </button>
         )}
-        {connected && !edge.suspended && (
+        <Link
+          href={`/dashboard/connections/${peer.id}`}
+          className="inline-flex items-center gap-1 text-xs font-semibold text-[#0077b6] hover:underline px-2"
+        >
+          Peer workspace <ArrowRight className="w-3 h-3" />
+        </Link>
+        {connected && !edge.suspended && edge.hrefs.primary && (
           <Link
             href={edge.hrefs.primary}
-            className="inline-flex items-center gap-1 text-xs font-semibold text-[#0077b6] hover:underline px-2"
+            className="inline-flex items-center gap-1 text-xs font-semibold text-slate-600 hover:underline px-2"
           >
-            Workspace <ArrowRight className="w-3 h-3" />
+            Module <ArrowRight className="w-3 h-3" />
           </Link>
         )}
       </div>

@@ -55,6 +55,26 @@ export async function POST(request: NextRequest) {
     }
 
     const { html, input, toEmail, bankDetailsIncluded, doc } = loaded;
+    const forceSend = body.forceSend === true || body.force === true;
+
+    // Quality gate: require bank details on invoices unless forceSend
+    if (
+      type === 'invoice' &&
+      !bankDetailsIncluded &&
+      !forceSend
+    ) {
+      return NextResponse.json(
+        {
+          error: 'Bank details missing on seller profile',
+          code: 'BANK_DETAILS_REQUIRED',
+          bankWarning:
+            'Add bank details under My Business → Profile → Banking, or retry with forceSend: true to send without EFT block.',
+          hint: 'Complete Banking (bank name, account number, branch code) then Email again.',
+        },
+        { status: 400 }
+      );
+    }
+
     const to =
       String(body.to || toEmail || '')
         .toLowerCase()
@@ -206,6 +226,12 @@ export async function POST(request: NextRequest) {
       subject,
       resend: isResend,
       bankDetailsIncluded,
+      bankVerified:
+        String(input.seller.bank_verification_status || '').toLowerCase() ===
+        'verified',
+      bankWarning: bankDetailsIncluded
+        ? null
+        : 'Invoice sent without bank details — add Banking on company profile.',
       sellerVerified: Boolean(input.seller.is_verified),
       hasLogo: Boolean(input.seller.logo_url),
       hasVat: Boolean(input.seller.vat_number),

@@ -106,6 +106,22 @@ function asStringArray(v: unknown): string[] | null {
  */
 export async function GET(request: NextRequest) {
   try {
+    const { rateLimit, clientIp } = await import('@/lib/http/rate-limit');
+    const ip = clientIp(request);
+    const rl = rateLimit(`public-directory:${ip}`, {
+      limit: 120,
+      windowMs: 60_000,
+    });
+    if (!rl.ok) {
+      return NextResponse.json(
+        { error: 'Too many requests', retryAfterSec: rl.retryAfterSec },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(rl.retryAfterSec) },
+        }
+      );
+    }
+
     const sp = request.nextUrl.searchParams;
     const q = (sp.get('q') || '').trim().toLowerCase();
     const industry = (sp.get('industry') || '').trim().toLowerCase();

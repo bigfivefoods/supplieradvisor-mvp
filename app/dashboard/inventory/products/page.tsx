@@ -740,6 +740,17 @@ function ProductsInner() {
                         >
                           <QrCode className="w-4 h-4" />
                         </button>
+                        {p.public_id ? (
+                          <a
+                            href={`/p/${p.public_id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Public passport"
+                            className="p-2 rounded-xl hover:bg-emerald-50 text-emerald-700 text-[10px] font-bold"
+                          >
+                            Passport
+                          </a>
+                        ) : null}
                         <button
                           type="button"
                           title="Mark anchored"

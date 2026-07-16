@@ -506,7 +506,43 @@ function DocInner({
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || data.hint || 'Send failed');
+      if (!res.ok) {
+        if (data.code === 'BANK_DETAILS_REQUIRED') {
+          const force = window.confirm(
+            `${data.error || 'Bank details missing'}.\n\n${data.hint || data.bankWarning || ''}\n\nSend invoice anyway without bank details?`
+          );
+          if (force) {
+            const retry = await fetch('/api/customers/docs/send', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                companyId,
+                type,
+                id: doc.id,
+                ccMe: true,
+                privyUserId,
+                resend: isResend,
+                forceSend: true,
+                ...(toOverride ? { to: toOverride } : {}),
+              }),
+            });
+            const retryData = await retry.json();
+            if (!retry.ok) {
+              throw new Error(retryData.error || retryData.hint || 'Send failed');
+            }
+            toast.success(
+              `Emailed ${retryData.to} without bank details — add Banking on profile when ready.`
+            );
+            void load();
+            return;
+          }
+          toast.message(data.hint || data.bankWarning || 'Add bank details first', {
+            duration: 7000,
+          });
+          return;
+        }
+        throw new Error(data.error || data.hint || 'Send failed');
+      }
       const bits: string[] = [];
       if (data.bankDetailsIncluded) bits.push('bank details');
       if (data.hasLogo) bits.push('logo');

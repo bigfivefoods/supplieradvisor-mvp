@@ -11,6 +11,8 @@ import {
 export const BUSINESS_NAV: readonly NavItem[] = [
   { href: '/dashboard/my-business', label: 'Command', exact: true },
   { href: '/dashboard/my-business/profile', label: 'Profile' },
+  { href: '/dashboard/my-business/verifications', label: 'Verify ops' },
+  { href: '/dashboard/my-business/billing', label: 'Billing' },
   { href: '/dashboard/my-business/team', label: 'Team' },
   { href: '/dashboard/my-business/settings', label: 'Settings' },
   { href: '/dashboard/my-business/legal', label: 'Legal' },

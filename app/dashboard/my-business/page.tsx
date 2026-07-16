@@ -33,6 +33,8 @@ import {
   TelemetryCard,
   type HubModule,
 } from '@/components/chrome/CommandHubChrome';
+import DiscoverableChecklist from '@/components/business/DiscoverableChecklist';
+import { type CompletenessResult } from '@/lib/business/completeness';
 
 type Summary = {
   trading_name: string;
@@ -90,6 +92,19 @@ function HubInner() {
 
   const pct = summary?.profileCompleteness ?? 0;
   const s = summary;
+  const completeness: CompletenessResult | null = summary
+    ? {
+        pct: summary.profileCompleteness ?? 0,
+        done: 0,
+        total: 0,
+        checks: Object.entries(summary.completeness || {}).map(([key, ok]) => ({
+          key,
+          label: key.replace(/_/g, ' '),
+          ok: Boolean(ok),
+        })),
+        map: summary.completeness || {},
+      }
+    : null;
 
   const modules: HubModule[] = [
     {
@@ -235,6 +250,15 @@ function HubInner() {
           </div>
         }
       />
+
+      {!loading && completeness ? (
+        <div className="mb-5">
+          <DiscoverableChecklist
+            completeness={completeness}
+            isDiscoverable={s?.is_discoverable}
+          />
+        </div>
+      ) : null}
 
       <HubHero
         pill="Live identity · profile → team"

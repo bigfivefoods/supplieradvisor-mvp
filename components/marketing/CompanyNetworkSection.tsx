@@ -374,7 +374,9 @@ export default function CompanyNetworkSection() {
   const [platformTotal, setPlatformTotal] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
-  const [page, setPage] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageCount, setPageCount] = useState(1);
+  const [totalFiltered, setTotalFiltered] = useState(0);
 
   // Search filters
   const [q, setQ] = useState('');
@@ -415,23 +417,43 @@ export default function CompanyNetworkSection() {
     return () => window.removeEventListener('hashchange', applyHash);
   }, []);
 
-  const loadBrowse = useCallback(async () => {
+  const applyPageMeta = (data: {
+    page?: number;
+    pageCount?: number;
+    counts?: { total?: number; verified?: number; network?: number; platformTotal?: number };
+    allCount?: number;
+  }) => {
+    setPage(Math.max(1, Number(data.page || 1)));
+    setPageCount(Math.max(1, Number(data.pageCount || 1)));
+    setTotalFiltered(
+      Number(data.counts?.total ?? data.allCount ?? 0)
+    );
+    setVerifiedCount(data.counts?.verified ?? 0);
+    setNetworkCount(data.counts?.network ?? 0);
+    if (typeof data.counts?.platformTotal === 'number') {
+      setPlatformTotal(data.counts.platformTotal);
+    }
+  };
+
+  const loadBrowse = useCallback(async (pageNum = 1) => {
     setLoading(true);
     try {
-      const res = await fetch('/api/public/verified-companies', {
-        cache: 'no-store',
+      const params = new URLSearchParams({
+        page: String(pageNum),
+        pageSize: String(PAGE_SIZE),
+        sort: 'joined',
       });
+      const res = await fetch(
+        `/api/public/verified-companies?${params}`,
+        { cache: 'no-store' }
+      );
       const data = await res.json();
       setCompanies(data.companies || []);
       setFacets(data.facets || EMPTY_FACETS);
-      setPage(0);
-      setVerifiedCount(data.counts?.verified ?? 0);
-      setNetworkCount(data.counts?.network ?? 0);
-      setPlatformTotal(
-        typeof data.counts?.platformTotal === 'number'
-          ? data.counts.platformTotal
-          : data.counts?.total ?? data.companies?.length ?? 0
-      );
+      applyPageMeta(data);
+      if (typeof data.counts?.platformTotal !== 'number') {
+        setPlatformTotal(data.counts?.total ?? data.companies?.length ?? 0);
+      }
     } catch {
       setCompanies([]);
       setPlatformTotal(null);
@@ -440,10 +462,12 @@ export default function CompanyNetworkSection() {
     }
   }, []);
 
-  const loadSearch = useCallback(async () => {
+  const loadSearch = useCallback(async (pageNum = 1) => {
     setSearching(true);
     try {
       const params = new URLSearchParams();
+      params.set('page', String(pageNum));
+      params.set('pageSize', String(PAGE_SIZE));
       if (qDebounced) params.set('q', qDebounced);
       if (industry) params.set('industry', industry);
       if (subIndustry) params.set('sub_industry', subIndustry);
@@ -468,12 +492,7 @@ export default function CompanyNetworkSection() {
       const data = await res.json();
       setCompanies(data.companies || []);
       if (data.facets) setFacets(data.facets);
-      setPage(0);
-      setVerifiedCount(data.counts?.verified ?? 0);
-      setNetworkCount(data.counts?.network ?? 0);
-      if (typeof data.counts?.platformTotal === 'number') {
-        setPlatformTotal(data.counts.platformTotal);
-      }
+      applyPageMeta(data);
     } catch {
       setCompanies([]);
     } finally {
@@ -500,12 +519,19 @@ export default function CompanyNetworkSection() {
   ]);
 
   useEffect(() => {
-    if (tab === 'browse') void loadBrowse();
+    if (tab === 'browse') void loadBrowse(1);
   }, [tab, loadBrowse]);
 
   useEffect(() => {
-    if (tab === 'search') void loadSearch();
+    if (tab === 'search') void loadSearch(1);
   }, [tab, loadSearch]);
+
+  const goPage = (p: number) => {
+    const next = Math.max(1, Math.min(pageCount, p));
+    setPage(next);
+    if (tab === 'browse') void loadBrowse(next);
+    else void loadSearch(next);
+  };
 
   const activeFilters = useMemo(() => {
     const bits: string[] = [];
@@ -563,12 +589,10 @@ export default function CompanyNetworkSection() {
     setSort('joined');
   };
 
-  const pageCount = Math.max(1, Math.ceil(companies.length / PAGE_SIZE));
-  const pageSafe = Math.min(page, pageCount - 1);
-  const paged = companies.slice(
-    pageSafe * PAGE_SIZE,
-    pageSafe * PAGE_SIZE + PAGE_SIZE
-  );
+  // Server already returned one page of companies
+  const pageSafe = Math.min(Math.max(1, page), pageCount);
+  const paged = companies;
+  const listTotal = totalFiltered || companies.length;
 
   // Province/city options filtered by selected country when possible
   const provinceOptions = useMemo(() => {
@@ -864,12 +888,13 @@ export default function CompanyNetworkSection() {
               <span>
                 Showing{' '}
                 <strong className="tabular-nums text-slate-800">
-                  {pageSafe * PAGE_SIZE + 1}–
-                  {Math.min((pageSafe + 1) * PAGE_SIZE, companies.length)}
+                  {listTotal === 0
+                    ? '0'
+                    : `${(pageSafe - 1) * PAGE_SIZE + 1}–${Math.min(pageSafe * PAGE_SIZE, listTotal)}`}
                 </strong>{' '}
                 of{' '}
                 <strong className="tabular-nums text-slate-800">
-                  {companies.length}
+                  {listTotal}
                 </strong>
                 {tab === 'search' && activeFilters.length > 0
                   ? ' matching filters'
@@ -883,7 +908,7 @@ export default function CompanyNetworkSection() {
                 )}
               </span>
               <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                Page {pageSafe + 1} of {pageCount}
+                Page {pageSafe} of {pageCount}
               </span>
             </div>
 
@@ -898,8 +923,8 @@ export default function CompanyNetworkSection() {
                 <div className="flex flex-wrap items-center justify-center gap-2">
                   <button
                     type="button"
-                    disabled={pageSafe <= 0}
-                    onClick={() => setPage((p) => Math.max(0, p - 1))}
+                    disabled={pageSafe <= 1}
+                    onClick={() => goPage(pageSafe - 1)}
                     className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-800 shadow-sm transition-colors hover:border-[#00b4d8] hover:text-[#0077b6] disabled:pointer-events-none disabled:opacity-40"
                     aria-label="Previous page"
                   >
@@ -907,10 +932,8 @@ export default function CompanyNetworkSection() {
                   </button>
                   <button
                     type="button"
-                    disabled={pageSafe >= pageCount - 1}
-                    onClick={() =>
-                      setPage((p) => Math.min(pageCount - 1, p + 1))
-                    }
+                    disabled={pageSafe >= pageCount}
+                    onClick={() => goPage(pageSafe + 1)}
                     className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-800 shadow-sm transition-colors hover:border-[#00b4d8] hover:text-[#0077b6] disabled:pointer-events-none disabled:opacity-40"
                     aria-label="Next page"
                   >
@@ -927,10 +950,10 @@ export default function CompanyNetworkSection() {
                       key={i}
                       type="button"
                       aria-label={`Page ${i + 1}`}
-                      aria-selected={i === pageSafe}
-                      onClick={() => setPage(i)}
+                      aria-selected={i + 1 === pageSafe}
+                      onClick={() => goPage(i + 1)}
                       className={`h-2.5 rounded-full transition-all ${
-                        i === pageSafe
+                        i + 1 === pageSafe
                           ? 'w-7 bg-[#00b4d8]'
                           : 'w-2.5 bg-slate-200 hover:bg-slate-300'
                       }`}

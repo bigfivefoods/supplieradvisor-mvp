@@ -33,9 +33,10 @@ import {
 } from '@/lib/customers/types';
 import { CompanyRequired, CustomersHeader } from '@/components/customers/CustomersShell';
 import OpportunityPipelineBoard from '@/components/sales/OpportunityPipelineBoard';
+import TeamDealsReport from '@/components/sales/TeamDealsReport';
 import GeoSelectFields, { type GeoValue } from '@/components/geo/GeoSelectFields';
 
-type Tab = 'leads' | 'pipeline';
+type Tab = 'leads' | 'pipeline' | 'team';
 
 const emptyLead = () => ({
   name: '',
@@ -511,6 +512,15 @@ function LeadsInner() {
         >
           <Briefcase className="w-3.5 h-3.5" /> Opportunity pipeline
         </button>
+        <button
+          type="button"
+          onClick={() => setTab('team')}
+          className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold ${
+            tab === 'team' ? 'bg-[#00b4d8] text-white' : 'text-neutral-600'
+          }`}
+        >
+          <Target className="w-3.5 h-3.5" /> Team forecast
+        </button>
       </div>
 
       <div className="flex flex-wrap gap-2 mb-4">
@@ -549,6 +559,8 @@ function LeadsInner() {
           onConvert={convertLeadToOpp}
           onCreate={openLeadCreate}
         />
+      ) : tab === 'team' ? (
+        <TeamDealsReport opportunities={opps} members={[]} />
       ) : (
         <OpportunityPipelineBoard
           opportunities={opps}
