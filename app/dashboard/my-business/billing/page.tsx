@@ -65,6 +65,15 @@ function BillingInner() {
   const [billingEmail, setBillingEmail] = useState<string | null>(null);
   const [subscription, setSubscription] =
     useState<CompanySubscriptionInfo | null>(null);
+  const [founding, setFounding] = useState<{
+    limit: number;
+    used: number;
+    remaining: number;
+    full: boolean;
+    eligible: boolean;
+    isLifetime: boolean;
+  } | null>(null);
+  const [lifetimeGrantedToast, setLifetimeGrantedToast] = useState(false);
   const [termId, setTermId] = useState<BillingTermId>('1y');
   const selectedTerm = getBillingTerm(termId);
   type ReferralState = {
@@ -138,6 +147,7 @@ function BillingInner() {
       setBillingEmail(data.billingEmail || null);
       setSubscription(data.subscription || null);
       setReferral(data.referral || null);
+      setFounding(data.founding || null);
       const kyc = data.referral?.payoutKyc;
       if (kyc) {
         setKycForm((f) => ({
@@ -148,7 +158,12 @@ function BillingInner() {
           taxNumber: f.taxNumber || '',
         }));
       }
-      if (data.trialJustStarted) {
+      if (data.lifetimeJustGranted && !lifetimeGrantedToast) {
+        setLifetimeGrantedToast(true);
+        toast.success('Founding free-for-life access granted', {
+          description: 'You are in the founding cohort — no subscription fee.',
+        });
+      } else if (data.trialJustStarted) {
         toast.success(`${COMPANY_TRIAL_DAYS}-day free trial started`);
       }
     } catch (e: unknown) {
@@ -472,6 +487,40 @@ function BillingInner() {
                 Early renewals extend your access period
               </li>
             </ul>
+
+            {founding && !sub?.isLifetime && (
+              <div className="mt-6 rounded-2xl border border-violet-200 bg-violet-50/90 px-4 py-4 text-sm text-violet-950">
+                <div className="font-bold flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-violet-600" />
+                  Founding free cohort
+                </div>
+                <p className="mt-1.5 text-violet-900/90 leading-relaxed">
+                  {founding.eligible
+                    ? 'Your company is in the earliest founding cohort. Open this page (or Refresh) to claim free-for-life if not already applied.'
+                    : founding.full
+                      ? `All ${founding.limit} founding seats are taken. Use the homepage waitlist or subscribe below.`
+                      : `${founding.remaining} of ${founding.limit} founding free seats still open for the earliest registered companies.`}
+                </p>
+                <div className="mt-2 flex flex-wrap gap-3 text-[11px] font-bold">
+                  <span className="text-violet-700">
+                    Seats used {founding.used}/{founding.limit}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => void load()}
+                    className="text-[#00b4d8] hover:underline"
+                  >
+                    Refresh to claim
+                  </button>
+                  <Link
+                    href="/dashboard/my-business/founding-waitlist"
+                    className="text-slate-600 hover:underline"
+                  >
+                    Ops waitlist
+                  </Link>
+                </div>
+              </div>
+            )}
 
             {sub?.isLifetime ? (
               <div className="mt-6 rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 to-amber-50 px-4 py-4 text-sm text-violet-950">

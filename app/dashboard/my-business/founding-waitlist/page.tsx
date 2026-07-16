@@ -64,6 +64,9 @@ function WaitlistInner() {
   const [forbidden, setForbidden] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [convertId, setConvertId] = useState<number | null>(null);
+  const [convertCompanyId, setConvertCompanyId] = useState('');
+  const [convertBusy, setConvertBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -168,6 +171,44 @@ function WaitlistInner() {
     a.click();
     URL.revokeObjectURL(url);
     toast.success('CSV downloaded');
+  };
+
+  const convertGrant = async (waitlistId: number) => {
+    const companyId = Number(convertCompanyId);
+    if (!Number.isFinite(companyId) || companyId <= 0) {
+      toast.error('Enter the registered company profile id');
+      return;
+    }
+    setConvertBusy(true);
+    try {
+      const res = await fetch('/api/business/founding-waitlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'convert_grant',
+          id: waitlistId,
+          companyId,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(
+          (data as { error?: string }).error || 'Convert failed'
+        );
+      }
+      toast.success(
+        (data as { grant?: { granted?: boolean } }).grant?.granted
+          ? `Lifetime granted on company #${companyId}`
+          : `Already lifetime · waitlist marked converted`
+      );
+      setConvertId(null);
+      setConvertCompanyId('');
+      await load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Convert failed');
+    } finally {
+      setConvertBusy(false);
+    }
   };
 
   const bulkAction = async (action: 'bulk_invite' | 'bulk_slots_open') => {
@@ -357,8 +398,10 @@ function WaitlistInner() {
           </div>
           <p className="text-[11px] text-slate-500 mt-3 leading-relaxed">
             Ops flow: filter <strong>waiting</strong> → <strong>Bulk invite</strong>{' '}
-            (email + mark invited) → set <strong>converted</strong> when they
-            register. Use <strong>Email waiting</strong> when seats reopen.
+            (email + mark invited) → when they register, use{' '}
+            <strong>Grant lifetime</strong> with their company profile id (converts
+            waitlist + writes founding free plan). Use <strong>Email waiting</strong>{' '}
+            when seats reopen.
           </p>
         </div>
       )}
@@ -433,27 +476,69 @@ function WaitlistInner() {
                       : '—'}
                   </td>
                   <td className="px-4 py-3">
-                    <select
-                      className="input !py-1.5 !px-2 !text-xs max-w-[140px]"
-                      disabled={busyId === e.id}
-                      value={e.status}
-                      onChange={(ev) =>
-                        void setStatus(e.id, ev.target.value)
-                      }
-                    >
-                      {[
-                        'waiting',
-                        'slots_available',
-                        'contacted',
-                        'invited',
-                        'converted',
-                        'declined',
-                      ].map((s) => (
-                        <option key={s} value={s}>
-                          {s}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="flex flex-col gap-1.5 min-w-[160px]">
+                      <select
+                        className="input !py-1.5 !px-2 !text-xs max-w-[140px]"
+                        disabled={busyId === e.id}
+                        value={e.status}
+                        onChange={(ev) =>
+                          void setStatus(e.id, ev.target.value)
+                        }
+                      >
+                        {[
+                          'waiting',
+                          'slots_available',
+                          'contacted',
+                          'invited',
+                          'converted',
+                          'declined',
+                        ].map((s) => (
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
+                        ))}
+                      </select>
+                      {e.status !== 'converted' && e.status !== 'declined' && (
+                        <button
+                          type="button"
+                          className="text-[10px] font-bold text-violet-700 hover:underline text-left"
+                          onClick={() => {
+                            setConvertId(e.id);
+                            setConvertCompanyId('');
+                          }}
+                        >
+                          Grant lifetime…
+                        </button>
+                      )}
+                      {convertId === e.id && (
+                        <div className="flex flex-wrap gap-1 items-center mt-1">
+                          <input
+                            type="number"
+                            placeholder="Company id"
+                            className="input !py-1 !px-2 !text-xs w-24"
+                            value={convertCompanyId}
+                            onChange={(ev) =>
+                              setConvertCompanyId(ev.target.value)
+                            }
+                          />
+                          <button
+                            type="button"
+                            disabled={convertBusy}
+                            onClick={() => void convertGrant(e.id)}
+                            className="text-[10px] font-bold rounded-full bg-violet-600 text-white px-2 py-1 disabled:opacity-50"
+                          >
+                            {convertBusy ? '…' : 'Grant'}
+                          </button>
+                          <button
+                            type="button"
+                            className="text-[10px] text-slate-500"
+                            onClick={() => setConvertId(null)}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

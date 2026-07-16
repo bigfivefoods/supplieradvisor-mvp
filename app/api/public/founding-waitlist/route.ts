@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { FOUNDING_FREE_COMPANY_LIMIT } from '@/lib/billing/lifetime';
+import {
+  FOUNDING_FREE_COMPANY_LIMIT,
+  getFoundingSlotPulse,
+} from '@/lib/billing/lifetime';
 import { getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
 import { clientIp, rateLimit } from '@/lib/security/rate-limit';
 
@@ -10,21 +13,13 @@ import { clientIp, rateLimit } from '@/lib/security/rate-limit';
  */
 export async function GET() {
   try {
-    const supabase = getSupabaseServer();
-    const { count } = await supabase
-      .from('profiles')
-      .select('id', { count: 'exact', head: true })
-      .not('trading_name', 'is', null);
-
-    const used = count ?? 0;
-    const remaining = Math.max(0, FOUNDING_FREE_COMPANY_LIMIT - used);
-
+    const pulse = await getFoundingSlotPulse();
     return NextResponse.json({
       success: true,
-      limit: FOUNDING_FREE_COMPANY_LIMIT,
-      used,
-      remaining,
-      full: remaining <= 0,
+      limit: pulse.limit,
+      used: pulse.used,
+      remaining: pulse.remaining,
+      full: pulse.full,
     });
   } catch (e: unknown) {
     return NextResponse.json(
@@ -65,13 +60,9 @@ export async function POST(request: NextRequest) {
       : null;
 
     const supabase = getSupabaseServer();
-    const { count } = await supabase
-      .from('profiles')
-      .select('id', { count: 'exact', head: true })
-      .not('trading_name', 'is', null);
-
-    const remaining = Math.max(0, FOUNDING_FREE_COMPANY_LIMIT - (count ?? 0));
-    const full = remaining <= 0;
+    const pulse = await getFoundingSlotPulse();
+    const remaining = pulse.remaining;
+    const full = pulse.full;
     const status = full ? 'waiting' : 'slots_available';
 
     const { error } = await supabase.from('founding_waitlist').upsert(

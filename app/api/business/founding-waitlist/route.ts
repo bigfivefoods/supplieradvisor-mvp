@@ -4,7 +4,11 @@ import {
   requireReferralOps,
 } from '@/lib/billing/referral-controls';
 import { legacyPrivyFrom } from '@/lib/auth/api-auth';
-import { FOUNDING_FREE_COMPANY_LIMIT } from '@/lib/billing/lifetime';
+import {
+  FOUNDING_FREE_COMPANY_LIMIT,
+  getFoundingSlotPulse,
+  grantFoundingLifetimeAccess,
+} from '@/lib/billing/lifetime';
 
 /**
  * Platform ops: list / update founding waitlist.
@@ -30,18 +34,12 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseServer();
 
-    // Slot pulse (same as public endpoint)
-    const { count } = await supabase
-      .from('profiles')
-      .select('id', { count: 'exact', head: true })
-      .not('trading_name', 'is', null);
-    const used = count ?? 0;
-    const remaining = Math.max(0, FOUNDING_FREE_COMPANY_LIMIT - used);
+    const pulse = await getFoundingSlotPulse();
 
     let q = supabase
       .from('founding_waitlist')
       .select(
-        'id, email, company_name, user_id, notes, status, created_at'
+        'id, email, company_name, user_id, notes, status, created_at, converted_profile_id'
       )
       .order('created_at', { ascending: false })
       .limit(limit);
@@ -52,16 +50,38 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await q;
     if (error) {
+      // Retry without optional column
+      if (/converted_profile_id|column/i.test(error.message)) {
+        const retry = await supabase
+          .from('founding_waitlist')
+          .select('id, email, company_name, user_id, notes, status, created_at')
+          .order('created_at', { ascending: false })
+          .limit(limit);
+        if (retry.error && /relation|does not exist/i.test(retry.error.message)) {
+          return NextResponse.json({
+            success: true,
+            entries: [],
+            slots: pulse,
+            warning: 'Run 20260716_platform_improvements.sql',
+          });
+        }
+        if (retry.error) {
+          return NextResponse.json(
+            { error: retry.error.message },
+            { status: 500 }
+          );
+        }
+        return NextResponse.json({
+          success: true,
+          entries: retry.data || [],
+          slots: pulse,
+        });
+      }
       if (/relation|does not exist/i.test(error.message)) {
         return NextResponse.json({
           success: true,
           entries: [],
-          slots: {
-            limit: FOUNDING_FREE_COMPANY_LIMIT,
-            used,
-            remaining,
-            full: remaining <= 0,
-          },
+          slots: pulse,
           warning: 'Run 20260716_platform_improvements.sql',
         });
       }
@@ -71,12 +91,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       entries: data || [],
-      slots: {
-        limit: FOUNDING_FREE_COMPANY_LIMIT,
-        used,
-        remaining,
-        full: remaining <= 0,
-      },
+      slots: pulse,
     });
   } catch (e: unknown) {
     return NextResponse.json(
@@ -104,6 +119,96 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const action = String(body.action || '').toLowerCase();
+
+    /**
+     * Convert waitlist entry + grant lifetime on a registered company.
+     * Body: { action: 'convert_grant', id, companyId, skipEmail? }
+     */
+    if (action === 'convert_grant') {
+      const id = Number(body.id);
+      const companyId = Number(body.companyId || body.profileId);
+      if (!Number.isFinite(id) || id <= 0) {
+        return NextResponse.json({ error: 'id required' }, { status: 400 });
+      }
+      if (!Number.isFinite(companyId) || companyId <= 0) {
+        return NextResponse.json(
+          { error: 'companyId required (registered company profile id)' },
+          { status: 400 }
+        );
+      }
+
+      const supabase = getSupabaseServer();
+      const { data: existing } = await supabase
+        .from('founding_waitlist')
+        .select('id, email, company_name, status')
+        .eq('id', id)
+        .maybeSingle();
+      if (!existing) {
+        return NextResponse.json({ error: 'Waitlist entry not found' }, { status: 404 });
+      }
+
+      const grant = await grantFoundingLifetimeAccess(companyId, {
+        reason: 'ops_convert_grant',
+      });
+      if (!grant.ok) {
+        return NextResponse.json(
+          { error: grant.error || 'Grant failed' },
+          { status: 500 }
+        );
+      }
+
+      const updates: Record<string, unknown> = {
+        status: 'converted',
+        notes: [
+          existing.company_name ? String(existing.company_name) : '',
+          `converted→profile:${companyId}`,
+          grant.plan ? `plan:${grant.plan}` : '',
+        ]
+          .filter(Boolean)
+          .join(' · ')
+          .slice(0, 500),
+      };
+      // Soft optional column
+      const withCol = await supabase
+        .from('founding_waitlist')
+        .update({ ...updates, converted_profile_id: companyId })
+        .eq('id', id)
+        .select('id, email, company_name, status, created_at')
+        .maybeSingle();
+      let entry = withCol.data;
+      if (withCol.error && /converted_profile_id|column/i.test(withCol.error.message)) {
+        const retry = await supabase
+          .from('founding_waitlist')
+          .update(updates)
+          .eq('id', id)
+          .select('id, email, company_name, status, created_at')
+          .maybeSingle();
+        entry = retry.data;
+      }
+
+      let emailSent = false;
+      if (body.skipEmail !== true) {
+        const { sendFoundingStatusEmail } = await import(
+          '@/lib/billing/founding-waitlist-email'
+        );
+        const mail = await sendFoundingStatusEmail({
+          to: String(existing.email),
+          companyName: existing.company_name,
+          status: 'converted',
+        });
+        emailSent = Boolean(mail.ok && !mail.skipped);
+      }
+
+      return NextResponse.json({
+        success: true,
+        entry,
+        grant,
+        emailSent,
+        companyId,
+        loginUrl: '/login',
+        slots: await getFoundingSlotPulse(),
+      });
+    }
 
     if (action === 'bulk_invite' || action === 'bulk_slots_open') {
       const supabase = getSupabaseServer();
@@ -179,7 +284,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error:
-            'action must be set_status | bulk_invite | bulk_slots_open',
+            'action must be set_status | convert_grant | bulk_invite | bulk_slots_open',
         },
         { status: 400 }
       );

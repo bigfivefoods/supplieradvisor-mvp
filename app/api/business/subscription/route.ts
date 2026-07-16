@@ -24,7 +24,9 @@ import {
 } from '@/lib/billing/company-subscription';
 import {
   FOUNDING_FREE_COMPANY_LIMIT,
+  getFoundingSlotPulse,
   isFounderLifetimeCompany,
+  isInFoundingCohort,
   isLifetimeStatus,
   LIFETIME_PLAN_FOUNDER,
   LIFETIME_PLAN_FOUNDING,
@@ -333,6 +335,16 @@ export async function GET(request: NextRequest) {
     } = await import('@/lib/billing/referral-controls');
     const payoutKyc = await getPayoutKycStatus(companyId);
 
+    const foundingPulse = await getFoundingSlotPulse();
+    const foundingEligible =
+      subscription.isLifetime ||
+      (await isInFoundingCohort(companyId)) ||
+      isFounderLifetimeCompany({
+        id: companyId,
+        tradingName: row.trading_name,
+        legalName: row.legal_name,
+      });
+
     return NextResponse.json({
       success: true,
       companyId,
@@ -343,6 +355,14 @@ export async function GET(request: NextRequest) {
       trialJustStarted,
       lifetimeJustGranted,
       foundingFreeSlots: FOUNDING_FREE_COMPANY_LIMIT,
+      founding: {
+        limit: foundingPulse.limit,
+        used: foundingPulse.used,
+        remaining: foundingPulse.remaining,
+        full: foundingPulse.full,
+        eligible: foundingEligible,
+        isLifetime: Boolean(subscription.isLifetime),
+      },
       referral: {
         ...referral,
         code: referralCode,

@@ -5,9 +5,27 @@
 ```bash
 npm run test:e2e:auth
 npx playwright test e2e/happy-path-api.spec.ts
+# or trade-loop only:
+npm run test:e2e:trade
 ```
 
 Expect **401** on protected company APIs without a token.
+
+Trade-loop smoke also checks:
+
+- `GET /api/public/founding-waitlist` (slots)
+- `GET /api/system/health`
+- Catalogue / PO / inbound gates
+- Optional session: subscription `founding` pulse, products, POs
+
+```bash
+# Shell smoke against production (no browser)
+APP_URL=https://www.supplieradvisor.com npm run smoke:trade
+# With ops secrets:
+CRON_SECRET=… E2E_ACCESS_TOKEN=… E2E_COMPANY_ID=… npm run smoke:trade
+```
+
+CI: `.github/workflows/e2e-smoke.yml` runs unauth smoke on every push to `main`.
 
 ## With Privy access token
 

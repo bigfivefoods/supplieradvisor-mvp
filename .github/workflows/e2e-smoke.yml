@@ -1,0 +1,54 @@
+name: E2E smoke
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  playwright-unauth:
+    name: Unauth API smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install deps
+        run: npm ci
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium --with-deps
+      - name: Run unauth e2e smoke
+        env:
+          PLAYWRIGHT_BASE_URL: ${{ vars.PLAYWRIGHT_BASE_URL || 'https://www.supplieradvisor.com' }}
+        run: |
+          npm run test:e2e:auth
+          npx playwright test e2e/trade-loop-smoke.spec.ts e2e/happy-path-api.spec.ts
+
+  playwright-session:
+    name: Session e2e (optional secrets)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    # Tests skip when E2E_ACCESS_TOKEN is unset
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install deps
+        run: npm ci
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium --with-deps
+      - name: Authenticated / trade session tests
+        env:
+          PLAYWRIGHT_BASE_URL: ${{ vars.PLAYWRIGHT_BASE_URL || 'https://www.supplieradvisor.com' }}
+          E2E_ACCESS_TOKEN: ${{ secrets.E2E_ACCESS_TOKEN }}
+          E2E_COMPANY_ID: ${{ secrets.E2E_COMPANY_ID }}
+          E2E_SUPPLIER_PROFILE_ID: ${{ secrets.E2E_SUPPLIER_PROFILE_ID }}
+        run: |
+          npx playwright test e2e/authenticated-session.spec.ts e2e/trade-loop-smoke.spec.ts
