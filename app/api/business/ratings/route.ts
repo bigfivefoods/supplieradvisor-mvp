@@ -14,6 +14,7 @@ import {
   type RateeRole,
 } from '@/lib/ratings/company-rating';
 import { computeTrustScore } from '@/lib/suppliers/types';
+import { afterPeerRatingPublished } from '@/lib/onboarding/checklist';
 
 /**
  * GET ?companyId=&role=supplier|customer|partner|all&direction=given|received|both
@@ -296,6 +297,12 @@ export async function POST(request: NextRequest) {
       summary: `Rated company #${rateeProfileId} as ${rateeRole}: ${overall}★`,
       metadata: { rateeProfileId, rateeRole, overall },
     });
+
+    // Complete rating prompts + golden path rate_partner step
+    void afterPeerRatingPublished({
+      companyId,
+      rateeProfileId,
+    }).catch(() => undefined);
 
     return NextResponse.json({
       success: true,

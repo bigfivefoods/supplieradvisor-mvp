@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { Loader2, Star, Link2, BarChart3 } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
@@ -27,7 +28,15 @@ type Peer = { profileId: number; trading_name: string; role?: string };
 export default function CustomerRatingsPage() {
   return (
     <CompanyRequired>
-      <Inner />
+      <Suspense
+        fallback={
+          <div className="flex justify-center py-16">
+            <Loader2 className="w-6 h-6 animate-spin text-[#00b4d8]" />
+          </div>
+        }
+      >
+        <Inner />
+      </Suspense>
     </CompanyRequired>
   );
 }
@@ -36,6 +45,8 @@ function Inner() {
   const companyId = getSelectedCompanyId()!;
   const { user } = usePrivy();
   const privyUserId = getCanonicalUserId(user?.id);
+  const searchParams = useSearchParams();
+  const rateeFromPrompt = searchParams.get('ratee');
 
   const [loading, setLoading] = useState(true);
   const [aggregates, setAggregates] = useState<RatingAggregate[]>([]);
@@ -258,6 +269,7 @@ function Inner() {
             privyUserId={privyUserId}
             rateeRole="customer"
             peers={peers}
+            initialRateeId={rateeFromPrompt}
             onSaved={() => void load()}
           />
         )}

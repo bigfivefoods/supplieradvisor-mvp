@@ -133,6 +133,21 @@ function BillingInner() {
     void load();
   }, [load]);
 
+  // Golden path: visiting billing counts as reviewing plan/trial
+  useEffect(() => {
+    if (!companyId) return;
+    void fetch('/api/business/onboarding', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        companyId,
+        stepId: 'billing',
+        done: true,
+        privyUserId,
+      }),
+    }).catch(() => undefined);
+  }, [companyId, privyUserId]);
+
   const runReferralAction = async (
     action: 'request_payout' | 'approve' | 'mark_paid' | 'void',
     extra?: Record<string, unknown>

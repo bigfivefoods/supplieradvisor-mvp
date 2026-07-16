@@ -1,6 +1,12 @@
 /**
  * Day 1–3 golden path for new companies.
+ * Steps can be marked manually or inferred from live platform activity.
  */
+
+import { getSupabaseServer } from '@/lib/supabase/server-client';
+import { computeProfileCompleteness } from '@/lib/business/completeness';
+import { normalizeProfileRow } from '@/lib/business/types';
+import { computeCompanySubscription } from '@/lib/billing/company-subscription';
 
 export type OnboardingStepId =
   | 'profile'
@@ -74,4 +80,210 @@ export function progressPercent(steps: Record<string, boolean>): number {
   const total = ONBOARDING_STEPS.length;
   const done = ONBOARDING_STEPS.filter((s) => steps[s.id]).length;
   return Math.round((done / total) * 100);
+}
+
+/**
+ * Infer which golden-path steps are already true from live data.
+ * Soft-fail each query — never throws for missing tables.
+ */
+export async function inferOnboardingSteps(
+  companyId: number
+): Promise<Record<OnboardingStepId, boolean>> {
+  const empty: Record<OnboardingStepId, boolean> = {
+    profile: false,
+    team: false,
+    invite_partners: false,
+    first_trade: false,
+    billing: false,
+    rate_partner: false,
+  };
+  if (!Number.isFinite(companyId) || companyId <= 0) return empty;
+
+  try {
+    const supabase = getSupabaseServer();
+
+    const [
+      profileRes,
+      teamRes,
+      connRes,
+      poBuyerRes,
+      quoteRes,
+      orderRes,
+      invRes,
+      ratingRes,
+    ] = await Promise.all([
+      supabase.from('profiles').select('*').eq('id', companyId).maybeSingle(),
+      supabase
+        .from('business_users')
+        .select('id', { count: 'exact', head: true })
+        .eq('profile_id', companyId),
+      supabase
+        .from('business_connections')
+        .select('id', { count: 'exact', head: true })
+        .or(
+          `requester_profile_id.eq.${companyId},requestee_profile_id.eq.${companyId}`
+        ),
+      supabase
+        .from('purchase_orders')
+        .select('id', { count: 'exact', head: true })
+        .eq('buyer_profile_id', companyId),
+      supabase
+        .from('customer_quotes')
+        .select('id', { count: 'exact', head: true })
+        .eq('profile_id', companyId),
+      supabase
+        .from('sales_orders')
+        .select('id', { count: 'exact', head: true })
+        .eq('profile_id', companyId),
+      supabase
+        .from('customer_invoices')
+        .select('id', { count: 'exact', head: true })
+        .eq('profile_id', companyId),
+      supabase
+        .from('company_ratings')
+        .select('id', { count: 'exact', head: true })
+        .eq('rater_profile_id', companyId)
+        .eq('status', 'published'),
+    ]);
+
+    const raw = profileRes.data as Record<string, unknown> | null;
+    if (raw) {
+      const profile = normalizeProfileRow(raw);
+      const comp = computeProfileCompleteness(
+        profile as Record<string, unknown>
+      );
+      empty.profile = comp.pct >= 60;
+
+      const sub = computeCompanySubscription({
+        subscription_status: raw.subscription_status as string | null,
+        subscription_trial_ends_at: raw.subscription_trial_ends_at as
+          | string
+          | null,
+        subscription_starts_at: raw.subscription_starts_at as string | null,
+        subscription_ends_at: raw.subscription_ends_at as string | null,
+        subscription_paystack_ref: raw.subscription_paystack_ref as
+          | string
+          | null,
+        subscription_plan: raw.subscription_plan as string | null,
+      });
+      // Visited billing if they have any subscription status tracked (trial/active/lifetime)
+      empty.billing =
+        sub.status === 'trial' ||
+        sub.status === 'active' ||
+        sub.status === 'lifetime' ||
+        Boolean(raw.subscription_trial_ends_at) ||
+        Boolean(raw.subscription_paystack_ref);
+    }
+
+    // Team: more than just the owner, or at least 1 active member (owner counts as started)
+    const teamCount = teamRes.count ?? 0;
+    empty.team = teamCount >= 2;
+
+    // Partners: connections or invite book
+    const connCount = connRes.error ? 0 : connRes.count ?? 0;
+    let inviteCount = 0;
+    try {
+      const { count: sInv } = await supabase
+        .from('suppliers')
+        .select('id', { count: 'exact', head: true })
+        .eq('profile_id', companyId);
+      const { count: cInv } = await supabase
+        .from('customers')
+        .select('id', { count: 'exact', head: true })
+        .eq('profile_id', companyId);
+      inviteCount = (sInv || 0) + (cInv || 0);
+    } catch {
+      /* optional */
+    }
+    // Step asks for 3 — mark done at 1+ to reward first partner, show 3 as aspirational in copy
+    empty.invite_partners = connCount >= 1 || inviteCount >= 1;
+
+    const tradeCount =
+      (poBuyerRes.error ? 0 : poBuyerRes.count || 0) +
+      (quoteRes.error ? 0 : quoteRes.count || 0) +
+      (orderRes.error ? 0 : orderRes.count || 0) +
+      (invRes.error ? 0 : invRes.count || 0);
+    empty.first_trade = tradeCount >= 1;
+
+    empty.rate_partner =
+      !ratingRes.error && (ratingRes.count || 0) >= 1;
+
+    return empty;
+  } catch (e) {
+    console.warn('inferOnboardingSteps soft-fail:', e);
+    return empty;
+  }
+}
+
+/** Merge manual marks with inferred (OR — never un-complete a user mark). */
+export function mergeOnboardingSteps(
+  stored: Record<string, boolean>,
+  inferred: Record<string, boolean>
+): Record<OnboardingStepId, boolean> {
+  const out: Record<OnboardingStepId, boolean> = {
+    profile: false,
+    team: false,
+    invite_partners: false,
+    first_trade: false,
+    billing: false,
+    rate_partner: false,
+  };
+  for (const s of ONBOARDING_STEPS) {
+    out[s.id] = Boolean(stored[s.id] || inferred[s.id]);
+  }
+  return out;
+}
+
+/**
+ * Soft-complete rate_partner + matching rating_prompts after a peer rating is published.
+ */
+export async function afterPeerRatingPublished(opts: {
+  companyId: number;
+  rateeProfileId: number;
+}): Promise<void> {
+  const companyId = Number(opts.companyId);
+  const ratee = Number(opts.rateeProfileId);
+  if (!Number.isFinite(companyId) || !Number.isFinite(ratee)) return;
+
+  try {
+    const supabase = getSupabaseServer();
+    const now = new Date().toISOString();
+
+    // Complete pending prompts for this counterparty
+    await supabase
+      .from('rating_prompts')
+      .update({
+        status: 'completed',
+        completed_at: now,
+        updated_at: now,
+      })
+      .eq('profile_id', companyId)
+      .eq('counterparty_profile_id', ratee)
+      .eq('status', 'pending');
+
+    // Mark golden path rate_partner
+    const { data: existing } = await supabase
+      .from('company_onboarding_progress')
+      .select('steps')
+      .eq('profile_id', companyId)
+      .maybeSingle();
+
+    const steps = {
+      ...((existing?.steps || {}) as Record<string, boolean>),
+      rate_partner: true,
+    };
+    const pct = progressPercent(steps);
+    await supabase.from('company_onboarding_progress').upsert(
+      {
+        profile_id: companyId,
+        steps,
+        completed_at: pct >= 100 ? now : null,
+        updated_at: now,
+        created_at: now,
+      },
+      { onConflict: 'profile_id' }
+    );
+  } catch (e) {
+    console.warn('afterPeerRatingPublished soft-fail:', e);
+  }
 }

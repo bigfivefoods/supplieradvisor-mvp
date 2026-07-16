@@ -91,7 +91,24 @@ Statuses: `waiting` → `contacted` → `invited` → `converted` | `declined`.
 
 Join confirmation email (Resend) fires on public POST when `RESEND_API_KEY` is set.
 
-## 8. Production checklist (quick)
+## 8. Golden path onboarding
+
+Dashboard shows **Get live in 3 days** (`GoldenPathChecklist`).
+
+| Step | Auto-detected when |
+|------|---------------------|
+| Profile | Completeness ≥ 60% |
+| Team | ≥ 2 business_users |
+| Invite partners | ≥ 1 connection or book row |
+| First trade | Quote / SO / invoice / PO exists |
+| Billing | Trial/active/lifetime (or visit billing page) |
+| Rate partner | Published `company_ratings` as rater |
+
+API: `GET/POST /api/business/onboarding` — `action: sync | dismiss | mark`.
+
+Rating a partner completes pending `rating_prompts` and marks `rate_partner`.
+
+## 9. Production checklist (quick)
 
 1. Migrations applied (tables exist)
 2. Resend + XAI keys live on Vercel

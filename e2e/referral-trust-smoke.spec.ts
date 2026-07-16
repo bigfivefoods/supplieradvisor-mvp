@@ -15,6 +15,7 @@ const protectedGets = [
   '/api/business/trust?companyId=1',
   '/api/business/subscription?companyId=1',
   '/api/business/founding-waitlist',
+  '/api/business/onboarding?companyId=1',
   '/api/sam/history?companyId=1',
   '/api/suppliers/ratings?companyId=1',
   '/api/customers/reviews?companyId=1',

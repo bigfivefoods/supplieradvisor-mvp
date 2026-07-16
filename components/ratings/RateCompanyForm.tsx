@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { StarRating } from './StarRating';
@@ -19,15 +19,22 @@ export function RateCompanyForm({
   rateeRole,
   peers,
   onSaved,
+  initialRateeId,
 }: {
   companyId: number;
   privyUserId: string | null | undefined;
   rateeRole: RateeRole;
   peers: Peer[];
   onSaved?: () => void;
+  /** Pre-select from rating prompt deep link (?ratee=) */
+  initialRateeId?: number | string | null;
 }) {
   const dims = rateeRole === 'customer' ? CUSTOMER_DIMS : SUPPLIER_DIMS;
-  const [rateeId, setRateeId] = useState('');
+  const initial =
+    initialRateeId != null && String(initialRateeId) !== ''
+      ? String(initialRateeId)
+      : '';
+  const [rateeId, setRateeId] = useState(initial);
   const [overall, setOverall] = useState(0);
   const [scores, setScores] = useState<Record<string, number>>(() => {
     const init: Record<string, number> = {};
@@ -36,6 +43,19 @@ export function RateCompanyForm({
   });
   const [comment, setComment] = useState('');
   const [saving, setSaving] = useState(false);
+
+  // Keep preselect when peers load late
+  useEffect(() => {
+    if (initial && !rateeId) setRateeId(initial);
+    if (
+      initial &&
+      peers.length &&
+      !peers.some((p) => String(p.profileId) === rateeId) &&
+      peers.some((p) => String(p.profileId) === initial)
+    ) {
+      setRateeId(initial);
+    }
+  }, [initial, peers, rateeId]);
 
   const setDim = (key: string, n: number) => {
     setScores((s) => ({ ...s, [key]: n }));

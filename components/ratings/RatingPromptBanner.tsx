@@ -13,7 +13,32 @@ type Prompt = {
   counterparty_profile_id?: number | null;
   ratee_role?: string;
   context_type?: string;
+  context_id?: string | null;
 };
+
+function rateHref(p: Prompt): string {
+  const base =
+    p.ratee_role === 'customer'
+      ? '/dashboard/customers/ratings'
+      : '/dashboard/suppliers/ratings';
+  const qs = new URLSearchParams();
+  if (p.counterparty_profile_id) {
+    qs.set('ratee', String(p.counterparty_profile_id));
+  }
+  if (p.id) qs.set('promptId', String(p.id));
+  if (p.context_type) qs.set('ctx', p.context_type);
+  const q = qs.toString();
+  return q ? `${base}?${q}` : base;
+}
+
+function contextLabel(p: Prompt): string {
+  const t = String(p.context_type || '').toLowerCase();
+  if (t === 'po') return 'after purchase order delivery';
+  if (t === 'invoice') return 'after invoice paid';
+  if (t === 'shipment') return 'after shipment delivered';
+  if (t === 'connection') return 'after network connection';
+  return 'after trade';
+}
 
 export default function RatingPromptBanner() {
   const { user } = usePrivy();
@@ -80,19 +105,15 @@ export default function RatingPromptBanner() {
               Rate {p.counterparty_name || 'your trading partner'}
             </div>
             <p className="text-xs text-amber-900/80 mt-0.5 leading-relaxed">
-              Suppliers and customers rate each other after trade — continuous
-              feedback that builds OTIFEF and trust for the whole network.
+              Prompted {contextLabel(p)}. Suppliers and customers rate each
+              other — peer stars and OTIFEF build trust for the network.
             </p>
           </div>
           <Link
-            href={
-              p.ratee_role === 'customer'
-                ? '/dashboard/customers/ratings'
-                : '/dashboard/suppliers/ratings'
-            }
+            href={rateHref(p)}
             className="shrink-0 rounded-full bg-amber-800 px-4 py-2 text-xs font-bold text-white hover:bg-amber-900"
           >
-            Open ratings
+            Rate now
           </Link>
         </div>
       ))}
