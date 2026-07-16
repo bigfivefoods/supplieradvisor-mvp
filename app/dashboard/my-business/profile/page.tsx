@@ -1579,7 +1579,12 @@ function ProfileInner() {
 
           <Panel title="Location">
             <div className="p-4 space-y-2.5">
-              <GeoSelectFields value={geo} onChange={onGeoChange} />
+              <GeoSelectFields
+                value={geo}
+                onChange={onGeoChange}
+                compact
+                countryRequired
+              />
               <div className="grid grid-cols-3 gap-2.5">
                 <Field label="Street" className="col-span-2">
                   <input
