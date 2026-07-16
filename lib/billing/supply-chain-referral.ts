@@ -110,15 +110,36 @@ export function referralRatesSummary(): string {
 
 export function referralSuggestedCopy(): string {
   return (
-    `${REFERRAL_PROGRAM_ROOT_NAME} launched the supply-chain referral programme and sits at the top of the network. ` +
-    `Earn from companies that join via your referral link or when you invite them as a supplier, customer, or partner. ` +
-    `When they pay for SupplierAdvisor, you earn ${REFERRAL_LEVEL_RATES_PCT[0]}% of that payment. ` +
+    `SupplierAdvisor pays companies that grow a trusted network. ` +
+    `Invite suppliers, customers, or partners (or share your referral link). ` +
+    `When they pay for the platform, you earn ${REFERRAL_LEVEL_RATES_PCT[0]}% of that subscription. ` +
     `If they invite someone who pays, you earn ${REFERRAL_LEVEL_RATES_PCT[1]}%. ` +
     `One level further pays ${REFERRAL_LEVEL_RATES_PCT[2]}%. ` +
-    `Companies with no other inviter join under ${REFERRAL_PROGRAM_ROOT_NAME}. ` +
-    `Combined rewards never exceed ${REFERRAL_TOTAL_CAP_PCT}% of the paying company's subscription fee.`
+    `Combined rewards never exceed ${REFERRAL_TOTAL_CAP_PCT}% of the paying company's subscription fee. ` +
+    `Do good trade — verified partners, clean ops, on-time delivery — and the system rewards you for it.`
   );
 }
+
+/** Illustrative L1 earnings if N direct companies each pay monthlyZar (default list rate). */
+export function referralDirectEarningsScenario(
+  companyCount: number,
+  monthlyZar: number
+): { count: number; monthlyZar: number; annualZar: number; perCompanyMonthly: number } {
+  const n = Math.max(0, Math.floor(companyCount));
+  const base = Math.max(0, Number(monthlyZar) || 0);
+  const rate = REFERRAL_LEVEL_RATES_PCT[0] / 100;
+  const perCompanyMonthly = Math.round(base * rate * 100) / 100;
+  const monthly = Math.round(n * perCompanyMonthly * 100) / 100;
+  return {
+    count: n,
+    monthlyZar: monthly,
+    annualZar: Math.round(monthly * 12 * 100) / 100,
+    perCompanyMonthly,
+  };
+}
+
+/** Default scale scenarios for marketing: 10 / 50 / 200 direct L1 subscribers. */
+export const REFERRAL_SCALE_SCENARIO_COUNTS = [10, 50, 200] as const;
 
 /**
  * Pick referrer for a new/claimed company:

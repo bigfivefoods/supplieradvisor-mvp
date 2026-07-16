@@ -29,8 +29,9 @@ import { FOUNDING_FREE_COMPANY_LIMIT } from '@/lib/billing/lifetime';
 import {
   REFERRAL_LEVEL_LABELS,
   REFERRAL_LEVEL_RATES_PCT,
-  REFERRAL_PROGRAM_ROOT_NAME,
+  REFERRAL_SCALE_SCENARIO_COUNTS,
   REFERRAL_TOTAL_CAP_PCT,
+  referralDirectEarningsScenario,
   referralRatesSummary,
 } from '@/lib/billing/supply-chain-referral';
 
@@ -88,6 +89,9 @@ export default function Pricing() {
     amount: feeZar(exampleBase, rate),
   }));
   const exampleTotal = exampleFees.reduce((s, f) => s + f.amount, 0);
+  const scaleScenarios = REFERRAL_SCALE_SCENARIO_COUNTS.map((count) =>
+    referralDirectEarningsScenario(count, COMPANY_SUBSCRIPTION_MONTHLY_ZAR)
+  );
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900">
@@ -433,25 +437,22 @@ export default function Pricing() {
             <div className="text-center max-w-2xl mx-auto mb-10">
               <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-wider text-emerald-900 mb-4">
                 <Network className="w-3.5 h-3.5" />
-                Supply-chain referral
+                Paid to do good
               </div>
               <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">
-                Earn when companies you invite pay
+                A system that pays you to build trust
               </h2>
               <p className="mt-3 text-slate-600 text-sm sm:text-base leading-relaxed">
-                Company-to-company rewards on{' '}
+                Invite real trading partners. Help them run clean ops. When they
+                pay for SupplierAdvisor, you earn a share of their{' '}
                 <strong className="text-slate-800">platform subscription</strong>{' '}
-                payments — not product sales. Up to{' '}
+                — not product sales. Up to{' '}
                 <strong className="text-slate-800">
                   {REFERRAL_TOTAL_CAP_PCT}%
                 </strong>{' '}
-                of each paid fee is shared across three levels (
-                {referralRatesSummary()}). Programme launched by{' '}
-                <strong className="text-slate-800">
-                  {REFERRAL_PROGRAM_ROOT_NAME}
-                </strong>
-                , who sit at the top of the network; companies with no other
-                inviter join under them.
+                across three levels ({referralRatesSummary()}). Good behaviour —
+                verified partners, on-time delivery, quality holds that work —
+                is what the network rewards.
               </p>
             </div>
 
@@ -461,20 +462,20 @@ export default function Pricing() {
                 {
                   step: '1',
                   icon: Link2,
-                  title: 'Invite',
-                  body: 'Share your referral link from Billing, or invite suppliers, customers, and partners from the dashboard. First invite wins (first-touch).',
+                  title: 'Invite good partners',
+                  body: 'Share your referral link from Billing, or invite suppliers, customers, and partners you actually trade with. First invite wins (first-touch).',
                 },
                 {
                   step: '2',
                   icon: Building2,
-                  title: 'They join & pay',
-                  body: `They register (or claim your invite), run their free trial, then subscribe — monthly or prepaid multi-year from R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo.`,
+                  title: 'They do the work',
+                  body: `They register (or claim your invite), run a free trial, then subscribe — monthly or prepaid multi-year from R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo. You earn when they pay, not when they merely sign up.`,
                 },
                 {
                   step: '3',
                   icon: Gift,
-                  title: 'You earn',
-                  body: 'A share of their subscription payment credits to your company. Request payout after review — pending → approved → paid.',
+                  title: 'You get paid',
+                  body: 'A share of their subscription credits to your company. Request payout after review — pending → approved → paid. Be good: bring real companies that stay.',
                 },
               ].map((s) => (
                 <div
@@ -495,6 +496,54 @@ export default function Pricing() {
                   </p>
                 </div>
               ))}
+            </div>
+
+            {/* Scale scenarios: 10 / 50 / 200 */}
+            <div className="mb-10 rounded-[1.75rem] border border-emerald-200/80 bg-white p-6 sm:p-8 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-5">
+                <div>
+                  <h3 className="text-lg font-black text-slate-900">
+                    If companies join below you
+                  </h3>
+                  <p className="mt-1 text-sm text-slate-600 leading-relaxed max-w-xl">
+                    Illustrative L1 earnings if that many companies each pay the list
+                    rate of{' '}
+                    <strong className="text-slate-800">
+                      {formatZar(COMPANY_SUBSCRIPTION_MONTHLY_ZAR)}/mo
+                    </strong>{' '}
+                    and you are their direct inviter (
+                    {REFERRAL_LEVEL_RATES_PCT[0]}% each). L2/L3 add more when{' '}
+                    <em>their</em> invites pay.
+                  </p>
+                </div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 shrink-0">
+                  Not a guarantee · based on list rate
+                </p>
+              </div>
+              <div className="grid sm:grid-cols-3 gap-3 sm:gap-4">
+                {scaleScenarios.map((s) => (
+                  <div
+                    key={s.count}
+                    className="rounded-2xl border border-slate-200 bg-gradient-to-b from-emerald-50/80 to-white p-5 text-center"
+                  >
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                      {s.count} companies
+                    </div>
+                    <div className="mt-2 text-2xl sm:text-3xl font-black tabular-nums text-emerald-800">
+                      {formatZar(s.monthlyZar)}
+                      <span className="text-sm font-bold text-emerald-700/80">
+                        /mo
+                      </span>
+                    </div>
+                    <div className="mt-1 text-sm font-semibold text-slate-600 tabular-nums">
+                      {formatZar(s.annualZar)}/yr
+                    </div>
+                    <p className="mt-2 text-[11px] text-slate-500 leading-snug">
+                      {formatZar(s.perCompanyMonthly)} × {s.count} at L1
+                    </p>
+                  </div>
+                ))}
+              </div>
             </div>
 
             {/* Fees + example */}

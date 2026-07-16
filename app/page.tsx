@@ -63,8 +63,9 @@ import {
 import { FOUNDING_FREE_COMPANY_LIMIT } from '@/lib/billing/lifetime';
 import {
   REFERRAL_LEVEL_RATES_PCT,
-  REFERRAL_PROGRAM_ROOT_NAME,
+  REFERRAL_SCALE_SCENARIO_COUNTS,
   REFERRAL_TOTAL_CAP_PCT,
+  referralDirectEarningsScenario,
   referralRatesSummary,
 } from '@/lib/billing/supply-chain-referral';
 
@@ -416,6 +417,9 @@ export default function LandingPage() {
 
   const exampleFee = (pct: number) =>
     Math.round(((COMPANY_SUBSCRIPTION_MONTHLY_ZAR * pct) / 100) * 100) / 100;
+  const scaleScenarios = REFERRAL_SCALE_SCENARIO_COUNTS.map((count) =>
+    referralDirectEarningsScenario(count, COMPANY_SUBSCRIPTION_MONTHLY_ZAR)
+  );
 
   return (
     <div className="relative z-0 min-h-dvh bg-[#05070b] text-white antialiased selection:bg-cyan-500/30">
@@ -780,17 +784,25 @@ export default function LandingPage() {
       {/* ═══════════ EARN / REFERRAL / PRICING ═══════════ */}
       <section id="earn" className="border-t border-white/10 bg-[#05070b] py-20 sm:py-28">
         <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10">
+          <div className="mx-auto mb-12 max-w-3xl text-center">
+            <SectionLabel>Paid to do good</SectionLabel>
+            <h2 className="text-3xl font-black tracking-tight text-white sm:text-5xl">
+              The system that pays you
+              <span className="mt-1 block text-white/40">to build a better network.</span>
+            </h2>
+            <p className="mt-4 text-base leading-relaxed text-white/50">
+              Invite real partners. Help them run clean ops. When they subscribe, you earn.
+              Good trade — verified companies, on-time delivery, quality that holds —
+              is what the system rewards.
+            </p>
+          </div>
+
           <div className="grid items-start gap-10 lg:grid-cols-2 lg:gap-16">
             <div>
-              <SectionLabel>Earn on the network</SectionLabel>
-              <h2 className="text-3xl font-black tracking-tight text-white sm:text-5xl">
-                Sales commissions
-                <span className="mt-1 block text-white/40">& supply-chain referral.</span>
-              </h2>
-              <p className="mt-5 text-base leading-relaxed text-white/50">
-                Two clean programmes — never confused:
+              <p className="text-sm font-semibold uppercase tracking-wider text-white/40">
+                Two clean programmes
               </p>
-              <ul className="mt-6 space-y-4">
+              <ul className="mt-5 space-y-4">
                 <li className="flex gap-3">
                   <Handshake className="mt-0.5 h-5 w-5 shrink-0 text-[#00b4d8]" />
                   <div>
@@ -809,8 +821,7 @@ export default function LandingPage() {
                       When companies you invite (link or supplier/customer invite) pay for
                       SupplierAdvisor, you earn a share of their{' '}
                       <strong className="text-white/80">subscription</strong> —{' '}
-                      {referralRatesSummary()}. Programme root:{' '}
-                      {REFERRAL_PROGRAM_ROOT_NAME}.
+                      {referralRatesSummary()}.
                     </p>
                   </div>
                 </li>
@@ -830,7 +841,7 @@ export default function LandingPage() {
                   href="/pricing#referral"
                   className="inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-semibold text-slate-950 hover:bg-white/90"
                 >
-                  See fees & example <ArrowRight className="h-4 w-4" />
+                  Full fees & scenarios <ArrowRight className="h-4 w-4" />
                 </Link>
                 <Link
                   href="/pricing"
@@ -841,49 +852,66 @@ export default function LandingPage() {
               </div>
             </div>
 
-            <div className="rounded-[2rem] border border-white/10 bg-gradient-to-br from-white/[0.06] to-transparent p-6 sm:p-8">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/40">
-                Example · monthly sub {formatZar(COMPANY_SUBSCRIPTION_MONTHLY_ZAR)}
-              </div>
-              <p className="mt-3 text-sm text-white/55">
-                You invite A → A invites B → B invites C. When C pays:
-              </p>
-              <div className="mt-6 space-y-3">
-                {[
-                  { who: 'Company B', level: 'L1', pct: REFERRAL_LEVEL_RATES_PCT[0] },
-                  { who: 'Company A', level: 'L2', pct: REFERRAL_LEVEL_RATES_PCT[1] },
-                  { who: 'You', level: 'L3', pct: REFERRAL_LEVEL_RATES_PCT[2] },
-                ].map((row) => (
-                  <div
-                    key={row.level}
-                    className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/30 px-4 py-3"
-                  >
-                    <div>
-                      <div className="font-semibold text-white">{row.who}</div>
-                      <div className="text-xs text-white/40">
-                        {row.level} · {row.pct}%
+            <div className="space-y-4">
+              <div className="rounded-[2rem] border border-white/10 bg-gradient-to-br from-white/[0.06] to-transparent p-6 sm:p-8">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/40">
+                  If companies join below you · L1 @ {REFERRAL_LEVEL_RATES_PCT[0]}%
+                </div>
+                <p className="mt-2 text-sm text-white/50">
+                  Each pays {formatZar(COMPANY_SUBSCRIPTION_MONTHLY_ZAR)}/mo list rate
+                  (illustrative, not a guarantee).
+                </p>
+                <div className="mt-5 grid grid-cols-3 gap-2 sm:gap-3">
+                  {scaleScenarios.map((s) => (
+                    <div
+                      key={s.count}
+                      className="rounded-2xl border border-white/10 bg-black/40 px-2 py-4 text-center sm:px-3"
+                    >
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-white/40">
+                        {s.count}
+                      </div>
+                      <div className="mt-1 text-lg font-black tabular-nums text-emerald-400 sm:text-xl">
+                        {formatZar(s.monthlyZar)}
+                      </div>
+                      <div className="text-[10px] text-white/40">/mo</div>
+                      <div className="mt-1 text-[11px] font-semibold tabular-nums text-white/55">
+                        {formatZar(s.annualZar)}/yr
                       </div>
                     </div>
-                    <div className="text-lg font-black tabular-nums text-emerald-400">
-                      {formatZar(exampleFee(row.pct))}
-                    </div>
-                  </div>
-                ))}
-                <div className="flex items-center justify-between rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3">
-                  <div className="font-bold text-white">Total shared</div>
-                  <div className="text-lg font-black tabular-nums text-emerald-300">
-                    {formatZar(
-                      exampleFee(REFERRAL_LEVEL_RATES_PCT[0]) +
-                        exampleFee(REFERRAL_LEVEL_RATES_PCT[1]) +
-                        exampleFee(REFERRAL_LEVEL_RATES_PCT[2])
-                    )}
-                  </div>
+                  ))}
                 </div>
               </div>
-              <p className="mt-4 text-xs text-white/40">
-                Cap {REFERRAL_TOTAL_CAP_PCT}% of the paid subscription. Prepaid terms use the
-                same rates on the amount paid.
-              </p>
+
+              <div className="rounded-[2rem] border border-white/10 bg-black/30 p-6 sm:p-7">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/40">
+                  Chain example · one payment of {formatZar(COMPANY_SUBSCRIPTION_MONTHLY_ZAR)}
+                </div>
+                <p className="mt-2 text-sm text-white/50">
+                  You → A → B → C. When C pays:
+                </p>
+                <div className="mt-4 space-y-2">
+                  {[
+                    { who: 'B', level: 'L1', pct: REFERRAL_LEVEL_RATES_PCT[0] },
+                    { who: 'A', level: 'L2', pct: REFERRAL_LEVEL_RATES_PCT[1] },
+                    { who: 'You', level: 'L3', pct: REFERRAL_LEVEL_RATES_PCT[2] },
+                  ].map((row) => (
+                    <div
+                      key={row.level}
+                      className="flex items-center justify-between rounded-xl border border-white/10 px-3 py-2.5 text-sm"
+                    >
+                      <span className="text-white/70">
+                        {row.who} · {row.level} {row.pct}%
+                      </span>
+                      <span className="font-bold tabular-nums text-emerald-400">
+                        {formatZar(exampleFee(row.pct))}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-3 text-xs text-white/35">
+                  Cap {REFERRAL_TOTAL_CAP_PCT}% of each paid subscription.
+                </p>
+              </div>
             </div>
           </div>
         </div>

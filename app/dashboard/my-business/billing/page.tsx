@@ -554,28 +554,12 @@ function BillingInner() {
               <Users className="w-4 h-4 text-[#00b4d8]" />
               Supply-chain referral
             </h3>
-            {referral?.isProgramRoot ? (
-              <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-950 leading-relaxed">
-                {referral.programRootName || 'Big Five Foods'} is the{' '}
-                <strong>top of the food chain</strong> — first company to launch
-                this programme. You have no parent referrer. Companies with no
-                other inviter join under you.
-              </div>
-            ) : (
-              <p className="mt-1.5 text-[11px] text-slate-500 leading-relaxed">
-                Network root:{' '}
-                <strong className="text-slate-700">
-                  {referral?.programRootName || 'Big Five Foods'}
-                </strong>
-                . Unattributed companies join under them.
-              </p>
-            )}
             <p className="mt-2 text-xs text-slate-600 leading-relaxed">
               {referral?.suggestedCopy ||
-                'Earn when companies join via your referral link or when you invite them as a supplier, customer, or partner — up to 10% across 3 levels of their subscription.'}
+                'Earn when companies join via your referral link or when you invite them as a supplier, customer, or partner — up to 10% across 3 levels of their subscription. Do good trade and the system rewards you.'}
             </p>
             <p className="mt-1.5 text-[11px] text-slate-500 leading-relaxed">
-              Attribution is first-touch: your referral link, supplier invite, customer invite, or partner invite all count. Existing referrers are never overwritten.
+              First-touch attribution: referral link, supplier invite, customer invite, or partner invite. Existing referrers are never overwritten.
             </p>
             <div className="mt-3 grid grid-cols-3 gap-1.5 text-center">
               {(referral?.rates || [6, 3, 1]).map((rate, i) => (
