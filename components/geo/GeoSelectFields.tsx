@@ -26,8 +26,11 @@ interface GeoSelectFieldsProps {
 
 /**
  * Cascading Continent → Country → Province/State (+ City) dropdowns.
- * Data always loaded from Supabase via /api/geo (continents, countries, provinces).
- * Stores human-readable names on the form (same as profiles / containers).
+ * Data from Supabase via /api/geo (continents, countries, provinces).
+ *
+ * Use ONLY where a real location is required (e.g. company profile Location,
+ * container site). Do not use for optional free-text region notes, filters,
+ * or addresses that are not formal geo fields.
  */
 export default function GeoSelectFields({
   value,

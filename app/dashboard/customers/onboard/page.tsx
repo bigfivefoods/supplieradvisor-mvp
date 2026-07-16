@@ -31,7 +31,6 @@ import {
   Panel,
   SectionLabel,
 } from '@/components/relationship/RelationshipChrome';
-import GeoSelectFields, { type GeoValue } from '@/components/geo/GeoSelectFields';
 
 const PROCESS = [
   { label: 'Lead', href: '/dashboard/customers/leads' },

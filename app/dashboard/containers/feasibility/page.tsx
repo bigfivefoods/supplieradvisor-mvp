@@ -33,7 +33,6 @@ import {
   ContainersPage,
 } from '@/components/containers/ContainersShell';
 import { Panel } from '@/components/relationship/RelationshipChrome';
-import GeoSelectFields, { type GeoValue } from '@/components/geo/GeoSelectFields';
 
 type ScenarioListItem = {
   id: number;

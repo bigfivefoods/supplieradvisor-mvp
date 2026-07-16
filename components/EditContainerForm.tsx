@@ -202,7 +202,12 @@ export default function EditContainerForm({ container, onClose, onSuccess }: Edi
 
             <div>
               <h3 className="text-sm font-semibold mb-2">Location (Supabase)</h3>
-              <GeoSelectFields value={geo} onChange={setGeo} compact />
+              <GeoSelectFields
+                value={geo}
+                onChange={setGeo}
+                compact
+                countryRequired
+              />
             </div>
 
             <div>

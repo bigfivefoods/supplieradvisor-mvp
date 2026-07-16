@@ -348,7 +348,12 @@ export default function AddContainerForm({ onClose, onSuccess }: AddContainerFor
             {/* Geo from Supabase */}
             <div>
               <h3 className="text-sm font-semibold text-slate-900 mb-2">Location (from Supabase)</h3>
-              <GeoSelectFields value={geo} onChange={setGeo} compact />
+              <GeoSelectFields
+                value={geo}
+                onChange={setGeo}
+                compact
+                countryRequired
+              />
             </div>
 
             <div>
