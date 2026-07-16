@@ -131,7 +131,11 @@ export default function InstallAppBanner() {
           ) : (
             <Smartphone className="w-4 h-4" />
           )}
-          {busy ? '…' : deferred ? 'Install app' : 'Add to Home Screen'}
+          {busy
+            ? '…'
+            : deferred
+              ? 'Install app'
+              : 'iPhone: Add to Home Screen'}
         </button>
         <button
           type="button"
