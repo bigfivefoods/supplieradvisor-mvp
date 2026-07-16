@@ -1117,17 +1117,51 @@ export default function CompanyNetworkSection() {
             {tab === 'search' && activeFilters.length > 0 ? (
               <>
                 <Search className="mx-auto mb-3 h-10 w-10 text-slate-300" />
-                <p className="font-semibold text-slate-900">No companies match</p>
-                <p className="mx-auto mt-2 max-w-md text-sm text-slate-500">
-                  Try clearing filters or broadening your search terms.
+                <p className="font-semibold text-slate-900">
+                  {country
+                    ? `No partners in ${country} yet`
+                    : continent
+                      ? `No partners match in ${continent}`
+                      : 'No companies match'}
                 </p>
-                <button
-                  type="button"
-                  onClick={clearFilters}
-                  className="mt-6 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-800"
-                >
-                  <X className="h-4 w-4" /> Clear filters
-                </button>
+                <p className="mx-auto mt-2 max-w-md text-sm text-slate-500">
+                  {country ? (
+                    <>
+                      The directory is open — the network just doesn&apos;t have a
+                      public company in <strong>{country}</strong> yet. Join and
+                      invite suppliers there to grow coverage.
+                    </>
+                  ) : (
+                    <>Try clearing filters or broadening your search terms.</>
+                  )}
+                </p>
+                <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={clearFilters}
+                    className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-800"
+                  >
+                    <X className="h-4 w-4" /> Clear filters
+                  </button>
+                  <Link
+                    href={
+                      country || continent
+                        ? `/login?returnTo=${encodeURIComponent(
+                            `/dashboard/suppliers/add?${new URLSearchParams({
+                              ...(country ? { country } : {}),
+                              ...(continent ? { continent } : {}),
+                            }).toString()}`
+                          )}`
+                        : '/onboarding?type=business'
+                    }
+                    className="inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-5 py-2.5 text-sm font-bold text-white"
+                  >
+                    {country
+                      ? `Invite a supplier in ${country}`
+                      : 'Register your business'}
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </div>
               </>
             ) : (
               <>

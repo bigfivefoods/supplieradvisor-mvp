@@ -113,6 +113,15 @@ npx playwright test e2e/trade-loop-smoke.spec.ts
 | Buyer PO supplier catalogue picker + passport chips | Shipped |
 | Inbound PO deep-link `?tab=inbound&po=` expand/highlight | Shipped |
 
+## Mini-sprint 3 (visibility / inbox / directory growth)
+
+| Item | Status |
+|------|--------|
+| Profile “visible in search?” card | Shipped (`SearchVisibilityCard`) |
+| Homepage directory empty → invite by country | Shipped |
+| Connections pending inbox Accept/Decline | Shipped |
+| Inbound PO deep-link primary Accept/Decline | Shipped |
+
 Ops after every major deploy:
 
 ```bash

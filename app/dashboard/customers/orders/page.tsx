@@ -589,7 +589,40 @@ function InboundPosList() {
                       )}
                     </div>
                     <div className="flex flex-wrap gap-2">
+                      {/* Deep-link from notifications: big Accept/Decline when awaiting */}
+                      {deepPoId === po.id && st === 'sent' && (
+                        <>
+                          <button
+                            type="button"
+                            disabled={busyId === po.id}
+                            onClick={() => void transition(po.id, 'accepted')}
+                            className="px-5 py-2.5 rounded-2xl text-sm font-bold bg-emerald-600 text-white flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+                          >
+                            {busyId === po.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <CheckCircle className="w-4 h-4" />
+                            )}
+                            Accept PO
+                          </button>
+                          <button
+                            type="button"
+                            disabled={busyId === po.id}
+                            onClick={() => void transition(po.id, 'cancelled')}
+                            className="px-4 py-2.5 rounded-2xl text-sm font-bold border border-red-200 bg-white text-red-600 flex items-center gap-1.5 disabled:opacity-50"
+                          >
+                            <XCircle className="w-4 h-4" /> Decline
+                          </button>
+                        </>
+                      )}
                       {allowed.map((next) => {
+                        if (
+                          deepPoId === po.id &&
+                          st === 'sent' &&
+                          (next === 'accepted' || next === 'cancelled')
+                        ) {
+                          return null; // already shown as primary actions
+                        }
                         const cfg = ACTION_LABELS[next] || {
                           label: next,
                           className: 'bg-neutral-700 text-white',

@@ -39,6 +39,7 @@ import {
   subIndustriesFor,
 } from '@/lib/business/industries';
 import { uploadCompanyAssetServerFirst } from '@/lib/business/uploadCompanyAssets';
+import SearchVisibilityCard from '@/components/business/SearchVisibilityCard';
 
 const LocationMap = dynamic(() => import('@/components/LocationMap'), {
   ssr: false,
@@ -1283,6 +1284,18 @@ function ProfileInner() {
           <div
             className="h-full rounded-full bg-gradient-to-r from-[#00b4d8] to-[#0077b6]"
             style={{ width: `${completeness?.pct ?? 0}%` }}
+          />
+        </div>
+        <div className="mt-3">
+          <SearchVisibilityCard
+            profile={
+              {
+                ...form,
+                id: companyId,
+              } as Record<string, unknown>
+            }
+            completeness={completeness}
+            isRegistered
           />
         </div>
       </div>

@@ -284,18 +284,98 @@ function HubInner() {
       />
 
       {summary.pendingIn > 0 && (
-        <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
-          <div className="text-sm text-amber-900">
-            <strong>{summary.pendingIn}</strong> incoming connection
-            {summary.pendingIn === 1 ? ' request' : ' requests'} waiting for your decision.
+        <div className="mb-6 space-y-3">
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+            <div className="text-sm text-amber-900">
+              <strong>{summary.pendingIn}</strong> incoming connection
+              {summary.pendingIn === 1 ? ' request' : ' requests'} waiting for
+              your decision.
+            </div>
+            <button
+              type="button"
+              onClick={() => setTab('pending_in')}
+              className="btn-primary !py-2 !px-4 text-xs"
+            >
+              Focus inbox
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => setTab('pending_in')}
-            className="btn-primary !py-2 !px-4 text-xs"
+          <Panel
+            title="Pending inbox — accept or decline"
+            action={
+              <span className="text-[10px] font-bold uppercase text-amber-700">
+                {summary.pendingIn} open
+              </span>
+            }
           >
-            Review incoming
-          </button>
+            <ul className="divide-y divide-amber-100">
+              {edges
+                .filter(
+                  (e) =>
+                    e.status === 'pending' && e.direction === 'received'
+                )
+                .map((edge) => {
+                  const name = peerDisplayName(edge);
+                  return (
+                    <li
+                      key={`inbox-${edge.id}`}
+                      className="flex flex-col sm:flex-row sm:items-center gap-3 px-4 py-3"
+                    >
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <CompanyLogo
+                          logoUrl={edge.peer.logo_url}
+                          name={name}
+                          size="sm"
+                        />
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-slate-900 truncate">
+                            {name}
+                          </p>
+                          <p className="text-[11px] text-neutral-500 truncate">
+                            {[edge.peer.industry, edge.peer.city, edge.peer.country]
+                              .filter(Boolean)
+                              .join(' · ') || 'Wants to connect'}
+                          </p>
+                          {edge.message ? (
+                            <p className="text-[11px] text-neutral-600 italic mt-0.5 line-clamp-1">
+                              “{edge.message}”
+                            </p>
+                          ) : null}
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2 shrink-0">
+                        <button
+                          type="button"
+                          disabled={busyId === edge.id}
+                          onClick={() => void act(edge, 'accept')}
+                          className="btn-primary !py-2 !px-4 text-xs inline-flex items-center gap-1 disabled:opacity-50"
+                        >
+                          {busyId === edge.id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Check className="w-3.5 h-3.5" />
+                          )}
+                          Accept
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busyId === edge.id}
+                          onClick={() => void act(edge, 'decline')}
+                          className="btn-secondary !py-2 !px-4 text-xs inline-flex items-center gap-1 text-red-600 border-red-200 disabled:opacity-50"
+                        >
+                          <X className="w-3.5 h-3.5" /> Decline
+                        </button>
+                        <Link
+                          href={`/dashboard/connections/${edge.peer.id}`}
+                          className="btn-secondary !py-2 !px-3 text-xs"
+                        >
+                          Profile
+                        </Link>
+                      </div>
+                    </li>
+                  );
+                })}
+            </ul>
+          </Panel>
         </div>
       )}
 
