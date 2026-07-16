@@ -47,6 +47,25 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Share link not found or inactive' }, { status: 404 });
     }
 
+    // Soft view counter (never block payload on analytics failure)
+    void (async () => {
+      try {
+        const views = Number((share as { view_count?: number }).view_count || 0) + 1;
+        const { error: viewErr } = await supabase
+          .from('container_network_shares')
+          .update({
+            view_count: views,
+            last_viewed_at: new Date().toISOString(),
+          })
+          .eq('id', share.id);
+        if (viewErr && /column|does not exist/i.test(viewErr.message)) {
+          /* run 20260716_container_share_views.sql */
+        }
+      } catch {
+        /* optional */
+      }
+    })();
+
     const profileId = Number(share.profile_id);
     const { data: profile } = await supabase
       .from('profiles')

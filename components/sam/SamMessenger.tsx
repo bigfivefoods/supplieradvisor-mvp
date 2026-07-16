@@ -36,6 +36,8 @@ const SUGGESTIONS = [
   'How does sales contractor commission work?',
   'Where do I set company billing and prepaid terms?',
   'How do I receive stock into inventory?',
+  'Open the screens for QA holds and stock ship',
+  'Where is the 3-day golden path and trust ratings?',
 ];
 
 function uid() {

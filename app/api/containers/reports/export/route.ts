@@ -28,6 +28,149 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseServer();
     const stamp = new Date().toISOString().slice(0, 10);
 
+    // Monthly performance — reseller sales + container sales rollup
+    if (type === 'performance' || type === 'monthly' || type === 'sales') {
+      const months = Math.min(
+        24,
+        Math.max(1, Number(request.nextUrl.searchParams.get('months') || 12))
+      );
+      const from = new Date();
+      from.setMonth(from.getMonth() - months);
+      const fromIso = from.toISOString().slice(0, 10);
+
+      const [resellerSales, containerSales, containers] = await Promise.all([
+        supabase
+          .from('reseller_sales')
+          .select(
+            'id, container_id, reseller_id, sale_date, total_amount, commission_amount, sale_number, created_at'
+          )
+          .eq('profile_id', companyId)
+          .gte('sale_date', fromIso)
+          .limit(10000),
+        supabase
+          .from('container_sales')
+          .select(
+            'id, container_id, sale_date, gross_amount, net_amount, created_at'
+          )
+          .eq('profile_id', companyId)
+          .gte('sale_date', fromIso)
+          .limit(10000),
+        supabase
+          .from('containers')
+          .select('id, name, container_code')
+          .eq('profile_id', companyId)
+          .limit(2000),
+      ]);
+
+      const nameMap: Record<number, string> = {};
+      for (const c of containers.data || []) {
+        nameMap[Number(c.id)] =
+          `${c.name || 'Outlet'}${c.container_code ? ` (${c.container_code})` : ''}`;
+      }
+
+      type Agg = {
+        container_id: number;
+        month: string;
+        reseller_gross: number;
+        reseller_commission: number;
+        reseller_txns: number;
+        container_gross: number;
+        container_net: number;
+        container_txns: number;
+      };
+      const map = new Map<string, Agg>();
+
+      const keyOf = (cid: number, dateStr: string) => {
+        const m = String(dateStr || '').slice(0, 7) || 'unknown';
+        return `${cid}|${m}`;
+      };
+
+      for (const r of resellerSales.data || []) {
+        const cid = Number(r.container_id) || 0;
+        const k = keyOf(cid, String(r.sale_date || r.created_at || ''));
+        const row = map.get(k) || {
+          container_id: cid,
+          month: k.split('|')[1],
+          reseller_gross: 0,
+          reseller_commission: 0,
+          reseller_txns: 0,
+          container_gross: 0,
+          container_net: 0,
+          container_txns: 0,
+        };
+        row.reseller_gross += Number(r.total_amount || 0);
+        row.reseller_commission += Number(r.commission_amount || 0);
+        row.reseller_txns += 1;
+        map.set(k, row);
+      }
+
+      for (const r of containerSales.data || []) {
+        const cid = Number(r.container_id) || 0;
+        const k = keyOf(cid, String(r.sale_date || r.created_at || ''));
+        const row = map.get(k) || {
+          container_id: cid,
+          month: k.split('|')[1],
+          reseller_gross: 0,
+          reseller_commission: 0,
+          reseller_txns: 0,
+          container_gross: 0,
+          container_net: 0,
+          container_txns: 0,
+        };
+        row.container_gross += Number(r.gross_amount || 0);
+        row.container_net += Number(r.net_amount || r.gross_amount || 0);
+        row.container_txns += 1;
+        map.set(k, row);
+      }
+
+      const header = [
+        'month',
+        'container_id',
+        'container_name',
+        'reseller_gross',
+        'reseller_commission',
+        'reseller_txns',
+        'container_gross',
+        'container_net',
+        'container_txns',
+        'combined_gross',
+      ];
+      const rows = [...map.values()]
+        .sort((a, b) =>
+          a.month === b.month
+            ? a.container_id - b.container_id
+            : a.month < b.month
+              ? 1
+              : -1
+        )
+        .map((r) =>
+          [
+            r.month,
+            r.container_id,
+            nameMap[r.container_id] || '',
+            Math.round(r.reseller_gross * 100) / 100,
+            Math.round(r.reseller_commission * 100) / 100,
+            r.reseller_txns,
+            Math.round(r.container_gross * 100) / 100,
+            Math.round(r.container_net * 100) / 100,
+            r.container_txns,
+            Math.round((r.reseller_gross + r.container_gross) * 100) / 100,
+          ]
+            .map(csvCell)
+            .join(',')
+        );
+
+      const note =
+        resellerSales.error || containerSales.error
+          ? `# warnings: ${[resellerSales.error?.message, containerSales.error?.message].filter(Boolean).join('; ')}\n`
+          : '';
+
+      return csvResponse(
+        note + [header.join(','), ...rows].join('\n'),
+        `containers-performance-${months}m-${stamp}.csv`
+      );
+    }
+
     if (type === 'network' || type === 'outlets') {
       const { data, error } = await supabase
         .from('containers')

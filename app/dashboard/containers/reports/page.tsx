@@ -16,7 +16,7 @@ type ReportCard = {
   desc: string;
   href?: string;
   /** CSV export type for /api/containers/reports/export */
-  exportType?: 'inventory' | 'network' | 'contractors';
+  exportType?: 'inventory' | 'network' | 'contractors' | 'performance';
 };
 
 const REPORTS: ReportCard[] = [
@@ -41,6 +41,11 @@ const REPORTS: ReportCard[] = [
     href: '/dashboard/containers/resellers/riad',
   },
   {
+    title: 'Monthly performance',
+    desc: 'CSV by month × outlet — reseller + container sales, commission, txn counts (last 12 months).',
+    exportType: 'performance',
+  },
+  {
     title: 'Inventory & stock',
     desc: 'CSV of stock levels across all outlets — product, qty, reorder, cost.',
     exportType: 'inventory',
@@ -56,12 +61,8 @@ const REPORTS: ReportCard[] = [
     exportType: 'contractors',
   },
   {
-    title: 'Monthly performance',
-    desc: 'Revenue, margin, and sales by container — sales ledger integration next.',
-  },
-  {
     title: 'Contractor payouts',
-    desc: 'Commission calculations and payment history — coming with payouts module.',
+    desc: 'Commission calculations and payment history — use performance CSV commission column for now.',
   },
   {
     title: 'Regional summary',

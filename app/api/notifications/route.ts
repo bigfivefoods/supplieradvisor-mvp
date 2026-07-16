@@ -276,30 +276,27 @@ export async function GET(request: NextRequest) {
         severity: rows.length >= 3 ? 'warning' : 'info',
         title: `${rows.length} partner rating${rows.length === 1 ? '' : 's'} waiting`,
         body: 'Rate suppliers and customers after trade — builds OTIFEF & trust.',
-        href: '/dashboard',
+        href: '/dashboard?ratePrompt=open',
         created_at: rows[0].created_at || new Date().toISOString(),
         source: 'trust',
       });
       for (const p of rows.slice(0, 4)) {
-        const role = String(p.ratee_role || 'supplier');
-        const base =
-          role === 'customer'
-            ? '/dashboard/customers/ratings'
-            : '/dashboard/suppliers/ratings';
         const qs = new URLSearchParams();
+        if (p.id) qs.set('ratePrompt', String(p.id));
         if (p.counterparty_profile_id) {
           qs.set('ratee', String(p.counterparty_profile_id));
         }
-        if (p.id) qs.set('promptId', String(p.id));
-        const q = qs.toString();
+        if (p.counterparty_name) qs.set('name', String(p.counterparty_name));
+        if (p.ratee_role) qs.set('role', String(p.ratee_role));
+        if (p.context_type) qs.set('ctx', String(p.context_type));
         notifications.push({
           id: `rating-prompt-${p.id}`,
           severity: 'info',
           title: `Rate ${p.counterparty_name || 'trading partner'}`,
           body: p.context_type
-            ? `After ${String(p.context_type)} — dashboard Rate now or ratings page`
-            : 'Peer stars after trade',
-          href: q ? `${base}?${q}` : base,
+            ? `After ${String(p.context_type)} — opens rate modal on dashboard`
+            : 'Peer stars after trade — opens rate modal',
+          href: `/dashboard?${qs.toString()}`,
           created_at: p.created_at || new Date().toISOString(),
           source: 'trust',
         });

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode, Suspense } from 'react';
 import Link from 'next/link';
 import {
   Users,
@@ -656,7 +656,9 @@ export default function DashboardCommandCenter() {
       <FxRateStrip currency={baseCcy} className="mb-6" />
 
       <GoldenPathChecklist />
-      <RatingPromptBanner />
+      <Suspense fallback={null}>
+        <RatingPromptBanner />
+      </Suspense>
 
       {error && (
         <AlertBanner tone="red">

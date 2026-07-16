@@ -111,6 +111,14 @@ function BillingInner() {
   const [referral, setReferral] = useState<ReferralState | null>(null);
   const [referralBusy, setReferralBusy] = useState(false);
   const [paidRefInput, setPaidRefInput] = useState('');
+  const [kycBusy, setKycBusy] = useState(false);
+  const [kycForm, setKycForm] = useState({
+    bankName: '',
+    accountName: '',
+    accountNumber: '',
+    branchCode: '',
+    taxNumber: '',
+  });
 
   const load = useCallback(async () => {
     if (!companyId) return;
@@ -128,6 +136,16 @@ function BillingInner() {
       setBillingEmail(data.billingEmail || null);
       setSubscription(data.subscription || null);
       setReferral(data.referral || null);
+      const kyc = data.referral?.payoutKyc;
+      if (kyc) {
+        setKycForm((f) => ({
+          bankName: kyc.bankName || f.bankName || '',
+          accountName: kyc.accountName || f.accountName || '',
+          accountNumber: f.accountNumber || '',
+          branchCode: f.branchCode || '',
+          taxNumber: f.taxNumber || '',
+        }));
+      }
       if (data.trialJustStarted) {
         toast.success(`${COMPANY_TRIAL_DAYS}-day free trial started`);
       }
@@ -156,6 +174,51 @@ function BillingInner() {
       }),
     }).catch(() => undefined);
   }, [companyId, privyUserId]); // once per company session on this page
+
+  const savePayoutKyc = async () => {
+    if (
+      !kycForm.bankName.trim() ||
+      !kycForm.accountName.trim() ||
+      !kycForm.accountNumber.trim() ||
+      !kycForm.branchCode.trim()
+    ) {
+      toast.error('Bank name, account name, number, and branch code required');
+      return;
+    }
+    setKycBusy(true);
+    try {
+      const res = await fetch('/api/business/referrals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          action: 'save_payout_kyc',
+          bankName: kycForm.bankName.trim(),
+          accountName: kycForm.accountName.trim(),
+          accountNumber: kycForm.accountNumber.trim(),
+          branchCode: kycForm.branchCode.trim(),
+          taxNumber: kycForm.taxNumber.trim() || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || data.hint || 'KYC save failed');
+      toast.success('Payout bank details saved');
+      setReferral((r) =>
+        r
+          ? {
+              ...r,
+              payoutKyc: data.payoutKyc || r.payoutKyc,
+            }
+          : r
+      );
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'KYC save failed');
+    } finally {
+      setKycBusy(false);
+    }
+  };
 
   const runReferralAction = async (
     action: 'request_payout' | 'approve' | 'mark_paid' | 'void',
@@ -650,44 +713,105 @@ function BillingInner() {
               </p>
             </div>
 
-            {/* KYC checklist */}
-            <div className="mt-3 rounded-xl border border-violet-100 bg-violet-50/50 px-3 py-2.5">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-violet-800 mb-1.5">
-                Payout KYC
+            {/* KYC form + checklist */}
+            <div className="mt-3 rounded-xl border border-violet-100 bg-violet-50/50 px-3 py-3 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-violet-800">
+                  Payout KYC
+                </div>
+                {referral?.payoutKyc?.complete ? (
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                    Complete
+                    {referral.payoutKyc.verified ? ' · verified' : ''}
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">
+                    Incomplete
+                  </span>
+                )}
               </div>
-              {referral?.payoutKyc?.complete ? (
+              {referral?.payoutKyc?.complete && (
                 <p className="text-[11px] text-emerald-800 font-semibold">
-                  Bank details on file
+                  Bank on file
                   {referral.payoutKyc.bankName
                     ? ` · ${referral.payoutKyc.bankName}`
                     : ''}
-                  {referral.payoutKyc.verified ? ' · verified' : ''}
+                  {referral.payoutKyc.accountName
+                    ? ` · ${referral.payoutKyc.accountName}`
+                    : ''}
                 </p>
-              ) : (
-                <div className="text-[11px] text-violet-950 space-y-1">
-                  <p className="font-semibold">
-                    Missing for payouts:
-                  </p>
-                  <ul className="list-disc list-inside text-violet-900/90">
-                    {(
-                      referral?.payoutKyc?.missing || [
-                        'bank_name',
-                        'account_name',
-                        'account_number',
-                        'branch_code',
-                      ]
-                    ).map((m) => (
-                      <li key={m} className="capitalize">
-                        {String(m).replace(/_/g, ' ')}
-                      </li>
-                    ))}
-                  </ul>
-                  <p className="text-[10px] text-violet-800/80 pt-1">
-                    Save bank details via request payout flow or ask support —
-                    ops verifies before first settlement.
-                  </p>
-                </div>
               )}
+              {!referral?.payoutKyc?.complete &&
+                (referral?.payoutKyc?.missing?.length || 0) > 0 && (
+                  <p className="text-[10px] text-violet-900/80">
+                    Missing:{' '}
+                    {(referral?.payoutKyc?.missing || [])
+                      .map((m) => String(m).replace(/_/g, ' '))
+                      .join(', ')}
+                  </p>
+                )}
+              <div className="grid gap-2">
+                <input
+                  className="rounded-lg border border-violet-100 bg-white px-2.5 py-1.5 text-xs"
+                  placeholder="Bank name *"
+                  value={kycForm.bankName}
+                  onChange={(e) =>
+                    setKycForm((f) => ({ ...f, bankName: e.target.value }))
+                  }
+                />
+                <input
+                  className="rounded-lg border border-violet-100 bg-white px-2.5 py-1.5 text-xs"
+                  placeholder="Account name *"
+                  value={kycForm.accountName}
+                  onChange={(e) =>
+                    setKycForm((f) => ({ ...f, accountName: e.target.value }))
+                  }
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    className="rounded-lg border border-violet-100 bg-white px-2.5 py-1.5 text-xs font-mono"
+                    placeholder="Account number *"
+                    value={kycForm.accountNumber}
+                    onChange={(e) =>
+                      setKycForm((f) => ({
+                        ...f,
+                        accountNumber: e.target.value,
+                      }))
+                    }
+                  />
+                  <input
+                    className="rounded-lg border border-violet-100 bg-white px-2.5 py-1.5 text-xs font-mono"
+                    placeholder="Branch code *"
+                    value={kycForm.branchCode}
+                    onChange={(e) =>
+                      setKycForm((f) => ({ ...f, branchCode: e.target.value }))
+                    }
+                  />
+                </div>
+                <input
+                  className="rounded-lg border border-violet-100 bg-white px-2.5 py-1.5 text-xs"
+                  placeholder="Tax number (optional)"
+                  value={kycForm.taxNumber}
+                  onChange={(e) =>
+                    setKycForm((f) => ({ ...f, taxNumber: e.target.value }))
+                  }
+                />
+                <button
+                  type="button"
+                  disabled={kycBusy}
+                  onClick={() => void savePayoutKyc()}
+                  className="rounded-xl bg-violet-800 px-3 py-2 text-xs font-bold text-white disabled:opacity-40"
+                >
+                  {kycBusy ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin inline mr-1" />
+                  ) : null}
+                  Save bank details
+                </button>
+                <p className="text-[10px] text-violet-800/70 leading-relaxed">
+                  Platform ops verifies details before first settlement. Never
+                  shared with other companies.
+                </p>
+              </div>
             </div>
 
             <div className="mt-3 flex flex-col gap-2">

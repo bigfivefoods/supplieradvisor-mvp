@@ -71,6 +71,8 @@ Trigger once each (email + WhatsApp if configured):
 6. Fail a bank sync (or wait for real error)
 7. QA ship-hold demo — see `docs/qa-ship-hold-demo.md` (expect 409 `QA_HOLD`)
 8. Founding waitlist ops — `/dashboard/my-business/founding-waitlist` (platform ops)
+9. Referral clawback drill — `docs/referral-clawback-drill.md`
+10. Container embed views — open public share URL; confirm view_count on Share settings
 
 ```sql
 -- Waitlist peek when table exists

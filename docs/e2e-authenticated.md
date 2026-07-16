@@ -69,6 +69,17 @@ export E2E_ACCESS_TOKEN=... E2E_COMPANY_ID=... \
 npm run test:e2e:trust
 ```
 
+### CI secrets (recommended)
+
+| Secret | Purpose |
+|--------|---------|
+| `E2E_ACCESS_TOKEN` | Short-lived Privy JWT from a test user |
+| `E2E_COMPANY_ID` | Stable test company |
+| `E2E_SUPPLIER_PROFILE_ID` | Peer company for PO rating chain |
+| `E2E_TRANSFER_ID` | Optional; recreate each night if transfers complete |
+
+Store as GitHub Actions secrets; rotate tokens weekly. Without supplier/transfer, tests soft-skip rather than fail.
+
 ## Full UI login (storageState)
 
 Privy email OTP is hard to automate. Prefer a one-time browser seed:

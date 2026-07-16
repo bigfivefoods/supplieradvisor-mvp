@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { Star, X } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -56,6 +57,9 @@ export default function RatingPromptBanner() {
   const { user } = usePrivy();
   const companyId = getSelectedCompanyId();
   const privyUserId = getCanonicalUserId(user?.id);
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const [prompts, setPrompts] = useState<Prompt[]>([]);
   const [active, setActive] = useState<Prompt | null>(null);
   const [peers, setPeers] = useState<Peer[]>([]);
@@ -68,15 +72,72 @@ export default function RatingPromptBanner() {
         { cache: 'no-store' }
       );
       const data = await res.json();
-      if (res.ok) setPrompts((data.prompts || []).slice(0, 3));
+      if (res.ok) {
+        const list = (data.prompts || []) as Prompt[];
+        setPrompts(list.slice(0, 3));
+        return list;
+      }
     } catch {
       /* optional */
     }
+    return [] as Prompt[];
   }, [companyId]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Deep link from notification bell: /dashboard?ratePrompt=ID or ?ratee=PROFILE
+  useEffect(() => {
+    const promptId = searchParams.get('ratePrompt');
+    const ratee = searchParams.get('ratee');
+    if (!promptId && !ratee) return;
+
+    let cancelled = false;
+    (async () => {
+      const list = (await load()) || [];
+      if (cancelled) return;
+      let match: Prompt | undefined;
+      if (promptId && promptId !== 'open') {
+        match = list.find((p) => String(p.id) === String(promptId));
+      }
+      if (!match && (promptId === 'open' || !promptId) && list.length) {
+        match = list[0];
+      }
+      if (!match && ratee) {
+        match = list.find(
+          (p) => String(p.counterparty_profile_id) === String(ratee)
+        );
+      }
+      if (!match && ratee) {
+        // Synthetic prompt from query alone
+        match = {
+          id: Number(promptId) || 0,
+          counterparty_profile_id: Number(ratee),
+          counterparty_name: searchParams.get('name') || 'Trading partner',
+          ratee_role: searchParams.get('role') || 'supplier',
+          context_type: searchParams.get('ctx') || 'general',
+        };
+      }
+      if (match) setActive(match);
+
+      // Clean query without full navigation flash
+      if (pathname && (promptId || ratee)) {
+        const next = new URLSearchParams(searchParams.toString());
+        next.delete('ratePrompt');
+        next.delete('ratee');
+        next.delete('name');
+        next.delete('role');
+        next.delete('ctx');
+        const q = next.toString();
+        router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- open once from query
+  }, [companyId]);
 
   // Light peer list for modal (connections) when opening rate
   useEffect(() => {

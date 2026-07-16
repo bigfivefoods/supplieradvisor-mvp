@@ -37,6 +37,8 @@ type Share = {
   brand_url?: string | null;
   publicUrl?: string;
   embedHtml?: string;
+  view_count?: number | null;
+  last_viewed_at?: string | null;
 };
 
 export default function ContainersSettings() {
@@ -262,6 +264,28 @@ function SettingsInner() {
                   (or any site) via iframe. Visitors see map pins, people fed, jobs
                   created, and outlets — no login required.
                 </p>
+                {share && (
+                  <div className="rounded-2xl border border-sky-100 bg-sky-50/80 px-4 py-3 flex flex-wrap gap-4 text-sm">
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-sky-700">
+                        Embed views
+                      </div>
+                      <div className="text-xl font-black text-slate-900 tabular-nums">
+                        {Number(share.view_count || 0).toLocaleString()}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-sky-700">
+                        Last viewed
+                      </div>
+                      <div className="text-sm font-semibold text-slate-800">
+                        {share.last_viewed_at
+                          ? new Date(share.last_viewed_at).toLocaleString()
+                          : '—'}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="grid sm:grid-cols-2 gap-3">
                   <label className="text-xs font-bold text-slate-600 block">
