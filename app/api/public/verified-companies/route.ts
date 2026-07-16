@@ -169,12 +169,29 @@ export async function GET(request: NextRequest) {
       (p) => String(p.trading_name || p.legal_name || '').trim().length > 1
     );
 
-    // Hide companies that opted out OR lack minimum profile completeness
+    // Registered workspaces (active membership) always qualify for directory
+    const registeredIds = new Set<number>();
+    {
+      const { data: memberships } = await supabase
+        .from('business_users')
+        .select('profile_id')
+        .eq('status', 'active')
+        .limit(5000);
+      for (const m of memberships || []) {
+        if (m.profile_id) registeredIds.add(Number(m.profile_id));
+      }
+    }
+
+    // Hide companies that opted out OR lack minimum discoverability signals
     if (!includeHidden) {
       const { isEligibleForDiscovery } = await import(
         '@/lib/business/completeness'
       );
-      rows = rows.filter((p) => isEligibleForDiscovery(p).ok);
+      rows = rows.filter((p) =>
+        isEligibleForDiscovery(p, {
+          isRegistered: registeredIds.has(Number(p.id)),
+        }).ok
+      );
     }
 
     rows.sort((a, b) => {
@@ -318,11 +335,13 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    const seen = new Set<string>();
+    // Dedupe by company id only — never collapse distinct companies that
+    // share a trading name (was hiding most of multi-entity networks).
+    const seenIds = new Set<number>();
     companies = companies.filter((c) => {
-      const key = (c.trading_name || c.legal_name || String(c.id)).toLowerCase();
-      if (seen.has(key)) return false;
-      seen.add(key);
+      const id = Number(c.id);
+      if (!Number.isFinite(id) || seenIds.has(id)) return false;
+      seenIds.add(id);
       return true;
     });
 

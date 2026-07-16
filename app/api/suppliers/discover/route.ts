@@ -184,11 +184,19 @@ export async function GET(request: NextRequest) {
       return true;
     });
 
+    const poolBeforeEligibility = rows.length;
+    let hiddenByEligibility = 0;
     if (!includeHidden) {
       const { isEligibleForDiscovery } = await import(
         '@/lib/business/completeness'
       );
-      rows = rows.filter((r) => isEligibleForDiscovery(r as Record<string, unknown>).ok);
+      rows = rows.filter((r) => {
+        const ok = isEligibleForDiscovery(r as Record<string, unknown>, {
+          isRegistered: registeredIds.has(Number(r.id)),
+        }).ok;
+        if (!ok) hiddenByEligibility += 1;
+        return ok;
+      });
     }
 
     // Facets from full visible pool (before user filters) so deep search stays comprehensive
@@ -444,7 +452,21 @@ export async function GET(request: NextRequest) {
       facets,
       platform_company_count: registeredIds.size,
       pool_size: facetPool.length,
-      warning: selectWarning && !enriched.length ? selectWarning : undefined,
+      eligibility: {
+        poolBefore: poolBeforeEligibility,
+        hidden: hiddenByEligibility,
+        visible: facetPool.length,
+        note:
+          hiddenByEligibility > 0
+            ? `${hiddenByEligibility} companies hidden (opted out or missing name/country/email/industry). Registered workspaces always show.`
+            : undefined,
+      },
+      warning:
+        selectWarning && !enriched.length
+          ? selectWarning
+          : hiddenByEligibility > 0 && facetPool.length <= 2
+            ? `${hiddenByEligibility} other companies are incomplete or opted out of discovery — ask them to add country/email on Profile.`
+            : undefined,
     });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Error' }, { status: 500 });

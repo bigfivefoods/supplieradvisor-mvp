@@ -19,8 +19,12 @@ export type CompletenessResult = {
   map: Record<string, boolean>;
 };
 
-/** Minimum hub completeness % to appear in public / discover directories */
-export const DISCOVERABLE_MIN_COMPLETENESS_PCT = 60;
+/**
+ * Soft floor for directory / discover (was 60% — too strict; multi-company
+ * workspaces rarely fill every hub field, so only 1 company appeared).
+ * Full “strong” profiles still score higher; this is the minimum to show.
+ */
+export const DISCOVERABLE_MIN_COMPLETENESS_PCT = 25;
 
 export function computeProfileCompleteness(
   p: Record<string, unknown> | null | undefined
@@ -112,10 +116,16 @@ export function computeProfileCompleteness(
 
 /**
  * Whether a company should appear in public directory / discover.
- * Requires explicit is_discoverable and a minimum profile completeness.
+ *
+ * Rules (lenient enough for real multi-company networks):
+ *  1. Must have a trading or legal name
+ *  2. Must not explicitly opt out (is_discoverable === false)
+ *  3. Registered workspaces (active business_users) always qualify
+ *  4. Else: completeness ≥ 25% OR has country / email / industry
  */
 export function isEligibleForDiscovery(
-  p: Record<string, unknown> | null | undefined
+  p: Record<string, unknown> | null | undefined,
+  opts?: { isRegistered?: boolean }
 ): { ok: boolean; reason?: string; completeness: CompletenessResult } {
   const completeness = computeProfileCompleteness(p);
   if (!p) {
@@ -128,14 +138,42 @@ export function isEligibleForDiscovery(
       completeness,
     };
   }
-  if (completeness.pct < DISCOVERABLE_MIN_COMPLETENESS_PCT) {
+
+  const name = String(p.trading_name || p.legal_name || '').trim();
+  if (name.length < 2) {
     return {
       ok: false,
-      reason: `Profile ${completeness.pct}% complete — need ${DISCOVERABLE_MIN_COMPLETENESS_PCT}%+ to appear in directory`,
+      reason: 'Missing trading / legal name',
       completeness,
     };
   }
-  return { ok: true, completeness };
+
+  // Active company workspaces always appear (unless opted out)
+  if (opts?.isRegistered === true) {
+    return { ok: true, completeness };
+  }
+
+  const hasCountry = !!String(p.country || '').trim();
+  const hasEmail = !!String(p.email || '').trim();
+  const industry =
+    p.industry ||
+    (Array.isArray(p.industries) ? (p.industries as unknown[])[0] : p.industries);
+  const hasIndustry = !!industry;
+  const hasSignal = hasCountry || hasEmail || hasIndustry;
+
+  if (completeness.pct >= DISCOVERABLE_MIN_COMPLETENESS_PCT) {
+    return { ok: true, completeness };
+  }
+  // Name + any real-world signal is enough to be findable
+  if (hasSignal) {
+    return { ok: true, completeness };
+  }
+
+  return {
+    ok: false,
+    reason: `Profile ${completeness.pct}% complete — add country, email, or industry (or reach ${DISCOVERABLE_MIN_COMPLETENESS_PCT}%+) to appear in search`,
+    completeness,
+  };
 }
 
 /** Detailed % using all profile-page fields (kept for profile page bar). */

@@ -239,6 +239,18 @@ function DiscoverInner() {
       setListOffset(offset + nextOthers.length);
       if (data.warning && !append)
         toast.message('Discover note', { description: data.warning });
+      if (
+        !append &&
+        data.eligibility?.hidden > 0 &&
+        Number(data.total || 0) <= 3
+      ) {
+        toast.message('Some companies are hidden', {
+          description:
+            data.eligibility.note ||
+            `${data.eligibility.hidden} profiles need country, email, or industry to appear.`,
+          duration: 7000,
+        });
+      }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Search failed');
       if (!append) {
