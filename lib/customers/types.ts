@@ -99,8 +99,16 @@ export type OpportunityRecord = {
   probability?: number | null;
   amount?: number | null;
   currency?: string | null;
+  /** When the deal was opened (pipeline entry); falls back to created_at */
+  open_date?: string | null;
   expected_close_date?: string | null;
   actual_close_date?: string | null;
+  /** Days from open to expected close (planned cycle); API-computed */
+  days_to_expected?: number | null;
+  /** Days from open to actual close (realized cycle); API-computed */
+  days_to_close?: number | null;
+  /** Days open so far, or full cycle if closed; API-computed */
+  days_open?: number | null;
   opportunity_type?: string | null;
   product_interest?: string | null;
   location?: string | null;

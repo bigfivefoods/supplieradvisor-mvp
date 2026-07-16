@@ -39,11 +39,23 @@ function nullIfEmptyDate(v: unknown): string | null {
 }
 
 const DATE_FIELDS = new Set([
+  'open_date',
   'expected_close_date',
   'estimated_date',
   'actual_close_date',
   'next_step_date',
 ]);
+
+function toDateOnly(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const s = String(iso);
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  try {
+    return new Date(s).toISOString().slice(0, 10);
+  } catch {
+    return null;
+  }
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -79,16 +91,57 @@ export async function GET(request: NextRequest) {
       const amount = Number(o.amount ?? o.opportunity_size ?? 0);
       const probability =
         o.probability != null ? Number(o.probability) : stageProbability(st);
+      const openDate =
+        toDateOnly(o.open_date) || toDateOnly(o.created_at) || null;
+      const expectedClose =
+        toDateOnly(o.expected_close_date) ||
+        toDateOnly(o.estimated_date) ||
+        null;
+      const actualClose = toDateOnly(o.actual_close_date);
       return {
         ...o,
         stage: st,
         amount,
         probability,
-        expected_close_date: o.expected_close_date || o.estimated_date || null,
+        open_date: openDate,
+        expected_close_date: expectedClose,
+        actual_close_date: actualClose,
         contact_phone: o.contact_phone || o.contact_number || null,
         location: o.location || o.opportunity_location || null,
         description: o.description || o.notes || null,
         weighted_amount: Math.round((amount * probability) / 100),
+        /** Days from open to expected close (planned cycle) */
+        days_to_expected:
+          openDate && expectedClose
+            ? Math.round(
+                (new Date(expectedClose).getTime() -
+                  new Date(openDate).getTime()) /
+                  (24 * 60 * 60 * 1000)
+              )
+            : null,
+        /** Days from open to actual close (realized cycle) */
+        days_to_close:
+          openDate && actualClose
+            ? Math.round(
+                (new Date(actualClose).getTime() -
+                  new Date(openDate).getTime()) /
+                  (24 * 60 * 60 * 1000)
+              )
+            : null,
+        /** Days open so far (if not closed) */
+        days_open:
+          openDate && !actualClose
+            ? Math.round(
+                (Date.now() - new Date(openDate).getTime()) /
+                  (24 * 60 * 60 * 1000)
+              )
+            : openDate && actualClose
+              ? Math.round(
+                  (new Date(actualClose).getTime() -
+                    new Date(openDate).getTime()) /
+                    (24 * 60 * 60 * 1000)
+                )
+              : null,
       };
     });
 
@@ -172,6 +225,9 @@ export async function POST(request: NextRequest) {
       amount,
       opportunity_size: amount,
       currency: body.currency || 'ZAR',
+      open_date:
+        nullIfEmptyDate(body.open_date) ||
+        new Date().toISOString().slice(0, 10),
       expected_close_date: nullIfEmptyDate(
         body.expected_close_date || body.estimated_date
       ),
@@ -253,6 +309,13 @@ export async function PATCH(request: NextRequest) {
       if (!gate.ok) return gate.response;
     }
 
+    const supabase = getSupabaseServer();
+    const { data: before } = await supabase
+      .from('opportunities')
+      .select('stage, status, actual_close_date, open_date')
+      .eq('id', Number(body.id))
+      .maybeSingle();
+
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
     const fields = [
       'name',
@@ -267,6 +330,7 @@ export async function PATCH(request: NextRequest) {
       'probability',
       'amount',
       'currency',
+      'open_date',
       'expected_close_date',
       'actual_close_date',
       'opportunity_type',
@@ -308,10 +372,19 @@ export async function PATCH(request: NextRequest) {
             : body.status || 'open';
       if (body.probability === undefined) updates.probability = stageProbability(stage);
       if (stage === 'closed_won' || stage === 'closed_lost' || stage === 'invoiced') {
-        updates.actual_close_date =
-          nullIfEmptyDate(body.actual_close_date) ||
-          new Date().toISOString().slice(0, 10);
+        // Auto-set closed date only if caller didn't send one and row has none yet
+        if (body.actual_close_date === undefined) {
+          const existingClose =
+            toDateOnly(before?.actual_close_date as string | null) ||
+            toDateOnly(updates.actual_close_date as string | null);
+          if (!existingClose) {
+            updates.actual_close_date = new Date().toISOString().slice(0, 10);
+          }
+        }
       }
+    }
+    if (body.open_date !== undefined) {
+      updates.open_date = nullIfEmptyDate(body.open_date);
     }
     if (body.amount !== undefined) {
       updates.amount = Number(body.amount);
@@ -345,13 +418,6 @@ export async function PATCH(request: NextRequest) {
         updates[key] = nullIfEmptyDate(updates[key]);
       }
     }
-
-    const supabase = getSupabaseServer();
-    const { data: before } = await supabase
-      .from('opportunities')
-      .select('stage, status')
-      .eq('id', Number(body.id))
-      .maybeSingle();
 
     let { data, error } = await supabase
       .from('opportunities')

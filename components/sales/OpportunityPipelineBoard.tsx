@@ -39,8 +39,12 @@ export type OpportunityPipelineBoardProps = {
     salesRepUserId: string | null,
     ownerName: string | null
   ) => void;
+  /** Open date (when deal entered pipeline) */
+  onSetOpenDate?: (id: number, date: string | null) => void;
   /** Expected close / land date */
   onSetCloseDate?: (id: number, date: string | null) => void;
+  /** Actual closed / won-lost date */
+  onSetActualCloseDate?: (id: number, date: string | null) => void;
   teamMembers?: TeamMemberOption[];
   showCommission?: boolean;
   commissionTiers?: CommissionTier[] | null;
@@ -77,7 +81,9 @@ export default function OpportunityPipelineBoard({
   onDelete,
   onCreate,
   onAssignOwner,
+  onSetOpenDate,
   onSetCloseDate,
+  onSetActualCloseDate,
   teamMembers = [],
   showCommission = false,
   commissionTiers,
@@ -283,8 +289,16 @@ export default function OpportunityPipelineBoard({
                           {formatMoney(o.weighted_amount ?? (amt * prob) / 100)}
                         </div>
 
-                        {/* Team owner + expected close (sales portal) */}
-                        {(onAssignOwner || onSetCloseDate || o.owner_name || o.sales_rep_user_id) && (
+                        {/* Team owner + open / expected / closed dates */}
+                        {(onAssignOwner ||
+                          onSetOpenDate ||
+                          onSetCloseDate ||
+                          onSetActualCloseDate ||
+                          o.owner_name ||
+                          o.sales_rep_user_id ||
+                          o.open_date ||
+                          o.expected_close_date ||
+                          o.actual_close_date) && (
                           <div className="mt-2 space-y-1.5">
                             {onAssignOwner && teamMembers.length > 0 ? (
                               <label className="block">
@@ -332,30 +346,115 @@ export default function OpportunityPipelineBoard({
                                 </div>
                               )
                             )}
-                            {onSetCloseDate ? (
-                              <label className="block">
-                                <span className="text-[9px] font-bold uppercase tracking-wide text-slate-400 flex items-center gap-0.5 mb-0.5">
-                                  <Calendar className="w-2.5 h-2.5" /> Expected land
+
+                            <div className="grid grid-cols-1 gap-1">
+                              {onSetOpenDate ? (
+                                <label className="block">
+                                  <span className="text-[9px] font-bold uppercase tracking-wide text-slate-400 mb-0.5 block">
+                                    Opened
+                                  </span>
+                                  <input
+                                    type="date"
+                                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-800"
+                                    value={o.open_date || ''}
+                                    onClick={(e) => e.stopPropagation()}
+                                    onChange={(e) => {
+                                      e.stopPropagation();
+                                      onSetOpenDate(o.id, e.target.value || null);
+                                    }}
+                                  />
+                                </label>
+                              ) : o.open_date ? (
+                                <div className="text-[10px] text-neutral-500">
+                                  Opened {o.open_date}
+                                </div>
+                              ) : null}
+
+                              {onSetCloseDate ? (
+                                <label className="block">
+                                  <span className="text-[9px] font-bold uppercase tracking-wide text-slate-400 flex items-center gap-0.5 mb-0.5">
+                                    <Calendar className="w-2.5 h-2.5" /> Expected land
+                                  </span>
+                                  <input
+                                    type="date"
+                                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-800"
+                                    value={o.expected_close_date || ''}
+                                    onClick={(e) => e.stopPropagation()}
+                                    onChange={(e) => {
+                                      e.stopPropagation();
+                                      onSetCloseDate(
+                                        o.id,
+                                        e.target.value || null
+                                      );
+                                    }}
+                                  />
+                                </label>
+                              ) : (
+                                <div className="text-[10px] text-neutral-500">
+                                  Expected {o.expected_close_date || '—'}
+                                </div>
+                              )}
+
+                              {(onSetActualCloseDate ||
+                                o.actual_close_date ||
+                                isTerminal(o.stage || '')) &&
+                                (onSetActualCloseDate ? (
+                                  <label className="block">
+                                    <span className="text-[9px] font-bold uppercase tracking-wide text-slate-400 mb-0.5 block">
+                                      Closed
+                                    </span>
+                                    <input
+                                      type="date"
+                                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-800"
+                                      value={o.actual_close_date || ''}
+                                      onClick={(e) => e.stopPropagation()}
+                                      onChange={(e) => {
+                                        e.stopPropagation();
+                                        onSetActualCloseDate(
+                                          o.id,
+                                          e.target.value || null
+                                        );
+                                      }}
+                                    />
+                                  </label>
+                                ) : o.actual_close_date ? (
+                                  <div className="text-[10px] text-neutral-500">
+                                    Closed {o.actual_close_date}
+                                  </div>
+                                ) : null)}
+                            </div>
+
+                            {/* Cycle time badges */}
+                            <div className="flex flex-wrap gap-1">
+                              {(o as { days_open?: number | null }).days_open !=
+                                null &&
+                                !o.actual_close_date && (
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-800 border border-sky-100">
+                                    {(o as { days_open?: number }).days_open}d open
+                                  </span>
+                                )}
+                              {(o as { days_to_close?: number | null })
+                                .days_to_close != null && (
+                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-100">
+                                  {
+                                    (o as { days_to_close?: number })
+                                      .days_to_close
+                                  }
+                                  d open→close
                                 </span>
-                                <input
-                                  type="date"
-                                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-[11px] font-semibold text-slate-800"
-                                  value={o.expected_close_date || ''}
-                                  onClick={(e) => e.stopPropagation()}
-                                  onChange={(e) => {
-                                    e.stopPropagation();
-                                    onSetCloseDate(
-                                      o.id,
-                                      e.target.value || null
-                                    );
-                                  }}
-                                />
-                              </label>
-                            ) : (
-                              <div className="text-[10px] text-neutral-500">
-                                Close {o.expected_close_date || '—'}
-                              </div>
-                            )}
+                              )}
+                              {(o as { days_to_expected?: number | null })
+                                .days_to_expected != null &&
+                                !o.actual_close_date && (
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-800 border border-violet-100">
+                                    {
+                                      (o as { days_to_expected?: number })
+                                        .days_to_expected
+                                    }
+                                    d planned
+                                  </span>
+                                )}
+                            </div>
                           </div>
                         )}
 

@@ -85,7 +85,9 @@ export default function SalesPipelinePage() {
     also_create_opportunity: false,
     sales_rep_user_id: '',
     owner_name: '',
+    open_date: '',
     expected_close_date: '',
+    actual_close_date: '',
   });
 
   const load = useCallback(async () => {
@@ -199,13 +201,31 @@ export default function SalesPipelinePage() {
     if (ok) toast.success(ownerName ? `Assigned to ${ownerName}` : 'Unassigned');
   };
 
+  const setOpenDate = async (id: number, date: string | null) => {
+    const ok = await patchOpp(
+      id,
+      { open_date: date },
+      { open_date: date }
+    );
+    if (ok) toast.success(date ? `Open date ${date}` : 'Open date cleared');
+  };
+
   const setCloseDate = async (id: number, date: string | null) => {
     const ok = await patchOpp(
       id,
       { expected_close_date: date },
       { expected_close_date: date }
     );
-    if (ok) toast.success(date ? `Land date ${date}` : 'Land date cleared');
+    if (ok) toast.success(date ? `Expected land ${date}` : 'Expected land cleared');
+  };
+
+  const setActualCloseDate = async (id: number, date: string | null) => {
+    const ok = await patchOpp(
+      id,
+      { actual_close_date: date },
+      { actual_close_date: date }
+    );
+    if (ok) toast.success(date ? `Closed date ${date}` : 'Closed date cleared');
   };
 
   const moveOpp = async (id: number, stage: string) => {
@@ -324,7 +344,9 @@ export default function SalesPipelinePage() {
               teamMembers.find((m) => m.user_id === form.sales_rep_user_id)
                 ?.name ||
               null,
+            open_date: form.open_date || null,
             expected_close_date: form.expected_close_date || null,
+            actual_close_date: form.actual_close_date || null,
           }),
         });
         const data = await res.json();
@@ -395,7 +417,10 @@ export default function SalesPipelinePage() {
                 m.user_id === (form.sales_rep_user_id || privyUserId)
             )?.name ||
             null,
+          open_date:
+            form.open_date || new Date().toISOString().slice(0, 10),
           expected_close_date: form.expected_close_date || null,
+          actual_close_date: form.actual_close_date || null,
         }),
       });
       const data = await res.json();
@@ -567,7 +592,9 @@ export default function SalesPipelinePage() {
       also_create_opportunity: false,
       sales_rep_user_id: privyUserId || '',
       owner_name: '',
+      open_date: new Date().toISOString().slice(0, 10),
       expected_close_date: '',
+      actual_close_date: '',
     });
   };
 
@@ -608,7 +635,9 @@ export default function SalesPipelinePage() {
       sales_rep_user_id:
         (o as { sales_rep_user_id?: string | null }).sales_rep_user_id || '',
       owner_name: o.owner_name || '',
+      open_date: o.open_date || '',
       expected_close_date: o.expected_close_date || '',
+      actual_close_date: o.actual_close_date || '',
     });
     setShowForm(true);
     setTab('map');
@@ -1029,7 +1058,24 @@ export default function SalesPipelinePage() {
                       </select>
                     </label>
                     <label className="block text-xs font-bold text-slate-600">
-                      Expected land / close date
+                      Open date
+                      <input
+                        type="date"
+                        className="mt-1 w-full rounded-2xl bg-white border border-neutral-200 px-4 py-3 text-slate-800 text-sm"
+                        value={form.open_date}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            open_date: e.target.value,
+                          }))
+                        }
+                      />
+                      <span className="mt-0.5 block font-normal text-[10px] text-neutral-400">
+                        When the deal entered the pipeline
+                      </span>
+                    </label>
+                    <label className="block text-xs font-bold text-slate-600">
+                      Expected land date
                       <input
                         type="date"
                         className="mt-1 w-full rounded-2xl bg-white border border-neutral-200 px-4 py-3 text-slate-800 text-sm"
@@ -1041,6 +1087,27 @@ export default function SalesPipelinePage() {
                           }))
                         }
                       />
+                      <span className="mt-0.5 block font-normal text-[10px] text-neutral-400">
+                        Target date to win / close the deal
+                      </span>
+                    </label>
+                    <label className="block text-xs font-bold text-slate-600 sm:col-span-2">
+                      Closed date
+                      <input
+                        type="date"
+                        className="mt-1 w-full rounded-2xl bg-white border border-neutral-200 px-4 py-3 text-slate-800 text-sm"
+                        value={form.actual_close_date}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            actual_close_date: e.target.value,
+                          }))
+                        }
+                      />
+                      <span className="mt-0.5 block font-normal text-[10px] text-neutral-400">
+                        Actual win/loss date — also set automatically when you
+                        move a card to Closed won / lost / Invoiced
+                      </span>
                     </label>
                     {Number(form.amount) > 0 && (
                       <div className="sm:col-span-2">
@@ -1182,7 +1249,9 @@ export default function SalesPipelinePage() {
           onDelete={deleteOpp}
           onEdit={openEditOpp}
           onAssignOwner={assignOwner}
+          onSetOpenDate={setOpenDate}
           onSetCloseDate={setCloseDate}
+          onSetActualCloseDate={setActualCloseDate}
           onCreate={() => {
             openForm('opportunity');
           }}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { Trophy, Users, Wallet, Calendar } from 'lucide-react';
+import { Trophy, Users, Wallet, Calendar, Timer } from 'lucide-react';
 import {
   formatMoney,
   type OpportunityRecord,
@@ -32,6 +32,12 @@ type Row = {
   commissionIfWon: number;
   weightedCommission: number;
   nextClose: string | null;
+  /** Sum of days_open for currently open deals (for averaging) */
+  openDaysSum: number;
+  openDaysCount: number;
+  /** Sum of days_to_close for closed (won/lost) deals */
+  closeDaysSum: number;
+  closeDaysCount: number;
 };
 
 function dealAmount(o: OpportunityRecord): number {
@@ -52,8 +58,44 @@ function isWon(stage?: string | null) {
   return s === 'closed_won' || s === 'invoiced';
 }
 
+function isClosed(stage?: string | null) {
+  const s = String(stage || '');
+  return s === 'closed_won' || s === 'closed_lost' || s === 'invoiced';
+}
+
+function cycleDays(o: OpportunityRecord): number | null {
+  if (o.days_to_close != null && Number.isFinite(Number(o.days_to_close))) {
+    return Number(o.days_to_close);
+  }
+  if (o.open_date && o.actual_close_date) {
+    return Math.round(
+      (new Date(o.actual_close_date).getTime() -
+        new Date(o.open_date).getTime()) /
+        (24 * 60 * 60 * 1000)
+    );
+  }
+  return null;
+}
+
+function openDays(o: OpportunityRecord): number | null {
+  if (o.days_open != null && Number.isFinite(Number(o.days_open))) {
+    return Number(o.days_open);
+  }
+  if (o.open_date && !o.actual_close_date) {
+    return Math.round(
+      (Date.now() - new Date(o.open_date).getTime()) / (24 * 60 * 60 * 1000)
+    );
+  }
+  return null;
+}
+
+function avgLabel(sum: number, count: number): string {
+  if (!count) return '—';
+  return `${Math.round(sum / count)}d`;
+}
+
 /**
- * Rank team members by deals, pipeline size, and available commission.
+ * Rank team members by deals, pipeline size, commission, and cycle times.
  */
 export default function TeamDealsReport({
   opportunities,
@@ -97,6 +139,10 @@ export default function TeamDealsReport({
           commissionIfWon: 0,
           weightedCommission: 0,
           nextClose: null,
+          openDaysSum: 0,
+          openDaysCount: 0,
+          closeDaysSum: 0,
+          closeDaysCount: 0,
         });
       }
       return map.get(key)!;
@@ -129,10 +175,23 @@ export default function TeamDealsReport({
         if (close) {
           if (!row.nextClose || close < row.nextClose) row.nextClose = close;
         }
+        const od = openDays(o);
+        if (od != null && od >= 0) {
+          row.openDaysSum += od;
+          row.openDaysCount += 1;
+        }
       } else if (isWon(o.stage)) {
         row.wonCount += 1;
         row.commissionIfWon += comm;
         row.weightedCommission += comm;
+      }
+
+      if (isClosed(o.stage)) {
+        const cd = cycleDays(o);
+        if (cd != null && cd >= 0) {
+          row.closeDaysSum += cd;
+          row.closeDaysCount += 1;
+        }
       }
     }
 
@@ -156,9 +215,23 @@ export default function TeamDealsReport({
         acc.amount += r.openAmount;
         acc.comm += r.commissionIfWon;
         acc.wComm += r.weightedCommission;
+        acc.openDaysSum += r.openDaysSum;
+        acc.openDaysCount += r.openDaysCount;
+        acc.closeDaysSum += r.closeDaysSum;
+        acc.closeDaysCount += r.closeDaysCount;
         return acc;
       },
-      { deals: 0, open: 0, amount: 0, comm: 0, wComm: 0 }
+      {
+        deals: 0,
+        open: 0,
+        amount: 0,
+        comm: 0,
+        wComm: 0,
+        openDaysSum: 0,
+        openDaysCount: 0,
+        closeDaysSum: 0,
+        closeDaysCount: 0,
+      }
     );
   }, [rows]);
 
@@ -210,6 +283,22 @@ export default function TeamDealsReport({
             {formatZarPrecise(totals.wComm)}
           </div>
         </div>
+        <div className="rounded-2xl border border-sky-200 bg-sky-50/50 px-4 py-2.5">
+          <div className="text-[10px] font-bold uppercase text-sky-800/80 flex items-center gap-1">
+            <Timer className="w-3 h-3" /> Avg days open
+          </div>
+          <div className="text-lg font-black text-sky-950">
+            {avgLabel(totals.openDaysSum, totals.openDaysCount)}
+          </div>
+        </div>
+        <div className="rounded-2xl border border-violet-200 bg-violet-50/50 px-4 py-2.5">
+          <div className="text-[10px] font-bold uppercase text-violet-800/80 flex items-center gap-1">
+            <Timer className="w-3 h-3" /> Avg cycle (closed)
+          </div>
+          <div className="text-lg font-black text-violet-950">
+            {avgLabel(totals.closeDaysSum, totals.closeDaysCount)}
+          </div>
+        </div>
       </div>
 
       <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white shadow-sm">
@@ -225,7 +314,9 @@ export default function TeamDealsReport({
               <th className="px-4 py-3">Weighted</th>
               <th className="px-4 py-3">Comm. if won</th>
               <th className="px-4 py-3">Weighted comm.</th>
-              <th className="px-4 py-3">Next close</th>
+              <th className="px-4 py-3">Avg open</th>
+              <th className="px-4 py-3">Avg cycle</th>
+              <th className="px-4 py-3">Next land</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -263,6 +354,12 @@ export default function TeamDealsReport({
                 <td className="px-4 py-3 font-semibold text-amber-800 tabular-nums">
                   {formatZarPrecise(r.weightedCommission)}
                 </td>
+                <td className="px-4 py-3 tabular-nums text-sky-800 font-semibold">
+                  {avgLabel(r.openDaysSum, r.openDaysCount)}
+                </td>
+                <td className="px-4 py-3 tabular-nums text-violet-800 font-semibold">
+                  {avgLabel(r.closeDaysSum, r.closeDaysCount)}
+                </td>
                 <td className="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">
                   {r.nextClose ? (
                     <span className="inline-flex items-center gap-1">
@@ -279,9 +376,11 @@ export default function TeamDealsReport({
         </table>
       </div>
       <p className="text-[11px] text-neutral-500">
-        Commission uses the company sales program tiers (typically 4% · 5% ·
-        6%). Assign a team member on each opportunity card so deals roll up
-        correctly.
+        <strong>Avg open</strong> = mean days since open date for open deals.{' '}
+        <strong>Avg cycle</strong> = mean open→closed days for won/lost/invoiced
+        deals. Set open / expected land / closed dates on each card (or in the
+        deal form) to track how long it takes to land a deal. Commission uses
+        the company sales program tiers (typically 4% · 5% · 6%).
       </p>
     </div>
   );
