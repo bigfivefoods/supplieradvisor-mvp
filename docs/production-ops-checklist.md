@@ -113,9 +113,33 @@ Expect health `ok: true`; soft flags for missing Resend/XAI/cron if unset.
 - [ ] One real Resend email received (invite or trial test)  
 - [ ] One Paystack test payment or webhook log (staging OK)  
 
+## 7. Company soft-delete
+
+Owner-only. UI: **Company → Settings → Danger zone**.
+
+Migration: `supabase/migrations/20260716_company_soft_delete.sql`  
+(`profiles.deleted_at`, `deleted_by`, `deletion_reason`).
+
+Confirm:
+
+```sql
+SELECT column_name FROM information_schema.columns
+  WHERE table_name = 'profiles'
+    AND column_name IN ('deleted_at', 'deleted_by', 'deletion_reason');
+```
+
+Process:
+
+1. Owner types exact trading name + `DELETE`
+2. API soft-deletes profile, hides from network, deactivates `business_users`
+3. Client clears `selectedCompanyId` → `/dashboard/select-company`
+
+Deleted companies no longer appear in `/api/me/companies` and return **410** on membership.
+
 ## Related
 
 - `docs/referral-trust-runbook.md`
 - `docs/qa-ship-hold-demo.md`
 - `docs/e2e-authenticated.md`
 - `docs/referral-clawback-drill.md`
+- `docs/trade-loop-dry-run.md`

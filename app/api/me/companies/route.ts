@@ -90,10 +90,24 @@ export async function POST(request: NextRequest) {
 
     const profileIds = [...new Set(memberships.map((m) => m.profile_id).filter(Boolean))];
 
-    const { data: profiles, error: profilesError } = await supabase
+    let profilesQuery = supabase
       .from('profiles')
-      .select('id, trading_name, legal_name, supplier_status, verification_status')
+      .select(
+        'id, trading_name, legal_name, supplier_status, verification_status, deleted_at'
+      )
       .in('id', profileIds);
+
+    let { data: profiles, error: profilesError } = await profilesQuery;
+
+    // Soft-deleted filter; retry without deleted_at if column missing
+    if (profilesError && /deleted_at|column|schema cache/i.test(profilesError.message)) {
+      const retry = await supabase
+        .from('profiles')
+        .select('id, trading_name, legal_name, supplier_status, verification_status')
+        .in('id', profileIds);
+      profiles = retry.data as typeof profiles;
+      profilesError = retry.error;
+    }
 
     if (profilesError) {
       console.error('me/companies profiles error:', profilesError);
@@ -103,17 +117,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const companies = (profiles || []).map((profile) => {
-      const bu = memberships.find((b) => String(b.profile_id) === String(profile.id));
-      return {
-        id: String(profile.id),
-        trading_name: profile.trading_name,
-        legal_name: profile.legal_name,
-        supplier_status: profile.supplier_status,
-        verification_status: profile.verification_status,
-        role: bu?.role || 'member',
-      };
-    });
+    const companies = (profiles || [])
+      .filter((profile) => {
+        const del = (profile as { deleted_at?: string | null }).deleted_at;
+        return !del;
+      })
+      .map((profile) => {
+        const bu = memberships.find(
+          (b) => String(b.profile_id) === String(profile.id)
+        );
+        return {
+          id: String(profile.id),
+          trading_name: profile.trading_name,
+          legal_name: profile.legal_name,
+          supplier_status: profile.supplier_status,
+          verification_status: profile.verification_status,
+          role: bu?.role || 'member',
+        };
+      });
 
     return NextResponse.json({
       success: true,

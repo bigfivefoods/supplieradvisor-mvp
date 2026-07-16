@@ -60,6 +60,20 @@ export async function getCompanyMembership(
     return { ok: false, error: 'You are not an active member of this company', status: 403 };
   }
 
+  // Soft-deleted companies cannot be used
+  const { data: prof } = await supabase
+    .from('profiles')
+    .select('deleted_at')
+    .eq('id', companyId)
+    .maybeSingle();
+  if (prof?.deleted_at) {
+    return {
+      ok: false,
+      error: 'This company has been deleted',
+      status: 410,
+    };
+  }
+
   const row = data[0];
   return {
     ok: true,

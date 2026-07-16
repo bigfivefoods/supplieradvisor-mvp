@@ -68,6 +68,18 @@ test.describe('Trade loop public + gates', () => {
     );
     expect([401, 403, 503]).toContain(res.status());
   });
+
+  test('company delete without auth → 401', async ({ request }) => {
+    const res = await request.post(`${base}/api/business/company`, {
+      data: {
+        action: 'delete',
+        companyId: 1,
+        confirmName: 'X',
+        confirmPhrase: 'DELETE',
+      },
+    });
+    expect(res.status()).toBe(401);
+  });
 });
 
 test.describe('Trade loop authenticated (optional token)', () => {

@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Loader2, Save } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Loader2, Save, AlertTriangle, Trash2 } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -31,28 +32,82 @@ function SettingsInner() {
   const companyId = getSelectedCompanyId()!;
   const { user } = usePrivy();
   const privyUserId = getCanonicalUserId(user?.id);
+  const router = useRouter();
 
   const [tradingName, setTradingName] = useState('');
   const [settings, setSettings] = useState<CompanySettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [canDelete, setCanDelete] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [confirmName, setConfirmName] = useState('');
+  const [confirmPhrase, setConfirmPhrase] = useState('');
+  const [deleteReason, setDeleteReason] = useState('');
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({ companyId: String(companyId) });
       if (privyUserId) params.set('privyUserId', privyUserId);
-      const res = await fetch(`/api/business/settings?${params}`);
+      const [res, delRes] = await Promise.all([
+        fetch(`/api/business/settings?${params}`),
+        fetch(`/api/business/company?companyId=${companyId}`),
+      ]);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to load');
       setTradingName(data.trading_name || '');
       setSettings({ ...DEFAULT_SETTINGS, ...(data.settings || {}) });
+      if (delRes.ok) {
+        const d = await delRes.json();
+        setCanDelete(Boolean(d.canDelete));
+      } else {
+        setCanDelete(false);
+      }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Load failed');
     } finally {
       setLoading(false);
     }
   }, [companyId, privyUserId]);
+
+  const deleteCompany = async () => {
+    setDeleting(true);
+    try {
+      const res = await fetch('/api/business/company', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'delete',
+          companyId,
+          privyUserId,
+          confirmName,
+          confirmPhrase,
+          reason: deleteReason || null,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(
+          (data as { error?: string }).error || 'Delete failed'
+        );
+      }
+      try {
+        localStorage.removeItem('selectedCompanyId');
+        localStorage.removeItem('selectedCompanyName');
+      } catch {
+        /* ignore */
+      }
+      toast.success('Company deleted', {
+        description: 'Switch to another company or register a new one.',
+      });
+      router.push('/dashboard/select-company');
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Delete failed');
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   useEffect(() => {
     void load();
@@ -280,6 +335,105 @@ function SettingsInner() {
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save to Supabase'}
         </button>
       </div>
+
+      {canDelete && (
+        <div className="mt-10 max-w-5xl rounded-3xl border border-rose-200 bg-rose-50/50 overflow-hidden">
+          <div className="px-5 py-4 border-b border-rose-100 flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5 text-rose-600" />
+            <div>
+              <h2 className="font-bold text-rose-950">Danger zone</h2>
+              <p className="text-xs text-rose-900/80">
+                Soft-delete this company. Only owners can do this. History is
+                retained for audit; the company is removed from your list and
+                the public network.
+              </p>
+            </div>
+          </div>
+          <div className="p-5">
+            {!deleteOpen ? (
+              <button
+                type="button"
+                onClick={() => setDeleteOpen(true)}
+                className="inline-flex items-center gap-2 rounded-full border border-rose-300 bg-white px-4 py-2.5 text-sm font-bold text-rose-700 hover:bg-rose-50"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete company…
+              </button>
+            ) : (
+              <div className="space-y-3 max-w-lg">
+                <p className="text-sm text-rose-950">
+                  To confirm, type the company name{' '}
+                  <strong>{tradingName || '…'}</strong> and the word{' '}
+                  <strong>DELETE</strong>.
+                </p>
+                <div>
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-rose-800/70">
+                    Company name
+                  </label>
+                  <input
+                    className="input mt-1 w-full !p-3 !text-sm bg-white"
+                    value={confirmName}
+                    onChange={(e) => setConfirmName(e.target.value)}
+                    placeholder={tradingName}
+                    autoComplete="off"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-rose-800/70">
+                    Type DELETE
+                  </label>
+                  <input
+                    className="input mt-1 w-full !p-3 !text-sm bg-white font-mono"
+                    value={confirmPhrase}
+                    onChange={(e) => setConfirmPhrase(e.target.value)}
+                    placeholder="DELETE"
+                    autoComplete="off"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-rose-800/70">
+                    Reason (optional)
+                  </label>
+                  <input
+                    className="input mt-1 w-full !p-3 !text-sm bg-white"
+                    value={deleteReason}
+                    onChange={(e) => setDeleteReason(e.target.value)}
+                    placeholder="e.g. Test company, closed business"
+                  />
+                </div>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <button
+                    type="button"
+                    disabled={deleting}
+                    onClick={() => void deleteCompany()}
+                    className="inline-flex items-center gap-2 rounded-full bg-rose-700 px-5 py-2.5 text-sm font-bold text-white hover:bg-rose-800 disabled:opacity-50"
+                  >
+                    {deleting ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
+                    Permanently remove access
+                  </button>
+                  <button
+                    type="button"
+                    disabled={deleting}
+                    onClick={() => {
+                      setDeleteOpen(false);
+                      setConfirmName('');
+                      setConfirmPhrase('');
+                      setDeleteReason('');
+                    }}
+                    className="rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </BusinessPage>
   );
 }

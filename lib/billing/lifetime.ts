@@ -104,13 +104,33 @@ export async function getFoundingSlotPulse(): Promise<{
   const { getSupabaseServer } = await import('@/lib/supabase/server-client');
   const supabase = getSupabaseServer();
   const limit = FOUNDING_FREE_COMPANY_LIMIT;
-  const { data: earliest, error } = await supabase
-    .from('profiles')
-    .select('id')
-    .not('trading_name', 'is', null)
-    .order('created_at', { ascending: true, nullsFirst: false })
-    .order('id', { ascending: true })
-    .limit(limit);
+  // Prefer non-deleted companies when column exists
+  let earliest: { id: number }[] | null = null;
+  let error: { message: string } | null = null;
+  {
+    const q = await supabase
+      .from('profiles')
+      .select('id')
+      .not('trading_name', 'is', null)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: true, nullsFirst: false })
+      .order('id', { ascending: true })
+      .limit(limit);
+    if (q.error && /deleted_at|column|schema cache/i.test(q.error.message)) {
+      const retry = await supabase
+        .from('profiles')
+        .select('id')
+        .not('trading_name', 'is', null)
+        .order('created_at', { ascending: true, nullsFirst: false })
+        .order('id', { ascending: true })
+        .limit(limit);
+      earliest = retry.data;
+      error = retry.error;
+    } else {
+      earliest = q.data;
+      error = q.error;
+    }
+  }
 
   if (error) {
     // Fallback: total profile count vs limit (legacy ops display)

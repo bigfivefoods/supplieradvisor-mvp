@@ -43,6 +43,20 @@ export async function assertCompanyMember(
     return { ok: false, error: 'You are not an active member of this company', status: 403 };
   }
 
+  // Soft-deleted companies are inaccessible
+  const { data: prof } = await supabase
+    .from('profiles')
+    .select('deleted_at')
+    .eq('id', companyId)
+    .maybeSingle();
+  if (prof?.deleted_at) {
+    return {
+      ok: false,
+      error: 'This company has been deleted',
+      status: 410,
+    };
+  }
+
   return { ok: true, userId };
 }
 
