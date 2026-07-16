@@ -458,6 +458,24 @@ export async function PATCH(request: NextRequest) {
         activity_type: 'stage_change',
         subject: `Stage ${prevStage} → ${nextStage}`,
       });
+      // Web push to deal owner (sales contractor) or company
+      void (async () => {
+        try {
+          const { notifyDealStagePush } = await import('@/lib/push/web-push');
+          await notifyDealStagePush({
+            profileId: Number(data.profile_id),
+            salesRepUserId: data.sales_rep_user_id
+              ? String(data.sales_rep_user_id)
+              : null,
+            dealName: String(data.name || data.company_name || `Deal #${data.id}`),
+            fromStage: prevStage,
+            toStage: nextStage,
+            opportunityId: Number(data.id),
+          });
+        } catch (e) {
+          console.warn('deal stage push soft-fail', e);
+        }
+      })();
     }
 
     return NextResponse.json({ success: true, opportunity: data });

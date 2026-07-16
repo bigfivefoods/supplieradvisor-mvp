@@ -19,6 +19,7 @@ import {
   BusinessPage,
 } from '@/components/business/BusinessShell';
 import { Panel } from '@/components/relationship/RelationshipChrome';
+import EnablePushButton from '@/components/pwa/EnablePushButton';
 
 export default function BusinessSettingsPage() {
   return (
@@ -278,6 +279,9 @@ function SettingsInner() {
         </Panel>
 
         <Panel title="Notifications" className="lg:col-span-2">
+          <div className="p-5 border-b border-slate-100">
+            <EnablePushButton />
+          </div>
           <div className="p-5 grid sm:grid-cols-2 gap-1">
             <Toggle
               label="Email notifications"

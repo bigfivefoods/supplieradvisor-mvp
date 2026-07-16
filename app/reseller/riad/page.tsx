@@ -25,6 +25,12 @@ import {
   type ResellerRiadRecord,
   type RiadType,
 } from '@/lib/containers/reseller-riad';
+import {
+  clearOfflineDraft,
+  isBrowserOnline,
+  loadOfflineDraft,
+  saveOfflineDraft,
+} from '@/lib/pwa/offline-draft';
 
 type ProductOption = {
   key: string;
@@ -66,6 +72,10 @@ export default function ResellerRiadPage() {
   const [form, setForm] = useState(emptyForm);
   const [detail, setDetail] = useState<ResellerRiadRecord | null>(null);
   const [resolution, setResolution] = useState('');
+  const [offlinePending, setOfflinePending] = useState(false);
+  const [online, setOnline] = useState(true);
+
+  const draftKey = 'reseller_riad_form';
 
   const authBody = useCallback(() => {
     if (!user) return null;
@@ -74,6 +84,27 @@ export default function ResellerRiadPage() {
       email: extractEmailFromPrivyUser(user),
     };
   }, [user]);
+
+  useEffect(() => {
+    setOnline(isBrowserOnline());
+    const on = () => setOnline(true);
+    const off = () => setOnline(false);
+    window.addEventListener('online', on);
+    window.addEventListener('offline', off);
+    const draft = loadOfflineDraft<typeof emptyForm>(draftKey);
+    if (draft?.value) {
+      setForm({ ...emptyForm, ...draft.value });
+      setOfflinePending(true);
+      setShowModal(true);
+      toast.message('Restored offline RIAD draft', {
+        description: 'Review and submit when you are back online.',
+      });
+    }
+    return () => {
+      window.removeEventListener('online', on);
+      window.removeEventListener('offline', off);
+    };
+  }, []);
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -154,6 +185,15 @@ export default function ResellerRiadPage() {
       toast.error('Title is required');
       return;
     }
+    // Offline: persist draft locally until network returns
+    if (!isBrowserOnline()) {
+      saveOfflineDraft(draftKey, form);
+      setOfflinePending(true);
+      toast.message('Saved offline', {
+        description: 'RIAD draft stored on this device. Submit when online.',
+      });
+      return;
+    }
     const prod = products.find((p) => p.key === form.product_key);
     setSaving(true);
     try {
@@ -183,10 +223,22 @@ export default function ResellerRiadPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to save');
       toast.success(data.message || 'RIAD logged');
+      clearOfflineDraft(draftKey);
+      setOfflinePending(false);
       setShowModal(false);
       setForm(emptyForm);
       void load();
     } catch (e: unknown) {
+      // Network blip: keep a local draft so field users don't lose the report
+      if (!isBrowserOnline() || (e instanceof TypeError)) {
+        saveOfflineDraft(draftKey, form);
+        setOfflinePending(true);
+        toast.message('Saved offline draft', {
+          description: 'Could not reach the server. Try Submit again when online.',
+        });
+        setSaving(false);
+        return;
+      }
       toast.error(e instanceof Error ? e.message : 'Failed');
     } finally {
       setSaving(false);
@@ -266,6 +318,26 @@ export default function ResellerRiadPage() {
           <Plus className="w-4 h-4" /> Log
         </button>
       </div>
+
+      {(!online || offlinePending) && (
+        <div
+          className={`rounded-2xl border px-4 py-3 text-sm ${
+            online
+              ? 'border-amber-200 bg-amber-50 text-amber-950'
+              : 'border-slate-300 bg-slate-100 text-slate-800'
+          }`}
+        >
+          {!online ? (
+            <strong>Offline</strong>
+          ) : (
+            <strong>Offline draft ready</strong>
+          )}
+          {' — '}
+          {!online
+            ? 'You can still fill a RIAD form; it will be saved on this device until you reconnect.'
+            : 'You have a local RIAD draft. Open Log and Submit to sync it to the network.'}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <Kpi label="Total" value={String(summary.total)} />

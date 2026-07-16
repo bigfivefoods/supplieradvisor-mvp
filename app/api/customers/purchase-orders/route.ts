@@ -295,7 +295,7 @@ export async function PATCH(request: NextRequest) {
       },
     });
 
-    // Soft email buyer when supplier accepts
+    // Soft email + web push buyer when supplier accepts
     if (nextStatus === 'accepted' && po.buyer_profile_id) {
       void (async () => {
         try {
@@ -304,12 +304,19 @@ export async function PATCH(request: NextRequest) {
             .select('trading_name')
             .eq('id', companyId)
             .maybeSingle();
+          const supplierName = supplierProf?.trading_name || null;
           const { notifyPoAccepted } = await import(
             '@/lib/notifications/email-alerts'
           );
           await notifyPoAccepted({
             buyerProfileId: Number(po.buyer_profile_id),
-            supplierName: supplierProf?.trading_name || null,
+            supplierName,
+            poId: id,
+          });
+          const { notifyPoAcceptedPush } = await import('@/lib/push/web-push');
+          await notifyPoAcceptedPush({
+            buyerProfileId: Number(po.buyer_profile_id),
+            supplierName,
             poId: id,
           });
         } catch (e) {

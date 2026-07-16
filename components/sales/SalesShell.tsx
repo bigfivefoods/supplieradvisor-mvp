@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { extractEmailFromPrivyUser, getCanonicalUserId } from '@/lib/auth/identity';
 import { getSelectedCompanyId } from '@/lib/containers/company';
+import EnablePushButton from '@/components/pwa/EnablePushButton';
 
 const NAV: {
   href: string;
@@ -159,6 +160,7 @@ export default function SalesShell({ children }: { children: React.ReactNode }) 
             </div>
           </Link>
           <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+            <EnablePushButton compact />
             <Link
               href="/dashboard/select-company"
               className="px-3 py-2 rounded-2xl text-xs sm:text-sm font-medium text-neutral-600 hover:bg-neutral-100 inline-flex items-center gap-1.5"
