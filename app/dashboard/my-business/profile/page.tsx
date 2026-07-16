@@ -1292,10 +1292,29 @@ function ProfileInner() {
               {
                 ...form,
                 id: companyId,
+                is_discoverable:
+                  form.is_discoverable === false ? false : true,
               } as Record<string, unknown>
             }
             completeness={completeness}
             isRegistered
+            toggling={saving}
+            onToggleDiscoverable={async (next) => {
+              setForm((prev) => ({ ...prev, is_discoverable: next }));
+              try {
+                await persistPartial({ is_discoverable: next });
+                toast.success(
+                  next
+                    ? 'Discoverable on — you can appear in search'
+                    : 'Hidden from Discover & directory'
+                );
+              } catch (e: unknown) {
+                setForm((prev) => ({ ...prev, is_discoverable: !next }));
+                toast.error(
+                  e instanceof Error ? e.message : 'Could not update visibility'
+                );
+              }
+            }}
           />
         </div>
       </div>

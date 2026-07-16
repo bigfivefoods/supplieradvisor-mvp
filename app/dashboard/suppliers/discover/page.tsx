@@ -130,6 +130,12 @@ function DiscoverInner() {
   const [connectedTotal, setConnectedTotal] = useState(0);
   const [poolSize, setPoolSize] = useState(0);
   const [facets, setFacets] = useState<Facets | null>(null);
+  const [eligibility, setEligibility] = useState<{
+    poolBefore?: number;
+    hidden?: number;
+    visible?: number;
+    note?: string;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState<number | null>(null);
   /** Geo provinces for selected country (full cascade, not only network) */
@@ -235,22 +241,21 @@ function DiscoverInner() {
       setConnectedTotal(Number(data.connectedTotal || 0));
       setPoolSize(Number(data.pool_size || data.platform_company_count || 0));
       setFacets(data.facets || null);
+      if (!append && data.eligibility) {
+        setEligibility({
+          poolBefore: Number(data.eligibility.poolBefore || 0),
+          hidden: Number(data.eligibility.hidden || 0),
+          visible: Number(data.eligibility.visible || 0),
+          note:
+            typeof data.eligibility.note === 'string'
+              ? data.eligibility.note
+              : undefined,
+        });
+      }
       setHasMore(Boolean(data.hasMore));
       setListOffset(offset + nextOthers.length);
       if (data.warning && !append)
         toast.message('Discover note', { description: data.warning });
-      if (
-        !append &&
-        data.eligibility?.hidden > 0 &&
-        Number(data.total || 0) <= 3
-      ) {
-        toast.message('Some companies are hidden', {
-          description:
-            data.eligibility.note ||
-            `${data.eligibility.hidden} profiles need country, email, or industry to appear.`,
-          duration: 7000,
-        });
-      }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Search failed');
       if (!append) {
@@ -987,37 +992,59 @@ function DiscoverInner() {
         </div>
 
         {/* Live result strip */}
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 bg-slate-50/80 px-4 py-3 sm:px-6">
-          <p className="text-sm text-neutral-600">
-            {loading ? (
-              <span className="inline-flex items-center gap-2 font-medium">
-                <Loader2 className="h-4 w-4 animate-spin text-[#00b4d8]" /> Searching deep
-                metadata…
+        <div className="border-t border-slate-100 bg-slate-50/80 px-4 py-3 sm:px-6 space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm text-neutral-600">
+              {loading ? (
+                <span className="inline-flex items-center gap-2 font-medium">
+                  <Loader2 className="h-4 w-4 animate-spin text-[#00b4d8]" /> Searching deep
+                  metadata…
+                </span>
+              ) : (
+                <>
+                  <strong className="font-black text-slate-900">{total}</strong> companies match your
+                  criteria
+                  {activeFilterCount > 0
+                    ? ` · ${activeFilterCount} filter${activeFilterCount === 1 ? '' : 's'}`
+                    : ' · showing full network'}
+                  {connectedTotal > 0 && (
+                    <>
+                      {' '}
+                      · <strong className="text-emerald-700">{connectedTotal}</strong> already
+                      connected
+                    </>
+                  )}
+                </>
+              )}
+            </p>
+            <button
+              type="button"
+              onClick={() => void load()}
+              className="text-xs font-bold text-[#00b4d8] hover:underline"
+            >
+              Refresh results
+            </button>
+          </div>
+          {!loading && eligibility && (eligibility.hidden ?? 0) > 0 ? (
+            <div className="rounded-xl border border-amber-100 bg-amber-50/80 px-3 py-2 text-[11px] text-amber-950 leading-relaxed">
+              <strong className="font-bold">
+                Network pool: {eligibility.visible ?? total} visible
+              </strong>
+              {' · '}
+              <span>
+                {eligibility.hidden} hidden (opted out or missing name/country/email/industry)
               </span>
-            ) : (
-              <>
-                <strong className="font-black text-slate-900">{total}</strong> companies match your
-                criteria
-                {activeFilterCount > 0
-                  ? ` · ${activeFilterCount} filter${activeFilterCount === 1 ? '' : 's'}`
-                  : ' · showing full network'}
-                {connectedTotal > 0 && (
-                  <>
-                    {' '}
-                    · <strong className="text-emerald-700">{connectedTotal}</strong> already
-                    connected
-                  </>
-                )}
-              </>
-            )}
-          </p>
-          <button
-            type="button"
-            onClick={() => void load()}
-            className="text-xs font-bold text-[#00b4d8] hover:underline"
-          >
-            Refresh results
-          </button>
+              {eligibility.poolBefore != null ? (
+                <span className="text-amber-800/80">
+                  {' '}
+                  · scanned {eligibility.poolBefore} profiles
+                </span>
+              ) : null}
+              {eligibility.note ? (
+                <span className="block mt-0.5 text-amber-900/70">{eligibility.note}</span>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </section>
 

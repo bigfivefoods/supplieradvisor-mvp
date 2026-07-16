@@ -273,11 +273,19 @@ function InboundPosList() {
         toast.error(json.error || 'Transition failed');
         return;
       }
-      toast.success(
-        status === 'accepted'
-          ? `PO #${poId} accepted — buyer notified`
-          : `PO #${poId} → ${status}`
-      );
+      if (status === 'accepted') {
+        toast.success(`PO #${poId} accepted — buyer notified`, {
+          duration: 10000,
+          action: {
+            label: 'Create invoice',
+            onClick: () => {
+              window.location.href = `/dashboard/customers/invoices?fromPo=${poId}`;
+            },
+          },
+        });
+      } else {
+        toast.success(`PO #${poId} → ${status}`);
+      }
       await load();
     } finally {
       setBusyId(null);
@@ -558,19 +566,28 @@ function InboundPosList() {
                         {' — '}
                         {fulfilmentHint.body}
                         {(st === 'accepted' || st === 'funded') && (
-                          <span className="block mt-1">
+                          <span className="block mt-1 space-x-2">
+                            <Link
+                              href={`/dashboard/customers/invoices?fromPo=${po.id}${
+                                po.buyer_profile_id
+                                  ? `&buyerProfileId=${po.buyer_profile_id}`
+                                  : ''
+                              }`}
+                              className="font-bold underline text-emerald-800"
+                            >
+                              Create invoice from this PO
+                            </Link>
                             <Link
                               href="/dashboard/inventory/products?type=finished_good"
                               className="font-bold underline"
                             >
-                              Keep catalogue current
+                              Catalogue
                             </Link>
-                            {' · '}
                             <Link
                               href="/dashboard/operations/outbound"
                               className="font-bold underline"
                             >
-                              Outbound ops
+                              Outbound
                             </Link>
                           </span>
                         )}
@@ -648,6 +665,16 @@ function InboundPosList() {
                       })}
                       {['accepted', 'funded', 'paid'].includes(st) && (
                         <>
+                          <Link
+                            href={`/dashboard/customers/invoices?fromPo=${po.id}${
+                              po.buyer_profile_id
+                                ? `&buyerProfileId=${po.buyer_profile_id}`
+                                : ''
+                            }`}
+                            className="px-4 py-2 rounded-2xl text-sm font-bold bg-[#00b4d8] text-white inline-flex items-center gap-1.5 hover:bg-[#0096c7]"
+                          >
+                            Create invoice
+                          </Link>
                           <button
                             type="button"
                             disabled={busyId === po.id}

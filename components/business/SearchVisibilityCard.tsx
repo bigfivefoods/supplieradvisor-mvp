@@ -15,11 +15,16 @@ export default function SearchVisibilityCard({
   profile,
   completeness,
   isRegistered = true,
+  onToggleDiscoverable,
+  toggling = false,
 }: {
   profile: Record<string, unknown> | null | undefined;
   completeness?: CompletenessResult | { pct: number } | null;
   /** Selected workspace is always a registered company */
   isRegistered?: boolean;
+  /** Persist is_discoverable from profile */
+  onToggleDiscoverable?: (next: boolean) => void | Promise<void>;
+  toggling?: boolean;
 }) {
   if (!profile) return null;
 
@@ -30,6 +35,7 @@ export default function SearchVisibilityCard({
       : elig.completeness.pct;
   const optedOut =
     profile.is_discoverable === false || profile.is_discoverable === 'false';
+  const discoverableOn = !optedOut;
 
   const signals = [
     {
@@ -61,22 +67,43 @@ export default function SearchVisibilityCard({
     },
   ];
 
+  const toggle = (
+    <label className="flex items-center gap-2 cursor-pointer select-none shrink-0">
+      <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+        Discoverable
+      </span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={discoverableOn}
+        disabled={!onToggleDiscoverable || toggling}
+        onClick={() => void onToggleDiscoverable?.(!discoverableOn)}
+        className={`relative h-6 w-11 rounded-full transition-colors disabled:opacity-50 ${
+          discoverableOn ? 'bg-emerald-500' : 'bg-neutral-300'
+        }`}
+      >
+        <span
+          className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+            discoverableOn ? 'translate-x-5' : ''
+          }`}
+        />
+      </button>
+    </label>
+  );
+
   if (optedOut) {
     return (
       <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 space-y-2">
-        <div className="flex items-center gap-2 text-sm font-bold text-slate-800">
-          <EyeOff className="w-4 h-4 text-neutral-500" />
-          Hidden from Discover & directory
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-2 text-sm font-bold text-slate-800">
+            <EyeOff className="w-4 h-4 text-neutral-500" />
+            Hidden from Discover & directory
+          </div>
+          {toggle}
         </div>
         <p className="text-xs text-neutral-600">
-          Discoverability is off. Turn it on in{' '}
-          <Link
-            href="/dashboard/my-business/settings"
-            className="font-semibold text-[#0077b6] underline"
-          >
-            Settings
-          </Link>{' '}
-          so partners can find you.
+          Discoverability is off. Turn the switch on so partners can find you in
+          search and the public directory.
         </p>
       </div>
     );
@@ -85,9 +112,12 @@ export default function SearchVisibilityCard({
   if (elig.ok) {
     return (
       <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 space-y-1.5">
-        <div className="flex items-center gap-2 text-sm font-bold text-emerald-900">
-          <Eye className="w-4 h-4" />
-          Visible in Discover & public directory
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-2 text-sm font-bold text-emerald-900">
+            <Eye className="w-4 h-4" />
+            Visible in Discover & public directory
+          </div>
+          {toggle}
         </div>
         <p className="text-xs text-emerald-900/80">
           Profile {pct}% complete
@@ -108,9 +138,12 @@ export default function SearchVisibilityCard({
 
   return (
     <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3 space-y-2">
-      <div className="flex items-center gap-2 text-sm font-bold text-amber-950">
-        <EyeOff className="w-4 h-4" />
-        Not visible in search yet
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2 text-sm font-bold text-amber-950">
+          <EyeOff className="w-4 h-4" />
+          Not visible in search yet
+        </div>
+        {toggle}
       </div>
       <p className="text-xs text-amber-950/80">
         {elig.reason ||

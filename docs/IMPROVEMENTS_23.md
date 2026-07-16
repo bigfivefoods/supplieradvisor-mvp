@@ -122,6 +122,15 @@ npx playwright test e2e/trade-loop-smoke.spec.ts
 | Connections pending inbox Accept/Decline | Shipped |
 | Inbound PO deep-link primary Accept/Decline | Shipped |
 
+## Mini-sprint 4 (eligibility / backfill / invoice CTA / toggle)
+
+| Item | Status |
+|------|--------|
+| Discover eligibility strip (visible/hidden counts) | Shipped |
+| Select-company “Fix locations” multi backfill | Shipped |
+| PO accept → Create invoice CTA | Shipped |
+| Profile discoverable toggle on visibility card | Shipped |
+
 Ops after every major deploy:
 
 ```bash

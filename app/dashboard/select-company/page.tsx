@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   Users,
   LayoutDashboard,
+  MapPin,
 } from 'lucide-react';
 import { extractEmailFromPrivyUser, getCanonicalUserId } from '@/lib/auth/identity';
 import { defaultHomePathForRole } from '@/lib/business/permissions';
@@ -53,6 +54,7 @@ export default function SelectCompanyPage() {
   const [error, setError] = useState<string | null>(null);
   const [sessionEmail, setSessionEmail] = useState<string | null>(null);
   const [restoreBusy, setRestoreBusy] = useState<string | null>(null);
+  const [backfillBusy, setBackfillBusy] = useState(false);
 
   const loadCompanies = useCallback(async () => {
     if (!ready) return;
@@ -163,6 +165,39 @@ export default function SelectCompanyPage() {
       /* private mode */
     }
     router.push(defaultHomePathForRole(role));
+  };
+
+  /** Derive continent from country on every owned company (discover search quality) */
+  const backfillAllLocations = async () => {
+    if (!privyUser?.id || !companies.length) return;
+    const privyUserId = getCanonicalUserId(privyUser.id);
+    setBackfillBusy(true);
+    let updated = 0;
+    let skipped = 0;
+    try {
+      for (const c of companies) {
+        try {
+          const res = await fetch('/api/business/location-backfill', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              companyId: Number(c.id),
+              privyUserId,
+            }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (res.ok && data.updated) updated += 1;
+          else skipped += 1;
+        } catch {
+          skipped += 1;
+        }
+      }
+      toast.success(
+        `Location fix: ${updated} updated${skipped ? ` · ${skipped} unchanged` : ''}`
+      );
+    } finally {
+      setBackfillBusy(false);
+    }
   };
 
   const verifiedCount = useMemo(
@@ -276,12 +311,30 @@ export default function SelectCompanyPage() {
                 </p>
               )}
             </div>
-            <Link
-              href="/onboarding?type=business"
-              className="btn-primary !py-2.5 !px-5 text-sm inline-flex shrink-0 items-center gap-2"
-            >
-              <Plus className="h-4 w-4" /> Register business
-            </Link>
+            <div className="flex flex-wrap gap-2 shrink-0">
+              {companies.length > 0 ? (
+                <button
+                  type="button"
+                  disabled={backfillBusy}
+                  onClick={() => void backfillAllLocations()}
+                  className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-2 disabled:opacity-50"
+                  title="Set continent from country on every company you own (improves Discover search)"
+                >
+                  {backfillBusy ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <MapPin className="h-4 w-4" />
+                  )}
+                  Fix locations
+                </button>
+              ) : null}
+              <Link
+                href="/onboarding?type=business"
+                className="btn-primary !py-2.5 !px-5 text-sm inline-flex items-center gap-2"
+              >
+                <Plus className="h-4 w-4" /> Register business
+              </Link>
+            </div>
           </div>
         </div>
 
