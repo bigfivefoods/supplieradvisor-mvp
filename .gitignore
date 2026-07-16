@@ -14,6 +14,8 @@ build/
 .env
 .env*.local
 !.env.example
+VAPID_KEYS_FOR_VERCEL.env
+*VAPID*
 
 # Vercel
 .vercel
