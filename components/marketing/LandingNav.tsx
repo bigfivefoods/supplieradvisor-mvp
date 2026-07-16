@@ -14,6 +14,7 @@ const LINKS = [
   { id: 'trust', label: 'Trust' },
   { id: 'pricing', label: 'Pricing' },
   { id: 'network', label: 'Companies' },
+  { id: 'directory', label: 'Directory' },
 ] as const;
 
 export default function LandingNav() {
@@ -57,8 +58,17 @@ export default function LandingNav() {
 
   const scrollTo = (id: string) => {
     setOpen(false);
+    // Directory opens the rich company search tab
+    if (id === 'directory') {
+      if (typeof window !== 'undefined') {
+        window.history.replaceState(null, '', '#directory');
+        window.dispatchEvent(new HashChangeEvent('hashchange'));
+      }
+    }
     window.setTimeout(() => {
-      const el = document.getElementById(id);
+      const el =
+        document.getElementById(id) ||
+        (id === 'directory' ? document.getElementById('network') : null);
       if (!el) return;
       const y = el.getBoundingClientRect().top + window.scrollY - 72;
       window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });

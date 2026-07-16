@@ -1,10 +1,10 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-type PublicCompany = {
+export type PublicCompany = {
   id: number;
   legal_name: string | null;
   trading_name: string | null;
@@ -12,9 +12,20 @@ type PublicCompany = {
   verified_at: string | null;
   business_type: string | null;
   industry: string | null;
+  sub_industry: string | null;
+  category: string | null;
   city: string | null;
+  province: string | null;
   country: string | null;
+  continent: string | null;
   logo_url?: string | null;
+  website?: string | null;
+  short_description?: string | null;
+  relationship_type?: string | null;
+  bee_level?: string | null;
+  certifications?: string[] | null;
+  is_supplier?: boolean | null;
+  is_buyer?: boolean | null;
   /** 0–100 style trust score when available */
   trust_score?: number | null;
   /** Overall peer star average (1–5) from suppliers & customers */
@@ -34,6 +45,15 @@ type PublicCompany = {
   join_rank?: number;
 };
 
+const FULL_SELECT =
+  'id, legal_name, trading_name, verification_status, verified_at, business_type, industry, sub_industry, category, city, province, country, continent, logo_url, website, short_description, relationship_type, bee_level, certifications, is_supplier, is_buyer, is_discoverable, trust_score, otifef_average, created_at';
+
+const MID_SELECT =
+  'id, legal_name, trading_name, verification_status, verified_at, business_type, industry, city, province, country, continent, logo_url, website, is_discoverable, trust_score, otifef_average, created_at';
+
+const MIN_SELECT =
+  'id, legal_name, trading_name, verification_status, business_type, industry, city, country, trust_score, created_at';
+
 function isVerifiedStatus(status?: string | null): boolean {
   const s = String(status || '').toLowerCase().trim();
   return (
@@ -48,46 +68,95 @@ function round1(n: number): number {
   return Math.round(n * 10) / 10;
 }
 
+function uniqSorted(values: (string | null | undefined)[]): string[] {
+  const set = new Set<string>();
+  for (const v of values) {
+    const s = String(v || '').trim();
+    if (s) set.add(s);
+  }
+  return [...set].sort((a, b) => a.localeCompare(b));
+}
+
+function asStringArray(v: unknown): string[] | null {
+  if (Array.isArray(v)) {
+    return v.map((x) => String(x)).filter(Boolean);
+  }
+  if (typeof v === 'string' && v.trim()) {
+    try {
+      const parsed = JSON.parse(v);
+      if (Array.isArray(parsed)) return parsed.map((x) => String(x)).filter(Boolean);
+    } catch {
+      return v
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
+  }
+  return null;
+}
+
 /**
  * Public marketing endpoint — safe profile fields only.
- * Join order first → latest. Includes trust score, OTIFEF, and peer stars
- * (suppliers ↔ customers continuous feedback).
+ * Supports optional metadata filters for directory search.
+ *
+ * GET ?q=&industry=&country=&city=&province=&continent=&business_type=
+ *     &badge=verified|network&role=supplier|buyer|both
+ *     &minStars=&minTrust=&minOtifef=&cert=&bee=
+ *     &sort=joined|name|stars|trust|otifef
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const sp = request.nextUrl.searchParams;
+    const q = (sp.get('q') || '').trim().toLowerCase();
+    const industry = (sp.get('industry') || '').trim().toLowerCase();
+    const subIndustry = (sp.get('sub_industry') || '').trim().toLowerCase();
+    const country = (sp.get('country') || '').trim().toLowerCase();
+    const city = (sp.get('city') || '').trim().toLowerCase();
+    const province = (sp.get('province') || '').trim().toLowerCase();
+    const continent = (sp.get('continent') || '').trim().toLowerCase();
+    const businessType = (sp.get('business_type') || '').trim().toLowerCase();
+    const badge = (sp.get('badge') || '').trim().toLowerCase();
+    const role = (sp.get('role') || '').trim().toLowerCase();
+    const cert = (sp.get('cert') || '').trim().toLowerCase();
+    const bee = (sp.get('bee') || '').trim().toLowerCase();
+    const minStars = Number(sp.get('minStars') || 0);
+    const minTrust = Number(sp.get('minTrust') || 0);
+    const minOtifef = Number(sp.get('minOtifef') || 0);
+    const sort = (sp.get('sort') || 'joined').trim().toLowerCase();
+    const includeHidden = sp.get('includeHidden') === '1';
+
     const supabase = getSupabaseServer();
 
     type Row = Record<string, unknown>;
     let rows: Row[] = [];
 
-    const full = await supabase
-      .from('profiles')
-      .select(
-        'id, legal_name, trading_name, verification_status, verified_at, business_type, industry, city, country, logo_url, trust_score, otifef_average, created_at'
-      )
-      .not('trading_name', 'is', null)
-      .order('created_at', { ascending: true, nullsFirst: false })
-      .order('id', { ascending: true })
-      .limit(500);
-
-    if (!full.error && full.data) {
-      rows = full.data as Row[];
-    } else {
-      // Retry without optional columns (older DBs)
-      const retry = await supabase
+    for (const select of [FULL_SELECT, MID_SELECT, MIN_SELECT]) {
+      let query = supabase
         .from('profiles')
-        .select(
-          'id, legal_name, trading_name, verification_status, business_type, industry, city, country, trust_score, created_at'
-        )
+        .select(select)
         .not('trading_name', 'is', null)
+        .order('created_at', { ascending: true, nullsFirst: false })
         .order('id', { ascending: true })
-        .limit(500);
-      if (!retry.error && retry.data) rows = retry.data as Row[];
+        .limit(800);
+
+      const { data, error } = await query;
+      if (!error && data) {
+        rows = data as unknown as Row[];
+        break;
+      }
     }
 
     rows = rows.filter(
       (p) => String(p.trading_name || p.legal_name || '').trim().length > 1
     );
+
+    // Hide companies that opted out of discoverability (when column exists)
+    if (!includeHidden) {
+      rows = rows.filter((p) => {
+        if (p.is_discoverable === false || p.is_discoverable === 'false') return false;
+        return true;
+      });
+    }
 
     rows.sort((a, b) => {
       const ac = a.created_at ? new Date(String(a.created_at)).getTime() : 0;
@@ -130,14 +199,13 @@ export async function GET() {
             continue;
           }
           addStar(starsAll, pid, overall);
-          const role = String(r.ratee_role || '').toLowerCase();
-          if (role === 'supplier') addStar(starsAsSupplier, pid, overall);
-          if (role === 'customer') addStar(starsAsCustomer, pid, overall);
+          const roleR = String(r.ratee_role || '').toLowerCase();
+          if (roleR === 'supplier') addStar(starsAsSupplier, pid, overall);
+          if (roleR === 'customer') addStar(starsAsCustomer, pid, overall);
         }
       }
     }
 
-    // OTIFEF from invoice feedback (customer → seller loop) + profile.otifef_average
     const otifefByProfile = new Map<number, { sum: number; count: number }>();
     if (ids.length) {
       const fb = await supabase
@@ -199,9 +267,21 @@ export async function GET() {
         verified_at: (p.verified_at as string | null) ?? null,
         business_type: (p.business_type as string | null) ?? null,
         industry: (p.industry as string | null) ?? null,
+        sub_industry: (p.sub_industry as string | null) ?? null,
+        category: (p.category as string | null) ?? null,
         city: (p.city as string | null) ?? null,
+        province: (p.province as string | null) ?? null,
         country: (p.country as string | null) ?? null,
+        continent: (p.continent as string | null) ?? null,
         logo_url: (p.logo_url as string | null) ?? null,
+        website: (p.website as string | null) ?? null,
+        short_description: (p.short_description as string | null) ?? null,
+        relationship_type: (p.relationship_type as string | null) ?? null,
+        bee_level: (p.bee_level as string | null) ?? null,
+        certifications: asStringArray(p.certifications),
+        is_supplier:
+          p.is_supplier == null ? null : Boolean(p.is_supplier),
+        is_buyer: p.is_buyer == null ? null : Boolean(p.is_buyer),
         trust_score:
           trustRaw != null && Number.isFinite(trustRaw)
             ? round1(trustRaw)
@@ -229,6 +309,155 @@ export async function GET() {
 
     companies = companies.map((c, i) => ({ ...c, join_rank: i + 1 }));
 
+    // Facets from full discoverable set (before filters)
+    const facets = {
+      industries: uniqSorted(companies.map((c) => c.industry)),
+      subIndustries: uniqSorted(companies.map((c) => c.sub_industry)),
+      countries: uniqSorted(companies.map((c) => c.country)),
+      cities: uniqSorted(companies.map((c) => c.city)),
+      provinces: uniqSorted(companies.map((c) => c.province)),
+      continents: uniqSorted(companies.map((c) => c.continent)),
+      businessTypes: uniqSorted(companies.map((c) => c.business_type)),
+      categories: uniqSorted(companies.map((c) => c.category)),
+      beeLevels: uniqSorted(companies.map((c) => c.bee_level)),
+      certifications: uniqSorted(
+        companies.flatMap((c) => c.certifications || [])
+      ),
+    };
+
+    // Apply filters
+    if (q) {
+      companies = companies.filter((c) => {
+        const hay = [
+          c.trading_name,
+          c.legal_name,
+          c.industry,
+          c.sub_industry,
+          c.category,
+          c.city,
+          c.province,
+          c.country,
+          c.continent,
+          c.business_type,
+          c.short_description,
+          c.bee_level,
+          ...(c.certifications || []),
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        return hay.includes(q);
+      });
+    }
+    if (industry) {
+      companies = companies.filter((c) =>
+        String(c.industry || '')
+          .toLowerCase()
+          .includes(industry)
+      );
+    }
+    if (subIndustry) {
+      companies = companies.filter((c) =>
+        String(c.sub_industry || '')
+          .toLowerCase()
+          .includes(subIndustry)
+      );
+    }
+    if (country) {
+      companies = companies.filter(
+        (c) => String(c.country || '').toLowerCase() === country
+      );
+    }
+    if (city) {
+      companies = companies.filter((c) =>
+        String(c.city || '')
+          .toLowerCase()
+          .includes(city)
+      );
+    }
+    if (province) {
+      companies = companies.filter((c) =>
+        String(c.province || '')
+          .toLowerCase()
+          .includes(province)
+      );
+    }
+    if (continent) {
+      companies = companies.filter(
+        (c) => String(c.continent || '').toLowerCase() === continent
+      );
+    }
+    if (businessType) {
+      companies = companies.filter((c) =>
+        String(c.business_type || '')
+          .toLowerCase()
+          .includes(businessType)
+      );
+    }
+    if (badge === 'verified') {
+      companies = companies.filter((c) => c.badge === 'verified');
+    } else if (badge === 'network') {
+      companies = companies.filter((c) => c.badge === 'network');
+    }
+    if (role === 'supplier') {
+      companies = companies.filter((c) => c.is_supplier !== false);
+    } else if (role === 'buyer') {
+      companies = companies.filter((c) => c.is_buyer !== false);
+    } else if (role === 'both') {
+      companies = companies.filter(
+        (c) => c.is_supplier !== false && c.is_buyer !== false
+      );
+    }
+    if (cert) {
+      companies = companies.filter((c) =>
+        (c.certifications || []).some((x) =>
+          String(x).toLowerCase().includes(cert)
+        )
+      );
+    }
+    if (bee) {
+      companies = companies.filter((c) =>
+        String(c.bee_level || '')
+          .toLowerCase()
+          .includes(bee)
+      );
+    }
+    if (minStars > 0) {
+      companies = companies.filter(
+        (c) => c.star_avg != null && c.star_avg >= minStars
+      );
+    }
+    if (minTrust > 0) {
+      companies = companies.filter(
+        (c) => c.trust_score != null && c.trust_score >= minTrust
+      );
+    }
+    if (minOtifef > 0) {
+      companies = companies.filter(
+        (c) => c.otifef_pct != null && c.otifef_pct >= minOtifef
+      );
+    }
+
+    // Sort
+    if (sort === 'name') {
+      companies.sort((a, b) =>
+        String(a.trading_name || a.legal_name || '').localeCompare(
+          String(b.trading_name || b.legal_name || '')
+        )
+      );
+    } else if (sort === 'stars') {
+      companies.sort(
+        (a, b) => (b.star_avg ?? 0) - (a.star_avg ?? 0) || (b.star_count ?? 0) - (a.star_count ?? 0)
+      );
+    } else if (sort === 'trust') {
+      companies.sort((a, b) => (b.trust_score ?? 0) - (a.trust_score ?? 0));
+    } else if (sort === 'otifef') {
+      companies.sort((a, b) => (b.otifef_pct ?? 0) - (a.otifef_pct ?? 0));
+    } else {
+      // joined (default) — keep join_rank order
+      companies.sort((a, b) => (a.join_rank ?? 0) - (b.join_rank ?? 0));
+    }
+
     const verifiedCount = companies.filter((c) => c.badge === 'verified').length;
     const networkCount = companies.filter((c) => c.badge === 'network').length;
 
@@ -244,6 +473,7 @@ export async function GET() {
     return NextResponse.json({
       success: true,
       companies,
+      facets,
       pageSize: 9,
       feedbackLoop:
         'Companies are rated by their suppliers and customers — a continuous loop of feedback that helps every business improve.',
@@ -260,6 +490,18 @@ export async function GET() {
       {
         success: false,
         companies: [],
+        facets: {
+          industries: [],
+          subIndustries: [],
+          countries: [],
+          cities: [],
+          provinces: [],
+          continents: [],
+          businessTypes: [],
+          categories: [],
+          beeLevels: [],
+          certifications: [],
+        },
         counts: {
           shown: 0,
           verified: 0,

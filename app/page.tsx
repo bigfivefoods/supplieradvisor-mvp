@@ -23,7 +23,6 @@ import {
   Workflow,
   Landmark,
   ChevronRight,
-  ChevronLeft,
   HardHat,
   ClipboardCheck,
   Link2,
@@ -40,7 +39,7 @@ import {
 import { useEffect, useState } from 'react';
 import LandingNav from '@/components/marketing/LandingNav';
 import HomePricing from '@/components/marketing/HomePricing';
-import FoundingWaitlist from '@/components/marketing/FoundingWaitlist';
+import CompanyNetworkSection from '@/components/marketing/CompanyNetworkSection';
 import {
   OpsMock,
   SrmMock,
@@ -68,52 +67,6 @@ import {
   REFERRAL_LEVEL_RATES_PCT,
   REFERRAL_TOTAL_CAP_PCT,
 } from '@/lib/billing/supply-chain-referral';
-
-type PublicCompany = {
-  id: number;
-  legal_name: string | null;
-  trading_name: string | null;
-  verification_status: string | null;
-  verified_at: string | null;
-  business_type: string | null;
-  industry: string | null;
-  city: string | null;
-  country: string | null;
-  logo_url?: string | null;
-  trust_score?: number | null;
-  star_avg?: number | null;
-  star_count?: number;
-  stars_as_supplier_avg?: number | null;
-  stars_as_supplier_count?: number;
-  stars_as_customer_avg?: number | null;
-  stars_as_customer_count?: number;
-  otifef_pct?: number | null;
-  otifef_count?: number;
-  badge: 'verified' | 'network';
-  created_at?: string | null;
-  join_rank?: number;
-};
-
-function StarRow({ avg, count }: { avg: number | null | undefined; count: number }) {
-  if (avg == null || count <= 0) {
-    return (
-      <span className="text-[11px] text-slate-400">No peer stars yet</span>
-    );
-  }
-  const full = Math.min(5, Math.max(0, Math.round(avg)));
-  return (
-    <span className="inline-flex items-center gap-1.5" title={`${avg.toFixed(1)} from ${count} peer ratings`}>
-      <span className="text-amber-400 text-[11px] tracking-tight" aria-hidden>
-        {'★'.repeat(full)}
-        <span className="text-slate-200">{'★'.repeat(5 - full)}</span>
-      </span>
-      <span className="text-sm font-black tabular-nums text-slate-900">
-        {avg.toFixed(1)}
-      </span>
-      <span className="text-[11px] text-slate-500">({count})</span>
-    </span>
-  );
-}
 
 const MODULES = [
   {
@@ -376,7 +329,6 @@ const SYSTEMS = [
   },
 ] as const;
 
-const NETWORK_PAGE_SIZE = 9;
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -387,43 +339,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 }
 
 export default function LandingPage() {
-  const [verifiedCompanies, setVerifiedCompanies] = useState<PublicCompany[]>([]);
-  const [verifiedCount, setVerifiedCount] = useState(0);
-  const [networkCount, setNetworkCount] = useState(0);
-  const [platformTotal, setPlatformTotal] = useState<number | null>(null);
-  const [loadingVerified, setLoadingVerified] = useState(true);
-  const [networkPage, setNetworkPage] = useState(0);
   const [activeModule, setActiveModule] = useState(0);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch('/api/public/verified-companies', { cache: 'no-store' });
-        const data = await res.json();
-        if (cancelled) return;
-        setVerifiedCompanies(data.companies || []);
-        setNetworkPage(0);
-        setVerifiedCount(data.counts?.verified ?? 0);
-        setNetworkCount(data.counts?.network ?? 0);
-        setPlatformTotal(
-          typeof data.counts?.platformTotal === 'number'
-            ? data.counts.platformTotal
-            : data.counts?.total ?? data.companies?.length ?? 0
-        );
-      } catch {
-        if (!cancelled) {
-          setVerifiedCompanies([]);
-          setPlatformTotal(null);
-        }
-      } finally {
-        if (!cancelled) setLoadingVerified(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   useEffect(() => {
     const t = setInterval(() => {
@@ -434,16 +350,6 @@ export default function LandingPage() {
 
   const featured = MODULES[activeModule];
   const FeaturedMock = featured.Mock;
-  const networkPageCount = Math.max(
-    1,
-    Math.ceil(verifiedCompanies.length / NETWORK_PAGE_SIZE)
-  );
-  const networkPageSafe = Math.min(networkPage, networkPageCount - 1);
-  const pagedCompanies = verifiedCompanies.slice(
-    networkPageSafe * NETWORK_PAGE_SIZE,
-    networkPageSafe * NETWORK_PAGE_SIZE + NETWORK_PAGE_SIZE
-  );
-
 
   return (
     <div className="relative z-0 min-h-dvh bg-[#f8fafc] text-slate-900 antialiased selection:bg-cyan-100">
@@ -1082,329 +988,8 @@ export default function LandingPage() {
       {/* ═══════════ PRICING + REFERRAL (same site) ═══════════ */}
       <HomePricing />
 
-      {/* ═══════════ COMPANIES THAT HAVE JOINED (9 per page) ═══════════ */}
-      <section
-        id="network"
-        className="scroll-mt-20 border-t border-slate-200 bg-white py-20 sm:py-28"
-      >
-        <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10">
-          <div className="mb-10 text-center sm:mb-12">
-            <SectionLabel>Who has joined</SectionLabel>
-            <h2 className="text-3xl font-black tracking-tight text-slate-900 sm:text-5xl">
-              Companies on SupplierAdvisor®
-            </h2>
-            <p className="mx-auto mt-4 max-w-2xl text-slate-600">
-              {platformTotal
-                ? `${platformTotal} companies on the platform${
-                    verifiedCount > 0 ? ` · ${verifiedCount} verified` : ''
-                  }${networkCount > 0 ? ` · ${networkCount} building trust` : ''}`
-                : 'Companies joining the verified supply-chain network'}
-              . Shown{' '}
-              <strong className="text-slate-800">first to join → latest</strong>,{' '}
-              {NETWORK_PAGE_SIZE} at a time.
-            </p>
-            <div className="mx-auto mt-5 max-w-2xl rounded-2xl border border-sky-100 bg-sky-50/80 px-4 py-3.5 text-left sm:text-center sm:px-6">
-              <p className="text-sm font-semibold text-sky-950 leading-relaxed">
-                Continuous trust loop
-              </p>
-              <p className="mt-1 text-sm text-sky-900/80 leading-relaxed">
-                Companies are rated by their <strong>suppliers</strong> and{' '}
-                <strong>customers</strong> — peer stars for how they trade, and{' '}
-                <strong>OTIFEF</strong> (On-Time · In-Full · Error-Free) for delivery
-                performance. That feedback loop helps every business improve, and
-                builds trust you can see before you trade.
-              </p>
-            </div>
-            <div className="mt-6">
-              <FoundingWaitlist />
-            </div>
-          </div>
-
-          {loadingVerified ? (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {Array.from({ length: NETWORK_PAGE_SIZE }, (_, i) => (
-                <div
-                  key={i}
-                  className="h-44 animate-pulse rounded-3xl border border-slate-200 bg-slate-50"
-                />
-              ))}
-            </div>
-          ) : verifiedCompanies.length > 0 ? (
-            <>
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-sm text-slate-500">
-                <span>
-                  Showing{' '}
-                  <strong className="tabular-nums text-slate-800">
-                    {networkPageSafe * NETWORK_PAGE_SIZE + 1}–
-                    {Math.min(
-                      (networkPageSafe + 1) * NETWORK_PAGE_SIZE,
-                      verifiedCompanies.length
-                    )}
-                  </strong>{' '}
-                  of{' '}
-                  <strong className="tabular-nums text-slate-800">
-                    {verifiedCompanies.length}
-                  </strong>
-                </span>
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  Page {networkPageSafe + 1} of {networkPageCount}
-                </span>
-              </div>
-
-              <div className="grid min-h-[22rem] grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {pagedCompanies.map((company) => {
-                  const name =
-                    company.trading_name || company.legal_name || `Company #${company.id}`;
-                  const sub =
-                    company.trading_name &&
-                    company.legal_name &&
-                    company.trading_name !== company.legal_name
-                      ? company.legal_name
-                      : null;
-                  const meta = [
-                    company.industry || company.business_type,
-                    company.city,
-                    company.country,
-                  ]
-                    .filter(Boolean)
-                    .join(' · ');
-                  const isVerified = company.badge === 'verified';
-                  const stars = company.star_avg;
-                  const starCount = company.star_count ?? 0;
-                  const trust = company.trust_score;
-                  const otifef = company.otifef_pct;
-                  const rank = company.join_rank;
-                  const joined =
-                    company.created_at && !Number.isNaN(Date.parse(company.created_at))
-                      ? new Date(company.created_at).toLocaleDateString(undefined, {
-                          year: 'numeric',
-                          month: 'short',
-                        })
-                      : null;
-                  return (
-                    <div
-                      key={company.id}
-                      className="flex flex-col rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm transition-all hover:border-[#00b4d8]/40 hover:shadow-md"
-                    >
-                      <div className="mb-3 flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="mb-1 flex flex-wrap items-center gap-2">
-                            {rank != null && (
-                              <span className="rounded-full bg-slate-100 px-2 py-0.5 font-mono text-[10px] font-bold tabular-nums text-slate-600">
-                                #{rank}
-                              </span>
-                            )}
-                            {joined && (
-                              <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                                Joined {joined}
-                              </span>
-                            )}
-                          </div>
-                          <h3 className="truncate text-lg font-bold text-slate-900">{name}</h3>
-                          {sub && <p className="truncate text-sm text-slate-500">{sub}</p>}
-                        </div>
-                        <span
-                          className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold ${
-                            isVerified
-                              ? 'border border-emerald-200 bg-emerald-50 text-emerald-700'
-                              : 'border border-sky-200 bg-sky-50 text-sky-800'
-                          }`}
-                        >
-                          {isVerified ? 'Verified' : 'Member'}
-                        </span>
-                      </div>
-                      <div className="mb-3 flex items-center gap-2 text-xs text-slate-500">
-                        <Building2 className="h-3.5 w-3.5 text-[#00b4d8] shrink-0" />
-                        <span className="truncate">
-                          {meta || 'Joined SupplierAdvisor'}
-                        </span>
-                      </div>
-
-                      {/* Trust · OTIFEF · Stars — builds confidence to trade */}
-                      <div className="mt-auto grid grid-cols-3 gap-1.5 border-t border-slate-100 pt-3">
-                        <div
-                          className="rounded-xl border border-slate-100 bg-slate-50/80 px-2 py-2 text-center"
-                          title="Platform trust score"
-                        >
-                          <div className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
-                            Trust
-                          </div>
-                          <div className="mt-0.5 flex items-center justify-center gap-0.5">
-                            <ShieldCheck className="h-3 w-3 text-[#00b4d8]" />
-                            <span className="text-sm font-black tabular-nums text-slate-900">
-                              {trust != null && Number.isFinite(trust) && trust > 0
-                                ? Math.round(trust)
-                                : 'New'}
-                            </span>
-                          </div>
-                          {!(trust != null && trust > 0) && (
-                            <p className="text-[8px] text-slate-400 mt-0.5 leading-tight">
-                              Building
-                            </p>
-                          )}
-                        </div>
-                        <div
-                          className="rounded-xl border border-emerald-100 bg-emerald-50/50 px-2 py-2 text-center"
-                          title="On-Time · In-Full · Error-Free performance"
-                        >
-                          <div className="text-[9px] font-bold uppercase tracking-wider text-emerald-700/70">
-                            OTIFEF
-                          </div>
-                          <div className="mt-0.5 text-sm font-black tabular-nums text-emerald-900">
-                            {otifef != null && otifef > 0
-                              ? `${Math.round(otifef)}%`
-                              : '—'}
-                          </div>
-                          {!(otifef != null && otifef > 0) && (
-                            <p className="text-[8px] text-emerald-800/50 mt-0.5 leading-tight">
-                              After deliveries
-                            </p>
-                          )}
-                        </div>
-                        <div
-                          className="rounded-xl border border-amber-100 bg-amber-50/40 px-2 py-2 text-center"
-                          title="Peer star ratings from suppliers and customers"
-                        >
-                          <div className="text-[9px] font-bold uppercase tracking-wider text-amber-800/70">
-                            Stars
-                          </div>
-                          <div className="mt-0.5 text-sm font-black tabular-nums text-slate-900">
-                            {stars != null && starCount > 0
-                              ? stars.toFixed(1)
-                              : '—'}
-                            {starCount > 0 && (
-                              <span className="text-[10px] font-semibold text-slate-500">
-                                {' '}
-                                ({starCount})
-                              </span>
-                            )}
-                          </div>
-                          {!(stars != null && starCount > 0) && (
-                            <p className="text-[8px] text-amber-800/50 mt-0.5 leading-tight">
-                              Rate after trade
-                            </p>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="mt-2.5 space-y-1.5 rounded-xl border border-slate-100 bg-white px-2.5 py-2">
-                        <div className="flex items-center justify-between gap-2 text-[11px]">
-                          <span className="text-slate-500">Peer stars</span>
-                          <StarRow avg={stars} count={starCount} />
-                        </div>
-                        {(company.stars_as_supplier_count || 0) > 0 ||
-                        (company.stars_as_customer_count || 0) > 0 ? (
-                          <div className="flex flex-wrap gap-x-3 gap-y-1 border-t border-slate-50 pt-1.5 text-[10px] text-slate-500">
-                            {(company.stars_as_supplier_count || 0) > 0 && (
-                              <span>
-                                As supplier:{' '}
-                                <strong className="text-slate-700">
-                                  {company.stars_as_supplier_avg?.toFixed(1)}★
-                                </strong>{' '}
-                                ({company.stars_as_supplier_count} from customers)
-                              </span>
-                            )}
-                            {(company.stars_as_customer_count || 0) > 0 && (
-                              <span>
-                                As customer:{' '}
-                                <strong className="text-slate-700">
-                                  {company.stars_as_customer_avg?.toFixed(1)}★
-                                </strong>{' '}
-                                ({company.stars_as_customer_count} from suppliers)
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <p className="text-[10px] text-slate-400 leading-snug">
-                            Rated by suppliers & customers as they trade — the loop that
-                            improves every business.
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Pagination: 9 per page, first → latest */}
-              {networkPageCount > 1 && (
-                <div className="mt-10 flex flex-col items-center gap-4">
-                  <div className="flex flex-wrap items-center justify-center gap-2">
-                    <button
-                      type="button"
-                      disabled={networkPageSafe <= 0}
-                      onClick={() => setNetworkPage((p) => Math.max(0, p - 1))}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-800 shadow-sm transition-colors hover:border-[#00b4d8] hover:text-[#0077b6] disabled:pointer-events-none disabled:opacity-40"
-                      aria-label="Previous 9 companies"
-                    >
-                      <ChevronLeft className="h-4 w-4" /> Previous 9
-                    </button>
-                    <button
-                      type="button"
-                      disabled={networkPageSafe >= networkPageCount - 1}
-                      onClick={() =>
-                        setNetworkPage((p) => Math.min(networkPageCount - 1, p + 1))
-                      }
-                      className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-800 shadow-sm transition-colors hover:border-[#00b4d8] hover:text-[#0077b6] disabled:pointer-events-none disabled:opacity-40"
-                      aria-label="Next 9 companies"
-                    >
-                      Next 9 <ChevronRight className="h-4 w-4" />
-                    </button>
-                  </div>
-                  <div
-                    className="flex flex-wrap items-center justify-center gap-1.5"
-                    role="tablist"
-                    aria-label="Company pages"
-                  >
-                    {Array.from({ length: networkPageCount }, (_, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        role="tab"
-                        aria-selected={i === networkPageSafe}
-                        aria-label={`Page ${i + 1} of ${networkPageCount}`}
-                        onClick={() => setNetworkPage(i)}
-                        className={`h-2.5 rounded-full transition-all ${
-                          i === networkPageSafe
-                            ? 'w-7 bg-[#00b4d8]'
-                            : 'w-2.5 bg-slate-200 hover:bg-slate-300'
-                        }`}
-                      />
-                    ))}
-                  </div>
-                  <p className="text-xs text-slate-400">
-                    Navigate pages to move from early joiners to the latest companies
-                  </p>
-                </div>
-              )}
-
-              <div className="mt-10 text-center">
-                <Link
-                  href="/onboarding?type=business"
-                  className="inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-6 py-3 text-sm font-bold text-white shadow-sm hover:bg-[#0099b8]"
-                >
-                  Join the network <ArrowRight className="h-4 w-4" />
-                </Link>
-              </div>
-            </>
-          ) : (
-            <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 py-14 text-center">
-              <ShieldCheck className="mx-auto mb-3 h-10 w-10 text-[#00b4d8]" />
-              <p className="font-semibold text-slate-900">Be among the first on the network</p>
-              <p className="mx-auto mt-2 max-w-md text-sm text-slate-500">
-                Complete company onboarding — your trading name will appear here for others
-                to discover.
-              </p>
-              <Link
-                href="/onboarding?type=business"
-                className="mt-6 inline-flex rounded-full bg-[#00b4d8] px-6 py-3 text-sm font-semibold text-white"
-              >
-                Register your business
-              </Link>
-            </div>
-          )}
-        </div>
-      </section>
+      {/* ═══════════ COMPANIES DIRECTORY (browse + rich search) ═══════════ */}
+      <CompanyNetworkSection />
 
       {/* ═══════════ AUDIENCES ═══════════ */}
       <section id="audiences" className="border-t border-slate-200 bg-[#f8fafc] py-20 sm:py-28">
