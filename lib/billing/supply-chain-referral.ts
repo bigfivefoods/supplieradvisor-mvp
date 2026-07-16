@@ -120,25 +120,91 @@ export function referralSuggestedCopy(): string {
   );
 }
 
-/** Illustrative L1 earnings if N direct companies each pay monthlyZar (default list rate). */
+function roundZar(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+export type ReferralLevelEarnings = {
+  level: 1 | 2 | 3;
+  ratePct: number;
+  label: string;
+  /** Your fee per paying company at this level */
+  perCompanyMonthly: number;
+  monthlyZar: number;
+  annualZar: number;
+};
+
+/**
+ * Illustrative earnings if `companyCount` companies **below you in the chain**
+ * each pay `monthlyZar`, and all sit at the same level relative to you.
+ * (Real networks mix L1/L2/L3 — this shows magnitude at each depth.)
+ */
+export function referralLevelEarningsScenario(
+  companyCount: number,
+  monthlyZar: number,
+  level: 1 | 2 | 3
+): ReferralLevelEarnings {
+  const n = Math.max(0, Math.floor(companyCount));
+  const base = Math.max(0, Number(monthlyZar) || 0);
+  const ratePct = REFERRAL_LEVEL_RATES_PCT[level - 1] ?? 0;
+  const perCompanyMonthly = roundZar((base * ratePct) / 100);
+  const monthly = roundZar(n * perCompanyMonthly);
+  return {
+    level,
+    ratePct,
+    label: REFERRAL_LEVEL_LABELS[level - 1],
+    perCompanyMonthly,
+    monthlyZar: monthly,
+    annualZar: roundZar(monthly * 12),
+  };
+}
+
+/** Full L1/L2/L3 magnitude for a company count (marketing scale cards). */
+export function referralChainScaleScenario(
+  companyCount: number,
+  monthlyZar: number
+): {
+  count: number;
+  baseMonthlyZar: number;
+  levels: [ReferralLevelEarnings, ReferralLevelEarnings, ReferralLevelEarnings];
+  /** If those companies were split equally L1/L2/L3 — rough blend */
+  blendedMonthlyZar: number;
+  blendedAnnualZar: number;
+} {
+  const levels = [
+    referralLevelEarningsScenario(companyCount, monthlyZar, 1),
+    referralLevelEarningsScenario(companyCount, monthlyZar, 2),
+    referralLevelEarningsScenario(companyCount, monthlyZar, 3),
+  ] as [ReferralLevelEarnings, ReferralLevelEarnings, ReferralLevelEarnings];
+  // Equal mix of levels (1/3 each) for a "balanced network" illustration
+  const blendedMonthly = roundZar(
+    (levels[0].monthlyZar + levels[1].monthlyZar + levels[2].monthlyZar) / 3
+  );
+  return {
+    count: Math.max(0, Math.floor(companyCount)),
+    baseMonthlyZar: Math.max(0, Number(monthlyZar) || 0),
+    levels,
+    blendedMonthlyZar: blendedMonthly,
+    blendedAnnualZar: roundZar(blendedMonthly * 12),
+  };
+}
+
+/** @deprecated use referralLevelEarningsScenario / referralChainScaleScenario */
 export function referralDirectEarningsScenario(
   companyCount: number,
   monthlyZar: number
 ): { count: number; monthlyZar: number; annualZar: number; perCompanyMonthly: number } {
   const n = Math.max(0, Math.floor(companyCount));
-  const base = Math.max(0, Number(monthlyZar) || 0);
-  const rate = REFERRAL_LEVEL_RATES_PCT[0] / 100;
-  const perCompanyMonthly = Math.round(base * rate * 100) / 100;
-  const monthly = Math.round(n * perCompanyMonthly * 100) / 100;
+  const l1 = referralLevelEarningsScenario(n, monthlyZar, 1);
   return {
     count: n,
-    monthlyZar: monthly,
-    annualZar: Math.round(monthly * 12 * 100) / 100,
-    perCompanyMonthly,
+    monthlyZar: l1.monthlyZar,
+    annualZar: l1.annualZar,
+    perCompanyMonthly: l1.perCompanyMonthly,
   };
 }
 
-/** Default scale scenarios for marketing: 10 / 50 / 200 direct L1 subscribers. */
+/** Default scale scenarios: 10 / 50 / 200 companies down the chain. */
 export const REFERRAL_SCALE_SCENARIO_COUNTS = [10, 50, 200] as const;
 
 /**

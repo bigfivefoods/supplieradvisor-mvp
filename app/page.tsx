@@ -65,7 +65,7 @@ import {
   REFERRAL_LEVEL_RATES_PCT,
   REFERRAL_SCALE_SCENARIO_COUNTS,
   REFERRAL_TOTAL_CAP_PCT,
-  referralDirectEarningsScenario,
+  referralChainScaleScenario,
   referralRatesSummary,
 } from '@/lib/billing/supply-chain-referral';
 
@@ -418,7 +418,7 @@ export default function LandingPage() {
   const exampleFee = (pct: number) =>
     Math.round(((COMPANY_SUBSCRIPTION_MONTHLY_ZAR * pct) / 100) * 100) / 100;
   const scaleScenarios = REFERRAL_SCALE_SCENARIO_COUNTS.map((count) =>
-    referralDirectEarningsScenario(count, COMPANY_SUBSCRIPTION_MONTHLY_ZAR)
+    referralChainScaleScenario(count, COMPANY_SUBSCRIPTION_MONTHLY_ZAR)
   );
 
   return (
@@ -847,64 +847,89 @@ export default function LandingPage() {
             </div>
 
             <div className="space-y-4">
-              <div className="rounded-[2rem] border border-slate-200 bg-gradient-to-br from-sky-50 to-transparent p-6 sm:p-8">
+              <div className="rounded-[2rem] border border-slate-200 bg-gradient-to-br from-emerald-50/80 via-white to-sky-50/50 p-5 sm:p-7">
                 <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  If companies join below you · L1 @ {REFERRAL_LEVEL_RATES_PCT[0]}%
+                  Down the chain · what it could mean
                 </div>
-                <p className="mt-2 text-sm text-slate-600">
-                  Each pays {formatZar(COMPANY_SUBSCRIPTION_MONTHLY_ZAR)}/mo list rate
-                  (illustrative, not a guarantee).
+                <p className="mt-2 text-sm text-slate-600 leading-relaxed">
+                  If{' '}
+                  <strong className="text-slate-800">10, 50, or 200</strong> companies
+                  below you each pay {formatZar(COMPANY_SUBSCRIPTION_MONTHLY_ZAR)}/mo —
+                  at L1 (you invited), L2 (their invites), or L3 (one hop further).
                 </p>
-                <div className="mt-5 grid grid-cols-3 gap-2 sm:gap-3">
-                  {scaleScenarios.map((s) => (
-                    <div
-                      key={s.count}
-                      className="rounded-2xl border border-emerald-100 bg-emerald-50/50 px-2 py-4 text-center sm:px-3"
-                    >
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                        {s.count}
-                      </div>
-                      <div className="mt-1 text-lg font-black tabular-nums text-emerald-600 sm:text-xl">
-                        {formatZar(s.monthlyZar)}
-                      </div>
-                      <div className="text-[10px] text-slate-500">/mo</div>
-                      <div className="mt-1 text-[11px] font-semibold tabular-nums text-slate-600">
-                        {formatZar(s.annualZar)}/yr
-                      </div>
-                    </div>
-                  ))}
+
+                <div className="mt-5 overflow-x-auto">
+                  <table className="w-full min-w-[20rem] text-left text-xs sm:text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                        <th className="py-2 pr-2">Depth</th>
+                        {scaleScenarios.map((s) => (
+                          <th key={s.count} className="py-2 px-1 text-center">
+                            {s.count}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {([0, 1, 2] as const).map((li) => (
+                        <tr key={li}>
+                          <td className="py-2.5 pr-2 font-bold text-slate-800 whitespace-nowrap">
+                            L{li + 1} · {REFERRAL_LEVEL_RATES_PCT[li]}%
+                          </td>
+                          {scaleScenarios.map((s) => (
+                            <td
+                              key={`${s.count}-${li}`}
+                              className="py-2.5 px-1 text-center tabular-nums"
+                            >
+                              <div className="font-black text-emerald-700">
+                                {formatZar(s.levels[li].monthlyZar)}
+                              </div>
+                              <div className="text-[10px] text-slate-500">
+                                /mo · {formatZar(s.levels[li].annualZar)}/yr
+                              </div>
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
+                <p className="mt-4 text-[11px] text-slate-500 leading-relaxed">
+                  Stackable: 10 L1 + 50 L2 + 200 L3 all paying = sum of those cells.
+                  Full table on{' '}
+                  <Link href="/pricing#referral" className="font-semibold text-[#0077b6] hover:underline">
+                    pricing
+                  </Link>
+                  . Cap {REFERRAL_TOTAL_CAP_PCT}% per payment.
+                </p>
               </div>
 
-              <div className="rounded-[2rem] border border-slate-200 bg-slate-50 p-6 sm:p-7">
+              <div className="rounded-[2rem] border border-slate-200 bg-white p-5 sm:p-6">
                 <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Chain example · one payment of {formatZar(COMPANY_SUBSCRIPTION_MONTHLY_ZAR)}
+                  One payment · chain split
                 </div>
-                <p className="mt-2 text-sm text-slate-600">
-                  You → A → B → C. When C pays:
+                <p className="mt-1.5 text-sm text-slate-600">
+                  You → A → B → C. When C pays {formatZar(COMPANY_SUBSCRIPTION_MONTHLY_ZAR)}:
                 </p>
-                <div className="mt-4 space-y-2">
+                <div className="mt-3 space-y-2">
                   {[
-                    { who: 'B', level: 'L1', pct: REFERRAL_LEVEL_RATES_PCT[0] },
+                    { who: 'B (direct to C)', level: 'L1', pct: REFERRAL_LEVEL_RATES_PCT[0] },
                     { who: 'A', level: 'L2', pct: REFERRAL_LEVEL_RATES_PCT[1] },
                     { who: 'You', level: 'L3', pct: REFERRAL_LEVEL_RATES_PCT[2] },
                   ].map((row) => (
                     <div
                       key={row.level}
-                      className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
+                      className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5 text-sm"
                     >
                       <span className="text-slate-700">
                         {row.who} · {row.level} {row.pct}%
                       </span>
-                      <span className="font-bold tabular-nums text-emerald-600">
+                      <span className="font-bold tabular-nums text-emerald-700">
                         {formatZar(exampleFee(row.pct))}
                       </span>
                     </div>
                   ))}
                 </div>
-                <p className="mt-3 text-xs text-slate-400">
-                  Cap {REFERRAL_TOTAL_CAP_PCT}% of each paid subscription.
-                </p>
               </div>
             </div>
           </div>

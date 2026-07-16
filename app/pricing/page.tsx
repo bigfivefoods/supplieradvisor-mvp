@@ -31,7 +31,7 @@ import {
   REFERRAL_LEVEL_RATES_PCT,
   REFERRAL_SCALE_SCENARIO_COUNTS,
   REFERRAL_TOTAL_CAP_PCT,
-  referralDirectEarningsScenario,
+  referralChainScaleScenario,
   referralRatesSummary,
 } from '@/lib/billing/supply-chain-referral';
 
@@ -90,7 +90,7 @@ export default function Pricing() {
   }));
   const exampleTotal = exampleFees.reduce((s, f) => s + f.amount, 0);
   const scaleScenarios = REFERRAL_SCALE_SCENARIO_COUNTS.map((count) =>
-    referralDirectEarningsScenario(count, COMPANY_SUBSCRIPTION_MONTHLY_ZAR)
+    referralChainScaleScenario(count, COMPANY_SUBSCRIPTION_MONTHLY_ZAR)
   );
 
   return (
@@ -498,52 +498,133 @@ export default function Pricing() {
               ))}
             </div>
 
-            {/* Scale scenarios: 10 / 50 / 200 */}
+            {/* Scale: 10 / 50 / 200 at L1, L2, L3 down the chain */}
             <div className="mb-10 rounded-[1.75rem] border border-emerald-200/80 bg-white p-6 sm:p-8 shadow-sm">
-              <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-5">
+              <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3 mb-6">
                 <div>
                   <h3 className="text-lg font-black text-slate-900">
-                    If companies join below you
+                    Scale down the chain: 10 · 50 · 200 companies
                   </h3>
-                  <p className="mt-1 text-sm text-slate-600 leading-relaxed max-w-xl">
-                    Illustrative L1 earnings if that many companies each pay the list
-                    rate of{' '}
+                  <p className="mt-1.5 text-sm text-slate-600 leading-relaxed max-w-2xl">
+                    What it could mean for your business if that many companies{' '}
+                    <strong className="text-slate-800">below you</strong> each pay
+                    the list rate of{' '}
                     <strong className="text-slate-800">
                       {formatZar(COMPANY_SUBSCRIPTION_MONTHLY_ZAR)}/mo
-                    </strong>{' '}
-                    and you are their direct inviter (
-                    {REFERRAL_LEVEL_RATES_PCT[0]}% each). L2/L3 add more when{' '}
-                    <em>their</em> invites pay.
+                    </strong>
+                    . Depth matters: L1 is a company you invited; L2 is someone they
+                    invited; L3 is one hop further. Rates:{' '}
+                    {referralRatesSummary()}.
                   </p>
                 </div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 shrink-0">
-                  Not a guarantee · based on list rate
+                  Illustrative · not a guarantee
                 </p>
               </div>
-              <div className="grid sm:grid-cols-3 gap-3 sm:gap-4">
+
+              <div className="overflow-x-auto -mx-1 px-1">
+                <table className="w-full min-w-[36rem] text-sm border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-left">
+                      <th className="py-3 pr-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                        Companies below you
+                      </th>
+                      {scaleScenarios.map((s) => (
+                        <th
+                          key={s.count}
+                          className="py-3 px-2 text-center text-[11px] font-bold uppercase tracking-wider text-slate-700"
+                        >
+                          {s.count}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {(
+                      [
+                        {
+                          level: 0 as const,
+                          title: `L1 · ${REFERRAL_LEVEL_RATES_PCT[0]}%`,
+                          hint: 'You invited them directly',
+                          tone: 'text-emerald-800 bg-emerald-50/50',
+                        },
+                        {
+                          level: 1 as const,
+                          title: `L2 · ${REFERRAL_LEVEL_RATES_PCT[1]}%`,
+                          hint: 'Invited by your referral',
+                          tone: 'text-sky-900 bg-sky-50/40',
+                        },
+                        {
+                          level: 2 as const,
+                          title: `L3 · ${REFERRAL_LEVEL_RATES_PCT[2]}%`,
+                          hint: 'One more level deeper',
+                          tone: 'text-violet-900 bg-violet-50/40',
+                        },
+                      ] as const
+                    ).map((row) => (
+                      <tr key={row.level} className={row.tone}>
+                        <td className="py-3.5 pr-3 align-top">
+                          <div className="font-bold text-slate-900">{row.title}</div>
+                          <div className="text-[11px] text-slate-500 mt-0.5">
+                            {row.hint}
+                          </div>
+                          <div className="text-[10px] text-slate-400 mt-0.5 tabular-nums">
+                            {formatZar(
+                              scaleScenarios[0].levels[row.level].perCompanyMonthly
+                            )}
+                            /co · mo
+                          </div>
+                        </td>
+                        {scaleScenarios.map((s) => {
+                          const cell = s.levels[row.level];
+                          return (
+                            <td
+                              key={`${s.count}-L${row.level + 1}`}
+                              className="py-3.5 px-2 text-center align-top"
+                            >
+                              <div className="text-base sm:text-lg font-black tabular-nums text-slate-900">
+                                {formatZar(cell.monthlyZar)}
+                                <span className="text-[10px] font-bold text-slate-500">
+                                  /mo
+                                </span>
+                              </div>
+                              <div className="text-[11px] font-semibold tabular-nums text-slate-600 mt-0.5">
+                                {formatZar(cell.annualZar)}/yr
+                              </div>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="mt-5 grid sm:grid-cols-3 gap-3">
                 {scaleScenarios.map((s) => (
                   <div
-                    key={s.count}
-                    className="rounded-2xl border border-slate-200 bg-gradient-to-b from-emerald-50/80 to-white p-5 text-center"
+                    key={`blend-${s.count}`}
+                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"
                   >
-                    <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                      {s.count} companies
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      {s.count} cos · if mix of L1/L2/L3
                     </div>
-                    <div className="mt-2 text-2xl sm:text-3xl font-black tabular-nums text-emerald-800">
-                      {formatZar(s.monthlyZar)}
-                      <span className="text-sm font-bold text-emerald-700/80">
-                        /mo
-                      </span>
+                    <div className="mt-1 text-lg font-black tabular-nums text-slate-900">
+                      ~{formatZar(s.blendedMonthlyZar)}
+                      <span className="text-xs font-bold text-slate-500">/mo</span>
                     </div>
-                    <div className="mt-1 text-sm font-semibold text-slate-600 tabular-nums">
-                      {formatZar(s.annualZar)}/yr
+                    <div className="text-[11px] text-slate-500 tabular-nums">
+                      ~{formatZar(s.blendedAnnualZar)}/yr average mix
                     </div>
-                    <p className="mt-2 text-[11px] text-slate-500 leading-snug">
-                      {formatZar(s.perCompanyMonthly)} × {s.count} at L1
-                    </p>
                   </div>
                 ))}
               </div>
+              <p className="mt-4 text-xs text-slate-500 leading-relaxed">
+                Real networks stack: if you have 10 L1 + 50 L2 + 200 L3 all paying,
+                you earn each row for its own count. L1 is always the strongest per
+                company — invite quality partners who stay, and their growth feeds
+                L2 and L3 under you.
+              </p>
             </div>
 
             {/* Fees + example */}
