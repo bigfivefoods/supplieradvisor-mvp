@@ -296,6 +296,56 @@ export async function PATCH(request: NextRequest) {
       };
     }
 
+    // Banking fields may be missing until migration runs — park in metadata.banking
+    // so branch_code / account_type still persist, then surface via normalizeProfileRow.
+    {
+      const bankKeys = [
+        'branch_code',
+        'account_type',
+        'bank_name',
+        'account_name',
+        'account_number',
+        'iban',
+        'swift',
+        'bank_confirmation_url',
+      ] as const;
+      const bankPark: Record<string, unknown> = {};
+      for (const k of bankKeys) {
+        if (expanded[k] !== undefined && !existingKeys.has(k)) {
+          bankPark[k] = expanded[k];
+        }
+      }
+      if (Object.keys(bankPark).length > 0 && existingKeys.has('metadata')) {
+        const metaBase =
+          existing.metadata &&
+          typeof existing.metadata === 'object' &&
+          !Array.isArray(existing.metadata)
+            ? (existing.metadata as Record<string, unknown>)
+            : {};
+        const prevBank =
+          metaBase.banking &&
+          typeof metaBase.banking === 'object' &&
+          !Array.isArray(metaBase.banking)
+            ? (metaBase.banking as Record<string, unknown>)
+            : {};
+        const prevMeta =
+          typeof safe.metadata === 'object' && safe.metadata
+            ? (safe.metadata as Record<string, unknown>)
+            : {};
+        safe.metadata = {
+          ...metaBase,
+          ...prevMeta,
+          banking: {
+            ...prevBank,
+            ...(typeof prevMeta.banking === 'object' && prevMeta.banking
+              ? (prevMeta.banking as object)
+              : {}),
+            ...bankPark,
+          },
+        };
+      }
+    }
+
     // Dual-write first export file URL onto export_document_url when licenses array provided
     if (Array.isArray(expanded.export_licenses) && existingKeys.has('export_document_url')) {
       const first = (expanded.export_licenses as Array<{ file_url?: string | null }>)[0];

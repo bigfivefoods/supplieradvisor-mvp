@@ -458,7 +458,20 @@ export function normalizeProfileRow(row: Record<string, unknown>): CompanyProfil
       (row.export_document_url as string) ||
       (row.export_license_url as string) ||
       null,
-    bank_confirmation_url: (row.bank_confirmation_url as string) || null,
+    bank_confirmation_url:
+      (row.bank_confirmation_url as string) ||
+      bankMeta(row, 'bank_confirmation_url') ||
+      null,
+    bank_name: (row.bank_name as string) || bankMeta(row, 'bank_name') || null,
+    account_name:
+      (row.account_name as string) || bankMeta(row, 'account_name') || null,
+    account_number:
+      (row.account_number as string) || bankMeta(row, 'account_number') || null,
+    /** Prefer real column; fall back to metadata.banking when column not yet migrated */
+    branch_code:
+      (row.branch_code as string) || bankMeta(row, 'branch_code') || null,
+    account_type:
+      (row.account_type as string) || bankMeta(row, 'account_type') || null,
     logo_url: (row.logo_url as string) || null,
     tax_document_url: (row.tax_document_url as string) || null,
     // export_licenses may live only in metadata when column missing
@@ -473,6 +486,19 @@ export function normalizeProfileRow(row: Record<string, unknown>): CompanyProfil
     lat: lat as number | string | null,
     lng: lng as number | string | null,
   } as CompanyProfile;
+}
+
+function bankMeta(row: Record<string, unknown>, key: string): string | null {
+  const meta =
+    row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata)
+      ? (row.metadata as Record<string, unknown>)
+      : null;
+  const banking =
+    meta?.banking && typeof meta.banking === 'object' && !Array.isArray(meta.banking)
+      ? (meta.banking as Record<string, unknown>)
+      : null;
+  const v = banking?.[key];
+  return v != null && String(v).trim() ? String(v) : null;
 }
 
 export function roleBadgeClass(role?: string | null) {
