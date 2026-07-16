@@ -14,7 +14,10 @@ import {
   LIFETIME_PLAN_FOUNDER,
   LIFETIME_PLAN_FOUNDING,
 } from '@/lib/billing/lifetime';
-import { resolveReferrerFromCode } from '@/lib/billing/supply-chain-referral';
+import {
+  resolveReferrerFromCode,
+  resolveReferrerWithRoot,
+} from '@/lib/billing/supply-chain-referral';
 
 /**
  * POST /api/onboarding/register-business
@@ -86,12 +89,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Resolve optional supply-chain referrer (company that invited this business)
+    // Supply-chain referrer: explicit ref/code, else Big Five Foods (programme root).
+    // Big Five Foods itself stays rootless if registered/matched by founder pattern.
     const refRaw = String(referralCode || referredBy || ref || '').trim();
-    let referredByProfileId: number | null = null;
+    let explicitReferrer: number | null = null;
     if (refRaw) {
-      referredByProfileId = await resolveReferrerFromCode(refRaw);
+      explicitReferrer = await resolveReferrerFromCode(refRaw);
     }
+    const isBffRootName =
+      /^big\s*five\s*foods$/i.test(tradingNameTrim) ||
+      /^big\s*five\s*foods$/i.test(legalNameTrim);
+    const referredByProfileId = isBffRootName
+      ? null
+      : resolveReferrerWithRoot(explicitReferrer);
 
     const baseInsert: Record<string, unknown> = {
       trading_name: tradingNameTrim,

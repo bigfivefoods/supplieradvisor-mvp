@@ -9,7 +9,9 @@ import { logActivity } from '@/lib/customers/access';
 import {
   approveReferralEarnings,
   ensureReferralCode,
+  ensureReferralProgramRoot,
   getReferralSummary,
+  isReferralProgramRoot,
   markReferralPaid,
   referralRatesSummary,
   referralSuggestedCopy,
@@ -32,6 +34,9 @@ export async function GET(request: NextRequest) {
     });
     if (!gate.ok) return gate.response;
 
+    if (isReferralProgramRoot(companyId)) {
+      await ensureReferralProgramRoot();
+    }
     const summary = await getReferralSummary(companyId);
     const code = await ensureReferralCode(companyId);
 
@@ -42,6 +47,7 @@ export async function GET(request: NextRequest) {
       invitePath: code
         ? `/onboarding?ref=${encodeURIComponent(code)}`
         : `/onboarding?ref=${companyId}`,
+      // isProgramRoot / programRoot* come from summary (...summary below)
       workflow: [
         {
           status: 'pending',

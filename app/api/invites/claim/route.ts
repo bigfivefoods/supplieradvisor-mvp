@@ -383,15 +383,13 @@ export async function POST(request: NextRequest) {
       console.error('Network accept after business claim soft-fail:', netErr);
     }
 
-    // Supply-chain referral: inviter becomes L1 if not already set (link or invite)
-    if (inviterForReferral) {
-      try {
-        await assignReferrerIfEmpty(Number(profile.id), inviterForReferral, {
-          source: 'business_invite_claim',
-        });
-      } catch (refErr) {
-        console.warn('assignReferrerIfEmpty soft-fail:', refErr);
-      }
+    // Supply-chain referral: inviter (or Big Five Foods root) if not already set
+    try {
+      await assignReferrerIfEmpty(Number(profile.id), inviterForReferral, {
+        source: 'business_invite_claim',
+      });
+    } catch (refErr) {
+      console.warn('assignReferrerIfEmpty soft-fail:', refErr);
     }
 
     return NextResponse.json({

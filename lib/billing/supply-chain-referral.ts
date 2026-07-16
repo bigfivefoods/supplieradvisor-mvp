@@ -4,6 +4,10 @@
  * Company-to-company platform referral on subscription payments —
  * NOT sales-contractor product MLM (those remain personal-sales-only).
  *
+ * Programme root: Big Five Foods (profile 102) launched the referral programme
+ * and sits at the top of the tree. Companies with no other inviter are attributed
+ * to Big Five Foods (first-touch default).
+ *
  * Suggested / default split of each subscription payment:
  *   Level 1 (direct inviter): 6%
  *   Level 2: 3%
@@ -20,6 +24,35 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 export const REFERRAL_MAX_LEVELS = 3;
 /** Hard cap across all levels combined */
 export const REFERRAL_TOTAL_CAP_PCT = 10;
+
+/**
+ * Big Five Foods — first company to launch the supply-chain referral programme.
+ * Override with REFERRAL_ROOT_PROFILE_ID when needed (e.g. staging).
+ * Production default: profiles.id = 102.
+ */
+export const REFERRAL_PROGRAM_ROOT_PROFILE_ID = (() => {
+  const fromEnv = Number(
+    process.env.REFERRAL_ROOT_PROFILE_ID ||
+      process.env.NEXT_PUBLIC_REFERRAL_ROOT_PROFILE_ID ||
+      ''
+  );
+  if (Number.isFinite(fromEnv) && fromEnv > 0) return fromEnv;
+  return 102; // Big Five Foods
+})();
+
+export const REFERRAL_PROGRAM_ROOT_NAME = 'Big Five Foods';
+
+export function isReferralProgramRoot(
+  profileId: number | null | undefined
+): boolean {
+  const id = Number(profileId);
+  return Number.isFinite(id) && id === REFERRAL_PROGRAM_ROOT_PROFILE_ID;
+}
+
+/** Resolve the programme root id (env or Big Five Foods default). */
+export function getReferralProgramRootId(): number {
+  return REFERRAL_PROGRAM_ROOT_PROFILE_ID;
+}
 
 /**
  * Suggested commercial split — rewards direct invites most,
@@ -77,18 +110,47 @@ export function referralRatesSummary(): string {
 
 export function referralSuggestedCopy(): string {
   return (
+    `${REFERRAL_PROGRAM_ROOT_NAME} launched the supply-chain referral programme and sits at the top of the network. ` +
     `Earn from companies that join via your referral link or when you invite them as a supplier, customer, or partner. ` +
     `When they pay for SupplierAdvisor, you earn ${REFERRAL_LEVEL_RATES_PCT[0]}% of that payment. ` +
     `If they invite someone who pays, you earn ${REFERRAL_LEVEL_RATES_PCT[1]}%. ` +
     `One level further pays ${REFERRAL_LEVEL_RATES_PCT[2]}%. ` +
+    `Companies with no other inviter join under ${REFERRAL_PROGRAM_ROOT_NAME}. ` +
     `Combined rewards never exceed ${REFERRAL_TOTAL_CAP_PCT}% of the paying company's subscription fee.`
   );
 }
 
 /**
+ * Pick referrer for a new/claimed company:
+ * - explicit inviter / ref code company when valid
+ * - otherwise Big Five Foods (programme root)
+ * - never points the root company at itself
+ */
+export function resolveReferrerWithRoot(
+  explicitReferrerId: number | null | undefined,
+  forProfileId?: number | null
+): number | null {
+  const root = getReferralProgramRootId();
+  const forId = forProfileId != null ? Number(forProfileId) : null;
+  if (forId != null && Number.isFinite(forId) && forId === root) {
+    return null; // root has no parent
+  }
+
+  const explicit = Number(explicitReferrerId);
+  if (Number.isFinite(explicit) && explicit > 0 && explicit !== forId) {
+    return explicit;
+  }
+  if (forId != null && Number.isFinite(forId) && forId === root) {
+    return null;
+  }
+  return root;
+}
+
+/**
  * First-touch attribution: set referred_by_profile_id only if empty.
  * Used by referral links AND supplier/customer/partner invites.
- * Never overwrites an existing referrer; never self-refers.
+ * When no explicit referrer is given, defaults to Big Five Foods (programme root).
+ * Never overwrites an existing referrer; never self-refers; root stays rootless.
  */
 export async function assignReferrerIfEmpty(
   profileId: number,
@@ -96,11 +158,17 @@ export async function assignReferrerIfEmpty(
   _opts?: { source?: string }
 ): Promise<{ ok: boolean; assigned: boolean; error?: string }> {
   const child = Number(profileId);
-  const parent = Number(referrerProfileId);
   if (!Number.isFinite(child) || child <= 0) {
     return { ok: false, assigned: false, error: 'Invalid profile id' };
   }
-  if (!Number.isFinite(parent) || parent <= 0) {
+
+  // Programme root never gets a parent
+  if (isReferralProgramRoot(child)) {
+    return { ok: true, assigned: false };
+  }
+
+  const parent = resolveReferrerWithRoot(referrerProfileId, child);
+  if (parent == null) {
     return { ok: true, assigned: false };
   }
   if (child === parent) {
@@ -152,13 +220,39 @@ export async function assignReferrerIfEmpty(
   return { ok: true, assigned: Boolean(updated?.id) };
 }
 
-/** Value to include on profile insert for invite shells */
+/**
+ * Value to include on profile insert for invite shells / registration.
+ * Falls back to Big Five Foods when no inviter is provided.
+ * Pass forProfileId when known so the root company is not self-attributed.
+ */
 export function referredByInsertField(
-  referrerProfileId: number | null | undefined
+  referrerProfileId: number | null | undefined,
+  forProfileId?: number | null
 ): { referred_by_profile_id: number } | Record<string, never> {
-  const parent = Number(referrerProfileId);
-  if (!Number.isFinite(parent) || parent <= 0) return {};
+  const parent = resolveReferrerWithRoot(referrerProfileId, forProfileId);
+  if (parent == null) return {};
   return { referred_by_profile_id: parent };
+}
+
+/**
+ * Ensure Big Five Foods remains programme root (no parent) and has a referral code.
+ * Safe to call from billing/referral GET for the root company.
+ */
+export async function ensureReferralProgramRoot(): Promise<{
+  rootId: number;
+  rootName: string;
+  code: string | null;
+}> {
+  const rootId = getReferralProgramRootId();
+  const supabase = getSupabaseServer();
+  // Clear any accidental parent on the root
+  await supabase
+    .from('profiles')
+    .update({ referred_by_profile_id: null })
+    .eq('id', rootId)
+    .not('referred_by_profile_id', 'is', null);
+  const code = await ensureReferralCode(rootId);
+  return { rootId, rootName: REFERRAL_PROGRAM_ROOT_NAME, code };
 }
 
 /** Fetch one hop up the referral tree. */
@@ -345,6 +439,9 @@ export async function getReferralSummary(earnerProfileId: number): Promise<{
   ratesSummary: string;
   suggestedCopy: string;
   payouts: Array<Record<string, unknown>>;
+  isProgramRoot: boolean;
+  programRootId: number;
+  programRootName: string;
 }> {
   const empty = {
     pendingZar: 0,
@@ -361,6 +458,9 @@ export async function getReferralSummary(earnerProfileId: number): Promise<{
     ratesSummary: referralRatesSummary(),
     suggestedCopy: referralSuggestedCopy(),
     payouts: [] as Array<Record<string, unknown>>,
+    isProgramRoot: isReferralProgramRoot(earnerProfileId),
+    programRootId: getReferralProgramRootId(),
+    programRootName: REFERRAL_PROGRAM_ROOT_NAME,
   };
 
   try {
@@ -452,6 +552,11 @@ export async function getReferralSummary(earnerProfileId: number): Promise<{
       .order('created_at', { ascending: false })
       .limit(20);
 
+    // Keep programme root rootless when viewing BFF billing
+    if (isReferralProgramRoot(earnerProfileId)) {
+      await ensureReferralProgramRoot();
+    }
+
     return {
       pendingZar: Math.round(pendingZar * 100) / 100,
       approvedZar: Math.round(approvedZar * 100) / 100,
@@ -470,6 +575,9 @@ export async function getReferralSummary(earnerProfileId: number): Promise<{
       ratesSummary: referralRatesSummary(),
       suggestedCopy: referralSuggestedCopy(),
       payouts: (payoutRows || []) as Array<Record<string, unknown>>,
+      isProgramRoot: isReferralProgramRoot(earnerProfileId),
+      programRootId: getReferralProgramRootId(),
+      programRootName: REFERRAL_PROGRAM_ROOT_NAME,
     };
   } catch {
     return empty;
