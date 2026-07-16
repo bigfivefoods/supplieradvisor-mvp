@@ -151,6 +151,18 @@ npx playwright test e2e/trade-loop-smoke.spec.ts
 | Post-accept + accepted-PO notifications → fromPo invoice | Shipped |
 | Peer workspace Create invoice primary CTA | Shipped |
 
+## Mini-sprint 7 (draft fromPo / source_po_id / OTIFEF / peer Accept)
+
+| Item | Status |
+|------|--------|
+| fromPo invoices create as **draft** + “Email when ready” CTA | Shipped |
+| `customer_invoices.source_po_id` migration + API dual double-invoice guard | Shipped (run SQL in Supabase) |
+| OTIFEF preview on delivery + require delivered qty to complete | Shipped |
+| Peer workspace **Accept** inbound PO (`status=sent`) | Shipped |
+| Deploy Vercel prod | After push |
+
+**Ops migration:** `supabase/migrations/20260716_customer_invoices_source_po_id.sql`
+
 Ops after every major deploy:
 
 ```bash

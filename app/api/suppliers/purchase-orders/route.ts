@@ -481,9 +481,42 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
-    // Completing without delivery date → today
-    if (updates.status === 'completed' && !updates.actual_delivery_date && !po.actual_delivery_date) {
-      updates.actual_delivery_date = new Date().toISOString().slice(0, 10);
+    // Completing requires OTIFEF capture (delivery date + quantities)
+    if (updates.status === 'completed') {
+      if (!updates.actual_delivery_date && !po.actual_delivery_date) {
+        updates.actual_delivery_date = new Date().toISOString().slice(0, 10);
+      }
+      const delivered =
+        updates.delivered_quantity != null
+          ? Number(updates.delivered_quantity)
+          : po.delivered_quantity != null
+            ? Number(po.delivered_quantity)
+            : null;
+      if (delivered == null || !Number.isFinite(delivered)) {
+        return NextResponse.json(
+          {
+            error:
+              'Record delivered quantity (OTIFEF) before completing this PO',
+            code: 'OTIFEF_REQUIRED',
+          },
+          { status: 400 }
+        );
+      }
+      // Default order_quantity from lines if still missing (in-full baseline)
+      if (
+        updates.order_quantity == null &&
+        (po.order_quantity == null || !Number.isFinite(Number(po.order_quantity)))
+      ) {
+        const items = Array.isArray(po.items) ? po.items : [];
+        const sum = items.reduce(
+          (s: number, it: { quantity?: number }) => s + (Number(it?.quantity) || 0),
+          0
+        );
+        if (sum > 0) updates.order_quantity = sum;
+      }
+      if (updates.damaged_quantity == null && po.damaged_quantity == null) {
+        updates.damaged_quantity = 0;
+      }
     }
 
     const { data, error } = await supabase

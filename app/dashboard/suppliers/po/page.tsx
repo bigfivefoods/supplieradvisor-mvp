@@ -1004,27 +1004,69 @@ function PoInner() {
     setDeliveryPo(po);
   };
 
+  const deliveryOtifPreview = useMemo(() => {
+    if (!deliveryPo) return null;
+    const orderQty =
+      Number(deliveryPo.order_quantity) ||
+      (deliveryPo.items || []).reduce((s, i) => s + Number(i.quantity || 0), 0) ||
+      0;
+    const delivered = Number(deliveryForm.delivered_quantity) || 0;
+    const damaged = Number(deliveryForm.damaged_quantity) || 0;
+    const promised = deliveryForm.promised_date || deliveryPo.promised_date || '';
+    const actual = deliveryForm.actual_delivery_date || '';
+    const onTime =
+      !promised || !actual
+        ? null
+        : new Date(actual + 'T12:00:00') <= new Date(promised + 'T23:59:59');
+    const inFull = orderQty > 0 ? delivered >= orderQty : delivered > 0;
+    const errorFree = delivered > 0 ? damaged <= 0 : null;
+    return { onTime, inFull, errorFree, orderQty, delivered, damaged };
+  }, [deliveryPo, deliveryForm]);
+
   const submitDelivery = async (opts?: { rateAfter?: boolean }) => {
     if (!deliveryPo) return;
+    if (!deliveryForm.actual_delivery_date) {
+      toast.error('Actual delivery date is required for OTIFEF');
+      return;
+    }
+    if (
+      !Number.isFinite(Number(deliveryForm.delivered_quantity)) ||
+      Number(deliveryForm.delivered_quantity) < 0
+    ) {
+      toast.error('Enter delivered quantity (use 0 if nothing arrived)');
+      return;
+    }
     const rateeId =
       Number(deliveryPo.supplier_profile_id || deliveryPo.supplier_id) || null;
+    const orderQty =
+      Number(deliveryPo.order_quantity) ||
+      (deliveryPo.items || []).reduce((s, i) => s + Number(i.quantity || 0), 0);
     const updated = await patchPo(deliveryPo.id, {
       status: 'completed',
       actual_delivery_date: deliveryForm.actual_delivery_date,
       delivered_quantity: deliveryForm.delivered_quantity,
       damaged_quantity: deliveryForm.damaged_quantity,
       promised_date: deliveryForm.promised_date || deliveryPo.promised_date,
-      order_quantity:
-        Number(deliveryPo.order_quantity) ||
-        (deliveryPo.items || []).reduce((s, i) => s + Number(i.quantity || 0), 0),
+      order_quantity: orderQty,
     });
     if (updated) {
       setDeliveryPo(null);
+      const bits: string[] = [];
+      if (deliveryOtifPreview) {
+        if (deliveryOtifPreview.onTime != null) {
+          bits.push(deliveryOtifPreview.onTime ? 'On-time' : 'Late');
+        }
+        bits.push(deliveryOtifPreview.inFull ? 'In-full' : 'Short');
+        if (deliveryOtifPreview.errorFree != null) {
+          bits.push(deliveryOtifPreview.errorFree ? 'Error-free' : 'Damaged');
+        }
+      }
+      const otifLabel = bits.length ? bits.join(' · ') : 'OTIFEF recorded';
       if (opts?.rateAfter && rateeId) {
-        toast.success('OTIFEF saved — rate this supplier to close the trust loop');
+        toast.success(`${otifLabel} — rate this supplier to close the trust loop`);
         window.location.href = `/dashboard/suppliers/ratings?ratee=${rateeId}`;
       } else {
-        toast.message('OTIFEF inputs saved', {
+        toast.message(otifLabel, {
           description: rateeId
             ? 'Rate the supplier to complete the trust loop'
             : 'View Performance for scorecards',
@@ -2410,6 +2452,56 @@ function PoInner() {
                   />
                 </div>
               </div>
+              {deliveryOtifPreview && (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500 mb-1.5">
+                    OTIFEF preview (this receipt)
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    <span
+                      className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                        deliveryOtifPreview.onTime == null
+                          ? 'bg-slate-200 text-slate-600'
+                          : deliveryOtifPreview.onTime
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-amber-100 text-amber-900'
+                      }`}
+                    >
+                      {deliveryOtifPreview.onTime == null
+                        ? 'On-time: set dates'
+                        : deliveryOtifPreview.onTime
+                          ? 'On-time ✓'
+                          : 'Late'}
+                    </span>
+                    <span
+                      className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                        deliveryOtifPreview.inFull
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : 'bg-amber-100 text-amber-900'
+                      }`}
+                    >
+                      {deliveryOtifPreview.inFull
+                        ? 'In-full ✓'
+                        : `Short (${deliveryOtifPreview.delivered}/${deliveryOtifPreview.orderQty || '—'})`}
+                    </span>
+                    <span
+                      className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                        deliveryOtifPreview.errorFree == null
+                          ? 'bg-slate-200 text-slate-600'
+                          : deliveryOtifPreview.errorFree
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-red-100 text-red-800'
+                      }`}
+                    >
+                      {deliveryOtifPreview.errorFree == null
+                        ? 'Error-free: —'
+                        : deliveryOtifPreview.errorFree
+                          ? 'Error-free ✓'
+                          : `Damaged ${deliveryOtifPreview.damaged}`}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="flex flex-col gap-2 mt-6">
               <button

@@ -121,6 +121,11 @@ function buildPayload(
     base.amount_paid = body.amount_paid != null ? Number(body.amount_paid) : 0;
     base.paid_at = body.paid_at || null;
     base.billing_address = body.billing_address || customer?.billing_address || null;
+    // fromPo: durable link for double-invoice guard (column may strip if migration not run)
+    const sourcePo = body.source_po_id != null ? Number(body.source_po_id) : NaN;
+    if (Number.isFinite(sourcePo) && sourcePo > 0) {
+      base.source_po_id = sourcePo;
+    }
   }
   return base;
 }
@@ -423,6 +428,50 @@ export async function POST(request: NextRequest) {
     if (!items.length) {
       return NextResponse.json({ error: 'Add at least one line item (product or service)' }, { status: 400 });
     }
+
+    // Double-invoice guard: same source PO → one invoice per company
+    if (kind === 'invoice') {
+      const sourcePoId = body.source_po_id != null ? Number(body.source_po_id) : NaN;
+      if (Number.isFinite(sourcePoId) && sourcePoId > 0) {
+        const { data: byCol } = await supabase
+          .from('customer_invoices')
+          .select('id, invoice_number, status, source_po_id, notes')
+          .eq('profile_id', companyId)
+          .eq('source_po_id', sourcePoId)
+          .limit(1)
+          .maybeSingle();
+        if (byCol?.id) {
+          return NextResponse.json(
+            {
+              error: `Invoice already exists for PO #${sourcePoId}`,
+              code: 'DUPLICATE_FROM_PO',
+              existing: byCol,
+            },
+            { status: 409 }
+          );
+        }
+        // Fallback while source_po_id migration may not be applied: notes marker
+        const marker = `From purchase order #${sourcePoId}`;
+        const { data: byNotes } = await supabase
+          .from('customer_invoices')
+          .select('id, invoice_number, status, notes')
+          .eq('profile_id', companyId)
+          .ilike('notes', `%${marker}%`)
+          .limit(1)
+          .maybeSingle();
+        if (byNotes?.id) {
+          return NextResponse.json(
+            {
+              error: `Invoice already exists for PO #${sourcePoId}`,
+              code: 'DUPLICATE_FROM_PO',
+              existing: byNotes,
+            },
+            { status: 409 }
+          );
+        }
+      }
+    }
+
     const taxRate = body.tax_rate != null ? Number(body.tax_rate) : 15;
     const totals = calcDocTotals(items, taxRate);
     const customer = await loadCustomer(

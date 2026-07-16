@@ -56,9 +56,16 @@ type DocRecord = Record<string, unknown> & {
   total_amount?: number;
   currency?: string;
   notes?: string | null;
+  invoice_number?: string | null;
+  source_po_id?: number | null;
   /** seller_only (default) | shared — buyer reads only when shared via server API */
   visibility?: string | null;
 };
+
+function invoiceMatchesPo(d: DocRecord, poId: number): boolean {
+  if (Number(d.source_po_id) === poId) return true;
+  return String(d.notes || '').includes(`From purchase order #${poId}`);
+}
 
 const CONFIG: Record<
   DocType,
@@ -209,11 +216,8 @@ function DocInner({
     let cancelled = false;
     (async () => {
       try {
-        // Block double-invoice for same PO (notes marker)
-        const marker = `From purchase order #${fromPo}`;
-        const existing = docs.find((d) =>
-          String(d.notes || '').includes(marker)
-        );
+        // Block double-invoice for same PO (source_po_id or notes marker)
+        const existing = docs.find((d) => invoiceMatchesPo(d, fromPo));
         if (existing) {
           fromPoApplied.current = true;
           setFromPoBanner(
@@ -222,7 +226,7 @@ function DocInner({
             )}). Open it below — avoid creating a duplicate.`
           );
           toast.message(`Invoice already created for PO #${fromPo}`, {
-            description: 'Scroll the list to open or resend it.',
+            description: 'Scroll the list to open or email it when ready.',
           });
           return;
         }
@@ -384,16 +388,16 @@ function DocInner({
         setDueDate(due.toISOString().slice(0, 10));
         setFromPoBanner(
           match
-            ? `Prefilling invoice from PO #${po.id} → ${
+            ? `Prefilling draft invoice from PO #${po.id} → ${
                 match.trading_name || match.legal_name || 'customer'
-              }`
-            : `Prefilling invoice from PO #${po.id}${
+              }. Review lines, then create as draft and email when ready.`
+            : `Prefilling draft invoice from PO #${po.id}${
                 po.buyer_name ? ` (${po.buyer_name})` : ''
-              }. Select customer if still needed.`
+              }. Select customer if still needed, then email when ready.`
         );
         toast.success(
           match
-            ? `Invoice prefilled from PO #${po.id}`
+            ? `Draft invoice prefilled from PO #${po.id}`
             : `Invoice lines prefilled from PO #${po.id}`
         );
       } catch {
@@ -557,7 +561,7 @@ function DocInner({
     // Guard: don't create a second invoice for the same PO
     if (type === 'invoice' && fromPo) {
       const marker = `From purchase order #${fromPo}`;
-      const existing = docs.find((d) => String(d.notes || '').includes(marker));
+      const existing = docs.find((d) => invoiceMatchesPo(d, fromPo));
       if (existing) {
         toast.error(
           `Invoice already exists for PO #${fromPo} (${String(
@@ -582,6 +586,15 @@ function DocInner({
                 .filter(Boolean)
                 .join(' · ')
           : notes;
+      // fromPo invoices stay draft so seller can review bank/lines before email
+      const createStatus =
+        type === 'invoice'
+          ? fromPo
+            ? 'draft'
+            : 'sent'
+          : type === 'order'
+            ? 'confirmed'
+            : 'draft';
       const body: Record<string, unknown> = {
         companyId,
         type,
@@ -590,11 +603,12 @@ function DocInner({
         tax_rate: Number(taxRate) || 0,
         notes: notesFinal || null,
         items: valid,
-        status: type === 'invoice' ? 'sent' : type === 'order' ? 'confirmed' : 'draft',
+        status: createStatus,
       };
       if (type === 'quote') body.valid_until = validUntil || null;
       if (type === 'order') body.promised_date = promisedDate || null;
       if (type === 'invoice') body.due_date = dueDate || null;
+      if (type === 'invoice' && fromPo) body.source_po_id = fromPo;
 
       const res = await fetch('/api/customers/docs', {
         method: 'POST',
@@ -602,8 +616,27 @@ function DocInner({
         body: JSON.stringify(body),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || data.hint || 'Failed');
-      toast.success(`${cfg.title.slice(0, -1)} created (${docCurrency})`);
+      if (!res.ok) {
+        if (data.code === 'DUPLICATE_FROM_PO' && data.existing) {
+          throw new Error(
+            data.error ||
+              `Invoice already exists (${data.existing.invoice_number || data.existing.id})`
+          );
+        }
+        throw new Error(data.error || data.hint || 'Failed');
+      }
+      if (type === 'invoice' && fromPo) {
+        toast.success(`Draft invoice created from PO #${fromPo}`, {
+          description:
+            'Saved as draft — use “Email when ready” on the invoice row after you review bank details and lines.',
+          duration: 10000,
+        });
+        setFromPoBanner(
+          `Draft invoice ready for PO #${fromPo}. Use “Email when ready” on the row below when you are ready to send.`
+        );
+      } else {
+        toast.success(`${cfg.title.slice(0, -1)} created (${docCurrency})`);
+      }
       const { toastGoldenPathFromResponse } = await import(
         '@/lib/onboarding/toast-client'
       );
@@ -1406,7 +1439,9 @@ function DocInner({
                             String(d.status || '').toLowerCase()
                           )
                             ? 'Resend'
-                            : 'Email'}
+                            : String(d.status || '').toLowerCase() === 'draft'
+                              ? 'Email when ready'
+                              : 'Email'}
                         </>
                       )}
                     </button>

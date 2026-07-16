@@ -15,7 +15,9 @@ import {
   ExternalLink,
   Rocket,
   ArrowRight,
+  CheckCircle,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { usePrivy } from '@privy-io/react-auth';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
@@ -80,6 +82,7 @@ function PeerInner() {
     poOpen?: number;
     invOpen?: number;
   }>({});
+  const [busyPoId, setBusyPoId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -135,6 +138,41 @@ function PeerInner() {
   useEffect(() => {
     if (edge) void loadWorkspace();
   }, [edge, loadWorkspace]);
+
+  /** We sell to this peer — can accept inbound POs as supplier */
+  const weAreSeller =
+    edge?.role === 'customer' ||
+    edge?.role === 'buyer' ||
+    edge?.connection_type === 'customer';
+
+  const acceptInboundPo = async (poId: number) => {
+    setBusyPoId(poId);
+    try {
+      const res = await fetch('/api/customers/purchase-orders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          id: poId,
+          status: 'accepted',
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Accept failed');
+      toast.success(`PO #${poId} accepted — buyer notified`);
+      setOpenPos((prev) =>
+        prev.map((p) =>
+          p.id === poId ? { ...p, status: 'accepted' } : p
+        )
+      );
+      void loadWorkspace();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Accept failed');
+    } finally {
+      setBusyPoId(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -222,14 +260,21 @@ function PeerInner() {
         cta: 'Discover partners',
       };
     }
-    // We sell to this peer (customer/buyer role) — prefer invoice from open PO
-    const weAreSeller =
-      edge.role === 'customer' ||
-      edge.role === 'buyer' ||
-      edge.connection_type === 'customer';
+    // We sell to this peer (customer/buyer role) — accept inbound first, then invoice
+    const awaitingAccept = openPos.find(
+      (p) => String(p.status || '').toLowerCase() === 'sent'
+    );
+    if (weAreSeller && awaitingAccept) {
+      return {
+        title: 'Accept inbound purchase order',
+        body: `PO ${awaitingAccept.po_number || `#${awaitingAccept.id}`} from ${name} is waiting for your accept.`,
+        href: `/dashboard/customers/orders?tab=inbound&po=${awaitingAccept.id}`,
+        cta: 'Review & accept',
+      };
+    }
     const invoiceablePo = openPos.find((p) => {
       const s = String(p.status || '').toLowerCase();
-      return ['accepted', 'funded', 'sent', 'open', 'confirmed'].includes(s);
+      return ['accepted', 'funded', 'open', 'confirmed'].includes(s);
     });
     if (weAreSeller && invoiceablePo) {
       return {
@@ -428,27 +473,61 @@ function PeerInner() {
             </p>
           ) : (
             <ul className="divide-y divide-neutral-100">
-              {openPos.map((po) => (
-                <li
-                  key={po.id}
-                  className="py-2.5 flex items-center justify-between gap-2 text-sm"
-                >
-                  <div className="min-w-0">
-                    <p className="font-bold text-slate-800 truncate">
-                      {po.po_number || `PO #${po.id}`}
-                    </p>
-                    <p className="text-[11px] text-neutral-500 capitalize">
-                      {po.status || 'open'}
-                      {po.created_at
-                        ? ` · ${new Date(po.created_at).toLocaleDateString()}`
-                        : ''}
-                    </p>
-                  </div>
-                  <span className="text-xs font-bold tabular-nums text-slate-700 shrink-0">
-                    {money(po.total_amount, po.currency)}
-                  </span>
-                </li>
-              ))}
+              {openPos.map((po) => {
+                const st = String(po.status || '').toLowerCase();
+                const canAccept = weAreSeller && st === 'sent';
+                const canInvoice =
+                  weAreSeller &&
+                  ['accepted', 'funded', 'paid', 'open', 'confirmed'].includes(
+                    st
+                  );
+                return (
+                  <li
+                    key={po.id}
+                    className="py-2.5 flex items-center justify-between gap-2 text-sm"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-bold text-slate-800 truncate">
+                        {po.po_number || `PO #${po.id}`}
+                      </p>
+                      <p className="text-[11px] text-neutral-500 capitalize">
+                        {po.status || 'open'}
+                        {po.created_at
+                          ? ` · ${new Date(po.created_at).toLocaleDateString()}`
+                          : ''}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-xs font-bold tabular-nums text-slate-700">
+                        {money(po.total_amount, po.currency)}
+                      </span>
+                      {canAccept && (
+                        <button
+                          type="button"
+                          disabled={busyPoId === po.id}
+                          onClick={() => void acceptInboundPo(po.id)}
+                          className="inline-flex items-center gap-1 rounded-xl bg-emerald-600 px-2.5 py-1.5 text-[11px] font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
+                        >
+                          {busyPoId === po.id ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <CheckCircle className="w-3 h-3" />
+                          )}
+                          Accept
+                        </button>
+                      )}
+                      {canInvoice && (
+                        <Link
+                          href={`/dashboard/customers/invoices?fromPo=${po.id}&buyerProfileId=${peerId}`}
+                          className="inline-flex items-center gap-1 rounded-xl bg-[#00b4d8] px-2.5 py-1.5 text-[11px] font-bold text-white hover:bg-[#0096c7]"
+                        >
+                          Invoice
+                        </Link>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>
