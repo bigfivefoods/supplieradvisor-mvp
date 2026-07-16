@@ -357,10 +357,23 @@ function PeerInner() {
             <FileText className="w-4 h-4 text-[#00b4d8]" /> Pricing
           </Link>
           <Link
-            href="/dashboard/accounting/accounts-receivable"
+            href={
+              edge.role === 'customer' ||
+              edge.role === 'buyer' ||
+              edge.connection_type === 'customer'
+                ? openPos[0]
+                  ? `/dashboard/customers/invoices?fromPo=${openPos[0].id}&buyerProfileId=${peerId}`
+                  : `/dashboard/customers/invoices?buyerProfileId=${peerId}`
+                : '/dashboard/customers/invoices'
+            }
             className="rounded-2xl border border-neutral-200 px-4 py-3 text-sm font-bold text-slate-700 inline-flex items-center gap-2 hover:border-[#00b4d8]/40"
           >
-            <Wallet className="w-4 h-4 text-emerald-600" /> Invoices
+            <Wallet className="w-4 h-4 text-emerald-600" />{' '}
+            {edge.role === 'customer' ||
+            edge.role === 'buyer' ||
+            edge.connection_type === 'customer'
+              ? 'Create invoice'
+              : 'Invoices'}
           </Link>
           {edge.hrefs.ratings && (
             <Link
