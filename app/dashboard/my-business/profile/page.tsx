@@ -2071,23 +2071,45 @@ function ProfileInner() {
                       <p className="text-slate-700">{bankVerifyResult.message}</p>
                     ) : null}
                     <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
-                      {(
-                        [
-                          ['Summary', bankVerifyResult?.verification?.summary],
-                          ['Account found', bankVerifyResult?.verification?.accountFound],
-                          ['Account open', bankVerifyResult?.verification?.accountOpen],
-                          ['Identity match', bankVerifyResult?.verification?.identityMatch],
-                          ['Type match', bankVerifyResult?.verification?.accountTypeMatch],
-                          ['Accepts credits', bankVerifyResult?.verification?.acceptsCredits],
-                          ['Accepts debits', bankVerifyResult?.verification?.acceptsDebits],
-                          ['Request ID', bankVerifyResult?.verification?.requestId],
-                        ] as Array<[string, unknown]>
-                      )
-                        .filter(([, v]) => v != null && v !== '')
-                        .map(([label, value]) => (
-                          <div key={label} className="contents">
-                            <dt className="text-neutral-500">{label}</dt>
-                            <dd className="font-semibold text-slate-800">{String(value)}</dd>
+                      {([
+                        {
+                          label: 'Summary',
+                          value: String(bankVerifyResult?.verification?.summary ?? ''),
+                        },
+                        {
+                          label: 'Account found',
+                          value: String(bankVerifyResult?.verification?.accountFound ?? ''),
+                        },
+                        {
+                          label: 'Account open',
+                          value: String(bankVerifyResult?.verification?.accountOpen ?? ''),
+                        },
+                        {
+                          label: 'Identity match',
+                          value: String(bankVerifyResult?.verification?.identityMatch ?? ''),
+                        },
+                        {
+                          label: 'Type match',
+                          value: String(bankVerifyResult?.verification?.accountTypeMatch ?? ''),
+                        },
+                        {
+                          label: 'Accepts credits',
+                          value: String(bankVerifyResult?.verification?.acceptsCredits ?? ''),
+                        },
+                        {
+                          label: 'Accepts debits',
+                          value: String(bankVerifyResult?.verification?.acceptsDebits ?? ''),
+                        },
+                        {
+                          label: 'Request ID',
+                          value: String(bankVerifyResult?.verification?.requestId ?? ''),
+                        },
+                      ] satisfies Array<{ label: string; value: string }>)
+                        .filter((row) => row.value.trim().length > 0)
+                        .map((row) => (
+                          <div key={row.label} className="contents">
+                            <dt className="text-neutral-500">{row.label}</dt>
+                            <dd className="font-semibold text-slate-800">{row.value}</dd>
                           </div>
                         ))}
                     </dl>
