@@ -46,6 +46,7 @@ import {
 } from '@/components/chrome/CommandHubChrome';
 import GoldenPathChecklist from '@/components/onboarding/GoldenPathChecklist';
 import RatingPromptBanner from '@/components/ratings/RatingPromptBanner';
+import FirstHourKickstart from '@/components/dashboard/FirstHourKickstart';
 
 type CompanyData = {
   id: number;
@@ -654,6 +655,15 @@ export default function DashboardCommandCenter() {
       </div>
 
       <FxRateStrip currency={baseCcy} className="mb-6" />
+
+      <FirstHourKickstart
+        loading={loading && !kpis}
+        networkAccepted={network?.accepted ?? kpis?.networkAccepted ?? 0}
+        openPos={openPos}
+        products={kpis?.products ?? inventory?.products ?? 0}
+        profileCompleteness={completeness}
+        quotesOpen={kpis?.quotesOpen ?? trade?.quotesOpen ?? 0}
+      />
 
       <GoldenPathChecklist />
       <Suspense fallback={null}>

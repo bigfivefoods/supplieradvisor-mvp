@@ -55,3 +55,4 @@ supplieradvisor-mvp/
 # Playwright session (manual login seed)
 e2e/.auth.json
 e2e/.auth.*.json
+CRON_SECRET.txt

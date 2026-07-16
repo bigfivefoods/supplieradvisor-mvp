@@ -284,36 +284,82 @@ function WaitlistInner() {
       )}
 
       {slots && (
-        <div className="grid sm:grid-cols-3 gap-3 mb-6">
-          <div className="rounded-2xl border border-slate-200 bg-white p-4">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-              Founding limit
+        <div className="mb-6 rounded-2xl sm:rounded-3xl border border-violet-100 bg-gradient-to-br from-violet-50 via-white to-sky-50 p-4 sm:p-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+            <div>
+              <div className="text-[10px] font-black uppercase tracking-[0.14em] text-violet-600">
+                Founding free cohort
+              </div>
+              <p className="text-sm text-slate-700 mt-1">
+                First <strong>{slots.limit}</strong> companies get free-for-life
+                access.
+                {slots.full
+                  ? ' Cohort is full — invite carefully from waitlist only if a seat frees up.'
+                  : ` ${slots.remaining} seat${slots.remaining === 1 ? '' : 's'} open — convert waiting → invited → converted.`}
+              </p>
             </div>
-            <div className="text-2xl font-black text-slate-900 mt-1">
-              {slots.limit}
+            <div className="text-right shrink-0">
+              <div
+                className={`text-3xl font-black ${
+                  slots.full ? 'text-rose-600' : 'text-emerald-600'
+                }`}
+              >
+                {slots.remaining}
+                <span className="text-base font-bold text-slate-400">
+                  /{slots.limit}
+                </span>
+              </div>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                remaining
+              </div>
             </div>
           </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-4">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-              Companies used
-            </div>
-            <div className="text-2xl font-black text-sky-700 mt-1">
-              {slots.used}
-            </div>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-4">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-              Slots remaining
-            </div>
+          <div className="h-2.5 w-full rounded-full bg-slate-100 overflow-hidden mb-4">
             <div
-              className={`text-2xl font-black mt-1 ${
-                slots.full ? 'text-rose-600' : 'text-emerald-600'
+              className={`h-full rounded-full transition-all ${
+                slots.full
+                  ? 'bg-rose-500'
+                  : 'bg-gradient-to-r from-violet-500 to-[#00b4d8]'
               }`}
-            >
-              {slots.remaining}
-              {slots.full ? ' · full' : ''}
+              style={{
+                width: `${Math.min(
+                  100,
+                  Math.round((slots.used / Math.max(1, slots.limit)) * 100)
+                )}%`,
+              }}
+            />
+          </div>
+          <div className="grid sm:grid-cols-3 gap-3">
+            <div className="rounded-2xl border border-white/80 bg-white/90 p-3">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Limit
+              </div>
+              <div className="text-xl font-black text-slate-900 mt-0.5">
+                {slots.limit}
+              </div>
+            </div>
+            <div className="rounded-2xl border border-white/80 bg-white/90 p-3">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Used
+              </div>
+              <div className="text-xl font-black text-sky-700 mt-0.5">
+                {slots.used}
+              </div>
+            </div>
+            <div className="rounded-2xl border border-white/80 bg-white/90 p-3">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Waitlist (this view)
+              </div>
+              <div className="text-xl font-black text-violet-700 mt-0.5">
+                {entries.length}
+              </div>
             </div>
           </div>
+          <p className="text-[11px] text-slate-500 mt-3 leading-relaxed">
+            Ops flow: filter <strong>waiting</strong> → <strong>Bulk invite</strong>{' '}
+            (email + mark invited) → set <strong>converted</strong> when they
+            register. Use <strong>Email waiting</strong> when seats reopen.
+          </p>
         </div>
       )}
 

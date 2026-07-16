@@ -3,7 +3,7 @@
  * Fails soft — never blocks the primary API action.
  */
 import { getResend, getResendFrom } from '@/lib/resend';
-import { getSupabaseServer } from '@/lib/supabase/server-client';
+import { resolveCompanyEmails } from '@/lib/billing/company-emails';
 
 function appBase() {
   return (
@@ -14,39 +14,11 @@ function appBase() {
 }
 
 async function companyEmails(profileId: number): Promise<string[]> {
-  const supabase = getSupabaseServer();
-  const emails = new Set<string>();
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('email, contact_email, trading_name')
-    .eq('id', profileId)
-    .maybeSingle();
-
-  if (profile?.email) emails.add(String(profile.email).toLowerCase());
-  if (profile?.contact_email) emails.add(String(profile.contact_email).toLowerCase());
-
-  const { data: members } = await supabase
-    .from('business_users')
-    .select('email, invited_email, role, status')
-    .eq('profile_id', profileId)
-    .eq('status', 'active')
-    .limit(20);
-
-  for (const m of members || []) {
-    const role = String(m.role || '')
-      .toLowerCase()
-      .replace(/[\s-]+/g, '_');
-    if (
-      ['owner', 'admin', 'finance', 'ops', 'operations'].includes(role) ||
-      !role
-    ) {
-      if (m.email) emails.add(String(m.email).toLowerCase());
-      if (m.invited_email) emails.add(String(m.invited_email).toLowerCase());
-    }
-  }
-
-  return [...emails].filter((e) => e.includes('@'));
+  const { emails } = await resolveCompanyEmails(profileId, {
+    roleAllowlist: ['owner', 'admin', 'finance', 'ops', 'operations'],
+    limit: 10,
+  });
+  return emails;
 }
 
 async function sendAlert(params: {

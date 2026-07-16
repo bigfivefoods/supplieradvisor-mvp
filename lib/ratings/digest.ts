@@ -4,6 +4,7 @@
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
+import { resolveCompanyEmails } from '@/lib/billing/company-emails';
 
 function appUrl(): string {
   return (
@@ -114,37 +115,12 @@ export async function sendPendingRatingDigests(opts?: {
       const prompts = byCompany.get(companyId) || [];
       if (!prompts.length) continue;
 
-      // Resolve recipient emails
-      const emails = new Set<string>();
-      const { data: prof } = await supabase
-        .from('profiles')
-        .select('email, contact_email, trading_name')
-        .eq('id', companyId)
-        .maybeSingle();
-      if (prof?.email) emails.add(String(prof.email).toLowerCase());
-      if (prof?.contact_email)
-        emails.add(String(prof.contact_email).toLowerCase());
-
-      const { data: members } = await supabase
-        .from('business_users')
-        .select('email, invited_email, role, status')
-        .eq('profile_id', companyId)
-        .eq('status', 'active')
-        .limit(15);
-      for (const m of members || []) {
-        const role = String(m.role || '').toLowerCase();
-        if (['owner', 'admin', 'operations', 'ops', 'sales'].includes(role) || !role) {
-          if (m.email) emails.add(String(m.email).toLowerCase());
-          if (m.invited_email)
-            emails.add(String(m.invited_email).toLowerCase());
-        }
-      }
-
-      const to = [...emails].filter((e) => e.includes('@')).slice(0, 8);
+      // profiles.contact_email is not a real column — use shared resolver
+      const resolved = await resolveCompanyEmails(companyId, { limit: 8 });
+      const to = resolved.emails;
       if (!to.length) continue;
 
-      const companyName =
-        (prof?.trading_name as string) || `Company ${companyId}`;
+      const companyName = resolved.tradingName || `Company ${companyId}`;
       const itemsHtml = prompts
         .slice(0, 8)
         .map((p) => {

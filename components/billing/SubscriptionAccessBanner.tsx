@@ -76,6 +76,15 @@ export default function SubscriptionAccessBanner() {
     return null;
   }
 
+  const daysLabel =
+    days == null
+      ? null
+      : days <= 0
+        ? 'today'
+        : days === 1
+          ? '1 day'
+          : `${days} days`;
+
   return (
     <>
       {locked && (
@@ -93,8 +102,9 @@ export default function SubscriptionAccessBanner() {
                 </strong>
                 <span className="text-rose-900/90">
                   {' '}
-                  — subscribe to keep trading, inventory, and network tools.
-                  From {formatZar(COMPANY_SUBSCRIPTION_MONTHLY_ZAR)}/mo.
+                  — restore access from{' '}
+                  {formatZar(COMPANY_SUBSCRIPTION_MONTHLY_ZAR)}/mo, or check if
+                  founding free seats remain.
                 </span>
               </div>
             </div>
@@ -116,12 +126,13 @@ export default function SubscriptionAccessBanner() {
               <Clock className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
               <div className="text-sm text-amber-950">
                 <strong className="font-bold">
-                  {sub.isTrial ? 'Trial' : 'Subscription'} ends in {days} day
-                  {days === 1 ? '' : 's'}
+                  {sub.isTrial ? 'Trial' : 'Subscription'} ends
+                  {daysLabel ? ` in ${daysLabel}` : ' soon'}
                 </strong>
                 <span className="text-amber-900/90">
                   {' '}
-                  — renew or prepay to avoid interruption.
+                  — renew, prepay (save up to 30%), or claim founding free if
+                  seats remain.
                 </span>
               </div>
             </div>
@@ -155,7 +166,9 @@ export default function SubscriptionAccessBanner() {
             </h2>
             <p className="text-sm text-slate-600 mt-2 leading-relaxed">
               Your free trial or paid period has ended. Profile, team, and
-              billing stay available — restore full access from billing.
+              billing stay available. Plans start at{' '}
+              {formatZar(COMPANY_SUBSCRIPTION_MONTHLY_ZAR)}/mo — founding free
+              seats (first 25 companies) may still be open on billing.
             </p>
             <div className="mt-5 flex flex-col sm:flex-row gap-2 justify-center">
               <Link

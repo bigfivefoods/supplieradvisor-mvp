@@ -13,14 +13,38 @@ Apply pending SQL under `supabase/migrations/` (editor or CLI), especially:
 | `20260716_container_share_views.sql` | Embed `view_count` / `last_viewed_at` |
 | `20260716_subscription_reminders.sql` | `subscription_reminder_meta` |
 
-Smoke:
+Smoke (run in Supabase SQL editor after each major deploy):
 
 ```sql
+-- Core product tables
 SELECT count(*) FROM rating_prompts;
 SELECT count(*) FROM sam_conversations;
 SELECT count(*) FROM founding_waitlist;
+
+-- Subscription lifecycle (trial/expiry emails)
 SELECT column_name FROM information_schema.columns
-  WHERE table_name = 'profiles' AND column_name = 'subscription_reminder_meta';
+  WHERE table_schema = 'public' AND table_name = 'profiles'
+    AND column_name IN (
+      'email',
+      'subscription_status',
+      'subscription_trial_ends_at',
+      'subscription_ends_at',
+      'subscription_plan',
+      'subscription_reminder_meta'
+    )
+  ORDER BY column_name;
+
+-- Note: profiles.contact_email is NOT used (does not exist). App uses profiles.email + business_users.
+
+-- Container public embeds
+SELECT column_name FROM information_schema.columns
+  WHERE table_schema = 'public' AND table_name = 'container_network_shares'
+    AND column_name IN ('view_count', 'last_viewed_at');
+
+-- Referral payouts
+SELECT column_name FROM information_schema.columns
+  WHERE table_schema = 'public' AND table_name = 'supply_chain_referrals'
+  LIMIT 5;
 ```
 
 ## 2. Environment (Vercel)
