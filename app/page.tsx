@@ -82,10 +82,37 @@ type PublicCompany = {
   trust_score?: number | null;
   star_avg?: number | null;
   star_count?: number;
+  stars_as_supplier_avg?: number | null;
+  stars_as_supplier_count?: number;
+  stars_as_customer_avg?: number | null;
+  stars_as_customer_count?: number;
+  otifef_pct?: number | null;
+  otifef_count?: number;
   badge: 'verified' | 'network';
   created_at?: string | null;
   join_rank?: number;
 };
+
+function StarRow({ avg, count }: { avg: number | null | undefined; count: number }) {
+  if (avg == null || count <= 0) {
+    return (
+      <span className="text-[11px] text-slate-400">No peer stars yet</span>
+    );
+  }
+  const full = Math.min(5, Math.max(0, Math.round(avg)));
+  return (
+    <span className="inline-flex items-center gap-1.5" title={`${avg.toFixed(1)} from ${count} peer ratings`}>
+      <span className="text-amber-400 text-[11px] tracking-tight" aria-hidden>
+        {'★'.repeat(full)}
+        <span className="text-slate-200">{'★'.repeat(5 - full)}</span>
+      </span>
+      <span className="text-sm font-black tabular-nums text-slate-900">
+        {avg.toFixed(1)}
+      </span>
+      <span className="text-[11px] text-slate-500">({count})</span>
+    </span>
+  );
+}
 
 const MODULES = [
   {
@@ -1075,6 +1102,18 @@ export default function LandingPage() {
               <strong className="text-slate-800">first to join → latest</strong>,{' '}
               {NETWORK_PAGE_SIZE} at a time.
             </p>
+            <div className="mx-auto mt-5 max-w-2xl rounded-2xl border border-sky-100 bg-sky-50/80 px-4 py-3.5 text-left sm:text-center sm:px-6">
+              <p className="text-sm font-semibold text-sky-950 leading-relaxed">
+                Continuous trust loop
+              </p>
+              <p className="mt-1 text-sm text-sky-900/80 leading-relaxed">
+                Companies are rated by their <strong>suppliers</strong> and{' '}
+                <strong>customers</strong> — peer stars for how they trade, and{' '}
+                <strong>OTIFEF</strong> (On-Time · In-Full · Error-Free) for delivery
+                performance. That feedback loop helps every business improve, and
+                builds trust you can see before you trade.
+              </p>
+            </div>
             {!loadingVerified && platformTotal != null && (
               <p className="mt-3 text-sm font-semibold text-violet-800">
                 Founding free-for-life: {Math.max(0, FOUNDING_FREE_COMPANY_LIMIT - platformTotal)}{' '}
@@ -1135,6 +1174,7 @@ export default function LandingPage() {
                   const stars = company.star_avg;
                   const starCount = company.star_count ?? 0;
                   const trust = company.trust_score;
+                  const otifef = company.otifef_pct;
                   const rank = company.join_rank;
                   const joined =
                     company.created_at && !Number.isNaN(Date.parse(company.created_at))
@@ -1146,7 +1186,7 @@ export default function LandingPage() {
                   return (
                     <div
                       key={company.id}
-                      className="flex flex-col rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-all hover:border-[#00b4d8]/40 hover:shadow-md"
+                      className="flex flex-col rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm transition-all hover:border-[#00b4d8]/40 hover:shadow-md"
                     >
                       <div className="mb-3 flex items-start justify-between gap-3">
                         <div className="min-w-0">
@@ -1175,32 +1215,98 @@ export default function LandingPage() {
                           {isVerified ? 'Verified' : 'Member'}
                         </span>
                       </div>
-                      <div className="mb-4 flex items-center gap-2 text-xs text-slate-500">
+                      <div className="mb-3 flex items-center gap-2 text-xs text-slate-500">
                         <Building2 className="h-3.5 w-3.5 text-[#00b4d8] shrink-0" />
                         <span className="truncate">
                           {meta || 'Joined SupplierAdvisor'}
                         </span>
                       </div>
-                      <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
-                        <div className="flex items-center gap-1.5">
-                          {stars != null && starCount > 0 ? (
-                            <>
-                              <span className="text-amber-500 text-xs" aria-hidden>
-                                ★
-                              </span>
-                              <span className="text-sm font-black tabular-nums text-slate-900">
-                                {stars.toFixed(1)}
-                              </span>
-                              <span className="text-[11px] text-slate-500">({starCount})</span>
-                            </>
-                          ) : (
-                            <span className="text-[11px] text-slate-400">No ratings yet</span>
-                          )}
+
+                      {/* Trust · OTIFEF · Stars — builds confidence to trade */}
+                      <div className="mt-auto grid grid-cols-3 gap-1.5 border-t border-slate-100 pt-3">
+                        <div
+                          className="rounded-xl border border-slate-100 bg-slate-50/80 px-2 py-2 text-center"
+                          title="Platform trust score"
+                        >
+                          <div className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                            Trust
+                          </div>
+                          <div className="mt-0.5 flex items-center justify-center gap-0.5">
+                            <ShieldCheck className="h-3 w-3 text-[#00b4d8]" />
+                            <span className="text-sm font-black tabular-nums text-slate-900">
+                              {trust != null && Number.isFinite(trust)
+                                ? Math.round(trust)
+                                : '—'}
+                            </span>
+                          </div>
                         </div>
-                        <div className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-2.5 py-1 text-[11px] font-bold text-slate-700">
-                          <ShieldCheck className="h-3 w-3 text-[#00b4d8]" />
-                          Trust {trust != null ? Math.round(trust) : '—'}
+                        <div
+                          className="rounded-xl border border-emerald-100 bg-emerald-50/50 px-2 py-2 text-center"
+                          title="On-Time · In-Full · Error-Free performance"
+                        >
+                          <div className="text-[9px] font-bold uppercase tracking-wider text-emerald-700/70">
+                            OTIFEF
+                          </div>
+                          <div className="mt-0.5 text-sm font-black tabular-nums text-emerald-900">
+                            {otifef != null && otifef > 0
+                              ? `${Math.round(otifef)}%`
+                              : '—'}
+                          </div>
                         </div>
+                        <div
+                          className="rounded-xl border border-amber-100 bg-amber-50/40 px-2 py-2 text-center"
+                          title="Peer star ratings from suppliers and customers"
+                        >
+                          <div className="text-[9px] font-bold uppercase tracking-wider text-amber-800/70">
+                            Stars
+                          </div>
+                          <div className="mt-0.5 text-sm font-black tabular-nums text-slate-900">
+                            {stars != null && starCount > 0
+                              ? stars.toFixed(1)
+                              : '—'}
+                            {starCount > 0 && (
+                              <span className="text-[10px] font-semibold text-slate-500">
+                                {' '}
+                                ({starCount})
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-2.5 space-y-1.5 rounded-xl border border-slate-100 bg-white px-2.5 py-2">
+                        <div className="flex items-center justify-between gap-2 text-[11px]">
+                          <span className="text-slate-500">Peer stars</span>
+                          <StarRow avg={stars} count={starCount} />
+                        </div>
+                        {(company.stars_as_supplier_count || 0) > 0 ||
+                        (company.stars_as_customer_count || 0) > 0 ? (
+                          <div className="flex flex-wrap gap-x-3 gap-y-1 border-t border-slate-50 pt-1.5 text-[10px] text-slate-500">
+                            {(company.stars_as_supplier_count || 0) > 0 && (
+                              <span>
+                                As supplier:{' '}
+                                <strong className="text-slate-700">
+                                  {company.stars_as_supplier_avg?.toFixed(1)}★
+                                </strong>{' '}
+                                ({company.stars_as_supplier_count} from customers)
+                              </span>
+                            )}
+                            {(company.stars_as_customer_count || 0) > 0 && (
+                              <span>
+                                As customer:{' '}
+                                <strong className="text-slate-700">
+                                  {company.stars_as_customer_avg?.toFixed(1)}★
+                                </strong>{' '}
+                                ({company.stars_as_customer_count} from suppliers)
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-[10px] text-slate-400 leading-snug">
+                            Rated by suppliers & customers as they trade — the loop that
+                            improves every business.
+                          </p>
+                        )}
                       </div>
                     </div>
                   );
