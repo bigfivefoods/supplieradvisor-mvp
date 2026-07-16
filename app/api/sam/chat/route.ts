@@ -112,12 +112,35 @@ export async function POST(request: NextRequest) {
         const errText = await upstream.text().catch(() => '');
         let message = `Grok request failed (${upstream.status})`;
         try {
-          const j = JSON.parse(errText) as { error?: { message?: string } };
-          if (j.error?.message) message = j.error.message;
+          const j = JSON.parse(errText) as {
+            error?: string | { message?: string };
+            message?: string;
+          };
+          if (typeof j.error === 'string' && j.error.trim()) {
+            message = j.error;
+          } else if (
+            j.error &&
+            typeof j.error === 'object' &&
+            j.error.message
+          ) {
+            message = j.error.message;
+          } else if (j.message) {
+            message = j.message;
+          }
         } catch {
-          if (errText) message = errText.slice(0, 300);
+          if (errText) message = errText.slice(0, 400);
         }
-        return NextResponse.json({ error: message }, { status: 502 });
+        // Friendly hint for empty xAI team credits
+        if (
+          upstream.status === 403 &&
+          /credit|license|purchase/i.test(message)
+        ) {
+          message = `${message} Open console.x.ai → your team → add credits or a license, then try SAM again.`;
+        }
+        return NextResponse.json(
+          { error: message, status: upstream.status },
+          { status: upstream.status === 403 ? 403 : 502 }
+        );
       }
 
       // Proxy SSE stream to the browser
