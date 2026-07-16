@@ -561,6 +561,7 @@ export async function PATCH(request: NextRequest) {
       const supplierId = Number(
         data?.supplier_profile_id ?? data?.supplier_id ?? po.supplier_profile_id ?? po.supplier_id
       );
+      // Buyer rates supplier
       void promptAfterPoDelivered({
         buyerProfileId: companyId,
         supplierProfileId: Number.isFinite(supplierId) ? supplierId : null,
@@ -568,6 +569,20 @@ export async function PATCH(request: NextRequest) {
         poId: id,
         userId: member.userId,
       }).catch(() => undefined);
+      // Supplier rates buyer (customer role) after delivery confirmed
+      if (Number.isFinite(supplierId) && supplierId > 0) {
+        void import('@/lib/ratings/create-prompt').then(({ createRatingPrompt }) =>
+          createRatingPrompt({
+            profileId: supplierId,
+            counterpartyProfileId: companyId,
+            counterpartyName: null,
+            rateeRole: 'customer',
+            contextType: 'po',
+            contextId: String(id),
+            userId: member.userId,
+          }).catch(() => undefined)
+        );
+      }
     }
 
     return NextResponse.json({ success: true, purchaseOrder: data });

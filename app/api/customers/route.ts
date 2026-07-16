@@ -106,6 +106,28 @@ export async function POST(request: NextRequest) {
       }
     }
     const supabase = getSupabaseServer();
+    const linkedProfileId =
+      body.linked_profile_id != null && Number.isFinite(Number(body.linked_profile_id))
+        ? Number(body.linked_profile_id)
+        : null;
+
+    // Prefer existing CRM row already linked to this platform company
+    if (linkedProfileId != null) {
+      const { data: existing } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('profile_id', companyId)
+        .eq('linked_profile_id', linkedProfileId)
+        .maybeSingle();
+      if (existing) {
+        return NextResponse.json({
+          success: true,
+          customer: existing,
+          alreadyLinked: true,
+        });
+      }
+    }
+
     const payload: Record<string, unknown> = {
       profile_id: companyId,
       trading_name: String(body.trading_name).trim(),
@@ -135,16 +157,21 @@ export async function POST(request: NextRequest) {
       rating: body.rating != null ? Number(body.rating) : 0,
       updated_at: new Date().toISOString(),
     };
+    if (linkedProfileId != null) {
+      payload.linked_profile_id = linkedProfileId;
+      payload.invite_status = body.invite_status || 'accepted';
+    }
 
     let { data, error } = await supabase.from('customers').insert(payload).select('*').single();
     if (error && /column|schema cache|does not exist/i.test(error.message)) {
-      const minimal = {
+      const minimal: Record<string, unknown> = {
         profile_id: companyId,
         trading_name: payload.trading_name,
         email: payload.email,
         phone: payload.phone,
         status: payload.status,
       };
+      if (linkedProfileId != null) minimal.linked_profile_id = linkedProfileId;
       const retry = await supabase.from('customers').insert(minimal).select('*').single();
       data = retry.data;
       error = retry.error;

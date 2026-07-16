@@ -204,11 +204,29 @@ function DocInner({
     if (type !== 'invoice' || !fromPo || fromPoApplied.current || loading) {
       return;
     }
-    if (!customers.length && !privyUserId) return;
+    if (!privyUserId) return;
 
     let cancelled = false;
     (async () => {
       try {
+        // Block double-invoice for same PO (notes marker)
+        const marker = `From purchase order #${fromPo}`;
+        const existing = docs.find((d) =>
+          String(d.notes || '').includes(marker)
+        );
+        if (existing) {
+          fromPoApplied.current = true;
+          setFromPoBanner(
+            `Invoice already exists for PO #${fromPo} (${String(
+              existing.invoice_number || existing.id
+            )}). Open it below — avoid creating a duplicate.`
+          );
+          toast.message(`Invoice already created for PO #${fromPo}`, {
+            description: 'Scroll the list to open or resend it.',
+          });
+          return;
+        }
+
         const params = new URLSearchParams({
           companyId: String(companyId),
         });
@@ -240,6 +258,7 @@ function DocInner({
         const buyerId = Number(
           buyerProfileIdParam || po.buyer_profile_id || 0
         );
+
         // Match CRM customer by linked platform profile
         let match = customers.find(
           (c) =>
@@ -256,6 +275,77 @@ function DocInner({
             ).toLowerCase();
             return n && (n.includes(bn) || bn.includes(n));
           });
+        }
+
+        // Auto-create / link CRM customer from buyer platform profile
+        if (!match && buyerId > 0) {
+          let buyerName = po.buyer_name || `Buyer #${buyerId}`;
+          let buyerEmail: string | null = null;
+          let buyerCountry: string | null = null;
+          try {
+            const br = await fetch(
+              `/api/public/verified-companies?q=${encodeURIComponent(String(buyerId))}&pageSize=1`
+            );
+            // Prefer profile via PO list enrichment is enough; optional soft lookup
+            void br;
+          } catch {
+            /* */
+          }
+          // Load buyer display from connections peers if available
+          try {
+            const cParams = new URLSearchParams({
+              companyId: String(companyId),
+            });
+            if (privyUserId) cParams.set('privyUserId', privyUserId);
+            const cRes = await fetch(`/api/connections?${cParams}`);
+            const cData = await cRes.json().catch(() => ({}));
+            const edges = (cData.edges || []) as Array<{
+              peer?: {
+                id?: number;
+                trading_name?: string | null;
+                legal_name?: string | null;
+                email?: string | null;
+                country?: string | null;
+              };
+            }>;
+            const peer = edges.find((e) => Number(e.peer?.id) === buyerId)?.peer;
+            if (peer) {
+              buyerName =
+                peer.trading_name || peer.legal_name || buyerName;
+              buyerEmail = peer.email || null;
+              buyerCountry = peer.country || null;
+            }
+          } catch {
+            /* soft */
+          }
+
+          const createRes = await fetch('/api/customers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              companyId,
+              privyUserId,
+              trading_name: buyerName,
+              legal_name: buyerName,
+              email: buyerEmail,
+              country: buyerCountry,
+              linked_profile_id: buyerId,
+              invite_status: 'accepted',
+              source: 'from_po',
+              notes: `Auto-created from PO #${po.id}`,
+              status: 'active',
+            }),
+          });
+          const createData = await createRes.json().catch(() => ({}));
+          if (createRes.ok && createData.customer) {
+            match = createData.customer as CustomerRecord;
+            setCustomers((prev) => {
+              if (prev.some((c) => Number(c.id) === Number(match!.id))) {
+                return prev;
+              }
+              return [match as CustomerRecord, ...prev];
+            });
+          }
         }
 
         const poLines = (Array.isArray(po.items) ? po.items : [])
@@ -294,12 +384,18 @@ function DocInner({
         setDueDate(due.toISOString().slice(0, 10));
         setFromPoBanner(
           match
-            ? `Prefilling invoice from PO #${po.id} → ${match.trading_name || match.legal_name || 'customer'}`
+            ? `Prefilling invoice from PO #${po.id} → ${
+                match.trading_name || match.legal_name || 'customer'
+              }`
             : `Prefilling invoice from PO #${po.id}${
                 po.buyer_name ? ` (${po.buyer_name})` : ''
-              }. Select customer if not linked.`
+              }. Select customer if still needed.`
         );
-        toast.success(`Invoice form prefilled from PO #${po.id}`);
+        toast.success(
+          match
+            ? `Invoice prefilled from PO #${po.id}`
+            : `Invoice lines prefilled from PO #${po.id}`
+        );
       } catch {
         /* soft */
       }
@@ -313,6 +409,7 @@ function DocInner({
     buyerProfileIdParam,
     loading,
     customers,
+    docs,
     companyId,
     privyUserId,
   ]);
@@ -457,15 +554,41 @@ function DocInner({
       toast.error('Add at least one product or service line');
       return;
     }
+    // Guard: don't create a second invoice for the same PO
+    if (type === 'invoice' && fromPo) {
+      const marker = `From purchase order #${fromPo}`;
+      const existing = docs.find((d) => String(d.notes || '').includes(marker));
+      if (existing) {
+        toast.error(
+          `Invoice already exists for PO #${fromPo} (${String(
+            existing.invoice_number || existing.id
+          )})`
+        );
+        return;
+      }
+      if (!String(notes || '').includes(marker)) {
+        setNotes((n) =>
+          [n, marker].filter(Boolean).join(n ? ' · ' : '')
+        );
+      }
+    }
     setSaving(true);
     try {
+      const notesFinal =
+        type === 'invoice' && fromPo
+          ? String(notes || '').includes(`From purchase order #${fromPo}`)
+            ? notes
+            : [notes, `From purchase order #${fromPo}`]
+                .filter(Boolean)
+                .join(' · ')
+          : notes;
       const body: Record<string, unknown> = {
         companyId,
         type,
         customer_id: customerId || null,
         currency: docCurrency || 'ZAR',
         tax_rate: Number(taxRate) || 0,
-        notes: notes || null,
+        notes: notesFinal || null,
         items: valid,
         status: type === 'invoice' ? 'sent' : type === 'order' ? 'confirmed' : 'draft',
       };

@@ -222,11 +222,30 @@ function PeerInner() {
         cta: 'Discover partners',
       };
     }
+    // We sell to this peer (customer/buyer role) — prefer invoice from open PO
+    const weAreSeller =
+      edge.role === 'customer' ||
+      edge.role === 'buyer' ||
+      edge.connection_type === 'customer';
+    const invoiceablePo = openPos.find((p) => {
+      const s = String(p.status || '').toLowerCase();
+      return ['accepted', 'funded', 'sent', 'open', 'confirmed'].includes(s);
+    });
+    if (weAreSeller && invoiceablePo) {
+      return {
+        title: 'Create invoice from open PO',
+        body: `PO ${invoiceablePo.po_number || `#${invoiceablePo.id}`} is ready to bill ${name}.`,
+        href: `/dashboard/customers/invoices?fromPo=${invoiceablePo.id}&buyerProfileId=${peerId}`,
+        cta: 'Create invoice',
+      };
+    }
     if ((wsMeta.poOpen ?? openPos.length) > 0) {
       return {
         title: 'Continue open purchase orders',
         body: `${wsMeta.poOpen ?? openPos.length} open PO(s) with ${name}. Track delivery, accept, or invoice.`,
-        href: edge.hrefs.po || '/dashboard/suppliers/po',
+        href: weAreSeller
+          ? '/dashboard/customers/orders?tab=inbound'
+          : edge.hrefs.po || '/dashboard/suppliers/po',
         cta: 'Open POs',
       };
     }
@@ -246,12 +265,12 @@ function PeerInner() {
         cta: 'Raise PO',
       };
     }
-    if (edge.role === 'customer' || edge.role === 'buyer') {
+    if (weAreSeller) {
       return {
         title: 'Send a quote or invoice',
         body: `${name} is a customer connection — share commercial documents next.`,
-        href: '/dashboard/customers/invoices',
-        cta: 'Open invoices',
+        href: `/dashboard/customers/invoices?buyerProfileId=${peerId}`,
+        cta: 'Create invoice',
       };
     }
     return {

@@ -141,6 +141,16 @@ npx playwright test e2e/trade-loop-smoke.spec.ts
 | Rating prompts on PO completed/paid | Shipped |
 | Daily location-backfill cron (04:15 UTC) | Shipped |
 
+## Mini-sprint 6 (fromPo customer / double invoice / ratings / bell / peer CTA)
+
+| Item | Status |
+|------|--------|
+| Auto-create/link CRM customer on fromPo | Shipped |
+| Block duplicate invoice for same PO | Shipped |
+| Buyer delivery → mutual rating prompts | Shipped |
+| Post-accept + accepted-PO notifications → fromPo invoice | Shipped |
+| Peer workspace Create invoice primary CTA | Shipped |
+
 Ops after every major deploy:
 
 ```bash

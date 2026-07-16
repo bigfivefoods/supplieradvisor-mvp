@@ -193,6 +193,37 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // Accepted inbound POs — prompt seller to create invoice
+    {
+      const { data: acceptedPos } = await supabase
+        .from('purchase_orders')
+        .select(
+          'id, status, total_amount, currency, created_at, buyer_profile_id, updated_at'
+        )
+        .or(
+          `supplier_profile_id.eq.${companyId},supplier_id.eq.${companyId}`
+        )
+        .in('status', ['accepted', 'funded'])
+        .order('updated_at', { ascending: false })
+        .limit(10);
+      for (const po of acceptedPos || []) {
+        const buyerId = Number(po.buyer_profile_id || 0);
+        const href = buyerId
+          ? `/dashboard/customers/invoices?fromPo=${po.id}&buyerProfileId=${buyerId}`
+          : `/dashboard/customers/invoices?fromPo=${po.id}`;
+        notifications.push({
+          id: `invoice-from-po-${po.id}`,
+          severity: 'info',
+          title: `Create invoice for PO #${po.id}`,
+          body: 'PO accepted — prefill invoice lines from the purchase order',
+          href,
+          created_at:
+            po.updated_at || po.created_at || new Date().toISOString(),
+          source: 'sales',
+        });
+      }
+    }
+
     // Pending connection requests (inbound)
     {
       const { data: pendingIn } = await supabase
@@ -248,10 +279,21 @@ export async function GET(request: NextRequest) {
             : '/dashboard/connections';
         } else if (action.includes('connection_request')) {
           href = '/dashboard/connections';
-        } else if (action.includes('invoice') || action.includes('po_received')) {
-          href = action.includes('invoice')
-            ? '/dashboard/customers/invoices'
-            : '/dashboard/customers/orders?tab=inbound';
+        } else if (
+          action.includes('invoice') ||
+          action.includes('po_accepted_invoice')
+        ) {
+          if (typeof meta.href === 'string' && meta.href.startsWith('/')) {
+            href = String(meta.href);
+          } else {
+            const poId = Number(meta.poId || a.entity_id || 0);
+            href =
+              poId > 0
+                ? `/dashboard/customers/invoices?fromPo=${poId}`
+                : '/dashboard/customers/invoices';
+          }
+        } else if (action.includes('po_received')) {
+          href = '/dashboard/customers/orders?tab=inbound';
         } else if (action.includes('verification')) {
           href = '/dashboard/my-business/profile';
         }
@@ -290,10 +332,22 @@ export async function GET(request: NextRequest) {
             : '/dashboard/connections';
         } else if (type === 'invoice_sent' || type === 'invoice_overdue') {
           href = '/dashboard/customers/invoices';
+        } else if (type === 'po_accepted_invoice') {
+          const poId = Number(meta.poId || 0);
+          const buyer = Number(meta.buyerProfileId || 0);
+          href =
+            poId > 0
+              ? `/dashboard/customers/invoices?fromPo=${poId}${
+                  buyer ? `&buyerProfileId=${buyer}` : ''
+                }`
+              : '/dashboard/customers/invoices';
         } else if (type === 'po_received') {
           href = '/dashboard/customers/orders?tab=inbound';
         } else if (type.includes('verif')) {
           href = '/dashboard/my-business/profile';
+        }
+        if (typeof meta.href === 'string' && meta.href.startsWith('/')) {
+          href = String(meta.href);
         }
         notifications.push({
           id: `ntab-${n.id}`,

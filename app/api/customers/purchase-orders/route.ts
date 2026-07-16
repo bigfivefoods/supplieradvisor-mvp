@@ -319,6 +319,32 @@ export async function PATCH(request: NextRequest) {
             supplierName,
             poId: id,
           });
+          // Seller-side in-app nudge: create invoice from this PO
+          await supabase.from('activity_log').insert({
+            profile_id: companyId,
+            actor_user_id: member.userId,
+            action: 'notify.po_accepted_invoice',
+            entity_type: 'purchase_order',
+            entity_id: String(id),
+            summary: `PO #${id} accepted — create invoice`,
+            metadata: {
+              poId: id,
+              buyer_profile_id: po.buyer_profile_id,
+              href: `/dashboard/customers/invoices?fromPo=${id}&buyerProfileId=${po.buyer_profile_id}`,
+            },
+          });
+          void supabase.from('notifications').insert({
+            profile_id: companyId,
+            type: 'po_accepted_invoice',
+            title: `Create invoice for PO #${id}`,
+            body: 'PO accepted — raise a commercial invoice from the lines',
+            metadata: {
+              poId: id,
+              buyerProfileId: po.buyer_profile_id,
+              href: `/dashboard/customers/invoices?fromPo=${id}&buyerProfileId=${po.buyer_profile_id}`,
+            },
+            read: false,
+          });
         } catch (e) {
           console.warn('PO accepted notify soft-fail', e);
         }
