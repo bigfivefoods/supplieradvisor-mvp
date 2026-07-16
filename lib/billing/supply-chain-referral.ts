@@ -167,6 +167,12 @@ export function referralChainScaleScenario(
   count: number;
   baseMonthlyZar: number;
   levels: [ReferralLevelEarnings, ReferralLevelEarnings, ReferralLevelEarnings];
+  /**
+   * If you have `count` paying companies at L1 **and** at L2 **and** at L3
+   * (stack all three depths) — total you could earn.
+   */
+  totalMonthlyZar: number;
+  totalAnnualZar: number;
   /** If those companies were split equally L1/L2/L3 — rough blend */
   blendedMonthlyZar: number;
   blendedAnnualZar: number;
@@ -176,14 +182,17 @@ export function referralChainScaleScenario(
     referralLevelEarningsScenario(companyCount, monthlyZar, 2),
     referralLevelEarningsScenario(companyCount, monthlyZar, 3),
   ] as [ReferralLevelEarnings, ReferralLevelEarnings, ReferralLevelEarnings];
-  // Equal mix of levels (1/3 each) for a "balanced network" illustration
-  const blendedMonthly = roundZar(
-    (levels[0].monthlyZar + levels[1].monthlyZar + levels[2].monthlyZar) / 3
+  const totalMonthly = roundZar(
+    levels[0].monthlyZar + levels[1].monthlyZar + levels[2].monthlyZar
   );
+  // Equal mix of levels (1/3 each) for a "balanced network" illustration
+  const blendedMonthly = roundZar(totalMonthly / 3);
   return {
     count: Math.max(0, Math.floor(companyCount)),
     baseMonthlyZar: Math.max(0, Number(monthlyZar) || 0),
     levels,
+    totalMonthlyZar: totalMonthly,
+    totalAnnualZar: roundZar(totalMonthly * 12),
     blendedMonthlyZar: blendedMonthly,
     blendedAnnualZar: roundZar(blendedMonthly * 12),
   };

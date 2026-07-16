@@ -891,12 +891,30 @@ export default function LandingPage() {
                           ))}
                         </tr>
                       ))}
+                      <tr className="border-t-2 border-emerald-300 bg-emerald-50">
+                        <td className="py-3 pr-2 font-black text-emerald-950 whitespace-nowrap">
+                          Total after L3
+                        </td>
+                        {scaleScenarios.map((s) => (
+                          <td
+                            key={`tot-${s.count}`}
+                            className="py-3 px-1 text-center tabular-nums"
+                          >
+                            <div className="text-base font-black text-emerald-950">
+                              {formatZar(s.totalMonthlyZar)}
+                            </div>
+                            <div className="text-[10px] font-bold text-emerald-800">
+                              /mo · {formatZar(s.totalAnnualZar)}/yr
+                            </div>
+                          </td>
+                        ))}
+                      </tr>
                     </tbody>
                   </table>
                 </div>
-                <p className="mt-4 text-[11px] text-slate-500 leading-relaxed">
-                  Stackable: 10 L1 + 50 L2 + 200 L3 all paying = sum of those cells.
-                  Full table on{' '}
+                <p className="mt-3 text-[11px] text-slate-500 leading-relaxed">
+                  <strong className="text-slate-700">Total</strong> = L1 + L2 + L3 if
+                  that many companies pay at <em>each</em> depth. Full detail on{' '}
                   <Link href="/pricing#referral" className="font-semibold text-[#0077b6] hover:underline">
                     pricing
                   </Link>

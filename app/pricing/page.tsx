@@ -596,6 +596,37 @@ export default function Pricing() {
                         })}
                       </tr>
                     ))}
+                    {/* Total L1 + L2 + L3 for each scale column */}
+                    <tr className="border-t-2 border-emerald-300 bg-emerald-100/70">
+                      <td className="py-4 pr-3 align-top">
+                        <div className="font-black text-emerald-950">
+                          Total after L3
+                        </div>
+                        <div className="text-[11px] text-emerald-900/80 mt-0.5 leading-snug">
+                          If you have that many paying at{' '}
+                          <strong>each</strong> level (L1 + L2 + L3 stacked)
+                        </div>
+                      </td>
+                      {scaleScenarios.map((s) => (
+                        <td
+                          key={`total-${s.count}`}
+                          className="py-4 px-2 text-center align-top"
+                        >
+                          <div className="text-lg sm:text-xl font-black tabular-nums text-emerald-950">
+                            {formatZar(s.totalMonthlyZar)}
+                            <span className="text-[10px] font-bold text-emerald-800">
+                              /mo
+                            </span>
+                          </div>
+                          <div className="text-sm font-bold tabular-nums text-emerald-900 mt-0.5">
+                            {formatZar(s.totalAnnualZar)}/yr
+                          </div>
+                          <div className="text-[10px] text-emerald-800/70 mt-1">
+                            L1+L2+L3 × {s.count}
+                          </div>
+                        </td>
+                      ))}
+                    </tr>
                   </tbody>
                 </table>
               </div>
@@ -603,27 +634,34 @@ export default function Pricing() {
               <div className="mt-5 grid sm:grid-cols-3 gap-3">
                 {scaleScenarios.map((s) => (
                   <div
-                    key={`blend-${s.count}`}
-                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"
+                    key={`total-card-${s.count}`}
+                    className="rounded-2xl border border-emerald-300 bg-gradient-to-b from-emerald-50 to-white px-4 py-4 text-center shadow-sm"
                   >
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                      {s.count} cos · if mix of L1/L2/L3
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-800">
+                      {s.count} at each level · you could earn
                     </div>
-                    <div className="mt-1 text-lg font-black tabular-nums text-slate-900">
-                      ~{formatZar(s.blendedMonthlyZar)}
-                      <span className="text-xs font-bold text-slate-500">/mo</span>
+                    <div className="mt-1.5 text-2xl font-black tabular-nums text-emerald-950">
+                      {formatZar(s.totalMonthlyZar)}
+                      <span className="text-sm font-bold text-emerald-800">/mo</span>
                     </div>
-                    <div className="text-[11px] text-slate-500 tabular-nums">
-                      ~{formatZar(s.blendedAnnualZar)}/yr average mix
+                    <div className="text-sm font-bold tabular-nums text-emerald-900">
+                      {formatZar(s.totalAnnualZar)}/yr
                     </div>
+                    <p className="mt-2 text-[10px] text-slate-500 leading-snug">
+                      = {formatZar(s.levels[0].monthlyZar)} L1 +{' '}
+                      {formatZar(s.levels[1].monthlyZar)} L2 +{' '}
+                      {formatZar(s.levels[2].monthlyZar)} L3
+                    </p>
                   </div>
                 ))}
               </div>
               <p className="mt-4 text-xs text-slate-500 leading-relaxed">
-                Real networks stack: if you have 10 L1 + 50 L2 + 200 L3 all paying,
-                you earn each row for its own count. L1 is always the strongest per
-                company — invite quality partners who stay, and their growth feeds
-                L2 and L3 under you.
+                <strong className="text-slate-700">Total after L3</strong> assumes{' '}
+                {scaleScenarios.map((s) => s.count).join(' / ')} companies paying at
+                L1 <em>and</em> the same number at L2 <em>and</em> at L3 — the full
+                stack under you. Real networks mix depths; rows always add. L1 is
+                strongest per company — invite partners who stay so L2 and L3 grow
+                under you.
               </p>
             </div>
 
