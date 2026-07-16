@@ -8,83 +8,120 @@
     />
     <meta name="theme-color" content="#00b4d8" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="SupplierAdvisor" />
     <meta name="mobile-web-app-capable" content="yes" />
     <link rel="manifest" href="/manifest.webmanifest" />
+    <!-- iOS prefers a simple apple-touch-icon without query strings -->
     <link rel="apple-touch-icon" href="/apple-icon.png" />
+    <link rel="apple-touch-icon" href="/sa-icon-192.png" sizes="192x192" />
     <link rel="icon" href="/sa-icon-192.png" type="image/png" />
-    <title>Add to Home Screen · SupplierAdvisor</title>
+    <title>Add to Home Screen · iPhone &amp; Android · SupplierAdvisor</title>
     <style>
+      :root {
+        --brand: #00b4d8;
+        --deep: #0077b6;
+        --ink: #0f172a;
+        --muted: #64748b;
+        --bg: #f0f9ff;
+        --card: #fff;
+        --border: #e2e8f0;
+      }
+      * {
+        box-sizing: border-box;
+      }
       body {
         margin: 0;
-        font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-        background: #f8fafc;
-        color: #0f172a;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--ink);
         padding: 1rem;
-        padding-bottom: max(2rem, env(safe-area-inset-bottom));
+        padding-bottom: max(2.5rem, env(safe-area-inset-bottom));
         line-height: 1.45;
+        -webkit-text-size-adjust: 100%;
       }
       .wrap {
         max-width: 26rem;
         margin: 0 auto;
       }
-      img.logo {
-        width: 56px;
-        height: 56px;
-        border-radius: 14px;
+      .logo {
+        width: 64px;
+        height: 64px;
+        border-radius: 16px;
+        display: block;
+        box-shadow: 0 8px 24px -8px rgb(0 180 216 / 0.5);
       }
       h1 {
-        font-size: 1.4rem;
+        font-size: 1.5rem;
         font-weight: 900;
-        margin: 0.75rem 0 0.35rem;
+        letter-spacing: -0.03em;
+        margin: 0.85rem 0 0.4rem;
       }
       .sub {
-        color: #64748b;
-        font-size: 0.9rem;
+        color: var(--muted);
+        font-size: 0.95rem;
         margin: 0 0 1rem;
       }
       .card {
-        background: #fff;
-        border: 1px solid #e2e8f0;
-        border-radius: 1.1rem;
-        padding: 1rem;
-        margin: 0.75rem 0;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 1.25rem;
+        padding: 1.15rem;
+        margin: 0.85rem 0;
+        box-shadow: 0 10px 30px -18px rgb(15 23 42 / 0.25);
       }
       .card h2 {
-        margin: 0 0 0.5rem;
+        margin: 0 0 0.65rem;
+        font-size: 1.05rem;
+        font-weight: 900;
+      }
+      .big-num {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.75rem;
+        height: 1.75rem;
+        border-radius: 999px;
+        background: #e0f2fe;
+        color: var(--deep);
+        font-weight: 900;
+        font-size: 0.9rem;
+        flex-shrink: 0;
+      }
+      .step {
+        display: flex;
+        gap: 0.75rem;
+        align-items: flex-start;
+        margin: 0.85rem 0;
         font-size: 1rem;
+      }
+      .step p {
+        margin: 0;
       }
       .warn {
         background: #fef3c7;
         color: #78350f;
-        border-radius: 0.75rem;
-        padding: 0.75rem;
-        font-size: 0.88rem;
-        margin: 0.5rem 0;
+        border-radius: 1rem;
+        padding: 0.9rem 1rem;
+        font-size: 0.95rem;
+        margin: 0.75rem 0;
+        font-weight: 600;
+      }
+      .danger {
+        background: #fef2f2;
+        color: #991b1b;
+        border: 2px solid #fecaca;
+        border-radius: 1rem;
+        padding: 1rem;
+        font-size: 1rem;
+        margin: 0.75rem 0;
       }
       .ok {
         background: #ecfdf5;
         color: #065f46;
-        border-radius: 0.75rem;
-        padding: 0.75rem;
-        font-size: 0.88rem;
-        margin: 0.5rem 0;
+        border-radius: 1rem;
+        padding: 0.9rem 1rem;
         font-weight: 700;
-      }
-      .err {
-        background: #fef2f2;
-        color: #991b1b;
-        border-radius: 0.75rem;
-        padding: 0.75rem;
-        font-size: 0.88rem;
-      }
-      ol {
-        margin: 0.25rem 0 0;
-        padding-left: 1.25rem;
-      }
-      li {
-        margin: 0.45rem 0;
-        font-size: 0.95rem;
       }
       .btn {
         display: block;
@@ -92,149 +129,283 @@
         text-align: center;
         border: 0;
         border-radius: 999px;
-        padding: 0.95rem 1rem;
+        padding: 1rem 1.1rem;
         font-weight: 800;
-        font-size: 1rem;
+        font-size: 1.05rem;
         text-decoration: none;
-        margin: 0.5rem 0;
+        margin: 0.55rem 0;
         cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
       }
       .primary {
-        background: #00b4d8;
+        background: var(--brand);
         color: #fff;
       }
       .secondary {
         background: #fff;
-        color: #0f172a;
-        border: 1px solid #e2e8f0;
+        color: var(--ink);
+        border: 1.5px solid var(--border);
       }
-      .danger {
-        background: #fff;
-        color: #b91c1c;
-        border: 1px solid #fecaca;
+      .ghost {
+        background: transparent;
+        color: var(--deep);
+        border: 0;
+        font-weight: 800;
+        font-size: 0.95rem;
+        text-decoration: underline;
+        padding: 0.5rem;
+        width: 100%;
+        text-align: center;
+        cursor: pointer;
       }
       kbd {
+        display: inline-block;
         background: #f1f5f9;
-        border: 1px solid #e2e8f0;
-        border-radius: 4px;
-        padding: 0 0.3rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        padding: 0.1rem 0.4rem;
         font-weight: 800;
         font-family: inherit;
+        font-size: 0.9em;
+      }
+      .share-mock {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        background: #0f172a;
+        color: #fff;
+        border-radius: 12px;
+        padding: 0.75rem;
+        margin: 0.75rem 0;
+        font-weight: 700;
+        font-size: 0.9rem;
+      }
+      .share-icon {
+        width: 28px;
+        height: 28px;
+        border: 2px solid #fff;
+        border-radius: 6px;
+        position: relative;
+      }
+      .share-icon::before {
+        content: '↑';
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        font-weight: 900;
       }
       .hidden {
         display: none !important;
       }
       #status {
         font-size: 0.8rem;
-        color: #64748b;
+        color: var(--muted);
         text-align: center;
-        margin-top: 0.75rem;
+        margin-top: 0.5rem;
+      }
+      .toast {
+        position: fixed;
+        left: 50%;
+        bottom: max(1.5rem, env(safe-area-inset-bottom));
+        transform: translateX(-50%);
+        background: #0f172a;
+        color: #fff;
+        padding: 0.75rem 1.25rem;
+        border-radius: 999px;
+        font-weight: 700;
+        font-size: 0.9rem;
+        z-index: 99;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s;
+      }
+      .toast.show {
+        opacity: 1;
+      }
+      .pill {
+        display: inline-block;
+        background: #e0f2fe;
+        color: var(--deep);
+        font-size: 0.7rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        padding: 0.25rem 0.55rem;
+        border-radius: 999px;
+        margin-bottom: 0.5rem;
       }
     </style>
   </head>
   <body>
     <div class="wrap">
-      <img class="logo" src="/sa-icon-192.png" alt="SupplierAdvisor" width="56" height="56" />
-      <h1>Add SupplierAdvisor to your home screen</h1>
-      <p class="sub">
-        One-time setup. After this, open the app from your home screen icon — no App
-        Store needed.
+      <img class="logo" src="/sa-icon-192.png" width="64" height="64" alt="SupplierAdvisor" />
+      <h1>Add to Home Screen</h1>
+      <p class="sub" id="intro">
+        On a computer this is one click. On iPhone Apple only allows it through
+        <strong>Safari → Share</strong> — there is no Install button Apple lets apps show.
       </p>
 
-      <div id="box-broken" class="card">
-        <h2>Site looks broken?</h2>
-        <p class="sub" style="margin: 0 0 0.5rem">
-          An old cached version may be stuck on this phone. Clear it, then come back
-          here.
-        </p>
-        <a class="btn danger" href="/clear-sw.html">Reset app cache on this phone</a>
-      </div>
-
-      <div id="inapp" class="warn hidden">
-        <strong>Open in a real browser first.</strong><br />
-        Install does not work inside WhatsApp / Instagram / Facebook browsers.<br />
-        Tap <strong>⋯</strong> or <strong>Open in Safari/Chrome</strong>, then reopen
-        this page.
-      </div>
-
       <div id="standalone" class="ok hidden">
-        Already installed as an app. Open it from your home screen.
-        <a class="btn primary" href="/login">Log in</a>
+        ✅ Already on your home screen as an app. Open the SupplierAdvisor icon.
+        <a class="btn primary" href="/login" style="margin-top: 0.75rem">Log in</a>
       </div>
 
-      <!-- iOS -->
-      <div id="ios" class="card hidden">
-        <h2>iPhone / iPad — Safari only</h2>
-        <div class="warn">
-          Chrome on iPhone <strong>cannot</strong> add to Home Screen. You must use
-          <strong>Safari</strong>.
-        </div>
-        <ol>
-          <li>
-            Open <strong>Safari</strong> and this page:
-            <strong>supplieradvisor.com/add-to-home.html</strong>
-          </li>
-          <li>
-            Tap <strong>Share</strong> <kbd>□↑</kbd> (bottom centre of Safari)
-          </li>
-          <li>Scroll the sheet and tap <strong>Add to Home Screen</strong></li>
-          <li>Tap <strong>Add</strong> (top right)</li>
-        </ol>
-        <p class="sub">
-          Don’t see “Add to Home Screen”? Scroll the share list further — it is often
-          under “Add Bookmark”.
+      <!-- Chrome / other browser on iPhone -->
+      <div id="ios-not-safari" class="danger hidden">
+        <strong>You’re not in Safari</strong>
+        <p style="margin: 0.5rem 0 0; font-weight: 500">
+          Chrome, Firefox, and Edge on iPhone <strong>cannot</strong> add websites to the
+          home screen. Apple only allows this in <strong>Safari</strong>.
         </p>
+        <button type="button" class="btn primary" id="copyLink1" style="margin-top: 0.85rem">
+          Copy this page link
+        </button>
+        <div class="step" style="margin-top: 0.75rem">
+          <span class="big-num">1</span>
+          <p>Tap <strong>Copy this page link</strong> above</p>
+        </div>
+        <div class="step">
+          <span class="big-num">2</span>
+          <p>Open the blue <strong>Safari</strong> app</p>
+        </div>
+        <div class="step">
+          <span class="big-num">3</span>
+          <p>Paste the link in the address bar and go</p>
+        </div>
+        <div class="step">
+          <span class="big-num">4</span>
+          <p>Then follow the Safari steps below</p>
+        </div>
+      </div>
+
+      <div id="inapp" class="danger hidden">
+        <strong>You’re inside WhatsApp / Instagram / Facebook</strong>
+        <p style="margin: 0.5rem 0 0; font-weight: 500">
+          That mini-browser also cannot add to Home Screen.
+        </p>
+        <button type="button" class="btn primary" id="copyLink2" style="margin-top: 0.75rem">
+          Copy link → open in Safari
+        </button>
+        <p class="sub" style="margin-top: 0.5rem">
+          Or tap <strong>⋯</strong> → <strong>Open in Safari</strong> if you see it.
+        </p>
+      </div>
+
+      <!-- Safari on iPhone — THE real path -->
+      <div id="ios-safari" class="card hidden">
+        <div class="pill">iPhone · Safari</div>
+        <h2>Do these 4 taps in Safari</h2>
+
+        <div class="share-mock" aria-hidden="true">
+          <span class="share-icon"></span>
+          Share button looks like this (bottom of Safari)
+        </div>
+
+        <div class="step">
+          <span class="big-num">1</span>
+          <p>
+            Stay in <strong>Safari</strong> on this page<br />
+            <span style="color: var(--muted); font-size: 0.9rem"
+              >Bottom toolbar: ← →  <kbd>□↑</kbd>  □  📖</span
+            >
+          </p>
+        </div>
+        <div class="step">
+          <span class="big-num">2</span>
+          <p>
+            Tap the <strong>Share</strong> button
+            <kbd>□↑</kbd> (square with arrow up) in the <strong>middle of the bottom bar</strong>
+          </p>
+        </div>
+        <div class="step">
+          <span class="big-num">3</span>
+          <p>
+            In the share sheet, <strong>scroll down</strong> (past AirDrop, Messages,
+            Mail) until you see
+            <strong>Add to Home Screen</strong>
+          </p>
+        </div>
+        <div class="step">
+          <span class="big-num">4</span>
+          <p>Tap <strong>Add to Home Screen</strong>, then tap <strong>Add</strong></p>
+        </div>
+
+        <div class="warn">
+          <strong>Don’t see “Add to Home Screen”?</strong><br />
+          1. Scroll the share list all the way down<br />
+          2. Tap <strong>Edit Actions…</strong> (or Edit)<br />
+          3. Find <strong>Add to Home Screen</strong> → tap <strong>+</strong><br />
+          4. Tap Done, open Share again — it should appear
+        </div>
       </div>
 
       <!-- Android -->
       <div id="android" class="card hidden">
-        <h2>Android — Chrome</h2>
-        <ol>
-          <li>Stay on this page in <strong>Chrome</strong> for 10–15 seconds</li>
-          <li>
-            Tap Chrome menu <kbd>⋮</kbd> (top right)
-          </li>
-          <li>
-            Tap <strong>Install app</strong> or <strong>Add to Home screen</strong>
-          </li>
-          <li>Confirm <strong>Install</strong></li>
-        </ol>
+        <div class="pill">Android · Chrome</div>
+        <h2>Install from Chrome</h2>
+        <div class="step">
+          <span class="big-num">1</span>
+          <p>Open this page in <strong>Chrome</strong></p>
+        </div>
+        <div class="step">
+          <span class="big-num">2</span>
+          <p>Tap menu <kbd>⋮</kbd> (top right)</p>
+        </div>
+        <div class="step">
+          <span class="big-num">3</span>
+          <p>Tap <strong>Install app</strong> or <strong>Add to Home screen</strong></p>
+        </div>
         <button id="installBtn" type="button" class="btn primary hidden">
-          Install now (if Chrome offers it)
+          Install now
         </button>
-        <p id="androidNote" class="sub">
-          If menu has no Install yet: use Reset app cache above, reload, wait 15s,
-          open ⋮ again.
-        </p>
       </div>
 
       <!-- Desktop -->
       <div id="desktop" class="card hidden">
-        <h2>Computer (Chrome / Edge)</h2>
+        <div class="pill">Computer</div>
+        <h2>Chrome / Edge</h2>
         <p class="sub">
-          Address bar → install icon, or menu → <strong>Install SupplierAdvisor</strong>
-          / Install page as app.
+          You said desktop worked — use the install icon in the address bar, or menu →
+          Install SupplierAdvisor.
         </p>
         <button id="installBtnDesktop" type="button" class="btn primary hidden">
           Install now
         </button>
       </div>
 
+      <button type="button" class="btn secondary" id="copyLink3">Copy this page link</button>
+      <a class="btn secondary" href="/clear-sw.html">Site broken? Reset cache</a>
       <a class="btn secondary" href="/">Open website</a>
       <a class="btn secondary" href="/login">Log in</a>
-      <p id="status">Preparing…</p>
+
+      <p id="status"></p>
     </div>
+    <div class="toast" id="toast">Link copied</div>
 
     <script>
       (function () {
         var ua = navigator.userAgent || '';
         var ios = /iPhone|iPad|iPod/i.test(ua);
+        // iPadOS 13+ may report as Mac — detect touch Mac
+        if (!ios && navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) {
+          ios = true;
+        }
         var android = /Android/i.test(ua);
         var standalone =
           window.matchMedia('(display-mode: standalone)').matches ||
           navigator.standalone === true;
+        // Chrome / Firefox / Edge / Opera on iOS
+        var iosNotSafari =
+          ios && /CriOS|FxiOS|EdgiOS|OPiOS|OPT\//i.test(ua);
+        // True Safari on iOS (has Safari, not CriOS)
+        var iosSafari =
+          ios && !iosNotSafari && (/Safari/i.test(ua) || !/CriOS|FxiOS/i.test(ua));
         var inApp =
-          /FBAN|FBAV|Instagram|Line\/|LinkedInApp|Twitter|MicroMessenger|TikTok|BytedanceWebview/i.test(
+          /FBAN|FBAV|Instagram|Line\/|LinkedInApp|Twitter|MicroMessenger|TikTok|BytedanceWebview|WhatsApp/i.test(
             ua
           );
 
@@ -243,76 +414,81 @@
           if (el) el.classList.remove('hidden');
         }
 
-        if (standalone) show('standalone');
-        else if (inApp) {
+        if (standalone) {
+          show('standalone');
+          document.getElementById('intro').classList.add('hidden');
+        } else if (inApp) {
           show('inapp');
-          if (ios) show('ios');
+          // Still show iOS Safari steps so they know what to do after switching
+          if (ios) show('ios-safari');
           else if (android) show('android');
-          else show('desktop');
-        } else if (ios) show('ios');
-        else if (android) show('android');
-        else show('desktop');
-
-        var status = document.getElementById('status');
-        var deferred = null;
-
-        function wireInstall(btnId) {
-          var b = document.getElementById(btnId);
-          if (!b) return;
-          b.onclick = function () {
-            if (!deferred) {
-              status.textContent =
-                'Chrome has not offered install yet. Use menu ⋮ → Install app, or Reset cache.';
-              return;
-            }
-            deferred.prompt();
-            deferred.userChoice.then(function () {
-              deferred = null;
-            });
-          };
+        } else if (iosNotSafari) {
+          show('ios-not-safari');
+          show('ios-safari'); // show steps they'll use in Safari
+        } else if (iosSafari || ios) {
+          show('ios-safari');
+        } else if (android) {
+          show('android');
+        } else {
+          show('desktop');
         }
-        wireInstall('installBtn');
-        wireInstall('installBtnDesktop');
 
+        var PAGE = 'https://www.supplieradvisor.com/add-to-home.html';
+        function copyLink() {
+          var done = function () {
+            var t = document.getElementById('toast');
+            t.classList.add('show');
+            setTimeout(function () {
+              t.classList.remove('show');
+            }, 2000);
+          };
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(PAGE).then(done).catch(function () {
+              window.prompt('Copy this link:', PAGE);
+            });
+          } else {
+            window.prompt('Copy this link:', PAGE);
+            done();
+          }
+        }
+        ['copyLink1', 'copyLink2', 'copyLink3'].forEach(function (id) {
+          var b = document.getElementById(id);
+          if (b) b.onclick = copyLink;
+        });
+
+        // Android / desktop install prompt
+        var deferred = null;
         window.addEventListener('beforeinstallprompt', function (e) {
           e.preventDefault();
           deferred = e;
-          var b1 = document.getElementById('installBtn');
-          var b2 = document.getElementById('installBtnDesktop');
-          if (b1) b1.classList.remove('hidden');
-          if (b2) b2.classList.remove('hidden');
-          status.textContent = 'Chrome is ready to install — tap Install now.';
-          status.className = 'ok';
+          ['installBtn', 'installBtnDesktop'].forEach(function (id) {
+            var b = document.getElementById(id);
+            if (b) b.classList.remove('hidden');
+          });
         });
+        function doInstall() {
+          if (!deferred) return;
+          deferred.prompt();
+          deferred.userChoice.then(function () {
+            deferred = null;
+          });
+        }
+        var b1 = document.getElementById('installBtn');
+        var b2 = document.getElementById('installBtnDesktop');
+        if (b1) b1.onclick = doInstall;
+        if (b2) b2.onclick = doInstall;
 
-        window.addEventListener('appinstalled', function () {
-          status.textContent = 'Installed. Open the icon on your home screen.';
-          status.className = 'ok';
-        });
-
-        // Minimal SW for installability + wipe old bad caches via activate
+        // Light SW for Android installability — does not cache app JS
         if ('serviceWorker' in navigator) {
           navigator.serviceWorker
             .register('/sw.js', { scope: '/', updateViaCache: 'none' })
-            .then(function () {
-              return navigator.serviceWorker.ready;
-            })
-            .then(function () {
-              if (!status.className || status.className.indexOf('ok') < 0) {
-                status.textContent =
-                  'Ready. Follow the steps for your phone above.';
-              }
-            })
-            .catch(function (err) {
-              status.textContent =
-                'Service worker failed: ' +
-                (err && err.message ? err.message : 'unknown') +
-                '. Try /clear-sw.html then reload.';
-              status.className = 'err';
-            });
-        } else {
-          status.textContent =
-            'This browser cannot install PWAs. On iPhone use Safari Share → Add to Home Screen.';
+            .catch(function () {});
+        }
+
+        var st = document.getElementById('status');
+        if (ios && !standalone) {
+          st.textContent =
+            'Tip: There is no blue Install button on iPhone — only Safari Share → Add to Home Screen.';
         }
       })();
     </script>

@@ -88,7 +88,12 @@ export default function InstallAppBanner() {
   }, []);
 
   const installNative = useCallback(async () => {
-    if (!deferred) {
+    // iPhone never gets beforeinstallprompt — always open the Safari guide
+    const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+    const isIos =
+      /iPhone|iPad|iPod/i.test(ua) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (isIos || !deferred) {
       window.location.href = '/add-to-home.html';
       return;
     }
