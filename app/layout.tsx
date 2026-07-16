@@ -5,9 +5,9 @@ import JsonLd from '@/components/seo/JsonLd';
 
 const SITE_URL = 'https://www.supplieradvisor.com';
 const SITE_NAME = 'SupplierAdvisor®';
-const DEFAULT_TITLE = 'SupplierAdvisor® — Supply Chain Operating System';
+const DEFAULT_TITLE = 'SupplierAdvisor® — The world’s most trusted supply-chain OS';
 const DEFAULT_DESCRIPTION =
-  'The supply-chain operating system for verified trade — network, SRM, CRM, inventory, manufacturing, distribution, SHEQ, quality, finance, containers, projects, ESG, sales contractors, and 3-level referral. On-chain ready. From R299/mo.';
+  'B2B, B2G & B2C on one verified network. SupplierAdvisor® is the supply-chain operating system for trusted trade — SRM, CRM, inventory, manufacturing, distribution, SHEQ, quality, finance, containers, and on-chain pedigree. From R299/mo.';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

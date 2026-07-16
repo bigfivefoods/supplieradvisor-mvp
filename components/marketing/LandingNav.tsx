@@ -8,13 +8,12 @@ import { usePrivy } from '@privy-io/react-auth';
 import { useRouter } from 'next/navigation';
 
 const LINKS = [
+  { id: 'markets', label: 'B2B · B2G · B2C' },
+  { id: 'why-join', label: 'Why join' },
   { id: 'systems', label: 'Systems' },
-  { id: 'modules', label: 'Modules' },
   { id: 'trust', label: 'Trust' },
   { id: 'pricing', label: 'Pricing' },
-  { id: 'referral', label: 'Referral' },
   { id: 'network', label: 'Network' },
-  { id: 'audiences', label: "Who it's for" },
 ] as const;
 
 export default function LandingNav() {

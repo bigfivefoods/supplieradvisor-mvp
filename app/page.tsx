@@ -21,6 +21,7 @@ import {
   Wallet,
   ShoppingCart,
   Workflow,
+  Landmark,
   ChevronRight,
   ChevronLeft,
   HardHat,
@@ -443,65 +444,76 @@ export default function LandingPage() {
 
         <div className="relative z-[1] mx-auto w-full max-w-screen-2xl px-4 py-16 sm:px-6 sm:py-20 lg:px-10 lg:py-24">
           <div className="mx-auto max-w-5xl text-center">
-            <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-700 backdrop-blur-sm">
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            <div className="mb-7 flex flex-wrap items-center justify-center gap-2">
+              {['B2B', 'B2G', 'B2C'].map((tag) => (
+                <span
+                  key={tag}
+                  className="inline-flex items-center rounded-full border border-slate-200/90 bg-white px-3.5 py-1.5 text-[11px] font-black tracking-[0.18em] text-slate-800 shadow-sm"
+                >
+                  {tag}
+                </span>
+              ))}
+              <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-800">
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                </span>
+                Live
               </span>
-              Supply-chain operating system · Live
             </div>
 
-            <h1 className="text-[2.5rem] font-black leading-[0.98] tracking-[-0.04em] text-slate-900 sm:text-6xl md:text-7xl lg:text-[5.25rem] lg:tracking-[-0.05em]">
-              The OS for
-              <span className="mt-1 block text-[#00b4d8]">
-                verified trade.
+            <h1 className="text-[2.35rem] font-black leading-[0.98] tracking-[-0.045em] text-slate-900 sm:text-6xl md:text-7xl lg:text-[5.1rem] lg:tracking-[-0.055em]">
+              The world&apos;s most trusted
+              <span className="mt-2 block bg-gradient-to-r from-[#00b4d8] via-[#0096c7] to-[#0077b6] bg-clip-text text-transparent">
+                supplier advice — and OS.
               </span>
             </h1>
 
             <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-slate-600 sm:mt-8 sm:text-lg md:text-xl md:leading-relaxed">
-              One workspace for network, buy/sell, inventory, manufacturing, distribution,
-              SHEQ, quality, finance, containers, projects, ESG, and intelligence —
-              with ratings, lots, and on-chain pedigree that actually{' '}
-              <span className="text-slate-900">block risk</span> when it matters.
+              SupplierAdvisor® unites{' '}
+              <strong className="font-semibold text-slate-900">business (B2B)</strong>,{' '}
+              <strong className="font-semibold text-slate-900">government (B2G)</strong>, and{' '}
+              <strong className="font-semibold text-slate-900">consumers (B2C)</strong> on one
+              verified network — so who you trade with, what you ship, and whether quality
+              holds are never separate stories.
             </p>
 
             <div className="mt-10 flex flex-col items-stretch justify-center gap-3 sm:mt-12 sm:flex-row sm:items-center">
               <Link
                 href="/onboarding?type=business"
-                className="group inline-flex items-center justify-center gap-2 rounded-full bg-[#00b4d8] px-8 py-4 text-base font-semibold text-white shadow-lg shadow-cyan-500/20 transition-all hover:bg-[#0099b8] active:scale-[0.99] sm:text-lg"
+                className="group inline-flex items-center justify-center gap-2 rounded-full bg-[#00b4d8] px-8 py-4 text-base font-semibold text-white shadow-lg shadow-cyan-500/25 transition-all hover:bg-[#0099b8] active:scale-[0.99] sm:text-lg"
               >
                 Start {COMPANY_TRIAL_DAYS}-day free trial
                 <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-0.5" />
               </Link>
               <a
-                href="#systems"
-                className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-8 py-4 text-base font-semibold text-slate-900 transition-all hover:border-slate-300 hover:bg-slate-50 sm:text-lg"
+                href="#why-join"
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-8 py-4 text-base font-semibold text-slate-800 shadow-sm transition-all hover:border-[#00b4d8] hover:text-[#0077b6] sm:text-lg"
               >
-                Explore the systems
+                Why the world joins
               </a>
             </div>
 
             <p className="mt-6 text-sm text-slate-500">
               From {formatZar(COMPANY_SUBSCRIPTION_MONTHLY_ZAR)}/mo · first{' '}
               {FOUNDING_FREE_COMPANY_LIMIT} companies free for life ·{' '}
-              <a href="#pricing" className="font-semibold text-[#0077b6] underline decoration-sky-200 underline-offset-4 hover:text-[#00b4d8]">
+              <a
+                href="#pricing"
+                className="font-semibold text-[#0077b6] underline decoration-sky-200 underline-offset-4 hover:text-[#00b4d8]"
+              >
                 Pricing & referral
               </a>
             </p>
 
-            {/* Telemetry strip */}
-            <div className="mx-auto mt-14 grid max-w-3xl grid-cols-2 gap-px overflow-hidden rounded-2xl border border-slate-200 bg-slate-200/60 sm:grid-cols-4">
+            <div className="mx-auto mt-14 grid max-w-3xl grid-cols-2 gap-px overflow-hidden rounded-2xl border border-slate-200 bg-slate-200/70 sm:grid-cols-4">
               {[
-                { v: String(MODULES.length), l: 'Core modules' },
-                { v: String(SYSTEMS.length), l: 'Systems' },
+                { v: 'B2B·G·C', l: 'Markets' },
+                { v: String(MODULES.length), l: 'Modules' },
                 { v: `${COMPANY_TRIAL_DAYS}d`, l: 'Free trial' },
                 { v: `R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}`, l: 'From / mo' },
               ].map((s) => (
-                <div
-                  key={s.l}
-                  className="bg-white px-3 py-5 text-center sm:py-6"
-                >
-                  <div className="text-xl font-black tabular-nums tracking-tight text-slate-900 sm:text-2xl">
+                <div key={s.l} className="bg-white px-3 py-5 text-center sm:py-6">
+                  <div className="text-lg font-black tabular-nums tracking-tight text-slate-900 sm:text-2xl">
                     {s.v}
                   </div>
                   <div className="mt-1 text-[10px] font-medium uppercase tracking-[0.16em] text-slate-500">
@@ -510,6 +522,209 @@ export default function LandingPage() {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════ B2B · B2G · B2C ═══════════ */}
+      <section
+        id="markets"
+        className="scroll-mt-20 border-t border-slate-200 bg-white py-16 sm:py-24"
+      >
+        <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10">
+          <div className="mx-auto mb-12 max-w-3xl text-center">
+            <SectionLabel>Who the network serves</SectionLabel>
+            <h2 className="text-3xl font-black tracking-[-0.04em] text-slate-900 sm:text-5xl">
+              B2B. B2G. B2C.
+              <span className="mt-2 block text-slate-400">One trusted fabric.</span>
+            </h2>
+            <p className="mt-4 text-base leading-relaxed text-slate-600 sm:text-lg">
+              Most platforms pick one market. SupplierAdvisor® is built so private trade,
+              public procurement, and consumer trust share the same verification,
+              traceability, and operating discipline.
+            </p>
+          </div>
+          <div className="grid gap-5 lg:grid-cols-3">
+            {[
+              {
+                code: 'B2B',
+                title: 'Business to business',
+                body: 'Manufacturers, distributors, traders, and brands run the full OS — network, buy/sell, inventory, make, ship, finance, SHEQ, and quality — with counterparties you can score and prove.',
+                points: [
+                  'Verified company graph & OTIFEF ratings',
+                  'POs, quotes, orders, invoices on the same books',
+                  'Lot holds that stop the ship when QA fails',
+                ],
+                href: '/onboarding?type=business',
+                cta: 'Register your company',
+                icon: Factory,
+              },
+              {
+                code: 'B2G',
+                title: 'Business to government',
+                body: 'Public entities and suppliers need transparent procurement, accountable spend, and audit-ready trails — not email chains and disconnected spreadsheets.',
+                points: [
+                  'Transparent supplier discovery & handshakes',
+                  'Documented trade and performance scores',
+                  'SHEQ, NCR/CAPA, and export packs for scrutiny',
+                ],
+                href: '/onboarding?type=government',
+                cta: 'Register public entity',
+                icon: Landmark,
+              },
+              {
+                code: 'B2C',
+                title: 'Business to consumer',
+                body: 'People deserve to know where food and goods came from. Brands earn trust when product passports, ethical sourcing, and outlet impact are real — not marketing claims.',
+                points: [
+                  'Provenance & on-chain ready pedigrees',
+                  'Container outlets that feed communities',
+                  'Consumers who join verified brands',
+                ],
+                href: '/onboarding?type=consumer',
+                cta: 'Join as consumer',
+                icon: Users2,
+              },
+            ].map((m) => (
+              <div
+                key={m.code}
+                className="group flex flex-col rounded-[1.75rem] border border-slate-200 bg-gradient-to-b from-white to-sky-50/40 p-7 sm:p-8 shadow-sm transition-all hover:border-[#00b4d8]/45 hover:shadow-lg hover:shadow-sky-100/80"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-mono text-xs font-black tracking-[0.2em] text-[#00b4d8]">
+                    {m.code}
+                  </span>
+                  <m.icon className="h-5 w-5 text-slate-400 transition-colors group-hover:text-[#00b4d8]" />
+                </div>
+                <h3 className="mt-4 text-2xl font-black tracking-tight text-slate-900">
+                  {m.title}
+                </h3>
+                <p className="mt-3 flex-1 text-sm leading-relaxed text-slate-600">{m.body}</p>
+                <ul className="mt-5 space-y-2">
+                  {m.points.map((pt) => (
+                    <li key={pt} className="flex gap-2 text-sm text-slate-700">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
+                      {pt}
+                    </li>
+                  ))}
+                </ul>
+                <Link
+                  href={m.href}
+                  className="mt-7 inline-flex items-center gap-1.5 text-sm font-bold text-[#00b4d8] hover:text-[#0077b6]"
+                >
+                  {m.cta} <ArrowRight className="h-4 w-4" />
+                </Link>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════ WHY JOIN ═══════════ */}
+      <section
+        id="why-join"
+        className="scroll-mt-20 border-t border-slate-200 bg-[#f8fafc] py-16 sm:py-24"
+      >
+        <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10">
+          <div className="mx-auto mb-12 max-w-3xl text-center">
+            <SectionLabel>Why join</SectionLabel>
+            <h2 className="text-3xl font-black tracking-[-0.04em] text-slate-900 sm:text-5xl">
+              Compelling reasons to run
+              <span className="mt-2 block text-[#00b4d8]">on SupplierAdvisor®</span>
+            </h2>
+            <p className="mt-4 text-base leading-relaxed text-slate-600 sm:text-lg">
+              Not another dashboard. The operating system for people who measure trust —
+              and refuse to separate commerce from quality, safety, and proof.
+            </p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {[
+              {
+                icon: ShieldCheck,
+                t: 'Trust is a control, not a brochure',
+                b: 'Verification, peer stars, OTIFEF, and RIAD risk live where you buy and sell — so bad counterparties show up before the next PO.',
+              },
+              {
+                icon: Link2,
+                t: 'When a lot fails, the ship stops',
+                b: 'QA holds and HACCP gates block inventory and outbound. Recall drills and pedigree graphs are operational, not theatre.',
+              },
+              {
+                icon: Network,
+                t: 'One graph for B2B, B2G & B2C',
+                b: 'Invite suppliers and customers, connect public buyers, and give consumers a path into verified brands — same fabric of trust.',
+              },
+              {
+                icon: Workflow,
+                t: 'Full stack, zero silos',
+                b: 'Network, SRM, CRM, inventory, manufacturing, distribution, finance, SHEQ, projects, ESG, and intelligence share one workspace.',
+              },
+              {
+                icon: Fingerprint,
+                t: 'On-chain when capital must prove',
+                b: 'Optional product passports and PO escrow when authenticity or settlement need stronger proof — without forcing crypto on every workflow.',
+              },
+              {
+                icon: Building2,
+                t: 'Built for multi-entity groups',
+                b: 'Separate company workspaces, team roles, and membership-scoped data — groups and brands stay clean, not tangled in one login.',
+              },
+              {
+                icon: HardHat,
+                t: 'SHEQ operators actually use',
+                b: 'Incidents, hazards, NCR/CAPA wired to stock and quality — ISO-minded control without a second system for safety.',
+              },
+              {
+                icon: Gift,
+                t: 'Paid to grow a good network',
+                b: 'Invite real partners; earn on platform subscriptions (L1 6% · L2 3% · L3 1%). Sales contractors earn personal product commission separately.',
+              },
+              {
+                icon: CreditCard,
+                t: 'Simple ZAR economics',
+                b: `${COMPANY_TRIAL_DAYS}-day free trial, then from R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo — or save up to 30% prepaid. First ${FOUNDING_FREE_COMPANY_LIMIT} companies free for life.`,
+              },
+              {
+                icon: Container,
+                t: 'Last-mile that feeds people',
+                b: 'Container outlets, contractors, resellers, and impact metrics — food security and jobs on the same command centre as inventory.',
+              },
+              {
+                icon: Brain,
+                t: 'Intelligence + human help',
+                b: 'Live pulse across the enterprise, Super-Cube® leadership development, and SAM (Grok) for in-app how-to — ramp without a manual.',
+              },
+              {
+                icon: Globe,
+                t: 'Africa-ready, world-class',
+                b: 'Paystack ZAR billing, local verification patterns, and the discipline global buyers expect — so African trade scales with proof.',
+              },
+            ].map((r) => (
+              <div
+                key={r.t}
+                className="rounded-[1.5rem] border border-slate-200 bg-white p-6 shadow-sm transition-all hover:border-[#00b4d8]/40 hover:shadow-md sm:p-7"
+              >
+                <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-50 text-[#00b4d8]">
+                  <r.icon className="h-5 w-5" />
+                </div>
+                <h3 className="text-lg font-black text-slate-900">{r.t}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-slate-600">{r.b}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-12 flex flex-wrap items-center justify-center gap-3">
+            <Link
+              href="/onboarding?type=business"
+              className="inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-7 py-3.5 text-sm font-bold text-white shadow-md shadow-cyan-200/50 hover:bg-[#0099b8]"
+            >
+              Join the trusted network <ArrowRight className="h-4 w-4" />
+            </Link>
+            <a
+              href="#systems"
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-7 py-3.5 text-sm font-bold text-slate-800 hover:border-[#00b4d8]"
+            >
+              See every system
+            </a>
           </div>
         </div>
       </section>
@@ -920,10 +1135,15 @@ export default function LandingPage() {
       <section id="audiences" className="border-t border-slate-200 bg-[#f8fafc] py-20 sm:py-28">
         <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10">
           <div className="mb-12 text-center">
-            <SectionLabel>Who it&apos;s for</SectionLabel>
+            <SectionLabel>Get started</SectionLabel>
             <h2 className="text-3xl font-black tracking-tight text-slate-900 sm:text-5xl">
-              One platform. Every stakeholder.
+              Join as business, government,
+              <span className="mt-1 block text-[#00b4d8]">consumer, or association.</span>
             </h2>
+            <p className="mx-auto mt-4 max-w-2xl text-slate-600">
+              B2B operators, B2G entities, B2C participants, and collective groups — pick
+              your path. Same trusted network underneath.
+            </p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {[
@@ -1020,12 +1240,13 @@ export default function LandingPage() {
             The network is open
           </div>
           <h2 className="text-3xl font-black tracking-[-0.04em] text-slate-900 sm:text-5xl md:text-6xl">
-            Stop running trust
-            <span className="mt-1 block text-slate-500">on spreadsheets.</span>
+            The world&apos;s most trusted
+            <span className="mt-1 block text-[#00b4d8]">supplier advice starts here.</span>
           </h2>
           <p className="mx-auto mt-5 max-w-2xl text-base text-slate-600 sm:text-lg">
-            Join operators who treat verification, ratings, lots, and SHEQ as live controls.
-            {COMPANY_TRIAL_DAYS} days free. First {FOUNDING_FREE_COMPANY_LIMIT} free for life.
+            B2B · B2G · B2C on one verified OS. Join operators who treat verification,
+            ratings, lots, and SHEQ as live controls. {COMPANY_TRIAL_DAYS} days free. First{' '}
+            {FOUNDING_FREE_COMPANY_LIMIT} free for life.
           </p>
           <div className="mt-10 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
             <Link
@@ -1064,8 +1285,8 @@ export default function LandingPage() {
                 SupplierAdvisor<span className="text-[#00b4d8]">®</span>
               </div>
               <p className="mt-2 max-w-xs text-sm leading-relaxed text-slate-500">
-                Verified supply-chain OS — trade, ops, SHEQ, finance, and on-chain pedigree
-                for B2B, B2G, and B2C.
+                The world&apos;s most trusted supplier advice and supply-chain OS —
+                B2B, B2G, and B2C on one verified network.
               </p>
             </div>
             <div className="grid grid-cols-2 gap-8 text-sm sm:grid-cols-3 sm:gap-12">
