@@ -181,6 +181,7 @@ export default function SamMessenger() {
           .map((m) => ({ role: m.role, content: m.content }));
 
         const companyId = getSelectedCompanyId();
+        // Prefer Responses API (non-stream) — official xAI path
         const res = await fetch('/api/sam/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -189,81 +190,26 @@ export default function SamMessenger() {
             privyUserId,
             companyId: companyId || undefined,
             pathname,
-            stream: true,
+            stream: false,
           }),
         });
 
+        const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
           throw new Error(
-            (err as { error?: string }).error || `SAM error ${res.status}`
+            (data as { error?: string }).error || `SAM error ${res.status}`
           );
         }
 
-        const ctype = res.headers.get('content-type') || '';
-        if (ctype.includes('text/event-stream') && res.body) {
-          const reader = res.body.getReader();
-          const decoder = new TextDecoder();
-          let buffer = '';
-          let full = '';
-
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
-            const parts = buffer.split('\n');
-            buffer = parts.pop() || '';
-            for (const line of parts) {
-              const trimmed = line.trim();
-              if (!trimmed.startsWith('data:')) continue;
-              const data = trimmed.slice(5).trim();
-              if (data === '[DONE]') continue;
-              try {
-                const json = JSON.parse(data) as {
-                  choices?: Array<{ delta?: { content?: string } }>;
-                };
-                const delta = json.choices?.[0]?.delta?.content || '';
-                if (delta) {
-                  full += delta;
-                  const snapshot = full;
-                  setMessages((m) =>
-                    m.map((msg) =>
-                      msg.id === assistantId
-                        ? { ...msg, content: snapshot }
-                        : msg
-                    )
-                  );
-                }
-              } catch {
-                /* ignore partial JSON */
-              }
-            }
-          }
-          if (!full.trim()) {
-            setMessages((m) =>
-              m.map((msg) =>
-                msg.id === assistantId
-                  ? {
-                      ...msg,
-                      content:
-                        'I did not get a reply from Grok. Please try again in a moment.',
-                    }
-                  : msg
-              )
-            );
-          }
-        } else {
-          const data = await res.json();
-          const reply =
-            data.message?.content ||
-            data.error ||
-            'No response — please try again.';
-          setMessages((m) =>
-            m.map((msg) =>
-              msg.id === assistantId ? { ...msg, content: reply } : msg
-            )
-          );
-        }
+        const reply =
+          (data as { message?: { content?: string } }).message?.content ||
+          (data as { error?: string }).error ||
+          'No response — please try again.';
+        setMessages((m) =>
+          m.map((msg) =>
+            msg.id === assistantId ? { ...msg, content: reply } : msg
+          )
+        );
       } catch (e: unknown) {
         const msg =
           e instanceof Error ? e.message : 'Could not reach SAM right now.';

@@ -2,11 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireVerifiedUser, legacyPrivyFrom } from '@/lib/auth/api-auth';
 import { getCompanyMembership } from '@/lib/business/access';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import {
-  getXaiApiKey,
-  readSamCompletionText,
-  samChatCompletion,
-} from '@/lib/sam/client';
+import { getXaiApiKey, samComplete } from '@/lib/sam/client';
 import { buildSamSystemPrompt, type SamChatMessage } from '@/lib/sam/prompt';
 import { SAM_MODEL, SAM_NAME } from '@/lib/sam/knowledge';
 
@@ -18,7 +14,7 @@ type IncomingMsg = { role?: string; content?: string };
 /**
  * POST /api/sam/chat
  * Body: { messages: [{role, content}], companyId?, pathname?, stream? }
- * SAM — Supplier Advisor Messenger (Grok via xAI).
+ * SAM — Supplier Advisor Messenger (Grok via xAI Responses API).
  */
 export async function POST(request: NextRequest) {
   try {
@@ -84,7 +80,7 @@ export async function POST(request: NextRequest) {
             (co as { legal_name?: string } | null)?.legal_name ||
             null;
         } catch {
-          /* ignore name lookup */
+          /* ignore */
         }
       }
     }
@@ -100,51 +96,28 @@ export async function POST(request: NextRequest) {
       ...history,
     ];
 
-    const wantStream = body.stream !== false;
+    // Prefer non-streaming Responses API (docs.x.ai preferred path).
+    // stream=true still available for progressive UI via chat completions.
+    const wantStream = body.stream === true;
 
-    if (wantStream) {
-      const upstream = await samChatCompletion({
-        messages,
-        stream: true,
-      });
+    const result = await samComplete({
+      messages,
+      stream: wantStream,
+    });
 
-      if (!upstream.ok || !upstream.body) {
-        const errText = await upstream.text().catch(() => '');
-        let message = `Grok request failed (${upstream.status})`;
-        try {
-          const j = JSON.parse(errText) as {
-            error?: string | { message?: string };
-            message?: string;
-          };
-          if (typeof j.error === 'string' && j.error.trim()) {
-            message = j.error;
-          } else if (
-            j.error &&
-            typeof j.error === 'object' &&
-            j.error.message
-          ) {
-            message = j.error.message;
-          } else if (j.message) {
-            message = j.message;
-          }
-        } catch {
-          if (errText) message = errText.slice(0, 400);
-        }
-        // Friendly hint for empty xAI team credits
-        if (
-          upstream.status === 403 &&
-          /credit|license|purchase/i.test(message)
-        ) {
-          message = `${message} Open console.x.ai → your team → add credits or a license, then try SAM again.`;
-        }
-        return NextResponse.json(
-          { error: message, status: upstream.status },
-          { status: upstream.status === 403 ? 403 : 502 }
-        );
-      }
+    if (!result.ok) {
+      return NextResponse.json(
+        {
+          error: result.error || 'Grok request failed',
+          status: result.status,
+          api: result.api,
+        },
+        { status: result.status === 403 ? 403 : result.status || 502 }
+      );
+    }
 
-      // Proxy SSE stream to the browser
-      return new Response(upstream.body, {
+    if (wantStream && result.streamBody) {
+      return new Response(result.streamBody, {
         status: 200,
         headers: {
           'Content-Type': 'text/event-stream; charset=utf-8',
@@ -152,24 +125,17 @@ export async function POST(request: NextRequest) {
           Connection: 'keep-alive',
           'X-Sam-Model': SAM_MODEL,
           'X-Sam-Name': SAM_NAME,
+          'X-Sam-Api': result.api,
         },
       });
     }
 
-    const upstream = await samChatCompletion({ messages, stream: false });
-    if (!upstream.ok) {
-      const text = await upstream.text().catch(() => '');
-      return NextResponse.json(
-        { error: text.slice(0, 400) || 'Grok request failed' },
-        { status: 502 }
-      );
-    }
-    const content = await readSamCompletionText(upstream);
     return NextResponse.json({
       success: true,
       name: SAM_NAME,
       model: SAM_MODEL,
-      message: { role: 'assistant', content },
+      api: result.api,
+      message: { role: 'assistant', content: result.text },
     });
   } catch (e: unknown) {
     console.error('SAM chat error:', e);
@@ -189,5 +155,7 @@ export async function GET() {
     model: SAM_MODEL,
     configured,
     status: configured ? 'ready' : 'missing_api_key',
+    preferredApi: 'responses',
+    endpoint: 'https://api.x.ai/v1/responses',
   });
 }
