@@ -1,16 +1,15 @@
 /* SupplierAdvisor service worker — offline shell + static cache
  * Version bump CACHE when deploying shell changes.
  */
-const CACHE = 'sa-shell-v2';
+const CACHE = 'sa-shell-v3';
 const OFFLINE_URL = '/offline.html';
 const PRECACHE = [
   OFFLINE_URL,
-  '/sa-logo.png',
+  '/add-to-home.html',
   '/sa-icon-192.png',
   '/sa-icon-512.png',
   '/apple-icon.png',
   '/favicon.ico',
-  '/?source=pwa',
 ];
 
 self.addEventListener('install', (event) => {

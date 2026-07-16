@@ -17,7 +17,9 @@ const LINKS = [
   { id: 'directory', label: 'Directory' },
 ] as const;
 
-const EXTRA_LINKS = [{ href: '/install', label: 'Install app' }] as const;
+const EXTRA_LINKS = [
+  { href: '/add-to-home.html', label: 'Add to Home Screen' },
+] as const;
 
 export default function LandingNav() {
   const { user, ready } = usePrivy();

@@ -131,7 +131,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className="scroll-smooth">
       <head>
         <JsonLd />
-        {/* Explicit PWA / iOS home-screen tags (some WebViews ignore metadata API only) */}
+        {/* Explicit PWA / iOS home-screen tags */}
         <link rel="manifest" href="/manifest.webmanifest" />
         <link rel="apple-touch-icon" href="/apple-icon.png" sizes="180x180" />
         <link rel="apple-touch-icon" href="/sa-icon-192.png" sizes="192x192" />
@@ -140,6 +140,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="apple-mobile-web-app-title" content="SupplierAdvisor" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="application-name" content="SupplierAdvisor" />
+        {/* Register SW as early as possible (Android install criteria) */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+(function(){
+  if(!('serviceWorker' in navigator)) return;
+  window.addEventListener('load',function(){
+    navigator.serviceWorker.register('/sw.js',{scope:'/',updateViaCache:'none'}).catch(function(){});
+  });
+})();`,
+          }}
+        />
         {/* Paystack Inline Script */}
         <script src="https://js.paystack.co/v1/inline.js" async />
       </head>
