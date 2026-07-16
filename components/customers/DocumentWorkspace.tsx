@@ -274,9 +274,7 @@ function DocInner({
         if (!match && po.buyer_name) {
           const bn = String(po.buyer_name).toLowerCase();
           match = customers.find((c) => {
-            const n = String(
-              c.trading_name || c.legal_name || c.company_name || ''
-            ).toLowerCase();
+            const n = String(c.trading_name || c.legal_name || '').toLowerCase();
             return n && (n.includes(bn) || bn.includes(n));
           });
         }
