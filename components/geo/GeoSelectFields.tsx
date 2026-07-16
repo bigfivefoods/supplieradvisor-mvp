@@ -77,7 +77,8 @@ export default function GeoSelectFields({
       setError(null);
       try {
         const res = await fetch('/api/geo?resource=bootstrap', {
-          cache: 'no-store',
+          // Geo reference data changes rarely — allow browser HTTP cache
+          cache: 'force-cache',
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || `Geo API ${res.status}`);

@@ -16,7 +16,7 @@ async function loadCompany(idParam: string) {
   const { data } = await supabase
     .from('profiles')
     .select(
-      'id, trading_name, legal_name, verification_status, is_verified, industry, city, province, country, continent, logo_url, website, short_description, description, about, bee_level, certifications, trust_score, otifef_average, is_discoverable, registration_number, bank_verification_status'
+      'id, trading_name, legal_name, verification_status, is_verified, industry, city, province, country, continent, logo_url, website, short_description, description, about, bee_level, certifications, trust_score, otifef_average, is_discoverable, registration_number, bank_verification_status, metadata'
     )
     .eq('id', id)
     .maybeSingle();
@@ -105,6 +105,14 @@ export default async function PublicCompanyPage({ params }: Props) {
                       ? String(c.bank_verification_status)
                       : null
                   }
+                  showBankBadge={(() => {
+                    const meta =
+                      c.metadata && typeof c.metadata === 'object'
+                        ? (c.metadata as Record<string, unknown>)
+                        : {};
+                    // Default OFF on public pages — only show when company opts in
+                    return meta.show_bank_verified_public === true;
+                  })()}
                   trustScore={
                     c.trust_score != null ? Number(c.trust_score) : null
                   }

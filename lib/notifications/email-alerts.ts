@@ -320,6 +320,143 @@ export async function notifyRecallPack(params: {
   }
 }
 
+/** Peer requested a network connection. */
+export async function notifyConnectionRequest(params: {
+  requesteeProfileId: number;
+  requesterName?: string | null;
+  requesterProfileId?: number | null;
+  message?: string | null;
+}): Promise<void> {
+  try {
+    const to = await companyEmails(params.requesteeProfileId);
+    const href = `${appBase()}/dashboard/connections`;
+    const who = params.requesterName || 'A company';
+    await sendAlert({
+      to,
+      subject: `[SupplierAdvisor] Connection request from ${who}`,
+      html: `
+        <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto">
+          <h2 style="color:#0077b6">New connection request</h2>
+          <p><strong>${who}</strong> wants to connect on SupplierAdvisor.</p>
+          ${
+            params.message
+              ? `<p style="color:#475569;font-style:italic">“${String(params.message).slice(0, 400)}”</p>`
+              : ''
+          }
+          <p><a href="${href}" style="display:inline-block;background:#00b4d8;color:#fff;padding:12px 20px;border-radius:999px;text-decoration:none;font-weight:700">Review connections →</a></p>
+        </div>
+      `,
+    });
+  } catch (e) {
+    console.warn('notifyConnectionRequest', e);
+  }
+}
+
+/** Invoice overdue follow-up. */
+export async function notifyInvoiceOverdue(params: {
+  profileId: number;
+  invoiceId: number;
+  invoiceNumber?: string | null;
+  customerName?: string | null;
+  amount?: number | null;
+  currency?: string | null;
+}): Promise<void> {
+  try {
+    const to = await companyEmails(params.profileId);
+    const href = `${appBase()}/dashboard/customers/invoices`;
+    const num = params.invoiceNumber || `#${params.invoiceId}`;
+    const ccy = (params.currency || 'ZAR').toUpperCase();
+    const total =
+      params.amount != null
+        ? `${ccy} ${Number(params.amount).toLocaleString(undefined, {
+            maximumFractionDigits: 2,
+          })}`
+        : '';
+    await sendAlert({
+      to,
+      subject: `[SupplierAdvisor] Invoice ${num} overdue`,
+      html: `
+        <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto">
+          <h2 style="color:#b45309">Invoice overdue</h2>
+          <p>Invoice <strong>${num}</strong>${
+            params.customerName ? ` for ${params.customerName}` : ''
+          } is overdue${total ? ` (${total})` : ''}.</p>
+          <p>Follow up with the customer or resend the invoice from AR.</p>
+          <p><a href="${href}" style="color:#00b4d8">Open invoices →</a></p>
+        </div>
+      `,
+    });
+  } catch (e) {
+    console.warn('notifyInvoiceOverdue', e);
+  }
+}
+
+/** CIPC / bank / people verification failed. */
+export async function notifyVerificationFailed(params: {
+  profileId: number;
+  kind: 'cipc' | 'bank' | 'identity' | string;
+  detail?: string | null;
+}): Promise<void> {
+  try {
+    const to = await companyEmails(params.profileId);
+    const href = `${appBase()}/dashboard/my-business/profile`;
+    const label =
+      params.kind === 'bank'
+        ? 'Bank AVS'
+        : params.kind === 'cipc'
+          ? 'CIPC company'
+          : params.kind === 'identity'
+            ? 'Identity'
+            : String(params.kind);
+    await sendAlert({
+      to,
+      subject: `[SupplierAdvisor] ${label} verification failed`,
+      html: `
+        <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto">
+          <h2 style="color:#b91c1c">Verification failed</h2>
+          <p>Your <strong>${label}</strong> check did not pass.</p>
+          ${
+            params.detail
+              ? `<p style="color:#64748b;font-size:13px">${String(params.detail).slice(0, 500)}</p>`
+              : ''
+          }
+          <p>Update details on your profile and try again.</p>
+          <p><a href="${href}" style="color:#00b4d8">Open profile →</a></p>
+        </div>
+      `,
+    });
+  } catch (e) {
+    console.warn('notifyVerificationFailed', e);
+  }
+}
+
+/** VerifyNow credits running low. */
+export async function notifyVerifynowLowCredits(params: {
+  profileId: number;
+  remainingCredits?: number | null;
+}): Promise<void> {
+  try {
+    const to = await companyEmails(params.profileId);
+    const rem =
+      params.remainingCredits != null
+        ? String(params.remainingCredits)
+        : 'low';
+    await sendAlert({
+      to,
+      subject: `[SupplierAdvisor] VerifyNow credits ${rem}`,
+      html: `
+        <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto">
+          <h2 style="color:#b45309">VerifyNow credits running low</h2>
+          <p>Remaining credits: <strong>${rem}</strong>.</p>
+          <p>Top up at <a href="https://verifynow.co.za">verifynow.co.za</a> so CIPC and bank AVS keep working.</p>
+        </div>
+      `,
+    });
+  } catch (e) {
+    console.warn('notifyVerifynowLowCredits', e);
+  }
+}
+
 export async function notifyBankSyncFailed(params: {
   profileId: number;
   connectionId?: string | number | null;

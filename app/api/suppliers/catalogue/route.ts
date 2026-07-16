@@ -346,6 +346,7 @@ export async function GET(request: NextRequest) {
     const nudge = sp.get('nudge') === '1';
 
     // Soft-notify supplier once when buyer hits empty catalogue (client rate-limits)
+    // First-class tracking: activity_log catalogue.nudge + email
     if (empty && nudge && sellerProfileId) {
       void (async () => {
         try {
@@ -354,13 +355,30 @@ export async function GET(request: NextRequest) {
             .select('trading_name')
             .eq('id', companyId)
             .maybeSingle();
+          const buyerName = buyerProf?.trading_name || null;
+
+          await supabase.from('activity_log').insert({
+            profile_id: sellerProfileId,
+            actor_user_id: 'system:catalogue-nudge',
+            action: 'catalogue.nudge',
+            entity_type: 'catalogue',
+            entity_id: String(companyId),
+            summary: `Buyer ${buyerName || `#${companyId}`} hit empty catalogue — publish finished goods`,
+            metadata: {
+              buyerProfileId: companyId,
+              buyerName,
+              sellerProfileId,
+              source: 'po_picker',
+            },
+          });
+
           const { notifyPublishCatalogue } = await import(
             '@/lib/notifications/email-alerts'
           );
           await notifyPublishCatalogue({
             supplierProfileId: sellerProfileId,
             buyerProfileId: companyId,
-            buyerName: buyerProf?.trading_name || null,
+            buyerName,
           });
         } catch (e) {
           console.warn('catalogue nudge soft-fail', e);

@@ -6,6 +6,12 @@ export type TrustBadgeInput = {
   verificationStatus?: string | null;
   isVerified?: boolean | null;
   bankVerificationStatus?: string | null;
+  /**
+   * When false, hide bank verified chip on public surfaces
+   * (privacy opt-in: show_bank_verified_public).
+   * Default true for authenticated internal UIs.
+   */
+  showBankBadge?: boolean | null;
   trustScore?: number | null;
   starAvg?: number | null;
   starCount?: number | null;
@@ -20,6 +26,7 @@ export default function TrustBadges({
   verificationStatus,
   isVerified,
   bankVerificationStatus,
+  showBankBadge = true,
   trustScore,
   starAvg,
   starCount,
@@ -30,6 +37,7 @@ export default function TrustBadges({
     isVerified === true ||
     String(verificationStatus || '').toLowerCase() === 'verified';
   const bank =
+    showBankBadge !== false &&
     String(bankVerificationStatus || '').toLowerCase() === 'verified';
   const chip = compact
     ? 'text-[9px] px-1.5 py-0.5'

@@ -168,12 +168,21 @@ function DiscoverInner() {
     bee,
   ]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const PAGE_SIZE = 48;
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [listOffset, setListOffset] = useState(0);
+
+  const load = useCallback(async (opts?: { append?: boolean; offset?: number }) => {
+    const append = Boolean(opts?.append);
+    const offset = opts?.offset ?? 0;
+    if (append) setLoadingMore(true);
+    else setLoading(true);
     try {
       const params = new URLSearchParams({
         companyId: String(companyId),
-        limit: '300',
+        limit: String(PAGE_SIZE),
+        offset: String(offset),
       });
       if (q) params.set('q', q);
       if (country) params.set('country', country);
@@ -200,20 +209,34 @@ function DiscoverInner() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Search failed');
 
-      setConnected(data.connected || []);
-      setOthers(data.others || data.suppliers || []);
+      const nextOthers = (data.others || data.suppliers || []) as DiscoverSupplier[];
+      if (append) {
+        setOthers((prev) => {
+          const seen = new Set(prev.map((s) => s.id));
+          return [...prev, ...nextOthers.filter((s) => !seen.has(s.id))];
+        });
+      } else {
+        setConnected(data.connected || []);
+        setOthers(nextOthers);
+      }
       setTotal(Number(data.total || 0));
       setConnectedTotal(Number(data.connectedTotal || 0));
       setPoolSize(Number(data.pool_size || data.platform_company_count || 0));
       setFacets(data.facets || null);
-      if (data.warning) toast.message('Discover note', { description: data.warning });
+      setHasMore(Boolean(data.hasMore));
+      setListOffset(offset + nextOthers.length);
+      if (data.warning && !append)
+        toast.message('Discover note', { description: data.warning });
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Search failed');
-      setConnected([]);
-      setOthers([]);
-      setTotal(0);
+      if (!append) {
+        setConnected([]);
+        setOthers([]);
+        setTotal(0);
+      }
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   }, [
     companyId,
@@ -878,17 +901,34 @@ function DiscoverInner() {
             All matching companies are already in your connected list above.
           </p>
         ) : (
-          <ul className="space-y-3">
-            {others.map((s) => (
-              <CompanyCard
-                key={s.id}
-                s={s}
-                connecting={connecting}
-                onConnect={connect}
-                onDecline={declineIncoming}
-              />
-            ))}
-          </ul>
+          <>
+            <ul className="space-y-3">
+              {others.map((s) => (
+                <CompanyCard
+                  key={s.id}
+                  s={s}
+                  connecting={connecting}
+                  onConnect={connect}
+                  onDecline={declineIncoming}
+                />
+              ))}
+            </ul>
+            {hasMore && (
+              <div className="mt-4 flex justify-center">
+                <button
+                  type="button"
+                  disabled={loadingMore}
+                  onClick={() => void load({ append: true, offset: listOffset })}
+                  className="btn-secondary !py-2.5 !px-6 text-sm inline-flex items-center gap-2"
+                >
+                  {loadingMore ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : null}
+                  Load more companies
+                </button>
+              </div>
+            )}
+          </>
         )}
       </section>
 

@@ -35,6 +35,7 @@ import {
   TelemetryCard,
   type HubModule,
 } from '@/components/chrome/CommandHubChrome';
+import JourneyChecklist from '@/components/journey/JourneyChecklist';
 
 type Summary = {
   total: number;
@@ -231,6 +232,8 @@ function HubInner() {
           </div>
         }
       />
+
+      <JourneyChecklist role="supplier" />
 
       {warning && (
         <AlertBanner>

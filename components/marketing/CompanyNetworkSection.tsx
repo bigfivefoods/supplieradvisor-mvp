@@ -435,8 +435,11 @@ export default function CompanyNetworkSection() {
     }
   };
 
-  const loadBrowse = useCallback(async (pageNum = 1) => {
-    setLoading(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const loadBrowse = useCallback(async (pageNum = 1, append = false) => {
+    if (append) setLoadingMore(true);
+    else setLoading(true);
     try {
       const params = new URLSearchParams({
         page: String(pageNum),
@@ -448,22 +451,34 @@ export default function CompanyNetworkSection() {
         { cache: 'no-store' }
       );
       const data = await res.json();
-      setCompanies(data.companies || []);
+      const next = (data.companies || []) as PublicCompany[];
+      if (append) {
+        setCompanies((prev) => {
+          const seen = new Set(prev.map((c) => c.id));
+          return [...prev, ...next.filter((c) => !seen.has(c.id))];
+        });
+      } else {
+        setCompanies(next);
+      }
       setFacets(data.facets || EMPTY_FACETS);
       applyPageMeta(data);
       if (typeof data.counts?.platformTotal !== 'number') {
         setPlatformTotal(data.counts?.total ?? data.companies?.length ?? 0);
       }
     } catch {
-      setCompanies([]);
-      setPlatformTotal(null);
+      if (!append) {
+        setCompanies([]);
+        setPlatformTotal(null);
+      }
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   }, []);
 
-  const loadSearch = useCallback(async (pageNum = 1) => {
-    setSearching(true);
+  const loadSearch = useCallback(async (pageNum = 1, append = false) => {
+    if (append) setLoadingMore(true);
+    else setSearching(true);
     try {
       const params = new URLSearchParams();
       params.set('page', String(pageNum));
@@ -490,14 +505,23 @@ export default function CompanyNetworkSection() {
         { cache: 'no-store' }
       );
       const data = await res.json();
-      setCompanies(data.companies || []);
+      const next = (data.companies || []) as PublicCompany[];
+      if (append) {
+        setCompanies((prev) => {
+          const seen = new Set(prev.map((c) => c.id));
+          return [...prev, ...next.filter((c) => !seen.has(c.id))];
+        });
+      } else {
+        setCompanies(next);
+      }
       if (data.facets) setFacets(data.facets);
       applyPageMeta(data);
     } catch {
-      setCompanies([]);
+      if (!append) setCompanies([]);
     } finally {
       setSearching(false);
       setLoading(false);
+      setLoadingMore(false);
     }
   }, [
     qDebounced,
@@ -529,8 +553,17 @@ export default function CompanyNetworkSection() {
   const goPage = (p: number) => {
     const next = Math.max(1, Math.min(pageCount, p));
     setPage(next);
-    if (tab === 'browse') void loadBrowse(next);
-    else void loadSearch(next);
+    if (tab === 'browse') void loadBrowse(next, false);
+    else void loadSearch(next, false);
+  };
+
+  /** Infinite-style append of the next page */
+  const loadMore = () => {
+    if (pageSafe >= pageCount || loadingMore) return;
+    const next = pageSafe + 1;
+    setPage(next);
+    if (tab === 'browse') void loadBrowse(next, true);
+    else void loadSearch(next, true);
   };
 
   const activeFilters = useMemo(() => {
@@ -920,6 +953,16 @@ export default function CompanyNetworkSection() {
 
             {pageCount > 1 && (
               <div className="mt-10 flex flex-col items-center gap-4">
+                {pageSafe < pageCount && (
+                  <button
+                    type="button"
+                    disabled={loadingMore}
+                    onClick={loadMore}
+                    className="inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-6 py-3 text-sm font-bold text-white shadow-sm hover:bg-[#0096c7] disabled:opacity-50"
+                  >
+                    {loadingMore ? 'Loading…' : 'Load more companies'}
+                  </button>
+                )}
                 <div className="flex flex-wrap items-center justify-center gap-2">
                   <button
                     type="button"

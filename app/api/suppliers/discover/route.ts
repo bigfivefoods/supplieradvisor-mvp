@@ -58,6 +58,15 @@ export async function GET(request: NextRequest) {
     const otifefMax = Number(sp.get('otifefMax') || 100);
     const includeHidden = sp.get('includeHidden') === '1';
     const limit = Math.min(500, Number(sp.get('limit') || 200));
+    const offset = Math.max(0, Number(sp.get('offset') || 0) || 0);
+    const page = Math.max(1, Number(sp.get('page') || 1) || 1);
+    // page takes precedence over offset when both present without offset
+    const start =
+      sp.has('offset')
+        ? offset
+        : sp.has('page')
+          ? (page - 1) * limit
+          : 0;
 
     const supabase = getSupabaseServer();
 
@@ -349,13 +358,29 @@ export async function GET(request: NextRequest) {
     const connectedMatches = enriched.filter((r) => r.already_connected);
     const otherMatches = enriched.filter((r) => !r.already_connected);
 
+    const paged = enriched.slice(start, start + limit);
+    const pageCount = Math.max(1, Math.ceil(enriched.length / Math.max(limit, 1)));
+    const pageSafe = Math.min(
+      pageCount,
+      Math.floor(start / Math.max(limit, 1)) + 1
+    );
+    const hasMore = start + limit < enriched.length;
+
     return NextResponse.json({
       success: true,
-      suppliers: enriched.slice(0, limit),
+      suppliers: paged,
       connected: connectedMatches.slice(0, limit),
-      others: otherMatches.slice(0, Math.max(0, limit - Math.min(connectedMatches.length, limit))),
+      others: otherMatches.slice(
+        0,
+        Math.max(0, limit - Math.min(connectedMatches.length, limit))
+      ),
       total: enriched.length,
       connectedTotal: connectedMatches.length,
+      offset: start,
+      limit,
+      page: pageSafe,
+      pageCount,
+      hasMore,
       facets,
       platform_company_count: registeredIds.size,
       pool_size: facetPool.length,

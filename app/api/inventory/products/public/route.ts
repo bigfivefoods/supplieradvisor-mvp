@@ -1,9 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
+import { rateLimit, clientIp } from '@/lib/http/rate-limit';
 
 /** Public product lookup by QR public_id — no auth */
 export async function GET(request: NextRequest) {
   try {
+    const ip = clientIp(request);
+    const rl = rateLimit(`public-product:${ip}`, {
+      limit: 90,
+      windowMs: 60_000,
+    });
+    if (!rl.ok) {
+      return NextResponse.json(
+        { error: 'Too many requests', retryAfterSec: rl.retryAfterSec },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(rl.retryAfterSec) },
+        }
+      );
+    }
+
     const publicId = request.nextUrl.searchParams.get('publicId');
     if (!publicId) {
       return NextResponse.json({ error: 'publicId required' }, { status: 400 });

@@ -54,8 +54,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: loaded.error }, { status: loaded.status });
     }
 
-    const { html, input, toEmail, bankDetailsIncluded, doc } = loaded;
+    const {
+      html,
+      input,
+      toEmail,
+      bankDetailsIncluded,
+      doc,
+      softWarnings = [],
+      hasLogo,
+      hasVat,
+      hasRegistration,
+    } = loaded;
     const forceSend = body.forceSend === true || body.force === true;
+    const acknowledgeSoft =
+      body.acknowledgeSoftWarnings === true ||
+      body.ackSoft === true ||
+      forceSend;
 
     // Quality gate: require bank details on invoices unless forceSend
     if (
@@ -70,8 +84,31 @@ export async function POST(request: NextRequest) {
           bankWarning:
             'Add bank details under My Business → Profile → Banking, or retry with forceSend: true to send without EFT block.',
           hint: 'Complete Banking (bank name, account number, branch code) then Email again.',
+          softWarnings,
         },
         { status: 400 }
+      );
+    }
+
+    // Soft gate: logo / VAT / reg — only hard-block when client opts into strict quality
+    if (
+      softWarnings.length > 0 &&
+      !acknowledgeSoft &&
+      body.requireQuality === true
+    ) {
+      return NextResponse.json(
+        {
+          error: 'Document quality warnings',
+          code: 'SOFT_QUALITY_WARNINGS',
+          softWarnings,
+          hasLogo,
+          hasVat,
+          hasRegistration,
+          bankDetailsIncluded,
+          hint:
+            'Add logo, VAT, or registration on Profile — or resend with acknowledgeSoftWarnings: true.',
+        },
+        { status: 422 }
       );
     }
 
@@ -236,6 +273,7 @@ export async function POST(request: NextRequest) {
       hasLogo: Boolean(input.seller.logo_url),
       hasVat: Boolean(input.seller.vat_number),
       hasRegistration: Boolean(input.seller.registration_number),
+      softWarnings,
     });
   } catch (e: unknown) {
     return NextResponse.json(

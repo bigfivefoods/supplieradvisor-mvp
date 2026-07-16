@@ -33,6 +33,7 @@ import {
   TelemetryCard,
   type HubModule,
 } from '@/components/chrome/CommandHubChrome';
+import JourneyChecklist from '@/components/journey/JourneyChecklist';
 
 type WorkspaceSupplier = {
   connectionId: number;
@@ -161,6 +162,8 @@ function BuyerHubInner() {
           </button>
         }
       />
+
+      <JourneyChecklist role="buyer" />
 
       <HubHero
         pill="Live buy · connect → settle"

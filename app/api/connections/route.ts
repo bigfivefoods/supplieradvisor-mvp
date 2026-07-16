@@ -397,6 +397,32 @@ export async function POST(request: NextRequest) {
       metadata: { targetProfileId, sameOwner, connectionType },
     });
 
+    // Soft email when request is pending (not auto-accept)
+    if (status === 'pending') {
+      void (async () => {
+        try {
+          const supabase = getSupabaseServer();
+          const { data: requester } = await supabase
+            .from('profiles')
+            .select('trading_name, legal_name')
+            .eq('id', companyId)
+            .maybeSingle();
+          const { notifyConnectionRequest } = await import(
+            '@/lib/notifications/email-alerts'
+          );
+          await notifyConnectionRequest({
+            requesteeProfileId: targetProfileId,
+            requesterProfileId: companyId,
+            requesterName:
+              requester?.trading_name || requester?.legal_name || null,
+            message: body.message || null,
+          });
+        } catch {
+          /* soft */
+        }
+      })();
+    }
+
     return NextResponse.json({
       success: true,
       connectionId: up.connectionId,

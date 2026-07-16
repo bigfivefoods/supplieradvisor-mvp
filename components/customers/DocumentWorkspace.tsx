@@ -543,6 +543,15 @@ function DocInner({
         }
         throw new Error(data.error || data.hint || 'Send failed');
       }
+      if (
+        Array.isArray(data.softWarnings) &&
+        data.softWarnings.length > 0
+      ) {
+        toast.message('Sent — profile tips', {
+          description: (data.softWarnings as string[]).slice(0, 2).join(' '),
+          duration: 8000,
+        });
+      }
       const bits: string[] = [];
       if (data.bankDetailsIncluded) bits.push('bank details');
       if (data.hasLogo) bits.push('logo');

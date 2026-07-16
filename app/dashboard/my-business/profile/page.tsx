@@ -1763,7 +1763,7 @@ function ProfileInner() {
               </button>
             }
           >
-            <div className="p-4 space-y-2.5">
+            <div className="p-4 space-y-2.5 max-md:max-h-64 max-md:overflow-y-auto">
               <div className="grid grid-cols-2 gap-2.5">
                 <Field label="B-BBEE level">
                   <select
@@ -2136,6 +2136,35 @@ function ProfileInner() {
                     </dl>
                   </div>
                 ) : null}
+
+                <label className="flex items-start gap-2 cursor-pointer select-none pt-1 border-t border-neutral-100">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 rounded border-neutral-300 text-[#00b4d8] focus:ring-[#00b4d8]"
+                    checked={Boolean(
+                      form.metadata &&
+                        typeof form.metadata === 'object' &&
+                        (form.metadata as { show_bank_verified_public?: boolean })
+                          .show_bank_verified_public === true
+                    )}
+                    onChange={(e) => {
+                      const prevMeta =
+                        form.metadata && typeof form.metadata === 'object'
+                          ? { ...(form.metadata as Record<string, unknown>) }
+                          : {};
+                      const next = {
+                        ...prevMeta,
+                        show_bank_verified_public: e.target.checked,
+                      };
+                      setForm((p) => ({ ...p, metadata: next }));
+                      void persistPartial({ metadata: next }).catch(() => undefined);
+                    }}
+                  />
+                  <span className="text-[11px] text-neutral-600 leading-snug">
+                    <strong className="text-slate-800">Show bank verified badge</strong> on
+                    public directory (/c/…). Off by default for privacy.
+                  </span>
+                </label>
               </div>
             </div>
           </Panel>
@@ -2153,7 +2182,7 @@ function ProfileInner() {
               </button>
             }
           >
-            <div className="p-4 space-y-2.5">
+            <div className="p-4 space-y-2.5 max-md:max-h-72 max-md:overflow-y-auto">
               <div className="grid sm:grid-cols-2 gap-2.5">
                 <Field label="Director SA ID">
                   <input

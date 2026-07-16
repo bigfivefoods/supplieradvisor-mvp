@@ -163,4 +163,64 @@ test.describe('Trade loop authenticated (optional token)', () => {
     expect([200, 403, 500]).toContain(res.status());
     expect(res.status()).not.toBe(401);
   });
+
+  test('customer invoices list (trade loop AR)', async ({ request }) => {
+    const res = await request.get(
+      `${base}/api/customers/invoices?companyId=${companyId}`,
+      { headers: headers() }
+    );
+    expect([200, 403, 404, 500]).toContain(res.status());
+    expect(res.status()).not.toBe(401);
+  });
+
+  test('connections graph', async ({ request }) => {
+    const res = await request.get(
+      `${base}/api/connections?companyId=${companyId}`,
+      { headers: headers() }
+    );
+    expect([200, 403, 500]).toContain(res.status());
+    expect(res.status()).not.toBe(401);
+    if (res.status() === 200) {
+      const j = await res.json();
+      expect(Array.isArray(j.edges || j.connections || [])).toBeTruthy();
+    }
+  });
+
+  test('peer workspace depth when supplier known', async ({ request }) => {
+    test.skip(!supplierId, 'Set E2E_SUPPLIER_PROFILE_ID');
+    const res = await request.get(
+      `${base}/api/connections/peer-workspace?companyId=${companyId}&peerId=${supplierId}`,
+      { headers: headers() }
+    );
+    expect([200, 403, 500]).toContain(res.status());
+    expect(res.status()).not.toBe(401);
+    if (res.status() === 200) {
+      const j = await res.json();
+      expect(j.purchaseOrders).toBeTruthy();
+      expect(j.invoices).toBeTruthy();
+    }
+  });
+
+  test('discover pagination meta', async ({ request }) => {
+    const res = await request.get(
+      `${base}/api/suppliers/discover?companyId=${companyId}&limit=10&offset=0`,
+      { headers: headers() }
+    );
+    expect([200, 403, 500]).toContain(res.status());
+    if (res.status() === 200) {
+      const j = await res.json();
+      expect(typeof j.total).toBe('number');
+      expect(j).toHaveProperty('hasMore');
+      expect(j).toHaveProperty('page');
+    }
+  });
+
+  test('schema health deploy identity', async ({ request }) => {
+    const res = await request.get(`${base}/api/system/health`);
+    expect([200, 503]).toContain(res.status());
+    if (res.status() === 200) {
+      const j = await res.json();
+      expect(j.deploy || j.checks).toBeTruthy();
+    }
+  });
 });

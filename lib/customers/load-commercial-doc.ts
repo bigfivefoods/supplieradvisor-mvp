@@ -24,6 +24,18 @@ const NUM_FIELD = {
 
 export type DocKind = keyof typeof TABLES;
 
+export type CommercialDocWarnings = {
+  bankDetailsIncluded: boolean;
+  bankVerified: boolean;
+  cipcVerified: boolean;
+  hasLogo: boolean;
+  hasVat: boolean;
+  hasRegistration: boolean;
+  bankWarning: string | null;
+  /** Soft quality warnings (logo / VAT / reg) — do not block send */
+  softWarnings: string[];
+};
+
 export async function loadCommercialDocument(opts: {
   companyId: number;
   type: DocKind;
@@ -36,6 +48,13 @@ export async function loadCommercialDocument(opts: {
       input: DocRenderInput;
       toEmail: string | null;
       bankDetailsIncluded: boolean;
+      bankVerified: boolean;
+      cipcVerified: boolean;
+      bankWarning: string | null;
+      hasLogo: boolean;
+      hasVat: boolean;
+      hasRegistration: boolean;
+      softWarnings: string[];
     }
   | { ok: false; error: string; status: number }
 > {
@@ -123,6 +142,25 @@ export async function loadCommercialDocument(opts: {
   const bankDetailsIncluded = Boolean(
     seller.bank_name || seller.account_number || seller.iban
   );
+  const hasLogo = Boolean(seller.logo_url);
+  const hasVat = Boolean(seller.vat_number);
+  const hasRegistration = Boolean(seller.registration_number);
+  const softWarnings: string[] = [];
+  if (!hasLogo) {
+    softWarnings.push(
+      'No company logo on profile — documents look more professional with a logo (My Business → Profile).'
+    );
+  }
+  if (!hasVat) {
+    softWarnings.push(
+      'VAT number missing — add it under Profile so tax invoices show a VAT line.'
+    );
+  }
+  if (!hasRegistration) {
+    softWarnings.push(
+      'Company registration number missing — add CIPC reg. under Profile / Identity.'
+    );
+  }
 
   return {
     ok: true,
@@ -137,5 +175,9 @@ export async function loadCommercialDocument(opts: {
     bankWarning: bankDetailsIncluded
       ? null
       : 'Add bank details on My Business → Profile → Banking so invoices show EFT payment instructions.',
+    hasLogo,
+    hasVat,
+    hasRegistration,
+    softWarnings,
   };
 }

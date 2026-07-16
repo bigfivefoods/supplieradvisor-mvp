@@ -143,3 +143,5 @@ Deleted companies no longer appear in `/api/me/companies` and return **410** on 
 - `docs/e2e-authenticated.md`
 - `docs/referral-clawback-drill.md`
 - `docs/trade-loop-dry-run.md`
+- `docs/SECRETS_AND_DEPLOY.md`
+- `docs/IMPROVEMENTS_23.md`

@@ -2,12 +2,28 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { randomUUID } from 'crypto';
 import { getAppUrl, getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
+import { rateLimit, clientIp } from '@/lib/http/rate-limit';
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
   const resend = getResend();
 
   try {
+    const ip = clientIp(request);
+    const rl = rateLimit(`invite-supplier:${ip}`, {
+      limit: 20,
+      windowMs: 60 * 60 * 1000,
+    });
+    if (!rl.ok) {
+      return NextResponse.json(
+        { error: 'Too many invite requests', retryAfterSec: rl.retryAfterSec },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(rl.retryAfterSec) },
+        }
+      );
+    }
+
     const body = await request.json();
     
     const {

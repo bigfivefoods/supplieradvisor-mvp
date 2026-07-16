@@ -42,3 +42,14 @@
 - CIPC and bank AVS responses include `remainingCredits`.
 - Profile UI shows credits after a check; top up at verifynow.co.za when low.
 - Use `VERIFYNOW_MODE=sandbox` for demos without burning credits.
+
+## Secret rotation checklist
+
+If a key was ever pasted into chat, a ticket, or a PR:
+
+1. Rotate in the provider (Paystack, VerifyNow, Supabase service role, Privy, Resend, wallet `PRIVATE_KEY`).
+2. Update Vercel Production + Preview env.
+3. Redeploy production once.
+4. Confirm `/api/system/health` still green.
+
+See also `docs/IMPROVEMENTS_23.md` for the latest product batch.
