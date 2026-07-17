@@ -3,6 +3,7 @@ import { getSupabaseServer, hasServiceRole } from '@/lib/supabase/server-client'
 import {
   deploymentMeta,
   probeProfileColumns,
+  type ProfileColumnProbeResult,
 } from '@/lib/system/schema-probe';
 
 /**
@@ -128,14 +129,16 @@ export async function GET() {
     }
 
     // Column-level gate for banking / discovery / verification
-    const colProbe = await probeProfileColumns();
+    const colProbe: ProfileColumnProbeResult = await probeProfileColumns();
+    const optionalMissing = colProbe.optionalMissing ?? [];
+    const ghostColumns = colProbe.ghostColumns ?? [];
     checks.profiles_columns = {
       ok: colProbe.ok,
       error: colProbe.hint,
       detail: {
         missing: colProbe.missing,
-        optionalMissing: colProbe.optionalMissing,
-        ghostColumnsDoNotSelect: colProbe.ghostColumns,
+        optionalMissing,
+        ghostColumnsDoNotSelect: ghostColumns,
       },
     };
 
@@ -149,7 +152,7 @@ export async function GET() {
         !schemaColumnsOk ||
         !checks.paystack.ok ||
         !checks.verifynow.ok ||
-        (colProbe.optionalMissing?.length ?? 0) > 0);
+        optionalMissing.length > 0);
 
     return NextResponse.json({
       ok: coreOk,
@@ -160,8 +163,8 @@ export async function GET() {
       schemaTotal: softTotal,
       schemaColumnsOk,
       schemaMissingColumns: colProbe.missing,
-      schemaOptionalMissing: colProbe.optionalMissing || [],
-      schemaGhostColumns: colProbe.ghostColumns || [],
+      schemaOptionalMissing: optionalMissing,
+      schemaGhostColumns: ghostColumns,
       deploy,
       checks,
       at: new Date().toISOString(),
@@ -170,7 +173,7 @@ export async function GET() {
           ? colProbe.hint
           : softOk < softTotal
             ? 'Some module tables missing — run latest supabase/migrations/*.sql on production'
-            : colProbe.optionalMissing?.length
+            : optionalMissing.length
               ? colProbe.hint
               : undefined,
     });

@@ -58,17 +58,19 @@ export type ColumnProbe = {
   error?: string;
 };
 
-/**
- * Probe that each column is selectable on a table (limit 0 = schema only).
- */
-export async function probeProfileColumns(): Promise<{
+export type ProfileColumnProbeResult = {
   ok: boolean;
   missing: string[];
   optionalMissing: Array<{ table: string; column: string; hint: string }>;
   ghostColumns: string[];
   probes: ColumnProbe[];
   hint?: string;
-}> {
+};
+
+/**
+ * Probe that each column is selectable on a table (limit 0 = schema only).
+ */
+export async function probeProfileColumns(): Promise<ProfileColumnProbeResult> {
   const supabase = getSupabaseServer();
   const probes: ColumnProbe[] = [];
   const missing: string[] = [];
