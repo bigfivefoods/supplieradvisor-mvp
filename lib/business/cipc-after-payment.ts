@@ -12,8 +12,7 @@ import {
 
 const GHOST = new Set([
   'is_verified',
-  'verification_payment_ref',
-  'verified_at',
+  // Prefer real columns when present; still strip from retry loops below if missing
   'director_id_number',
 ]);
 
@@ -84,6 +83,7 @@ async function updateTolerant(
       continue;
     }
     for (const k of [
+      'verification_paid_at',
       'verification_payment_ref',
       'verified_at',
       'is_verified',
@@ -177,9 +177,11 @@ export async function runCipcAfterPayment(opts: {
       profile.metadata && typeof profile.metadata === 'object'
         ? (profile.metadata as Record<string, unknown>)
         : {};
+    const prevPaidAt = metaV(profile).paid_at;
     await updateTolerant(supabase, companyId, {
       verification_status: 'pending',
       verification_payment_ref: paystackReference,
+      verification_paid_at: prevPaidAt || now,
       updated_at: now,
       metadata: {
         ...metaBase,
@@ -188,6 +190,7 @@ export async function runCipcAfterPayment(opts: {
           status: 'pending',
           paystack_reference: paystackReference,
           amount_zar: 69,
+          paid_at: prevPaidAt || now,
           checked_at: now,
           error: 'Missing registration/VAT — complete profile then re-run CIPC',
           source: opts.source || 'paystack_webhook',
@@ -215,10 +218,26 @@ export async function runCipcAfterPayment(opts: {
   }
 
   const now = new Date().toISOString();
+  const prevPaidAt = metaV(profile).paid_at || null;
+  const paidAt = prevPaidAt || now;
   await updateTolerant(supabase, companyId, {
     verification_status: 'pending',
     updated_at: now,
     verification_payment_ref: paystackReference,
+    verification_paid_at: paidAt,
+    metadata: {
+      ...(profile.metadata && typeof profile.metadata === 'object'
+        ? (profile.metadata as Record<string, unknown>)
+        : {}),
+      verification: {
+        ...metaV(profile),
+        paystack_reference: paystackReference,
+        amount_zar: 69,
+        paid_at: paidAt,
+        status: 'pending',
+        source: opts.source || 'paystack_webhook',
+      },
+    },
   });
 
   const vn = await callVerifyNowCipcCompany({
@@ -239,6 +258,7 @@ export async function runCipcAfterPayment(opts: {
       verification_status: 'failed',
       updated_at: now,
       verification_payment_ref: paystackReference,
+      verification_paid_at: paidAt,
       metadata: {
         ...metaBase,
         verification: {
@@ -246,6 +266,7 @@ export async function runCipcAfterPayment(opts: {
           status: 'failed',
           paystack_reference: paystackReference,
           amount_zar: 69,
+          paid_at: paidAt,
           checked_at: now,
           error: vn.error,
           raw: vn.data,
@@ -289,6 +310,7 @@ export async function runCipcAfterPayment(opts: {
     verification_status: status,
     updated_at: now,
     verification_payment_ref: paystackReference,
+    verification_paid_at: paidAt,
     ...(status === 'verified' ? { verified_at: now } : {}),
     metadata: {
       ...metaBase,
@@ -298,6 +320,7 @@ export async function runCipcAfterPayment(opts: {
         status,
         verified_at: status === 'verified' ? now : null,
         checked_at: now,
+        paid_at: paidAt,
         paystack_reference: paystackReference,
         amount_zar: 69,
         request_id: parsed.requestId,

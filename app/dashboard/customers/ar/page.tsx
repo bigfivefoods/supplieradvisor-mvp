@@ -77,12 +77,24 @@ function Inner() {
   const [statementHistory, setStatementHistory] = useState<
     Array<{ id: string; summary: string; created_at: string }>
   >([]);
+  const [ledgerEntries, setLedgerEntries] = useState<
+    Array<{
+      id?: number;
+      invoice_id: number;
+      amount: number;
+      currency?: string;
+      paid_at: string;
+      reference?: string | null;
+      method?: string | null;
+    }>
+  >([]);
+  const [ledgerWarning, setLedgerWarning] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [agingRes, custRes, histRes, dunRes] = await Promise.all([
+      const [agingRes, custRes, histRes, dunRes, ledRes] = await Promise.all([
         fetch(`/api/customers/ar-aging?companyId=${companyId}`, {
           cache: 'no-store',
         }),
@@ -97,6 +109,9 @@ function Inner() {
           `/api/customers/docs/dunning-preview?companyId=${companyId}`,
           { cache: 'no-store' }
         ).catch(() => null),
+        fetch(`/api/customers/ar-ledger?companyId=${companyId}&limit=25`, {
+          cache: 'no-store',
+        }).catch(() => null),
       ]);
       const data = await agingRes.json();
       if (!agingRes.ok) throw new Error(data.error || 'Failed to load AR');
@@ -138,6 +153,32 @@ function Inner() {
         );
       } else {
         setStatementHistory([]);
+      }
+
+      if (ledRes && ledRes.ok) {
+        const l = await ledRes.json().catch(() => ({}));
+        setLedgerEntries(
+          ((l.entries || []) as Array<{
+            id?: number;
+            invoice_id: number;
+            amount: number;
+            currency?: string;
+            paid_at: string;
+            reference?: string | null;
+            method?: string | null;
+          }>) || []
+        );
+        setLedgerWarning(
+          l.tableMissing
+            ? String(
+                l.warning ||
+                  'Run 20260717_ar_ledger.sql for first-class payment ledger'
+              )
+            : null
+        );
+      } else {
+        setLedgerEntries([]);
+        setLedgerWarning(null);
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed');
@@ -449,6 +490,57 @@ function Inner() {
                 {brokenPromiseCount}
               </div>
             </div>
+          </div>
+
+          <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50/80 to-white px-4 py-3">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <div>
+                <div className="text-[10px] font-bold uppercase text-emerald-800">
+                  Payment ledger
+                </div>
+                <p className="text-[11px] text-emerald-900/70">
+                  First-class payment lines (not notes-only). Recorded on mark
+                  paid / AR ledger API.
+                </p>
+              </div>
+              <Wallet className="w-4 h-4 text-emerald-700 shrink-0" />
+            </div>
+            {ledgerWarning ? (
+              <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1.5">
+                {ledgerWarning}
+              </p>
+            ) : ledgerEntries.length === 0 ? (
+              <p className="text-xs text-neutral-500">
+                No ledger payments yet. Partial/full mark-paid writes rows here
+                after migration.
+              </p>
+            ) : (
+              <ul className="divide-y divide-emerald-100 max-h-56 overflow-y-auto">
+                {ledgerEntries.map((e) => (
+                  <li
+                    key={String(e.id || `${e.invoice_id}-${e.paid_at}`)}
+                    className="py-2 flex flex-wrap items-center justify-between gap-2 text-xs"
+                  >
+                    <div>
+                      <span className="font-bold text-slate-800">
+                        {Number(e.amount).toLocaleString(undefined, {
+                          maximumFractionDigits: 2,
+                        })}{' '}
+                        {e.currency || baseCurrency}
+                      </span>
+                      <span className="text-neutral-500 ml-1.5">
+                        inv #{e.invoice_id}
+                        {e.reference ? ` · ref ${e.reference}` : ''}
+                        {e.method ? ` · ${e.method}` : ''}
+                      </span>
+                    </div>
+                    <span className="text-neutral-400 tabular-nums">
+                      {String(e.paid_at).slice(0, 16).replace('T', ' ')}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           {dunningPreview.length > 0 ? (

@@ -25,10 +25,48 @@ export default function PaidNotBadgedBanner({
   const [status, setStatus] = useState<string>('');
   const [hasPayment, setHasPayment] = useState(false);
   const [hasCipcSnapshot, setHasCipcSnapshot] = useState(false);
+  const [slaMessage, setSlaMessage] = useState<string>('');
+  const [hoursSincePaid, setHoursSincePaid] = useState<number | null>(null);
+  const [slaBreached, setSlaBreached] = useState(false);
 
   const probe = useCallback(async () => {
     if (!companyId || !privyUserId) return;
     try {
+      // Prefer dedicated SLA endpoint
+      const slaRes = await fetch(
+        `/api/business/verify/status?companyId=${companyId}`,
+        { cache: 'no-store' }
+      );
+      if (slaRes.ok) {
+        const data = await slaRes.json().catch(() => ({}));
+        const sla = data.sla as {
+          phase?: string;
+          verificationStatus?: string;
+          hasPayment?: boolean;
+          customerMessage?: string;
+          hoursSincePaid?: number | null;
+          slaBreached?: boolean;
+          cipcName?: string | null;
+        } | null;
+        if (sla) {
+          const st = String(sla.verificationStatus || '').toLowerCase();
+          if (st === 'verified' || sla.phase === 'verified') {
+            setShow(false);
+            return;
+          }
+          setStatus(st || 'unverified');
+          setHasPayment(Boolean(sla.hasPayment));
+          setHasCipcSnapshot(Boolean(sla.cipcName));
+          setSlaMessage(String(sla.customerMessage || ''));
+          setHoursSincePaid(
+            sla.hoursSincePaid != null ? Number(sla.hoursSincePaid) : null
+          );
+          setSlaBreached(Boolean(sla.slaBreached));
+          setShow(Boolean(sla.hasPayment) && st !== 'verified');
+          return;
+        }
+      }
+
       const params = new URLSearchParams({
         companyId: String(companyId),
         privyUserId,
@@ -59,7 +97,9 @@ export default function PaidNotBadgedBanner({
       setStatus(st || 'unverified');
       setHasPayment(paid);
       setHasCipcSnapshot(snap);
-      // Show when paid and not verified (mismatch has its own banner; still useful here)
+      setSlaMessage('');
+      setHoursSincePaid(null);
+      setSlaBreached(false);
       setShow(paid && st !== 'verified');
     } catch {
       setShow(false);
@@ -119,17 +159,34 @@ export default function PaidNotBadgedBanner({
   };
 
   return (
-    <div className="mb-4 rounded-2xl border border-rose-300 bg-gradient-to-br from-rose-50 via-white to-amber-50 px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3 justify-between shadow-sm">
+    <div
+      className={`mb-4 rounded-2xl border px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3 justify-between shadow-sm ${
+        slaBreached
+          ? 'border-rose-400 bg-gradient-to-br from-rose-100 via-white to-amber-50'
+          : 'border-rose-300 bg-gradient-to-br from-rose-50 via-white to-amber-50'
+      }`}
+    >
       <div className="min-w-0 flex items-start gap-2">
         <AlertTriangle className="w-5 h-5 text-rose-700 shrink-0 mt-0.5" />
         <div>
           <p className="text-sm font-black text-rose-950">
-            Payment recorded — verified badge missing
+            {slaBreached
+              ? 'CIPC SLA breach — payment taken, badge still missing'
+              : 'Payment recorded — verified badge missing'}
+            {hoursSincePaid != null ? (
+              <span className="ml-1.5 text-[11px] font-bold text-rose-800/80">
+                · {hoursSincePaid}h since pay
+              </span>
+            ) : null}
           </p>
           <p className="text-xs text-rose-900/90 mt-0.5 leading-relaxed">
-            Status: <strong>{status || 'pending'}</strong>. R69 already taken —
-            re-run CIPC with the same payment or apply the badge if CIPC already
-            matched. No second charge.
+            {slaMessage || (
+              <>
+                Status: <strong>{status || 'pending'}</strong>. R69 already taken —
+                re-run CIPC with the same payment or apply the badge if CIPC already
+                matched. No second charge. Target: badge within 24h.
+              </>
+            )}
           </p>
         </div>
       </div>

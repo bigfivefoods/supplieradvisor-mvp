@@ -66,9 +66,9 @@ export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
     id: 'first_trade',
     day: 3,
     title: 'Create first quote, PO, or order',
-    body: 'Put real commerce on the platform — the trust loop starts here.',
-    href: '/dashboard/customers/quotes',
-    cta: 'Start a quote',
+    body: 'Put real commerce on the platform — 30-min path: customer → document → send → collect/rate.',
+    href: '/dashboard',
+    cta: 'First trade path',
   },
   {
     id: 'billing',

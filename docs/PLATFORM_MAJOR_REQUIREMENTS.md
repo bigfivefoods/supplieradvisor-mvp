@@ -59,12 +59,22 @@ curl -sS "$APP_URL/api/system/trade-loop-smoke" | jq .
 - [x] Invoices: **Mark paid** supports **partial** amounts (status `partial` until full)
 - [x] **AR aging**: `/dashboard/customers/ar` (current / 1–30 / 31–60 / 61–90 / 90+)
 - [x] Overdue: email + WhatsApp resend from invoices list
+- [x] **Payment ledger**: `customer_invoice_payments` + `/api/customers/ar-ledger` (run `20260717_ar_ledger.sql`)
 
 ## 6. Network quality (verify + rate)
 
 - [x] Profile CIPC self-serve mismatch fix
 - [x] Rating prompts: customers hub + dashboard banner + post-invoice-paid / post-OTIFEF
 - [x] Ops queue for stuck verification (`/dashboard/my-business/verifications`)
+- [x] Network density + invite quality: `/api/business/network-metrics` on Network invites
+
+## Five major bets (2026-07)
+
+1. **Paid CIPC SLA** — verify/status, paid_at metadata, pulse auto-rerun, dead-letter, banner SLA
+2. **30-min first trade** — `/api/business/first-trade` + dashboard orchestrator bootstrap
+3. **AR ledger** — first-class payment rows (not notes-only)
+4. **Network density** — density/quality scores + invite funnel rates
+5. **Auth’d E2E + deploy** — `e2e/major-bets-*.spec.ts`, CI workflow, typecheck 8GB heap
 
 ## 7. SEO growth
 

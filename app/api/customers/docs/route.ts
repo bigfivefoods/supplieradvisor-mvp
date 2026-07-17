@@ -1048,6 +1048,34 @@ export async function POST(request: NextRequest) {
       }
       if (uErr) return NextResponse.json({ error: uErr.message }, { status: 500 });
 
+      // First-class AR ledger row (soft if migration not applied)
+      if (thisPayment > 0) {
+        try {
+          const { recordArPayment } = await import('@/lib/customers/ar-ledger');
+          await recordArPayment({
+            profile_id: companyId,
+            invoice_id: Number(inv.id),
+            customer_id: inv.customer_id ? Number(inv.customer_id) : null,
+            amount: thisPayment,
+            currency: String(inv.currency || 'ZAR'),
+            paid_at: now,
+            method: body.payment_method
+              ? String(body.payment_method).slice(0, 40)
+              : 'manual',
+            reference: paymentRef || null,
+            proof_url: body.proof_url
+              ? String(body.proof_url).slice(0, 500)
+              : null,
+            notes: body.payment_notes
+              ? String(body.payment_notes).slice(0, 500)
+              : null,
+            created_by: _gate.userId || null,
+          });
+        } catch {
+          /* ledger optional */
+        }
+      }
+
       // Loyalty points
       if (inv.customer_id) {
         const points = Math.floor(paid * LOYALTY_EARN_RATE);

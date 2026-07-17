@@ -22,6 +22,40 @@ type InviteRow = {
   action?: string;
 };
 
+type NetworkMetrics = {
+  densityScore: number;
+  qualityScore: number;
+  partnerCount: number;
+  partnerGoal: number;
+  connectionsAccepted: number;
+  connectionsPending: number;
+  invitesSent: number;
+  invitesOpened: number;
+  invitesAccepted: number;
+  openRate: number | null;
+  acceptRate: number | null;
+  firstTradeDone: boolean;
+  openToTrade: boolean | null;
+  recommendations: string[];
+};
+
+function MetricChip({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <div className="rounded-lg border border-white/80 bg-white/90 px-2.5 py-1.5">
+      <div className="text-[10px] font-bold uppercase text-slate-400">
+        {label}
+      </div>
+      <div className="font-black text-slate-800">{value}</div>
+    </div>
+  );
+}
+
 export default function NetworkInvitesPage() {
   return (
     <CompanyRequired>
@@ -36,6 +70,7 @@ function Inner() {
   const privyUserId = getCanonicalUserId(user?.id);
   const [loading, setLoading] = useState(true);
   const [invites, setInvites] = useState<InviteRow[]>([]);
+  const [metrics, setMetrics] = useState<NetworkMetrics | null>(null);
   const [email, setEmail] = useState('');
   const [csv, setCsv] = useState('');
   const [busy, setBusy] = useState(false);
@@ -43,13 +78,21 @@ function Inner() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(
-        `/api/business/network-invites?companyId=${companyId}`,
-        { cache: 'no-store' }
-      );
+      const [res, mRes] = await Promise.all([
+        fetch(`/api/business/network-invites?companyId=${companyId}`, {
+          cache: 'no-store',
+        }),
+        fetch(`/api/business/network-metrics?companyId=${companyId}`, {
+          cache: 'no-store',
+        }),
+      ]);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
       setInvites(data.invites || []);
+      if (mRes.ok) {
+        const md = await mRes.json().catch(() => ({}));
+        setMetrics((md.metrics as NetworkMetrics) || null);
+      }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed');
       setInvites([]);
@@ -165,6 +208,75 @@ function Inner() {
           </div>
         }
       />
+
+      {metrics ? (
+        <div className="mb-6 rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 via-white to-emerald-50 p-4">
+          <div className="flex flex-wrap items-end justify-between gap-3 mb-3">
+            <div>
+              <p className="text-sm font-black text-slate-900">
+                Network density & invite quality
+              </p>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Partners {metrics.partnerCount}/{metrics.partnerGoal} · accepted
+                connections {metrics.connectionsAccepted}
+                {metrics.connectionsPending
+                  ? ` · ${metrics.connectionsPending} pending`
+                  : ''}
+              </p>
+            </div>
+            <div className="flex gap-3 text-center">
+              <div className="rounded-xl bg-white border border-sky-100 px-3 py-2 min-w-[4.5rem]">
+                <div className="text-lg font-black text-sky-700">
+                  {metrics.densityScore}
+                </div>
+                <div className="text-[10px] font-bold uppercase text-slate-400">
+                  Density
+                </div>
+              </div>
+              <div className="rounded-xl bg-white border border-emerald-100 px-3 py-2 min-w-[4.5rem]">
+                <div className="text-lg font-black text-emerald-700">
+                  {metrics.qualityScore}
+                </div>
+                <div className="text-[10px] font-bold uppercase text-slate-400">
+                  Quality
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs mb-2">
+            <MetricChip label="Sent" value={metrics.invitesSent} />
+            <MetricChip
+              label="Open rate"
+              value={
+                metrics.openRate != null ? `${metrics.openRate}%` : '—'
+              }
+            />
+            <MetricChip label="Accepted" value={metrics.invitesAccepted} />
+            <MetricChip
+              label="Accept rate"
+              value={
+                metrics.acceptRate != null ? `${metrics.acceptRate}%` : '—'
+              }
+            />
+          </div>
+          {metrics.recommendations?.[0] ? (
+            <p className="text-xs text-sky-900/90 leading-relaxed">
+              {metrics.recommendations[0]}
+              {!metrics.firstTradeDone ? (
+                <>
+                  {' '}
+                  <Link
+                    href="/dashboard"
+                    className="font-bold text-[#0077b6] underline"
+                  >
+                    Open first-trade path
+                  </Link>
+                </>
+              ) : null}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="grid lg:grid-cols-2 gap-4 mb-6">
         <div className="rounded-2xl border border-neutral-200 bg-white p-4 space-y-2">
