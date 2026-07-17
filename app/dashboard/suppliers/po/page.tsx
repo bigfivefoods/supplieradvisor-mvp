@@ -141,6 +141,9 @@ type PurchaseOrder = {
   supplier_wallet?: string | null;
   /** Set when seller creates invoice from this PO (column may be absent pre-migration) */
   invoice_id?: number | null;
+  invoice_number?: string | null;
+  /** false = seller invoiced but not shared to buyer yet */
+  invoice_shared?: boolean | null;
   created_at?: string;
   metadata?: Record<string, unknown> | null;
   fulfilment_status?: string | null;
@@ -1173,9 +1176,18 @@ function PoInner() {
       };
     }
     if (st === 'invoiced') {
+      if (po.invoice_shared === false) {
+        return {
+          title: 'Next: Awaiting supplier to share invoice',
+          body: 'Supplier raised an invoice but has not shared it yet. Track the PO and record OTIFEF when goods arrive.',
+          tone: 'amber',
+        };
+      }
       return {
-        title: 'Next: Supplier invoiced — receive + rate',
-        body: 'Invoice raised against this PO. When goods arrive, record OTIFEF delivery then rate the supplier.',
+        title: 'Next: Supplier invoiced — open invoice, receive + rate',
+        body: po.invoice_number
+          ? `Invoice ${po.invoice_number} is shared. When goods arrive, capture OTIFEF then rate.`
+          : 'Invoice is available in Shared documents. When goods arrive, capture OTIFEF then rate.',
         tone: 'amber',
       };
     }
@@ -2296,19 +2308,29 @@ function PoInner() {
                               <Package className="w-3 h-3" /> Receive + OTIFEF
                             </button>
                           )}
-                          {String(po.status).toLowerCase() === 'invoiced' && (
-                            <Link
-                              href={
-                                resolveInvoiceId(po)
-                                  ? `/dashboard/buyer/documents?invoiceId=${resolveInvoiceId(po)}`
-                                  : '/dashboard/buyer/documents'
-                              }
-                              className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
-                              title="Supplier raised an invoice against this PO"
-                            >
-                              <FileText className="w-3 h-3" /> View invoice
-                            </Link>
-                          )}
+                          {String(po.status).toLowerCase() === 'invoiced' &&
+                            po.invoice_shared === false && (
+                              <span
+                                className="text-[10px] font-bold uppercase px-2 py-1 rounded-full bg-amber-100 text-amber-900"
+                                title="Supplier has not shared the commercial invoice yet"
+                              >
+                                Awaiting share
+                              </span>
+                            )}
+                          {String(po.status).toLowerCase() === 'invoiced' &&
+                            po.invoice_shared !== false && (
+                              <Link
+                                href={
+                                  resolveInvoiceId(po)
+                                    ? `/dashboard/buyer/documents?invoiceId=${resolveInvoiceId(po)}`
+                                    : '/dashboard/buyer/documents'
+                                }
+                                className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
+                                title="Open shared invoice in buyer documents"
+                              >
+                                <FileText className="w-3 h-3" /> View invoice
+                              </Link>
+                            )}
                           {[
                             'accepted',
                             'funded',

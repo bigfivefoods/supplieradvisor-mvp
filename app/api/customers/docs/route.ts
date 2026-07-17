@@ -498,20 +498,18 @@ export async function POST(request: NextRequest) {
       ({ markOnboardingSteps }) => markOnboardingSteps(companyId, 'first_trade')
     );
 
-    // fromPo create: mark purchase_orders status=invoiced (soft — column/status may vary)
+    // fromPo create: mark purchase_orders status=invoiced + auto-share with buyer when possible
     let poMarkedInvoiced: number | null = null;
+    let invoiceSharedToBuyer = false;
+    let documentOut = inserted.data as Record<string, unknown>;
     if (kind === 'invoice') {
       const sourcePoId =
         body.source_po_id != null
           ? Number(body.source_po_id)
-          : Number(
-              (inserted.data as { source_po_id?: unknown } | null)?.source_po_id
-            );
+          : Number(documentOut?.source_po_id);
       if (Number.isFinite(sourcePoId) && sourcePoId > 0) {
         try {
-          const invId = Number(
-            (inserted.data as { id?: unknown } | null)?.id
-          );
+          const invId = Number(documentOut?.id);
           const patch: Record<string, unknown> = {
             status: 'invoiced',
             updated_at: now,
@@ -539,6 +537,36 @@ export async function POST(request: NextRequest) {
           }
           if (!poErr) poMarkedInvoiced = sourcePoId;
 
+          // Auto-share so buyer can open ?invoiceId= (still draft until seller emails)
+          const custId = Number(
+            documentOut?.customer_id ?? body.customer_id ?? 0
+          );
+          if (Number.isFinite(invId) && invId > 0 && custId > 0) {
+            try {
+              const notSuspended = await assertSellerCustomerNotSuspended(
+                companyId,
+                custId
+              );
+              if (notSuspended.ok) {
+                const { data: sharedRow, error: shareErr } = await supabase
+                  .from('customer_invoices')
+                  .update({ visibility: 'shared', updated_at: now })
+                  .eq('id', invId)
+                  .eq('profile_id', companyId)
+                  .select('*')
+                  .maybeSingle();
+                if (!shareErr && sharedRow) {
+                  invoiceSharedToBuyer = true;
+                  documentOut = sharedRow as Record<string, unknown>;
+                } else if (shareErr && /visibility|column/i.test(shareErr.message || '')) {
+                  /* column missing — soft */
+                }
+              }
+            } catch {
+              /* soft */
+            }
+          }
+
           // Soft: notify buyer that PO was invoiced
           if (poMarkedInvoiced) {
             void (async () => {
@@ -555,12 +583,8 @@ export async function POST(request: NextRequest) {
                   .select('trading_name')
                   .eq('id', companyId)
                   .maybeSingle();
-                const inv = inserted.data as {
-                  id?: unknown;
-                  invoice_number?: unknown;
-                  total_amount?: unknown;
-                  currency?: unknown;
-                } | null;
+                const inv = documentOut;
+                const invIdNotify = Number(inv?.id) || invId || null;
                 const { notifyPoInvoiced } = await import(
                   '@/lib/notifications/email-alerts'
                 );
@@ -568,7 +592,7 @@ export async function POST(request: NextRequest) {
                   buyerProfileId: buyerId,
                   supplierName: sellerProf?.trading_name || null,
                   poId: sourcePoId,
-                  invoiceId: Number(inv?.id) || invId || null,
+                  invoiceId: invIdNotify,
                   invoiceNumber: inv?.invoice_number
                     ? String(inv.invoice_number)
                     : null,
@@ -578,15 +602,17 @@ export async function POST(request: NextRequest) {
                       : null,
                   currency: inv?.currency ? String(inv.currency) : null,
                 });
-                const invIdNotify = Number(inv?.id) || invId || null;
                 void supabase.from('notifications').insert({
                   profile_id: buyerId,
                   type: 'po_invoiced',
                   title: `Invoice raised for PO #${sourcePoId}`,
-                  body: `${sellerProf?.trading_name || 'Supplier'} invoiced your purchase order`,
+                  body: invoiceSharedToBuyer
+                    ? `${sellerProf?.trading_name || 'Supplier'} invoiced your PO — open shared documents`
+                    : `${sellerProf?.trading_name || 'Supplier'} invoiced your purchase order`,
                   metadata: {
                     poId: sourcePoId,
                     invoiceId: invIdNotify,
+                    shared: invoiceSharedToBuyer,
                     href: invIdNotify
                       ? `/dashboard/buyer/documents?invoiceId=${invIdNotify}`
                       : '/dashboard/buyer/documents',
@@ -606,10 +632,11 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      document: inserted.data,
+      document: documentOut,
       type: kind,
       goldenPath,
       poMarkedInvoiced,
+      invoiceSharedToBuyer,
     });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Error' }, { status: 500 });

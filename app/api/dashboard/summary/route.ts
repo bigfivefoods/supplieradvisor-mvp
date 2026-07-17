@@ -994,6 +994,9 @@ export async function POST(request: NextRequest) {
       openInvStatuses.has(String(i.status || '').toLowerCase())
     );
     const invoicesOpen = invoicesOpenRows.length;
+    const invoicesDraft = custInvoices.filter(
+      (i) => String(i.status || '').toLowerCase() === 'draft'
+    ).length;
     const invoicesOpenValue = invoicesOpenRows.reduce(
       (s, i) =>
         s + Math.max(0, Number(i.total_amount || 0) - Number(i.amount_paid || 0)),
@@ -1211,6 +1214,7 @@ export async function POST(request: NextRequest) {
         quotesAcceptedValue,
         quotesTotalValue,
         invoicesOpen,
+        invoicesDraft,
         invoicesOpenValue,
         invoicesPaidValue,
         invoicesTotalValue,
@@ -1248,6 +1252,7 @@ export async function POST(request: NextRequest) {
         quotesAcceptedValue,
         quotesTotalValue,
         invoicesOpen,
+        invoicesDraft,
         invoicesOpenValue,
         invoicesPaidValue,
         invoicesTotalValue,
@@ -1292,6 +1297,7 @@ export async function POST(request: NextRequest) {
         quotesAcceptedValue,
         quotesTotalValue,
         invoicesOpen,
+        invoicesDraft,
         invoicesOpenValue,
         invoicesPaidValue,
         invoicesTotalValue,

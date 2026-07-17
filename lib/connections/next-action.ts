@@ -235,6 +235,8 @@ export function computeHubNextAction(opts: {
   openInboundPos?: number;
   openOutboundPos?: number;
   pendingConnections?: number;
+  /** Seller CRM: draft commercial invoices waiting to email */
+  draftInvoices?: number;
   catalogueEmpty?: boolean;
   verificationStatus?: string | null;
 }): TradeNextAction {
@@ -281,6 +283,21 @@ export function computeHubNextAction(opts: {
     };
   }
 
+  // Seller: draft invoices ready to email / collect
+  if (
+    (opts.role === 'main' || opts.role === 'supplier') &&
+    (opts.draftInvoices || 0) > 0
+  ) {
+    return {
+      id: 'draft_invoices',
+      priority: 82,
+      title: 'Draft invoices ready to send',
+      body: `${opts.draftInvoices} draft invoice(s) — review bank details and email when ready.`,
+      href: '/dashboard/customers/invoices?status=draft',
+      cta: 'Open drafts',
+    };
+  }
+
   // Main + buyer: outbound procurement work
   if (
     (opts.role === 'buyer' || opts.role === 'main') &&
@@ -288,7 +305,7 @@ export function computeHubNextAction(opts: {
   ) {
     return {
       id: 'outbound_pos',
-      priority: 85,
+      priority: 80,
       title: 'Open purchase orders',
       body: `${opts.openOutboundPos} PO(s) — track accept, receive OTIFEF, and rate.`,
       href: '/dashboard/suppliers/po',

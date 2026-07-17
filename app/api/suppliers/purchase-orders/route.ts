@@ -99,9 +99,56 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Soft: invoice share state for invoiced POs (buyer awaiting-share UX)
+    const poIds = pos.map((p) => Number(p.id)).filter((n) => Number.isFinite(n) && n > 0);
+    const invByPoId = new Map<
+      number,
+      { id: number; visibility: string | null; invoice_number: string | null }
+    >();
+    if (poIds.length) {
+      try {
+        const { data: invRows } = await supabase
+          .from('customer_invoices')
+          .select('id, source_po_id, visibility, invoice_number, profile_id')
+          .in('source_po_id', poIds.slice(0, 200))
+          .limit(200);
+        for (const inv of invRows || []) {
+          const sp = Number(inv.source_po_id);
+          if (!Number.isFinite(sp) || sp <= 0) continue;
+          // Prefer shared row if multiple
+          const prev = invByPoId.get(sp);
+          const vis = String(inv.visibility || '');
+          if (!prev || vis === 'shared') {
+            invByPoId.set(sp, {
+              id: Number(inv.id),
+              visibility: inv.visibility ?? null,
+              invoice_number: inv.invoice_number
+                ? String(inv.invoice_number)
+                : null,
+            });
+          }
+        }
+      } catch {
+        /* soft — source_po_id column may be missing */
+      }
+    }
+
     const enriched = pos.map((p) => {
       const profileId = Number(p.supplier_profile_id);
       const srmId = Number(p.supplier_id);
+      const inv = invByPoId.get(Number(p.id));
+      const invoiceId =
+        Number(p.invoice_id) > 0
+          ? Number(p.invoice_id)
+          : inv?.id && Number(inv.id) > 0
+            ? Number(inv.id)
+            : null;
+      const invoiceShared =
+        inv != null
+          ? String(inv.visibility || '').toLowerCase() === 'shared'
+          : String(p.status || '').toLowerCase() === 'invoiced'
+            ? false
+            : null;
       return {
         ...p,
         supplier_name:
@@ -110,6 +157,9 @@ export async function GET(request: NextRequest) {
         supplier_phone:
           phoneBySrm[srmId] || phoneByLinkedProfile[profileId] || null,
         supplier_contact_name: contactBySrm[srmId] || null,
+        invoice_id: invoiceId ?? p.invoice_id ?? null,
+        invoice_number: inv?.invoice_number ?? null,
+        invoice_shared: invoiceShared,
       };
     });
 
@@ -123,6 +173,10 @@ export async function GET(request: NextRequest) {
         ['completed', 'paid'].includes(String(p.status))
       ).length,
       invoiced: enriched.filter((p) => String(p.status) === 'invoiced').length,
+      awaiting_invoice_share: enriched.filter(
+        (p) =>
+          String(p.status) === 'invoiced' && p.invoice_shared === false
+      ).length,
       onchain: enriched.filter((p) => p.onchain_po_id != null && p.onchain_po_id !== '').length,
       cancelled: enriched.filter((p) => p.status === 'cancelled').length,
     };

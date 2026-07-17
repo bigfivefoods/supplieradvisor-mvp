@@ -147,6 +147,7 @@ function DocInner({
   const buyerProfileIdParam =
     Number(searchParams.get('buyerProfileId') || 0) || null;
   const focusDocId = Number(searchParams.get('docId') || searchParams.get('invoiceId') || 0) || null;
+  const statusFromUrl = String(searchParams.get('status') || '').toLowerCase();
   const fromPoApplied = useRef(false);
   const cfg = CONFIG[type];
   const [docs, setDocs] = useState<DocRecord[]>([]);
@@ -196,7 +197,15 @@ function DocInner({
   );
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState(
+    statusFromUrl && statusFromUrl !== 'all' ? statusFromUrl : 'all'
+  );
+
+  useEffect(() => {
+    if (statusFromUrl && statusFromUrl !== 'all') {
+      setStatusFilter(statusFromUrl);
+    }
+  }, [statusFromUrl]);
 
   const [customerId, setCustomerId] = useState('');
   const [docCurrency, setDocCurrency] = useState('ZAR');
@@ -666,14 +675,21 @@ function DocInner({
         throw new Error(data.error || data.hint || 'Failed');
       }
       if (type === 'invoice' && fromPo) {
+        const shared = Boolean(data.invoiceSharedToBuyer);
         toast.success(`Draft invoice created from PO #${fromPo}`, {
-          description:
-            'Saved as draft — use “Email when ready” on the invoice row after you review bank details and lines.',
+          description: shared
+            ? 'Shared with the buyer. Review bank details, then “Email when ready”.'
+            : 'Saved as draft — share with the buyer and email when ready.',
           duration: 10000,
         });
         setFromPoBanner(
-          `Draft invoice ready for PO #${fromPo}. Use “Email when ready” on the row below when you are ready to send.`
+          shared
+            ? `Draft invoice for PO #${fromPo} is shared with the buyer. Use “Email when ready” when lines and bank details look right.`
+            : `Draft invoice ready for PO #${fromPo}. Share with the buyer, then “Email when ready”.`
         );
+        if (data.document?.id) {
+          setHighlightDocId(Number(data.document.id));
+        }
       } else {
         toast.success(`${cfg.title.slice(0, -1)} created (${docCurrency})`);
       }
