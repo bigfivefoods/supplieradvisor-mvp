@@ -6,6 +6,7 @@
 import { formatMoney, type DocLineItem } from '@/lib/customers/documents';
 import { normalizeProfileRow, type CompanyProfile } from '@/lib/business/types';
 import {
+  absoluteLogoUrl,
   invoiceRateClaimUrls,
   qrPngUrl,
   rateSellerPublicUrl,
@@ -282,9 +283,10 @@ export function renderCommercialDocumentHtml(doc: DocRenderInput): string {
   const title = KIND_LABEL[doc.kind];
   const sellerName =
     doc.seller.trading_name || doc.seller.legal_name || 'Supplier';
-  const logo = doc.seller.logo_url
-    ? `<img class="logo" src="${esc(doc.seller.logo_url)}" alt="${esc(sellerName)}" />`
-    : '';
+  const logoSrc = absoluteLogoUrl(doc.seller.logo_url);
+  const logo = logoSrc
+    ? `<img class="logo" src="${esc(logoSrc)}" alt="${esc(sellerName)} logo" />`
+    : `<div class="logo-fallback">${esc(sellerName.slice(0, 1).toUpperCase())}</div>`;
   const verifiedBadge = doc.seller.is_verified
     ? `<span class="verified">✓ Verified on SupplierAdvisor</span>`
     : '';
@@ -470,11 +472,26 @@ export function renderCommercialDocumentHtml(doc: DocRenderInput): string {
       margin-bottom: 12px;
     }
     .logo {
-      max-height: 48px;
-      max-width: 160px;
+      max-height: 56px;
+      max-width: 180px;
       object-fit: contain;
       display: block;
-      margin-bottom: 8px;
+      margin-bottom: 10px;
+      border-radius: 6px;
+    }
+    .logo-fallback {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: linear-gradient(145deg, #00b4d8, #0077b6);
+      color: #fff;
+      font-weight: 900;
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 10px;
+      letter-spacing: -0.02em;
     }
     .doc-type {
       font-size: 10px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase;
@@ -654,7 +671,8 @@ export function renderCommercialDocumentHtml(doc: DocRenderInput): string {
       .pad { padding: 0 0 4mm; }
       .topbar { height: 4px; }
       .hero { margin-bottom: 8px; gap: 10px; }
-      .logo { max-height: 40px; max-width: 140px; margin-bottom: 4px; }
+      .logo { max-height: 48px; max-width: 160px; margin-bottom: 6px; }
+      .logo-fallback { width: 40px; height: 40px; font-size: 16px; margin-bottom: 6px; }
       h1 { font-size: 18px; }
       .parties { gap: 8px; margin-bottom: 8px; }
       .card { padding: 8px 10px; border-radius: 8px; }

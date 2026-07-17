@@ -8,6 +8,22 @@ import {
   qrImageUrl,
 } from '@/lib/customers/invoice-feedback-token';
 
+/** Resolve profile logo to absolute URL for fetch / HTML / PDF. */
+export function absoluteLogoUrl(url: string | null | undefined): string | null {
+  const u = String(url || '').trim();
+  if (!u) return null;
+  if (
+    u.startsWith('http://') ||
+    u.startsWith('https://') ||
+    u.startsWith('data:')
+  ) {
+    return u;
+  }
+  if (u.startsWith('//')) return `https:${u}`;
+  const base = appBaseUrl();
+  return u.startsWith('/') ? `${base}${u}` : `${base}/${u}`;
+}
+
 export function registerBusinessUrl(opts?: {
   referrerProfileId?: number | null;
 }): string {

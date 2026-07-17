@@ -10,11 +10,58 @@ import PDFDocument from 'pdfkit';
 import { formatMoney, type DocLineItem } from '@/lib/customers/documents';
 import type { DocRenderInput, SellerProfile } from '@/lib/customers/invoice-document';
 import {
+  absoluteLogoUrl,
   fetchQrPngBuffer,
   invoiceRateClaimUrls,
   rateSellerPublicUrl,
   registerBusinessUrl,
 } from '@/lib/customers/commercial-doc-links';
+
+/**
+ * Fetch company logo for pdfkit (PNG/JPEG). Soft-fails on WebP/SVG/network.
+ */
+async function fetchLogoBuffer(
+  logoUrl: string | null | undefined
+): Promise<Buffer | null> {
+  const abs = absoluteLogoUrl(logoUrl);
+  if (!abs || abs.startsWith('data:')) {
+    // data: URLs — decode if png/jpeg
+    if (abs?.startsWith('data:image/')) {
+      try {
+        const m = /^data:image\/(png|jpe?g);base64,(.+)$/i.exec(abs);
+        if (m?.[2]) return Buffer.from(m[2], 'base64');
+      } catch {
+        /* */
+      }
+    }
+    return null;
+  }
+  try {
+    const res = await fetch(abs, {
+      signal: AbortSignal.timeout(8000),
+      headers: { Accept: 'image/png,image/jpeg,image/*' },
+    });
+    if (!res.ok) return null;
+    const ct = String(res.headers.get('content-type') || '').toLowerCase();
+    // pdfkit cannot embed webp/svg
+    if (ct.includes('webp') || ct.includes('svg')) return null;
+    const ab = await res.arrayBuffer();
+    if (!ab.byteLength || ab.byteLength > 2_500_000) return null;
+    const buf = Buffer.from(ab);
+    // sniff magic bytes
+    const isPng =
+      buf.length > 8 &&
+      buf[0] === 0x89 &&
+      buf[1] === 0x50 &&
+      buf[2] === 0x4e &&
+      buf[3] === 0x47;
+    const isJpg = buf.length > 2 && buf[0] === 0xff && buf[1] === 0xd8;
+    if (!isPng && !isJpg) return null;
+    return buf;
+  } catch {
+    return null;
+  }
+}
 
 const PAGE_W = 595.28;
 const PAGE_H = 841.89;
@@ -361,8 +408,11 @@ export async function buildCommercialDocumentPdf(
   const quoteTermsShort =
     'Prices valid until the date shown (if any). Subject to stock availability and order confirmation. E&OE.';
 
-  // Prefetch QR PNGs before opening the PDF stream
-  const networkQrs = await loadNetworkQrs(input);
+  // Prefetch QR + company logo before opening the PDF stream
+  const [networkQrs, logoBuf] = await Promise.all([
+    loadNetworkQrs(input),
+    fetchLogoBuffer(input.seller.logo_url),
+  ]);
 
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
@@ -392,27 +442,48 @@ export async function buildCommercialDocumentPdf(
     doc.x = MARGIN_X;
     doc.y = MARGIN_TOP + 6;
 
-    // ── Hero (two columns, absolute Y tracking) ───────────────────────
+    // ── Hero (logo + doc title left · seller right) ───────────────────
     const leftX = MARGIN_X;
     const rightX = MARGIN_X + CONTENT_W * 0.54;
     const rightW = CONTENT_W * 0.46;
     const heroTop = doc.y;
 
+    // Company logo (left) — max ~48pt tall, proportional
+    let textLeft = leftX;
+    let logoBottom = heroTop;
+    if (logoBuf) {
+      try {
+        const maxLogoW = 130;
+        const maxLogoH = 44;
+        doc.image(logoBuf, leftX, heroTop, {
+          fit: [maxLogoW, maxLogoH],
+          align: 'left',
+          valign: 'top',
+        });
+        // Approximate space used (pdfkit doesn't return drawn size easily)
+        textLeft = leftX;
+        logoBottom = heroTop + maxLogoH + 6;
+      } catch {
+        logoBottom = heroTop;
+      }
+    }
+
+    const titleY = logoBuf ? logoBottom : heroTop;
     doc
       .fillColor(BRAND_DEEP)
       .font('Helvetica-Bold')
       .fontSize(8.5)
-      .text(kindLabel, leftX, heroTop, {
+      .text(kindLabel, textLeft, titleY, {
         width: CONTENT_W * 0.5,
         characterSpacing: 1.1,
         lineBreak: false,
       });
 
-    const numY = heroTop + 12;
+    const numY = titleY + 12;
     doc.font('Helvetica-Bold').fontSize(18);
     const numStr = String(input.number);
     const numW = Math.min(doc.widthOfString(numStr) + 8, CONTENT_W * 0.4);
-    doc.fillColor(INK).text(numStr, leftX, numY, {
+    doc.fillColor(INK).text(numStr, textLeft, numY, {
       width: CONTENT_W * 0.48,
       lineBreak: false,
     });
@@ -421,22 +492,23 @@ export async function buildCommercialDocumentPdf(
       const badge = 'Verified';
       doc.font('Helvetica-Bold').fontSize(6.5);
       const bw = doc.widthOfString(badge) + 12;
-      doc.roundedRect(leftX + numW, numY + 4, bw, 11, 5).fill('#ecfdf5');
+      doc.roundedRect(textLeft + numW, numY + 4, bw, 11, 5).fill('#ecfdf5');
       doc
         .fillColor('#047857')
-        .text(badge, leftX + numW + 6, numY + 5.5, { lineBreak: false });
+        .text(badge, textLeft + numW + 6, numY + 5.5, { lineBreak: false });
     }
 
     doc
       .fillColor(MUTED)
       .font('Helvetica')
       .fontSize(8)
-      .text(`Status: ${input.status || '—'}`, leftX, numY + 22, {
+      .text(`Status: ${input.status || '—'}`, textLeft, numY + 22, {
         lineBreak: false,
       });
 
     // Seller (right) — fixed lines, no free-flow wrap that blows doc.y
     let sy = heroTop;
+    // Optional small logo mark on the right if we didn't place left (never both huge)
     doc
       .fillColor(INK)
       .font('Helvetica-Bold')
