@@ -394,6 +394,112 @@ export async function notifyRecallPack(params: {
   }
 }
 
+/**
+ * Ops alert when a company self-registers.
+ * Default recipient: connect@supplieradvisor.com (override via NEW_COMPANY_NOTIFY_EMAIL).
+ */
+export async function notifyNewCompanyRegistered(params: {
+  profileId: number;
+  tradingName?: string | null;
+  legalName?: string | null;
+  contactEmail?: string | null;
+  contactName?: string | null;
+  contactPhone?: string | null;
+  country?: string | null;
+  city?: string | null;
+  industry?: string | null;
+  businessType?: string | null;
+  website?: string | null;
+  ownerUserId?: string | null;
+  lifetimePlan?: string | null;
+  trialEndsAt?: string | null;
+  referralSource?: string | null;
+  referredByProfileId?: number | null;
+}): Promise<void> {
+  try {
+    const toRaw =
+      process.env.NEW_COMPANY_NOTIFY_EMAIL ||
+      process.env.PLATFORM_OPS_EMAIL ||
+      'connect@supplieradvisor.com';
+    const to = toRaw
+      .split(/[,;\s]+/)
+      .map((s) => s.trim())
+      .filter((s) => s.includes('@'));
+    if (!to.length) return;
+
+    const name =
+      params.tradingName || params.legalName || `Company #${params.profileId}`;
+    const href = `${appBase()}/c/${params.profileId}`;
+    const adminHint = `${appBase()}/dashboard`; // ops start from dashboard
+    const rows: Array<[string, string]> = [
+      ['Profile ID', String(params.profileId)],
+      ['Trading name', name],
+      ['Legal name', params.legalName || '—'],
+      ['Contact', params.contactName || '—'],
+      ['Email', params.contactEmail || '—'],
+      ['Phone', params.contactPhone || '—'],
+      [
+        'Location',
+        [params.city, params.country].filter(Boolean).join(', ') || '—',
+      ],
+      ['Industry', params.industry || '—'],
+      ['Type', params.businessType || '—'],
+      ['Website', params.website || '—'],
+      [
+        'Access',
+        params.lifetimePlan
+          ? `Lifetime (${params.lifetimePlan})`
+          : params.trialEndsAt
+            ? `Trial until ${params.trialEndsAt.slice(0, 10)}`
+            : 'Trial / standard',
+      ],
+      [
+        'Referral',
+        params.referredByProfileId
+          ? `#${params.referredByProfileId}${
+              params.referralSource ? ` (${params.referralSource})` : ''
+            }`
+          : params.referralSource || '—',
+      ],
+      ['Owner user', params.ownerUserId || '—'],
+    ];
+    const table = rows
+      .map(
+        ([k, v]) =>
+          `<tr><td style="padding:4px 12px 4px 0;color:#64748b;vertical-align:top">${k}</td><td style="padding:4px 0;font-weight:600;color:#0f172a">${escapeHtml(
+            v
+          )}</td></tr>`
+      )
+      .join('');
+
+    await sendAlert({
+      to,
+      subject: `[SupplierAdvisor] New company registered: ${name}`,
+      html: `
+        <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto">
+          <h2 style="color:#0077b6;margin-bottom:8px">New company registration</h2>
+          <p style="color:#475569;margin-top:0">A business just completed self-serve onboarding on SupplierAdvisor.</p>
+          <table style="border-collapse:collapse;font-size:14px;margin:16px 0">${table}</table>
+          <p>
+            <a href="${href}" style="display:inline-block;background:#00b4d8;color:#fff;padding:12px 20px;border-radius:999px;text-decoration:none;font-weight:700;margin-right:8px">Public profile →</a>
+            <a href="${adminHint}" style="color:#0077b6;font-weight:600">Open app</a>
+          </p>
+        </div>
+      `,
+    });
+  } catch (e) {
+    console.warn('notifyNewCompanyRegistered', e);
+  }
+}
+
+function escapeHtml(s: string): string {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 /** Peer requested a network connection. */
 export async function notifyConnectionRequest(params: {
   requesteeProfileId: number;

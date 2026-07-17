@@ -241,6 +241,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Soft ops alert — never blocks registration
+    void import('@/lib/notifications/email-alerts')
+      .then(({ notifyNewCompanyRegistered }) =>
+        notifyNewCompanyRegistered({
+          profileId: Number(profile.id),
+          tradingName: profile.trading_name || tradingNameTrim,
+          legalName: legalNameTrim,
+          contactEmail: email,
+          contactName: contact_name ? String(contact_name) : null,
+          contactPhone: contact_phone ? String(contact_phone) : null,
+          country: country ? String(country) : 'South Africa',
+          city: city ? String(city) : null,
+          industry: industry ? String(industry) : null,
+          businessType: business_type ? String(business_type) : 'business',
+          website: website ? String(website) : null,
+          ownerUserId: userId,
+          lifetimePlan,
+          trialEndsAt: lifetimePlan ? null : trialEnds,
+          referralSource: referredByProfileId
+            ? refRaw
+              ? 'ref_link'
+              : 'default_root'
+            : null,
+          referredByProfileId,
+        })
+      )
+      .catch((e) => console.warn('new company notify soft-fail', e));
+
     return NextResponse.json({
       success: true,
       profileId: profile.id,
