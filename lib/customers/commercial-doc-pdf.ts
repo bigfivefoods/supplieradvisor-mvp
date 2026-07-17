@@ -736,9 +736,6 @@ export async function buildCommercialDocumentPdf(
       drawFooter(doc, i + 1, range.count);
     }
 
-    // Silence unused warning if tree-shaken
-    void maxRowsSinglePage;
-
     doc.end();
   });
 }
