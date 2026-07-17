@@ -51,4 +51,4 @@ jobs:
           E2E_COMPANY_ID: ${{ secrets.E2E_COMPANY_ID }}
           E2E_SUPPLIER_PROFILE_ID: ${{ secrets.E2E_SUPPLIER_PROFILE_ID }}
         run: |
-          npx playwright test e2e/authenticated-session.spec.ts e2e/trade-loop-smoke.spec.ts
+          npx playwright test e2e/authenticated-session.spec.ts e2e/trade-loop-smoke.spec.ts e2e/golden-path-auth.spec.ts

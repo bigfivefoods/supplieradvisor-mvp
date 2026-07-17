@@ -393,11 +393,36 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      const reason = body.reason != null ? String(body.reason).trim().slice(0, 280) : '';
+      const prevPtp = invRow?.promise_to_pay_date
+        ? String(invRow.promise_to_pay_date).slice(0, 10)
+        : null;
+      const todayIso = now.slice(0, 10);
+      const wasBroken = Boolean(prevPtp && prevPtp < todayIso);
+      const renegotiate = Boolean(
+        !clear &&
+          prevPtp &&
+          rawDate &&
+          prevPtp !== rawDate &&
+          (wasBroken || body.renegotiate === true)
+      );
       const line = clear
-        ? `[promise cleared ${now.slice(0, 10)}]`
-        : `[promise ${rawDate} set ${now.slice(0, 10)}]`;
+        ? `[promise cleared ${todayIso}]${reason ? ` reason=${reason}` : ''}`
+        : renegotiate
+          ? `[promise renegotiated ${prevPtp} → ${rawDate} on ${todayIso}]${
+              reason ? ` reason=${reason}` : ''
+            }`
+          : `[promise ${rawDate} set ${todayIso}]${reason ? ` reason=${reason}` : ''}`;
       const prevNotes = invRow?.notes != null ? String(invRow.notes) : '';
-      const notesOut = prevNotes ? `${prevNotes}\n${line}` : line;
+      // Drop daily ptp_reminded markers when renegotiating so cron can fire again
+      let notesBase = prevNotes;
+      if (renegotiate) {
+        notesBase = notesBase
+          .split('\n')
+          .filter((l) => !/\[ptp_reminded /.test(l))
+          .join('\n');
+      }
+      const notesOut = notesBase ? `${notesBase}\n${line}` : line;
 
       let { data: updated, error: uErr } = await supabase
         .from('customer_invoices')
@@ -430,6 +455,8 @@ export async function POST(request: NextRequest) {
         action: 'set_promise_to_pay',
         invoice: updated,
         promise_to_pay_date: clear ? null : rawDate,
+        renegotiated: renegotiate,
+        reason: reason || null,
       });
     }
 

@@ -165,6 +165,11 @@ function ProfileInner() {
   const [paying, setPaying] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [verifyConsent, setVerifyConsent] = useState(false);
+  /** Post-Paystack CIPC UX strip (running / success / mismatch / failed) */
+  const [postPayCipc, setPostPayCipc] = useState<{
+    phase: 'running' | 'success' | 'mismatch' | 'pending' | 'failed';
+    message: string;
+  } | null>(null);
   const [verifyResult, setVerifyResult] = useState<{
     status?: string;
     message?: string;
@@ -807,6 +812,12 @@ function ProfileInner() {
     }
 
     setVerifying(true);
+    setPostPayCipc({
+      phase: 'running',
+      message: opts?.reusePayment
+        ? 'Re-running CIPC with stored payment…'
+        : 'Payment received — CIPC check running…',
+    });
     toast.loading(
       opts?.reusePayment
         ? 'Re-running CIPC with your previous payment…'
@@ -832,24 +843,62 @@ function ProfileInner() {
         throw new Error(data.error || data.hint || 'VerifyNow verification failed');
       }
       applyVerifyResponse(data);
+      const st = String(data.status || data.profile?.verification_status || '');
       const credits =
         data.verification?.remainingCredits != null
           ? Number(data.verification.remainingCredits)
           : null;
-      toast.success(
-        credits != null && Number.isFinite(credits)
-          ? `${data.message || 'Company verified'} · VerifyNow credits left: ${credits}`
-          : data.message || 'Company verified via VerifyNow',
-        { id: 'vn-company' }
-      );
+      if (st === 'verified') {
+        setPostPayCipc({
+          phase: 'success',
+          message: data.message || 'Verified badge applied — CIPC match confirmed.',
+        });
+        toast.success(
+          credits != null && Number.isFinite(credits)
+            ? `${data.message || 'Company verified'} · VerifyNow credits left: ${credits}`
+            : data.message || 'Company verified via VerifyNow',
+          { id: 'vn-company' }
+        );
+      } else if (st === 'mismatch') {
+        setPostPayCipc({
+          phase: 'mismatch',
+          message:
+            data.message ||
+            'CIPC name mismatch — use “Apply CIPC name” or fix trading name, then re-run.',
+        });
+        toast.message('CIPC name mismatch', {
+          id: 'vn-company',
+          description: 'Apply CIPC name or edit profile, then re-run (no second charge).',
+          duration: 9000,
+        });
+      } else {
+        setPostPayCipc({
+          phase: 'pending',
+          message:
+            data.message ||
+            `Status: ${st || 'pending'}. Use Re-run CIPC or Apply badge if payment is stored.`,
+        });
+        toast.message(data.message || 'CIPC finished — badge not verified yet', {
+          id: 'vn-company',
+          description: 'Scroll to recovery actions if you already paid.',
+          duration: 8000,
+        });
+      }
       if (credits != null && credits < 20) {
         toast.message('VerifyNow credits running low — top up at verifynow.co.za', {
           duration: 6000,
         });
       }
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Verification failed', {
+      const msg = e instanceof Error ? e.message : 'Verification failed';
+      setPostPayCipc({
+        phase: 'failed',
+        message: msg,
+      });
+      toast.error(msg, {
         id: 'vn-company',
+        description: 'Payment is kept — use Re-run CIPC (reuse payment) below.',
+        duration: 10000,
       });
     } finally {
       setVerifying(false);
@@ -1788,6 +1837,40 @@ function ProfileInner() {
                     </>
                   )}
                 </button>
+
+                {postPayCipc ? (
+                  <div
+                    className={`rounded-xl border px-3 py-2.5 text-[11px] leading-snug ${
+                      postPayCipc.phase === 'success'
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-950'
+                        : postPayCipc.phase === 'running'
+                          ? 'border-sky-200 bg-sky-50 text-sky-950'
+                          : postPayCipc.phase === 'mismatch'
+                            ? 'border-amber-200 bg-amber-50 text-amber-950'
+                            : 'border-rose-200 bg-rose-50 text-rose-950'
+                    }`}
+                  >
+                    <p className="font-black uppercase tracking-wide text-[10px] mb-0.5">
+                      {postPayCipc.phase === 'running'
+                        ? 'CIPC running…'
+                        : postPayCipc.phase === 'success'
+                          ? 'Verified'
+                          : postPayCipc.phase === 'mismatch'
+                            ? 'Name mismatch'
+                            : postPayCipc.phase === 'pending'
+                              ? 'Paid · badge pending'
+                              : 'CIPC failed'}
+                    </p>
+                    <p>{postPayCipc.message}</p>
+                    {postPayCipc.phase !== 'success' &&
+                    postPayCipc.phase !== 'running' ? (
+                      <p className="mt-1.5 text-[10px] opacity-90">
+                        Payment is kept. Use Re-run CIPC or Apply badge below —
+                        no second R{VERIFY_AMOUNT_ZAR}.
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
 
                 {/* Self-serve paid≠badge — no second R69 */}
                 {!isVerified &&

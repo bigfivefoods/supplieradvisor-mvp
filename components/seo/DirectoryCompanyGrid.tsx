@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { MapPin, ShieldCheck, Star, Building2 } from 'lucide-react';
+import { MapPin, ShieldCheck, Star, Building2, UserPlus } from 'lucide-react';
 import CompanyLogo from '@/components/business/CompanyLogo';
 import { companyPublicPath } from '@/lib/seo/company-public';
 import {
@@ -38,15 +38,17 @@ export default function DirectoryCompanyGrid({
         const loc = [c.city, c.country].filter(Boolean).join(', ');
         const href = companyPublicPath(c);
         return (
-          <li key={c.id}>
-            <Link
-              href={href}
-              className="flex gap-3 rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm hover:border-[#00b4d8]/50 hover:shadow-md transition-all h-full"
-            >
+          <li
+            key={c.id}
+            className="flex flex-col rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm hover:border-[#00b4d8]/40 hover:shadow-md transition-all h-full"
+          >
+            <Link href={href} className="flex gap-3 min-w-0 flex-1 group">
               <CompanyLogo logoUrl={c.logo_url} name={n} size="md" />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="font-black text-slate-900 truncate">{n}</h2>
+                  <h2 className="font-black text-slate-900 truncate group-hover:text-[#0077b6]">
+                    {n}
+                  </h2>
                   {verified ? (
                     <span className="inline-flex items-center gap-0.5 text-[10px] font-bold uppercase text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-full px-2 py-0.5">
                       <ShieldCheck className="w-3 h-3" /> Verified
@@ -75,6 +77,21 @@ export default function DirectoryCompanyGrid({
                 ) : null}
               </div>
             </Link>
+            <div className="mt-3 pt-3 border-t border-neutral-100 flex flex-wrap gap-2">
+              <Link
+                href={href}
+                className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-[11px] font-bold text-sky-900 hover:bg-sky-100"
+              >
+                <UserPlus className="w-3 h-3" />
+                View & connect
+              </Link>
+              <Link
+                href={`/onboarding?type=business&claim=${c.id}&name=${encodeURIComponent(n)}`}
+                className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[11px] font-bold text-emerald-900 hover:bg-emerald-100"
+              >
+                Claim listing
+              </Link>
+            </div>
           </li>
         );
       })}

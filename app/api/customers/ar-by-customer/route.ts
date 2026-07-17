@@ -67,11 +67,39 @@ export async function GET(request: NextRequest) {
       promiseDueCount: number;
       currency: string;
       invoiceIds: number[];
+      creditLimit: number | null;
+      overCreditLimit: boolean;
     };
+
+    // Load credit limits for customers with open AR
+    const creditById = new Map<number, number>();
+    {
+      const ids = [
+        ...new Set(
+          (data || [])
+            .map((r) => Number(r.customer_id))
+            .filter((id) => Number.isFinite(id) && id > 0)
+        ),
+      ];
+      if (ids.length) {
+        const { data: custs } = await supabase
+          .from('customers')
+          .select('id, credit_limit')
+          .eq('profile_id', companyId)
+          .in('id', ids.slice(0, 200));
+        for (const c of custs || []) {
+          const lim = Number(c.credit_limit);
+          if (Number.isFinite(lim) && lim > 0) {
+            creditById.set(Number(c.id), lim);
+          }
+        }
+      }
+    }
 
     const byKey = new Map<string, Rollup>();
     let openTotal = 0;
     let brokenTotal = 0;
+    let overLimitCount = 0;
 
     for (const inv of data || []) {
       const total = Number(inv.total_amount || 0);
@@ -87,6 +115,8 @@ export async function GET(request: NextRequest) {
       const key = cid != null ? `id:${cid}` : `name:${name.toLowerCase()}`;
       let row = byKey.get(key);
       if (!row) {
+        const creditLimit =
+          cid != null && creditById.has(cid) ? creditById.get(cid)! : null;
         row = {
           customerId: cid,
           customerName: name,
@@ -98,6 +128,8 @@ export async function GET(request: NextRequest) {
           promiseDueCount: 0,
           currency: String(inv.currency || 'ZAR'),
           invoiceIds: [],
+          creditLimit,
+          overCreditLimit: false,
         };
         byKey.set(key, row);
       }
@@ -128,6 +160,17 @@ export async function GET(request: NextRequest) {
       openTotal += balance;
     }
 
+    for (const row of byKey.values()) {
+      if (
+        row.creditLimit != null &&
+        row.creditLimit > 0 &&
+        row.openBalance >= row.creditLimit - 0.01
+      ) {
+        row.overCreditLimit = true;
+        overLimitCount += 1;
+      }
+    }
+
     const customers = [...byKey.values()].sort(
       (a, b) => b.openBalance - a.openBalance
     );
@@ -137,6 +180,7 @@ export async function GET(request: NextRequest) {
       openTotal: Math.round(openTotal * 100) / 100,
       customerCount: customers.length,
       brokenPromiseInvoices: brokenTotal,
+      overCreditLimitCount: overLimitCount,
       customers,
       asOf: today,
     });

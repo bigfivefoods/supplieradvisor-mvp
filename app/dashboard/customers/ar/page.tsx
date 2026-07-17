@@ -47,6 +47,8 @@ type CustomerRollup = {
   brokenPromiseCount: number;
   promiseDueCount: number;
   currency: string;
+  creditLimit?: number | null;
+  overCreditLimit?: boolean;
 };
 
 export default function ArAgingPage() {
@@ -217,6 +219,35 @@ function Inner() {
     );
   };
 
+  const emailStatement = async (customerId: number | null) => {
+    if (!customerId) {
+      toast.message('Link a customer profile to email a statement');
+      return;
+    }
+    toast.loading('Emailing statement PDF…', { id: 'stmt-email' });
+    try {
+      const res = await fetch('/api/customers/ar-statement', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          customerId,
+          action: 'email',
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Send failed');
+      toast.success(`Statement emailed to ${data.to}`, {
+        id: 'stmt-email',
+        description: `Open ${Number(data.openTotal || 0).toLocaleString()} ${data.currency || ''}`.trim(),
+      });
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Send failed', {
+        id: 'stmt-email',
+      });
+    }
+  };
+
   return (
     <CustomersPage>
       <CustomersHeader
@@ -354,10 +385,18 @@ function Inner() {
                             {c.brokenPromiseCount} broken promise
                           </span>
                         ) : null}
+                        {c.overCreditLimit ? (
+                          <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[9px] font-black uppercase text-orange-900">
+                            Over credit limit
+                          </span>
+                        ) : null}
                       </div>
                       <div className="text-xs text-neutral-500">
                         {c.invoiceCount} open · {c.overdueCount} overdue
                         {c.partialCount ? ` · ${c.partialCount} partial` : ''}
+                        {c.creditLimit != null && c.creditLimit > 0
+                          ? ` · limit ${Number(c.creditLimit).toLocaleString()}`
+                          : ''}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -374,7 +413,16 @@ function Inner() {
                         title="PDF statement of open invoices"
                       >
                         <FileDown className="w-3.5 h-3.5" />
-                        Statement
+                        PDF
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void emailStatement(c.customerId)}
+                        className="btn-secondary !py-1.5 !px-2.5 text-xs inline-flex items-center gap-1 border-sky-200 text-sky-900"
+                        title="Email PDF statement to customer"
+                      >
+                        <Mail className="w-3.5 h-3.5" />
+                        Email
                       </button>
                     </div>
                   </li>

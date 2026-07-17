@@ -15,9 +15,10 @@
     "test:e2e:referral": "playwright test e2e/referral-trust-smoke.spec.ts",
     "test:e2e:trust": "playwright test e2e/po-rating-prompt.spec.ts e2e/qa-ship-hold.spec.ts",
     "test:e2e:trade": "playwright test e2e/trade-loop-smoke.spec.ts",
-    "test:e2e:golden": "playwright test e2e/golden-path-smoke.spec.ts",
+    "test:e2e:golden": "playwright test e2e/golden-path-smoke.spec.ts e2e/golden-path-auth.spec.ts",
     "smoke:trade": "bash scripts/trade-loop-smoke.sh",
     "smoke:golden": "playwright test e2e/golden-path-smoke.spec.ts",
+    "smoke:golden:auth": "playwright test e2e/golden-path-auth.spec.ts",
     "deploy:usdc-escrow": "node scripts/deploy-usdc-escrow.mjs",
     "deploy:usdc-hardhat": "cd contracts/contracts && npx hardhat compile && npx tsx scripts/deploy-usdc.ts"
   },

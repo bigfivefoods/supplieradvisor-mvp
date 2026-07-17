@@ -39,6 +39,7 @@ import {
 import { useEffect, useState } from 'react';
 import LandingNav from '@/components/marketing/LandingNav';
 import HomePricing from '@/components/marketing/HomePricing';
+import FoundingCounterStrip from '@/components/marketing/FoundingCounterStrip';
 import CompanyNetworkSection from '@/components/marketing/CompanyNetworkSection';
 import {
   OpsMock,
@@ -441,6 +442,8 @@ export default function LandingPage() {
                   Pricing
                 </a>
               </p>
+
+              <FoundingCounterStrip />
 
               {/* Active module caption (mobile-friendly under copy) */}
               <div className="mt-8 hidden rounded-2xl border border-slate-200 bg-white/90 p-4 text-left shadow-sm lg:block">

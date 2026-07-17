@@ -796,12 +796,18 @@ function DocInner({
       const existing = doc?.promise_to_pay_date
         ? String(doc.promise_to_pay_date).slice(0, 10)
         : '';
+      const todayIso = new Date().toISOString().slice(0, 10);
+      const broken = Boolean(existing && existing < todayIso);
       const defaultDate =
         existing ||
         new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
       const raw = window.prompt(
-        'Promise-to-pay date (YYYY-MM-DD). Leave blank to clear:',
-        defaultDate
+        broken
+          ? 'Renegotiate promise-to-pay (YYYY-MM-DD). Leave blank to clear broken promise:'
+          : 'Promise-to-pay date (YYYY-MM-DD). Leave blank to clear:',
+        broken
+          ? new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10)
+          : defaultDate
       );
       if (raw === null) {
         setBusyId(null);
@@ -814,6 +820,18 @@ function DocInner({
         setBusyId(null);
         return;
       }
+      let reason: string | null = null;
+      if (!clear && (broken || (existing && existing !== trimmed))) {
+        const r = window.prompt(
+          'Reason for new promise date (optional):',
+          broken ? 'Customer committed to new pay date' : ''
+        );
+        if (r === null) {
+          setBusyId(null);
+          return;
+        }
+        reason = String(r).trim() || null;
+      }
       const res = await fetch('/api/customers/docs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -824,6 +842,8 @@ function DocInner({
           action: 'set_promise_to_pay',
           promise_to_pay_date: clear ? null : trimmed,
           clear,
+          renegotiate: broken || Boolean(existing && existing !== trimmed),
+          reason,
         }),
       });
       const data = await res.json();
@@ -831,10 +851,13 @@ function DocInner({
       toast.success(
         clear
           ? 'Promise-to-pay cleared'
-          : `Promise-to-pay set for ${trimmed}`,
+          : data.renegotiated
+            ? `Promise renegotiated → ${trimmed}`
+            : `Promise-to-pay set for ${trimmed}`,
         {
-          description:
-            'Daily cron reminds finance when the date is due and the invoice is still open',
+          description: data.renegotiated
+            ? 'Broken promise cleared · reminder cron resets for the new date'
+            : 'Daily cron reminds finance when the date is due and the invoice is still open',
         }
       );
       void load();

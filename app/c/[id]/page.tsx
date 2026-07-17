@@ -543,6 +543,30 @@ export default async function PublicCompanyPage({
             </Link>
           </div>
 
+          <aside className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-4">
+            <p className="text-sm font-black text-emerald-950">
+              Is this your company?
+            </p>
+            <p className="mt-1 text-xs text-emerald-900/90 leading-relaxed">
+              Claim this listing to manage your profile, verify with CIPC, and
+              trade on SupplierAdvisor — free for founding seats while available.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Link
+                href={`/onboarding?type=business&claim=${c.id}&name=${encodeURIComponent(name)}`}
+                className="btn-primary !py-2 !px-4 text-xs"
+              >
+                Claim this listing
+              </Link>
+              <Link
+                href={`/login?next=${encodeURIComponent(`/dashboard/my-business/profile?claim=${c.id}`)}`}
+                className="btn-secondary !py-2 !px-4 text-xs"
+              >
+                Sign in to manage
+              </Link>
+            </div>
+          </aside>
+
           {(industry || c.city) ? (
             <section
               className="mt-8 rounded-2xl border border-sky-100 bg-sky-50/60 px-4 py-4"
