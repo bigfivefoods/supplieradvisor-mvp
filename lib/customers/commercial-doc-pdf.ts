@@ -448,22 +448,37 @@ export async function buildCommercialDocumentPdf(
     const rightW = CONTENT_W * 0.46;
     const heroTop = doc.y;
 
-    // Company logo (left) — max ~48pt tall, proportional
+    // Company logo (left) — PNG/JPEG; WebP/SVG get monogram fallback
     let textLeft = leftX;
     let logoBottom = heroTop;
+    const maxLogoW = 130;
+    const maxLogoH = 44;
     if (logoBuf) {
       try {
-        const maxLogoW = 130;
-        const maxLogoH = 44;
         doc.image(logoBuf, leftX, heroTop, {
           fit: [maxLogoW, maxLogoH],
         });
-        // Approximate space used (pdfkit doesn't return drawn size easily)
         textLeft = leftX;
         logoBottom = heroTop + maxLogoH + 6;
       } catch {
         logoBottom = heroTop;
       }
+    } else {
+      // Monogram when no embeddable logo (missing, WebP, SVG, fetch fail)
+      const initial = (sellerName.trim()[0] || 'S').toUpperCase();
+      doc.save();
+      doc.roundedRect(leftX, heroTop, 40, 40, 10).fill(BRAND_DEEP);
+      doc
+        .fillColor('#ffffff')
+        .font('Helvetica-Bold')
+        .fontSize(18)
+        .text(initial, leftX, heroTop + 10, {
+          width: 40,
+          align: 'center',
+          lineBreak: false,
+        });
+      doc.restore();
+      logoBottom = heroTop + 46;
     }
 
     const titleY = logoBuf ? logoBottom : heroTop;

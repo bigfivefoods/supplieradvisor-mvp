@@ -638,6 +638,26 @@ function ProfileInner() {
         });
       }
 
+      // PDF quotes/invoices only embed PNG/JPEG — WebP/SVG show monogram only
+      if (
+        kind === 'logo' ||
+        persistField === 'logo_url'
+      ) {
+        const lower = `${file.name} ${result.url}`.toLowerCase();
+        if (
+          lower.includes('.webp') ||
+          lower.includes('.svg') ||
+          file.type === 'image/webp' ||
+          file.type === 'image/svg+xml'
+        ) {
+          toast.message('Logo format tip for PDFs', {
+            description:
+              'Use PNG or JPEG for quotes & invoices. WebP/SVG cannot be embedded in the PDF (a monogram is used instead).',
+            duration: 9000,
+          });
+        }
+      }
+
       if (result.profileSynced && result.profile) {
         applySavedProfile(result.profile as Partial<CompanyProfile>);
         toast.success(

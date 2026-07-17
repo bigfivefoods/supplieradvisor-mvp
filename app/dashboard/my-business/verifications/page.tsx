@@ -14,7 +14,7 @@ import {
 import { Panel } from '@/components/relationship/RelationshipChrome';
 
 /**
- * Ops strip: recent CIPC / bank verifications + Paystack/VerifyNow config flags.
+ * Ops strip: recent CIPC / bank verifications + platform queue of paid-not-verified.
  */
 export default function VerificationsOpsPage() {
   return (
@@ -30,6 +30,8 @@ function Inner() {
   const privyUserId = getCanonicalUserId(user?.id);
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<Record<string, unknown> | null>(null);
+  const [queue, setQueue] = useState<Array<Record<string, unknown>>>([]);
+  const [queueErr, setQueueErr] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -39,6 +41,28 @@ function Inner() {
       const res = await fetch(`/api/system/verifications?${params}`);
       const json = await res.json();
       setData(json);
+
+      // Platform queue (ops secret optional — may 403 for normal users)
+      setQueueErr(null);
+      try {
+        const qParams = new URLSearchParams();
+        if (privyUserId) qParams.set('privyUserId', privyUserId);
+        const qRes = await fetch(
+          `/api/system/verification-queue?${qParams}`,
+          { cache: 'no-store' }
+        );
+        const qJson = await qRes.json().catch(() => ({}));
+        if (qRes.ok) {
+          setQueue((qJson.queue as Array<Record<string, unknown>>) || []);
+        } else {
+          setQueue([]);
+          if (qRes.status !== 403 && qRes.status !== 401) {
+            setQueueErr(qJson.error || 'Queue unavailable');
+          }
+        }
+      } catch {
+        setQueue([]);
+      }
     } catch {
       setData(null);
     } finally {
@@ -58,7 +82,7 @@ function Inner() {
       <BusinessHeader
         title="Verification"
         titleAccent="ops"
-        description="CIPC and bank AVS history for this company · Paystack & VerifyNow status."
+        description="CIPC and bank AVS history · platform paid-not-verified queue (ops)."
         action={
           <button
             type="button"
@@ -76,6 +100,47 @@ function Inner() {
         </div>
       ) : (
         <div className="space-y-4">
+          {queue.length > 0 ? (
+            <Panel className="p-4">
+              <h3 className="text-sm font-black text-slate-900 mb-2">
+                Platform queue — not verified ({queue.length})
+              </h3>
+              <p className="text-[11px] text-neutral-500 mb-3">
+                Companies with pending / failed / mismatch CIPC. Open profile to
+                Re-run CIPC or Apply verified from metadata.
+              </p>
+              <ul className="divide-y divide-neutral-100 max-h-72 overflow-y-auto">
+                {queue.map((row) => (
+                  <li
+                    key={String(row.id)}
+                    className="py-2 flex flex-wrap items-center justify-between gap-2 text-sm"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-bold text-slate-800 truncate">
+                        {String(row.trading_name || row.legal_name || `#${row.id}`)}
+                      </p>
+                      <p className="text-[11px] text-neutral-500">
+                        {String(row.verification_status)}
+                        {row.cipc_name
+                          ? ` · CIPC: ${String(row.cipc_name)}`
+                          : ''}
+                        {row.has_payment ? ' · paid' : ''}
+                      </p>
+                    </div>
+                    <Link
+                      href="/dashboard/my-business/profile"
+                      className="text-xs font-bold text-[#0077b6] shrink-0"
+                    >
+                      Profile →
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </Panel>
+          ) : queueErr ? (
+            <p className="text-xs text-amber-700">{queueErr}</p>
+          ) : null}
+
           <div className="grid sm:grid-cols-3 gap-3">
             <Panel className="p-4">
               <div className="text-[10px] font-bold uppercase text-neutral-400">

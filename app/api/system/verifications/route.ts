@@ -32,13 +32,26 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
       .limit(40);
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select(
-        'verification_status, is_verified, bank_verification_status, bank_verified_at, metadata'
-      )
-      .eq('id', companyId)
-      .maybeSingle();
+    let profile: Record<string, unknown> | null = null;
+    {
+      const full = await supabase
+        .from('profiles')
+        .select(
+          'verification_status, bank_verification_status, bank_verified_at, metadata'
+        )
+        .eq('id', companyId)
+        .maybeSingle();
+      if (!full.error && full.data) {
+        profile = full.data as Record<string, unknown>;
+      } else {
+        const lite = await supabase
+          .from('profiles')
+          .select('verification_status, metadata')
+          .eq('id', companyId)
+          .maybeSingle();
+        profile = (lite.data as Record<string, unknown>) || null;
+      }
+    }
 
     const meta =
       profile?.metadata && typeof profile.metadata === 'object'
@@ -53,12 +66,14 @@ export async function GET(request: NextRequest) {
         ? (meta.bank_verification as Record<string, unknown>)
         : {};
 
+    const vStatus = String(profile?.verification_status || '').toLowerCase();
+
     return NextResponse.json({
       success: true,
       events: logs || [],
       profile: {
         verification_status: profile?.verification_status ?? null,
-        is_verified: profile?.is_verified ?? null,
+        is_verified: vStatus === 'verified',
         bank_verification_status: profile?.bank_verification_status ?? null,
         bank_verified_at: profile?.bank_verified_at ?? null,
       },

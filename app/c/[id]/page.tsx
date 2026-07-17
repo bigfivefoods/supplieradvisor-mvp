@@ -1,12 +1,40 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { MapPin, ExternalLink, Building2 } from 'lucide-react';
+import { MapPin, ExternalLink, Building2, Star } from 'lucide-react';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { isEligibleForDiscovery } from '@/lib/business/completeness';
 import CompanyLogo from '@/components/business/CompanyLogo';
 import TrustBadges from '@/components/business/TrustBadges';
 import PublicConnectButton from '@/components/business/PublicConnectButton';
+
+/** Aggregate public ratings (quote QR + invoice feedback). Soft if table missing. */
+async function loadPublicRatingStats(companyId: number): Promise<{
+  avg: number | null;
+  count: number;
+}> {
+  try {
+    const supabase = getSupabaseServer();
+    const { data, error } = await supabase
+      .from('invoice_feedback')
+      .select('rating, feedback_type')
+      .eq('profile_id', companyId)
+      .not('rating', 'is', null)
+      .limit(500);
+    if (error || !data?.length) return { avg: null, count: 0 };
+    const ratings = data
+      .map((r) => Number(r.rating))
+      .filter((n) => Number.isFinite(n) && n >= 1 && n <= 5);
+    if (!ratings.length) return { avg: null, count: 0 };
+    const sum = ratings.reduce((a, b) => a + b, 0);
+    return {
+      avg: Math.round((sum / ratings.length) * 10) / 10,
+      count: ratings.length,
+    };
+  } catch {
+    return { avg: null, count: 0 };
+  }
+}
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -165,6 +193,7 @@ export default async function PublicCompanyPage({
   const registrationNumber = c.registration_number;
   const beeLevel = c.bee_level;
   const website = c.website;
+  const publicRatings = await loadPublicRatingStats(c.id);
   const showBankBadge = (() => {
     const meta =
       c.metadata && typeof c.metadata === 'object'
@@ -206,6 +235,25 @@ export default async function PublicCompanyPage({
                   otifefPct={c.otifef_average}
                 />
               </div>
+              {publicRatings.count > 0 && publicRatings.avg != null ? (
+                <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-950">
+                  <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                  {publicRatings.avg.toFixed(1)}
+                  <span className="font-semibold text-amber-800/80">
+                    · {publicRatings.count} public rating
+                    {publicRatings.count === 1 ? '' : 's'}
+                  </span>
+                </div>
+              ) : (
+                <p className="mt-2 text-[11px] text-neutral-400">
+                  <Link
+                    href={`/r/${c.id}?src=profile`}
+                    className="font-semibold text-[#0077b6] hover:underline"
+                  >
+                    Rate this company →
+                  </Link>
+                </p>
+              )}
             </div>
           </div>
 
