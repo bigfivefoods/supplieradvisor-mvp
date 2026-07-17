@@ -90,8 +90,9 @@ export async function GET(request: NextRequest) {
       sent: enriched.filter((p) => String(p.status) === 'sent').length,
       accepted: enriched.filter((p) => String(p.status) === 'accepted').length,
       open: enriched.filter((p) =>
-        ['sent', 'accepted', 'funded'].includes(String(p.status))
+        ['sent', 'accepted', 'funded', 'invoiced'].includes(String(p.status))
       ).length,
+      invoiced: enriched.filter((p) => String(p.status) === 'invoiced').length,
       completed: enriched.filter((p) =>
         ['completed', 'paid'].includes(String(p.status))
       ).length,

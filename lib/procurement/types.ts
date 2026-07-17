@@ -47,6 +47,7 @@ export const PO_STATUSES = [
   'sent',
   'accepted',
   'funded',
+  'invoiced',
   'paid',
   'completed',
   'cancelled',
@@ -55,7 +56,7 @@ export const PO_STATUSES = [
 export type PoStatus = (typeof PO_STATUSES)[number];
 
 /** Statuses that unlock POST /api/buyer/reviews */
-export const PO_REVIEWABLE_STATUSES = ['paid', 'completed'] as const;
+export const PO_REVIEWABLE_STATUSES = ['paid', 'completed', 'invoiced'] as const;
 
 export type PoReviewableStatus = (typeof PO_REVIEWABLE_STATUSES)[number];
 
@@ -63,11 +64,13 @@ export type PoReviewableStatus = (typeof PO_REVIEWABLE_STATUSES)[number];
  * Allowed seller transitions for inbound customer-portal POs.
  * Buyer create leaves status at `sent`; seller progresses via
  * PATCH /api/customers/purchase-orders.
+ * `invoiced` is also set directly when seller creates invoice from PO.
  */
 export const SELLER_PO_TRANSITIONS: Record<string, string[]> = {
   sent: ['accepted', 'cancelled'],
-  accepted: ['paid', 'completed', 'cancelled'], // paid or completed both unlock reviews
-  funded: ['paid', 'completed', 'cancelled'],
+  accepted: ['paid', 'completed', 'invoiced', 'cancelled'],
+  funded: ['paid', 'completed', 'invoiced', 'cancelled'],
+  invoiced: ['paid', 'completed'],
   paid: ['completed'],
 };
 
@@ -76,13 +79,14 @@ export const BUYER_PO_CANCEL_STATUSES = ['draft', 'sent'] as const;
 
 /**
  * Buyer SRM (procurement) status machine — off-chain lifecycle.
- * Escrow fund maps to `funded`; delivery + OTIFEF capture lands on `completed`.
+ * Escrow fund maps to `funded`; seller may mark `invoiced`; delivery + OTIFEF → `completed`.
  */
 export const SRM_BUYER_PO_TRANSITIONS: Record<string, string[]> = {
   draft: ['sent', 'cancelled'],
   sent: ['accepted', 'cancelled'],
   accepted: ['funded', 'completed', 'cancelled'],
   funded: ['completed', 'cancelled'],
+  invoiced: ['completed', 'cancelled'],
   paid: ['completed'],
   completed: [],
   cancelled: [],
@@ -103,6 +107,8 @@ export function poStatusBadgeClass(status?: string | null): string {
       return 'bg-indigo-100 text-indigo-800';
     case 'funded':
       return 'bg-violet-100 text-violet-800';
+    case 'invoiced':
+      return 'bg-amber-100 text-amber-900';
     case 'paid':
     case 'completed':
       return 'bg-emerald-100 text-emerald-800';

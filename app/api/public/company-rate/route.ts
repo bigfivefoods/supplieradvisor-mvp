@@ -92,6 +92,53 @@ export async function GET(request: NextRequest) {
     const name =
       profile.trading_name || profile.legal_name || `Company #${companyId}`;
 
+    // Soft aggregate: public QR ratings + peer company_ratings
+    let avgStars: number | null = null;
+    let ratingCount = 0;
+    try {
+      const { data: publicRows } = await supabase
+        .from('invoice_feedback')
+        .select('rating')
+        .eq('profile_id', companyId)
+        .eq('feedback_type', 'public_company_rate')
+        .limit(200);
+      if (publicRows && publicRows.length) {
+        ratingCount = publicRows.length;
+        avgStars =
+          Math.round(
+            (publicRows.reduce((s, r) => s + Number(r.rating || 0), 0) /
+              publicRows.length) *
+              10
+          ) / 10;
+      }
+    } catch {
+      /* soft */
+    }
+    if (avgStars == null) {
+      try {
+        const { data: peer } = await supabase
+          .from('company_ratings')
+          .select('overall, stars, rating')
+          .eq('ratee_profile_id', companyId)
+          .limit(100);
+        if (peer && peer.length) {
+          ratingCount = peer.length;
+          avgStars =
+            Math.round(
+              (peer.reduce(
+                (s, r) =>
+                  s + Number(r.overall ?? r.stars ?? r.rating ?? 0),
+                0
+              ) /
+                peer.length) *
+                10
+            ) / 10;
+        }
+      } catch {
+        /* soft */
+      }
+    }
+
     return NextResponse.json({
       success: true,
       company: {
@@ -105,6 +152,8 @@ export async function GET(request: NextRequest) {
         country: profile.country ?? null,
         industry: profile.industry ?? null,
         blurb: profile.short_description ?? null,
+        avg_stars: avgStars,
+        rating_count: ratingCount,
       },
     });
   } catch (e: unknown) {

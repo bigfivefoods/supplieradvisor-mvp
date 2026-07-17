@@ -48,6 +48,8 @@ import GoldenPathChecklist from '@/components/onboarding/GoldenPathChecklist';
 import RatingPromptBanner from '@/components/ratings/RatingPromptBanner';
 import FirstHourKickstart from '@/components/dashboard/FirstHourKickstart';
 import CatalogueEmptyBanner from '@/components/business/CatalogueEmptyBanner';
+import TradeNextBanner from '@/components/journey/TradeNextBanner';
+import { computeHubNextAction } from '@/lib/connections/next-action';
 
 type CompanyData = {
   id: number;
@@ -666,6 +668,20 @@ export default function DashboardCommandCenter() {
         quotesOpen={kpis?.quotesOpen ?? trade?.quotesOpen ?? 0}
       />
 
+      {!loading ? (
+        <TradeNextBanner
+          action={computeHubNextAction({
+            role: 'main',
+            openOutboundPos: openPos,
+            openInboundPos: Number(ops?.customerPosOpen || 0),
+            pendingConnections: pendingIn,
+            verificationStatus: company?.verification_status,
+            catalogueEmpty:
+              (kpis?.products ?? inventory?.products ?? 0) === 0,
+          })}
+        />
+      ) : null}
+
       <GoldenPathChecklist />
       <CatalogueEmptyBanner />
       <Suspense fallback={null}>
@@ -681,18 +697,6 @@ export default function DashboardCommandCenter() {
             </button>
           </div>
         </AlertBanner>
-      )}
-
-      {pendingIn > 0 && (
-        <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
-          <div className="text-sm text-amber-900">
-            <strong>{pendingIn}</strong> incoming connection
-            {pendingIn === 1 ? '' : 's'} waiting — accept to unlock trade.
-          </div>
-          <Link href="/dashboard/connections" className="btn-primary !py-2 !px-4 text-xs">
-            Review network
-          </Link>
-        </div>
       )}
 
       <HubHero

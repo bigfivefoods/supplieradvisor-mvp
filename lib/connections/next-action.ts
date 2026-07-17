@@ -228,10 +228,10 @@ export function computePeerTradeNextAction(
 }
 
 /**
- * Hub-level next step when no peer is selected (buyer or supplier home).
+ * Hub-level next step when no peer is selected (buyer, supplier, or main command).
  */
 export function computeHubNextAction(opts: {
-  role: 'buyer' | 'supplier';
+  role: 'buyer' | 'supplier' | 'main';
   openInboundPos?: number;
   openOutboundPos?: number;
   pendingConnections?: number;
@@ -266,7 +266,11 @@ export function computeHubNextAction(opts: {
     };
   }
 
-  if (opts.role === 'supplier' && (opts.openInboundPos || 0) > 0) {
+  // Main + supplier: inbound seller work first
+  if (
+    (opts.role === 'supplier' || opts.role === 'main') &&
+    (opts.openInboundPos || 0) > 0
+  ) {
     return {
       id: 'inbound_pos',
       priority: 85,
@@ -277,7 +281,11 @@ export function computeHubNextAction(opts: {
     };
   }
 
-  if (opts.role === 'buyer' && (opts.openOutboundPos || 0) > 0) {
+  // Main + buyer: outbound procurement work
+  if (
+    (opts.role === 'buyer' || opts.role === 'main') &&
+    (opts.openOutboundPos || 0) > 0
+  ) {
     return {
       id: 'outbound_pos',
       priority: 85,
@@ -288,7 +296,7 @@ export function computeHubNextAction(opts: {
     };
   }
 
-  if (opts.catalogueEmpty && opts.role === 'supplier') {
+  if (opts.catalogueEmpty && (opts.role === 'supplier' || opts.role === 'main')) {
     return {
       id: 'catalogue',
       priority: 50,
@@ -305,6 +313,17 @@ export function computeHubNextAction(opts: {
       priority: 30,
       title: 'Discover suppliers',
       body: 'Find verified partners and raise your first PO.',
+      href: '/dashboard/suppliers/discover',
+      cta: 'Discover',
+    };
+  }
+
+  if (opts.role === 'main') {
+    return {
+      id: 'discover_or_network',
+      priority: 30,
+      title: 'Grow trade activity',
+      body: 'Discover suppliers, invite customers, or raise a PO to start the loop.',
       href: '/dashboard/suppliers/discover',
       cta: 'Discover',
     };

@@ -139,6 +139,8 @@ type PurchaseOrder = {
   onchain_tx?: string | null;
   onchain_po_id?: string | number | null;
   supplier_wallet?: string | null;
+  /** Set when seller creates invoice from this PO (column may be absent pre-migration) */
+  invoice_id?: number | null;
   created_at?: string;
   metadata?: Record<string, unknown> | null;
   fulfilment_status?: string | null;
@@ -1038,10 +1040,11 @@ function PoInner() {
     }
     const rateeId =
       Number(deliveryPo.supplier_profile_id || deliveryPo.supplier_id) || null;
+    const poId = deliveryPo.id;
     const orderQty =
       Number(deliveryPo.order_quantity) ||
       (deliveryPo.items || []).reduce((s, i) => s + Number(i.quantity || 0), 0);
-    const updated = await patchPo(deliveryPo.id, {
+    const updated = await patchPo(poId, {
       status: 'completed',
       actual_delivery_date: deliveryForm.actual_delivery_date,
       delivered_quantity: deliveryForm.delivered_quantity,
@@ -1062,19 +1065,23 @@ function PoInner() {
         }
       }
       const otifLabel = bits.length ? bits.join(' · ') : 'OTIFEF recorded';
+      const rateHref = rateeId
+        ? `/dashboard/suppliers/ratings?ratee=${rateeId}&fromPo=${poId}`
+        : '/dashboard/suppliers/ratings';
+      // rateAfter true → navigate; false → toast only; default toast with Rate CTA
       if (opts?.rateAfter && rateeId) {
         toast.success(`${otifLabel} — rate this supplier to close the trust loop`);
-        window.location.href = `/dashboard/suppliers/ratings?ratee=${rateeId}`;
+        window.location.href = rateHref;
       } else {
         toast.message(otifLabel, {
           description: rateeId
-            ? 'Rate the supplier to complete the trust loop'
-            : 'View Performance for scorecards',
+            ? 'Next: rate this supplier to close the trust loop'
+            : 'View Performance for OTIFEF scorecards',
           action: rateeId
             ? {
                 label: 'Rate now',
                 onClick: () => {
-                  window.location.href = `/dashboard/suppliers/ratings?ratee=${rateeId}`;
+                  window.location.href = rateHref;
                 },
               }
             : undefined,
@@ -1165,6 +1172,13 @@ function PoInner() {
         tone: 'sky',
       };
     }
+    if (st === 'invoiced') {
+      return {
+        title: 'Next: Supplier invoiced — receive + rate',
+        body: 'Invoice raised against this PO. When goods arrive, record OTIFEF delivery then rate the supplier.',
+        tone: 'amber',
+      };
+    }
     if (st === 'completed' || st === 'paid') {
       return {
         title: 'Next: Rate supplier',
@@ -1175,10 +1189,24 @@ function PoInner() {
     return null;
   }
 
+  function resolveInvoiceId(po: PurchaseOrder): number | null {
+    const col = Number(po.invoice_id);
+    if (Number.isFinite(col) && col > 0) return col;
+    const meta =
+      po.metadata && typeof po.metadata === 'object'
+        ? (po.metadata as { invoice_id?: unknown })
+        : null;
+    const fromMeta = Number(meta?.invoice_id);
+    if (Number.isFinite(fromMeta) && fromMeta > 0) return fromMeta;
+    return null;
+  }
+
   const filtered = useMemo(() => {
     if (filter === 'open') {
       return purchaseOrders.filter((p) =>
-        ['draft', 'sent', 'accepted', 'funded'].includes(String(p.status))
+        ['draft', 'sent', 'accepted', 'funded', 'invoiced'].includes(
+          String(p.status)
+        )
       );
     }
     if (filter === 'completed') {
@@ -2256,7 +2284,9 @@ function PoInner() {
                                 <Wallet className="w-3 h-3" /> Fund escrow
                               </button>
                             )}
-                          {['accepted', 'funded', 'sent'].includes(String(po.status)) && (
+                          {['accepted', 'funded', 'sent', 'invoiced'].includes(
+                            String(po.status)
+                          ) && (
                             <button
                               type="button"
                               disabled={busy}
@@ -2266,9 +2296,26 @@ function PoInner() {
                               <Package className="w-3 h-3" /> Receive + OTIFEF
                             </button>
                           )}
-                          {['accepted', 'funded', 'sent', 'completed'].includes(
-                            String(po.status)
-                          ) &&
+                          {String(po.status).toLowerCase() === 'invoiced' && (
+                            <Link
+                              href={
+                                resolveInvoiceId(po)
+                                  ? `/dashboard/buyer/documents?invoiceId=${resolveInvoiceId(po)}`
+                                  : '/dashboard/buyer/documents'
+                              }
+                              className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
+                              title="Supplier raised an invoice against this PO"
+                            >
+                              <FileText className="w-3 h-3" /> View invoice
+                            </Link>
+                          )}
+                          {[
+                            'accepted',
+                            'funded',
+                            'sent',
+                            'invoiced',
+                            'completed',
+                          ].includes(String(po.status)) &&
                             !(
                               po.metadata &&
                               typeof po.metadata === 'object' &&
@@ -2317,11 +2364,13 @@ function PoInner() {
                                 Confirm & pay
                               </button>
                             )}
-                          {(po.status === 'completed' || po.status === 'paid') && (
+                          {['completed', 'paid', 'invoiced'].includes(
+                            String(po.status).toLowerCase()
+                          ) && (
                             <Link
                               href={
                                 po.supplier_profile_id || po.supplier_id
-                                  ? `/dashboard/suppliers/ratings?ratee=${po.supplier_profile_id || po.supplier_id}`
+                                  ? `/dashboard/suppliers/ratings?ratee=${po.supplier_profile_id || po.supplier_id}&fromPo=${po.id}`
                                   : '/dashboard/suppliers/ratings'
                               }
                               className="btn-primary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"

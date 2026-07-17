@@ -117,11 +117,12 @@ export async function GET(request: NextRequest) {
       total: enriched.length,
       draft: enriched.filter((p) => p.status === 'draft').length,
       open: enriched.filter((p) =>
-        ['sent', 'accepted', 'funded'].includes(String(p.status))
+        ['sent', 'accepted', 'funded', 'invoiced'].includes(String(p.status))
       ).length,
       completed: enriched.filter((p) =>
         ['completed', 'paid'].includes(String(p.status))
       ).length,
+      invoiced: enriched.filter((p) => String(p.status) === 'invoiced').length,
       onchain: enriched.filter((p) => p.onchain_po_id != null && p.onchain_po_id !== '').length,
       cancelled: enriched.filter((p) => p.status === 'cancelled').length,
     };

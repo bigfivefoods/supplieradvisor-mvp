@@ -49,6 +49,8 @@ function RateInner() {
     country?: string | null;
     industry?: string | null;
     blurb?: string | null;
+    avg_stars?: number | null;
+    rating_count?: number;
   } | null>(null);
 
   const [rating, setRating] = useState(5);
@@ -159,9 +161,9 @@ function RateInner() {
   const loc = [company?.city, company?.country].filter(Boolean).join(', ');
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-sky-50 via-white to-slate-50 px-4 py-10">
+    <div className="min-h-screen bg-gradient-to-b from-sky-50 via-white to-slate-50 px-3 sm:px-4 py-8 sm:py-10 safe-area-pb">
       <div className="max-w-lg mx-auto">
-        <div className="text-center mb-6">
+        <div className="text-center mb-5 sm:mb-6">
           <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#0077b6] mb-2">
             SupplierAdvisor® · Rate a company
           </div>
@@ -170,14 +172,14 @@ function RateInner() {
             <img
               src={company.logo_url}
               alt={company.name}
-              className="h-14 mx-auto object-contain mb-3"
+              className="h-16 sm:h-14 mx-auto object-contain mb-3"
             />
           ) : (
-            <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#00b4d8]/15 text-[#0077b6]">
-              <Building2 className="h-7 w-7" />
+            <div className="mx-auto mb-3 flex h-16 w-16 sm:h-14 sm:w-14 items-center justify-center rounded-2xl bg-[#00b4d8]/15 text-[#0077b6]">
+              <Building2 className="h-8 w-8 sm:h-7 sm:w-7" />
             </div>
           )}
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+          <h1 className="text-2xl sm:text-[1.65rem] font-black text-slate-900 tracking-tight px-1">
             {company?.name}
             {company?.verified ? (
               <span className="ml-2 inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5 align-middle">
@@ -189,6 +191,13 @@ function RateInner() {
             {[company?.industry, loc].filter(Boolean).join(' · ') ||
               'On SupplierAdvisor'}
           </p>
+          {company?.avg_stars != null && Number(company.rating_count || 0) > 0 ? (
+            <p className="mt-2 inline-flex items-center gap-1.5 text-sm font-bold text-amber-700 bg-amber-50 border border-amber-100 rounded-full px-3 py-1">
+              <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+              {company.avg_stars.toFixed(1)} · {company.rating_count} rating
+              {company.rating_count === 1 ? '' : 's'}
+            </p>
+          ) : null}
           {company?.blurb ? (
             <p className="text-xs text-neutral-500 mt-2 max-w-sm mx-auto leading-relaxed">
               {company.blurb.slice(0, 160)}
@@ -196,7 +205,24 @@ function RateInner() {
           ) : null}
         </div>
 
-        <div className="bg-white border border-neutral-200 rounded-3xl p-6 shadow-sm space-y-5">
+        <div className="mb-4 rounded-2xl border border-sky-100 bg-sky-50/80 px-4 py-3 text-left">
+          <p className="text-[11px] font-black uppercase tracking-wide text-[#0077b6] mb-1">
+            How we measure trust
+          </p>
+          <ul className="text-[12px] text-slate-700 leading-relaxed space-y-1 list-disc pl-4">
+            <li>
+              <strong>Stars</strong> — peer &amp; customer ratings after trade
+            </li>
+            <li>
+              <strong>OTIFEF</strong> — On-Time · In-Full · Error-Free delivery
+            </li>
+            <li>
+              <strong>Verified</strong> — CIPC company identity (when badged)
+            </li>
+          </ul>
+        </div>
+
+        <div className="bg-white border border-neutral-200 rounded-3xl p-5 sm:p-6 shadow-sm space-y-5">
           {done ? (
             <div className="text-center py-6">
               <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-3" />
@@ -322,7 +348,7 @@ function RateInner() {
                 type="button"
                 disabled={saving}
                 onClick={() => void submit()}
-                className="w-full rounded-2xl bg-[#00b4d8] py-3.5 text-sm font-bold text-white hover:bg-[#0096c7] disabled:opacity-50 inline-flex items-center justify-center gap-2"
+                className="w-full min-h-[48px] rounded-2xl bg-[#00b4d8] py-3.5 text-sm font-bold text-white hover:bg-[#0096c7] disabled:opacity-50 inline-flex items-center justify-center gap-2 touch-manipulation"
               >
                 {saving ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -333,8 +359,8 @@ function RateInner() {
               </button>
 
               <p className="text-[11px] text-neutral-400 text-center leading-relaxed">
-                No account required. Ratings help the SupplierAdvisor network
-                build trust.
+                No account required. Your rating is public feedback for the
+                network — scanned from a quote or invoice QR.
               </p>
             </>
           )}
