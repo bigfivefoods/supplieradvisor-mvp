@@ -290,7 +290,9 @@ export async function POST(request: NextRequest) {
 
       supabase
         .from('customer_invoices')
-        .select('id, status, total_amount, amount_paid, currency, created_at')
+        .select(
+          'id, status, total_amount, amount_paid, currency, created_at, due_date'
+        )
         .eq('profile_id', companyId)
         .order('created_at', { ascending: false })
         .limit(100),
@@ -997,6 +999,23 @@ export async function POST(request: NextRequest) {
     const invoicesDraft = custInvoices.filter(
       (i) => String(i.status || '').toLowerCase() === 'draft'
     ).length;
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const invoicesOverdue = custInvoices.filter((i) => {
+      const st = String(i.status || '').toLowerCase();
+      if (['paid', 'void', 'cancelled', 'draft'].includes(st)) return false;
+      if (st === 'overdue') return true;
+      const due = i.due_date ? new Date(String(i.due_date)) : null;
+      if (
+        due &&
+        Number.isFinite(due.getTime()) &&
+        due < todayStart &&
+        ['sent', 'partial', 'unpaid', 'issued', 'viewed'].includes(st)
+      ) {
+        return true;
+      }
+      return false;
+    }).length;
     const invoicesOpenValue = invoicesOpenRows.reduce(
       (s, i) =>
         s + Math.max(0, Number(i.total_amount || 0) - Number(i.amount_paid || 0)),
@@ -1215,6 +1234,7 @@ export async function POST(request: NextRequest) {
         quotesTotalValue,
         invoicesOpen,
         invoicesDraft,
+        invoicesOverdue,
         invoicesOpenValue,
         invoicesPaidValue,
         invoicesTotalValue,
@@ -1253,6 +1273,7 @@ export async function POST(request: NextRequest) {
         quotesTotalValue,
         invoicesOpen,
         invoicesDraft,
+        invoicesOverdue,
         invoicesOpenValue,
         invoicesPaidValue,
         invoicesTotalValue,
@@ -1298,6 +1319,7 @@ export async function POST(request: NextRequest) {
         quotesTotalValue,
         invoicesOpen,
         invoicesDraft,
+        invoicesOverdue,
         invoicesOpenValue,
         invoicesPaidValue,
         invoicesTotalValue,

@@ -676,19 +676,31 @@ function DocInner({
       }
       if (type === 'invoice' && fromPo) {
         const shared = Boolean(data.invoiceSharedToBuyer);
+        const createdId = Number(data.document?.id);
         toast.success(`Draft invoice created from PO #${fromPo}`, {
           description: shared
             ? 'Shared with the buyer. Review bank details, then “Email when ready”.'
-            : 'Saved as draft — share with the buyer and email when ready.',
+            : 'Not shared yet — assign a customer and Share, then email when ready.',
           duration: 10000,
+          action:
+            !shared && Number.isFinite(createdId) && createdId > 0
+              ? {
+                  label: 'Scroll to share',
+                  onClick: () => {
+                    document
+                      .getElementById(`doc-row-${createdId}`)
+                      ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  },
+                }
+              : undefined,
         });
         setFromPoBanner(
           shared
             ? `Draft invoice for PO #${fromPo} is shared with the buyer. Use “Email when ready” when lines and bank details look right.`
-            : `Draft invoice ready for PO #${fromPo}. Share with the buyer, then “Email when ready”.`
+            : `Draft invoice for PO #${fromPo} was not auto-shared (missing customer or connection suspended). Assign a customer, click Share, then “Email when ready”.`
         );
-        if (data.document?.id) {
-          setHighlightDocId(Number(data.document.id));
+        if (Number.isFinite(createdId) && createdId > 0) {
+          setHighlightDocId(createdId);
         }
       } else {
         toast.success(`${cfg.title.slice(0, -1)} created (${docCurrency})`);
@@ -975,6 +987,14 @@ function DocInner({
       if (data.sellerVerified) bits.push('verified');
       if (data.bankVerified) bits.push('bank AVS');
       const stamp = bits.length ? ` · ${bits.join(', ')} on document` : '';
+      if (type === 'invoice' && data.statusPromoted === 'sent') {
+        toast.message('Invoice status → sent', {
+          description: data.invoiceShared
+            ? 'Shared with buyer · PDF emailed'
+            : 'PDF emailed — share with buyer if they use SupplierAdvisor',
+          duration: 6000,
+        });
+      }
       toast.success(
         `${data.resend ? 'Resent' : 'Emailed'} PDF to ${data.to}${
           data.cc?.length ? ` (CC ${data.cc.join(', ')})` : ''
@@ -1088,6 +1108,31 @@ function DocInner({
         />
       )}
 
+      {!showForm && fromPoBanner ? (
+        <div
+          className={`mb-4 rounded-xl border px-3 py-2.5 text-xs font-medium ${
+            /not auto-shared|Not shared|Share with/i.test(fromPoBanner)
+              ? 'border-amber-200 bg-amber-50 text-amber-950'
+              : 'border-emerald-200 bg-emerald-50 text-emerald-950'
+          }`}
+        >
+          {fromPoBanner}
+          {highlightDocId ? (
+            <button
+              type="button"
+              className="ml-2 underline font-bold"
+              onClick={() => {
+                document
+                  .getElementById(`doc-row-${highlightDocId}`)
+                  ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }}
+            >
+              Jump to invoice →
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
       {showForm && (
         <div
           className={
@@ -1104,7 +1149,13 @@ function DocInner({
           </h2>
 
           {fromPoBanner ? (
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-950 font-medium">
+            <div
+              className={`rounded-xl border px-3 py-2 text-xs font-medium ${
+                /not auto-shared|Not shared|Share with/i.test(fromPoBanner)
+                  ? 'border-amber-200 bg-amber-50 text-amber-950'
+                  : 'border-emerald-200 bg-emerald-50 text-emerald-950'
+              }`}
+            >
               {fromPoBanner}
             </div>
           ) : null}

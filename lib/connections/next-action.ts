@@ -237,6 +237,8 @@ export function computeHubNextAction(opts: {
   pendingConnections?: number;
   /** Seller CRM: draft commercial invoices waiting to email */
   draftInvoices?: number;
+  /** Seller CRM: overdue / past-due open invoices */
+  overdueInvoices?: number;
   catalogueEmpty?: boolean;
   verificationStatus?: string | null;
 }): TradeNextAction {
@@ -280,6 +282,21 @@ export function computeHubNextAction(opts: {
       body: `${opts.openInboundPos} PO(s) need accept / fulfil / invoice.`,
       href: '/dashboard/customers/orders?tab=inbound',
       cta: 'Open inbound',
+    };
+  }
+
+  // Seller: overdue AR first (money stuck)
+  if (
+    (opts.role === 'main' || opts.role === 'supplier') &&
+    (opts.overdueInvoices || 0) > 0
+  ) {
+    return {
+      id: 'overdue_invoices',
+      priority: 84,
+      title: 'Overdue invoices need follow-up',
+      body: `${opts.overdueInvoices} invoice(s) past due — resend or mark paid.`,
+      href: '/dashboard/customers/invoices?status=overdue',
+      cta: 'Open overdue',
     };
   }
 

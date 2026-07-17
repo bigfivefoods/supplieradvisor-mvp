@@ -98,6 +98,7 @@ type Kpis = {
   quotesTotalValue?: number;
   invoicesOpen?: number;
   invoicesDraft?: number;
+  invoicesOverdue?: number;
   invoicesOpenValue?: number;
   invoicesPaidValue?: number;
   invoicesTotalValue?: number;
@@ -251,6 +252,7 @@ export default function DashboardCommandCenter() {
     quotesTotalValue?: number;
     invoicesOpen?: number;
     invoicesDraft?: number;
+    invoicesOverdue?: number;
     invoicesOpenValue?: number;
     invoicesPaidValue?: number;
     invoicesTotalValue?: number;
@@ -294,6 +296,7 @@ export default function DashboardCommandCenter() {
     quotesTotalValue?: number;
     invoicesOpen?: number;
     invoicesDraft?: number;
+    invoicesOverdue?: number;
     invoicesOpenValue?: number;
     invoicesPaidValue?: number;
     invoicesTotalValue?: number;
@@ -682,6 +685,12 @@ export default function DashboardCommandCenter() {
               crm?.invoicesDraft ??
                 trade?.invoicesDraft ??
                 kpis?.invoicesDraft ??
+                0
+            ),
+            overdueInvoices: Number(
+              crm?.invoicesOverdue ??
+                trade?.invoicesOverdue ??
+                kpis?.invoicesOverdue ??
                 0
             ),
             verificationStatus: company?.verification_status,

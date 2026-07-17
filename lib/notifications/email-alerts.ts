@@ -203,6 +203,61 @@ export async function notifyInvoiceSent(params: {
   }
 }
 
+/**
+ * On-platform buyer company: invoice was emailed (and shared) — open docs + PDF link.
+ * Complements the customer-facing PDF email from docs/send.
+ */
+export async function notifyInvoiceSentToBuyer(params: {
+  buyerProfileId: number;
+  sellerName?: string | null;
+  invoiceId: number;
+  invoiceNumber: string;
+  pdfUrl?: string | null;
+  totalAmount?: number | null;
+  currency?: string | null;
+  resend?: boolean;
+}): Promise<void> {
+  try {
+    const to = await companyEmails(params.buyerProfileId);
+    const invQ =
+      params.invoiceId > 0 ? `?invoiceId=${params.invoiceId}` : '';
+    const docsHref = `${appBase()}/dashboard/buyer/documents${invQ}`;
+    const seller = params.sellerName || 'Your supplier';
+    const ccy = (params.currency || 'ZAR').toUpperCase();
+    const total =
+      params.totalAmount != null && Number.isFinite(Number(params.totalAmount))
+        ? `${ccy} ${Number(params.totalAmount).toLocaleString(undefined, {
+            maximumFractionDigits: 2,
+          })}`
+        : '';
+    const pdf =
+      params.pdfUrl && String(params.pdfUrl).startsWith('http')
+        ? `<p><a href="${params.pdfUrl}" style="display:inline-block;background:#00b4d8;color:#fff;padding:10px 18px;border-radius:999px;text-decoration:none;font-weight:700">Open PDF invoice →</a></p>`
+        : '';
+    await sendAlert({
+      to,
+      subject: `[SupplierAdvisor] Invoice ${params.invoiceNumber} ${
+        params.resend ? 're-sent' : 'received'
+      } from ${seller}`,
+      html: `
+        <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto">
+          <h2 style="color:#0077b6">Invoice ${
+            params.resend ? 're-sent' : 'received'
+          }</h2>
+          <p><strong>${seller}</strong> ${
+            params.resend ? 're-sent' : 'sent'
+          } invoice <strong>${params.invoiceNumber}</strong>.</p>
+          ${total ? `<p>Total: <strong>${total}</strong></p>` : ''}
+          ${pdf}
+          <p><a href="${docsHref}" style="color:#00b4d8">Open shared documents →</a></p>
+        </div>
+      `,
+    });
+  } catch (e) {
+    console.warn('notifyInvoiceSentToBuyer', e);
+  }
+}
+
 /** Buyer notified when supplier accepts their PO. */
 export async function notifyPoAccepted(params: {
   buyerProfileId: number;

@@ -284,6 +284,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Status: don't downgrade paid/partial/overdue on resend; only promote draft → sent
+    // Invoices: also force visibility=shared so buyer docs deep-link works
+    let invoiceShared = String(doc.visibility || '').toLowerCase() === 'shared';
     if (type === 'invoice' || type === 'quote') {
       const prev = String(doc.status || '').toLowerCase();
       let nextStatus = prev;
@@ -293,18 +295,48 @@ export async function POST(request: NextRequest) {
       } else if (type === 'quote' && prev === 'draft') {
         nextStatus = 'sent';
       }
-      await supabase
+      const nowIso = new Date().toISOString();
+      const patch: Record<string, unknown> = {
+        status: nextStatus || 'sent',
+        contact_email: to,
+        customer_name: input.customerName || doc.customer_name,
+        contact_name: input.contactName || doc.contact_name,
+        updated_at: nowIso,
+        last_sent_at: nowIso,
+      };
+      if (type === 'invoice' && Number(doc.customer_id) > 0) {
+        patch.visibility = 'shared';
+        invoiceShared = true;
+      }
+      let { error: upErr } = await supabase
         .from(TABLES[type])
-        .update({
-          status: nextStatus || 'sent',
-          contact_email: to,
-          customer_name: input.customerName || doc.customer_name,
-          contact_name: input.contactName || doc.contact_name,
-          updated_at: new Date().toISOString(),
-          last_sent_at: new Date().toISOString(),
-        })
+        .update(patch)
         .eq('id', id)
         .eq('profile_id', companyId);
+      if (upErr && /visibility|last_sent_at|column/i.test(upErr.message || '')) {
+        const soft: Record<string, unknown> = {
+          status: nextStatus || 'sent',
+          contact_email: to,
+          updated_at: nowIso,
+        };
+        if (type === 'invoice' && Number(doc.customer_id) > 0) {
+          soft.visibility = 'shared';
+        }
+        const retry = await supabase
+          .from(TABLES[type])
+          .update(soft)
+          .eq('id', id)
+          .eq('profile_id', companyId);
+        upErr = retry.error;
+        if (upErr && /visibility/i.test(upErr.message || '')) {
+          await supabase
+            .from(TABLES[type])
+            .update({ status: nextStatus || 'sent', updated_at: nowIso })
+            .eq('id', id)
+            .eq('profile_id', companyId);
+          invoiceShared = false;
+        }
+      }
 
       void supabase.from('activity_log').insert({
         profile_id: companyId,
@@ -313,15 +345,20 @@ export async function POST(request: NextRequest) {
         entity_type: TABLES[type],
         entity_id: String(id),
         summary: `${isResend ? 'Resent' : 'Sent'} ${LABELS[type].toLowerCase()} ${number} to ${to}`,
-        metadata: { to, cc, emailId: sent?.id, resend: isResend },
+        metadata: {
+          to,
+          cc,
+          emailId: sent?.id,
+          resend: isResend,
+          shared: type === 'invoice' ? invoiceShared : undefined,
+        },
       });
 
       if (type === 'invoice') {
         void (async () => {
           try {
-            const { notifyInvoiceSent } = await import(
-              '@/lib/notifications/email-alerts'
-            );
+            const { notifyInvoiceSent, notifyInvoiceSentToBuyer } =
+              await import('@/lib/notifications/email-alerts');
             await notifyInvoiceSent({
               sellerProfileId: companyId,
               customerEmail: to,
@@ -337,9 +374,56 @@ export async function POST(request: NextRequest) {
               type: 'invoice_sent',
               title: isResend ? 'Invoice re-sent' : 'Invoice sent',
               body: `${number} → ${to}`,
-              metadata: { invoiceId: id, to, resend: isResend },
+              metadata: {
+                invoiceId: id,
+                to,
+                resend: isResend,
+                pdfUrl: pdfLink,
+              },
               read: false,
             });
+
+            // On-platform buyer: in-app + ops-style email with PDF + docs deep-link
+            const custId = Number(doc.customer_id);
+            if (Number.isFinite(custId) && custId > 0) {
+              const { data: cust } = await supabase
+                .from('customers')
+                .select('linked_profile_id')
+                .eq('id', custId)
+                .eq('profile_id', companyId)
+                .maybeSingle();
+              const buyerId = Number(cust?.linked_profile_id);
+              if (Number.isFinite(buyerId) && buyerId > 0) {
+                await notifyInvoiceSentToBuyer({
+                  buyerProfileId: buyerId,
+                  sellerName:
+                    input.seller.trading_name ||
+                    input.seller.legal_name ||
+                    null,
+                  invoiceId: id,
+                  invoiceNumber: number,
+                  pdfUrl: pdfLink,
+                  totalAmount: Number(input.totalAmount || 0),
+                  currency: String(input.currency || 'ZAR'),
+                  resend: isResend,
+                });
+                void supabase.from('notifications').insert({
+                  profile_id: buyerId,
+                  type: 'invoice_received',
+                  title: isResend
+                    ? `Invoice ${number} re-sent`
+                    : `Invoice ${number} received`,
+                  body: `${input.seller.trading_name || 'Supplier'} emailed your invoice`,
+                  metadata: {
+                    invoiceId: id,
+                    href: `/dashboard/buyer/documents?invoiceId=${id}`,
+                    pdfUrl: pdfLink,
+                    resend: isResend,
+                  },
+                  read: false,
+                });
+              }
+            }
           } catch {
             /* soft */
           }
@@ -357,6 +441,12 @@ export async function POST(request: NextRequest) {
       attachment: pdfName,
       format: 'pdf',
       pdfUrl: pdfLink,
+      invoiceShared: type === 'invoice' ? invoiceShared : undefined,
+      statusPromoted:
+        type === 'invoice' &&
+        ['draft', '', 'open'].includes(String(doc.status || '').toLowerCase())
+          ? 'sent'
+          : undefined,
       bankDetailsIncluded,
       bankVerified:
         String(input.seller.bank_verification_status || '').toLowerCase() ===
