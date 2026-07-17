@@ -5,8 +5,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ArrowRight,
   Building2,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   Filter,
   MapPin,
   RotateCcw,
@@ -403,7 +405,8 @@ export default function CompanyNetworkSection() {
   const [minTrust, setMinTrust] = useState('');
   const [minOtifef, setMinOtifef] = useState('');
   const [sort, setSort] = useState('joined');
-  const [showFilters, setShowFilters] = useState(true);
+  /** Advanced filters start collapsed so the homepage stays clean */
+  const [showFilters, setShowFilters] = useState(false);
 
   // Debounce free-text search
   useEffect(() => {
@@ -818,10 +821,26 @@ export default function CompanyNetworkSection() {
                 <button
                   type="button"
                   onClick={() => setShowFilters((v) => !v)}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:border-[#00b4d8]"
+                  aria-expanded={showFilters}
+                  aria-controls="directory-advanced-filters"
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-4 py-2.5 text-xs font-bold transition-colors ${
+                    showFilters || activeFilters.length > 0
+                      ? 'border-[#00b4d8] bg-sky-50 text-[#0077b6]'
+                      : 'border-slate-200 bg-white text-slate-700 hover:border-[#00b4d8]'
+                  }`}
                 >
                   <Filter className="h-3.5 w-3.5" />
-                  {showFilters ? 'Hide filters' : 'Show filters'}
+                  {showFilters ? 'Hide filters' : 'Filters'}
+                  {activeFilters.length > 0 ? (
+                    <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-[#00b4d8] px-1.5 text-[10px] font-black text-white">
+                      {activeFilters.length}
+                    </span>
+                  ) : null}
+                  {showFilters ? (
+                    <ChevronUp className="h-3.5 w-3.5 opacity-70" />
+                  ) : (
+                    <ChevronDown className="h-3.5 w-3.5 opacity-70" />
+                  )}
                 </button>
                 {activeFilters.length > 0 && (
                   <button
@@ -837,7 +856,10 @@ export default function CompanyNetworkSection() {
             </div>
 
             {showFilters && (
-              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div
+                id="directory-advanced-filters"
+                className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
+              >
                 <SelectField
                   label="Industry"
                   value={industry}
