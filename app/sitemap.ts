@@ -1,7 +1,7 @@
 import type { MetadataRoute } from 'next';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { isEligibleForDiscovery } from '@/lib/business/completeness';
-import { SITE_URL } from '@/lib/seo/company-public';
+import { companyPublicPath, SITE_URL } from '@/lib/seo/company-public';
 
 /** Prefer www canonical host for Google Search Console */
 const BASE = SITE_URL;
@@ -16,10 +16,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 1,
     },
     {
-      url: `${BASE}/#directory`,
+      url: `${BASE}/directory`,
       lastModified: now,
       changeFrequency: 'daily',
       priority: 0.95,
+    },
+    {
+      url: `${BASE}/#directory`,
+      lastModified: now,
+      changeFrequency: 'daily',
+      priority: 0.85,
     },
     {
       url: `${BASE}/pricing`,
@@ -92,8 +98,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       .map((p) => {
         const verified =
           String(p.verification_status || '').toLowerCase() === 'verified';
+        const path = companyPublicPath({
+          id: Number(p.id),
+          trading_name:
+            p.trading_name != null ? String(p.trading_name) : null,
+          legal_name: p.legal_name != null ? String(p.legal_name) : null,
+        });
         return {
-          url: `${BASE}/c/${p.id}`,
+          url: `${BASE}${path}`,
           lastModified: p.updated_at
             ? new Date(String(p.updated_at))
             : undefined,

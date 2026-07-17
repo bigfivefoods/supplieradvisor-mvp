@@ -231,7 +231,15 @@ function RateInner() {
                 You can close this page.
               </p>
               <Link
-                href={`/c/${companyId}`}
+                href={
+                  company
+                    ? `/c/${String(company.name || 'company')
+                        .toLowerCase()
+                        .replace(/[^a-z0-9]+/g, '-')
+                        .replace(/^-+|-+$/g, '')
+                        .slice(0, 72) || 'company'}-${companyId}`
+                    : `/c/${companyId}`
+                }
                 className="inline-block mt-4 text-sm font-bold text-[#0077b6] hover:underline"
               >
                 View public profile →

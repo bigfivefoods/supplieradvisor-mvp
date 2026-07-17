@@ -13,7 +13,7 @@ export default function robots(): MetadataRoute.Robots {
     rules: [
       {
         userAgent: '*',
-        allow: ['/', '/c/', '/pricing', '/privacy', '/terms'],
+        allow: ['/', '/c/', '/directory', '/pricing', '/privacy', '/terms'],
         disallow: [
           '/api/',
           '/dashboard/',
@@ -37,7 +37,7 @@ export default function robots(): MetadataRoute.Robots {
       {
         // Explicitly welcome major engines to company profiles
         userAgent: 'Googlebot',
-        allow: ['/', '/c/'],
+        allow: ['/', '/c/', '/directory'],
         disallow: ['/api/', '/dashboard/', '/login', '/r/'],
       },
     ],

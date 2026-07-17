@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { notFound, permanentRedirect } from 'next/navigation';
 import { MapPin, ExternalLink, Building2, Star, ChevronRight } from 'lucide-react';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { isEligibleForDiscovery } from '@/lib/business/completeness';
@@ -13,10 +13,12 @@ import {
   companyDisplayName,
   companyJsonLdGraph,
   companyLocationLine,
+  companyPublicPath,
   companySeoDescription,
   companySeoKeywords,
   companySeoTitle,
   isCompanyVerified,
+  parseCompanyRouteParam,
   SITE_URL,
 } from '@/lib/seo/company-public';
 
@@ -152,7 +154,8 @@ async function loadCompany(
   idParam: string,
   opts?: { bypassDiscovery?: boolean }
 ): Promise<PublicCompany | null> {
-  const id = Number(idParam);
+  // Accept numeric id or SEO slug-id (e.g. big-five-foods-42)
+  const id = parseCompanyRouteParam(idParam) ?? Number(idParam);
   if (!Number.isFinite(id) || id <= 0) return null;
   const supabase = getSupabaseServer();
   const { data } = await supabase
@@ -201,7 +204,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     ratingAvg: ratings.avg,
     ratingCount: ratings.count,
   });
-  const canonical = companyCanonicalUrl(c.id);
+  const canonical = companyCanonicalUrl(c);
   const name = companyDisplayName(c);
   const keywords = companySeoKeywords(c);
   const images = c.logo_url
@@ -266,12 +269,19 @@ export default async function PublicCompanyPage({
 }: Props & {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { id } = await params;
+  const { id: routeParam } = await params;
   const sp = (await searchParams) || {};
   const from = String(sp.from || sp.src || '');
   const bypassDiscovery = ['quote', 'rate', 'r'].includes(from.toLowerCase());
-  const c = await loadCompany(id, { bypassDiscovery });
+  const c = await loadCompany(routeParam, { bypassDiscovery });
   if (!c) notFound();
+
+  // 308 to SEO slug URL when visitor used bare /c/42 or stale slug
+  const canonicalPath = companyPublicPath(c);
+  const currentPath = `/c/${routeParam}`;
+  if (currentPath !== canonicalPath && !bypassDiscovery) {
+    permanentRedirect(canonicalPath);
+  }
 
   const name = companyDisplayName(c);
   const legalName = c.legal_name;
@@ -295,7 +305,7 @@ export default async function PublicCompanyPage({
     return meta.show_bank_verified_public === true;
   })();
 
-  const pageUrl = companyCanonicalUrl(c.id);
+  const pageUrl = companyCanonicalUrl(c);
   const jsonLd = companyJsonLdGraph(c, {
     ratingAvg: publicRatings.avg,
     ratingCount: publicRatings.count,
@@ -327,7 +337,7 @@ export default async function PublicCompanyPage({
             </Link>
             <ChevronRight className="w-3 h-3" aria-hidden />
             <Link
-              href="/#directory"
+              href="/directory"
               className="font-semibold hover:text-[#0077b6]"
             >
               Directory
@@ -338,7 +348,7 @@ export default async function PublicCompanyPage({
             </span>
           </nav>
           <div className="flex items-center justify-between">
-            <Link href="/#directory" className="text-sm font-bold text-[#0077b6]">
+            <Link href="/directory" className="text-sm font-bold text-[#0077b6]">
               ← Directory
             </Link>
             <Link href="/" className="text-xs font-semibold text-neutral-500">
@@ -525,7 +535,7 @@ export default async function PublicCompanyPage({
               </a>
             ) : null}
             <Link
-              href="/#directory"
+              href="/directory"
               className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-1.5"
             >
               <Building2 className="w-4 h-4" /> Browse directory
@@ -546,7 +556,7 @@ export default async function PublicCompanyPage({
                 Home
               </Link>
               {' · '}
-              <Link href="/#directory" className="hover:underline">
+              <Link href="/directory" className="hover:underline">
                 Company directory
               </Link>
               {' · '}

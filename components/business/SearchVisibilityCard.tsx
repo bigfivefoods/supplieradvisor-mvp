@@ -7,6 +7,7 @@ import {
   isEligibleForDiscovery,
   type CompletenessResult,
 } from '@/lib/business/completeness';
+import { companyPublicPath } from '@/lib/seo/company-public';
 
 /**
  * Explains whether this company appears in Discover / public directory.
@@ -127,7 +128,16 @@ export default function SearchVisibilityCard({
           . Others can search and request a connection.
         </p>
         <Link
-          href={`/c/${profile.id || ''}`}
+          href={
+            profile?.id
+              ? companyPublicPath({
+                  id: Number(profile.id),
+                  trading_name:
+                    (profile.trading_name as string | null) || null,
+                  legal_name: (profile.legal_name as string | null) || null,
+                })
+              : '/directory'
+          }
           className="inline-flex items-center gap-1 text-xs font-bold text-emerald-800 hover:underline"
         >
           View public page <ArrowRight className="w-3 h-3" />

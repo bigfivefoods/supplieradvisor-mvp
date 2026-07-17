@@ -23,6 +23,7 @@ import {
   SEED_CONTINENTS,
   SEED_COUNTRIES,
 } from '@/lib/geo/world-seed';
+import { companyPublicPath } from '@/lib/seo/company-public';
 
 export type PublicCompany = {
   id: number;
@@ -186,7 +187,7 @@ function CompanyCard({ company }: { company: PublicCompany }) {
 
   return (
     <Link
-      href={`/c/${company.id}`}
+      href={companyPublicPath(company)}
       className="flex flex-col rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm transition-all hover:border-[#00b4d8]/40 hover:shadow-md"
     >
       <div className="mb-3 flex items-start justify-between gap-3">

@@ -42,8 +42,62 @@ export function isCompanyVerified(c: CompanySeoInput): boolean {
   return String(c.verification_status || '').toLowerCase() === 'verified';
 }
 
-export function companyCanonicalUrl(id: number): string {
-  return `${SITE_URL}/c/${id}`;
+/** URL-safe slug from company name (no trailing id). */
+export function slugifyCompanyName(name: string): string {
+  const s = String(name || '')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 72);
+  return s || 'company';
+}
+
+/**
+ * Public path for a company — SEO-friendly slug + stable id.
+ * Example: /c/big-five-foods-42
+ * Pure numeric /c/42 still resolves and should 308 to the slug form.
+ */
+export function companyPublicPath(c: {
+  id: number;
+  trading_name?: string | null;
+  legal_name?: string | null;
+}): string {
+  const id = Number(c.id);
+  if (!Number.isFinite(id) || id <= 0) return '/directory';
+  const slug = slugifyCompanyName(
+    String(c.trading_name || c.legal_name || '').trim() || `company-${id}`
+  );
+  return `/c/${slug}-${id}`;
+}
+
+export function companyCanonicalUrl(
+  c: number | { id: number; trading_name?: string | null; legal_name?: string | null }
+): string {
+  if (typeof c === 'number') {
+    return `${SITE_URL}/c/${c}`;
+  }
+  return `${SITE_URL}${companyPublicPath(c)}`;
+}
+
+/**
+ * Parse /c/[param] where param is "42" or "acme-foods-johannesburg-42".
+ */
+export function parseCompanyRouteParam(param: string): number | null {
+  const raw = String(param || '').trim();
+  if (!raw) return null;
+  if (/^\d+$/.test(raw)) {
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+  const m = raw.match(/-(\d+)$/);
+  if (m) {
+    const n = Number(m[1]);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+  return null;
 }
 
 /**
@@ -144,7 +198,7 @@ export function companyJsonLdGraph(
   }
 ): Record<string, unknown> {
   const name = companyDisplayName(c);
-  const url = opts?.pageUrl || companyCanonicalUrl(c.id);
+  const url = opts?.pageUrl || companyCanonicalUrl(c);
   const place = companyLocationLine(c);
   const verified = isCompanyVerified(c);
   const logo = c.logo_url
@@ -242,7 +296,7 @@ export function companyJsonLdGraph(
         '@type': 'ListItem',
         position: 2,
         name: 'Directory',
-        item: `${SITE_URL}/#directory`,
+        item: `${SITE_URL}/directory`,
       },
       {
         '@type': 'ListItem',
