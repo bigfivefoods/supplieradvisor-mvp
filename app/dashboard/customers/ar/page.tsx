@@ -69,18 +69,25 @@ function Inner() {
   const [brokenPromiseCount, setBrokenPromiseCount] = useState(0);
   const [buckets, setBuckets] = useState<Record<string, Bucket> | null>(null);
   const [customers, setCustomers] = useState<CustomerRollup[]>([]);
+  const [statementHistory, setStatementHistory] = useState<
+    Array<{ id: string; summary: string; created_at: string }>
+  >([]);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [agingRes, custRes] = await Promise.all([
+      const [agingRes, custRes, histRes] = await Promise.all([
         fetch(`/api/customers/ar-aging?companyId=${companyId}`, {
           cache: 'no-store',
         }),
         fetch(`/api/customers/ar-by-customer?companyId=${companyId}`, {
           cache: 'no-store',
         }),
+        fetch(
+          `/api/customers/ar-statement/history?companyId=${companyId}`,
+          { cache: 'no-store' }
+        ).catch(() => null),
       ]);
       const data = await agingRes.json();
       if (!agingRes.ok) throw new Error(data.error || 'Failed to load AR');
@@ -95,6 +102,19 @@ function Inner() {
         setCustomers((cData.customers as CustomerRollup[]) || []);
       } else {
         setCustomers([]);
+      }
+
+      if (histRes && histRes.ok) {
+        const h = await histRes.json().catch(() => ({}));
+        setStatementHistory(
+          ((h.events || []) as Array<{
+            id: string;
+            summary: string;
+            created_at: string;
+          }>) || []
+        );
+      } else {
+        setStatementHistory([]);
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed');
@@ -359,6 +379,29 @@ function Inner() {
               </div>
             </div>
           </div>
+
+          {statementHistory.length > 0 ? (
+            <div className="rounded-2xl border border-neutral-200 bg-white px-4 py-3">
+              <div className="text-[10px] font-bold uppercase text-neutral-400 mb-2">
+                Collections history
+              </div>
+              <ul className="space-y-1.5 max-h-36 overflow-y-auto">
+                {statementHistory.slice(0, 12).map((e) => (
+                  <li
+                    key={e.id}
+                    className="text-xs text-slate-700 flex flex-wrap gap-x-2"
+                  >
+                    <span className="text-neutral-400 tabular-nums">
+                      {e.created_at
+                        ? String(e.created_at).slice(0, 16).replace('T', ' ')
+                        : ''}
+                    </span>
+                    <span>{e.summary}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
 
           {customers.length > 0 ? (
             <div className="rounded-3xl border border-neutral-200 bg-white overflow-hidden">

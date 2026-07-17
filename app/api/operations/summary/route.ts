@@ -119,6 +119,9 @@ export async function GET(request: NextRequest) {
         String(p.status)
       )
     );
+    const invoiceableSeller = sell.filter((p) =>
+      ['accepted', 'funded', 'open', 'confirmed'].includes(String(p.status || '').toLowerCase())
+    );
 
     const wos = mfgOrders.data || [];
     const woInFlight = wos.filter((o) =>
@@ -276,6 +279,7 @@ export async function GET(request: NextRequest) {
         // Fulfill
         customerPos: sell.length,
         customerPosOpen: openSeller.length,
+        customerPosInvoiceable: invoiceableSeller.length,
         customers: (customers.data || []).length,
         // Cross-cutting
         containers: (containers.data || []).length,

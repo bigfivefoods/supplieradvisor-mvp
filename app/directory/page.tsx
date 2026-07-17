@@ -9,6 +9,7 @@ import {
 import { companyPublicPath, SITE_URL } from '@/lib/seo/company-public';
 import DirectoryCompanyGrid from '@/components/seo/DirectoryCompanyGrid';
 import DirectoryFiltersPanel from '@/components/seo/DirectoryFiltersPanel';
+import DirectoryInviteForm from '@/components/seo/DirectoryInviteForm';
 
 export const revalidate = 300;
 
@@ -223,6 +224,10 @@ export default async function DirectoryPage({
         </p>
 
         <DirectoryCompanyGrid companies={companies} />
+
+        <div className="mt-8">
+          <DirectoryInviteForm />
+        </div>
 
         <aside className="mt-10 rounded-2xl border border-sky-100 bg-sky-50/80 px-4 py-5 text-sm text-slate-700">
           <p className="font-bold text-slate-900 mb-1 text-base">

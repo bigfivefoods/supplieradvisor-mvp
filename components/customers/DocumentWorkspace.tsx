@@ -681,12 +681,27 @@ function DocInner({
       if (type === 'invoice') body.due_date = dueDate || null;
       if (type === 'invoice' && fromPo) body.source_po_id = fromPo;
 
-      const res = await fetch('/api/customers/docs', {
+      let res = await fetch('/api/customers/docs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      const data = await res.json();
+      let data = await res.json();
+      if (!res.ok && data.code === 'OVER_CREDIT_LIMIT') {
+        const ok = window.confirm(
+          `${data.error || 'Over credit limit'}\n\nOverride and create anyway?`
+        );
+        if (!ok) {
+          setSaving(false);
+          return;
+        }
+        res = await fetch('/api/customers/docs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...body, acknowledgeCredit: true }),
+        });
+        data = await res.json();
+      }
       if (!res.ok) {
         if (data.code === 'DUPLICATE_FROM_PO' && data.existing) {
           const existing = data.existing as DocRecord;

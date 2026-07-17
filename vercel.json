@@ -51,6 +51,10 @@
     {
       "path": "/api/customers/ar-statement/cron",
       "schedule": "15 7 1 * *"
+    },
+    {
+      "path": "/api/customers/docs/dunning-cron",
+      "schedule": "45 6 * * *"
     }
   ]
 }

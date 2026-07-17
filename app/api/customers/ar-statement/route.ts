@@ -243,12 +243,43 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const supabase = getSupabaseServer();
+    const now = new Date().toISOString();
+    void supabase.from('activity_log').insert({
+      profile_id: companyId,
+      actor_user_id: gate.userId || null,
+      action: 'ar.statement_emailed',
+      entity_type: 'customers',
+      entity_id: String(customerId),
+      summary: `Statement emailed to ${to} · ${result.currency} ${result.openTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })} open`,
+      metadata: {
+        customerId,
+        to,
+        openTotal: result.openTotal,
+        currency: result.currency,
+        lineCount: result.lineCount,
+        customerName: result.customerName,
+      },
+    });
+    void supabase.from('notifications').insert({
+      profile_id: companyId,
+      type: 'ar_statement_sent',
+      title: `Statement sent · ${result.customerName}`,
+      body: `${to} · ${result.currency} ${result.openTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+      metadata: {
+        customerId,
+        href: '/dashboard/customers/ar',
+      },
+      read: false,
+    });
+
     return NextResponse.json({
       success: true,
       to,
       openTotal: result.openTotal,
       currency: result.currency,
       lineCount: result.lineCount,
+      loggedAt: now,
     });
   } catch (e: unknown) {
     return NextResponse.json(

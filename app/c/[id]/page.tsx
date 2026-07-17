@@ -21,7 +21,8 @@ import {
   parseCompanyRouteParam,
   SITE_URL,
 } from '@/lib/seo/company-public';
-import { facetSlug } from '@/lib/seo/directory-data';
+import { facetSlug, loadDirectory } from '@/lib/seo/directory-data';
+import DirectoryInviteForm from '@/components/seo/DirectoryInviteForm';
 
 /** Aggregate public ratings (quote QR + invoice feedback). Soft if table missing. */
 async function loadPublicRatingStats(companyId: number): Promise<{
@@ -298,6 +299,24 @@ export default async function PublicCompanyPage({
   const beeLevel = c.bee_level;
   const website = c.website;
   const publicRatings = await loadPublicRatingStats(c.id);
+  // Similar companies (same industry or city) for SEO internal links
+  let similar: Array<{ id: number; name: string; href: string }> = [];
+  try {
+    const hub = await loadDirectory({
+      industry: c.industry || undefined,
+      city: !c.industry ? c.city || undefined : undefined,
+    });
+    similar = (hub.companies || [])
+      .filter((x) => Number(x.id) !== Number(c.id))
+      .slice(0, 6)
+      .map((x) => ({
+        id: Number(x.id),
+        name: String(x.trading_name || x.legal_name || `Company #${x.id}`),
+        href: companyPublicPath(x),
+      }));
+  } catch {
+    similar = [];
+  }
   const showBankBadge = (() => {
     const meta =
       c.metadata && typeof c.metadata === 'object'
@@ -565,7 +584,40 @@ export default async function PublicCompanyPage({
                 Sign in to manage
               </Link>
             </div>
+            <div className="mt-4">
+              <DirectoryInviteForm
+                companyId={c.id}
+                companyName={name}
+                compact
+              />
+            </div>
           </aside>
+
+          {similar.length > 0 ? (
+            <section
+              className="mt-8 rounded-2xl border border-neutral-200 bg-white px-4 py-4"
+              aria-labelledby="similar-heading"
+            >
+              <h2
+                id="similar-heading"
+                className="text-[10px] font-bold uppercase tracking-wide text-neutral-400 mb-2"
+              >
+                Similar companies
+              </h2>
+              <ul className="flex flex-wrap gap-2">
+                {similar.map((s) => (
+                  <li key={s.id}>
+                    <Link
+                      href={s.href}
+                      className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800 hover:border-[#00b4d8] hover:text-[#0077b6]"
+                    >
+                      {s.name}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
 
           {(industry || c.city) ? (
             <section

@@ -48,6 +48,9 @@ export async function POST(request: NextRequest) {
       referralCode,
       referredBy,
       ref,
+      // Directory claim: attach ownership of existing public profile
+      claimProfileId,
+      claim,
     } = body;
 
     const _auth = await requireVerifiedUser(request, { legacyPrivyUserId: privyUserId });
@@ -55,6 +58,108 @@ export async function POST(request: NextRequest) {
     const userId = getCanonicalUserId(_auth.userId);
     if (!userId) {
       return NextResponse.json({ error: 'You must be signed in to register a business.' }, { status: 401 });
+    }
+
+    // ── Claim existing directory listing (no second company) ──────────────
+    const claimId = Number(claimProfileId || claim || 0);
+    if (Number.isFinite(claimId) && claimId > 0) {
+      const supabaseClaim = getSupabaseAdmin();
+      const nowClaim = new Date().toISOString();
+      const { data: existing } = await supabaseClaim
+        .from('profiles')
+        .select('id, trading_name, user_id')
+        .eq('id', claimId)
+        .maybeSingle();
+      if (!existing) {
+        return NextResponse.json(
+          { error: 'Claim listing not found' },
+          { status: 404 }
+        );
+      }
+      const { data: owners } = await supabaseClaim
+        .from('business_users')
+        .select('user_id, role, status')
+        .eq('profile_id', claimId)
+        .eq('status', 'active')
+        .in('role', ['owner', 'admin'])
+        .limit(5);
+      const ownedByOther = (owners || []).some(
+        (o) => o.user_id && String(o.user_id) !== String(userId)
+      );
+      if (ownedByOther) {
+        return NextResponse.json(
+          {
+            error:
+              'This listing already has an owner. Connect as a partner instead.',
+            code: 'ALREADY_CLAIMED',
+            profileId: claimId,
+          },
+          { status: 409 }
+        );
+      }
+      const emailClaim = String(contact_email || '')
+        .toLowerCase()
+        .trim();
+      if (!emailClaim.includes('@')) {
+        return NextResponse.json(
+          { error: 'Contact email is required to claim.' },
+          { status: 400 }
+        );
+      }
+      const { error: memInsErr } = await supabaseClaim
+        .from('business_users')
+        .insert({
+          user_id: userId,
+          profile_id: claimId,
+          role: 'owner',
+          status: 'active',
+          name: contact_name || null,
+          email: emailClaim,
+          joined_at: nowClaim,
+          created_at: nowClaim,
+        });
+      if (memInsErr && !/duplicate|unique/i.test(memInsErr.message || '')) {
+        // promote existing membership row
+        await supabaseClaim
+          .from('business_users')
+          .update({
+            role: 'owner',
+            status: 'active',
+            joined_at: nowClaim,
+          })
+          .eq('profile_id', claimId)
+          .eq('user_id', userId);
+      }
+      const claimPatch: Record<string, unknown> = {
+        user_id: userId,
+        claimed_at: nowClaim,
+        supplier_status: 'active',
+        is_discoverable: true,
+        email: emailClaim,
+        updated_at: nowClaim,
+      };
+      if (trading_name) claimPatch.trading_name = String(trading_name).trim();
+      if (contact_name) claimPatch.contact_name = String(contact_name);
+      if (contact_phone) claimPatch.contact_phone = String(contact_phone);
+      if (legal_name) claimPatch.legal_name = String(legal_name);
+      if (industry) claimPatch.industry = String(industry);
+      if (city) claimPatch.city = String(city);
+      if (country) claimPatch.country = String(country);
+      if (website) claimPatch.website = String(website);
+      if (short_description) claimPatch.short_description = String(short_description);
+      if (registration_number)
+        claimPatch.registration_number = String(registration_number);
+      await supabaseClaim.from('profiles').update(claimPatch).eq('id', claimId);
+
+      return NextResponse.json({
+        success: true,
+        claimed: true,
+        profileId: claimId,
+        tradingName: trading_name || existing.trading_name,
+        message: 'Listing claimed — you own this company workspace.',
+        lifetime: null,
+        trial: null,
+      });
     }
 
     if (!trading_name || !String(trading_name).trim()) {

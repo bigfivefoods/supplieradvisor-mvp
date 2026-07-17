@@ -82,6 +82,8 @@ export default function BusinessOnboardingWizard() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const typeParam = searchParams.get('type') || 'business';
+  const claimId = Number(searchParams.get('claim') || 0) || null;
+  const claimName = searchParams.get('name') || '';
   const { ready, authenticated, user, login } = usePrivy();
 
   const initialType = BUSINESS_TYPES.some((t) => t.id === typeParam) ? typeParam : 'business';
@@ -89,10 +91,12 @@ export default function BusinessOnboardingWizard() {
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  const [doneProfileId, setDoneProfileId] = useState<number | null>(null);
+  const [doneLifetime, setDoneLifetime] = useState(false);
   const [form, setForm] = useState<FormState>({
     business_type: initialType,
-    trading_name: '',
-    legal_name: '',
+    trading_name: claimName || '',
+    legal_name: claimName || '',
     registration_number: '',
     industry: '',
     country: 'South Africa',
@@ -183,6 +187,7 @@ export default function BusinessOnboardingWizard() {
           ...form,
           contact_email: form.contact_email || extractEmailFromPrivyUser(user),
           referralCode: referralCode || undefined,
+          claimProfileId: claimId || undefined,
         }),
       });
       const data = await res.json();
@@ -197,11 +202,15 @@ export default function BusinessOnboardingWizard() {
         if (data.tradingName) {
           localStorage.setItem('selectedCompanyName', data.tradingName);
         }
+        setDoneProfileId(Number(data.profileId));
       }
+      setDoneLifetime(Boolean(data.lifetime?.status === 'lifetime' || data.claimed));
 
       setDone(true);
-      toast.success('Your business is ready!');
-      setTimeout(() => router.push('/dashboard/select-company'), 1200);
+      toast.success(
+        data.claimed ? 'Listing claimed — workspace ready!' : 'Your business is ready!'
+      );
+      setTimeout(() => router.push('/dashboard/select-company'), 2800);
     } catch {
       toast.error('Something went wrong. Please try again.');
     } finally {
@@ -218,12 +227,57 @@ export default function BusinessOnboardingWizard() {
   }
 
   if (done) {
+    const shareUrl =
+      typeof window !== 'undefined'
+        ? `${window.location.origin}/onboarding?type=business&ref=${doneProfileId || ''}`
+        : `https://www.supplieradvisor.com/onboarding?type=business&ref=${doneProfileId || ''}`;
+    const shareText = doneLifetime
+      ? `We just claimed our SupplierAdvisor founding seat — join the verified B2B trade network: ${shareUrl}`
+      : `We joined SupplierAdvisor — the B2B trade OS: ${shareUrl}`;
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] px-6">
         <div className="text-center max-w-md">
           <CheckCircle2 className="w-16 h-16 text-emerald-500 mx-auto mb-6" />
-          <h1 className="text-4xl font-black tracking-[-2px] text-[#00b4d8] mb-3">Welcome aboard</h1>
-          <p className="text-lg text-neutral-600">Your workspace is ready. Redirecting…</p>
+          <h1 className="text-4xl font-black tracking-[-2px] text-[#00b4d8] mb-3">
+            {claimId ? 'Listing claimed' : 'Welcome aboard'}
+          </h1>
+          <p className="text-lg text-neutral-600 mb-4">
+            Your workspace is ready. Redirecting…
+          </p>
+          {doneProfileId ? (
+            <div className="rounded-2xl border border-violet-200 bg-violet-50/80 px-4 py-3 text-left">
+              <p className="text-xs font-black text-violet-950 mb-1">
+                Share your referral link
+              </p>
+              <p className="text-[11px] text-violet-900/90 mb-2 leading-relaxed">
+                Invite partners — they join via your ref code.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="btn-primary !py-1.5 !px-3 text-xs"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(shareUrl);
+                      toast.success('Referral link copied');
+                    } catch {
+                      toast.message(shareUrl);
+                    }
+                  }}
+                >
+                  Copy link
+                </button>
+                <a
+                  href={`https://wa.me/?text=${encodeURIComponent(shareText)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-secondary !py-1.5 !px-3 text-xs"
+                >
+                  WhatsApp
+                </a>
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
     );
@@ -260,13 +314,23 @@ export default function BusinessOnboardingWizard() {
         </div>
 
         <div className="bg-white border border-neutral-200 rounded-3xl p-8 md:p-10 shadow-sm">
+          {claimId ? (
+            <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
+              <p className="font-black">Claiming directory listing</p>
+              <p className="text-xs mt-0.5 opacity-90">
+                Company #{claimId}
+                {claimName ? ` · ${claimName}` : ''} — you will become owner
+                without creating a duplicate company.
+              </p>
+            </div>
+          ) : null}
           {step === 0 && (
             <div>
               <div className="inline-flex items-center gap-2 bg-[#00b4d8]/10 text-[#0077b6] px-3 py-1.5 rounded-full text-sm font-semibold mb-4">
                 <ShieldCheck className="w-4 h-4" /> Secure account
               </div>
               <h1 className="text-3xl md:text-4xl font-black tracking-[-1.5px] text-[#00b4d8] mb-3">
-                Create your SupplierAdvisor account
+                {claimId ? 'Claim your listing' : 'Create your SupplierAdvisor account'}
               </h1>
               <p className="text-neutral-600 text-lg mb-8 leading-relaxed">
                 We use enterprise-grade authentication via Privy — email one-time codes, Google, Apple, or wallet.

@@ -136,6 +136,7 @@ type OpsSnap = {
   bomsActive?: number;
   workCells?: number;
   customerPosOpen?: number;
+  customerPosInvoiceable?: number;
 };
 
 type MfgSnap = {
@@ -694,6 +695,9 @@ export default function DashboardCommandCenter() {
               role: 'main',
               openOutboundPos: openPos,
               openInboundPos: Number(ops?.customerPosOpen || 0),
+              invoiceableInboundPos: Number(
+                ops?.customerPosInvoiceable || 0
+              ),
               pendingConnections: pendingIn,
               draftInvoices: Number(
                 crm?.invoicesDraft ??

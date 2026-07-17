@@ -236,6 +236,8 @@ export function computePeerTradeNextAction(
 export function computeHubNextAction(opts: {
   role: 'buyer' | 'supplier' | 'main';
   openInboundPos?: number;
+  /** Accepted/funded inbound POs ready to bill */
+  invoiceableInboundPos?: number;
   openOutboundPos?: number;
   pendingConnections?: number;
   /** Seller CRM: draft commercial invoices waiting to email */
@@ -295,7 +297,24 @@ export function computeHubNextAction(opts: {
     };
   }
 
-  // Main + supplier: inbound seller work first
+  // Main + supplier: invoiceable accepted inbound POs first (post-accept path)
+  if (
+    (opts.role === 'supplier' || opts.role === 'main') &&
+    (opts.invoiceableInboundPos || 0) > 0
+  ) {
+    return {
+      id: 'create_invoice_inbound',
+      priority: 87,
+      title: 'Create invoice from accepted PO',
+      body: `${opts.invoiceableInboundPos} accepted PO(s) ready to bill — raise invoice and email/WhatsApp PDF.`,
+      href: '/dashboard/customers/orders?tab=inbound',
+      cta: 'Open inbound',
+      secondaryHref: '/dashboard/customers/invoices',
+      secondaryCta: 'Create invoice',
+    };
+  }
+
+  // Main + supplier: inbound seller work (awaiting accept or mixed open)
   if (
     (opts.role === 'supplier' || opts.role === 'main') &&
     (opts.openInboundPos || 0) > 0
@@ -306,7 +325,9 @@ export function computeHubNextAction(opts: {
       title: 'Inbound purchase orders waiting',
       body: `${opts.openInboundPos} PO(s) need accept / fulfil / invoice.`,
       href: '/dashboard/customers/orders?tab=inbound',
-      cta: 'Open inbound',
+      cta: 'Review & accept',
+      secondaryHref: '/dashboard/customers/invoices',
+      secondaryCta: 'Create invoice',
     };
   }
 

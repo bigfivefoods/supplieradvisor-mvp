@@ -801,6 +801,44 @@ export async function POST(request: NextRequest) {
       supabase,
       body.customer_id ? Number(body.customer_id) : null
     );
+
+    // Soft credit limit for commercial docs (invoice / order / quote)
+    const custIdForCredit = body.customer_id ? Number(body.customer_id) : NaN;
+    if (
+      Number.isFinite(custIdForCredit) &&
+      custIdForCredit > 0 &&
+      ['invoice', 'order', 'quote'].includes(kind) &&
+      body.forceCredit !== true &&
+      body.acknowledgeCredit !== true
+    ) {
+      try {
+        const { checkCustomerCreditLimit } = await import(
+          '@/lib/customers/credit-limit'
+        );
+        const credit = await checkCustomerCreditLimit(supabase, {
+          companyId,
+          customerId: custIdForCredit,
+          additionalAmount: Number(totals.total_amount || 0),
+        });
+        if (!credit.ok) {
+          return NextResponse.json(
+            {
+              error: `Credit limit exceeded for ${credit.customerName || 'customer'} (limit ${credit.creditLimit.toLocaleString()}, open ${credit.openBalance.toLocaleString()}, this doc would reach ${credit.projected.toLocaleString()}).`,
+              code: 'OVER_CREDIT_LIMIT',
+              creditLimit: credit.creditLimit,
+              openBalance: credit.openBalance,
+              projected: credit.projected,
+              overBy: credit.overBy,
+              hint: 'Raise the credit limit, collect payment, or resubmit with acknowledgeCredit: true to override.',
+            },
+            { status: 409 }
+          );
+        }
+      } catch (e) {
+        console.warn('credit check soft-fail', e);
+      }
+    }
+
     const payload = buildPayload(kind, body, companyId, items, totals, customer);
 
     const inserted = await insertDocTolerant(supabase, table, payload);

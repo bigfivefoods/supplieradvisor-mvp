@@ -18,6 +18,7 @@ supabase/migrations/20260717_customer_invoices_promise_to_pay.sql
 | `/api/customers/docs/promise-to-pay-cron` | daily 06:30 UTC | Remind finance when promise date due |
 | `/api/customers/ar-digest/cron` | Mondays 07:00 UTC | Weekly AR aging email to finance/owner |
 | `/api/customers/ar-statement/cron` | 1st of month 07:15 UTC | Monthly AR-by-customer statement email |
+| `/api/customers/docs/dunning-cron` | daily 06:45 UTC | Overdue ladder day 1 / 7 / 14 emails |
 
 Auth: `Authorization: Bearer $CRON_SECRET`
 
