@@ -78,6 +78,11 @@ async function companyPhones(profileId: number): Promise<string[]> {
 export async function sendWhatsApp(params: {
   to: string[];
   body: string;
+  /**
+   * Public HTTPS URL of a PDF (or image). Twilio fetches it and delivers as a
+   * WhatsApp document attachment — not just a link in the chat.
+   */
+  mediaUrl?: string | null;
 }): Promise<{ ok: boolean; sent: number; error?: string }> {
   if (!isTwilioWhatsAppConfigured()) {
     return { ok: false, sent: 0, error: 'Twilio WhatsApp not configured' };
@@ -87,6 +92,10 @@ export async function sendWhatsApp(params: {
   const from = process.env.TWILIO_WHATSAPP_FROM!;
   const url = `https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`;
   const auth = Buffer.from(`${sid}:${token}`).toString('base64');
+  const media =
+    params.mediaUrl && String(params.mediaUrl).startsWith('https://')
+      ? String(params.mediaUrl)
+      : null;
 
   let sent = 0;
   let lastError = '';
@@ -97,6 +106,10 @@ export async function sendWhatsApp(params: {
         To: normalizeWhatsApp(raw),
         Body: params.body.slice(0, 1500),
       });
+      // MediaUrl = actual WhatsApp document (PDF) attachment
+      if (media) {
+        body.append('MediaUrl', media);
+      }
       const res = await fetch(url, {
         method: 'POST',
         headers: {
@@ -117,6 +130,26 @@ export async function sendWhatsApp(params: {
     }
   }
   return { ok: sent > 0, sent, error: sent ? undefined : lastError || 'No sends' };
+}
+
+/**
+ * Send a commercial document PDF as a real WhatsApp document (Twilio MediaUrl).
+ * Requires public HTTPS PDF URL (signed token route).
+ */
+export async function sendWhatsAppDocument(params: {
+  to: string;
+  body: string;
+  mediaUrl: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const result = await sendWhatsApp({
+    to: [params.to],
+    body: params.body,
+    mediaUrl: params.mediaUrl,
+  });
+  return {
+    ok: result.ok,
+    error: result.error,
+  };
 }
 
 export async function whatsappQaHold(params: {

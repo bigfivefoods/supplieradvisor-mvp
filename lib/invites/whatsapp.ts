@@ -110,8 +110,15 @@ export function commercialDocWhatsAppText(params: {
   sellerName?: string | null;
   notes?: string | null;
   lineSummary?: string[] | null;
-  /** Optional deep link (portal or print page) */
+  /** Public PDF URL (opens formal PDF document) */
   link?: string | null;
+  /**
+   * When true, message assumes the PDF is already attached as a WhatsApp
+   * document (Twilio MediaUrl or native file share) — no "download" wording.
+   */
+  pdfAttached?: boolean;
+  /** SupplierAdvisor marketing / trust link */
+  siteLink?: string | null;
 }): string {
   const label = DOC_LABEL[params.kind] || 'Document';
   const first =
@@ -119,10 +126,14 @@ export function commercialDocWhatsAppText(params: {
       .trim()
       .split(/\s+/)[0] || 'there';
   const seller = (params.sellerName || '').trim() || 'us';
+  const site =
+    (params.siteLink || '').trim() || 'https://www.supplieradvisor.com';
   const lines: string[] = [
     `Hi ${first}! 👋`,
     ``,
-    `Please find *${label} ${params.number}* from *${seller}*.`,
+    params.pdfAttached
+      ? `Please find *${label} ${params.number}* from *${seller}* — the formal *PDF is attached* to this chat.`
+      : `Please find *${label} ${params.number}* from *${seller}*.`,
   ];
 
   if (params.customerName?.trim()) {
@@ -156,12 +167,22 @@ export function commercialDocWhatsAppText(params: {
     lines.push(``, `Note: ${params.notes.trim().slice(0, 280)}`);
   }
 
-  if (params.link?.trim()) {
-    lines.push(``, `📄 Download PDF ${label.toLowerCase()}:`, params.link.trim());
+  if (params.pdfAttached) {
+    lines.push(
+      ``,
+      `Tap the PDF above to open the full formal ${label.toLowerCase()}.`
+    );
+  } else if (params.link?.trim()) {
+    // Link still points to the live PDF document (inline Content-Type: application/pdf)
+    lines.push(
+      ``,
+      `📄 Open formal PDF ${label.toLowerCase()} (document):`,
+      params.link.trim()
+    );
   } else {
     lines.push(
       ``,
-      `Reply on WhatsApp if you have questions — we can resend the formal PDF anytime.`
+      `Reply here if you need the formal PDF resent as a document.`
     );
   }
 
@@ -170,13 +191,70 @@ export function commercialDocWhatsAppText(params: {
   } else if (params.kind === 'quote') {
     lines.push(
       ``,
-      `Open the PDF for the full formal quotation. Happy to adjust quantities or lead times — just reply here.`
+      `Happy to adjust quantities or lead times — just reply here.`
     );
   } else {
     lines.push(``, `We'll keep you updated on fulfilment.`);
   }
 
+  lines.push(
+    ``,
+    `—`,
+    `Sent via *SupplierAdvisor®*`,
+    site,
+    `Verified trade network · quotes, POs, invoices & trust`
+  );
+
   return lines.join('\n');
+}
+
+/**
+ * Share a PDF File via the Web Share API (mobile Chrome/Safari).
+ * Opens the system sheet so the user can pick WhatsApp — attaches the real PDF.
+ */
+export async function sharePdfFileViaNavigator(opts: {
+  blob: Blob;
+  filename: string;
+  title: string;
+  text: string;
+}): Promise<{ ok: boolean; method: 'files' | 'text' | 'none'; error?: string }> {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') {
+    return { ok: false, method: 'none', error: 'Not in browser' };
+  }
+  try {
+    const file = new File([opts.blob], opts.filename, {
+      type: 'application/pdf',
+    });
+    const payload: ShareData = {
+      files: [file],
+      title: opts.title,
+      text: opts.text,
+    };
+    if (
+      typeof navigator.canShare === 'function' &&
+      navigator.canShare(payload) &&
+      typeof navigator.share === 'function'
+    ) {
+      await navigator.share(payload);
+      return { ok: true, method: 'files' };
+    }
+    // Some browsers only allow text
+    if (typeof navigator.share === 'function') {
+      await navigator.share({ title: opts.title, text: opts.text });
+      return { ok: true, method: 'text' };
+    }
+    return { ok: false, method: 'none', error: 'Web Share not supported' };
+  } catch (e: unknown) {
+    // User cancelled share sheet
+    if (e instanceof Error && e.name === 'AbortError') {
+      return { ok: false, method: 'none', error: 'cancelled' };
+    }
+    return {
+      ok: false,
+      method: 'none',
+      error: e instanceof Error ? e.message : 'share failed',
+    };
+  }
 }
 
 /**

@@ -32,13 +32,18 @@ export async function GET(request: NextRequest) {
 
     const pdf = await buildCommercialDocumentPdf(loaded.input);
     const filename = commercialPdfFilename(loaded.input);
+    // inline = open as PDF document (WhatsApp / browsers), not forced download UX
+    const safeName = filename.replace(/[^\w.\-]+/g, '_');
 
     return new NextResponse(new Uint8Array(pdf), {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `inline; filename="${filename}"`,
-        'Cache-Control': 'private, max-age=300',
+        'Content-Disposition': `inline; filename="${safeName}"; filename*=UTF-8''${encodeURIComponent(filename)}`,
+        'Cache-Control': 'public, max-age=300',
+        // Help WhatsApp / Twilio fetch the file as a document attachment
+        'Access-Control-Allow-Origin': '*',
+        'X-Content-Type-Options': 'nosniff',
       },
     });
   } catch (e: unknown) {

@@ -828,12 +828,18 @@ function DocInner({
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
-  /** Public PDF link for WhatsApp (signed token, no login). */
+  /**
+   * WhatsApp PDF as a real document when possible:
+   * 1) Twilio MediaUrl → PDF file in chat (server)
+   * 2) Web Share API files → attach PDF in system sheet (mobile)
+   * 3) wa.me fallback with PDF document URL + SupplierAdvisor link
+   */
   const [waShareBusyId, setWaShareBusyId] = useState<number | null>(null);
   const shareDocOnWhatsApp = async (doc: DocRecord) => {
     setWaShareBusyId(Number(doc.id));
     try {
-      const res = await fetch('/api/customers/docs/share-link', {
+      const phone = resolveDocPhone(doc);
+      const res = await fetch('/api/customers/docs/whatsapp-send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -841,37 +847,109 @@ function DocInner({
           type,
           id: doc.id,
           privyUserId,
+          to: phone || undefined,
         }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'Could not create PDF link');
-      const text = commercialDocWhatsAppText({
-        kind: type,
-        number: String(doc[cfg.numberField] || doc.id),
-        customerName: (doc.customer_name as string) || null,
-        contactName: (doc.contact_name as string) || null,
-        amount: Number(doc.total_amount || 0),
-        currency: String(doc.currency || 'ZAR'),
-        status: doc.status || null,
-        dueDate: (doc.due_date as string) || null,
-        validUntil: (doc.valid_until as string) || null,
-        promisedDate: (doc.promised_date as string) || null,
-        notes: (doc.notes as string) || null,
-        lineSummary: (Array.isArray(doc.items) ? (doc.items as DocLineItem[]) : [])
-          .filter((l) => l?.name)
-          .slice(0, 6)
-          .map((l) => {
-            const qty = Number(l.quantity || 0);
-            const uom = l.uom ? ` ${l.uom}` : '';
-            return `${l.name} × ${qty}${uom}`;
-          }),
-        link: data.pdfUrl || null,
-      });
-      // Open WhatsApp with PDF link in message
+      if (!res.ok) throw new Error(data.error || 'WhatsApp share failed');
+
+      // Twilio already delivered the PDF as a WhatsApp document attachment
+      if (data.sentVia === 'twilio_document') {
+        toast.success('PDF document sent on WhatsApp', {
+          description:
+            data.message ||
+            'Customer received the formal PDF file plus a SupplierAdvisor link.',
+          duration: 8000,
+        });
+        return;
+      }
+
+      const pdfUrl = String(data.pdfUrl || '');
+      const filename = String(
+        data.filename || `${type}-${doc[cfg.numberField] || doc.id}.pdf`
+      );
+      const text =
+        String(data.text || '') ||
+        commercialDocWhatsAppText({
+          kind: type,
+          number: String(doc[cfg.numberField] || doc.id),
+          customerName: (doc.customer_name as string) || null,
+          contactName: (doc.contact_name as string) || null,
+          amount: Number(doc.total_amount || 0),
+          currency: String(doc.currency || 'ZAR'),
+          status: doc.status || null,
+          dueDate: (doc.due_date as string) || null,
+          validUntil: (doc.valid_until as string) || null,
+          promisedDate: (doc.promised_date as string) || null,
+          notes: (doc.notes as string) || null,
+          link: pdfUrl || null,
+          siteLink: 'https://www.supplieradvisor.com',
+        });
+
+      // Mobile: attach the actual PDF file via Web Share → pick WhatsApp
+      if (pdfUrl && typeof navigator !== 'undefined') {
+        try {
+          const pdfRes = await fetch(pdfUrl, { credentials: 'omit' });
+          if (pdfRes.ok) {
+            const blob = await pdfRes.blob();
+            const pdfBlob =
+              blob.type === 'application/pdf'
+                ? blob
+                : new Blob([blob], { type: 'application/pdf' });
+            const {
+              sharePdfFileViaNavigator,
+              openWhatsAppShare,
+            } = await import('@/lib/invites/whatsapp');
+            // Prefer file share with short caption + SupplierAdvisor link
+            const shareText = commercialDocWhatsAppText({
+              kind: type,
+              number: String(doc[cfg.numberField] || doc.id),
+              customerName: (doc.customer_name as string) || null,
+              contactName: (doc.contact_name as string) || null,
+              amount: Number(doc.total_amount || 0),
+              currency: String(doc.currency || 'ZAR'),
+              sellerName: null,
+              pdfAttached: true,
+              link: null,
+              siteLink: 'https://www.supplieradvisor.com',
+            });
+            const shared = await sharePdfFileViaNavigator({
+              blob: pdfBlob,
+              filename,
+              title: `${String(type)} ${String(doc[cfg.numberField] || doc.id)}`,
+              text: shareText,
+            });
+            if (shared.ok && shared.method === 'files') {
+              toast.success('Share the PDF file to WhatsApp', {
+                description:
+                  'Pick WhatsApp in the share sheet — the formal PDF is attached. Message includes a SupplierAdvisor link.',
+                duration: 9000,
+              });
+              return;
+            }
+            if (shared.error === 'cancelled') {
+              return;
+            }
+            // Fall through to wa.me if file share unsupported
+            openWhatsAppShare({ phone, text });
+            toast.success('WhatsApp opened with PDF document link', {
+              description:
+                'On mobile, use the share sheet when offered to attach the PDF file. Message includes SupplierAdvisor.com.',
+              duration: 8000,
+            });
+            return;
+          }
+        } catch {
+          /* soft → wa.me */
+        }
+      }
+
       const { openWhatsAppShare } = await import('@/lib/invites/whatsapp');
-      openWhatsAppShare({ phone: resolveDocPhone(doc), text });
-      toast.success('WhatsApp opened with PDF link', {
-        description: 'Customer can open the formal PDF from the message.',
+      openWhatsAppShare({ phone, text });
+      toast.success('WhatsApp opened with PDF document', {
+        description:
+          'Message includes the formal PDF link (opens as a PDF document) and supplieradvisor.com.',
+        duration: 8000,
       });
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'WhatsApp share failed');
@@ -1822,7 +1900,7 @@ function DocInner({
                       disabled={waShareBusyId === d.id || busyId === d.id}
                       onClick={() => void shareDocOnWhatsApp(d)}
                       className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1 border-emerald-300/70 text-emerald-800 hover:bg-emerald-50"
-                      title="Share formal PDF link on WhatsApp"
+                      title="Send formal PDF document on WhatsApp (file when possible) + SupplierAdvisor link"
                     >
                       {waShareBusyId === d.id ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
