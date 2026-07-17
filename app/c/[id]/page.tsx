@@ -43,7 +43,9 @@ function asCompany(row: Record<string, unknown>): PublicCompany {
     legal_name: row.legal_name != null ? String(row.legal_name) : null,
     verification_status:
       row.verification_status != null ? String(row.verification_status) : null,
-    is_verified: row.is_verified === true,
+    is_verified:
+      row.is_verified === true ||
+      String(row.verification_status || '').toLowerCase() === 'verified',
     industry: row.industry != null ? String(row.industry) : null,
     city: row.city != null ? String(row.city) : null,
     province: row.province != null ? String(row.province) : null,
@@ -86,13 +88,27 @@ async function loadCompany(
   const { data } = await supabase
     .from('profiles')
     .select(
-      'id, trading_name, legal_name, verification_status, is_verified, industry, city, province, country, continent, logo_url, website, short_description, description, about, bee_level, certifications, trust_score, otifef_average, is_discoverable, registration_number, bank_verification_status, metadata, deleted_at'
+      // Do not select is_verified — column does not exist on profiles
+      'id, trading_name, legal_name, verification_status, industry, city, province, country, continent, logo_url, website, short_description, description, about, bee_level, certifications, trust_score, otifef_average, is_discoverable, registration_number, bank_verification_status, metadata, deleted_at'
     )
     .eq('id', id)
     .maybeSingle();
-  if (!data) return null;
-  const raw = data as Record<string, unknown>;
-  if (raw.deleted_at) return null;
+
+  let row = data as Record<string, unknown> | null;
+  if (!row) {
+    // Retry without optional/missing columns (deleted_at, bank_*, etc.)
+    const retry = await supabase
+      .from('profiles')
+      .select(
+        'id, trading_name, legal_name, verification_status, industry, city, province, country, logo_url, website, short_description, description, is_discoverable, metadata'
+      )
+      .eq('id', id)
+      .maybeSingle();
+    if (!retry.data) return null;
+    row = retry.data as Record<string, unknown>;
+  }
+  if (row.deleted_at) return null;
+  const raw = row;
   // Quote/rate deep-links should still open the company even if not fully
   // discovery-eligible (completeness / opt-out still blocks open directory).
   if (!opts?.bypassDiscovery && !isEligibleForDiscovery(raw).ok) return null;

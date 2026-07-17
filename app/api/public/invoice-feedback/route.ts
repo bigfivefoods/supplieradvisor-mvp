@@ -49,7 +49,8 @@ export async function GET(request: NextRequest) {
     const { data: profile } = await supabase
       .from('profiles')
       .select(
-        'id, trading_name, legal_name, logo_url, verification_status, is_verified, city, country'
+        // profiles: use verification_status only (is_verified column does not exist)
+        'id, trading_name, legal_name, logo_url, verification_status, city, country'
       )
       .eq('id', inv.profile_id)
       .maybeSingle();
@@ -71,9 +72,8 @@ export async function GET(request: NextRequest) {
           'Seller',
         logo_url: profile?.logo_url ?? null,
         verified:
-          profile?.is_verified === true ||
           String(profile?.verification_status || '').toLowerCase() ===
-            'verified',
+          'verified',
         city: profile?.city ?? null,
         country: profile?.country ?? null,
       },

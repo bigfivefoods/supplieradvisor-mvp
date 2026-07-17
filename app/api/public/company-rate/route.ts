@@ -21,12 +21,55 @@ export async function GET(request: NextRequest) {
     const { data: profile, error } = await supabase
       .from('profiles')
       .select(
-        'id, trading_name, legal_name, logo_url, verification_status, is_verified, city, country, industry, short_description, deleted_at'
+        // profiles has verification_status — not is_verified (column does not exist)
+        'id, trading_name, legal_name, logo_url, verification_status, city, country, industry, short_description, deleted_at'
       )
       .eq('id', companyId)
       .maybeSingle();
 
     if (error) {
+      // Retry without optional columns if schema is sparse
+      if (/column|schema cache|does not exist/i.test(error.message)) {
+        const retry = await supabase
+          .from('profiles')
+          .select(
+            'id, trading_name, legal_name, logo_url, verification_status, city, country, industry, short_description'
+          )
+          .eq('id', companyId)
+          .maybeSingle();
+        if (retry.error) {
+          return NextResponse.json(
+            { error: retry.error.message },
+            { status: 500 }
+          );
+        }
+        if (!retry.data) {
+          return NextResponse.json(
+            {
+              error: 'Company not found',
+              detail:
+                'This rate link does not match a company on SupplierAdvisor.',
+              code: 'NOT_FOUND',
+            },
+            { status: 404 }
+          );
+        }
+        const p = retry.data;
+        return NextResponse.json({
+          success: true,
+          company: {
+            id: Number(p.id),
+            name: p.trading_name || p.legal_name || `Company #${companyId}`,
+            logo_url: p.logo_url ?? null,
+            verified:
+              String(p.verification_status || '').toLowerCase() === 'verified',
+            city: p.city ?? null,
+            country: p.country ?? null,
+            industry: p.industry ?? null,
+            blurb: p.short_description ?? null,
+          },
+        });
+      }
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
     if (!profile) {
@@ -56,9 +99,8 @@ export async function GET(request: NextRequest) {
         name,
         logo_url: profile.logo_url ?? null,
         verified:
-          profile.is_verified === true ||
           String(profile.verification_status || '').toLowerCase() ===
-            'verified',
+          'verified',
         city: profile.city ?? null,
         country: profile.country ?? null,
         industry: profile.industry ?? null,
