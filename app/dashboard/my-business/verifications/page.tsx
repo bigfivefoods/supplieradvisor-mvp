@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Loader2, ShieldCheck, Wallet, RefreshCw } from 'lucide-react';
+import { toast } from 'sonner';
 import { usePrivy } from '@privy-io/react-auth';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
@@ -32,6 +33,7 @@ function Inner() {
   const [data, setData] = useState<Record<string, unknown> | null>(null);
   const [queue, setQueue] = useState<Array<Record<string, unknown>>>([]);
   const [queueErr, setQueueErr] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -74,6 +76,40 @@ function Inner() {
     void load();
   }, [load]);
 
+  const queueAction = async (
+    targetCompanyId: number,
+    action: 'rerun' | 'recover' | 'apply_cipc_name'
+  ) => {
+    setBusyId(targetCompanyId);
+    try {
+      const res = await fetch('/api/system/verification-queue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId: targetCompanyId,
+          action,
+          privyUserId,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(json.error || json.hint || 'Action failed');
+      }
+      const msg =
+        action === 'rerun'
+          ? json.result?.message || 'CIPC re-run complete'
+          : action === 'recover'
+            ? 'Verified badge applied'
+            : `Applied CIPC name${json.trading_name ? `: ${json.trading_name}` : ''}`;
+      toast.success(msg);
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Action failed');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const events = (data?.events as Array<Record<string, unknown>>) || [];
   const profile = (data?.profile as Record<string, unknown>) || {};
 
@@ -106,35 +142,72 @@ function Inner() {
                 Platform queue — not verified ({queue.length})
               </h3>
               <p className="text-[11px] text-neutral-500 mb-3">
-                Companies with pending / failed / mismatch CIPC. Open profile to
-                Re-run CIPC or Apply verified from metadata.
+                Pending / failed / mismatch CIPC. One-click ops actions (requires
+                ops access). Paystack webhook should auto-run CIPC on R69 payment.
               </p>
-              <ul className="divide-y divide-neutral-100 max-h-72 overflow-y-auto">
-                {queue.map((row) => (
-                  <li
-                    key={String(row.id)}
-                    className="py-2 flex flex-wrap items-center justify-between gap-2 text-sm"
-                  >
-                    <div className="min-w-0">
-                      <p className="font-bold text-slate-800 truncate">
-                        {String(row.trading_name || row.legal_name || `#${row.id}`)}
-                      </p>
-                      <p className="text-[11px] text-neutral-500">
-                        {String(row.verification_status)}
-                        {row.cipc_name
-                          ? ` · CIPC: ${String(row.cipc_name)}`
-                          : ''}
-                        {row.has_payment ? ' · paid' : ''}
-                      </p>
-                    </div>
-                    <Link
-                      href="/dashboard/my-business/profile"
-                      className="text-xs font-bold text-[#0077b6] shrink-0"
+              <ul className="divide-y divide-neutral-100 max-h-96 overflow-y-auto">
+                {queue.map((row) => {
+                  const id = Number(row.id);
+                  const busy = busyId === id;
+                  const mismatch =
+                    String(row.verification_status) === 'mismatch' ||
+                    String(row.name_match || '') === 'mismatch';
+                  return (
+                    <li
+                      key={String(row.id)}
+                      className="py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-sm"
                     >
-                      Profile →
-                    </Link>
-                  </li>
-                ))}
+                      <div className="min-w-0">
+                        <p className="font-bold text-slate-800 truncate">
+                          {String(
+                            row.trading_name || row.legal_name || `#${row.id}`
+                          )}
+                          <span className="text-neutral-400 font-semibold text-[11px] ml-1">
+                            #{id}
+                          </span>
+                        </p>
+                        <p className="text-[11px] text-neutral-500">
+                          {String(row.verification_status)}
+                          {row.cipc_name
+                            ? ` · CIPC: ${String(row.cipc_name)}`
+                            : ''}
+                          {row.has_payment ? ' · paid' : ' · no payment ref'}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          disabled={busy || !row.has_payment}
+                          onClick={() => void queueAction(id, 'rerun')}
+                          className="rounded-lg bg-[#00b4d8] px-2 py-1 text-[10px] font-bold text-white disabled:opacity-40"
+                          title="Re-run VerifyNow using stored Paystack ref"
+                        >
+                          {busy ? '…' : 'Re-run CIPC'}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => void queueAction(id, 'recover')}
+                          className="rounded-lg border border-amber-300 bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-950 disabled:opacity-40"
+                          title="Apply verified if last CIPC snapshot qualifies"
+                        >
+                          Recover badge
+                        </button>
+                        {mismatch && row.cipc_name ? (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void queueAction(id, 'apply_cipc_name')}
+                            className="rounded-lg border border-violet-300 bg-violet-50 px-2 py-1 text-[10px] font-bold text-violet-900 disabled:opacity-40"
+                            title="Set trading/legal name to CIPC name, then re-run"
+                          >
+                            Use CIPC name
+                          </button>
+                        ) : null}
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             </Panel>
           ) : queueErr ? (

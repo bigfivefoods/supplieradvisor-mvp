@@ -598,8 +598,25 @@ function ProfileInner() {
     if (!file) return;
     setUploading(kind);
     try {
+      let uploadFile = file;
+      if (kind === 'logo' || persistField === 'logo_url') {
+        const { ensurePdfFriendlyLogoFile } = await import(
+          '@/lib/business/logo-for-pdf'
+        );
+        const prepared = await ensurePdfFriendlyLogoFile(file);
+        uploadFile = prepared.file;
+        if (prepared.converted) {
+          toast.success('Logo converted to PNG for PDF quotes & invoices');
+        } else if (prepared.warning) {
+          toast.message('Logo format tip', {
+            description: prepared.warning,
+            duration: 8000,
+          });
+        }
+      }
+
       const result = await uploadCompanyAssetServerFirst({
-        file,
+        file: uploadFile,
         companyId,
         kind,
         privyUserId,
@@ -880,6 +897,44 @@ function ProfileInner() {
       });
     } finally {
       setVerifying(false);
+    }
+  };
+
+  /** Copy CIPC company name onto trading + legal name, then re-run CIPC if paid. */
+  const applyCipcNameToProfile = async () => {
+    const fromLive = verifyResult?.verification?.companyName;
+    const fromMeta =
+      form.metadata &&
+      typeof form.metadata === 'object' &&
+      (form.metadata as { verification?: { company_name?: string } }).verification
+        ?.company_name;
+    const cipcName = String(fromLive || fromMeta || '').trim();
+    if (!cipcName) {
+      toast.error('No CIPC company name available yet — run verify first.');
+      return;
+    }
+    setSaving(true);
+    try {
+      setForm((prev) => ({
+        ...prev,
+        trading_name: cipcName,
+        legal_name: cipcName,
+      }));
+      await persistPartial({
+        trading_name: cipcName,
+        legal_name: cipcName,
+      });
+      toast.success(`Profile names set to “${cipcName}”`);
+      // Re-run CIPC with stored payment if we have consent
+      if (verifyConsent) {
+        void runVerifyNow(null, { reusePayment: true });
+      } else {
+        toast.message('Tick consent, then Re-run CIPC to finish verification.');
+      }
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Could not update names');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -1282,6 +1337,56 @@ function ProfileInner() {
           <span>Membership warning (data still shown): {warning}</span>
         </div>
       )}
+
+      {/* CIPC name mismatch — fix without re-paying */}
+      {!isVerified &&
+        (verificationStatus === 'mismatch' ||
+          String(displayVerification?.nameMatch || metaVerification?.name_match || '') ===
+            'mismatch') &&
+        (displayVerification?.companyName || metaVerification?.company_name) && (
+          <div className="mb-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-3 text-xs text-amber-950">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-700" />
+              <div className="min-w-0 flex-1 space-y-2">
+                <p className="font-bold text-sm">CIPC name does not match your profile</p>
+                <div className="grid sm:grid-cols-2 gap-2">
+                  <div className="rounded-lg bg-white/80 border border-amber-200/80 px-2.5 py-2">
+                    <div className="text-[9px] font-bold uppercase text-neutral-400">
+                      On your profile
+                    </div>
+                    <div className="font-semibold text-slate-800 mt-0.5 truncate">
+                      {form.trading_name || form.legal_name || '—'}
+                    </div>
+                  </div>
+                  <div className="rounded-lg bg-white/80 border border-emerald-200 px-2.5 py-2">
+                    <div className="text-[9px] font-bold uppercase text-emerald-700/80">
+                      From CIPC
+                    </div>
+                    <div className="font-semibold text-emerald-900 mt-0.5 truncate">
+                      {String(
+                        displayVerification?.companyName ||
+                          metaVerification?.company_name ||
+                          ''
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  disabled={saving || verifying}
+                  onClick={() => void applyCipcNameToProfile()}
+                  className="btn-primary !py-2 !px-3 text-xs"
+                >
+                  Use CIPC name on profile & re-run check
+                </button>
+                <p className="text-[10px] text-amber-900/80">
+                  Uses your existing R69 payment when you re-run — no second charge if
+                  payment is already stored.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
       <nav
         className="sticky top-0 z-20 mb-3 flex gap-1 overflow-x-auto rounded-xl border border-neutral-200 bg-white/95 px-2 py-1.5 shadow-sm backdrop-blur"

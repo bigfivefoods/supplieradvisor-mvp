@@ -53,6 +53,15 @@ export async function GET() {
       process.env.PAYSTACK_SECRET_KEY || process.env.PAYSTACK_SECRET
         ? undefined
         : 'PAYSTACK_SECRET_KEY not set (payment verify soft-fails in prod)',
+    detail: {
+      webhookPath: '/api/paystack/webhook',
+      webhookHint:
+        'Paystack Dashboard → Settings → Webhooks → https://www.supplieradvisor.com/api/paystack/webhook (events: charge.success). R69 CIPC runs even if browser closes.',
+      publicKey: Boolean(process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY),
+      secretKey: Boolean(
+        process.env.PAYSTACK_SECRET_KEY || process.env.PAYSTACK_SECRET
+      ),
+    },
   };
   checks.verifynow = {
     ok: Boolean(process.env.VERIFYNOW_API_KEY),
