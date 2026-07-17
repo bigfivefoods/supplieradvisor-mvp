@@ -356,23 +356,43 @@ function InboundPosList() {
         }
       }
       const invId = Number(data.document?.id || data.existing?.id || 0);
-      toast.success(`Draft invoice created for PO #${poId}`, {
-        id: 'inv-now',
-        description: data.invoiceSharedToBuyer
-          ? 'Shared with buyer'
-          : 'Review and share when ready',
-        duration: 14000,
-        action: {
-          label: invId > 0 ? 'Email PDF' : 'Open invoices',
-          onClick: () => {
-            if (invId > 0) {
-              void emailInvoicePdf(invId, poId);
-            } else {
-              window.location.href = `/dashboard/customers/invoices?fromPo=${poId}`;
-            }
+      const shouldAutoEmail =
+        data.autoEmailOnFromPo === true || Boolean(data.autoEmailTo);
+      if (shouldAutoEmail && invId > 0) {
+        toast.success(`Draft invoice for PO #${poId}`, {
+          id: 'inv-now',
+          description: 'Auto-emailing PDF…',
+        });
+        await emailInvoicePdf(invId, poId, data.autoEmailTo || undefined);
+      } else {
+        toast.success(`Draft invoice created for PO #${poId}`, {
+          id: 'inv-now',
+          description: data.invoiceSharedToBuyer
+            ? 'Shared with buyer'
+            : 'Email or WhatsApp the PDF',
+          duration: 16000,
+          action: {
+            label: invId > 0 ? 'Email PDF' : 'Open',
+            onClick: () => {
+              if (invId > 0) void emailInvoicePdf(invId, poId);
+              else
+                window.location.href = `/dashboard/customers/invoices?fromPo=${poId}`;
+            },
           },
-        },
-      });
+        });
+        if (invId > 0) {
+          toast.message('Also share on WhatsApp?', {
+            id: 'inv-wa',
+            duration: 12000,
+            action: {
+              label: 'WhatsApp PDF',
+              onClick: () => {
+                window.location.href = `/dashboard/customers/invoices?fromPo=${poId}&whatsapp=1`;
+              },
+            },
+          });
+        }
+      }
       await load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed', { id: 'inv-now' });
@@ -381,7 +401,11 @@ function InboundPosList() {
     }
   };
 
-  const emailInvoicePdf = async (invoiceId: number, poId: number) => {
+  const emailInvoicePdf = async (
+    invoiceId: number,
+    poId: number,
+    to?: string
+  ) => {
     toast.loading('Emailing invoice PDF…', { id: 'inv-email' });
     try {
       const res = await fetch('/api/customers/docs/send', {
@@ -391,6 +415,7 @@ function InboundPosList() {
           companyId,
           type: 'invoice',
           id: invoiceId,
+          to: to || undefined,
           quiet: true,
           acknowledgeSoftWarnings: true,
         }),
@@ -402,9 +427,9 @@ function InboundPosList() {
       toast.success(`Invoice emailed${data.to ? ` to ${data.to}` : ''}`, {
         id: 'inv-email',
         action: {
-          label: 'Open',
+          label: 'WhatsApp',
           onClick: () => {
-            window.location.href = `/dashboard/customers/invoices?fromPo=${poId}`;
+            window.location.href = `/dashboard/customers/invoices?fromPo=${poId}&whatsapp=1`;
           },
         },
       });

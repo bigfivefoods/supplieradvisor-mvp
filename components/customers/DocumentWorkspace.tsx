@@ -149,8 +149,10 @@ function DocInner({
   const focusDocId = Number(searchParams.get('docId') || searchParams.get('invoiceId') || 0) || null;
   const statusFromUrl = String(searchParams.get('status') || '').toLowerCase();
   const actionFromUrl = String(searchParams.get('action') || '').toLowerCase();
+  const whatsappFromUrl = searchParams.get('whatsapp') === '1';
   const fromPoApplied = useRef(false);
   const overdueResendHinted = useRef(false);
+  const whatsappTriggered = useRef(false);
   const cfg = CONFIG[type];
   const [docs, setDocs] = useState<DocRecord[]>([]);
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
@@ -256,6 +258,24 @@ function DocInner({
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Deep-link: ?whatsapp=1 after Invoice now → open WhatsApp PDF for matching invoice
+  useEffect(() => {
+    if (
+      type !== 'invoice' ||
+      !whatsappFromUrl ||
+      !fromPo ||
+      loading ||
+      whatsappTriggered.current
+    ) {
+      return;
+    }
+    const doc = docs.find((d) => invoiceMatchesPo(d, fromPo));
+    if (!doc) return;
+    whatsappTriggered.current = true;
+    setHighlightDocId(Number(doc.id));
+    void shareDocOnWhatsApp(doc);
+  }, [type, whatsappFromUrl, fromPo, loading, docs]);
 
   // Prefill invoice form from inbound PO (?fromPo=)
   useEffect(() => {
@@ -796,6 +816,41 @@ function DocInner({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Convert failed');
       toast.success(cfg.convertLabel || 'Converted');
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const markInstallment = async (doc: DocRecord, index: number, paid: boolean) => {
+    setBusyId(Number(doc.id));
+    try {
+      const res = await fetch('/api/customers/docs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          type: 'invoice',
+          id: doc.id,
+          action: 'mark_installment_paid',
+          index,
+          paid,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      toast.success(
+        paid
+          ? `Installment ${index + 1} marked paid`
+          : `Installment ${index + 1} reopened`,
+        {
+          description: data.summary
+            ? `Remaining ${Number(data.summary.remaining || 0).toLocaleString()}`
+            : undefined,
+        }
+      );
       void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed');
@@ -2171,6 +2226,16 @@ function DocInner({
                         ? ' · broken promise'
                         : ''}
                     </div>
+                    {type === 'invoice' &&
+                    String(d.notes || '').includes('[installments]') ? (
+                      <InstallmentMini
+                        notes={String(d.notes || '')}
+                        busy={busyId === d.id}
+                        onToggle={(idx, paid) =>
+                          void markInstallment(d, idx, paid)
+                        }
+                      />
+                    ) : null}
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="font-bold text-base tabular-nums mr-2">
@@ -2358,6 +2423,69 @@ function DocInner({
           </ul>
         )}
       </div>
+    </div>
+  );
+}
+
+function InstallmentMini({
+  notes,
+  busy,
+  onToggle,
+}: {
+  notes: string;
+  busy: boolean;
+  onToggle: (index: number, paid: boolean) => void;
+}) {
+  const rows = (() => {
+    try {
+      // lightweight parse without importing server-only path issues
+      const m = notes.match(/\[installments\]([\s\S]*?)\[\/installments\]/i);
+      if (!m) return [] as Array<{ date: string; amount: number; paid: boolean; index: number }>;
+      return m[1]
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean)
+        .map((line, index) => {
+          const p = line.split('|').map((x) => x.trim());
+          const date = p[0] || '';
+          const amount = Number(String(p[1] || '').replace(/,/g, ''));
+          const paid = /paid|true|1/i.test(p[2] || '');
+          return { date, amount, paid, index };
+        })
+        .filter((r) => /^\d{4}-\d{2}-\d{2}$/.test(r.date) && Number.isFinite(r.amount));
+    } catch {
+      return [];
+    }
+  })();
+  if (!rows.length) return null;
+  const remaining = rows
+    .filter((r) => !r.paid)
+    .reduce((s, r) => s + r.amount, 0);
+  return (
+    <div className="mt-2 rounded-xl border border-violet-100 bg-violet-50/60 px-2.5 py-2">
+      <div className="text-[10px] font-bold uppercase text-violet-800 mb-1">
+        Installments · remaining {remaining.toLocaleString()}
+      </div>
+      <ul className="space-y-1">
+        {rows.map((r) => (
+          <li
+            key={r.index}
+            className="flex items-center justify-between gap-2 text-[11px] text-violet-950"
+          >
+            <span className={r.paid ? 'line-through opacity-60' : ''}>
+              {r.date} · {r.amount.toLocaleString()}
+            </span>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => onToggle(r.index, !r.paid)}
+              className="rounded-full border border-violet-200 bg-white px-2 py-0.5 text-[10px] font-bold"
+            >
+              {r.paid ? 'Undo' : 'Mark paid'}
+            </button>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

@@ -421,6 +421,32 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      // Company preference: client should auto-email PDF (flag only — auth stays on client)
+      let autoEmailOnFromPo = body.autoEmail === true;
+      let autoEmailTo: string | null = null;
+      try {
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('settings')
+          .eq('id', companyId)
+          .maybeSingle();
+        const s =
+          prof?.settings && typeof prof.settings === 'object'
+            ? (prof.settings as Record<string, unknown>)
+            : {};
+        if (s.autoEmailOnFromPo === true) autoEmailOnFromPo = true;
+        if (autoEmailOnFromPo && documentOut.id) {
+          const to = String(
+            documentOut.contact_email ||
+              (customer as { email?: string } | null)?.email ||
+              ''
+          ).trim();
+          if (to.includes('@')) autoEmailTo = to;
+        }
+      } catch {
+        /* soft */
+      }
+
       return NextResponse.json({
         success: true,
         action: 'create_from_po',
@@ -428,7 +454,115 @@ export async function POST(request: NextRequest) {
         type: 'invoice',
         poId,
         invoiceSharedToBuyer: String(documentOut.visibility || '') === 'shared',
+        autoEmailOnFromPo,
+        autoEmailTo,
       });
+    }
+
+    // ── Installment mark paid ─────────────────────────────────────────────
+    if (action === 'mark_installment_paid' && body.id) {
+      if (kind !== 'invoice') {
+        return NextResponse.json({ error: 'Invoice only' }, { status: 400 });
+      }
+      const { data: inv, error } = await supabase
+        .from('customer_invoices')
+        .select('id, notes, amount_paid, total_amount, status')
+        .eq('id', Number(body.id))
+        .eq('profile_id', companyId)
+        .maybeSingle();
+      if (error || !inv) {
+        return NextResponse.json(
+          { error: error?.message || 'Not found' },
+          { status: 404 }
+        );
+      }
+      const {
+        parseInstallments,
+        writeInstallments,
+        installmentSummary,
+      } = await import('@/lib/customers/installments');
+      const rows = parseInstallments(inv.notes as string);
+      if (!rows.length) {
+        return NextResponse.json(
+          { error: 'No structured installments on this invoice' },
+          { status: 400 }
+        );
+      }
+      const idx =
+        body.index != null
+          ? Number(body.index)
+          : rows.findIndex((r) => !r.paid);
+      if (idx < 0 || idx >= rows.length) {
+        return NextResponse.json(
+          { error: 'Invalid installment index' },
+          { status: 400 }
+        );
+      }
+      const paidFlag = body.paid !== false;
+      rows[idx] = { ...rows[idx], paid: paidFlag };
+      const notes = writeInstallments(inv.notes as string, rows);
+      const sum = installmentSummary(rows);
+      // Soft-sync amount_paid to sum of paid installments when sensible
+      let amountPaid = Number(inv.amount_paid || 0);
+      if (paidFlag) {
+        amountPaid = Math.max(amountPaid, sum.paid);
+      }
+      const total = Number(inv.total_amount || 0);
+      const fullyPaid = total > 0 && amountPaid >= total - 0.01;
+      const nextStatus = fullyPaid
+        ? 'paid'
+        : amountPaid > 0
+          ? 'partial'
+          : inv.status;
+      const { data: updated, error: uErr } = await supabase
+        .from('customer_invoices')
+        .update({
+          notes,
+          amount_paid: amountPaid,
+          status: nextStatus,
+          paid_at: fullyPaid ? now : null,
+          updated_at: now,
+        })
+        .eq('id', inv.id)
+        .eq('profile_id', companyId)
+        .select('*')
+        .single();
+      if (uErr) {
+        return NextResponse.json({ error: uErr.message }, { status: 500 });
+      }
+      return NextResponse.json({
+        success: true,
+        action: 'mark_installment_paid',
+        invoice: updated,
+        installments: rows,
+        summary: sum,
+      });
+    }
+
+    // ── Dunning send-now / skip level ─────────────────────────────────────
+    if (
+      (action === 'dunning_send_now' || action === 'dunning_skip') &&
+      body.id
+    ) {
+      const { sendDunningForInvoice } = await import(
+        '@/lib/customers/dunning-send'
+      );
+      const result = await sendDunningForInvoice({
+        invoiceId: Number(body.id),
+        companyId,
+        force: action === 'dunning_send_now',
+        skipLevel: action === 'dunning_skip',
+      });
+      if (!result.ok && result.reason === 'forbidden') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+      if (!result.ok) {
+        return NextResponse.json(
+          { error: result.reason || 'Dunning failed', ...result },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json({ success: true, action, ...result });
     }
 
     // ── Dunning pause / resume ────────────────────────────────────────────
@@ -508,10 +642,18 @@ export async function POST(request: NextRequest) {
             /\[installments\][\s\S]*?\[\/installments\]/g,
             ''
           ).trim();
-          const block = `[installments]\n${structured
-            .map((s) => `${s.date}|${s.amount}`)
-            .join('\n')}\n[/installments]`;
-          notes = notes ? `${notes}\n${block}` : block;
+          const { writeInstallments } = await import(
+            '@/lib/customers/installments'
+          );
+          notes = writeInstallments(
+            notes,
+            structured.map((s, index) => ({
+              date: s.date,
+              amount: s.amount,
+              paid: false,
+              index,
+            }))
+          );
         }
         // Optional promise date from plan (first installment)
         const ptp = body.promise_to_pay_date

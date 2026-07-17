@@ -262,6 +262,39 @@ function Inner() {
     );
   };
 
+  const dunningAction = async (
+    invoiceId: number,
+    action: 'dunning_send_now' | 'dunning_skip'
+  ) => {
+    toast.loading(
+      action === 'dunning_send_now' ? 'Sending dunning…' : 'Skipping level…',
+      { id: 'dun-act' }
+    );
+    try {
+      const res = await fetch('/api/customers/docs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          type: 'invoice',
+          id: invoiceId,
+          action,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || data.reason || 'Failed');
+      toast.success(
+        action === 'dunning_send_now'
+          ? `Dunning sent${data.to ? ` to ${data.to}` : ''}`
+          : 'Level skipped',
+        { id: 'dun-act' }
+      );
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed', { id: 'dun-act' });
+    }
+  };
+
   const emailStatement = async (customerId: number | null) => {
     if (!customerId) {
       toast.message('Link a customer profile to email a statement');
@@ -423,14 +456,39 @@ function Inner() {
               <div className="text-[10px] font-bold uppercase text-amber-800 mb-2">
                 Dunning preview — next cron would send ({dunningPreview.length})
               </div>
-              <ul className="space-y-1 max-h-32 overflow-y-auto">
+              <ul className="space-y-2 max-h-48 overflow-y-auto">
                 {dunningPreview.slice(0, 12).map((p) => (
-                  <li key={String(p.id)} className="text-xs text-amber-950">
-                    {String(p.invoice_number || p.id)} ·{' '}
-                    {String(p.customer_name || 'Customer')} · day{' '}
-                    {String(p.ladder_day)} ({String(p.ladder_label)}) ·{' '}
-                    {Number(p.balance || 0).toLocaleString()}{' '}
-                    {String(p.currency || '')}
+                  <li
+                    key={String(p.id)}
+                    className="text-xs text-amber-950 flex flex-wrap items-center justify-between gap-2"
+                  >
+                    <span>
+                      {String(p.invoice_number || p.id)} ·{' '}
+                      {String(p.customer_name || 'Customer')} · day{' '}
+                      {String(p.ladder_day)} ({String(p.ladder_label)}) ·{' '}
+                      {Number(p.balance || 0).toLocaleString()}{' '}
+                      {String(p.currency || '')}
+                    </span>
+                    <span className="flex gap-1 shrink-0">
+                      <button
+                        type="button"
+                        className="rounded-full bg-amber-900 text-white px-2 py-0.5 text-[10px] font-bold"
+                        onClick={() =>
+                          void dunningAction(Number(p.id), 'dunning_send_now')
+                        }
+                      >
+                        Send now
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-full border border-amber-300 bg-white px-2 py-0.5 text-[10px] font-bold text-amber-950"
+                        onClick={() =>
+                          void dunningAction(Number(p.id), 'dunning_skip')
+                        }
+                      >
+                        Skip
+                      </button>
+                    </span>
                   </li>
                 ))}
               </ul>

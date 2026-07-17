@@ -149,6 +149,10 @@ export type CompanySettings = {
   weeklyDigest: boolean;
   is_discoverable: boolean;
   is_buyer: boolean;
+  /** Public directory: open to trade badge / filter */
+  open_to_trade: boolean;
+  /** After Invoice now (create_from_po), auto-email PDF when contact email exists */
+  autoEmailOnFromPo: boolean;
   defaultPaymentTerms: string;
   fiscalYearStartMonth: number;
 };
@@ -179,6 +183,8 @@ export const DEFAULT_SETTINGS: CompanySettings = {
   weeklyDigest: true,
   is_discoverable: true,
   is_buyer: true,
+  open_to_trade: true,
+  autoEmailOnFromPo: false,
   defaultPaymentTerms: 'Net 30',
   fiscalYearStartMonth: 3,
 };

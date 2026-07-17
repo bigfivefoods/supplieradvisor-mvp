@@ -279,6 +279,18 @@ function SettingsInner() {
               on={settings.is_buyer}
               onToggle={() => toggle('is_buyer')}
             />
+            <Toggle
+              label="Open to trade (public badge)"
+              desc="Show “Open to trade” on directory cards when discoverable"
+              on={settings.open_to_trade !== false}
+              onToggle={() => toggle('open_to_trade')}
+            />
+            <Toggle
+              label="Auto-email PDF after Invoice now"
+              desc="When you one-click invoice an inbound PO, email the PDF if the customer has an email"
+              on={settings.autoEmailOnFromPo === true}
+              onToggle={() => toggle('autoEmailOnFromPo')}
+            />
           </div>
         </Panel>
 

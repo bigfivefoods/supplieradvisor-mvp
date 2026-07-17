@@ -222,6 +222,20 @@ export default function BusinessOnboardingWizard() {
       }
       setDoneLifetime(Boolean(data.lifetime?.status === 'lifetime' || data.claimed));
 
+      // Soft: notify referrer CRM that invite was accepted
+      if (referralCode && /^\d+$/.test(String(referralCode))) {
+        void fetch('/api/public/invite-track', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            event: 'accepted',
+            ref: referralCode,
+            email: form.contact_email || extractEmailFromPrivyUser(user),
+            claim: claimId || data.profileId,
+          }),
+        }).catch(() => undefined);
+      }
+
       setDone(true);
       toast.success(
         data.claimed ? 'Listing claimed — workspace ready!' : 'Your business is ready!'

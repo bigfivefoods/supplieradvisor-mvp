@@ -87,6 +87,8 @@ export async function PATCH(request: NextRequest) {
         poAlerts: next.poAlerts,
         riadAlerts: next.riadAlerts,
         weeklyDigest: next.weeklyDigest,
+        open_to_trade: next.open_to_trade,
+        autoEmailOnFromPo: next.autoEmailOnFromPo,
         defaultPaymentTerms: next.defaultPaymentTerms,
         fiscalYearStartMonth: next.fiscalYearStartMonth,
       },
@@ -179,6 +181,8 @@ function mergeSettings(row: {
         : bool(s.is_discoverable, DEFAULT_SETTINGS.is_discoverable),
     is_buyer:
       row.is_buyer != null ? Boolean(row.is_buyer) : bool(s.is_buyer, DEFAULT_SETTINGS.is_buyer),
+    open_to_trade: bool(s.open_to_trade, DEFAULT_SETTINGS.open_to_trade),
+    autoEmailOnFromPo: bool(s.autoEmailOnFromPo, DEFAULT_SETTINGS.autoEmailOnFromPo),
     defaultPaymentTerms: String(
       s.defaultPaymentTerms || DEFAULT_SETTINGS.defaultPaymentTerms
     ),
@@ -202,6 +206,8 @@ function pickSettings(incoming: Partial<CompanySettings>): Partial<CompanySettin
     'weeklyDigest',
     'is_discoverable',
     'is_buyer',
+    'open_to_trade',
+    'autoEmailOnFromPo',
     'defaultPaymentTerms',
     'fiscalYearStartMonth',
   ];

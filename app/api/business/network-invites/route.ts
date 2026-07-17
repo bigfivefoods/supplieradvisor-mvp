@@ -31,6 +31,10 @@ export async function GET(request: NextRequest) {
         'directory.invite_sent',
         'directory.invite_resent',
         'network.invite_sent',
+        'network.invite_opened',
+        'network.invite_accepted',
+        'network.invite_seq_3',
+        'network.invite_seq_7',
       ])
       .order('created_at', { ascending: false })
       .limit(80);

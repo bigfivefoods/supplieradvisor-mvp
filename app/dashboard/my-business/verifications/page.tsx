@@ -39,6 +39,9 @@ function Inner() {
     string,
     unknown
   > | null>(null);
+  const [deadLetter, setDeadLetter] = useState<
+    Array<Record<string, unknown>>
+  >([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -66,6 +69,26 @@ function Inner() {
         );
       } catch {
         setPaystackPulse(null);
+      }
+
+      // Dead-letter (ops only — may 401/403 for normal users)
+      try {
+        const dParams = new URLSearchParams();
+        if (privyUserId) dParams.set('privyUserId', privyUserId);
+        const dRes = await fetch(
+          `/api/system/paystack-dead-letter?${dParams}`,
+          { cache: 'no-store' }
+        );
+        if (dRes.ok) {
+          const dJson = await dRes.json().catch(() => ({}));
+          setDeadLetter(
+            (dJson.items as Array<Record<string, unknown>>) || []
+          );
+        } else {
+          setDeadLetter([]);
+        }
+      } catch {
+        setDeadLetter([]);
       }
 
       // Platform queue (ops secret optional — may 403 for normal users)
@@ -99,6 +122,31 @@ function Inner() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const deadLetterRerun = async (targetCompanyId: number) => {
+    setBusyId(targetCompanyId);
+    try {
+      const res = await fetch('/api/system/paystack-dead-letter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId: targetCompanyId,
+          action: 'rerun',
+          privyUserId,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || 'Rerun failed');
+      toast.success(
+        json.result?.message || `CIPC ${json.result?.status || 'updated'}`
+      );
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setBusyId(null);
+    }
+  };
 
   const queueAction = async (
     targetCompanyId: number,
@@ -182,6 +230,44 @@ function Inner() {
               {String(paystackPulse.lastSummary)}
             </p>
           ) : null}
+        </div>
+      ) : null}
+
+      {deadLetter.length > 0 ? (
+        <div className="mb-4 rounded-2xl border border-rose-200 bg-white px-4 py-3">
+          <p className="text-sm font-black text-rose-950 mb-1">
+            Dead-letter — paid, not verified ({deadLetter.length})
+          </p>
+          <p className="text-[11px] text-neutral-500 mb-2">
+            Stored Paystack ref but badge missing. Re-run CIPC without charging
+            again.
+          </p>
+          <ul className="divide-y max-h-48 overflow-y-auto">
+            {deadLetter.map((row) => {
+              const id = Number(row.id);
+              return (
+                <li
+                  key={id}
+                  className="py-2 flex flex-wrap items-center justify-between gap-2 text-sm"
+                >
+                  <span className="font-semibold text-slate-800">
+                    {String(row.trading_name || row.legal_name || `#${id}`)}
+                    <span className="text-neutral-400 text-[11px] ml-1">
+                      {String(row.verification_status || '')}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    disabled={busyId === id}
+                    onClick={() => void deadLetterRerun(id)}
+                    className="rounded-lg bg-rose-700 px-2 py-1 text-[10px] font-bold text-white disabled:opacity-40"
+                  >
+                    {busyId === id ? '…' : 'Re-run CIPC'}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
         </div>
       ) : null}
 

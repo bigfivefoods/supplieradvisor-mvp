@@ -52,7 +52,20 @@ function InviteInner() {
         /* */
       }
     }
-  }, [ref]);
+    // Soft: mark invite opened for referrer CRM
+    if (ref || email) {
+      void fetch('/api/public/invite-track', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event: 'opened',
+          ref: ref || undefined,
+          email: email || undefined,
+          claim: claim || undefined,
+        }),
+      }).catch(() => undefined);
+    }
+  }, [ref, email, claim]);
 
   useEffect(() => {
     if (seconds <= 0) {

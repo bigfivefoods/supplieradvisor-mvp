@@ -13,6 +13,7 @@ export type DirectoryFilterValues = {
   industry?: string;
   city?: string;
   country?: string;
+  openToTrade?: string;
 };
 
 export default function DirectoryFiltersPanel({
@@ -31,8 +32,9 @@ export default function DirectoryFiltersPanel({
     if (values.industry) n += 1;
     if (values.city) n += 1;
     if (values.country) n += 1;
+    if (values.openToTrade) n += 1;
     return n;
-  }, [values.industry, values.city, values.country]);
+  }, [values.industry, values.city, values.country, values.openToTrade]);
 
   // Expand if any advanced filter is already applied (so clear/apply stay obvious)
   const [open, setOpen] = useState(activeCount > 0);
@@ -153,6 +155,20 @@ export default function DirectoryFiltersPanel({
               ))}
             </select>
           </label>
+          <label className="block sm:col-span-2 lg:col-span-3">
+            <span className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700 mt-1">
+              <input
+                type="checkbox"
+                name="openToTrade"
+                value="1"
+                defaultChecked={
+                  values.openToTrade === '1' || values.openToTrade === 'true'
+                }
+                className="rounded border-neutral-300"
+              />
+              Open to trade only
+            </span>
+          </label>
           <div className="sm:col-span-2 lg:col-span-3 flex flex-wrap gap-2">
             <button type="submit" className="btn-primary !py-2.5 !px-5 text-sm">
               Apply filters
@@ -170,6 +186,9 @@ export default function DirectoryFiltersPanel({
           ) : null}
           {values.country ? (
             <input type="hidden" name="country" value={values.country} />
+          ) : null}
+          {values.openToTrade ? (
+            <input type="hidden" name="openToTrade" value={values.openToTrade} />
           ) : null}
         </>
       )}

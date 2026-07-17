@@ -54,6 +54,11 @@ export default function DirectoryCompanyGrid({
                       <ShieldCheck className="w-3 h-3" /> Verified
                     </span>
                   ) : null}
+                  {c.open_to_trade !== false ? (
+                    <span className="inline-flex items-center text-[10px] font-bold uppercase text-sky-800 bg-sky-50 border border-sky-100 rounded-full px-2 py-0.5">
+                      Open to trade
+                    </span>
+                  ) : null}
                 </div>
                 <p className="text-xs text-neutral-500 mt-0.5">
                   {[c.industry, loc].filter(Boolean).join(' · ') ||

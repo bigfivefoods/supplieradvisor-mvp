@@ -10,6 +10,8 @@ export type DirectoryFilters = {
   industry?: string;
   city?: string;
   country?: string;
+  /** When true, only companies with open_to_trade in settings (or default true) */
+  openToTrade?: string | boolean;
 };
 
 export type DirCompany = {
@@ -23,6 +25,7 @@ export type DirCompany = {
   short_description: string | null;
   verification_status: string | null;
   trust_score: number | null;
+  open_to_trade?: boolean | null;
 };
 
 export function dirCompanyName(c: DirCompany): string {
@@ -64,7 +67,7 @@ export async function loadDirectory(filters: DirectoryFilters): Promise<{
   const { data, error } = await supabase
     .from('profiles')
     .select(
-      'id, trading_name, legal_name, industry, city, country, logo_url, short_description, verification_status, trust_score, is_discoverable, email, updated_at'
+      'id, trading_name, legal_name, industry, city, country, logo_url, short_description, verification_status, trust_score, is_discoverable, is_buyer, settings, email, updated_at'
     )
     .not('trading_name', 'is', null)
     .order('updated_at', { ascending: false })
@@ -100,25 +103,38 @@ function filterAndFacet(
   const eligible = rows
     .filter((r) => isEligibleForDiscovery(r).ok)
     .map(
-      (r): DirCompany => ({
-        id: Number(r.id),
-        trading_name: r.trading_name != null ? String(r.trading_name) : null,
-        legal_name: r.legal_name != null ? String(r.legal_name) : null,
-        industry: r.industry != null ? String(r.industry) : null,
-        city: r.city != null ? String(r.city) : null,
-        country: r.country != null ? String(r.country) : null,
-        logo_url: r.logo_url != null ? String(r.logo_url) : null,
-        short_description:
-          r.short_description != null ? String(r.short_description) : null,
-        verification_status:
-          r.verification_status != null
-            ? String(r.verification_status)
-            : null,
-        trust_score:
-          r.trust_score != null && Number.isFinite(Number(r.trust_score))
-            ? Number(r.trust_score)
-            : null,
-      })
+      (r): DirCompany => {
+        const settings =
+          r.settings && typeof r.settings === 'object'
+            ? (r.settings as Record<string, unknown>)
+            : {};
+        const openTrade =
+          settings.open_to_trade === false
+            ? false
+            : settings.open_to_trade === true
+              ? true
+              : r.is_buyer !== false;
+        return {
+          id: Number(r.id),
+          trading_name: r.trading_name != null ? String(r.trading_name) : null,
+          legal_name: r.legal_name != null ? String(r.legal_name) : null,
+          industry: r.industry != null ? String(r.industry) : null,
+          city: r.city != null ? String(r.city) : null,
+          country: r.country != null ? String(r.country) : null,
+          logo_url: r.logo_url != null ? String(r.logo_url) : null,
+          short_description:
+            r.short_description != null ? String(r.short_description) : null,
+          verification_status:
+            r.verification_status != null
+              ? String(r.verification_status)
+              : null,
+          trust_score:
+            r.trust_score != null && Number.isFinite(Number(r.trust_score))
+              ? Number(r.trust_score)
+              : null,
+          open_to_trade: openTrade,
+        };
+      }
     )
     .filter((c) => Number.isFinite(c.id) && c.id > 0);
 
@@ -144,6 +160,14 @@ function filterAndFacet(
     list = list.filter(
       (c) => String(c.country || '').toLowerCase() === country.toLowerCase()
     );
+  }
+  const openOnly =
+    filters.openToTrade === true ||
+    filters.openToTrade === '1' ||
+    filters.openToTrade === 'true' ||
+    filters.openToTrade === 'yes';
+  if (openOnly) {
+    list = list.filter((c) => c.open_to_trade !== false);
   }
   if (q) {
     list = list.filter((c) => {

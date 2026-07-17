@@ -143,6 +143,9 @@ export default async function DirectoryPage({
             industry: sp.industry ? String(sp.industry) : undefined,
             city: sp.city ? String(sp.city) : undefined,
             country: sp.country ? String(sp.country) : undefined,
+            openToTrade: sp.openToTrade
+              ? String(sp.openToTrade)
+              : undefined,
           }}
           industries={industries}
           cities={cities}

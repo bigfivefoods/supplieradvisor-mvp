@@ -235,6 +235,15 @@ function Inner() {
                       : ''}
                     {inv.action ? ` · ${inv.action}` : ''}
                     {inv.status ? ` · ${inv.status}` : ' · sent'}
+                    {String(inv.action || '').includes('opened')
+                      ? ' · opened'
+                      : ''}
+                    {String(inv.action || '').includes('accepted')
+                      ? ' · accepted'
+                      : ''}
+                    {String(inv.action || '').includes('seq_')
+                      ? ' · sequence'
+                      : ''}
                   </div>
                 </div>
                 {inv.email ? (
