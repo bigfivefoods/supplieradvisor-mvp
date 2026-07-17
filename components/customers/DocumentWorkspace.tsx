@@ -703,12 +703,23 @@ function DocInner({
       }
       if (type === 'invoice' && fromPo) {
         const shared = Boolean(data.invoiceSharedToBuyer);
+        const buyerNotified = Boolean(data.buyerNotified);
+        const emailedN = Number(data.buyerEmailRecipients || 0);
         const createdId = Number(data.document?.id);
+        const notifyBit = buyerNotified
+          ? emailedN > 0
+            ? `Buyer notified by email (${emailedN}) + in-app.`
+            : 'Buyer notified in-app (no company email on file).'
+          : 'Buyer not linked on the PO — share/email manually.';
         toast.success(`Draft invoice created from PO #${fromPo}`, {
-          description: shared
-            ? 'Shared with the buyer. Review bank details, then “Email when ready”.'
-            : 'Not shared yet — assign a customer and Share, then email when ready.',
-          duration: 10000,
+          description: [
+            shared
+              ? 'Shared with the buyer on platform.'
+              : 'Not auto-shared — assign customer & Share.',
+            notifyBit,
+            'Review bank details, then “Email when ready” for the PDF.',
+          ].join(' '),
+          duration: 12000,
           action:
             !shared && Number.isFinite(createdId) && createdId > 0
               ? {
@@ -723,8 +734,8 @@ function DocInner({
         });
         setFromPoBanner(
           shared
-            ? `Draft invoice for PO #${fromPo} is shared with the buyer. Use “Email when ready” when lines and bank details look right.`
-            : `Draft invoice for PO #${fromPo} was not auto-shared (missing customer or connection suspended). Assign a customer, click Share, then “Email when ready”.`
+            ? `Draft invoice for PO #${fromPo} is shared. ${notifyBit} Use “Email when ready” when lines and bank details look right.`
+            : `Draft invoice for PO #${fromPo} was not auto-shared. ${notifyBit} Assign a customer, Share, then “Email when ready”.`
         );
         if (Number.isFinite(createdId) && createdId > 0) {
           setHighlightDocId(createdId);
@@ -809,6 +820,15 @@ function DocInner({
             ? already + entered
             : entered;
       }
+      const paymentRefRaw = window.prompt(
+        'Payment reference / proof (optional — bank ref, EFT, receipt #):',
+        ''
+      );
+      if (paymentRefRaw === null) {
+        setBusyId(null);
+        return;
+      }
+      const paymentRef = String(paymentRefRaw).trim() || null;
       const res = await fetch('/api/customers/docs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -818,6 +838,7 @@ function DocInner({
           id,
           action: 'mark_paid',
           amount_paid: amountPaid,
+          payment_reference: paymentRef,
         }),
       });
       const data = await res.json();
@@ -833,12 +854,13 @@ function DocInner({
           `balance due ${Number(data.balanceDue || 0).toLocaleString()}`
         );
       }
+      if (paymentRef) bits.push(`ref ${paymentRef}`);
       toast.success(bits.join(' · '), {
         description: data.ratingPrompted
           ? 'Rate this partner to close the trust loop'
           : data.fullyPaid
-            ? 'Loyalty points earned when applicable'
-            : 'Record more payments until balance is zero',
+            ? 'Loyalty points earned when applicable · payment ref on notes'
+            : 'Payment ref saved on invoice notes · record more until balance is zero',
         action: data.ratingPrompted
           ? {
               label: 'Rate now',

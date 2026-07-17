@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Search } from 'lucide-react';
 import {
   loadDirectory,
   facetSlug,
@@ -9,6 +8,7 @@ import {
 } from '@/lib/seo/directory-data';
 import { companyPublicPath, SITE_URL } from '@/lib/seo/company-public';
 import DirectoryCompanyGrid from '@/components/seo/DirectoryCompanyGrid';
+import DirectoryFiltersPanel from '@/components/seo/DirectoryFiltersPanel';
 
 export const revalidate = 300;
 
@@ -136,88 +136,17 @@ export default async function DirectoryPage({
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-8">
-        <form
-          method="get"
-          action="/directory"
-          className="rounded-3xl border border-neutral-200 bg-white p-4 sm:p-5 shadow-sm mb-6 grid sm:grid-cols-2 lg:grid-cols-5 gap-3"
-        >
-          <label className="lg:col-span-2 block">
-            <span className="text-[10px] font-bold uppercase text-neutral-400">
-              Search
-            </span>
-            <div className="relative mt-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
-              <input
-                name="q"
-                defaultValue={sp.q || ''}
-                placeholder="Company, industry, city…"
-                className="w-full rounded-2xl border border-neutral-200 pl-9 pr-3 py-2.5 text-sm"
-              />
-            </div>
-          </label>
-          <label className="block">
-            <span className="text-[10px] font-bold uppercase text-neutral-400">
-              Industry
-            </span>
-            <select
-              name="industry"
-              defaultValue={sp.industry || ''}
-              className="mt-1 w-full rounded-2xl border border-neutral-200 px-3 py-2.5 text-sm bg-white"
-            >
-              <option value="">All industries</option>
-              {industries.map((i) => (
-                <option key={i} value={i}>
-                  {i}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block">
-            <span className="text-[10px] font-bold uppercase text-neutral-400">
-              City
-            </span>
-            <select
-              name="city"
-              defaultValue={sp.city || ''}
-              className="mt-1 w-full rounded-2xl border border-neutral-200 px-3 py-2.5 text-sm bg-white"
-            >
-              <option value="">All cities</option>
-              {cities.map((i) => (
-                <option key={i} value={i}>
-                  {i}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block">
-            <span className="text-[10px] font-bold uppercase text-neutral-400">
-              Country
-            </span>
-            <select
-              name="country"
-              defaultValue={sp.country || ''}
-              className="mt-1 w-full rounded-2xl border border-neutral-200 px-3 py-2.5 text-sm bg-white"
-            >
-              <option value="">All countries</option>
-              {countries.map((i) => (
-                <option key={i} value={i}>
-                  {i}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className="sm:col-span-2 lg:col-span-5 flex flex-wrap gap-2">
-            <button type="submit" className="btn-primary !py-2.5 !px-5 text-sm">
-              Apply filters
-            </button>
-            <Link
-              href="/directory"
-              className="btn-secondary !py-2.5 !px-4 text-sm"
-            >
-              Clear
-            </Link>
-          </div>
-        </form>
+        <DirectoryFiltersPanel
+          values={{
+            q: sp.q ? String(sp.q) : undefined,
+            industry: sp.industry ? String(sp.industry) : undefined,
+            city: sp.city ? String(sp.city) : undefined,
+            country: sp.country ? String(sp.country) : undefined,
+          }}
+          industries={industries}
+          cities={cities}
+          countries={countries}
+        />
 
         {industries.length > 0 ? (
           <section className="mb-5" aria-labelledby="hub-industries">

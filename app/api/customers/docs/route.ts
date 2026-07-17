@@ -354,17 +354,55 @@ export async function POST(request: NextRequest) {
         : paid > 0
           ? 'partial'
           : String(inv.status || 'sent');
-      const { data: updated, error: uErr } = await supabase
+      const paymentRef =
+        body.payment_reference != null
+          ? String(body.payment_reference).trim().slice(0, 200)
+          : '';
+      const thisPayment = Math.max(0, paid - prevPaid);
+      // Audit trail: append payment line to notes (no migration required)
+      let notesOut = inv.notes != null ? String(inv.notes) : '';
+      if (paymentRef || thisPayment > 0) {
+        const line = [
+          `[payment ${now.slice(0, 10)}]`,
+          thisPayment > 0
+            ? `+${thisPayment.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+            : null,
+          `total_paid=${paid.toLocaleString(undefined, { maximumFractionDigits: 2 })}`,
+          paymentRef ? `ref=${paymentRef}` : null,
+          nextStatus,
+        ]
+          .filter(Boolean)
+          .join(' ');
+        notesOut = notesOut ? `${notesOut}\n${line}` : line;
+      }
+      const updatePayload: Record<string, unknown> = {
+        status: nextStatus,
+        amount_paid: paid,
+        paid_at: fullyPaid ? now : inv.paid_at || null,
+        updated_at: now,
+        notes: notesOut || null,
+      };
+      if (paymentRef) {
+        updatePayload.payment_reference = paymentRef;
+      }
+      let { data: updated, error: uErr } = await supabase
         .from('customer_invoices')
-        .update({
-          status: nextStatus,
-          amount_paid: paid,
-          paid_at: fullyPaid ? now : inv.paid_at || null,
-          updated_at: now,
-        })
+        .update(updatePayload)
         .eq('id', inv.id)
         .select('*')
         .single();
+      // Soft: payment_reference column may be absent
+      if (uErr && /payment_reference|column|schema cache/i.test(uErr.message || '')) {
+        delete updatePayload.payment_reference;
+        const retry = await supabase
+          .from('customer_invoices')
+          .update(updatePayload)
+          .eq('id', inv.id)
+          .select('*')
+          .single();
+        updated = retry.data;
+        uErr = retry.error;
+      }
       if (uErr) return NextResponse.json({ error: uErr.message }, { status: 500 });
 
       // Loyalty points
@@ -548,6 +586,7 @@ export async function POST(request: NextRequest) {
         amountPaid: paid,
         totalAmount: total,
         balanceDue: Math.max(0, total - paid),
+        paymentReference: paymentRef || null,
         poMarkedPaid,
         ratingPrompted: Boolean(buyerProfileId && fullyPaid),
       });
@@ -631,6 +670,8 @@ export async function POST(request: NextRequest) {
     // fromPo create: mark purchase_orders status=invoiced + auto-share with buyer when possible
     let poMarkedInvoiced: number | null = null;
     let invoiceSharedToBuyer = false;
+    let buyerNotified = false;
+    let buyerEmailRecipients = 0;
     let documentOut = inserted.data as Record<string, unknown>;
     if (kind === 'invoice') {
       const sourcePoId =
@@ -697,17 +738,16 @@ export async function POST(request: NextRequest) {
             }
           }
 
-          // Soft: notify buyer that PO was invoiced
+          // Notify buyer that PO was invoiced (await so API can report status)
           if (poMarkedInvoiced) {
-            void (async () => {
-              try {
-                const { data: poRow } = await supabase
-                  .from('purchase_orders')
-                  .select('id, buyer_profile_id')
-                  .eq('id', sourcePoId)
-                  .maybeSingle();
-                const buyerId = Number(poRow?.buyer_profile_id);
-                if (!Number.isFinite(buyerId) || buyerId <= 0) return;
+            try {
+              const { data: poRow } = await supabase
+                .from('purchase_orders')
+                .select('id, buyer_profile_id')
+                .eq('id', sourcePoId)
+                .maybeSingle();
+              const buyerId = Number(poRow?.buyer_profile_id);
+              if (Number.isFinite(buyerId) && buyerId > 0) {
                 const { data: sellerProf } = await supabase
                   .from('profiles')
                   .select('trading_name')
@@ -718,7 +758,7 @@ export async function POST(request: NextRequest) {
                 const { notifyPoInvoiced } = await import(
                   '@/lib/notifications/email-alerts'
                 );
-                await notifyPoInvoiced({
+                const mail = await notifyPoInvoiced({
                   buyerProfileId: buyerId,
                   supplierName: sellerProf?.trading_name || null,
                   poId: sourcePoId,
@@ -731,7 +771,10 @@ export async function POST(request: NextRequest) {
                       ? Number(inv.total_amount)
                       : null,
                   currency: inv?.currency ? String(inv.currency) : null,
+                  shared: invoiceSharedToBuyer,
                 });
+                buyerNotified = true;
+                buyerEmailRecipients = mail.recipients;
                 void supabase.from('notifications').insert({
                   profile_id: buyerId,
                   type: 'po_invoiced',
@@ -743,16 +786,28 @@ export async function POST(request: NextRequest) {
                     poId: sourcePoId,
                     invoiceId: invIdNotify,
                     shared: invoiceSharedToBuyer,
+                    emailed: mail.emailed,
                     href: invIdNotify
                       ? `/dashboard/buyer/documents?invoiceId=${invIdNotify}`
                       : '/dashboard/buyer/documents',
                   },
                   read: false,
                 });
-              } catch (e) {
-                console.warn('PO invoiced notify soft-fail', e);
+                void import('@/lib/push/web-push').then(({ notifyPoInvoicedPush }) =>
+                  notifyPoInvoicedPush({
+                    buyerProfileId: buyerId,
+                    supplierName: sellerProf?.trading_name || null,
+                    poId: sourcePoId,
+                    invoiceId: invIdNotify,
+                    invoiceNumber: inv?.invoice_number
+                      ? String(inv.invoice_number)
+                      : null,
+                  })
+                );
               }
-            })();
+            } catch (e) {
+              console.warn('PO invoiced notify soft-fail', e);
+            }
           }
         } catch {
           /* soft */
@@ -767,6 +822,8 @@ export async function POST(request: NextRequest) {
       goldenPath,
       poMarkedInvoiced,
       invoiceSharedToBuyer,
+      buyerNotified,
+      buyerEmailRecipients,
     });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Error' }, { status: 500 });

@@ -236,6 +236,39 @@ export async function notifyInboundPoPush(params: {
   }
 }
 
+/** Seller raised invoice from buyer PO → alert buyer devices. */
+export async function notifyPoInvoicedPush(params: {
+  buyerProfileId: number;
+  supplierName?: string | null;
+  poId: number;
+  invoiceId?: number | null;
+  invoiceNumber?: string | null;
+}) {
+  try {
+    const inv =
+      params.invoiceNumber ||
+      (params.invoiceId ? `#${params.invoiceId}` : 'invoice');
+    const url =
+      params.invoiceId && params.invoiceId > 0
+        ? `/dashboard/buyer/documents?invoiceId=${params.invoiceId}`
+        : '/dashboard/buyer/documents';
+    await pushToCompany(
+      params.buyerProfileId,
+      {
+        title: 'PO invoiced',
+        body: params.supplierName
+          ? `${params.supplierName} raised ${inv} for PO #${params.poId}`
+          : `Supplier raised ${inv} for PO #${params.poId}`,
+        url,
+        tag: `po-invoiced-${params.poId}`,
+      },
+      { topic: 'po' }
+    );
+  } catch (e) {
+    console.warn('notifyPoInvoicedPush', e);
+  }
+}
+
 /** Supplier marked fulfilment shipped / ready → alert buyer. */
 export async function notifyPoFulfilmentPush(params: {
   buyerProfileId: number;

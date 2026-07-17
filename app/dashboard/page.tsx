@@ -673,6 +673,12 @@ export default function DashboardCommandCenter() {
         products={kpis?.products ?? inventory?.products ?? 0}
         profileCompleteness={completeness}
         quotesOpen={kpis?.quotesOpen ?? trade?.quotesOpen ?? 0}
+        invoicesOpen={Number(
+          crm?.invoicesOpen ??
+            trade?.invoicesOpen ??
+            kpis?.invoicesOpen ??
+            (crm?.invoicesDraft ?? trade?.invoicesDraft ?? kpis?.invoicesDraft ?? 0)
+        )}
       />
 
       {!loading ? (

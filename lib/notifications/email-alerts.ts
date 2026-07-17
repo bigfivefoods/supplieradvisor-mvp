@@ -342,15 +342,18 @@ export async function notifyPoInvoiced(params: {
   invoiceNumber?: string | null;
   totalAmount?: number | null;
   currency?: string | null;
-}): Promise<void> {
+  /** Invoice already shared on-platform */
+  shared?: boolean;
+}): Promise<{ emailed: boolean; recipients: number }> {
   try {
     const to = await companyEmails(params.buyerProfileId);
+    if (!to.length) return { emailed: false, recipients: 0 };
     const invQ =
       params.invoiceId && Number(params.invoiceId) > 0
         ? `?invoiceId=${params.invoiceId}`
         : '';
     const docsHref = `${appBase()}/dashboard/buyer/documents${invQ}`;
-    const poHref = `${appBase()}/dashboard/suppliers/po`;
+    const poHref = `${appBase()}/dashboard/suppliers/po?po=${params.poId}`;
     const supplier = params.supplierName || 'Your supplier';
     const invLabel =
       params.invoiceNumber ||
@@ -362,6 +365,9 @@ export async function notifyPoInvoiced(params: {
             maximumFractionDigits: 2,
           })}`
         : '';
+    const sharedNote = params.shared
+      ? 'The invoice is shared on SupplierAdvisor — open it below.'
+      : 'Your supplier may still email the PDF; check shared documents when available.';
     await sendAlert({
       to,
       subject: `[SupplierAdvisor] Invoice raised for PO #${params.poId} by ${supplier}`,
@@ -371,17 +377,19 @@ export async function notifyPoInvoiced(params: {
           <p><strong>${supplier}</strong> raised invoice <strong>${invLabel}</strong>
           against <strong>PO #${params.poId}</strong>.</p>
           ${total ? `<p>Total: <strong>${total}</strong></p>` : ''}
-          <p>Next: open the invoice when shared, receive goods (OTIFEF), then rate the partner.</p>
+          <p>${sharedNote}</p>
+          <p>Next: review the invoice, receive goods (OTIFEF), then rate the partner.</p>
           <p>
-            <a href="${docsHref}" style="color:#00b4d8">Open documents →</a>
-            &nbsp;·&nbsp;
-            <a href="${poHref}" style="color:#00b4d8">Open purchase orders →</a>
+            <a href="${docsHref}" style="display:inline-block;background:#00b4d8;color:#fff;padding:10px 18px;border-radius:999px;text-decoration:none;font-weight:700">Open invoice →</a>
           </p>
+          <p style="margin-top:12px"><a href="${poHref}" style="color:#00b4d8">Open purchase order →</a></p>
         </div>
       `,
     });
+    return { emailed: true, recipients: to.length };
   } catch (e) {
     console.warn('notifyPoInvoiced', e);
+    return { emailed: false, recipients: 0 };
   }
 }
 

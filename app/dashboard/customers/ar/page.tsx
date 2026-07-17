@@ -1,8 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Loader2, RefreshCw, Wallet } from 'lucide-react';
+import { Loader2, Mail, MessageCircle, RefreshCw, Wallet } from 'lucide-react';
+import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import {
   CompanyRequired,
@@ -69,12 +70,87 @@ function Inner() {
     void load();
   }, [load]);
 
+  const collectionsSummary = useMemo(() => {
+    if (!buckets) return '';
+    const lines: string[] = [
+      'SupplierAdvisor AR collections summary',
+      `Open AR: ${openTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+      `Overdue invoices: ${overdueCount}`,
+      `Partial payments: ${partialCount}`,
+      '',
+    ];
+    for (const key of [
+      'd1_30',
+      'd31_60',
+      'd61_90',
+      'd90_plus',
+    ] as const) {
+      const b = buckets[key];
+      if (!b?.invoices?.length) continue;
+      lines.push(`${b.label} (${b.count}):`);
+      for (const inv of b.invoices.slice(0, 8)) {
+        lines.push(
+          `· ${inv.invoice_number || `#${inv.id}`} — ${inv.customer_name || 'Customer'} — ${Number(inv.balance || 0).toLocaleString()} ${inv.currency || 'ZAR'}${
+            inv.days_past_due ? ` · ${inv.days_past_due}d past` : ''
+          }`
+        );
+      }
+      lines.push('');
+    }
+    lines.push(
+      'Open AR aging: https://www.supplieradvisor.com/dashboard/customers/ar'
+    );
+    return lines.join('\n').trim();
+  }, [buckets, openTotal, overdueCount, partialCount]);
+
+  const copyCollections = async () => {
+    if (!collectionsSummary) {
+      toast.message('Nothing overdue to summarise');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(collectionsSummary);
+      toast.success('Collections summary copied');
+    } catch {
+      toast.error('Could not copy — select text from email draft instead');
+    }
+  };
+
+  const emailCollections = () => {
+    if (!collectionsSummary) {
+      toast.message('Nothing overdue to summarise');
+      return;
+    }
+    const subject = encodeURIComponent(
+      `AR collections — ${overdueCount} overdue · open ${openTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+    );
+    const body = encodeURIComponent(collectionsSummary);
+    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+  };
+
+  const whatsappCollections = async () => {
+    if (!collectionsSummary) {
+      toast.message('Nothing overdue to summarise');
+      return;
+    }
+    try {
+      const { openWhatsAppShare } = await import('@/lib/invites/whatsapp');
+      openWhatsAppShare({ text: collectionsSummary });
+    } catch {
+      window.open(
+        `https://wa.me/?text=${encodeURIComponent(collectionsSummary)}`,
+        '_blank',
+        'noopener,noreferrer'
+      );
+    }
+  };
+
   return (
     <CustomersPage>
       <CustomersHeader
         title="Accounts receivable"
         titleAccent="aging"
-        description="Open invoice balances by days past due. Record partial payments from the invoice list; resend overdue from Invoices."
+        description="Open invoice balances by days past due. Record partial payments (with payment ref) from the invoice list; resend overdue from Invoices."
         action={
           <div className="flex flex-wrap gap-2">
             <button
@@ -105,6 +181,45 @@ function Inner() {
         </div>
       ) : (
         <div className="space-y-6">
+          {(overdueCount > 0 || openTotal > 0) && (
+            <div className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-white px-4 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-sm font-black text-amber-950">
+                  Collections digest
+                </div>
+                <p className="text-xs text-amber-900/80 mt-0.5 leading-relaxed">
+                  Share a one-tap aging summary with finance or chase via
+                  WhatsApp. Payment refs are stored when you mark invoices paid.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => void copyCollections()}
+                  className="btn-secondary !py-2 !px-3 text-xs"
+                >
+                  Copy summary
+                </button>
+                <button
+                  type="button"
+                  onClick={emailCollections}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-white px-3 py-2 text-xs font-bold text-amber-950 hover:bg-amber-50"
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  Email
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void whatsappCollections()}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-[#25D366] px-3 py-2 text-xs font-bold text-white hover:bg-[#1ebe57]"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  WhatsApp
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="grid sm:grid-cols-3 gap-3">
             <div className="rounded-2xl border border-neutral-200 bg-white p-4">
               <div className="text-[10px] font-bold uppercase text-neutral-400">
