@@ -750,9 +750,13 @@ function ProfileInner() {
   /**
    * After successful R69 Paystack payment, run VerifyNow CIPC (server-side).
    * Payment is required — free verification is not offered.
+   * Pass reusePayment to re-run CIPC with stored Paystack ref (no second charge).
    */
-  const runVerifyNow = async (paystackReference: string) => {
-    if (!paystackReference?.trim()) {
+  const runVerifyNow = async (
+    paystackReference: string | null,
+    opts?: { reusePayment?: boolean }
+  ) => {
+    if (!opts?.reusePayment && !paystackReference?.trim()) {
       toast.error('Payment is required before verification (R69).');
       return;
     }
@@ -766,7 +770,12 @@ function ProfileInner() {
     }
 
     setVerifying(true);
-    toast.loading('Payment received — verifying with VerifyNow (CIPC)…', { id: 'vn-company' });
+    toast.loading(
+      opts?.reusePayment
+        ? 'Re-running CIPC with your previous payment…'
+        : 'Payment received — verifying with VerifyNow (CIPC)…',
+      { id: 'vn-company' }
+    );
     try {
       const res = await fetch('/api/business/verify', {
         method: 'POST',
@@ -776,7 +785,8 @@ function ProfileInner() {
           privyUserId,
           registrationNumber: registrationForVerify || undefined,
           vatNumber: vatForVerify || undefined,
-          paystackReference,
+          ...(paystackReference ? { paystackReference } : {}),
+          reusePayment: opts?.reusePayment === true,
           consent: true,
         }),
       });
@@ -807,6 +817,49 @@ function ProfileInner() {
     } finally {
       setVerifying(false);
       setPaying(false);
+    }
+  };
+
+  /** Re-run CIPC using stored Paystack reference (no second R69). */
+  const rerunCipcReusePayment = () => {
+    if (!verifyConsent) {
+      toast.error('Confirm consent before re-running CIPC.');
+      return;
+    }
+    void runVerifyNow(null, { reusePayment: true });
+  };
+
+  /**
+   * If payment + CIPC already ran but badge never stuck (schema bug),
+   * promote verification_status from metadata snapshot.
+   */
+  const recoverVerifiedFromMetadata = async () => {
+    setVerifying(true);
+    toast.loading('Applying verified badge from last CIPC result…', {
+      id: 'vn-recover',
+    });
+    try {
+      const res = await fetch('/api/business/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          action: 'apply_from_metadata',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || data.hint || 'Recovery failed');
+      }
+      applyVerifyResponse(data);
+      toast.success(data.message || 'Verified badge applied', { id: 'vn-recover' });
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Recovery failed', {
+        id: 'vn-recover',
+      });
+    } finally {
+      setVerifying(false);
     }
   };
 
@@ -1554,6 +1607,39 @@ function ProfileInner() {
                     </>
                   )}
                 </button>
+
+                {/* Recovery when payment already taken but badge missing */}
+                <div className="grid grid-cols-1 gap-1.5">
+                  <button
+                    type="button"
+                    disabled={
+                      verifying ||
+                      paying ||
+                      !verifyConsent ||
+                      (!registrationForVerify && !vatForVerify)
+                    }
+                    onClick={rerunCipcReusePayment}
+                    className="btn-secondary w-full !py-2 !px-3 text-[11px] font-bold inline-flex items-center justify-center gap-1"
+                    title="Uses the Paystack reference already stored on this company — no second R69 charge"
+                  >
+                    Re-run CIPC (reuse payment)
+                  </button>
+                  {!isVerified && metaVerification ? (
+                    <button
+                      type="button"
+                      disabled={verifying || paying}
+                      onClick={() => void recoverVerifiedFromMetadata()}
+                      className="w-full rounded-xl border border-amber-200 bg-amber-50 !py-2 !px-3 text-[11px] font-bold text-amber-950 hover:bg-amber-100 disabled:opacity-50"
+                      title="If CIPC already returned a match but the badge never saved"
+                    >
+                      Apply verified from last CIPC result
+                    </button>
+                  ) : null}
+                </div>
+                <p className="text-[10px] text-neutral-500 leading-snug">
+                  Payment alone does not set the badge — CIPC must pass. Use{' '}
+                  <strong>Re-run</strong> after fixing name/reg if you already paid.
+                </p>
 
                 {displayVerification &&
                   (displayVerification.companyName ||

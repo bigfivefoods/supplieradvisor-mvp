@@ -17,7 +17,39 @@ export const REQUIRED_PROFILE_COLUMNS = [
   'continent',
   'province',
   'metadata',
+  'registration_number',
+  'trading_name',
+  'legal_name',
 ] as const;
+
+/**
+ * Columns that must NOT be selected/written (do not exist on prod profiles).
+ * Health reports them as "ghost" warnings if someone reintroduces selects.
+ */
+export const GHOST_PROFILE_COLUMNS = ['is_verified'] as const;
+
+/** Optional commercial columns (degrade soft if missing) */
+export const OPTIONAL_COMMERCIAL_COLUMNS: Array<{
+  table: string;
+  column: string;
+  migrationHint: string;
+}> = [
+  {
+    table: 'customer_invoices',
+    column: 'source_po_id',
+    migrationHint: '20260716_customer_invoices_source_po_id.sql',
+  },
+  {
+    table: 'profiles',
+    column: 'verification_payment_ref',
+    migrationHint: 'platform improvements / bank verify migrations',
+  },
+  {
+    table: 'profiles',
+    column: 'verified_at',
+    migrationHint: 'optional; status lives in verification_status + metadata',
+  },
+];
 
 export type ColumnProbe = {
   table: string;
@@ -51,14 +83,44 @@ export async function probeProfileColumns(): Promise<{
     });
   }
 
+  // Optional commercial columns (soft)
+  const optionalMissing: Array<{ table: string; column: string; hint: string }> =
+    [];
+  for (const opt of OPTIONAL_COMMERCIAL_COLUMNS) {
+    const { error } = await supabase
+      .from(opt.table)
+      .select(opt.column)
+      .limit(0);
+    const ok = !error;
+    probes.push({
+      table: opt.table,
+      column: opt.column,
+      ok,
+      error: error?.message,
+    });
+    if (!ok) {
+      optionalMissing.push({
+        table: opt.table,
+        column: opt.column,
+        hint: opt.migrationHint,
+      });
+    }
+  }
+
   return {
     ok: missing.length === 0,
     missing,
+    optionalMissing,
     probes,
+    ghostColumns: [...GHOST_PROFILE_COLUMNS],
     hint:
       missing.length > 0
         ? `Missing profiles columns: ${missing.join(', ')}. Run supabase/migrations/20260716_profiles_branch_code.sql and 20260716_bank_account_verification.sql`
-        : undefined,
+        : optionalMissing.length > 0
+          ? `Optional columns missing: ${optionalMissing
+              .map((m) => `${m.table}.${m.column}`)
+              .join(', ')}`
+          : undefined,
   };
 }
 

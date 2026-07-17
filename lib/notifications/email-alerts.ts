@@ -572,6 +572,119 @@ export async function notifyInvoiceOverdue(params: {
   }
 }
 
+/**
+ * CIPC verification outcome — company + ops (connect@).
+ * Covers verified, mismatch, failed after payment.
+ */
+export async function notifyCipcVerificationOutcome(params: {
+  profileId: number;
+  tradingName?: string | null;
+  status: 'verified' | 'mismatch' | 'failed' | 'pending' | string;
+  companyNameCipc?: string | null;
+  nameMatch?: string | null;
+  paystackReference?: string | null;
+  reusedPayment?: boolean;
+  detail?: string | null;
+  registrationNumber?: string | null;
+  recovered?: boolean;
+}): Promise<void> {
+  try {
+    const status = String(params.status || '').toLowerCase();
+    const name =
+      params.tradingName || `Company #${params.profileId}`;
+    const href = `${appBase()}/dashboard/my-business/profile`;
+    const opsRaw =
+      process.env.NEW_COMPANY_NOTIFY_EMAIL ||
+      process.env.PLATFORM_OPS_EMAIL ||
+      'connect@supplieradvisor.com';
+    const ops = opsRaw
+      .split(/[,;\s]+/)
+      .map((s) => s.trim())
+      .filter((s) => s.includes('@'));
+
+    const companyTo = await companyEmails(params.profileId);
+    const badge =
+      status === 'verified'
+        ? 'VERIFIED'
+        : status === 'mismatch'
+          ? 'NAME MISMATCH'
+          : status === 'failed'
+            ? 'FAILED'
+            : status.toUpperCase();
+
+    const color =
+      status === 'verified'
+        ? '#047857'
+        : status === 'mismatch'
+          ? '#b45309'
+          : '#b91c1c';
+
+    const rows: Array<[string, string]> = [
+      ['Company', name],
+      ['Profile ID', String(params.profileId)],
+      ['Result', badge],
+      ['CIPC name', params.companyNameCipc || '—'],
+      ['Name match', params.nameMatch || '—'],
+      ['Registration', params.registrationNumber || '—'],
+      [
+        'Payment',
+        params.paystackReference
+          ? `${params.paystackReference}${
+              params.reusedPayment ? ' (reused)' : ''
+            }`
+          : '—',
+      ],
+      ['Recovered', params.recovered ? 'yes' : 'no'],
+      ['Detail', params.detail || '—'],
+    ];
+    const table = rows
+      .map(
+        ([k, v]) =>
+          `<tr><td style="padding:4px 12px 4px 0;color:#64748b">${k}</td><td style="padding:4px 0;font-weight:600">${String(
+            v
+          )
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')}</td></tr>`
+      )
+      .join('');
+
+    const html = `
+      <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto">
+        <h2 style="color:${color}">CIPC verification: ${badge}</h2>
+        <p style="color:#475569">
+          ${
+            status === 'verified'
+              ? 'Company verification badge is active on SupplierAdvisor.'
+              : status === 'mismatch'
+                ? 'Payment was received, but the CIPC company name may not match the profile. Update trading/legal name, then re-run CIPC (reuse payment).'
+                : 'Payment may have been taken for the check, but the verified badge was not set. See details below.'
+          }
+        </p>
+        <table style="border-collapse:collapse;font-size:14px;margin:16px 0">${table}</table>
+        <p><a href="${href}" style="display:inline-block;background:#00b4d8;color:#fff;padding:12px 20px;border-radius:999px;text-decoration:none;font-weight:700">Open company profile →</a></p>
+      </div>
+    `;
+
+    const subject =
+      status === 'verified'
+        ? `[SupplierAdvisor] Verified: ${name}`
+        : `[SupplierAdvisor] CIPC ${badge}: ${name} (paid check)`;
+
+    if (companyTo.length) {
+      await sendAlert({ to: companyTo, subject, html });
+    }
+    if (ops.length) {
+      await sendAlert({
+        to: ops,
+        subject: `[Ops] ${subject}`,
+        html,
+      });
+    }
+  } catch (e) {
+    console.warn('notifyCipcVerificationOutcome', e);
+  }
+}
+
 /** CIPC / bank / people verification failed. */
 export async function notifyVerificationFailed(params: {
   profileId: number;

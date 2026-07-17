@@ -22,7 +22,9 @@ const PROFILE_GHOST_COLS = new Set([
  *
  * Body: {
  *   companyId, privyUserId,
- *   paystackReference,  // required — no free verification
+ *   paystackReference?,   // new payment
+ *   reusePayment?: true,  // re-run CIPC using stored payment ref (no second charge)
+ *   action?: 'verify' | 'apply_from_metadata' | 'reuse_and_verify',
  *   registrationNumber?, vatNumber?, solePropIdNumber?,
  *   mode?: 'sandbox' | 'production',
  *   consent?: boolean
@@ -35,6 +37,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const companyId = Number(body.companyId);
+    const action = String(body.action || 'verify').toLowerCase();
 
     const _gate = await requireCompanyAccess(request, companyId, {
       legacyPrivyUserId: legacyPrivyFrom(request),
@@ -45,15 +48,50 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: mem.error }, { status: mem.status });
     }
 
-    const paystackReference = String(
+    const supabase = getSupabaseServer();
+    const profile = await loadProfileForVerify(supabase, companyId);
+    if (!profile) {
+      return NextResponse.json(
+        { error: 'Company profile not found' },
+        { status: 404 }
+      );
+    }
+
+    // ── Recovery: apply verified badge from last successful CIPC metadata ──
+    if (action === 'apply_from_metadata') {
+      return applyVerifiedFromMetadata({
+        supabase,
+        companyId,
+        profile,
+        userId: mem.userId,
+      });
+    }
+
+    const storedRef = storedPaymentRef(profile);
+    let paystackReference = String(
       body.paystackReference || body.reference || ''
     ).trim();
+    const reusePayment =
+      body.reusePayment === true ||
+      action === 'reuse_and_verify' ||
+      body.reuse === true;
+
+    if (!paystackReference && reusePayment && storedRef) {
+      paystackReference = storedRef;
+    }
+    // Auto-reuse stored payment when client omits ref but profile already paid
+    if (!paystackReference && storedRef && body.allowStoredPayment !== false) {
+      // Only auto-reuse if they previously paid (metadata or column)
+      paystackReference = storedRef;
+    }
+
     if (!paystackReference) {
       return NextResponse.json(
         {
           error: 'Payment is required before verification',
-          hint: 'Complete the R69 Paystack checkout, then verification runs automatically.',
+          hint: 'Complete the R69 Paystack checkout, then verification runs automatically. If you already paid, use Re-run CIPC (reuse payment).',
           amount_zar: 69,
+          hasStoredPayment: Boolean(storedRef),
         },
         { status: 402 }
       );
@@ -69,14 +107,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = getSupabaseServer();
-    const profile = await loadProfileForVerify(supabase, companyId);
-    if (!profile) {
-      return NextResponse.json(
-        { error: 'Company profile not found' },
-        { status: 404 }
-      );
-    }
+    const reusedPayment = Boolean(
+      storedRef && paystackReference === storedRef && !body.paystackReference
+    );
 
     const registrationNumber = String(
       body.registrationNumber ||
@@ -216,20 +249,28 @@ export async function POST(request: NextRequest) {
         paystackReference: paystackReference || null,
         companyStatus: parsed.companyStatus,
         nameMatch: parsed.nameMatch,
+        reusedPayment,
       },
     });
 
-    // Soft notify ops when verification completes after payment
-    if (status === 'verified') {
-      void import('@/lib/notifications/email-alerts')
-        .then(async (m) => {
-          // reuse new-company style ops mail if available; soft
-          const send = (m as { notifyVerificationFailed?: Function })
-            .notifyVerificationFailed;
-          void send;
+    // Soft notify company + ops (never blocks)
+    void import('@/lib/notifications/email-alerts')
+      .then(({ notifyCipcVerificationOutcome }) =>
+        notifyCipcVerificationOutcome({
+          profileId: companyId,
+          tradingName:
+            profile.trading_name || profile.legal_name || `Company #${companyId}`,
+          status,
+          companyNameCipc: parsed.companyName,
+          nameMatch: parsed.nameMatch,
+          paystackReference,
+          reusedPayment,
+          detail: parsed.statusText,
+          registrationNumber:
+            registrationNumber || parsed.registrationNumber || null,
         })
-        .catch(() => undefined);
-    }
+      )
+      .catch((e) => console.warn('verify notify soft-fail', e));
 
     const profileOut = updated.profile
       ? {
@@ -267,6 +308,7 @@ export async function POST(request: NextRequest) {
         statusText: parsed.statusText,
         remainingCredits: parsed.remainingCredits,
         paystackReference,
+        reusedPayment,
       },
       message:
         status === 'verified'
@@ -275,6 +317,7 @@ export async function POST(request: NextRequest) {
             ? `CIPC returned "${parsed.companyName}", which may not match your trading/legal name — review and update profile fields, then re-check.`
             : `Verification did not pass: ${parsed.statusText}. Payment was taken for the check; badge is only set when CIPC matches.`,
       paid: true,
+      reusedPayment,
       badgeVisible: status === 'verified',
     });
   } catch (e: unknown) {
@@ -298,11 +341,194 @@ type ProfileRow = {
   metadata?: unknown;
 };
 
+function verificationMetaOf(profile: ProfileRow): Record<string, unknown> | null {
+  const meta =
+    profile.metadata &&
+    typeof profile.metadata === 'object' &&
+    !Array.isArray(profile.metadata)
+      ? (profile.metadata as Record<string, unknown>)
+      : null;
+  const v = meta?.verification;
+  if (v && typeof v === 'object' && !Array.isArray(v)) {
+    return v as Record<string, unknown>;
+  }
+  return null;
+}
+
+/** Prefer column, then metadata.verification.paystack_reference */
+function storedPaymentRef(profile: ProfileRow): string | null {
+  const col = String(profile.verification_payment_ref || '').trim();
+  if (col) return col;
+  const v = verificationMetaOf(profile);
+  const ref = String(v?.paystack_reference || v?.paystackReference || '').trim();
+  return ref || null;
+}
+
+/**
+ * If CIPC previously returned success in metadata.raw but verification_status
+ * never stuck (schema bug), promote to verified without a new API call.
+ */
+async function applyVerifiedFromMetadata(opts: {
+  supabase: ReturnType<typeof getSupabaseServer>;
+  companyId: number;
+  profile: ProfileRow;
+  userId: string;
+}) {
+  const { supabase, companyId, profile, userId } = opts;
+  const v = verificationMetaOf(profile);
+  if (!v) {
+    return NextResponse.json(
+      {
+        error: 'No prior verification snapshot on this profile',
+        hint: 'Run CIPC verify after payment first (or Re-run CIPC).',
+      },
+      { status: 400 }
+    );
+  }
+
+  const statusMeta = String(v.status || '').toLowerCase();
+  const nameMatch = String(v.name_match || v.nameMatch || '').toLowerCase();
+  const companyName = String(v.company_name || v.companyName || '').trim();
+  const companyStatus = String(v.company_status || v.companyStatus || '').trim();
+  const raw = (v.raw && typeof v.raw === 'object' ? v.raw : null) as Record<
+    string,
+    unknown
+  > | null;
+
+  // Eligible if metadata already said verified, OR raw CIPC looks successful
+  // and was not a clear mismatch
+  let canApply = statusMeta === 'verified';
+  if (!canApply && raw) {
+    const parsed = parseVerifyNowCipcResult(raw, [
+      profile.legal_name || '',
+      profile.trading_name || '',
+    ]);
+    canApply =
+      parsed.ok &&
+      parsed.nameMatch !== 'mismatch' &&
+      Boolean(parsed.companyName || parsed.registrationNumber);
+  }
+  if (!canApply && companyName && nameMatch !== 'mismatch') {
+    // Soft recovery: had company name from CIPC and not explicit mismatch
+    canApply =
+      statusMeta === 'pending' ||
+      statusMeta === '' ||
+      statusMeta === 'failed' ||
+      Boolean(v.paystack_reference);
+  }
+
+  if (!canApply) {
+    return NextResponse.json(
+      {
+        error: 'Last CIPC result does not qualify for auto-verify',
+        hint:
+          nameMatch === 'mismatch'
+            ? 'Update trading/legal name to match CIPC, then Re-run CIPC (reuse payment).'
+            : 'Re-run CIPC with stored payment, or complete a new R69 verification.',
+        metadataStatus: statusMeta || null,
+        nameMatch: nameMatch || null,
+        companyName: companyName || null,
+      },
+      { status: 409 }
+    );
+  }
+
+  const now = new Date().toISOString();
+  const payRef = storedPaymentRef(profile);
+  const updated = await persistVerification(supabase, companyId, profile, {
+    status: 'verified',
+    now,
+    paystackReference: payRef || 'recovered',
+    vnData: (raw || v) as Record<string, unknown>,
+    parsed: raw
+      ? parseVerifyNowCipcResult(raw, [
+          profile.legal_name || '',
+          profile.trading_name || '',
+        ])
+      : {
+          ok: true,
+          statusText: companyStatus || 'recovered',
+          companyName: companyName || '',
+          tradeName: String(v.trade_name || ''),
+          previousName: '',
+          registrationNumber: String(v.registration_number || ''),
+          registrationDate: '',
+          businessStartDate: '',
+          companyStatus: companyStatus || '',
+          companyType: String(v.company_type || ''),
+          sic: '',
+          taxNumber: String(v.tax_number || ''),
+          vatNumber: String(v.vat_number || ''),
+          physicalAddress: String(v.physical_address || ''),
+          postalAddress: '',
+          directorCount: String(v.director_count || ''),
+          requestId: String(v.request_id || ''),
+          mode: 'production',
+          remainingCredits: null,
+          nameMatch:
+            nameMatch === 'match' ||
+            nameMatch === 'partial' ||
+            nameMatch === 'mismatch'
+              ? nameMatch
+              : 'unknown',
+        },
+    error: null,
+    registrationNumber:
+      String(v.registration_number || profile.registration_number || '') || null,
+  });
+
+  await logActivity({
+    profile_id: companyId,
+    actor_user_id: userId,
+    action: 'business.verification_recover_metadata',
+    entity_type: 'profiles',
+    entity_id: String(companyId),
+    summary: `Recovered verified badge from prior CIPC snapshot (${companyName || 'company'})`,
+    metadata: { paystackReference: payRef, companyName },
+  });
+
+  void import('@/lib/notifications/email-alerts')
+    .then(({ notifyCipcVerificationOutcome }) =>
+      notifyCipcVerificationOutcome({
+        profileId: companyId,
+        tradingName:
+          profile.trading_name || profile.legal_name || `Company #${companyId}`,
+        status: 'verified',
+        companyNameCipc: companyName,
+        nameMatch: nameMatch || 'unknown',
+        paystackReference: payRef,
+        reusedPayment: true,
+        detail: 'Recovered from prior CIPC metadata',
+        registrationNumber: String(v.registration_number || '') || null,
+        recovered: true,
+      })
+    )
+    .catch(() => undefined);
+
+  return NextResponse.json({
+    success: true,
+    status: 'verified',
+    recovered: true,
+    profile: updated.profile
+      ? { ...updated.profile, is_verified: true }
+      : {
+          id: companyId,
+          verification_status: 'verified',
+          is_verified: true,
+        },
+    message: `Verified badge applied from prior CIPC result${
+      companyName ? `: ${companyName}` : ''
+    }.`,
+    badgeVisible: true,
+  });
+}
+
 async function loadProfileForVerify(
   supabase: ReturnType<typeof getSupabaseServer>,
   companyId: number
 ): Promise<ProfileRow | null> {
   const selects = [
+    'id, trading_name, legal_name, registration_number, vat_number, verification_status, verification_payment_ref, metadata',
     'id, trading_name, legal_name, registration_number, vat_number, verification_status, metadata',
     'id, trading_name, legal_name, registration_number, vat_number, metadata',
     'id, trading_name, legal_name, registration_number, metadata',

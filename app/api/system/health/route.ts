@@ -118,12 +118,16 @@ export async function GET() {
       };
     }
 
-    // Column-level gate for banking / discovery
+    // Column-level gate for banking / discovery / verification
     const colProbe = await probeProfileColumns();
     checks.profiles_columns = {
       ok: colProbe.ok,
       error: colProbe.hint,
-      detail: { missing: colProbe.missing },
+      detail: {
+        missing: colProbe.missing,
+        optionalMissing: colProbe.optionalMissing,
+        ghostColumnsDoNotSelect: colProbe.ghostColumns,
+      },
     };
 
     const coreOk = checks.env.ok && checks.profiles.ok;
@@ -135,7 +139,8 @@ export async function GET() {
       (softOk < softTotal ||
         !schemaColumnsOk ||
         !checks.paystack.ok ||
-        !checks.verifynow.ok);
+        !checks.verifynow.ok ||
+        (colProbe.optionalMissing?.length ?? 0) > 0);
 
     return NextResponse.json({
       ok: coreOk,
@@ -146,6 +151,8 @@ export async function GET() {
       schemaTotal: softTotal,
       schemaColumnsOk,
       schemaMissingColumns: colProbe.missing,
+      schemaOptionalMissing: colProbe.optionalMissing || [],
+      schemaGhostColumns: colProbe.ghostColumns || [],
       deploy,
       checks,
       at: new Date().toISOString(),
@@ -154,7 +161,9 @@ export async function GET() {
           ? colProbe.hint
           : softOk < softTotal
             ? 'Some module tables missing — run latest supabase/migrations/*.sql on production'
-            : undefined,
+            : colProbe.optionalMissing?.length
+              ? colProbe.hint
+              : undefined,
     });
   } catch (e: unknown) {
     return NextResponse.json(
