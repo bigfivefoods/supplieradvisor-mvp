@@ -324,7 +324,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // ── Mark invoice paid + loyalty earn ───────────────────────────────────
+    // ── Mark invoice paid (full or partial) + loyalty earn ────────────────
     if (action === 'mark_paid' && body.id) {
       const { data: inv, error } = await supabase
         .from('customer_invoices')
@@ -335,13 +335,31 @@ export async function POST(request: NextRequest) {
       if (error || !inv) {
         return NextResponse.json({ error: error?.message || 'Invoice not found' }, { status: 404 });
       }
-      const paid = Number(body.amount_paid ?? inv.total_amount);
+      const total = Number(inv.total_amount || 0);
+      const prevPaid = Number(inv.amount_paid || 0);
+      // amount_paid = absolute total paid; amount_delta = add this payment
+      let paid = Number(
+        body.amount_paid != null
+          ? body.amount_paid
+          : body.amount_delta != null
+            ? prevPaid + Number(body.amount_delta)
+            : total
+      );
+      if (!Number.isFinite(paid) || paid < 0) paid = 0;
+      if (total > 0 && paid > total * 1.001) paid = total;
+      const eps = Math.max(0.01, total * 0.001);
+      const fullyPaid = total <= 0 ? paid > 0 : paid >= total - eps;
+      const nextStatus = fullyPaid
+        ? 'paid'
+        : paid > 0
+          ? 'partial'
+          : String(inv.status || 'sent');
       const { data: updated, error: uErr } = await supabase
         .from('customer_invoices')
         .update({
-          status: 'paid',
+          status: nextStatus,
           amount_paid: paid,
-          paid_at: now,
+          paid_at: fullyPaid ? now : inv.paid_at || null,
           updated_at: now,
         })
         .eq('id', inv.id)
@@ -402,9 +420,13 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Soft-fail mutual rating prompts (seller↔buyer) when customer is on-platform
+      // Soft-fail mutual rating prompts only when fully paid (not partial)
       let buyerProfileId: number | null = null;
-      if (String(inv.status || '').toLowerCase() !== 'paid' && inv.customer_id) {
+      if (
+        fullyPaid &&
+        String(inv.status || '').toLowerCase() !== 'paid' &&
+        inv.customer_id
+      ) {
         const customer = await loadCustomer(supabase, Number(inv.customer_id));
         const linked = Number(customer?.linked_profile_id);
         buyerProfileId =
@@ -423,46 +445,47 @@ export async function POST(request: NextRequest) {
         }).catch(() => undefined);
       }
 
-      // Soft: sync linked purchase order → paid
+      // Soft: sync linked purchase order → paid only when fully paid
       let poMarkedPaid: number | null = null;
-      try {
-        const sourcePo = Number(
-          (inv as { source_po_id?: unknown }).source_po_id
-        );
-        if (Number.isFinite(sourcePo) && sourcePo > 0) {
-          const { error: poErr } = await supabase
-            .from('purchase_orders')
-            .update({ status: 'paid', updated_at: now })
-            .eq('id', sourcePo)
-            .or(
-              `supplier_profile_id.eq.${companyId},supplier_id.eq.${companyId}`
-            );
-          if (!poErr) poMarkedPaid = sourcePo;
-        } else {
-          // Fallback: PO.invoice_id → this invoice
-          const { data: byInv } = await supabase
-            .from('purchase_orders')
-            .select('id')
-            .eq('invoice_id', inv.id)
-            .or(
-              `supplier_profile_id.eq.${companyId},supplier_id.eq.${companyId}`
-            )
-            .limit(1)
-            .maybeSingle();
-          if (byInv?.id) {
+      if (fullyPaid) {
+        try {
+          const sourcePo = Number(
+            (inv as { source_po_id?: unknown }).source_po_id
+          );
+          if (Number.isFinite(sourcePo) && sourcePo > 0) {
             const { error: poErr } = await supabase
               .from('purchase_orders')
               .update({ status: 'paid', updated_at: now })
-              .eq('id', byInv.id);
-            if (!poErr) poMarkedPaid = Number(byInv.id);
+              .eq('id', sourcePo)
+              .or(
+                `supplier_profile_id.eq.${companyId},supplier_id.eq.${companyId}`
+              );
+            if (!poErr) poMarkedPaid = sourcePo;
+          } else {
+            const { data: byInv } = await supabase
+              .from('purchase_orders')
+              .select('id')
+              .eq('invoice_id', inv.id)
+              .or(
+                `supplier_profile_id.eq.${companyId},supplier_id.eq.${companyId}`
+              )
+              .limit(1)
+              .maybeSingle();
+            if (byInv?.id) {
+              const { error: poErr } = await supabase
+                .from('purchase_orders')
+                .update({ status: 'paid', updated_at: now })
+                .eq('id', byInv.id);
+              if (!poErr) poMarkedPaid = Number(byInv.id);
+            }
           }
+        } catch {
+          /* soft */
         }
-      } catch {
-        /* soft */
       }
 
-      // Soft: notify on-platform buyer + rate CTAs
-      if (buyerProfileId) {
+      // Soft: notify on-platform buyer + rate CTAs (full pay only)
+      if (buyerProfileId && fullyPaid) {
         void (async () => {
           try {
             const { data: sellerProf } = await supabase
@@ -520,8 +543,13 @@ export async function POST(request: NextRequest) {
         success: true,
         invoice: updated,
         action: 'mark_paid',
+        status: nextStatus,
+        fullyPaid,
+        amountPaid: paid,
+        totalAmount: total,
+        balanceDue: Math.max(0, total - paid),
         poMarkedPaid,
-        ratingPrompted: Boolean(buyerProfileId),
+        ratingPrompted: Boolean(buyerProfileId && fullyPaid),
       });
     }
 

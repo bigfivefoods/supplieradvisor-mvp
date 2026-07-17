@@ -781,20 +781,64 @@ function DocInner({
   const markPaid = async (id: number) => {
     setBusyId(id);
     try {
+      const doc = docs.find((d) => Number(d.id) === id);
+      const total = Number(doc?.total_amount || 0);
+      const already = Number(doc?.amount_paid || 0);
+      const remaining = Math.max(0, total - already);
+      const raw = window.prompt(
+        `Amount paid (total to date). Leave blank for full balance (${remaining.toLocaleString()} remaining of ${total.toLocaleString()}):`,
+        remaining > 0 && already > 0 ? String(remaining) : String(total || '')
+      );
+      if (raw === null) {
+        setBusyId(null);
+        return;
+      }
+      let amountPaid: number;
+      if (String(raw).trim() === '') {
+        amountPaid = total;
+      } else {
+        const entered = Number(raw);
+        if (!Number.isFinite(entered) || entered < 0) {
+          toast.error('Enter a valid amount');
+          setBusyId(null);
+          return;
+        }
+        // Treat entry as this payment (delta) when partial already exists
+        amountPaid =
+          already > 0 && entered <= remaining + 0.001
+            ? already + entered
+            : entered;
+      }
       const res = await fetch('/api/customers/docs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ companyId, type: 'invoice', id, action: 'mark_paid' }),
+        body: JSON.stringify({
+          companyId,
+          type: 'invoice',
+          id,
+          action: 'mark_paid',
+          amount_paid: amountPaid,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
-      const bits: string[] = ['Marked paid'];
-      if (data.poMarkedPaid) bits.push(`PO #${data.poMarkedPaid} → paid`);
-      if (data.ratingPrompted) bits.push('rate prompts queued');
+      const bits: string[] = [];
+      if (data.fullyPaid) {
+        bits.push('Marked paid in full');
+        if (data.poMarkedPaid) bits.push(`PO #${data.poMarkedPaid} → paid`);
+        if (data.ratingPrompted) bits.push('rate prompts queued');
+      } else {
+        bits.push(`Partial payment recorded`);
+        bits.push(
+          `balance due ${Number(data.balanceDue || 0).toLocaleString()}`
+        );
+      }
       toast.success(bits.join(' · '), {
         description: data.ratingPrompted
           ? 'Rate this partner to close the trust loop'
-          : 'Loyalty points earned when applicable',
+          : data.fullyPaid
+            ? 'Loyalty points earned when applicable'
+            : 'Record more payments until balance is zero',
         action: data.ratingPrompted
           ? {
               label: 'Rate now',

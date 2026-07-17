@@ -19,7 +19,17 @@ supabase/migrations/20260717_verification_payment_ref.sql
 
 **Health:** `/api/system/health` → `checks.paystack.ok` is **false** until the secret is set (public key alone does not count). After adding the secret in Vercel Production env, run **one** redeploy.
 
-See also `docs/PAYSTACK_WEBHOOK.md`.
+See also `docs/PAYSTACK_WEBHOOK.md` and **`docs/PLATFORM_MAJOR_REQUIREMENTS.md`** (Paystack + Twilio + trade-loop smoke).
+
+## Twilio WhatsApp (optional — real PDF document in chat)
+
+| Env | Value |
+|-----|--------|
+| `TWILIO_ACCOUNT_SID` | Twilio account |
+| `TWILIO_AUTH_TOKEN` | Auth token |
+| `TWILIO_WHATSAPP_FROM` | e.g. `whatsapp:+1…` |
+
+Without Twilio, WhatsApp PDF uses mobile file share or a PDF document URL + supplieradvisor.com.
 
 ## Verify after SQL
 

@@ -118,12 +118,20 @@ export default async function DirectoryPage({
               Browse by industry or city for Google-friendly hub pages.
             </p>
           </div>
-          <Link
-            href="/onboarding?type=business"
-            className="btn-primary !py-2.5 !px-4 text-sm shrink-0"
-          >
-            List your company
-          </Link>
+          <div className="flex flex-col sm:flex-row gap-2 shrink-0">
+            <Link
+              href="/login?next=/dashboard/suppliers/discover"
+              className="btn-secondary !py-2.5 !px-4 text-sm text-center"
+            >
+              Sign in to connect
+            </Link>
+            <Link
+              href="/onboarding?type=business"
+              className="btn-primary !py-2.5 !px-4 text-sm text-center"
+            >
+              List your company free
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -287,24 +295,33 @@ export default async function DirectoryPage({
 
         <DirectoryCompanyGrid companies={companies} />
 
-        <aside className="mt-10 rounded-2xl border border-sky-100 bg-sky-50/80 px-4 py-4 text-sm text-slate-700">
-          <p className="font-bold text-slate-900 mb-1">Get found on Google</p>
-          <p className="text-xs text-neutral-600 leading-relaxed">
-            Each company has a public SEO page (name, industry, city) linked from
-            this directory, industry hubs, city hubs, and{' '}
-            <code className="text-[11px]">sitemap.xml</code>. Complete your
-            profile, turn on discoverability, and verify with CIPC.
+        <aside className="mt-10 rounded-2xl border border-sky-100 bg-sky-50/80 px-4 py-5 text-sm text-slate-700">
+          <p className="font-bold text-slate-900 mb-1 text-base">
+            Get found on Google · grow the network
           </p>
-          <div className="mt-3 flex flex-wrap gap-2">
+          <p className="text-xs text-neutral-600 leading-relaxed">
+            Each company has a public SEO page (name, industry, city, country)
+            linked from this directory and{' '}
+            <code className="text-[11px]">sitemap.xml</code>. Complete your
+            profile (logo, city, blurb), turn on discoverability, and verify with
+            CIPC — then partners can find you and connect on SupplierAdvisor.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Link
+              href="/onboarding?type=business"
+              className="btn-primary !py-2 !px-4 text-xs"
+            >
+              Register your business
+            </Link>
             <Link
               href="/dashboard/my-business/profile"
-              className="text-xs font-bold text-[#0077b6] hover:underline"
+              className="btn-secondary !py-2 !px-4 text-xs"
             >
-              Edit my profile →
+              Improve my public page
             </Link>
             <Link
               href="/pricing"
-              className="text-xs font-bold text-[#0077b6] hover:underline"
+              className="text-xs font-bold text-[#0077b6] hover:underline self-center"
             >
               Pricing →
             </Link>

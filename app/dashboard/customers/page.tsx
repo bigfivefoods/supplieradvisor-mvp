@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   Users,
@@ -16,6 +16,7 @@ import {
   Handshake,
   Star,
   RefreshCw,
+  Wallet,
 } from 'lucide-react';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { formatMoney } from '@/lib/customers/types';
@@ -32,6 +33,7 @@ import {
   TelemetryCard,
   type HubModule,
 } from '@/components/chrome/CommandHubChrome';
+import RatingPromptBanner from '@/components/ratings/RatingPromptBanner';
 
 type Summary = {
   customers: number;
@@ -142,8 +144,18 @@ function HubInner() {
       icon: FileText,
       code: '07',
       title: 'Invoices',
-      desc: 'Bill, mark paid, auto-earn loyalty points.',
+      desc: 'Bill, partial or full pay, WhatsApp PDF, loyalty points.',
       accent: 'from-violet-50 to-white border-violet-100',
+    },
+    {
+      href: '/dashboard/customers/ar',
+      icon: Wallet,
+      code: 'AR',
+      title: 'AR aging',
+      desc: 'Open balances by current / 30 / 60 / 90+ days. Collections command.',
+      accent: 'from-amber-50 to-white border-amber-100',
+      metric: s?.overdueFollowups ?? '—',
+      metricLabel: 'overdue signals',
     },
     {
       href: '/dashboard/customers/loyalty',
@@ -210,6 +222,10 @@ function HubInner() {
           </div>
         }
       />
+
+      <Suspense fallback={null}>
+        <RatingPromptBanner />
+      </Suspense>
 
       <HubHero
         pill="Live CRM · lead → loyalty"
