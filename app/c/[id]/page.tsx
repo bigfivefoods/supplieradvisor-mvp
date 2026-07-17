@@ -76,20 +76,26 @@ function asCompany(row: Record<string, unknown>): PublicCompany {
   };
 }
 
-async function loadCompany(idParam: string): Promise<PublicCompany | null> {
+async function loadCompany(
+  idParam: string,
+  opts?: { bypassDiscovery?: boolean }
+): Promise<PublicCompany | null> {
   const id = Number(idParam);
   if (!Number.isFinite(id) || id <= 0) return null;
   const supabase = getSupabaseServer();
   const { data } = await supabase
     .from('profiles')
     .select(
-      'id, trading_name, legal_name, verification_status, is_verified, industry, city, province, country, continent, logo_url, website, short_description, description, about, bee_level, certifications, trust_score, otifef_average, is_discoverable, registration_number, bank_verification_status, metadata'
+      'id, trading_name, legal_name, verification_status, is_verified, industry, city, province, country, continent, logo_url, website, short_description, description, about, bee_level, certifications, trust_score, otifef_average, is_discoverable, registration_number, bank_verification_status, metadata, deleted_at'
     )
     .eq('id', id)
     .maybeSingle();
   if (!data) return null;
   const raw = data as Record<string, unknown>;
-  if (!isEligibleForDiscovery(raw).ok) return null;
+  if (raw.deleted_at) return null;
+  // Quote/rate deep-links should still open the company even if not fully
+  // discovery-eligible (completeness / opt-out still blocks open directory).
+  if (!opts?.bypassDiscovery && !isEligibleForDiscovery(raw).ok) return null;
   return asCompany(raw);
 }
 
@@ -116,9 +122,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
  * Public SEO company page — /c/[id]
  * Discoverable companies only.
  */
-export default async function PublicCompanyPage({ params }: Props) {
+export default async function PublicCompanyPage({
+  params,
+  searchParams,
+}: Props & { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
   const { id } = await params;
-  const c = await loadCompany(id);
+  const sp = (await searchParams) || {};
+  const from = String(sp.from || sp.src || '');
+  // Allow quote / rate deep-links to open incomplete-but-real profiles
+  const bypassDiscovery = ['quote', 'rate', 'r'].includes(from.toLowerCase());
+  const c = await loadCompany(id, { bypassDiscovery });
   if (!c) notFound();
 
   const name = c.trading_name || c.legal_name || 'Company';

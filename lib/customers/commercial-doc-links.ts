@@ -35,13 +35,17 @@ export function registerBusinessUrl(opts?: {
   return base;
 }
 
-/** Public company directory profile — rate / connect / trust. */
+/**
+ * Public rate form for a company (quotation QR).
+ * Uses /r/[id] — always works without discovery eligibility or login.
+ * ( /c/[id] can 404 if the profile is incomplete / not discoverable. )
+ */
 export function rateSellerPublicUrl(companyId: number): string {
   const id = Math.floor(Number(companyId));
   if (!Number.isFinite(id) || id <= 0) {
     return `${appBaseUrl()}/`;
   }
-  return `${appBaseUrl()}/c/${id}?from=quote`;
+  return `${appBaseUrl()}/r/${id}?src=quote`;
 }
 
 export function invoiceRateClaimUrls(opts: {
