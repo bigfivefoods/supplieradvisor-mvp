@@ -259,6 +259,8 @@ export type CustomerRecord = {
   profile_id?: number | null;
   trading_name: string;
   legal_name?: string | null;
+  /** Legacy / join alias — prefer trading_name */
+  company_name?: string | null;
   email?: string | null;
   phone?: string | null;
   contact_name?: string | null;
