@@ -501,14 +501,26 @@ export async function buildCommercialDocumentPdf(
       lineBreak: false,
     });
 
-    if (input.seller.is_verified) {
-      const badge = 'Verified';
+    // CIPC / identity verified badge on commercial PDFs (quotes, orders, invoices)
+    const sellerVerified =
+      input.seller.is_verified === true ||
+      String(
+        (input.seller as { verification_status?: string | null })
+          .verification_status || ''
+      ).toLowerCase() === 'verified';
+    if (sellerVerified) {
+      const badge = 'CIPC Verified';
       doc.font('Helvetica-Bold').fontSize(6.5);
-      const bw = doc.widthOfString(badge) + 12;
-      doc.roundedRect(textLeft + numW, numY + 4, bw, 11, 5).fill('#ecfdf5');
+      const bw = doc.widthOfString(badge) + 14;
+      doc.roundedRect(textLeft + numW, numY + 3, bw, 13, 6).fill('#ecfdf5');
+      doc
+        .strokeColor('#6ee7b7')
+        .lineWidth(0.6)
+        .roundedRect(textLeft + numW, numY + 3, bw, 13, 6)
+        .stroke();
       doc
         .fillColor('#047857')
-        .text(badge, textLeft + numW + 6, numY + 5.5, { lineBreak: false });
+        .text(badge, textLeft + numW + 7, numY + 5.5, { lineBreak: false });
     }
 
     doc

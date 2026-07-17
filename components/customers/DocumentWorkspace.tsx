@@ -1116,6 +1116,83 @@ function DocInner({
     );
   };
 
+  /**
+   * WhatsApp overdue follow-up: first = open PDF share for top overdue;
+   * summary = one message listing up to 5 overdue invoices with PDF links.
+   */
+  const whatsappOverdue = async (mode: 'first' | 'summary') => {
+    const list = docs.filter(
+      (d) => String(d.status || '').toLowerCase() === 'overdue'
+    );
+    if (!list.length) {
+      toast.message('No overdue invoices in this view');
+      return;
+    }
+    if (mode === 'first') {
+      await shareDocOnWhatsApp(list[0]);
+      return;
+    }
+    toast.loading('Building WhatsApp reminder…', { id: 'overdue-wa' });
+    try {
+      const targets = list.slice(0, 5);
+      const lines: string[] = [
+        'Friendly reminder — the following invoice(s) are overdue:',
+        '',
+      ];
+      let phone: string | null = null;
+      for (const d of targets) {
+        if (!phone) phone = resolveDocPhone(d);
+        const num = String(d[cfg.numberField] || d.id);
+        const due = d.due_date
+          ? String(d.due_date).slice(0, 10)
+          : 'n/a';
+        const amt = Number(d.total_amount || 0);
+        const ccy = String(d.currency || 'ZAR');
+        let pdfUrl = '';
+        try {
+          const res = await fetch('/api/customers/docs/share-link', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              companyId,
+              type,
+              id: d.id,
+              privyUserId,
+            }),
+          });
+          const data = await res.json();
+          if (res.ok && data.pdfUrl) pdfUrl = String(data.pdfUrl);
+        } catch {
+          /* soft */
+        }
+        lines.push(
+          `• ${num} · ${ccy} ${amt.toLocaleString()} · due ${due}${
+            pdfUrl ? `\n  ${pdfUrl}` : ''
+          }`
+        );
+      }
+      if (list.length > targets.length) {
+        lines.push('', `…and ${list.length - targets.length} more.`);
+      }
+      lines.push(
+        '',
+        'Please arrange payment and use the invoice number as reference. Thank you.'
+      );
+      const { openWhatsAppShare } = await import('@/lib/invites/whatsapp');
+      openWhatsAppShare({ phone, text: lines.join('\n') });
+      toast.success('WhatsApp opened with overdue summary', {
+        id: 'overdue-wa',
+        description: phone
+          ? 'Pre-filled for customer phone'
+          : 'Pick a contact in WhatsApp',
+      });
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'WhatsApp failed', {
+        id: 'overdue-wa',
+      });
+    }
+  };
+
   /** Toggle visibility=shared | seller_only. New share blocked while customer suspended (409). */
   const toggleShare = async (doc: DocRecord) => {
     if (!privyUserId) {
@@ -1576,8 +1653,8 @@ function DocInner({
                 (d) => String(d.status || '').toLowerCase() === 'overdue'
               ).length
             }{' '}
-            overdue invoice(s). Resend PDF by email or open WhatsApp with a
-            share link from each row.
+            overdue invoice(s). Email resend or WhatsApp PDF / multi-invoice
+            reminder.
           </div>
           <div className="flex flex-wrap gap-2 shrink-0">
             <button
@@ -1586,7 +1663,7 @@ function DocInner({
               onClick={() => void resendOverdueInvoices('first')}
               className="btn-secondary !py-2 !px-3 text-xs"
             >
-              Resend first
+              Email first
             </button>
             <button
               type="button"
@@ -1601,9 +1678,25 @@ function DocInner({
                 }
                 void resendOverdueInvoices('all');
               }}
+              className="btn-secondary !py-2 !px-3 text-xs"
+            >
+              Email all
+            </button>
+            <button
+              type="button"
+              disabled={busyId != null || loading || waShareBusyId != null}
+              onClick={() => void whatsappOverdue('first')}
+              className="btn-secondary !py-2 !px-3 text-xs border-emerald-300/70 text-emerald-800"
+            >
+              WhatsApp first
+            </button>
+            <button
+              type="button"
+              disabled={busyId != null || loading || waShareBusyId != null}
+              onClick={() => void whatsappOverdue('summary')}
               className="btn-primary !py-2 !px-3 text-xs"
             >
-              Resend all overdue
+              WhatsApp summary
             </button>
           </div>
         </div>

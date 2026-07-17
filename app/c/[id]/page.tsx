@@ -21,6 +21,7 @@ import {
   parseCompanyRouteParam,
   SITE_URL,
 } from '@/lib/seo/company-public';
+import { facetSlug } from '@/lib/seo/directory-data';
 
 /** Aggregate public ratings (quote QR + invoice feedback). Soft if table missing. */
 async function loadPublicRatingStats(companyId: number): Promise<{
@@ -542,6 +543,50 @@ export default async function PublicCompanyPage({
             </Link>
           </div>
 
+          {(industry || c.city) ? (
+            <section
+              className="mt-8 rounded-2xl border border-sky-100 bg-sky-50/60 px-4 py-4"
+              aria-labelledby="related-hubs"
+            >
+              <h2
+                id="related-hubs"
+                className="text-[10px] font-bold uppercase tracking-wide text-[#0077b6] mb-2"
+              >
+                More companies like {name}
+              </h2>
+              <div className="flex flex-wrap gap-2">
+                {industry ? (
+                  <Link
+                    href={`/directory/industry/${facetSlug(industry)}`}
+                    className="rounded-full border border-sky-200 bg-white px-3 py-1.5 text-xs font-bold text-sky-900 hover:border-[#00b4d8]"
+                  >
+                    More in {industry} →
+                  </Link>
+                ) : null}
+                {c.city ? (
+                  <Link
+                    href={`/directory/city/${facetSlug(c.city)}`}
+                    className="rounded-full border border-violet-200 bg-white px-3 py-1.5 text-xs font-bold text-violet-900 hover:border-violet-400"
+                  >
+                    More in {c.city} →
+                  </Link>
+                ) : null}
+                {c.country ? (
+                  <Link
+                    href={`/directory?country=${encodeURIComponent(c.country)}`}
+                    className="rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-neutral-400"
+                  >
+                    {c.country} directory
+                  </Link>
+                ) : null}
+              </div>
+              <p className="mt-2 text-[11px] text-neutral-500 leading-relaxed">
+                Explore related suppliers and partners on SupplierAdvisor by
+                industry and city.
+              </p>
+            </section>
+          ) : null}
+
           <footer className="mt-8 pt-4 border-t border-neutral-100 text-[11px] text-neutral-400 leading-relaxed">
             <p>
               {name} is listed in the SupplierAdvisor public directory at{' '}
@@ -559,6 +604,28 @@ export default async function PublicCompanyPage({
               <Link href="/directory" className="hover:underline">
                 Company directory
               </Link>
+              {industry ? (
+                <>
+                  {' · '}
+                  <Link
+                    href={`/directory/industry/${facetSlug(industry)}`}
+                    className="hover:underline"
+                  >
+                    {industry}
+                  </Link>
+                </>
+              ) : null}
+              {c.city ? (
+                <>
+                  {' · '}
+                  <Link
+                    href={`/directory/city/${facetSlug(c.city)}`}
+                    className="hover:underline"
+                  >
+                    {c.city}
+                  </Link>
+                </>
+              ) : null}
               {' · '}
               <Link href="/pricing" className="hover:underline">
                 Pricing
