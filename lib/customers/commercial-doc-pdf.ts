@@ -9,6 +9,12 @@
 import PDFDocument from 'pdfkit';
 import { formatMoney, type DocLineItem } from '@/lib/customers/documents';
 import type { DocRenderInput, SellerProfile } from '@/lib/customers/invoice-document';
+import {
+  fetchQrPngBuffer,
+  invoiceRateClaimUrls,
+  rateSellerPublicUrl,
+  registerBusinessUrl,
+} from '@/lib/customers/commercial-doc-links';
 
 const PAGE_W = 595.28;
 const PAGE_H = 841.89;
@@ -176,6 +182,169 @@ function card(
   doc.restore();
 }
 
+type QrPair = {
+  left: { title: string; body: string; url: string; buf: Buffer | null };
+  right: { title: string; body: string; url: string; buf: Buffer | null };
+  kicker: string;
+  headline: string;
+};
+
+async function loadNetworkQrs(input: DocRenderInput): Promise<QrPair | null> {
+  const companyId = Number(input.companyId);
+  if (!Number.isFinite(companyId) || companyId <= 0) return null;
+  const sellerName =
+    input.seller.trading_name || input.seller.legal_name || 'this supplier';
+
+  if (input.kind === 'quote' || input.kind === 'order') {
+    const registerUrl = registerBusinessUrl({ referrerProfileId: companyId });
+    const rateUrl = rateSellerPublicUrl(companyId);
+    const [regBuf, rateBuf] = await Promise.all([
+      fetchQrPngBuffer(registerUrl, 120),
+      fetchQrPngBuffer(rateUrl, 120),
+    ]);
+    return {
+      kicker: 'SUPPLIERADVISOR NETWORK',
+      headline: 'Join free · rate this supplier',
+      left: {
+        title: 'Register your business',
+        body: 'Free profile on supplieradvisor.com',
+        url: registerUrl,
+        buf: regBuf,
+      },
+      right: {
+        title: `Rate ${String(sellerName).slice(0, 28)}`,
+        body: 'Trust · connect · public profile',
+        url: rateUrl,
+        buf: rateBuf,
+      },
+    };
+  }
+
+  if (input.kind === 'invoice') {
+    const urls = invoiceRateClaimUrls({
+      companyId,
+      documentId: Number(input.documentId),
+      number: input.number,
+    });
+    if (!urls) return null;
+    const [rateBuf, claimBuf] = await Promise.all([
+      fetchQrPngBuffer(urls.rateUrl, 120),
+      fetchQrPngBuffer(urls.claimUrl, 120),
+    ]);
+    return {
+      kicker: 'AFTER DELIVERY',
+      headline: 'Rate us · log an issue',
+      left: {
+        title: 'Rate performance (OTIFEF)',
+        body: 'On-time · in-full · quality',
+        url: urls.rateUrl,
+        buf: rateBuf,
+      },
+      right: {
+        title: 'Log a claim / RIAD',
+        body: 'Risk, issue, action, decision',
+        url: urls.claimUrl,
+        buf: claimBuf,
+      },
+    };
+  }
+
+  return null;
+}
+
+function drawNetworkPanel(
+  doc: PDFKit.PDFDocument,
+  y: number,
+  pair: QrPair
+): number {
+  const h = 92;
+  const pad = 8;
+  const qrSize = 48;
+  const half = (CONTENT_W - 8) / 2;
+
+  doc.save();
+  // Brand panel matching HTML feedback block
+  doc.roundedRect(MARGIN_X, y, CONTENT_W, h, 8).fill('#0c4a6e');
+  doc
+    .fillColor('#7dd3fc')
+    .font('Helvetica-Bold')
+    .fontSize(6.5)
+    .text(pair.kicker, MARGIN_X + pad, y + 6, {
+      characterSpacing: 0.6,
+      lineBreak: false,
+    });
+  doc
+    .fillColor('#ffffff')
+    .font('Helvetica-Bold')
+    .fontSize(10)
+    .text(pair.headline, MARGIN_X + pad, y + 16, {
+      width: CONTENT_W - pad * 2,
+      lineBreak: false,
+    });
+
+  const cardY = y + 30;
+  const cardH = h - 36;
+  const cards = [pair.left, pair.right];
+  cards.forEach((c, i) => {
+    const cx = MARGIN_X + pad + i * (half + 8);
+    doc.roundedRect(cx, cardY, half - pad, cardH, 6).fill('#075985');
+
+    // White plate behind QR for scanner contrast
+    doc.roundedRect(cx + 5, cardY + 5, qrSize + 4, qrSize + 4, 4).fill('#ffffff');
+    if (c.buf) {
+      try {
+        doc.image(c.buf, cx + 7, cardY + 7, {
+          width: qrSize,
+          height: qrSize,
+        });
+      } catch {
+        doc
+          .fillColor(MUTED)
+          .font('Helvetica')
+          .fontSize(6)
+          .text('QR', cx + 7, cardY + 26, {
+            width: qrSize,
+            align: 'center',
+            lineBreak: false,
+          });
+      }
+    } else {
+      doc
+        .fillColor(MUTED)
+        .font('Helvetica')
+        .fontSize(6)
+        .text('QR', cx + 7, cardY + 26, {
+          width: qrSize,
+          align: 'center',
+          lineBreak: false,
+        });
+    }
+
+    const tx = cx + 7 + qrSize + 8;
+    const tw = half - pad - qrSize - 22;
+    doc
+      .fillColor('#ffffff')
+      .font('Helvetica-Bold')
+      .fontSize(7.5)
+      .text(c.title, tx, cardY + 10, { width: tw, lineBreak: false });
+    doc
+      .fillColor('#bae6fd')
+      .font('Helvetica')
+      .fontSize(6.5)
+      .text(c.body, tx, cardY + 22, { width: tw, lineBreak: false });
+    doc
+      .fillColor('#e0f2fe')
+      .font('Helvetica-Bold')
+      .fontSize(6.5)
+      .text('Scan QR →', tx, cardY + 36, {
+        width: tw,
+        lineBreak: false,
+      });
+  });
+  doc.restore();
+  return y + h;
+}
+
 /**
  * Render DocRenderInput to a PDF Buffer — one page when content fits.
  */
@@ -191,6 +360,9 @@ export async function buildCommercialDocumentPdf(
   // Compact terms for quotes so typical docs stay single-page
   const quoteTermsShort =
     'Prices valid until the date shown (if any). Subject to stock availability and order confirmation. E&OE.';
+
+  // Prefetch QR PNGs before opening the PDF stream
+  const networkQrs = await loadNetworkQrs(input);
 
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
@@ -713,19 +885,39 @@ export async function buildCommercialDocumentPdf(
       }
     }
 
-    // Closing — only if room on this page (no new page for a thank-you)
-    if (input.kind === 'quote' && doc.y + 16 < CONTENT_BOTTOM) {
-      doc.y += 4;
+    // Closing — only if room (no new page for a thank-you)
+    if (input.kind === 'quote' && doc.y + 14 < CONTENT_BOTTOM - 100) {
+      doc.y += 2;
       doc
         .fillColor(MUTED)
         .font('Helvetica-Oblique')
-        .fontSize(8)
+        .fontSize(7.5)
         .text(
           'Thank you for the opportunity to quote. We look forward to doing business with you.',
           MARGIN_X,
           doc.y,
           { width: CONTENT_W, align: 'center', lineBreak: false }
         );
+      doc.y += 12;
+    }
+
+    // Network QR panel (register + rate on quotes; rate + claim on invoices)
+    // Prefer same page when it fits; otherwise last page with ensureSpace.
+    if (networkQrs) {
+      const panelH = 92;
+      if (doc.y + panelH + 4 > CONTENT_BOTTOM) {
+        // Only add a page if content already filled this one
+        if (doc.y > MARGIN_TOP + 120) {
+          ensureSpace(doc, panelH + 4);
+        } else {
+          // Squeeze: shrink by skipping thank-you space already used
+          doc.y = Math.min(doc.y, CONTENT_BOTTOM - panelH - 2);
+        }
+      }
+      if (doc.y + panelH <= CONTENT_BOTTOM + 1) {
+        const endY = drawNetworkPanel(doc, doc.y, networkQrs);
+        doc.y = endY + 2;
+      }
     }
 
     // Stamp chrome on every real page (footer uses open margins — no blanks)

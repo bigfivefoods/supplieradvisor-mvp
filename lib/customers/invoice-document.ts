@@ -6,10 +6,11 @@
 import { formatMoney, type DocLineItem } from '@/lib/customers/documents';
 import { normalizeProfileRow, type CompanyProfile } from '@/lib/business/types';
 import {
-  buildInvoiceFeedbackToken,
-  invoiceFeedbackUrl,
-  qrImageUrl,
-} from '@/lib/customers/invoice-feedback-token';
+  invoiceRateClaimUrls,
+  qrPngUrl,
+  rateSellerPublicUrl,
+  registerBusinessUrl,
+} from '@/lib/customers/commercial-doc-links';
 
 export type SellerProfile = {
   trading_name?: string | null;
@@ -315,37 +316,59 @@ export function renderCommercialDocumentHtml(doc: DocRenderInput): string {
     )
     .join('');
 
-  // Public feedback links + QR (invoices primarily)
+  // Network CTA + QR (quotes: register + rate seller; invoices: rate + claim)
   let feedbackBlock = '';
   const companyIdNum = Number(doc.companyId);
   const documentIdNum = Number(doc.documentId);
-  if (
-    doc.kind === 'invoice' &&
-    Number.isFinite(companyIdNum) &&
-    companyIdNum > 0 &&
-    Number.isFinite(documentIdNum) &&
-    documentIdNum > 0
-  ) {
-    let token = '';
-    try {
-      token = buildInvoiceFeedbackToken({
-        companyId: companyIdNum,
-        invoiceId: documentIdNum,
-        invoiceNumber: doc.number,
+  if (Number.isFinite(companyIdNum) && companyIdNum > 0) {
+    if (doc.kind === 'quote' || doc.kind === 'order') {
+      const registerUrl = registerBusinessUrl({
+        referrerProfileId: companyIdNum,
       });
-    } catch {
-      token = '';
-    }
-    if (!token) {
-      feedbackBlock = '';
-    } else {
-    const feedbackUrl = invoiceFeedbackUrl(token);
-    // Absolute URLs required for QR scanners & PDF link extraction
-    const rateUrl = `${feedbackUrl}?tab=rate`;
-    const claimUrl = `${feedbackUrl}?tab=claim`;
-    const qrRate = qrImageUrl(rateUrl, 96);
-    const qrClaim = qrImageUrl(claimUrl, 96);
-    feedbackBlock = `
+      const rateUrl = rateSellerPublicUrl(companyIdNum);
+      const qrRegister = qrPngUrl(registerUrl, 96);
+      const qrRate = qrPngUrl(rateUrl, 96);
+      const who = esc(sellerName);
+      feedbackBlock = `
+    <div class="feedback">
+      <div class="feedback-head">
+        <div class="feedback-kicker">SupplierAdvisor network</div>
+        <h2>Join free · rate ${who}</h2>
+        <p>Scan a QR — register your business on SupplierAdvisor, or open our public profile to rate and connect.</p>
+      </div>
+      <div class="feedback-grid">
+        <a class="feedback-card" href="${esc(registerUrl)}">
+          <img src="${esc(qrRegister)}" alt="Register QR" width="64" height="64" />
+          <div>
+            <div class="fc-title">Register your business</div>
+            <div class="fc-body">Free company profile on supplieradvisor.com — trade with verified partners.</div>
+            <div class="fc-link">Open registration →</div>
+          </div>
+        </a>
+        <a class="feedback-card" href="${esc(rateUrl)}">
+          <img src="${esc(qrRate)}" alt="Rate QR" width="64" height="64" />
+          <div>
+            <div class="fc-title">Rate ${who}</div>
+            <div class="fc-body">View trust, connect, and leave feedback on this supplier.</div>
+            <div class="fc-link">Open public profile →</div>
+          </div>
+        </a>
+      </div>
+    </div>`;
+    } else if (
+      doc.kind === 'invoice' &&
+      Number.isFinite(documentIdNum) &&
+      documentIdNum > 0
+    ) {
+      const urls = invoiceRateClaimUrls({
+        companyId: companyIdNum,
+        documentId: documentIdNum,
+        number: doc.number,
+      });
+      if (urls) {
+        const qrRate = qrPngUrl(urls.rateUrl, 96);
+        const qrClaim = qrPngUrl(urls.claimUrl, 96);
+        feedbackBlock = `
     <div class="feedback">
       <div class="feedback-head">
         <div class="feedback-kicker">After delivery</div>
@@ -353,7 +376,7 @@ export function renderCommercialDocumentHtml(doc: DocRenderInput): string {
         <p>Scan a QR or open a link — OTIFEF score &amp; claims keep the network honest.</p>
       </div>
       <div class="feedback-grid">
-        <a class="feedback-card" href="${esc(rateUrl)}">
+        <a class="feedback-card" href="${esc(urls.rateUrl)}">
           <img src="${esc(qrRate)}" alt="Rate QR" width="64" height="64" />
           <div>
             <div class="fc-title">Rate performance (OTIFEF)</div>
@@ -361,7 +384,7 @@ export function renderCommercialDocumentHtml(doc: DocRenderInput): string {
             <div class="fc-link">Open rating form →</div>
           </div>
         </a>
-        <a class="feedback-card" href="${esc(claimUrl)}">
+        <a class="feedback-card" href="${esc(urls.claimUrl)}">
           <img src="${esc(qrClaim)}" alt="Claim QR" width="64" height="64" />
           <div>
             <div class="fc-title">Log a claim / RIAD</div>
@@ -371,6 +394,7 @@ export function renderCommercialDocumentHtml(doc: DocRenderInput): string {
         </a>
       </div>
     </div>`;
+      }
     }
   }
 
