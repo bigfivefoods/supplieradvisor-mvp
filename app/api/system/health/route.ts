@@ -44,24 +44,26 @@ export async function GET() {
     ok: Boolean(process.env.CRON_SECRET),
     error: process.env.CRON_SECRET ? undefined : 'CRON_SECRET not set',
   };
+  const paystackSecret = Boolean(
+    process.env.PAYSTACK_SECRET_KEY || process.env.PAYSTACK_SECRET
+  );
+  const paystackPublic = Boolean(process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY);
   checks.paystack = {
-    ok: Boolean(
-      process.env.PAYSTACK_SECRET_KEY ||
-        process.env.PAYSTACK_SECRET ||
-        process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY
-    ),
-    error:
-      process.env.PAYSTACK_SECRET_KEY || process.env.PAYSTACK_SECRET
-        ? undefined
+    // Secret is required for verify + webhook CIPC — public key alone is not enough
+    ok: paystackSecret,
+    error: paystackSecret
+      ? undefined
+      : paystackPublic
+        ? 'PAYSTACK_SECRET_KEY not set (public key present; paid CIPC / webhook soft-fails)'
         : 'PAYSTACK_SECRET_KEY not set (payment verify soft-fails in prod)',
     detail: {
       webhookPath: '/api/paystack/webhook',
       webhookHint:
         'Paystack Dashboard → Settings → Webhooks → https://www.supplieradvisor.com/api/paystack/webhook (events: charge.success). R69 CIPC runs even if browser closes.',
-      publicKey: Boolean(process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY),
-      secretKey: Boolean(
-        process.env.PAYSTACK_SECRET_KEY || process.env.PAYSTACK_SECRET
-      ),
+      publicKey: paystackPublic,
+      secretKey: paystackSecret,
+      ops:
+        'Vercel → Project → Settings → Environment Variables → PAYSTACK_SECRET_KEY (Production). Redeploy once after setting.',
     },
   };
   checks.verifynow = {

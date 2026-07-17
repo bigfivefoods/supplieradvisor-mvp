@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { usePrivy } from '@privy-io/react-auth';
@@ -93,16 +93,23 @@ function BuyerDocumentsInner() {
   const privyUserId = getCanonicalUserId(user?.id);
   const searchParams = useSearchParams();
   const supplierFromUrl = searchParams?.get('supplierProfileId');
+  const invoiceIdFromUrl = Number(searchParams?.get('invoiceId') || 0) || null;
+  const docIdFromUrl = Number(searchParams?.get('docId') || 0) || null;
+  const focusDocId = invoiceIdFromUrl || docIdFromUrl;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [documents, setDocuments] = useState<SharedDoc[]>([]);
-  const [type, setType] = useState<DocType>('all');
+  const [type, setType] = useState<DocType>(
+    focusDocId ? 'invoice' : 'all'
+  );
   const [connectionSuspended, setConnectionSuspended] = useState(false);
   const [supplierOptions, setSupplierOptions] = useState<SupplierOption[]>([]);
   const [supplierFilter, setSupplierFilter] = useState<string>(
     supplierFromUrl && Number(supplierFromUrl) > 0 ? supplierFromUrl : ''
   );
+  const [highlightId, setHighlightId] = useState<number | null>(focusDocId);
+  const focusApplied = useRef(false);
 
   // Sync URL supplier filter on first paint / navigation
   useEffect(() => {
@@ -110,6 +117,15 @@ function BuyerDocumentsInner() {
       setSupplierFilter(supplierFromUrl);
     }
   }, [supplierFromUrl]);
+
+  // Deep-link: force invoice tab when invoiceId present
+  useEffect(() => {
+    if (focusDocId) {
+      setType('invoice');
+      setHighlightId(focusDocId);
+      focusApplied.current = false;
+    }
+  }, [focusDocId]);
 
   // Full connected-supplier list with trading names (stable across type filters)
   const loadSuppliers = useCallback(async () => {
@@ -227,6 +243,16 @@ function BuyerDocumentsInner() {
     void load();
   }, [ready, load]);
 
+  // Scroll / highlight focused invoice after load
+  useEffect(() => {
+    if (loading || !highlightId || focusApplied.current) return;
+    const el = document.getElementById(`buyer-doc-${highlightId}`);
+    if (el) {
+      focusApplied.current = true;
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [loading, documents, highlightId]);
+
   const supplierLabel = useMemo(() => {
     return (s: SupplierOption) => {
       const name = s.tradingName || s.legalName;
@@ -234,12 +260,37 @@ function BuyerDocumentsInner() {
     };
   }, []);
 
+  const focusedDoc = useMemo(() => {
+    if (!highlightId) return null;
+    return documents.find((d) => Number(d.id) === highlightId) || null;
+  }, [documents, highlightId]);
+
   return (
     <>
       <BuyerHeader
         title="Shared documents"
         description="Quotes, sales orders, invoices, and contracts that suppliers have shared with your company. Read-only — access goes through the server API only."
       />
+
+      {highlightId ? (
+        <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          {focusedDoc ? (
+            <>
+              Focused on{' '}
+              <strong>{docLabel(focusedDoc)}</strong>
+              {focusedDoc.status ? ` · ${String(focusedDoc.status)}` : ''}.
+              Scrolled to the card below.
+            </>
+          ) : !loading ? (
+            <>
+              Invoice <strong>#{highlightId}</strong> was linked from a PO — it may not
+              be shared with you yet, or try the Invoices tab / another supplier filter.
+            </>
+          ) : (
+            <>Opening linked invoice…</>
+          )}
+        </div>
+      ) : null}
 
       {connectionSuspended && (
         <div className="mb-4 flex items-start gap-2 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
@@ -323,10 +374,16 @@ function BuyerDocumentsInner() {
               : doc.supplier_profile_id != null
                 ? `Supplier #${doc.supplier_profile_id}`
                 : null;
+            const isFocus = highlightId != null && Number(doc.id) === highlightId;
             return (
               <div
                 key={`${doc.doc_type}-${doc.id}`}
-                className="bg-white border rounded-3xl p-5"
+                id={`buyer-doc-${doc.id}`}
+                className={`bg-white border rounded-3xl p-5 scroll-mt-24 ${
+                  isFocus
+                    ? 'border-amber-300 ring-2 ring-amber-200 bg-amber-50/40'
+                    : ''
+                }`}
               >
                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                   <div className="min-w-0">

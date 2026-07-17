@@ -146,6 +146,7 @@ function DocInner({
   const fromPo = Number(searchParams.get('fromPo') || 0) || null;
   const buyerProfileIdParam =
     Number(searchParams.get('buyerProfileId') || 0) || null;
+  const focusDocId = Number(searchParams.get('docId') || searchParams.get('invoiceId') || 0) || null;
   const fromPoApplied = useRef(false);
   const cfg = CONFIG[type];
   const [docs, setDocs] = useState<DocRecord[]>([]);
@@ -154,6 +155,45 @@ function DocInner({
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [fromPoBanner, setFromPoBanner] = useState<string | null>(null);
+  const [highlightDocId, setHighlightDocId] = useState<number | null>(null);
+
+  const openExistingInvoice = useCallback(
+    (existing: DocRecord, poId?: number | null) => {
+      const id = Number(existing.id);
+      if (!Number.isFinite(id) || id <= 0) return;
+      setShowForm(false);
+      setHighlightDocId(id);
+      setFromPoBanner(
+        poId
+          ? `Invoice already exists for PO #${poId} (${String(
+              existing.invoice_number || existing.id
+            )}). Opened below — avoid creating a duplicate.`
+          : `Invoice ${String(existing.invoice_number || existing.id)} is already on file.`
+      );
+      toast.message(
+        poId
+          ? `Invoice already created for PO #${poId}`
+          : 'Invoice already exists',
+        {
+          description: 'Use Email when ready or WhatsApp PDF on the highlighted row.',
+          action: {
+            label: 'Scroll to invoice',
+            onClick: () => {
+              document
+                .getElementById(`doc-row-${id}`)
+                ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            },
+          },
+        }
+      );
+      requestAnimationFrame(() => {
+        document
+          .getElementById(`doc-row-${id}`)
+          ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+    },
+    []
+  );
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [statusFilter, setStatusFilter] = useState('all');
@@ -220,14 +260,7 @@ function DocInner({
         const existing = docs.find((d) => invoiceMatchesPo(d, fromPo));
         if (existing) {
           fromPoApplied.current = true;
-          setFromPoBanner(
-            `Invoice already exists for PO #${fromPo} (${String(
-              existing.invoice_number || existing.id
-            )}). Open it below — avoid creating a duplicate.`
-          );
-          toast.message(`Invoice already created for PO #${fromPo}`, {
-            description: 'Scroll the list to open or email it when ready.',
-          });
+          openExistingInvoice(existing, fromPo);
           return;
         }
 
@@ -414,7 +447,15 @@ function DocInner({
     docs,
     companyId,
     privyUserId,
+    openExistingInvoice,
   ]);
+
+  // Deep-link highlight: ?docId= / ?invoiceId=
+  useEffect(() => {
+    if (!focusDocId || loading || type !== 'invoice') return;
+    const hit = docs.find((d) => Number(d.id) === focusDocId);
+    if (hit) openExistingInvoice(hit, null);
+  }, [focusDocId, loading, type, docs, openExistingInvoice]);
 
   const totals = useMemo(
     () => calcDocTotals(lines.filter((l) => l.name), Number(taxRate) || 0),
@@ -556,16 +597,12 @@ function DocInner({
       toast.error('Add at least one product or service line');
       return;
     }
-    // Guard: don't create a second invoice for the same PO
+    // Guard: don't create a second invoice for the same PO — open existing instead
     if (type === 'invoice' && fromPo) {
       const marker = `From purchase order #${fromPo}`;
       const existing = docs.find((d) => invoiceMatchesPo(d, fromPo));
       if (existing) {
-        toast.error(
-          `Invoice already exists for PO #${fromPo} (${String(
-            existing.invoice_number || existing.id
-          )})`
-        );
+        openExistingInvoice(existing, fromPo);
         return;
       }
       if (!String(notes || '').includes(marker)) {
@@ -616,10 +653,15 @@ function DocInner({
       const data = await res.json();
       if (!res.ok) {
         if (data.code === 'DUPLICATE_FROM_PO' && data.existing) {
-          throw new Error(
-            data.error ||
-              `Invoice already exists (${data.existing.invoice_number || data.existing.id})`
+          const existing = data.existing as DocRecord;
+          // Merge into list if missing, then highlight
+          setDocs((prev) =>
+            prev.some((d) => Number(d.id) === Number(existing.id))
+              ? prev
+              : [existing, ...prev]
           );
+          openExistingInvoice(existing, fromPo);
+          return;
         }
         throw new Error(data.error || data.hint || 'Failed');
       }
@@ -1385,11 +1427,17 @@ function DocInner({
               const num = String(d[cfg.numberField] || d.id);
               const itemCount = Array.isArray(d.items) ? d.items.length : 0;
               const isShared = (d.visibility || 'seller_only') === 'shared';
+              const isHighlight = highlightDocId != null && Number(d.id) === highlightDocId;
               return (
                 <li
                   key={d.id}
-                  className={`px-5 py-4 flex flex-wrap items-center justify-between gap-3 text-sm ${
+                  id={`doc-row-${d.id}`}
+                  className={`px-5 py-4 flex flex-wrap items-center justify-between gap-3 text-sm scroll-mt-24 ${
                     sales ? 'text-slate-800' : ''
+                  } ${
+                    isHighlight
+                      ? 'bg-amber-50/90 ring-2 ring-amber-300 ring-inset'
+                      : ''
                   }`}
                 >
                   <div className="min-w-0">

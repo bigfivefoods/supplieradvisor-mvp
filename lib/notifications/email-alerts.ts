@@ -230,6 +230,58 @@ export async function notifyPoAccepted(params: {
   }
 }
 
+/** Buyer notified when supplier raises an invoice from their PO. */
+export async function notifyPoInvoiced(params: {
+  buyerProfileId: number;
+  supplierName?: string | null;
+  poId: number;
+  invoiceId?: number | null;
+  invoiceNumber?: string | null;
+  totalAmount?: number | null;
+  currency?: string | null;
+}): Promise<void> {
+  try {
+    const to = await companyEmails(params.buyerProfileId);
+    const invQ =
+      params.invoiceId && Number(params.invoiceId) > 0
+        ? `?invoiceId=${params.invoiceId}`
+        : '';
+    const docsHref = `${appBase()}/dashboard/buyer/documents${invQ}`;
+    const poHref = `${appBase()}/dashboard/suppliers/po`;
+    const supplier = params.supplierName || 'Your supplier';
+    const invLabel =
+      params.invoiceNumber ||
+      (params.invoiceId ? `#${params.invoiceId}` : 'an invoice');
+    const ccy = (params.currency || 'ZAR').toUpperCase();
+    const total =
+      params.totalAmount != null && Number.isFinite(Number(params.totalAmount))
+        ? `${ccy} ${Number(params.totalAmount).toLocaleString(undefined, {
+            maximumFractionDigits: 2,
+          })}`
+        : '';
+    await sendAlert({
+      to,
+      subject: `[SupplierAdvisor] Invoice raised for PO #${params.poId} by ${supplier}`,
+      html: `
+        <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto">
+          <h2 style="color:#b45309">Supplier invoiced your PO</h2>
+          <p><strong>${supplier}</strong> raised invoice <strong>${invLabel}</strong>
+          against <strong>PO #${params.poId}</strong>.</p>
+          ${total ? `<p>Total: <strong>${total}</strong></p>` : ''}
+          <p>Next: open the invoice when shared, receive goods (OTIFEF), then rate the partner.</p>
+          <p>
+            <a href="${docsHref}" style="color:#00b4d8">Open documents →</a>
+            &nbsp;·&nbsp;
+            <a href="${poHref}" style="color:#00b4d8">Open purchase orders →</a>
+          </p>
+        </div>
+      `,
+    });
+  } catch (e) {
+    console.warn('notifyPoInvoiced', e);
+  }
+}
+
 export async function notifyQaHold(params: {
   profileId: number;
   inspectionId: number;

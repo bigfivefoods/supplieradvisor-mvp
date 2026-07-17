@@ -15,7 +15,9 @@ supabase/migrations/20260717_verification_payment_ref.sql
 |------|--------|
 | Webhook URL | `https://www.supplieradvisor.com/api/paystack/webhook` |
 | Events | `charge.success` (+ refunds if using referral clawback) |
-| Env | `PAYSTACK_SECRET_KEY` (server) + `NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY` |
+| Env | `PAYSTACK_SECRET_KEY` (server, **required**) + `NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY` |
+
+**Health:** `/api/system/health` → `checks.paystack.ok` is **false** until the secret is set (public key alone does not count). After adding the secret in Vercel Production env, run **one** redeploy.
 
 See also `docs/PAYSTACK_WEBHOOK.md`.
 

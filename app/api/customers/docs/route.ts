@@ -538,6 +538,66 @@ export async function POST(request: NextRequest) {
             poErr = retry.error;
           }
           if (!poErr) poMarkedInvoiced = sourcePoId;
+
+          // Soft: notify buyer that PO was invoiced
+          if (poMarkedInvoiced) {
+            void (async () => {
+              try {
+                const { data: poRow } = await supabase
+                  .from('purchase_orders')
+                  .select('id, buyer_profile_id')
+                  .eq('id', sourcePoId)
+                  .maybeSingle();
+                const buyerId = Number(poRow?.buyer_profile_id);
+                if (!Number.isFinite(buyerId) || buyerId <= 0) return;
+                const { data: sellerProf } = await supabase
+                  .from('profiles')
+                  .select('trading_name')
+                  .eq('id', companyId)
+                  .maybeSingle();
+                const inv = inserted.data as {
+                  id?: unknown;
+                  invoice_number?: unknown;
+                  total_amount?: unknown;
+                  currency?: unknown;
+                } | null;
+                const { notifyPoInvoiced } = await import(
+                  '@/lib/notifications/email-alerts'
+                );
+                await notifyPoInvoiced({
+                  buyerProfileId: buyerId,
+                  supplierName: sellerProf?.trading_name || null,
+                  poId: sourcePoId,
+                  invoiceId: Number(inv?.id) || invId || null,
+                  invoiceNumber: inv?.invoice_number
+                    ? String(inv.invoice_number)
+                    : null,
+                  totalAmount:
+                    inv?.total_amount != null
+                      ? Number(inv.total_amount)
+                      : null,
+                  currency: inv?.currency ? String(inv.currency) : null,
+                });
+                const invIdNotify = Number(inv?.id) || invId || null;
+                void supabase.from('notifications').insert({
+                  profile_id: buyerId,
+                  type: 'po_invoiced',
+                  title: `Invoice raised for PO #${sourcePoId}`,
+                  body: `${sellerProf?.trading_name || 'Supplier'} invoiced your purchase order`,
+                  metadata: {
+                    poId: sourcePoId,
+                    invoiceId: invIdNotify,
+                    href: invIdNotify
+                      ? `/dashboard/buyer/documents?invoiceId=${invIdNotify}`
+                      : '/dashboard/buyer/documents',
+                  },
+                  read: false,
+                });
+              } catch (e) {
+                console.warn('PO invoiced notify soft-fail', e);
+              }
+            })();
+          }
         } catch {
           /* soft */
         }
