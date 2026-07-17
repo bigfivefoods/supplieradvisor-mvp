@@ -51,6 +51,7 @@ import CatalogueEmptyBanner from '@/components/business/CatalogueEmptyBanner';
 import TradeNextBanner from '@/components/journey/TradeNextBanner';
 import { computeHubNextAction } from '@/lib/connections/next-action';
 import CipcMismatchBanner from '@/components/business/CipcMismatchBanner';
+import OpsHealthStrip from '@/components/system/OpsHealthStrip';
 
 type CompanyData = {
   id: number;
@@ -665,6 +666,8 @@ export default function DashboardCommandCenter() {
       </div>
 
       <FxRateStrip currency={baseCcy} className="mb-6" />
+
+      <OpsHealthStrip compact />
 
       <FirstHourKickstart
         loading={loading && !kpis}

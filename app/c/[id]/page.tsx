@@ -573,10 +573,10 @@ export default async function PublicCompanyPage({
                 ) : null}
                 {c.country ? (
                   <Link
-                    href={`/directory?country=${encodeURIComponent(c.country)}`}
-                    className="rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-neutral-400"
+                    href={`/directory/country/${facetSlug(c.country)}`}
+                    className="rounded-full border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-900 hover:border-emerald-400"
                   >
-                    {c.country} directory
+                    More in {c.country} →
                   </Link>
                 ) : null}
               </div>

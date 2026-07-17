@@ -13,6 +13,7 @@ import {
   BusinessPage,
 } from '@/components/business/BusinessShell';
 import { Panel } from '@/components/relationship/RelationshipChrome';
+import OpsHealthStrip from '@/components/system/OpsHealthStrip';
 
 /**
  * Ops strip: recent CIPC / bank verifications + platform queue of paid-not-verified.
@@ -129,6 +130,8 @@ function Inner() {
           </button>
         }
       />
+
+      <OpsHealthStrip />
 
       {loading ? (
         <div className="py-20 flex justify-center">

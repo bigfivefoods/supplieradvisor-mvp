@@ -234,7 +234,7 @@ export default async function DirectoryPage({
         ) : null}
 
         {cities.length > 0 ? (
-          <section className="mb-6" aria-labelledby="hub-cities">
+          <section className="mb-5" aria-labelledby="hub-cities">
             <h2
               id="hub-cities"
               className="text-[10px] font-bold uppercase tracking-wide text-neutral-400 mb-2"
@@ -249,6 +249,28 @@ export default async function DirectoryPage({
                   className="rounded-full border border-violet-100 bg-violet-50/70 px-3 py-1 text-xs font-semibold text-violet-900 hover:border-violet-300"
                 >
                   {city}
+                </Link>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {countries.length > 0 ? (
+          <section className="mb-6" aria-labelledby="hub-countries">
+            <h2
+              id="hub-countries"
+              className="text-[10px] font-bold uppercase tracking-wide text-neutral-400 mb-2"
+            >
+              Browse by country
+            </h2>
+            <div className="flex flex-wrap gap-2">
+              {countries.slice(0, 24).map((country) => (
+                <Link
+                  key={country}
+                  href={`/directory/country/${facetSlug(country)}`}
+                  className="rounded-full border border-emerald-100 bg-emerald-50/70 px-3 py-1 text-xs font-semibold text-emerald-900 hover:border-emerald-300"
+                >
+                  {country}
                 </Link>
               ))}
             </div>

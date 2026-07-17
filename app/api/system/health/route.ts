@@ -72,6 +72,23 @@ export async function GET() {
       ? undefined
       : 'VERIFYNOW_API_KEY not set',
   };
+  const twilioOk = Boolean(
+    process.env.TWILIO_ACCOUNT_SID &&
+      process.env.TWILIO_AUTH_TOKEN &&
+      process.env.TWILIO_WHATSAPP_FROM
+  );
+  checks.twilio_whatsapp = {
+    ok: twilioOk,
+    error: twilioOk
+      ? undefined
+      : 'Twilio WhatsApp not fully set (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM) — PDF documents fall back to mobile share / link',
+    detail: {
+      accountSid: Boolean(process.env.TWILIO_ACCOUNT_SID),
+      authToken: Boolean(process.env.TWILIO_AUTH_TOKEN),
+      from: Boolean(process.env.TWILIO_WHATSAPP_FROM),
+      ops: 'Vercel env: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM (whatsapp:+…). Enables real PDF document attach on WhatsApp PDF.',
+    },
+  };
   checks.inventory_passport = {
     ok: Boolean(
       process.env.INVENTORY_PASSPORT_ADDRESS ||
@@ -154,6 +171,7 @@ export async function GET() {
         !schemaColumnsOk ||
         !checks.paystack.ok ||
         !checks.verifynow.ok ||
+        !checks.twilio_whatsapp.ok ||
         optionalMissing.length > 0);
 
     return NextResponse.json({

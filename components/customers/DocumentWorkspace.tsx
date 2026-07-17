@@ -835,6 +835,13 @@ function DocInner({
    * 3) wa.me fallback with PDF document URL + SupplierAdvisor link
    */
   const [waShareBusyId, setWaShareBusyId] = useState<number | null>(null);
+  const [waLastStatus, setWaLastStatus] = useState<{
+    docId: number;
+    via: string;
+    at: string;
+    detail?: string;
+  } | null>(null);
+
   const shareDocOnWhatsApp = async (doc: DocRecord) => {
     setWaShareBusyId(Number(doc.id));
     try {
@@ -855,11 +862,16 @@ function DocInner({
 
       // Twilio already delivered the PDF as a WhatsApp document attachment
       if (data.sentVia === 'twilio_document') {
-        toast.success('PDF document sent on WhatsApp', {
+        setWaLastStatus({
+          docId: Number(doc.id),
+          via: 'twilio_document',
+          at: new Date().toISOString(),
+          detail: phone ? `to ${phone}` : undefined,
+        });
+        toast.success('Delivery: PDF document in WhatsApp', {
           description:
-            data.message ||
-            'Customer received the formal PDF file plus a SupplierAdvisor link.',
-          duration: 8000,
+            'Sent as a file attachment (Twilio) · message includes supplieradvisor.com',
+          duration: 9000,
         });
         return;
       }
@@ -900,7 +912,6 @@ function DocInner({
               sharePdfFileViaNavigator,
               openWhatsAppShare,
             } = await import('@/lib/invites/whatsapp');
-            // Prefer file share with short caption + SupplierAdvisor link
             const shareText = commercialDocWhatsAppText({
               kind: type,
               number: String(doc[cfg.numberField] || doc.id),
@@ -920,22 +931,34 @@ function DocInner({
               text: shareText,
             });
             if (shared.ok && shared.method === 'files') {
-              toast.success('Share the PDF file to WhatsApp', {
+              setWaLastStatus({
+                docId: Number(doc.id),
+                via: 'device_file_share',
+                at: new Date().toISOString(),
+              });
+              toast.success('Delivery: share sheet · attach PDF file', {
                 description:
-                  'Pick WhatsApp in the share sheet — the formal PDF is attached. Message includes a SupplierAdvisor link.',
-                duration: 9000,
+                  'Pick WhatsApp — formal PDF is attached. Caption includes supplieradvisor.com. (Set Twilio for automatic send.)',
+                duration: 10000,
               });
               return;
             }
             if (shared.error === 'cancelled') {
               return;
             }
-            // Fall through to wa.me if file share unsupported
             openWhatsAppShare({ phone, text });
-            toast.success('WhatsApp opened with PDF document link', {
+            setWaLastStatus({
+              docId: Number(doc.id),
+              via: 'wa_link',
+              at: new Date().toISOString(),
+              detail: data.twilioConfigured
+                ? 'Twilio set but send failed — used link'
+                : 'Twilio not configured',
+            });
+            toast.message('Delivery: WhatsApp message + PDF document link', {
               description:
-                'On mobile, use the share sheet when offered to attach the PDF file. Message includes SupplierAdvisor.com.',
-              duration: 8000,
+                'wa.me cannot attach files by itself. On phone, prefer the share sheet when offered. Link opens the formal PDF; message includes SupplierAdvisor.',
+              duration: 10000,
             });
             return;
           }
@@ -946,10 +969,18 @@ function DocInner({
 
       const { openWhatsAppShare } = await import('@/lib/invites/whatsapp');
       openWhatsAppShare({ phone, text });
-      toast.success('WhatsApp opened with PDF document', {
+      setWaLastStatus({
+        docId: Number(doc.id),
+        via: 'wa_link',
+        at: new Date().toISOString(),
+        detail: data.twilioConfigured
+          ? 'client fallback'
+          : 'Add TWILIO_* for auto PDF document',
+      });
+      toast.message('Delivery: WhatsApp + PDF document link', {
         description:
-          'Message includes the formal PDF link (opens as a PDF document) and supplieradvisor.com.',
-        duration: 8000,
+          'Message includes formal PDF URL (opens as document) and supplieradvisor.com. Configure Twilio for automatic file attach.',
+        duration: 10000,
       });
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'WhatsApp share failed');
@@ -1908,6 +1939,15 @@ function DocInner({
                         <MessageCircle className="w-3.5 h-3.5" />
                       )}
                       WhatsApp PDF
+                      {waLastStatus?.docId === d.id ? (
+                        <span className="ml-0.5 text-[9px] font-bold uppercase opacity-80">
+                          {waLastStatus.via === 'twilio_document'
+                            ? '· sent file'
+                            : waLastStatus.via === 'device_file_share'
+                              ? '· shared file'
+                              : '· link'}
+                        </span>
+                      ) : null}
                     </button>
                     <button
                       type="button"

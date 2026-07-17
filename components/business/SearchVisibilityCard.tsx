@@ -52,6 +52,12 @@ export default function SearchVisibilityCard({
       href: '#location',
     },
     {
+      key: 'city',
+      label: 'City (Google local SEO)',
+      ok: !!String(profile.city || '').trim(),
+      href: '#location',
+    },
+    {
       key: 'email',
       label: 'Email',
       ok: !!String(profile.email || '').trim(),
@@ -66,7 +72,29 @@ export default function SearchVisibilityCard({
       ),
       href: '#industry',
     },
+    {
+      key: 'logo',
+      label: 'Logo (search & cards)',
+      ok: !!String(profile.logo_url || '').trim(),
+      href: '#identity',
+    },
+    {
+      key: 'blurb',
+      label: 'Short description',
+      ok: !!String(
+        profile.short_description || profile.description || profile.about || ''
+      ).trim(),
+      href: '#identity',
+    },
   ];
+  const seoMissing = signals.filter((s) => !s.ok);
+  const publicPath = profile?.id
+    ? companyPublicPath({
+        id: Number(profile.id),
+        trading_name: (profile.trading_name as string | null) || null,
+        legal_name: (profile.legal_name as string | null) || null,
+      })
+    : '/directory';
 
   const toggle = (
     <label className="flex items-center gap-2 cursor-pointer select-none shrink-0">
@@ -112,11 +140,11 @@ export default function SearchVisibilityCard({
 
   if (elig.ok) {
     return (
-      <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 space-y-1.5">
+      <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 space-y-2">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-2 text-sm font-bold text-emerald-900">
             <Eye className="w-4 h-4" />
-            Visible in Discover & public directory
+            Visible in Discover & Google directory
           </div>
           {toggle}
         </div>
@@ -125,23 +153,43 @@ export default function SearchVisibilityCard({
           {isRegistered
             ? ' · registered workspace'
             : ` · min ${DISCOVERABLE_MIN_COMPLETENESS_PCT}% or country/email/industry`}
-          . Others can search and request a connection.
+          . Your public SEO page can appear in Google via the SupplierAdvisor
+          directory.
         </p>
-        <Link
-          href={
-            profile?.id
-              ? companyPublicPath({
-                  id: Number(profile.id),
-                  trading_name:
-                    (profile.trading_name as string | null) || null,
-                  legal_name: (profile.legal_name as string | null) || null,
-                })
-              : '/directory'
-          }
-          className="inline-flex items-center gap-1 text-xs font-bold text-emerald-800 hover:underline"
-        >
-          View public page <ArrowRight className="w-3 h-3" />
-        </Link>
+        {seoMissing.length > 0 ? (
+          <div className="rounded-xl border border-sky-200 bg-white/80 px-3 py-2">
+            <p className="text-[11px] font-bold text-sky-950 mb-1">
+              List better on Google — add:
+            </p>
+            <ul className="grid sm:grid-cols-2 gap-1 text-[11px]">
+              {seoMissing.map((s) => (
+                <li key={s.key}>
+                  <a
+                    href={s.href}
+                    className="inline-flex items-center gap-1 text-slate-700 hover:text-[#0077b6]"
+                  >
+                    <Circle className="w-3 h-3 text-sky-400 shrink-0" />
+                    {s.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        <div className="flex flex-wrap gap-3">
+          <Link
+            href={publicPath}
+            className="inline-flex items-center gap-1 text-xs font-bold text-emerald-800 hover:underline"
+          >
+            View public SEO page <ArrowRight className="w-3 h-3" />
+          </Link>
+          <Link
+            href="/directory"
+            className="inline-flex items-center gap-1 text-xs font-bold text-[#0077b6] hover:underline"
+          >
+            Open directory
+          </Link>
+        </div>
       </div>
     );
   }
@@ -151,13 +199,15 @@ export default function SearchVisibilityCard({
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2 text-sm font-bold text-amber-950">
           <EyeOff className="w-4 h-4" />
-          Not visible in search yet
+          Not listed on Google / directory yet
         </div>
         {toggle}
       </div>
       <p className="text-xs text-amber-950/80">
         {elig.reason ||
-          `Add country, email, or industry (profile is ${pct}%).`}
+          `Add country, email, or industry (profile is ${pct}%).`}{' '}
+        Complete the checklist so partners can find you on supplieradvisor.com
+        and in search.
       </p>
       <ul className="grid sm:grid-cols-2 gap-1.5 text-xs">
         {signals.map((s) => (
@@ -180,7 +230,7 @@ export default function SearchVisibilityCard({
         href="#location"
         className="inline-flex items-center gap-1 text-xs font-bold text-amber-900 hover:underline"
       >
-        Fix location first <ArrowRight className="w-3 h-3" />
+        Fix location & SEO fields <ArrowRight className="w-3 h-3" />
       </Link>
     </div>
   );

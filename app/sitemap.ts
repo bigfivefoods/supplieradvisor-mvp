@@ -146,6 +146,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: 'weekly' as const,
       priority: 0.75,
     }));
+    const countriesList = [
+      ...new Set(
+        discoverable
+          .map((p) => (p.country != null ? String(p.country).trim() : ''))
+          .filter(Boolean)
+      ),
+    ];
+    const countryHubs: MetadataRoute.Sitemap = countriesList
+      .slice(0, 80)
+      .map((country) => ({
+        url: `${BASE}/directory/country/${facetSlug(country)}`,
+        lastModified: now,
+        changeFrequency: 'weekly' as const,
+        priority: 0.78,
+      }));
 
     const { data: products } = await supabase
       .from('products')
@@ -166,6 +181,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       ...staticRoutes,
       ...industryHubs,
       ...cityHubs,
+      ...countryHubs,
       ...companyUrls,
       ...productUrls,
     ];

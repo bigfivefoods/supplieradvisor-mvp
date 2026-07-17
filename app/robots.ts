@@ -19,6 +19,7 @@ export default function robots(): MetadataRoute.Robots {
           '/directory',
           '/directory/industry/',
           '/directory/city/',
+          '/directory/country/',
           '/pricing',
           '/privacy',
           '/terms',
