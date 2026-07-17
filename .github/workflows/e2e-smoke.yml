@@ -27,7 +27,7 @@ jobs:
           PLAYWRIGHT_BASE_URL: ${{ vars.PLAYWRIGHT_BASE_URL || 'https://www.supplieradvisor.com' }}
         run: |
           npm run test:e2e:auth
-          npx playwright test e2e/trade-loop-smoke.spec.ts e2e/happy-path-api.spec.ts
+          npx playwright test e2e/trade-loop-smoke.spec.ts e2e/happy-path-api.spec.ts e2e/golden-path-smoke.spec.ts
 
   playwright-session:
     name: Session e2e (optional secrets)

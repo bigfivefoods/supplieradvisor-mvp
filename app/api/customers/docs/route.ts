@@ -324,6 +324,115 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // ── Promise-to-pay date (collections) ────────────────────────────────
+    if (action === 'set_promise_to_pay' && body.id) {
+      if (kind !== 'invoice') {
+        return NextResponse.json(
+          { error: 'Promise-to-pay applies to invoices only' },
+          { status: 400 }
+        );
+      }
+      type InvPtpRow = {
+        id: number;
+        status?: string | null;
+        notes?: string | null;
+        invoice_number?: string | null;
+        promise_to_pay_date?: string | null;
+      };
+      const { data: inv, error } = await supabase
+        .from('customer_invoices')
+        .select('id, status, notes, promise_to_pay_date, invoice_number')
+        .eq('id', Number(body.id))
+        .eq('profile_id', companyId)
+        .maybeSingle();
+      // Soft if column missing on select
+      let invRow: InvPtpRow | null = inv as InvPtpRow | null;
+      if (error && /promise_to_pay|column|schema cache/i.test(error.message || '')) {
+        const retry = await supabase
+          .from('customer_invoices')
+          .select('id, status, notes, invoice_number')
+          .eq('id', Number(body.id))
+          .eq('profile_id', companyId)
+          .maybeSingle();
+        if (retry.error || !retry.data) {
+          return NextResponse.json(
+            {
+              error:
+                'promise_to_pay_date column missing — run supabase/migrations/20260717_customer_invoices_promise_to_pay.sql',
+              code: 'MIGRATION_REQUIRED',
+            },
+            { status: 503 }
+          );
+        }
+        invRow = retry.data as InvPtpRow;
+      } else if (error || !inv) {
+        return NextResponse.json(
+          { error: error?.message || 'Invoice not found' },
+          { status: 404 }
+        );
+      }
+
+      const clear = body.clear === true || body.promise_to_pay_date === null;
+      const rawDate = clear
+        ? null
+        : String(body.promise_to_pay_date || body.date || '')
+            .trim()
+            .slice(0, 10);
+      if (!clear && !/^\d{4}-\d{2}-\d{2}$/.test(rawDate || '')) {
+        return NextResponse.json(
+          { error: 'promise_to_pay_date required as YYYY-MM-DD (or clear: true)' },
+          { status: 400 }
+        );
+      }
+
+      const st = String(invRow?.status || '').toLowerCase();
+      if (['paid', 'void', 'cancelled'].includes(st)) {
+        return NextResponse.json(
+          { error: `Cannot set promise on ${st} invoice` },
+          { status: 400 }
+        );
+      }
+
+      const line = clear
+        ? `[promise cleared ${now.slice(0, 10)}]`
+        : `[promise ${rawDate} set ${now.slice(0, 10)}]`;
+      const prevNotes = invRow?.notes != null ? String(invRow.notes) : '';
+      const notesOut = prevNotes ? `${prevNotes}\n${line}` : line;
+
+      let { data: updated, error: uErr } = await supabase
+        .from('customer_invoices')
+        .update({
+          promise_to_pay_date: clear ? null : rawDate,
+          notes: notesOut,
+          updated_at: now,
+        })
+        .eq('id', Number(body.id))
+        .eq('profile_id', companyId)
+        .select('*')
+        .single();
+
+      if (uErr && /promise_to_pay|column|schema cache/i.test(uErr.message || '')) {
+        return NextResponse.json(
+          {
+            error:
+              'promise_to_pay_date column missing — run supabase/migrations/20260717_customer_invoices_promise_to_pay.sql',
+            code: 'MIGRATION_REQUIRED',
+          },
+          { status: 503 }
+        );
+      }
+      if (uErr) {
+        return NextResponse.json({ error: uErr.message }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        action: 'set_promise_to_pay',
+        invoice: updated,
+        promise_to_pay_date: clear ? null : rawDate,
+      });
+    }
+
     // ── Mark invoice paid (full or partial) + loyalty earn ────────────────
     if (action === 'mark_paid' && body.id) {
       const { data: inv, error } = await supabase
@@ -385,15 +494,25 @@ export async function POST(request: NextRequest) {
       if (paymentRef) {
         updatePayload.payment_reference = paymentRef;
       }
+      // Clear promise when fully paid
+      if (fullyPaid) {
+        updatePayload.promise_to_pay_date = null;
+      }
       let { data: updated, error: uErr } = await supabase
         .from('customer_invoices')
         .update(updatePayload)
         .eq('id', inv.id)
         .select('*')
         .single();
-      // Soft: payment_reference column may be absent
-      if (uErr && /payment_reference|column|schema cache/i.test(uErr.message || '')) {
+      // Soft: optional columns may be absent
+      if (
+        uErr &&
+        /payment_reference|promise_to_pay|column|schema cache/i.test(
+          uErr.message || ''
+        )
+      ) {
         delete updatePayload.payment_reference;
+        delete updatePayload.promise_to_pay_date;
         const retry = await supabase
           .from('customer_invoices')
           .update(updatePayload)

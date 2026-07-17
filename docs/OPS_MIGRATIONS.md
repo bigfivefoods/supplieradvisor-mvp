@@ -7,7 +7,18 @@ supabase/migrations/20260716_profiles_branch_code.sql
 supabase/migrations/20260716_bank_account_verification.sql
 supabase/migrations/20260716_customer_invoices_source_po_id.sql
 supabase/migrations/20260717_verification_payment_ref.sql
+supabase/migrations/20260717_customer_invoices_promise_to_pay.sql
 ```
+
+## Collections crons (Vercel)
+
+| Path | Schedule | Purpose |
+|------|----------|---------|
+| `/api/customers/docs/overdue-cron` | daily 05:15 UTC | Flip past-due → overdue |
+| `/api/customers/docs/promise-to-pay-cron` | daily 06:30 UTC | Remind finance when promise date due |
+| `/api/customers/ar-digest/cron` | Mondays 07:00 UTC | Weekly AR aging email to finance/owner |
+
+Auth: `Authorization: Bearer $CRON_SECRET`
 
 ## Paystack (required for paid CIPC)
 

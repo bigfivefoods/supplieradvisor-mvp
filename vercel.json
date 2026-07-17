@@ -39,6 +39,14 @@
     {
       "path": "/api/customers/docs/overdue-cron",
       "schedule": "15 5 * * *"
+    },
+    {
+      "path": "/api/customers/docs/promise-to-pay-cron",
+      "schedule": "30 6 * * *"
+    },
+    {
+      "path": "/api/customers/ar-digest/cron",
+      "schedule": "0 7 * * 1"
     }
   ]
 }

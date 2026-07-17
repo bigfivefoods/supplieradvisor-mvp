@@ -21,23 +21,66 @@ export async function GET(request: NextRequest) {
     if (!gate.ok) return gate.response;
 
     const supabase = getSupabaseServer();
-    const { data, error } = await supabase
-      .from('customer_invoices')
-      .select(
-        'id, invoice_number, customer_name, customer_id, status, total_amount, amount_paid, currency, due_date, issue_date, created_at'
-      )
-      .eq('profile_id', companyId)
-      .in('status', [
-        'sent',
-        'partial',
-        'overdue',
-        'viewed',
-        'unpaid',
-        'issued',
-        'draft',
-      ])
-      .order('due_date', { ascending: true })
-      .limit(400);
+    type InvRow = {
+      id: number;
+      invoice_number?: string | null;
+      customer_name?: string | null;
+      customer_id?: number | null;
+      status?: string | null;
+      total_amount?: number | null;
+      amount_paid?: number | null;
+      currency?: string | null;
+      due_date?: string | null;
+      issue_date?: string | null;
+      created_at?: string | null;
+      promise_to_pay_date?: string | null;
+    };
+    let data: InvRow[] | null = null;
+    let error: { message: string } | null = null;
+
+    {
+      const first = await supabase
+        .from('customer_invoices')
+        .select(
+          'id, invoice_number, customer_name, customer_id, status, total_amount, amount_paid, currency, due_date, issue_date, created_at, promise_to_pay_date'
+        )
+        .eq('profile_id', companyId)
+        .in('status', [
+          'sent',
+          'partial',
+          'overdue',
+          'viewed',
+          'unpaid',
+          'issued',
+          'draft',
+        ])
+        .order('due_date', { ascending: true })
+        .limit(400);
+      data = (first.data as InvRow[] | null) || null;
+      error = first.error;
+    }
+
+    if (error && /promise_to_pay|column|schema cache/i.test(error.message || '')) {
+      const retry = await supabase
+        .from('customer_invoices')
+        .select(
+          'id, invoice_number, customer_name, customer_id, status, total_amount, amount_paid, currency, due_date, issue_date, created_at'
+        )
+        .eq('profile_id', companyId)
+        .in('status', [
+          'sent',
+          'partial',
+          'overdue',
+          'viewed',
+          'unpaid',
+          'issued',
+          'draft',
+        ])
+        .order('due_date', { ascending: true })
+        .limit(400);
+      data = (retry.data as InvRow[] | null) || null;
+      error = retry.error;
+    }
 
     if (error) {
       return NextResponse.json(
@@ -112,6 +155,9 @@ export async function GET(request: NextRequest) {
           currency: inv.currency || 'ZAR',
           due_date: inv.due_date,
           days_past_due: Math.max(0, daysPast),
+          promise_to_pay_date:
+            (inv as { promise_to_pay_date?: string | null }).promise_to_pay_date ||
+            null,
         });
       }
     }

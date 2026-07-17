@@ -24,6 +24,7 @@ type Bucket = {
     currency?: string | null;
     due_date?: string | null;
     days_past_due?: number;
+    promise_to_pay_date?: string | null;
   }>;
 };
 
@@ -150,7 +151,7 @@ function Inner() {
       <CustomersHeader
         title="Accounts receivable"
         titleAccent="aging"
-        description="Open invoice balances by days past due. Record partial payments (with payment ref) from the invoice list; resend overdue from Invoices."
+        description="Open invoice balances by days past due. Set promise-to-pay and payment refs on invoices; weekly AR digest emails finance contacts Mondays."
         action={
           <div className="flex flex-wrap gap-2">
             <button
@@ -314,6 +315,9 @@ function Inner() {
                               : ''}
                             {inv.days_past_due
                               ? ` · ${inv.days_past_due}d past`
+                              : ''}
+                            {inv.promise_to_pay_date
+                              ? ` · promise ${String(inv.promise_to_pay_date).slice(0, 10)}`
                               : ''}
                             {inv.status ? ` · ${inv.status}` : ''}
                           </div>

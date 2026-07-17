@@ -789,6 +789,62 @@ function DocInner({
     }
   };
 
+  const setPromiseToPay = async (id: number) => {
+    setBusyId(id);
+    try {
+      const doc = docs.find((d) => Number(d.id) === id);
+      const existing = doc?.promise_to_pay_date
+        ? String(doc.promise_to_pay_date).slice(0, 10)
+        : '';
+      const defaultDate =
+        existing ||
+        new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+      const raw = window.prompt(
+        'Promise-to-pay date (YYYY-MM-DD). Leave blank to clear:',
+        defaultDate
+      );
+      if (raw === null) {
+        setBusyId(null);
+        return;
+      }
+      const trimmed = String(raw).trim();
+      const clear = trimmed === '';
+      if (!clear && !/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+        toast.error('Use YYYY-MM-DD format');
+        setBusyId(null);
+        return;
+      }
+      const res = await fetch('/api/customers/docs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          type: 'invoice',
+          id,
+          action: 'set_promise_to_pay',
+          promise_to_pay_date: clear ? null : trimmed,
+          clear,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      toast.success(
+        clear
+          ? 'Promise-to-pay cleared'
+          : `Promise-to-pay set for ${trimmed}`,
+        {
+          description:
+            'Daily cron reminds finance when the date is due and the invoice is still open',
+        }
+      );
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const markPaid = async (id: number) => {
     setBusyId(id);
     try {
@@ -1943,6 +1999,9 @@ function DocInner({
                     >
                       {d.customer_name || 'No customer'} · {itemCount} line{itemCount === 1 ? '' : 's'}
                       {d.created_at ? ` · ${String(d.created_at).slice(0, 10)}` : ''}
+                      {d.promise_to_pay_date
+                        ? ` · promise ${String(d.promise_to_pay_date).slice(0, 10)}`
+                        : ''}
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
@@ -2056,6 +2115,22 @@ function DocInner({
                         )}
                       </button>
                     )}
+                    {type === 'invoice' &&
+                      !['paid', 'void', 'cancelled'].includes(
+                        String(d.status || '').toLowerCase()
+                      ) && (
+                        <button
+                          type="button"
+                          disabled={busyId === d.id}
+                          onClick={() => void setPromiseToPay(d.id)}
+                          className="btn-secondary !py-1.5 !px-3 text-xs border-amber-200 text-amber-900"
+                          title="Buyer promised a payment date — cron reminds you when due"
+                        >
+                          {d.promise_to_pay_date
+                            ? `Promise ${String(d.promise_to_pay_date).slice(0, 10)}`
+                            : 'Promise to pay'}
+                        </button>
+                      )}
                     {type === 'invoice' && d.status !== 'paid' && d.status !== 'void' && (
                       <button
                         type="button"
