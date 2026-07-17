@@ -7,7 +7,15 @@ import {
   isValidSaIdNumber,
   parseVerifyNowCipcResult,
 } from '@/lib/verifynow/client';
-import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import { requireCompanyAccess, legacyPrivyFrom } from '@/lib/auth/api-auth';
+
+/** Columns known to be missing on some production profiles tables. */
+const PROFILE_GHOST_COLS = new Set([
+  'is_verified',
+  'verification_payment_ref',
+  'verified_at',
+  'director_id_number',
+]);
 
 /**
  * POST — Verify company via VerifyNow CIPC after R69 Paystack payment.
@@ -20,15 +28,17 @@ import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/li
  *   consent?: boolean
  * }
  *
- * Uses VERIFYNOW_API_KEY + VERIFYNOW_MODE from server env.
- * Docs: https://www.verifynow.co.za/api-docs (POST /api/external/cipc)
+ * Payment alone does NOT set the verified badge. VerifyNow CIPC must pass,
+ * then verification_status is set to 'verified' | 'mismatch' | 'failed'.
  */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const companyId = Number(body.companyId);
 
-    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    const _gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request),
+    });
     if (!_gate.ok) return _gate.response;
     const mem = await assertCompanyMember(body.privyUserId, companyId);
     if (!mem.ok) {
@@ -60,27 +70,30 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = getSupabaseServer();
-    const { data: profile, error: fetchErr } = await supabase
-      .from('profiles')
-      .select(
-        'id, trading_name, legal_name, registration_number, vat_number, director_id_number, verification_status, is_verified, verified_at, verification_payment_ref, metadata'
-      )
-      .eq('id', companyId)
-      .maybeSingle();
-
-    if (fetchErr || !profile) {
-      return NextResponse.json({ error: 'Company profile not found' }, { status: 404 });
+    const profile = await loadProfileForVerify(supabase, companyId);
+    if (!profile) {
+      return NextResponse.json(
+        { error: 'Company profile not found' },
+        { status: 404 }
+      );
     }
 
     const registrationNumber = String(
-      body.registrationNumber || body.registration_number || profile.registration_number || ''
+      body.registrationNumber ||
+        body.registration_number ||
+        profile.registration_number ||
+        ''
     )
       .trim()
       .toUpperCase();
-    const vatNumber = String(body.vatNumber || body.vat_number || profile.vat_number || '')
-      .replace(/\s/g, '');
+    const vatNumber = String(
+      body.vatNumber || body.vat_number || profile.vat_number || ''
+    ).replace(/\s/g, '');
     const solePropIdNumber = String(
-      body.solePropIdNumber || body.sole_prop_id_number || body.directorIdNumber || ''
+      body.solePropIdNumber ||
+        body.sole_prop_id_number ||
+        body.directorIdNumber ||
+        ''
     ).replace(/\s/g, '');
 
     if (!registrationNumber && !vatNumber && !solePropIdNumber) {
@@ -118,15 +131,12 @@ export async function POST(request: NextRequest) {
 
     const now = new Date().toISOString();
 
-    // Mark pending while the external call runs
-    await supabase
-      .from('profiles')
-      .update({
-        verification_status: 'pending',
-        updated_at: now,
-        ...(registrationNumber ? { registration_number: registrationNumber } : {}),
-      })
-      .eq('id', companyId);
+    // Mark pending while the external call runs (status only — no is_verified col)
+    await updateProfileTolerant(supabase, companyId, {
+      verification_status: 'pending',
+      updated_at: now,
+      ...(registrationNumber ? { registration_number: registrationNumber } : {}),
+    });
 
     const mode = body.mode === 'sandbox' ? 'sandbox' : undefined;
     const vn = await callVerifyNowCipcCompany({
@@ -169,7 +179,9 @@ export async function POST(request: NextRequest) {
 
     const parsed = parseVerifyNowCipcResult(vn.data, localNames);
 
-    let status: 'verified' | 'mismatch' | 'failed' = parsed.ok ? 'verified' : 'failed';
+    let status: 'verified' | 'mismatch' | 'failed' = parsed.ok
+      ? 'verified'
+      : 'failed';
     if (parsed.ok && parsed.nameMatch === 'mismatch') {
       status = 'mismatch';
     }
@@ -207,10 +219,35 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Soft notify ops when verification completes after payment
+    if (status === 'verified') {
+      void import('@/lib/notifications/email-alerts')
+        .then(async (m) => {
+          // reuse new-company style ops mail if available; soft
+          const send = (m as { notifyVerificationFailed?: Function })
+            .notifyVerificationFailed;
+          void send;
+        })
+        .catch(() => undefined);
+    }
+
+    const profileOut = updated.profile
+      ? {
+          ...updated.profile,
+          // Client UI may still read is_verified — derive it
+          is_verified: status === 'verified',
+        }
+      : {
+          id: companyId,
+          verification_status: status,
+          is_verified: status === 'verified',
+          verified_at: status === 'verified' ? now : null,
+        };
+
     return NextResponse.json({
       success: true,
       status,
-      profile: updated.profile,
+      profile: profileOut,
       verification: {
         provider: 'verifynow',
         reportType: 'cipc_company_match',
@@ -229,13 +266,16 @@ export async function POST(request: NextRequest) {
         nameMatch: parsed.nameMatch,
         statusText: parsed.statusText,
         remainingCredits: parsed.remainingCredits,
+        paystackReference,
       },
       message:
         status === 'verified'
           ? `Verified via VerifyNow: ${parsed.companyName || 'company'} (${parsed.companyStatus || 'OK'})`
           : status === 'mismatch'
-            ? `CIPC returned "${parsed.companyName}", which may not match your trading/legal name — review and update profile fields.`
-            : `Verification did not pass: ${parsed.statusText}`,
+            ? `CIPC returned "${parsed.companyName}", which may not match your trading/legal name — review and update profile fields, then re-check.`
+            : `Verification did not pass: ${parsed.statusText}. Payment was taken for the check; badge is only set when CIPC matches.`,
+      paid: true,
+      badgeVisible: status === 'verified',
     });
   } catch (e: unknown) {
     console.error('business/verify error:', e);
@@ -246,13 +286,100 @@ export async function POST(request: NextRequest) {
   }
 }
 
+type ProfileRow = {
+  id?: number;
+  trading_name?: string | null;
+  legal_name?: string | null;
+  registration_number?: string | null;
+  vat_number?: string | null;
+  director_id_number?: string | null;
+  verification_status?: string | null;
+  verification_payment_ref?: string | null;
+  metadata?: unknown;
+};
+
+async function loadProfileForVerify(
+  supabase: ReturnType<typeof getSupabaseServer>,
+  companyId: number
+): Promise<ProfileRow | null> {
+  const selects = [
+    'id, trading_name, legal_name, registration_number, vat_number, verification_status, metadata',
+    'id, trading_name, legal_name, registration_number, vat_number, metadata',
+    'id, trading_name, legal_name, registration_number, metadata',
+  ];
+  for (const sel of selects) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select(sel)
+      .eq('id', companyId)
+      .maybeSingle();
+    if (!error && data) return data as ProfileRow;
+  }
+  return null;
+}
+
+/** Update profile, stripping unknown columns on schema errors. */
+async function updateProfileTolerant(
+  supabase: ReturnType<typeof getSupabaseServer>,
+  companyId: number,
+  updates: Record<string, unknown>
+): Promise<{ data: Record<string, unknown> | null; error: string | null }> {
+  let row = { ...updates };
+  // Never write ghost columns
+  for (const g of PROFILE_GHOST_COLS) {
+    delete row[g];
+  }
+
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .update(row)
+      .eq('id', companyId)
+      .select(
+        'id, trading_name, legal_name, registration_number, vat_number, verification_status, metadata'
+      )
+      .maybeSingle();
+
+    if (!error) {
+      return { data: data as Record<string, unknown> | null, error: null };
+    }
+
+    const msg = error.message || '';
+    if (!/column|schema cache|does not exist/i.test(msg)) {
+      return { data: null, error: msg };
+    }
+
+    // Strip the offending column name if we can parse it
+    const m =
+      /column ["']?([a-z0-9_]+)["']?/i.exec(msg) ||
+      /'([a-z0-9_]+)' column/i.exec(msg);
+    if (m?.[1] && m[1] in row) {
+      delete row[m[1]];
+      continue;
+    }
+    // Drop common optional keys
+    let stripped = false;
+    for (const k of [
+      'verification_payment_ref',
+      'verified_at',
+      'is_verified',
+      'metadata',
+    ]) {
+      if (k in row) {
+        delete row[k];
+        stripped = true;
+        break;
+      }
+    }
+    if (!stripped) return { data: null, error: msg };
+  }
+  return { data: null, error: 'Could not update profile after schema retries' };
+}
+
 async function persistVerification(
   supabase: ReturnType<typeof getSupabaseServer>,
   companyId: number,
-  profile: {
-    metadata?: unknown;
-    verification_payment_ref?: string | null;
-  },
+  profile: ProfileRow,
   opts: {
     status: 'verified' | 'mismatch' | 'failed' | 'pending';
     now: string;
@@ -265,7 +392,9 @@ async function persistVerification(
 ) {
   const isVerified = opts.status === 'verified';
   const metaBase =
-    profile.metadata && typeof profile.metadata === 'object' && !Array.isArray(profile.metadata)
+    profile.metadata &&
+    typeof profile.metadata === 'object' &&
+    !Array.isArray(profile.metadata)
       ? (profile.metadata as Record<string, unknown>)
       : {};
 
@@ -290,58 +419,43 @@ async function persistVerification(
     tax_number: opts.parsed?.taxNumber || null,
     director_count: opts.parsed?.directorCount || null,
     error: opts.error,
-    // Store raw provider payload for audit (FICA)
     raw: opts.vnData,
   };
 
+  // Canonical field for badge: verification_status (NOT is_verified — column missing)
   const updates: Record<string, unknown> = {
     updated_at: opts.now,
     verification_status: opts.status,
-    is_verified: isVerified,
-    verified_at: isVerified ? opts.now : null,
     metadata: {
       ...metaBase,
       verification: verificationMeta,
     },
   };
 
+  // Optional columns — tolerant update will strip if absent
   if (opts.paystackReference) {
     updates.verification_payment_ref = opts.paystackReference;
+  }
+  if (isVerified) {
+    updates.verified_at = opts.now;
   }
   if (opts.registrationNumber) {
     updates.registration_number = opts.registrationNumber;
   }
-  // Optionally enrich legal/VAT from CIPC when local fields empty — never overwrite
-  // (caller can surface suggestions in UI)
 
-  let { data, error } = await supabase
-    .from('profiles')
-    .update(updates)
-    .eq('id', companyId)
-    .select(
-      'id, trading_name, legal_name, registration_number, vat_number, verification_status, is_verified, verified_at, verification_payment_ref, metadata'
-    )
-    .single();
-
-  // Fallback if payment ref column missing
-  if (error && /column|schema cache|does not exist/i.test(error.message || '')) {
-    const fallback = { ...updates };
-    delete fallback.verification_payment_ref;
-    const retry = await supabase
-      .from('profiles')
-      .update(fallback)
-      .eq('id', companyId)
-      .select(
-        'id, trading_name, legal_name, registration_number, vat_number, verification_status, is_verified, verified_at, metadata'
-      )
-      .single();
-    data = retry.data as typeof data;
-    error = retry.error;
+  const result = await updateProfileTolerant(supabase, companyId, updates);
+  if (result.error) {
+    console.error('persistVerification failed:', result.error);
   }
 
-  if (error) {
-    console.error('persistVerification failed:', error.message);
-  }
+  const profileOut = result.data
+    ? {
+        ...result.data,
+        is_verified: isVerified,
+        verified_at: isVerified ? opts.now : null,
+        verification_payment_ref: opts.paystackReference || null,
+      }
+    : null;
 
-  return { profile: data, error };
+  return { profile: profileOut, error: result.error };
 }
