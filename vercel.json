@@ -35,6 +35,10 @@
     {
       "path": "/api/onboarding/registration-report/cron?period=weekly",
       "schedule": "0 7 * * 1"
+    },
+    {
+      "path": "/api/customers/docs/overdue-cron",
+      "schedule": "15 5 * * *"
     }
   ]
 }

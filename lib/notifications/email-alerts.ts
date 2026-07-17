@@ -203,6 +203,54 @@ export async function notifyInvoiceSent(params: {
   }
 }
 
+/** On-platform buyer: seller marked invoice paid — open rate. */
+export async function notifyInvoicePaidToBuyer(params: {
+  buyerProfileId: number;
+  sellerName?: string | null;
+  invoiceId: number;
+  invoiceNumber: string;
+  totalAmount?: number | null;
+  currency?: string | null;
+  poId?: number | null;
+}): Promise<void> {
+  try {
+    const to = await companyEmails(params.buyerProfileId);
+    const seller = params.sellerName || 'Your supplier';
+    const rateHref = `${appBase()}/dashboard/suppliers/ratings`;
+    const docsHref = `${appBase()}/dashboard/buyer/documents?invoiceId=${params.invoiceId}`;
+    const ccy = (params.currency || 'ZAR').toUpperCase();
+    const total =
+      params.totalAmount != null && Number.isFinite(Number(params.totalAmount))
+        ? `${ccy} ${Number(params.totalAmount).toLocaleString(undefined, {
+            maximumFractionDigits: 2,
+          })}`
+        : '';
+    await sendAlert({
+      to,
+      subject: `[SupplierAdvisor] Invoice ${params.invoiceNumber} paid — rate ${seller}`,
+      html: `
+        <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto">
+          <h2 style="color:#047857">Payment recorded</h2>
+          <p><strong>${seller}</strong> marked invoice <strong>${params.invoiceNumber}</strong> as paid.</p>
+          ${total ? `<p>Amount: <strong>${total}</strong></p>` : ''}
+          ${
+            params.poId
+              ? `<p>Linked PO #${params.poId} was updated to paid.</p>`
+              : ''
+          }
+          <p>Close the trust loop with a quick peer rating.</p>
+          <p>
+            <a href="${rateHref}" style="display:inline-block;background:#00b4d8;color:#fff;padding:10px 18px;border-radius:999px;text-decoration:none;font-weight:700">Rate supplier →</a>
+          </p>
+          <p style="margin-top:12px"><a href="${docsHref}" style="color:#00b4d8">Open invoice →</a></p>
+        </div>
+      `,
+    });
+  } catch (e) {
+    console.warn('notifyInvoicePaidToBuyer', e);
+  }
+}
+
 /**
  * On-platform buyer company: invoice was emailed (and shared) — open docs + PDF link.
  * Complements the customer-facing PDF email from docs/send.

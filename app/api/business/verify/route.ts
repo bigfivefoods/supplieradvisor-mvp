@@ -24,7 +24,7 @@ const PROFILE_GHOST_COLS = new Set([
  *   companyId, privyUserId,
  *   paystackReference?,   // new payment
  *   reusePayment?: true,  // re-run CIPC using stored payment ref (no second charge)
- *   action?: 'verify' | 'apply_from_metadata' | 'reuse_and_verify',
+ *   action?: 'verify' | 'apply_from_metadata' | 'apply_cipc_name' | 'reuse_and_verify',
  *   registrationNumber?, vatNumber?, solePropIdNumber?,
  *   mode?: 'sandbox' | 'production',
  *   consent?: boolean
@@ -60,6 +60,16 @@ export async function POST(request: NextRequest) {
     // ── Recovery: apply verified badge from last successful CIPC metadata ──
     if (action === 'apply_from_metadata') {
       return applyVerifiedFromMetadata({
+        supabase,
+        companyId,
+        profile,
+        userId: mem.userId,
+      });
+    }
+
+    // ── Self-serve mismatch fix: copy CIPC legal name onto profile + re-run ──
+    if (action === 'apply_cipc_name') {
+      return applyCipcNameAndRerun({
         supabase,
         companyId,
         profile,
@@ -362,6 +372,149 @@ function storedPaymentRef(profile: ProfileRow): string | null {
   const v = verificationMetaOf(profile);
   const ref = String(v?.paystack_reference || v?.paystackReference || '').trim();
   return ref || null;
+}
+
+/**
+ * Self-serve mismatch fix: set trading/legal name from last CIPC snapshot,
+ * then re-run VerifyNow with stored Paystack payment (no second charge).
+ */
+async function applyCipcNameAndRerun(opts: {
+  supabase: ReturnType<typeof getSupabaseServer>;
+  companyId: number;
+  profile: ProfileRow;
+  userId: string;
+}) {
+  const { supabase, companyId, profile, userId } = opts;
+  const v = verificationMetaOf(profile);
+  const cipcName = String(
+    v?.company_name || v?.companyName || v?.trade_name || ''
+  ).trim();
+  if (!cipcName) {
+    return NextResponse.json(
+      {
+        error: 'No CIPC company name on file',
+        hint: 'Run CIPC verification first so the registered name is stored, then retry.',
+      },
+      { status: 400 }
+    );
+  }
+
+  const now = new Date().toISOString();
+  const meta =
+    profile.metadata &&
+    typeof profile.metadata === 'object' &&
+    !Array.isArray(profile.metadata)
+      ? (profile.metadata as Record<string, unknown>)
+      : {};
+  const prevTrading = profile.trading_name;
+  const prevLegal = profile.legal_name;
+
+  let { error } = await supabase
+    .from('profiles')
+    .update({
+      trading_name: cipcName,
+      legal_name: cipcName,
+      updated_at: now,
+      metadata: {
+        ...meta,
+        verification: {
+          ...(v || {}),
+          name_applied_at: now,
+          name_applied_from: 'self_serve',
+          previous_trading_name: prevTrading,
+          previous_legal_name: prevLegal,
+        },
+      },
+    })
+    .eq('id', companyId);
+
+  if (error && /metadata|column/i.test(error.message || '')) {
+    const retry = await supabase
+      .from('profiles')
+      .update({
+        trading_name: cipcName,
+        legal_name: cipcName,
+        updated_at: now,
+      })
+      .eq('id', companyId);
+    error = retry.error;
+  }
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  await logActivity({
+    profile_id: companyId,
+    actor_user_id: userId,
+    action: 'business.verification_apply_cipc_name',
+    entity_type: 'profiles',
+    entity_id: String(companyId),
+    summary: `Self-serve: applied CIPC name to profile: ${cipcName}`,
+    metadata: {
+      previous: { trading_name: prevTrading, legal_name: prevLegal },
+    },
+  });
+
+  const payRef = storedPaymentRef(profile);
+  let rerun: Record<string, unknown> | null = null;
+  if (payRef) {
+    try {
+      const { runCipcAfterPayment } = await import(
+        '@/lib/business/cipc-after-payment'
+      );
+      const result = await runCipcAfterPayment({
+        companyId,
+        paystackReference: payRef,
+        actorUserId: userId,
+        source: 'self_serve_after_name_fix',
+      });
+      rerun = result as unknown as Record<string, unknown>;
+    } catch (e) {
+      console.warn('apply_cipc_name re-run soft-fail', e);
+    }
+  }
+
+  const { data: refreshed } = await supabase
+    .from('profiles')
+    .select(
+      'id, trading_name, legal_name, verification_status, verification_payment_ref, metadata'
+    )
+    .eq('id', companyId)
+    .maybeSingle();
+
+  const status = String(
+    (rerun as { status?: string } | null)?.status ||
+      refreshed?.verification_status ||
+      'pending'
+  ).toLowerCase();
+
+  return NextResponse.json({
+    success: true,
+    action: 'apply_cipc_name',
+    trading_name: cipcName,
+    legal_name: cipcName,
+    status,
+    rerun,
+    hasStoredPayment: Boolean(payRef),
+    message:
+      status === 'verified'
+        ? `Profile updated to “${cipcName}” and verified`
+        : payRef
+          ? `Profile names set to “${cipcName}” — CIPC re-checked (status: ${status})`
+          : `Profile names set to “${cipcName}”. Complete R69 payment to finish verification.`,
+    profile: refreshed
+      ? {
+          ...refreshed,
+          is_verified: status === 'verified',
+        }
+      : {
+          id: companyId,
+          trading_name: cipcName,
+          legal_name: cipcName,
+          verification_status: status,
+          is_verified: status === 'verified',
+        },
+  });
 }
 
 /**

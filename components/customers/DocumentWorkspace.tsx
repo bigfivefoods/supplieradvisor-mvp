@@ -761,7 +761,23 @@ function DocInner({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
-      toast.success('Marked paid · loyalty points earned');
+      const bits: string[] = ['Marked paid'];
+      if (data.poMarkedPaid) bits.push(`PO #${data.poMarkedPaid} → paid`);
+      if (data.ratingPrompted) bits.push('rate prompts queued');
+      toast.success(bits.join(' · '), {
+        description: data.ratingPrompted
+          ? 'Rate this partner to close the trust loop'
+          : 'Loyalty points earned when applicable',
+        action: data.ratingPrompted
+          ? {
+              label: 'Rate now',
+              onClick: () => {
+                window.location.href = '/dashboard/customers/ratings';
+              },
+            }
+          : undefined,
+        duration: 9000,
+      });
       void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed');

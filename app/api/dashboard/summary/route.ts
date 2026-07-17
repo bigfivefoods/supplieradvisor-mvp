@@ -1001,6 +1001,44 @@ export async function POST(request: NextRequest) {
     ).length;
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
+    // Soft-write: promote past-due open invoices → overdue for this company
+    const pastDueIds = custInvoices
+      .filter((i) => {
+        const st = String(i.status || '').toLowerCase();
+        if (!['sent', 'partial', 'unpaid', 'issued', 'viewed'].includes(st)) {
+          return false;
+        }
+        const due = i.due_date ? new Date(String(i.due_date)) : null;
+        return (
+          due != null &&
+          Number.isFinite(due.getTime()) &&
+          due < todayStart
+        );
+      })
+      .map((i) => Number(i.id))
+      .filter((n) => Number.isFinite(n) && n > 0);
+    if (pastDueIds.length) {
+      void (async () => {
+        try {
+          await supabase
+            .from('customer_invoices')
+            .update({
+              status: 'overdue',
+              updated_at: new Date().toISOString(),
+            })
+            .in('id', pastDueIds.slice(0, 50))
+            .eq('profile_id', companyId);
+        } catch {
+          /* soft */
+        }
+      })();
+      for (const i of custInvoices) {
+        if (pastDueIds.includes(Number(i.id))) {
+          (i as { status?: string }).status = 'overdue';
+        }
+      }
+    }
+
     const invoicesOverdue = custInvoices.filter((i) => {
       const st = String(i.status || '').toLowerCase();
       if (['paid', 'void', 'cancelled', 'draft'].includes(st)) return false;

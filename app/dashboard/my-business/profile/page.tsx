@@ -900,41 +900,77 @@ function ProfileInner() {
     }
   };
 
-  /** Copy CIPC company name onto trading + legal name, then re-run CIPC if paid. */
+  /**
+   * Self-serve mismatch fix: one API call applies CIPC name + re-runs verify
+   * with stored payment (no second R69). Does not require consent tick.
+   */
   const applyCipcNameToProfile = async () => {
-    const fromLive = verifyResult?.verification?.companyName;
-    const fromMeta =
-      form.metadata &&
-      typeof form.metadata === 'object' &&
-      (form.metadata as { verification?: { company_name?: string } }).verification
-        ?.company_name;
-    const cipcName = String(fromLive || fromMeta || '').trim();
-    if (!cipcName) {
-      toast.error('No CIPC company name available yet — run verify first.');
-      return;
-    }
     setSaving(true);
+    setVerifying(true);
+    toast.loading('Applying CIPC name and re-checking…', { id: 'cipc-name' });
     try {
-      setForm((prev) => ({
-        ...prev,
-        trading_name: cipcName,
-        legal_name: cipcName,
-      }));
-      await persistPartial({
-        trading_name: cipcName,
-        legal_name: cipcName,
+      const res = await fetch('/api/business/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          action: 'apply_cipc_name',
+        }),
       });
-      toast.success(`Profile names set to “${cipcName}”`);
-      // Re-run CIPC with stored payment if we have consent
-      if (verifyConsent) {
-        void runVerifyNow(null, { reusePayment: true });
-      } else {
-        toast.message('Tick consent, then Re-run CIPC to finish verification.');
+      const data = await res.json();
+      if (!res.ok) {
+        // Fallback: local name copy if API lacks action
+        if (res.status === 400 || res.status === 404) {
+          const fromLive = verifyResult?.verification?.companyName;
+          const fromMeta =
+            form.metadata &&
+            typeof form.metadata === 'object' &&
+            (
+              form.metadata as {
+                verification?: { company_name?: string };
+              }
+            ).verification?.company_name;
+          const cipcName = String(fromLive || fromMeta || '').trim();
+          if (!cipcName) throw new Error(data.error || 'No CIPC name available');
+          setForm((prev) => ({
+            ...prev,
+            trading_name: cipcName,
+            legal_name: cipcName,
+          }));
+          await persistPartial({
+            trading_name: cipcName,
+            legal_name: cipcName,
+          });
+          toast.success(`Profile names set to “${cipcName}”`, {
+            id: 'cipc-name',
+          });
+          void runVerifyNow(null, { reusePayment: true });
+          return;
+        }
+        throw new Error(data.error || data.hint || 'Could not apply CIPC name');
       }
+      const name = String(data.trading_name || data.legal_name || '');
+      if (name) {
+        setForm((prev) => ({
+          ...prev,
+          trading_name: name,
+          legal_name: name,
+          verification_status: data.status || prev.verification_status,
+        }));
+      }
+      applyVerifyResponse(data);
+      toast.success(data.message || `Applied CIPC name “${name}”`, {
+        id: 'cipc-name',
+      });
+      void load();
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Could not update names');
+      toast.error(e instanceof Error ? e.message : 'Could not update names', {
+        id: 'cipc-name',
+      });
     } finally {
       setSaving(false);
+      setVerifying(false);
     }
   };
 
@@ -1385,11 +1421,13 @@ function ProfileInner() {
                   onClick={() => void applyCipcNameToProfile()}
                   className="btn-primary !py-2 !px-3 text-xs"
                 >
-                  Use CIPC name on profile & re-run check
+                  {verifying || saving
+                    ? 'Applying…'
+                    : 'Use CIPC name & re-verify (no re-pay)'}
                 </button>
                 <p className="text-[10px] text-amber-900/80">
-                  Uses your existing R69 payment when you re-run — no second charge if
-                  payment is already stored.
+                  One step: copies the CIPC registered name to your profile and
+                  re-runs the check with your stored R69 payment — no second charge.
                 </p>
               </div>
             </div>

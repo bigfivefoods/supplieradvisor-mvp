@@ -403,12 +403,15 @@ export async function POST(request: NextRequest) {
       }
 
       // Soft-fail mutual rating prompts (seller↔buyer) when customer is on-platform
+      let buyerProfileId: number | null = null;
       if (String(inv.status || '').toLowerCase() !== 'paid' && inv.customer_id) {
         const customer = await loadCustomer(supabase, Number(inv.customer_id));
         const linked = Number(customer?.linked_profile_id);
+        buyerProfileId =
+          Number.isFinite(linked) && linked > 0 ? linked : null;
         void promptAfterInvoicePaid({
           sellerProfileId: companyId,
-          customerLinkedProfileId: Number.isFinite(linked) && linked > 0 ? linked : null,
+          customerLinkedProfileId: buyerProfileId,
           customerName:
             inv.customer_name ||
             customer?.trading_name ||
@@ -420,7 +423,106 @@ export async function POST(request: NextRequest) {
         }).catch(() => undefined);
       }
 
-      return NextResponse.json({ success: true, invoice: updated, action: 'mark_paid' });
+      // Soft: sync linked purchase order → paid
+      let poMarkedPaid: number | null = null;
+      try {
+        const sourcePo = Number(
+          (inv as { source_po_id?: unknown }).source_po_id
+        );
+        if (Number.isFinite(sourcePo) && sourcePo > 0) {
+          const { error: poErr } = await supabase
+            .from('purchase_orders')
+            .update({ status: 'paid', updated_at: now })
+            .eq('id', sourcePo)
+            .or(
+              `supplier_profile_id.eq.${companyId},supplier_id.eq.${companyId}`
+            );
+          if (!poErr) poMarkedPaid = sourcePo;
+        } else {
+          // Fallback: PO.invoice_id → this invoice
+          const { data: byInv } = await supabase
+            .from('purchase_orders')
+            .select('id')
+            .eq('invoice_id', inv.id)
+            .or(
+              `supplier_profile_id.eq.${companyId},supplier_id.eq.${companyId}`
+            )
+            .limit(1)
+            .maybeSingle();
+          if (byInv?.id) {
+            const { error: poErr } = await supabase
+              .from('purchase_orders')
+              .update({ status: 'paid', updated_at: now })
+              .eq('id', byInv.id);
+            if (!poErr) poMarkedPaid = Number(byInv.id);
+          }
+        }
+      } catch {
+        /* soft */
+      }
+
+      // Soft: notify on-platform buyer + rate CTAs
+      if (buyerProfileId) {
+        void (async () => {
+          try {
+            const { data: sellerProf } = await supabase
+              .from('profiles')
+              .select('trading_name')
+              .eq('id', companyId)
+              .maybeSingle();
+            const sellerName = sellerProf?.trading_name || 'Your supplier';
+            const invNum = String(inv.invoice_number || inv.id);
+            const { notifyInvoicePaidToBuyer } = await import(
+              '@/lib/notifications/email-alerts'
+            );
+            await notifyInvoicePaidToBuyer({
+              buyerProfileId,
+              sellerName,
+              invoiceId: Number(inv.id),
+              invoiceNumber: invNum,
+              totalAmount: paid,
+              currency: String(inv.currency || 'ZAR'),
+              poId: poMarkedPaid,
+            });
+            void supabase.from('notifications').insert({
+              profile_id: buyerProfileId,
+              type: 'invoice_paid',
+              title: `Invoice ${invNum} marked paid`,
+              body: `${sellerName} recorded payment — rate this partner to close the trust loop`,
+              metadata: {
+                invoiceId: inv.id,
+                poId: poMarkedPaid,
+                href: `/dashboard/suppliers/ratings?ratee=${companyId}`,
+              },
+              read: false,
+            });
+            // Seller in-app rate nudge
+            void supabase.from('notifications').insert({
+              profile_id: companyId,
+              type: 'rate_after_paid',
+              title: `Rate buyer after invoice ${invNum}`,
+              body: 'Payment recorded — leave a peer rating',
+              metadata: {
+                invoiceId: inv.id,
+                href: buyerProfileId
+                  ? `/dashboard/customers/ratings?ratee=${buyerProfileId}`
+                  : '/dashboard/customers/ratings',
+              },
+              read: false,
+            });
+          } catch (e) {
+            console.warn('mark_paid buyer notify soft-fail', e);
+          }
+        })();
+      }
+
+      return NextResponse.json({
+        success: true,
+        invoice: updated,
+        action: 'mark_paid',
+        poMarkedPaid,
+        ratingPrompted: Boolean(buyerProfileId),
+      });
     }
 
     // ── Create ─────────────────────────────────────────────────────────────
