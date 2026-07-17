@@ -19,8 +19,11 @@ supabase/migrations/20260717_customer_invoices_promise_to_pay.sql
 | `/api/customers/ar-digest/cron` | Mondays 07:00 UTC | Weekly AR aging email to finance/owner |
 | `/api/customers/ar-statement/cron` | 1st of month 07:15 UTC | Monthly AR-by-customer statement email |
 | `/api/customers/docs/dunning-cron` | daily 06:45 UTC | Overdue ladder day 1 / 7 / 14 emails |
+| `/api/system/paystack-pulse-cron` | daily 08:00 UTC | Email OPS_ALERT_EMAIL if webhook stale (&gt;72h) |
 
 Auth: `Authorization: Bearer $CRON_SECRET`
+
+**Ops alert email:** set `OPS_ALERT_EMAIL` or `PAYSTACK_OPS_EMAIL` for stale webhook alerts.
 
 **Collections UI:** `/dashboard/customers/ar` — aging, customer rollup, broken promises, per-customer PDF statement.
 

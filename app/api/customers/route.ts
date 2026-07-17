@@ -199,6 +199,67 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: mem.error }, { status: mem.status });
       }
     }
+    const supabase = getSupabaseServer();
+    const action = String(body.action || '').toLowerCase();
+
+    // Clear auto credit hold (and optionally reset override counter)
+    if (action === 'clear_credit_hold') {
+      const { data: cust, error: cErr } = await supabase
+        .from('customers')
+        .select('id, notes, profile_id, status')
+        .eq('id', Number(body.id))
+        .maybeSingle();
+      if (cErr || !cust) {
+        return NextResponse.json(
+          { error: cErr?.message || 'Customer not found' },
+          { status: 404 }
+        );
+      }
+      if (Number.isFinite(companyId) && Number(cust.profile_id) !== companyId) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+      let notes = cust.notes != null ? String(cust.notes) : '';
+      notes = notes
+        .split('\n')
+        .filter(
+          (l) =>
+            !/\[credit hold\]/i.test(l) &&
+            !(body.resetOverrides && /\[credit overrides:\d+\]/i.test(l))
+        )
+        .join('\n');
+      if (!body.resetOverrides && !/\[credit overrides:/i.test(notes)) {
+        /* keep overrides unless reset */
+      }
+      if (body.resetOverrides) {
+        notes = notes
+          ? `${notes}\n[credit hold cleared ${new Date().toISOString().slice(0, 10)}]`
+          : `[credit hold cleared ${new Date().toISOString().slice(0, 10)}]`;
+      } else {
+        notes = notes
+          ? `${notes}\n[credit hold cleared ${new Date().toISOString().slice(0, 10)}]`
+          : `[credit hold cleared ${new Date().toISOString().slice(0, 10)}]`;
+      }
+      const updates: Record<string, unknown> = {
+        notes: notes.trim() || null,
+        updated_at: new Date().toISOString(),
+      };
+      if (String(cust.status || '').toLowerCase() === 'credit_hold') {
+        updates.status = 'active';
+      }
+      const { data, error } = await supabase
+        .from('customers')
+        .update(updates)
+        .eq('id', Number(body.id))
+        .select('*')
+        .single();
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({
+        success: true,
+        customer: data,
+        action: 'clear_credit_hold',
+      });
+    }
+
     const fields = [
       'trading_name',
       'legal_name',
@@ -230,7 +291,6 @@ export async function PATCH(request: NextRequest) {
     for (const f of fields) {
       if (body[f] !== undefined) updates[f] = body[f];
     }
-    const supabase = getSupabaseServer();
     const { data, error } = await supabase
       .from('customers')
       .update(updates)

@@ -832,15 +832,30 @@ function DocInner({
 
   const setPaymentPlan = async (id: number) => {
     const plan = window.prompt(
-      'Payment plan notes (e.g. 3 x monthly installments from next Friday):',
+      'Payment plan notes (e.g. 3 monthly installments):',
       ''
     );
-    if (plan === null || !String(plan).trim()) return;
-    const ptp = window.prompt(
-      'First installment / promise date YYYY-MM-DD (optional):',
-      new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10)
+    if (plan === null) return;
+    const structured = window.prompt(
+      'Structured installments (optional). One per line: YYYY-MM-DD amount\nExample:\n2026-08-01 5000\n2026-09-01 5000',
+      ''
     );
-    if (ptp === null) return;
+    if (structured === null) return;
+    const installments = String(structured)
+      .split('\n')
+      .map((line) => {
+        const m = line.trim().match(/^(\d{4}-\d{2}-\d{2})\s+([\d.,]+)/);
+        if (!m) return null;
+        return {
+          date: m[1],
+          amount: Number(m[2].replace(/,/g, '')),
+        };
+      })
+      .filter(Boolean) as Array<{ date: string; amount: number }>;
+    if (!String(plan).trim() && !installments.length) {
+      toast.message('Enter plan notes or installments');
+      return;
+    }
     setBusyId(id);
     try {
       const res = await fetch('/api/customers/docs', {
@@ -851,19 +866,19 @@ function DocInner({
           type: 'invoice',
           id,
           action: 'set_payment_plan',
-          plan: String(plan).trim(),
-          promise_to_pay_date:
-            ptp && /^\d{4}-\d{2}-\d{2}$/.test(ptp.trim())
-              ? ptp.trim()
-              : undefined,
+          plan: String(plan).trim() || undefined,
+          installments: installments.length ? installments : undefined,
+          promise_to_pay_date: installments[0]?.date,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
       toast.success('Payment plan recorded', {
-        description: data.promise_to_pay_date
-          ? `Promise ${data.promise_to_pay_date}`
-          : undefined,
+        description: installments.length
+          ? `${installments.length} installments · first ${installments[0].date}`
+          : data.promise_to_pay_date
+            ? `Promise ${data.promise_to_pay_date}`
+            : undefined,
       });
       void load();
     } catch (e: unknown) {

@@ -304,7 +304,7 @@ function InboundPosList() {
     setBusyId(poId);
     toast.loading(`Creating invoice from PO #${poId}…`, { id: 'inv-now' });
     try {
-      const res = await fetch('/api/customers/docs', {
+      let res = await fetch('/api/customers/docs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -315,7 +315,7 @@ function InboundPosList() {
           buyerProfileId: buyerProfileId || undefined,
         }),
       });
-      const data = await res.json().catch(() => ({}));
+      let data = await res.json().catch(() => ({}));
       if (!res.ok) {
         if (data.code === 'DUPLICATE_FROM_PO' && data.existing?.id) {
           toast.message('Invoice already exists', {
@@ -337,7 +337,7 @@ function InboundPosList() {
             toast.dismiss('inv-now');
             return;
           }
-          const retry = await fetch('/api/customers/docs', {
+          res = await fetch('/api/customers/docs', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -349,30 +349,27 @@ function InboundPosList() {
               acknowledgeCredit: true,
             }),
           });
-          const retryData = await retry.json().catch(() => ({}));
-          if (!retry.ok) throw new Error(retryData.error || 'Failed');
-          toast.success(`Draft invoice created for PO #${poId}`, {
-            id: 'inv-now',
-            action: {
-              label: 'Open invoices',
-              onClick: () => {
-                window.location.href = `/dashboard/customers/invoices?fromPo=${poId}`;
-              },
-            },
-          });
-          return;
+          data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || 'Failed');
+        } else {
+          throw new Error(data.error || 'Invoice failed');
         }
-        throw new Error(data.error || 'Invoice failed');
       }
+      const invId = Number(data.document?.id || data.existing?.id || 0);
       toast.success(`Draft invoice created for PO #${poId}`, {
         id: 'inv-now',
         description: data.invoiceSharedToBuyer
-          ? 'Shared with buyer — email PDF when ready'
-          : 'Review and share/email when ready',
+          ? 'Shared with buyer'
+          : 'Review and share when ready',
+        duration: 14000,
         action: {
-          label: 'Open invoices',
+          label: invId > 0 ? 'Email PDF' : 'Open invoices',
           onClick: () => {
-            window.location.href = `/dashboard/customers/invoices?fromPo=${poId}`;
+            if (invId > 0) {
+              void emailInvoicePdf(invId, poId);
+            } else {
+              window.location.href = `/dashboard/customers/invoices?fromPo=${poId}`;
+            }
           },
         },
       });
@@ -381,6 +378,47 @@ function InboundPosList() {
       toast.error(e instanceof Error ? e.message : 'Failed', { id: 'inv-now' });
     } finally {
       setBusyId(null);
+    }
+  };
+
+  const emailInvoicePdf = async (invoiceId: number, poId: number) => {
+    toast.loading('Emailing invoice PDF…', { id: 'inv-email' });
+    try {
+      const res = await fetch('/api/customers/docs/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          type: 'invoice',
+          id: invoiceId,
+          quiet: true,
+          acknowledgeSoftWarnings: true,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || 'Email failed');
+      }
+      toast.success(`Invoice emailed${data.to ? ` to ${data.to}` : ''}`, {
+        id: 'inv-email',
+        action: {
+          label: 'Open',
+          onClick: () => {
+            window.location.href = `/dashboard/customers/invoices?fromPo=${poId}`;
+          },
+        },
+      });
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Email failed', {
+        id: 'inv-email',
+        description: 'Open invoices to email manually',
+        action: {
+          label: 'Open invoices',
+          onClick: () => {
+            window.location.href = `/dashboard/customers/invoices?fromPo=${poId}`;
+          },
+        },
+      });
     }
   };
 

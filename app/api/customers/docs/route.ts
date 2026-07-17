@@ -473,25 +473,50 @@ export async function POST(request: NextRequest) {
             : `[dunning resumed ${now.slice(0, 10)}]`;
         }
       } else {
-        // payment plan
+        // payment plan — free text and/or structured installments
         const plan = String(body.plan || body.notes || '').trim().slice(0, 500);
-        if (!plan) {
+        let structured: Array<{ date: string; amount: number }> = [];
+        if (Array.isArray(body.installments) && body.installments.length) {
+          structured = body.installments
+            .map((x: unknown) => {
+              const row = x as { date?: string; amount?: number };
+              const date = String(row.date || '').slice(0, 10);
+              const amount = Number(row.amount);
+              if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(amount)) {
+                return null;
+              }
+              return { date, amount };
+            })
+            .filter(Boolean) as Array<{ date: string; amount: number }>;
+        }
+        if (!plan && !structured.length) {
           return NextResponse.json(
-            { error: 'plan text required' },
+            { error: 'plan text or installments[] required' },
             { status: 400 }
           );
         }
-        const installments = body.installments != null
-          ? Number(body.installments)
-          : null;
-        const line = `[payment plan ${now.slice(0, 10)}] ${plan}${
-          installments ? ` · ${installments} installments` : ''
-        }`;
+        const countHint =
+          structured.length ||
+          (body.installmentCount != null ? Number(body.installmentCount) : null);
+        const line = `[payment plan ${now.slice(0, 10)}] ${
+          plan || 'structured installments'
+        }${countHint ? ` · ${countHint} installments` : ''}`;
         notes = notes ? `${notes}\n${line}` : line;
-        // Optional promise date from plan
+        if (structured.length) {
+          // Replace prior structured block
+          notes = notes.replace(
+            /\[installments\][\s\S]*?\[\/installments\]/g,
+            ''
+          ).trim();
+          const block = `[installments]\n${structured
+            .map((s) => `${s.date}|${s.amount}`)
+            .join('\n')}\n[/installments]`;
+          notes = notes ? `${notes}\n${block}` : block;
+        }
+        // Optional promise date from plan (first installment)
         const ptp = body.promise_to_pay_date
           ? String(body.promise_to_pay_date).slice(0, 10)
-          : null;
+          : structured[0]?.date || null;
         if (ptp && /^\d{4}-\d{2}-\d{2}$/.test(ptp)) {
           const { error: pErr } = await supabase
             .from('customer_invoices')
@@ -514,6 +539,7 @@ export async function POST(request: NextRequest) {
             success: true,
             action: 'set_payment_plan',
             promise_to_pay_date: ptp,
+            installments: structured,
           });
         }
       }

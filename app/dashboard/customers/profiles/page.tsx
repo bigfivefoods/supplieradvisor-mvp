@@ -79,6 +79,77 @@ function ProfilesInner() {
     }
   };
 
+  const clearCreditHold = async (c: CustomerRecord) => {
+    const reset = confirm(
+      `Clear credit hold for ${c.trading_name}? OK = clear hold only. Cancel = abort.\n\nAfter OK you can choose to also reset override counter.`
+    );
+    if (!reset) return;
+    const resetOverrides = confirm('Also reset override counter to zero?');
+    setActionId(c.id);
+    try {
+      const res = await fetch('/api/customers', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: c.id,
+          companyId,
+          privyUserId,
+          action: 'clear_credit_hold',
+          resetOverrides,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      toast.success('Credit hold cleared');
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setActionId(null);
+    }
+  };
+
+  const inviteCustomersWithEmail = async () => {
+    const withEmail = customers.filter(
+      (c) => (c.email || c.invited_email || '').includes('@')
+    );
+    if (!withEmail.length) {
+      toast.message('No customers with email in this list');
+      return;
+    }
+    const ok = confirm(
+      `Invite ${withEmail.length} customer(s) with email via SupplierAdvisor invite emails?`
+    );
+    if (!ok) return;
+    setActionId(-1);
+    try {
+      const emails = withEmail
+        .map((c) => String(c.email || c.invited_email || '').toLowerCase())
+        .filter((e) => e.includes('@'));
+      const res = await fetch('/api/business/network-invites', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          action: 'bulk_from_emails',
+          emails,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Invite failed');
+      toast.success(`Sent ${data.sent || 0} invite(s)`, {
+        description: data.failed?.length
+          ? `${data.failed.length} failed`
+          : undefined,
+      });
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setActionId(null);
+    }
+  };
+
   const setSuspended = async (c: CustomerRecord, suspend: boolean) => {
     if (!privyUserId) {
       toast.error('Sign in required');
@@ -126,11 +197,25 @@ function ProfilesInner() {
         description="Account master data — contacts, commercial terms, and service history anchors. Platform invites are optional; offline customers stay fully editable."
         action={
           <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void inviteCustomersWithEmail()}
+              disabled={actionId === -1}
+              className="btn-secondary !py-2.5 !px-4 text-sm"
+            >
+              {actionId === -1 ? 'Inviting…' : 'Invite all with email'}
+            </button>
             <Link
               href="/dashboard/customers/invites"
               className="btn-secondary !py-2.5 !px-5 text-sm"
             >
               Invites
+            </Link>
+            <Link
+              href="/dashboard/network-invites"
+              className="btn-secondary !py-2.5 !px-4 text-sm"
+            >
+              Invite CRM
             </Link>
             <Link href="/dashboard/customers/onboard" className="btn-primary !py-2.5 !px-5 text-sm">
               <Plus className="w-4 h-4" /> Add customer
@@ -224,6 +309,21 @@ function ProfilesInner() {
                       <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800">
                         {c.status || 'active'}
                       </span>
+                      {String(c.notes || '').includes('[credit hold]') ||
+                      String(c.status || '').toLowerCase() === 'credit_hold' ? (
+                        <div className="mt-1">
+                          <span className="text-[9px] font-black uppercase text-rose-800 bg-rose-50 border border-rose-100 rounded-full px-2 py-0.5">
+                            Credit hold
+                          </span>
+                          <button
+                            type="button"
+                            className="ml-1 text-[10px] font-bold text-[#0077b6] hover:underline"
+                            onClick={() => void clearCreditHold(c)}
+                          >
+                            Clear
+                          </button>
+                        </div>
+                      ) : null}
                     </td>
                     <td className="px-3 py-3">
                       <span

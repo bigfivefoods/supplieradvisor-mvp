@@ -169,9 +169,62 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Base-currency open total (company primary_currency)
+    let baseCurrency = 'ZAR';
+    let openTotalBase: number | null = null;
+    try {
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('primary_currency')
+        .eq('id', companyId)
+        .maybeSingle();
+      baseCurrency = String(prof?.primary_currency || 'ZAR').toUpperCase();
+      const fxRes = await fetch(
+        `${request.nextUrl.origin}/api/fx/rates?base=USD`,
+        { next: { revalidate: 900 } }
+      ).catch(() => null);
+      const fxJson = fxRes && fxRes.ok ? await fxRes.json().catch(() => null) : null;
+      const ratesUsd =
+        (fxJson?.rates as Record<string, number>) ||
+        ({
+          ZAR: 18.5,
+          USD: 1,
+          EUR: 0.92,
+          GBP: 0.79,
+        } as Record<string, number>);
+      const { convertAmount } = await import('@/lib/fx/types');
+      let sumBase = 0;
+      let convertedAny = false;
+      for (const inv of data || []) {
+        const st = String(inv.status || '').toLowerCase();
+        if (st === 'draft') continue;
+        const total = Number(inv.total_amount || 0);
+        const paid = Number(inv.amount_paid || 0);
+        const balance = Math.max(0, total - paid);
+        if (balance <= 0.001) continue;
+        const ccy = String(inv.currency || 'ZAR').toUpperCase();
+        const conv = convertAmount(balance, ccy, baseCurrency, {
+          ...ratesUsd,
+          USD: 1,
+        });
+        if (conv != null && Number.isFinite(conv)) {
+          sumBase += conv;
+          convertedAny = true;
+        } else if (ccy === baseCurrency) {
+          sumBase += balance;
+          convertedAny = true;
+        }
+      }
+      if (convertedAny) openTotalBase = Math.round(sumBase * 100) / 100;
+    } catch {
+      openTotalBase = null;
+    }
+
     return NextResponse.json({
       success: true,
       openTotal: Math.round(openTotal * 100) / 100,
+      openTotalBase,
+      baseCurrency,
       partialCount,
       overdueCount,
       brokenPromiseCount,

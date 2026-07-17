@@ -64,10 +64,15 @@ function Inner() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [openTotal, setOpenTotal] = useState(0);
+  const [openTotalBase, setOpenTotalBase] = useState<number | null>(null);
+  const [baseCurrency, setBaseCurrency] = useState('ZAR');
   const [partialCount, setPartialCount] = useState(0);
   const [overdueCount, setOverdueCount] = useState(0);
   const [brokenPromiseCount, setBrokenPromiseCount] = useState(0);
   const [buckets, setBuckets] = useState<Record<string, Bucket> | null>(null);
+  const [dunningPreview, setDunningPreview] = useState<
+    Array<Record<string, unknown>>
+  >([]);
   const [customers, setCustomers] = useState<CustomerRollup[]>([]);
   const [statementHistory, setStatementHistory] = useState<
     Array<{ id: string; summary: string; created_at: string }>
@@ -77,7 +82,7 @@ function Inner() {
     setLoading(true);
     setError(null);
     try {
-      const [agingRes, custRes, histRes] = await Promise.all([
+      const [agingRes, custRes, histRes, dunRes] = await Promise.all([
         fetch(`/api/customers/ar-aging?companyId=${companyId}`, {
           cache: 'no-store',
         }),
@@ -88,14 +93,32 @@ function Inner() {
           `/api/customers/ar-statement/history?companyId=${companyId}`,
           { cache: 'no-store' }
         ).catch(() => null),
+        fetch(
+          `/api/customers/docs/dunning-preview?companyId=${companyId}`,
+          { cache: 'no-store' }
+        ).catch(() => null),
       ]);
       const data = await agingRes.json();
       if (!agingRes.ok) throw new Error(data.error || 'Failed to load AR');
       setOpenTotal(Number(data.openTotal || 0));
+      setOpenTotalBase(
+        data.openTotalBase != null ? Number(data.openTotalBase) : null
+      );
+      setBaseCurrency(String(data.baseCurrency || 'ZAR'));
       setPartialCount(Number(data.partialCount || 0));
       setOverdueCount(Number(data.overdueCount || 0));
       setBrokenPromiseCount(Number(data.brokenPromiseCount || 0));
       setBuckets(data.buckets || null);
+      if (dunRes && dunRes.ok) {
+        const d = await dunRes.json().catch(() => ({}));
+        setDunningPreview(
+          ((d.preview || []) as Array<Record<string, unknown>>).filter(
+            (p) => p.would_send
+          )
+        );
+      } else {
+        setDunningPreview([]);
+      }
 
       const cData = await custRes.json().catch(() => ({}));
       if (custRes.ok) {
@@ -343,10 +366,10 @@ function Inner() {
             </div>
           )}
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3">
             <div className="rounded-2xl border border-neutral-200 bg-white p-4">
               <div className="text-[10px] font-bold uppercase text-neutral-400">
-                Open AR
+                Open AR (mixed CCY)
               </div>
               <div className="text-2xl font-black text-slate-900 mt-1 tabular-nums">
                 {openTotal.toLocaleString(undefined, {
@@ -354,6 +377,21 @@ function Inner() {
                 })}
               </div>
             </div>
+            {openTotalBase != null ? (
+              <div className="rounded-2xl border border-sky-200 bg-sky-50/80 p-4">
+                <div className="text-[10px] font-bold uppercase text-sky-700/80">
+                  Open AR ({baseCurrency})
+                </div>
+                <div className="text-2xl font-black text-sky-950 mt-1 tabular-nums">
+                  {openTotalBase.toLocaleString(undefined, {
+                    maximumFractionDigits: 0,
+                  })}
+                </div>
+                <div className="text-[10px] text-sky-800/70 mt-0.5">
+                  FX indicative
+                </div>
+              </div>
+            ) : null}
             <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4">
               <div className="text-[10px] font-bold uppercase text-amber-700/80">
                 Overdue invoices
@@ -379,6 +417,25 @@ function Inner() {
               </div>
             </div>
           </div>
+
+          {dunningPreview.length > 0 ? (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50/50 px-4 py-3">
+              <div className="text-[10px] font-bold uppercase text-amber-800 mb-2">
+                Dunning preview — next cron would send ({dunningPreview.length})
+              </div>
+              <ul className="space-y-1 max-h-32 overflow-y-auto">
+                {dunningPreview.slice(0, 12).map((p) => (
+                  <li key={String(p.id)} className="text-xs text-amber-950">
+                    {String(p.invoice_number || p.id)} ·{' '}
+                    {String(p.customer_name || 'Customer')} · day{' '}
+                    {String(p.ladder_day)} ({String(p.ladder_label)}) ·{' '}
+                    {Number(p.balance || 0).toLocaleString()}{' '}
+                    {String(p.currency || '')}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
 
           {statementHistory.length > 0 ? (
             <div className="rounded-2xl border border-neutral-200 bg-white px-4 py-3">
