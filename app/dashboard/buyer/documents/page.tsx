@@ -4,7 +4,15 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { usePrivy } from '@privy-io/react-auth';
-import { FileText, Loader2, AlertTriangle } from 'lucide-react';
+import {
+  FileText,
+  Loader2,
+  AlertTriangle,
+  ArrowRight,
+  FileDown,
+  Star,
+  Package,
+} from 'lucide-react';
 import { getCanonicalUserId } from '@/lib/auth/identity';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { formatMoney, statusBadgeClass } from '@/lib/customers/documents';
@@ -36,6 +44,7 @@ type SharedDoc = Record<string, unknown> & {
   valid_until?: string | null;
   due_date?: string | null;
   promised_date?: string | null;
+  source_po_id?: number | null;
 };
 
 /** Connected suppliers for filter dropdown (names from workspace). */
@@ -292,6 +301,63 @@ function BuyerDocumentsInner() {
         </div>
       ) : null}
 
+      {focusedDoc && String(focusedDoc.doc_type || '') === 'invoice' ? (
+        <div className="mb-6 rounded-3xl border border-sky-200 bg-gradient-to-br from-sky-50 via-white to-emerald-50 p-4 sm:p-5 shadow-sm">
+          <div className="text-sm font-black text-slate-900 mb-1">
+            Invoice received — close the loop
+          </div>
+          <p className="text-xs text-slate-600 mb-3 leading-relaxed">
+            View the PDF, record delivery (OTIFEF) on the PO when goods arrive, then
+            rate your supplier.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                const sid = Number(focusedDoc.supplier_profile_id || 0);
+                if (!sid) return;
+                window.open(
+                  `/api/buyer/documents/render?buyerCompanyId=${companyId}&supplierProfileId=${sid}&type=invoice&id=${focusedDoc.id}&format=pdf`,
+                  '_blank',
+                  'noopener,noreferrer'
+                );
+              }}
+              className="inline-flex items-center gap-1.5 rounded-full bg-[#00b4d8] px-4 py-2 text-xs font-bold text-white hover:bg-[#0096c7]"
+            >
+              <FileDown className="w-3.5 h-3.5" />
+              1 · View PDF
+            </button>
+            <Link
+              href={
+                Number(focusedDoc.source_po_id) > 0
+                  ? `/dashboard/suppliers/po?po=${focusedDoc.source_po_id}`
+                  : '/dashboard/suppliers/po'
+              }
+              className="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-white px-4 py-2 text-xs font-bold text-sky-900 hover:bg-sky-50"
+            >
+              <Package className="w-3.5 h-3.5" />
+              2 · Receive + OTIFEF
+              <ArrowRight className="w-3 h-3" />
+            </Link>
+            <Link
+              href={
+                Number(focusedDoc.supplier_profile_id) > 0
+                  ? `/dashboard/suppliers/ratings?ratee=${focusedDoc.supplier_profile_id}${
+                      Number(focusedDoc.source_po_id) > 0
+                        ? `&fromPo=${focusedDoc.source_po_id}`
+                        : ''
+                    }`
+                  : '/dashboard/suppliers/ratings'
+              }
+              className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-bold text-amber-950 hover:bg-amber-100"
+            >
+              <Star className="w-3.5 h-3.5" />
+              3 · Rate supplier
+            </Link>
+          </div>
+        </div>
+      ) : null}
+
       {connectionSuspended && (
         <div className="mb-4 flex items-start gap-2 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
           <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
@@ -439,6 +505,44 @@ function BuyerDocumentsInner() {
                     </div>
                   )}
                 </div>
+                {String(doc.doc_type || '') === 'invoice' &&
+                Number(doc.supplier_profile_id) > 0 ? (
+                  <div className="mt-3 flex flex-wrap gap-2 border-t border-neutral-100 pt-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        window.open(
+                          `/api/buyer/documents/render?buyerCompanyId=${companyId}&supplierProfileId=${doc.supplier_profile_id}&type=invoice&id=${doc.id}&format=pdf`,
+                          '_blank',
+                          'noopener,noreferrer'
+                        );
+                      }}
+                      className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
+                    >
+                      <FileDown className="w-3.5 h-3.5" /> PDF
+                    </button>
+                    <Link
+                      href={
+                        Number(doc.source_po_id) > 0
+                          ? `/dashboard/suppliers/po?po=${doc.source_po_id}`
+                          : '/dashboard/suppliers/po'
+                      }
+                      className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
+                    >
+                      OTIFEF
+                    </Link>
+                    <Link
+                      href={`/dashboard/suppliers/ratings?ratee=${doc.supplier_profile_id}${
+                        Number(doc.source_po_id) > 0
+                          ? `&fromPo=${doc.source_po_id}`
+                          : ''
+                      }`}
+                      className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1 border-amber-200 text-amber-900"
+                    >
+                      <Star className="w-3.5 h-3.5" /> Rate
+                    </Link>
+                  </div>
+                ) : null}
               </div>
             );
           })}

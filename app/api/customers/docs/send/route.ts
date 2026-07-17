@@ -394,18 +394,23 @@ export async function POST(request: NextRequest) {
                 .maybeSingle();
               const buyerId = Number(cust?.linked_profile_id);
               if (Number.isFinite(buyerId) && buyerId > 0) {
+                const sourcePo = Number(
+                  (doc as { source_po_id?: unknown }).source_po_id || 0
+                );
                 await notifyInvoiceSentToBuyer({
                   buyerProfileId: buyerId,
                   sellerName:
                     input.seller.trading_name ||
                     input.seller.legal_name ||
                     null,
+                  sellerProfileId: companyId,
                   invoiceId: id,
                   invoiceNumber: number,
                   pdfUrl: pdfLink,
                   totalAmount: Number(input.totalAmount || 0),
                   currency: String(input.currency || 'ZAR'),
                   resend: isResend,
+                  poId: Number.isFinite(sourcePo) && sourcePo > 0 ? sourcePo : null,
                 });
                 void supabase.from('notifications').insert({
                   profile_id: buyerId,
@@ -416,7 +421,15 @@ export async function POST(request: NextRequest) {
                   body: `${input.seller.trading_name || 'Supplier'} emailed your invoice`,
                   metadata: {
                     invoiceId: id,
-                    href: `/dashboard/buyer/documents?invoiceId=${id}`,
+                    sellerProfileId: companyId,
+                    href: `/dashboard/buyer/documents?invoiceId=${id}&supplierProfileId=${companyId}`,
+                    rateHref: `/dashboard/suppliers/ratings?ratee=${companyId}${
+                      sourcePo > 0 ? `&fromPo=${sourcePo}` : ''
+                    }`,
+                    otifefHref:
+                      sourcePo > 0
+                        ? `/dashboard/suppliers/po?po=${sourcePo}`
+                        : '/dashboard/suppliers/po',
                     pdfUrl: pdfLink,
                     resend: isResend,
                   },

@@ -2002,6 +2002,14 @@ function DocInner({
                       {d.promise_to_pay_date
                         ? ` · promise ${String(d.promise_to_pay_date).slice(0, 10)}`
                         : ''}
+                      {d.promise_to_pay_date &&
+                      String(d.promise_to_pay_date).slice(0, 10) <
+                        new Date().toISOString().slice(0, 10) &&
+                      !['paid', 'void', 'cancelled'].includes(
+                        String(d.status || '').toLowerCase()
+                      )
+                        ? ' · broken promise'
+                        : ''}
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">

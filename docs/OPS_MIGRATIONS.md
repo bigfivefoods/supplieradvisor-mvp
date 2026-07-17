@@ -17,8 +17,13 @@ supabase/migrations/20260717_customer_invoices_promise_to_pay.sql
 | `/api/customers/docs/overdue-cron` | daily 05:15 UTC | Flip past-due → overdue |
 | `/api/customers/docs/promise-to-pay-cron` | daily 06:30 UTC | Remind finance when promise date due |
 | `/api/customers/ar-digest/cron` | Mondays 07:00 UTC | Weekly AR aging email to finance/owner |
+| `/api/customers/ar-statement/cron` | 1st of month 07:15 UTC | Monthly AR-by-customer statement email |
 
 Auth: `Authorization: Bearer $CRON_SECRET`
+
+**Collections UI:** `/dashboard/customers/ar` — aging, customer rollup, broken promises, per-customer PDF statement.
+
+**Verification ops:** `/dashboard/my-business/verifications` — paid≠badge SLA queue (critical &gt;24h paid).
 
 ## Paystack (required for paid CIPC)
 

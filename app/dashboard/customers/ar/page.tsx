@@ -2,7 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Loader2, Mail, MessageCircle, RefreshCw, Wallet } from 'lucide-react';
+import {
+  FileDown,
+  Loader2,
+  Mail,
+  MessageCircle,
+  RefreshCw,
+  Users,
+  Wallet,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import {
@@ -25,7 +33,20 @@ type Bucket = {
     due_date?: string | null;
     days_past_due?: number;
     promise_to_pay_date?: string | null;
+    broken_promise?: boolean;
   }>;
+};
+
+type CustomerRollup = {
+  customerId: number | null;
+  customerName: string;
+  invoiceCount: number;
+  openBalance: number;
+  overdueCount: number;
+  partialCount: number;
+  brokenPromiseCount: number;
+  promiseDueCount: number;
+  currency: string;
 };
 
 export default function ArAgingPage() {
@@ -43,25 +64,40 @@ function Inner() {
   const [openTotal, setOpenTotal] = useState(0);
   const [partialCount, setPartialCount] = useState(0);
   const [overdueCount, setOverdueCount] = useState(0);
+  const [brokenPromiseCount, setBrokenPromiseCount] = useState(0);
   const [buckets, setBuckets] = useState<Record<string, Bucket> | null>(null);
+  const [customers, setCustomers] = useState<CustomerRollup[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(
-        `/api/customers/ar-aging?companyId=${companyId}`,
-        { cache: 'no-store' }
-      );
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to load AR');
+      const [agingRes, custRes] = await Promise.all([
+        fetch(`/api/customers/ar-aging?companyId=${companyId}`, {
+          cache: 'no-store',
+        }),
+        fetch(`/api/customers/ar-by-customer?companyId=${companyId}`, {
+          cache: 'no-store',
+        }),
+      ]);
+      const data = await agingRes.json();
+      if (!agingRes.ok) throw new Error(data.error || 'Failed to load AR');
       setOpenTotal(Number(data.openTotal || 0));
       setPartialCount(Number(data.partialCount || 0));
       setOverdueCount(Number(data.overdueCount || 0));
+      setBrokenPromiseCount(Number(data.brokenPromiseCount || 0));
       setBuckets(data.buckets || null);
+
+      const cData = await custRes.json().catch(() => ({}));
+      if (custRes.ok) {
+        setCustomers((cData.customers as CustomerRollup[]) || []);
+      } else {
+        setCustomers([]);
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed');
       setBuckets(null);
+      setCustomers([]);
     } finally {
       setLoading(false);
     }
@@ -78,8 +114,24 @@ function Inner() {
       `Open AR: ${openTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
       `Overdue invoices: ${overdueCount}`,
       `Partial payments: ${partialCount}`,
+      `Broken promises: ${brokenPromiseCount}`,
       '',
     ];
+    if (customers.length) {
+      lines.push('By customer:');
+      for (const c of customers.slice(0, 12)) {
+        lines.push(
+          `· ${c.customerName} — ${c.invoiceCount} inv · ${Number(
+            c.openBalance
+          ).toLocaleString()} ${c.currency}${
+            c.brokenPromiseCount
+              ? ` · ${c.brokenPromiseCount} broken promise`
+              : ''
+          }`
+        );
+      }
+      lines.push('');
+    }
     for (const key of [
       'd1_30',
       'd31_60',
@@ -93,7 +145,7 @@ function Inner() {
         lines.push(
           `· ${inv.invoice_number || `#${inv.id}`} — ${inv.customer_name || 'Customer'} — ${Number(inv.balance || 0).toLocaleString()} ${inv.currency || 'ZAR'}${
             inv.days_past_due ? ` · ${inv.days_past_due}d past` : ''
-          }`
+          }${inv.broken_promise ? ' · BROKEN PROMISE' : ''}`
         );
       }
       lines.push('');
@@ -102,7 +154,14 @@ function Inner() {
       'Open AR aging: https://www.supplieradvisor.com/dashboard/customers/ar'
     );
     return lines.join('\n').trim();
-  }, [buckets, openTotal, overdueCount, partialCount]);
+  }, [
+    buckets,
+    openTotal,
+    overdueCount,
+    partialCount,
+    brokenPromiseCount,
+    customers,
+  ]);
 
   const copyCollections = async () => {
     if (!collectionsSummary) {
@@ -146,12 +205,24 @@ function Inner() {
     }
   };
 
+  const openStatement = (customerId: number | null) => {
+    if (!customerId) {
+      toast.message('Link a customer profile to download a PDF statement');
+      return;
+    }
+    window.open(
+      `/api/customers/ar-statement?companyId=${companyId}&customerId=${customerId}`,
+      '_blank',
+      'noopener,noreferrer'
+    );
+  };
+
   return (
     <CustomersPage>
       <CustomersHeader
         title="Accounts receivable"
         titleAccent="aging"
-        description="Open invoice balances by days past due. Set promise-to-pay and payment refs on invoices; weekly AR digest emails finance contacts Mondays."
+        description="Aging buckets, customer rollup, broken promises, and PDF statements. Weekly digest Mon · monthly statement email 1st."
         action={
           <div className="flex flex-wrap gap-2">
             <button
@@ -189,8 +260,8 @@ function Inner() {
                   Collections digest
                 </div>
                 <p className="text-xs text-amber-900/80 mt-0.5 leading-relaxed">
-                  Share a one-tap aging summary with finance or chase via
-                  WhatsApp. Payment refs are stored when you mark invoices paid.
+                  Share aging + customer rollup. Broken promises =
+                  promise-to-pay date past with balance still open.
                 </p>
               </div>
               <div className="flex flex-wrap gap-2 shrink-0">
@@ -221,7 +292,7 @@ function Inner() {
             </div>
           )}
 
-          <div className="grid sm:grid-cols-3 gap-3">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <div className="rounded-2xl border border-neutral-200 bg-white p-4">
               <div className="text-[10px] font-bold uppercase text-neutral-400">
                 Open AR
@@ -248,7 +319,69 @@ function Inner() {
                 {partialCount}
               </div>
             </div>
+            <div className="rounded-2xl border border-rose-200 bg-rose-50/80 p-4">
+              <div className="text-[10px] font-bold uppercase text-rose-700/80">
+                Broken promises
+              </div>
+              <div className="text-2xl font-black text-rose-950 mt-1">
+                {brokenPromiseCount}
+              </div>
+            </div>
           </div>
+
+          {customers.length > 0 ? (
+            <div className="rounded-3xl border border-neutral-200 bg-white overflow-hidden">
+              <div className="px-4 py-3 border-b border-neutral-100 flex items-center gap-2">
+                <Users className="w-4 h-4 text-[#00b4d8]" />
+                <h3 className="text-sm font-black text-slate-900">
+                  By customer
+                </h3>
+                <span className="text-xs text-neutral-400">
+                  {customers.length} accounts
+                </span>
+              </div>
+              <ul className="divide-y divide-neutral-100">
+                {customers.map((c) => (
+                  <li
+                    key={`${c.customerId ?? 'x'}-${c.customerName}`}
+                    className="px-4 py-3 flex flex-wrap items-center justify-between gap-2 text-sm"
+                  >
+                    <div className="min-w-0">
+                      <div className="font-bold text-slate-900 flex flex-wrap items-center gap-1.5">
+                        {c.customerName}
+                        {c.brokenPromiseCount > 0 ? (
+                          <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[9px] font-black uppercase text-rose-800">
+                            {c.brokenPromiseCount} broken promise
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="text-xs text-neutral-500">
+                        {c.invoiceCount} open · {c.overdueCount} overdue
+                        {c.partialCount ? ` · ${c.partialCount} partial` : ''}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-right font-bold tabular-nums">
+                        {Number(c.openBalance || 0).toLocaleString()}{' '}
+                        <span className="text-xs font-semibold text-neutral-400">
+                          {c.currency || 'ZAR'}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openStatement(c.customerId)}
+                        className="btn-secondary !py-1.5 !px-2.5 text-xs inline-flex items-center gap-1"
+                        title="PDF statement of open invoices"
+                      >
+                        <FileDown className="w-3.5 h-3.5" />
+                        Statement
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
 
           <div className="grid lg:grid-cols-5 gap-3">
             {buckets &&
@@ -302,11 +435,18 @@ function Inner() {
                     {b.invoices.map((inv) => (
                       <li
                         key={inv.id}
-                        className="px-4 py-3 flex flex-wrap items-center justify-between gap-2 text-sm"
+                        className={`px-4 py-3 flex flex-wrap items-center justify-between gap-2 text-sm ${
+                          inv.broken_promise ? 'bg-rose-50/50' : ''
+                        }`}
                       >
                         <div>
-                          <div className="font-bold text-slate-900">
+                          <div className="font-bold text-slate-900 flex flex-wrap items-center gap-1.5">
                             {inv.invoice_number || `#${inv.id}`}
+                            {inv.broken_promise ? (
+                              <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[9px] font-black uppercase text-rose-800">
+                                Broken promise
+                              </span>
+                            ) : null}
                           </div>
                           <div className="text-xs text-neutral-500">
                             {inv.customer_name || 'Customer'}
@@ -331,9 +471,9 @@ function Inner() {
                           </div>
                           <Link
                             href="/dashboard/customers/invoices"
-                            className="text-[11px] font-bold text-[#0077b6] hover:underline"
+                            className="text-xs font-semibold text-[#0077b6] hover:underline"
                           >
-                            Open invoices
+                            Open invoices →
                           </Link>
                         </div>
                       </li>
@@ -342,12 +482,6 @@ function Inner() {
                 </div>
               );
             })}
-
-          {openTotal <= 0 ? (
-            <p className="text-sm text-neutral-500 text-center py-8">
-              No open AR balances. Issue and send invoices to build collections.
-            </p>
-          ) : null}
         </div>
       )}
     </CustomersPage>

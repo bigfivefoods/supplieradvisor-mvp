@@ -658,6 +658,7 @@ export async function POST(request: NextRequest) {
             await notifyInvoicePaidToBuyer({
               buyerProfileId,
               sellerName,
+              sellerProfileId: companyId,
               invoiceId: Number(inv.id),
               invoiceNumber: invNum,
               totalAmount: paid,
@@ -672,7 +673,14 @@ export async function POST(request: NextRequest) {
               metadata: {
                 invoiceId: inv.id,
                 poId: poMarkedPaid,
-                href: `/dashboard/suppliers/ratings?ratee=${companyId}`,
+                sellerProfileId: companyId,
+                href: `/dashboard/suppliers/ratings?ratee=${companyId}${
+                  poMarkedPaid ? `&fromPo=${poMarkedPaid}` : ''
+                }`,
+                docsHref: `/dashboard/buyer/documents?invoiceId=${inv.id}&supplierProfileId=${companyId}`,
+                otifefHref: poMarkedPaid
+                  ? `/dashboard/suppliers/po?po=${poMarkedPaid}`
+                  : '/dashboard/suppliers/po',
               },
               read: false,
             });
@@ -880,6 +888,7 @@ export async function POST(request: NextRequest) {
                 const mail = await notifyPoInvoiced({
                   buyerProfileId: buyerId,
                   supplierName: sellerProf?.trading_name || null,
+                  supplierProfileId: companyId,
                   poId: sourcePoId,
                   invoiceId: invIdNotify,
                   invoiceNumber: inv?.invoice_number
@@ -906,9 +915,12 @@ export async function POST(request: NextRequest) {
                     invoiceId: invIdNotify,
                     shared: invoiceSharedToBuyer,
                     emailed: mail.emailed,
+                    supplierProfileId: companyId,
                     href: invIdNotify
-                      ? `/dashboard/buyer/documents?invoiceId=${invIdNotify}`
-                      : '/dashboard/buyer/documents',
+                      ? `/dashboard/buyer/documents?invoiceId=${invIdNotify}&supplierProfileId=${companyId}`
+                      : `/dashboard/buyer/documents?supplierProfileId=${companyId}`,
+                    otifefHref: `/dashboard/suppliers/po?po=${sourcePoId}`,
+                    rateHref: `/dashboard/suppliers/ratings?ratee=${companyId}&fromPo=${sourcePoId}`,
                   },
                   read: false,
                 });

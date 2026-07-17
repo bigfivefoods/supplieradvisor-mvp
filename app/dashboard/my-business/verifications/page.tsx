@@ -143,10 +143,17 @@ function Inner() {
             <Panel className="p-4">
               <h3 className="text-sm font-black text-slate-900 mb-2">
                 Platform queue — not verified ({queue.length})
+                {queue.some((q) => q.paid_not_badged) ? (
+                  <span className="ml-2 text-xs font-bold text-rose-700">
+                    · {queue.filter((q) => q.paid_not_badged).length} paid≠badge
+                  </span>
+                ) : null}
               </h3>
               <p className="text-[11px] text-neutral-500 mb-3">
-                Pending / failed / mismatch CIPC. One-click ops actions (requires
-                ops access). Paystack webhook should auto-run CIPC on R69 payment.
+                Sorted: paid-not-badged first, then SLA age. Critical = paid &gt;
+                24h without badge. One-click ops (requires ops access). Webhook:{' '}
+                <code className="text-[10px]">charge.success</code> →
+                /api/paystack/webhook.
               </p>
               <ul className="divide-y divide-neutral-100 max-h-96 overflow-y-auto">
                 {queue.map((row) => {
@@ -155,10 +162,13 @@ function Inner() {
                   const mismatch =
                     String(row.verification_status) === 'mismatch' ||
                     String(row.name_match || '') === 'mismatch';
+                  const sla = String(row.sla || 'ok');
                   return (
                     <li
                       key={String(row.id)}
-                      className="py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-sm"
+                      className={`py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-sm ${
+                        row.paid_not_badged ? 'bg-rose-50/40 -mx-1 px-1 rounded-lg' : ''
+                      }`}
                     >
                       <div className="min-w-0">
                         <p className="font-bold text-slate-800 truncate">
@@ -168,9 +178,26 @@ function Inner() {
                           <span className="text-neutral-400 font-semibold text-[11px] ml-1">
                             #{id}
                           </span>
+                          {row.paid_not_badged ? (
+                            <span className="ml-1.5 rounded-full bg-rose-100 px-1.5 py-0.5 text-[9px] font-black uppercase text-rose-800">
+                              paid≠badge
+                            </span>
+                          ) : null}
+                          {sla === 'critical' ? (
+                            <span className="ml-1 rounded-full bg-red-600 px-1.5 py-0.5 text-[9px] font-black uppercase text-white">
+                              SLA critical
+                            </span>
+                          ) : sla === 'warn' ? (
+                            <span className="ml-1 rounded-full bg-amber-200 px-1.5 py-0.5 text-[9px] font-black uppercase text-amber-950">
+                              SLA warn
+                            </span>
+                          ) : null}
                         </p>
                         <p className="text-[11px] text-neutral-500">
                           {String(row.verification_status)}
+                          {row.age_hours != null
+                            ? ` · ${row.age_hours}h age`
+                            : ''}
                           {row.cipc_name
                             ? ` · CIPC: ${String(row.cipc_name)}`
                             : ''}

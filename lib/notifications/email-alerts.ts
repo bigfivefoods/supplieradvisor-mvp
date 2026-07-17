@@ -203,10 +203,12 @@ export async function notifyInvoiceSent(params: {
   }
 }
 
-/** On-platform buyer: seller marked invoice paid — open rate. */
+/** On-platform buyer: seller marked invoice paid — open rate (one-tap deep link). */
 export async function notifyInvoicePaidToBuyer(params: {
   buyerProfileId: number;
   sellerName?: string | null;
+  /** Seller company id for ratee= deep link */
+  sellerProfileId?: number | null;
   invoiceId: number;
   invoiceNumber: string;
   totalAmount?: number | null;
@@ -216,8 +218,19 @@ export async function notifyInvoicePaidToBuyer(params: {
   try {
     const to = await companyEmails(params.buyerProfileId);
     const seller = params.sellerName || 'Your supplier';
-    const rateHref = `${appBase()}/dashboard/suppliers/ratings`;
-    const docsHref = `${appBase()}/dashboard/buyer/documents?invoiceId=${params.invoiceId}`;
+    const sellerId = Number(params.sellerProfileId || 0);
+    const rateQ =
+      sellerId > 0
+        ? `?ratee=${sellerId}${params.poId ? `&fromPo=${params.poId}` : ''}`
+        : '';
+    const rateHref = `${appBase()}/dashboard/suppliers/ratings${rateQ}`;
+    const docsHref = `${appBase()}/dashboard/buyer/documents?invoiceId=${params.invoiceId}${
+      sellerId > 0 ? `&supplierProfileId=${sellerId}` : ''
+    }`;
+    const otifefHref =
+      params.poId && params.poId > 0
+        ? `${appBase()}/dashboard/suppliers/po?po=${params.poId}`
+        : `${appBase()}/dashboard/suppliers/po`;
     const ccy = (params.currency || 'ZAR').toUpperCase();
     const total =
       params.totalAmount != null && Number.isFinite(Number(params.totalAmount))
@@ -238,11 +251,15 @@ export async function notifyInvoicePaidToBuyer(params: {
               ? `<p>Linked PO #${params.poId} was updated to paid.</p>`
               : ''
           }
-          <p>Close the trust loop with a quick peer rating.</p>
-          <p>
-            <a href="${rateHref}" style="display:inline-block;background:#00b4d8;color:#fff;padding:10px 18px;border-radius:999px;text-decoration:none;font-weight:700">Rate supplier →</a>
+          <p style="margin:16px 0 8px;font-weight:700">Close the trust loop</p>
+          <ol style="padding-left:18px;color:#334155;font-size:14px">
+            <li style="margin:6px 0"><a href="${docsHref}" style="color:#00b4d8">1 · View invoice</a></li>
+            <li style="margin:6px 0"><a href="${otifefHref}" style="color:#00b4d8">2 · Receive / OTIFEF (if goods)</a></li>
+            <li style="margin:6px 0"><a href="${rateHref}" style="color:#00b4d8">3 · Rate ${seller}</a></li>
+          </ol>
+          <p style="margin-top:16px">
+            <a href="${rateHref}" style="display:inline-block;background:#00b4d8;color:#fff;padding:10px 18px;border-radius:999px;text-decoration:none;font-weight:700">Rate supplier now →</a>
           </p>
-          <p style="margin-top:12px"><a href="${docsHref}" style="color:#00b4d8">Open invoice →</a></p>
         </div>
       `,
     });
@@ -258,19 +275,37 @@ export async function notifyInvoicePaidToBuyer(params: {
 export async function notifyInvoiceSentToBuyer(params: {
   buyerProfileId: number;
   sellerName?: string | null;
+  sellerProfileId?: number | null;
   invoiceId: number;
   invoiceNumber: string;
   pdfUrl?: string | null;
   totalAmount?: number | null;
   currency?: string | null;
   resend?: boolean;
+  poId?: number | null;
 }): Promise<void> {
   try {
     const to = await companyEmails(params.buyerProfileId);
+    const sellerId = Number(params.sellerProfileId || 0);
     const invQ =
-      params.invoiceId > 0 ? `?invoiceId=${params.invoiceId}` : '';
+      params.invoiceId > 0
+        ? `?invoiceId=${params.invoiceId}${
+            sellerId > 0 ? `&supplierProfileId=${sellerId}` : ''
+          }`
+        : sellerId > 0
+          ? `?supplierProfileId=${sellerId}`
+          : '';
     const docsHref = `${appBase()}/dashboard/buyer/documents${invQ}`;
     const seller = params.sellerName || 'Your supplier';
+    const rateQ =
+      sellerId > 0
+        ? `?ratee=${sellerId}${params.poId ? `&fromPo=${params.poId}` : ''}`
+        : '';
+    const rateHref = `${appBase()}/dashboard/suppliers/ratings${rateQ}`;
+    const otifefHref =
+      params.poId && params.poId > 0
+        ? `${appBase()}/dashboard/suppliers/po?po=${params.poId}`
+        : `${appBase()}/dashboard/suppliers/po`;
     const ccy = (params.currency || 'ZAR').toUpperCase();
     const total =
       params.totalAmount != null && Number.isFinite(Number(params.totalAmount))
@@ -280,8 +315,8 @@ export async function notifyInvoiceSentToBuyer(params: {
         : '';
     const pdf =
       params.pdfUrl && String(params.pdfUrl).startsWith('http')
-        ? `<p><a href="${params.pdfUrl}" style="display:inline-block;background:#00b4d8;color:#fff;padding:10px 18px;border-radius:999px;text-decoration:none;font-weight:700">Open PDF invoice →</a></p>`
-        : '';
+        ? `<p><a href="${params.pdfUrl}" style="display:inline-block;background:#00b4d8;color:#fff;padding:10px 18px;border-radius:999px;text-decoration:none;font-weight:700">1 · Open PDF invoice →</a></p>`
+        : `<p><a href="${docsHref}" style="display:inline-block;background:#00b4d8;color:#fff;padding:10px 18px;border-radius:999px;text-decoration:none;font-weight:700">1 · Open invoice →</a></p>`;
     await sendAlert({
       to,
       subject: `[SupplierAdvisor] Invoice ${params.invoiceNumber} ${
@@ -297,7 +332,14 @@ export async function notifyInvoiceSentToBuyer(params: {
           } invoice <strong>${params.invoiceNumber}</strong>.</p>
           ${total ? `<p>Total: <strong>${total}</strong></p>` : ''}
           ${pdf}
-          <p><a href="${docsHref}" style="color:#00b4d8">Open shared documents →</a></p>
+          <p style="margin:14px 0 6px;font-weight:700;font-size:13px">Next on SupplierAdvisor</p>
+          <p style="font-size:13px;line-height:1.6">
+            <a href="${docsHref}" style="color:#00b4d8">View on platform</a>
+            &nbsp;·&nbsp;
+            <a href="${otifefHref}" style="color:#00b4d8">Receive + OTIFEF</a>
+            &nbsp;·&nbsp;
+            <a href="${rateHref}" style="color:#00b4d8">Rate ${seller}</a>
+          </p>
         </div>
       `,
     });
@@ -337,6 +379,8 @@ export async function notifyPoAccepted(params: {
 export async function notifyPoInvoiced(params: {
   buyerProfileId: number;
   supplierName?: string | null;
+  /** Seller profile id for deep links */
+  supplierProfileId?: number | null;
   poId: number;
   invoiceId?: number | null;
   invoiceNumber?: string | null;
@@ -348,12 +392,19 @@ export async function notifyPoInvoiced(params: {
   try {
     const to = await companyEmails(params.buyerProfileId);
     if (!to.length) return { emailed: false, recipients: 0 };
+    const sellerId = Number(params.supplierProfileId || 0);
     const invQ =
       params.invoiceId && Number(params.invoiceId) > 0
-        ? `?invoiceId=${params.invoiceId}`
+        ? `?invoiceId=${params.invoiceId}${
+            sellerId > 0 ? `&supplierProfileId=${sellerId}` : ''
+          }`
         : '';
     const docsHref = `${appBase()}/dashboard/buyer/documents${invQ}`;
     const poHref = `${appBase()}/dashboard/suppliers/po?po=${params.poId}`;
+    const rateHref =
+      sellerId > 0
+        ? `${appBase()}/dashboard/suppliers/ratings?ratee=${sellerId}&fromPo=${params.poId}`
+        : `${appBase()}/dashboard/suppliers/ratings`;
     const supplier = params.supplierName || 'Your supplier';
     const invLabel =
       params.invoiceNumber ||
@@ -378,11 +429,15 @@ export async function notifyPoInvoiced(params: {
           against <strong>PO #${params.poId}</strong>.</p>
           ${total ? `<p>Total: <strong>${total}</strong></p>` : ''}
           <p>${sharedNote}</p>
-          <p>Next: review the invoice, receive goods (OTIFEF), then rate the partner.</p>
-          <p>
+          <p style="margin:14px 0 6px;font-weight:700">Close the loop</p>
+          <ol style="padding-left:18px;font-size:14px;color:#334155">
+            <li style="margin:6px 0"><a href="${docsHref}" style="color:#00b4d8">View invoice</a></li>
+            <li style="margin:6px 0"><a href="${poHref}" style="color:#00b4d8">Receive + OTIFEF on PO #${params.poId}</a></li>
+            <li style="margin:6px 0"><a href="${rateHref}" style="color:#00b4d8">Rate ${supplier}</a></li>
+          </ol>
+          <p style="margin-top:14px">
             <a href="${docsHref}" style="display:inline-block;background:#00b4d8;color:#fff;padding:10px 18px;border-radius:999px;text-decoration:none;font-weight:700">Open invoice →</a>
           </p>
-          <p style="margin-top:12px"><a href="${poHref}" style="color:#00b4d8">Open purchase order →</a></p>
         </div>
       `,
     });

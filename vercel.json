@@ -47,6 +47,10 @@
     {
       "path": "/api/customers/ar-digest/cron",
       "schedule": "0 7 * * 1"
+    },
+    {
+      "path": "/api/customers/ar-statement/cron",
+      "schedule": "15 7 1 * *"
     }
   ]
 }

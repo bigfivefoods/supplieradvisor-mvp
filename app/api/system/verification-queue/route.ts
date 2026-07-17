@@ -68,6 +68,7 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
       .limit(80);
 
+    const nowMs = Date.now();
     const queue = rows.map((p) => {
       const meta =
         p.metadata && typeof p.metadata === 'object'
@@ -80,6 +81,26 @@ export async function GET(request: NextRequest) {
       const lastAct = (acts || []).find(
         (a) => Number(a.profile_id) === Number(p.id)
       );
+      const hasPayment = Boolean(
+        v.paystack_reference ||
+          v.paystackReference ||
+          (p as { verification_payment_ref?: unknown }).verification_payment_ref
+      );
+      const updatedMs = p.updated_at
+        ? new Date(String(p.updated_at)).getTime()
+        : nowMs;
+      const ageHours = Math.max(
+        0,
+        Math.round((nowMs - updatedMs) / 3600000)
+      );
+      // Paid-not-badged SLA: critical after 24h, warn after 4h
+      let sla: 'ok' | 'warn' | 'critical' = 'ok';
+      if (hasPayment) {
+        if (ageHours >= 24) sla = 'critical';
+        else if (ageHours >= 4) sla = 'warn';
+      } else if (ageHours >= 72) {
+        sla = 'warn';
+      }
       return {
         id: Number(p.id),
         trading_name: p.trading_name,
@@ -88,6 +109,8 @@ export async function GET(request: NextRequest) {
         registration_number: p.registration_number ?? null,
         email: p.email ?? null,
         updated_at: p.updated_at,
+        age_hours: ageHours,
+        sla,
         paystack_reference:
           v.paystack_reference || v.paystackReference || null,
         cipc_name: v.company_name || null,
@@ -95,13 +118,24 @@ export async function GET(request: NextRequest) {
         last_error: v.error || null,
         checked_at: v.checked_at || null,
         last_activity: lastAct?.summary || null,
-        has_payment: Boolean(v.paystack_reference || v.paystackReference),
+        has_payment: hasPayment,
+        paid_not_badged: hasPayment && String(p.verification_status) !== 'verified',
         recover_hint:
           String(p.verification_status) !== 'verified' &&
           Boolean(v.company_name || v.raw)
             ? 'Re-run CIPC or Apply verified from metadata on Profile'
             : null,
       };
+    });
+
+    // Paid first, then critical SLA, then oldest
+    queue.sort((a, b) => {
+      if (a.has_payment !== b.has_payment) return a.has_payment ? -1 : 1;
+      const slaRank = { critical: 0, warn: 1, ok: 2 } as const;
+      if (slaRank[a.sla] !== slaRank[b.sla]) {
+        return slaRank[a.sla] - slaRank[b.sla];
+      }
+      return (b.age_hours || 0) - (a.age_hours || 0);
     });
 
     // Also surface recent successful payments that never got status updated
@@ -115,11 +149,18 @@ export async function GET(request: NextRequest) {
       })
       .slice(0, 20);
 
+    const paidNotBadged = queue.filter((q) => q.paid_not_badged).length;
+    const critical = queue.filter((q) => q.sla === 'critical').length;
+
     return NextResponse.json({
       success: true,
       count: queue.length,
+      paidNotBadged,
+      criticalSla: critical,
       queue,
       recentNonVerifiedActivity: paidNotListed,
+      paystackHint:
+        'Vercel env PAYSTACK_SECRET_KEY + webhook charge.success → /api/paystack/webhook. Health: checks.paystack.ok',
       at: new Date().toISOString(),
     });
   } catch (e: unknown) {

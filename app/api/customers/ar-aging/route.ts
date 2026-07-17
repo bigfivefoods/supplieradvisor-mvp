@@ -107,6 +107,8 @@ export async function GET(request: NextRequest) {
     let openTotal = 0;
     let partialCount = 0;
     let overdueCount = 0;
+    let brokenPromiseCount = 0;
+    const todayIso = today.toISOString().slice(0, 10);
 
     for (const inv of data || []) {
       const st = String(inv.status || '').toLowerCase();
@@ -141,6 +143,12 @@ export async function GET(request: NextRequest) {
       // Force overdue status into at least 1-30 if no due date
       if (st === 'overdue' && key === 'current') key = 'd1_30';
 
+      const ptpRaw = inv.promise_to_pay_date
+        ? String(inv.promise_to_pay_date).slice(0, 10)
+        : null;
+      const brokenPromise = Boolean(ptpRaw && ptpRaw < todayIso);
+      if (brokenPromise) brokenPromiseCount += 1;
+
       buckets[key].count += 1;
       buckets[key].amount += balance;
       if (buckets[key].invoices.length < 25) {
@@ -155,9 +163,8 @@ export async function GET(request: NextRequest) {
           currency: inv.currency || 'ZAR',
           due_date: inv.due_date,
           days_past_due: Math.max(0, daysPast),
-          promise_to_pay_date:
-            (inv as { promise_to_pay_date?: string | null }).promise_to_pay_date ||
-            null,
+          promise_to_pay_date: ptpRaw,
+          broken_promise: brokenPromise,
         });
       }
     }
@@ -167,6 +174,7 @@ export async function GET(request: NextRequest) {
       openTotal: Math.round(openTotal * 100) / 100,
       partialCount,
       overdueCount,
+      brokenPromiseCount,
       buckets: {
         current: {
           label: 'Current (not yet due)',
