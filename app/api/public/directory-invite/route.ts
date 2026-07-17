@@ -47,24 +47,31 @@ export async function POST(request: NextRequest) {
       'https://www.supplieradvisor.com'
     ).replace(/\/$/, '');
 
-    const claimHref =
-      Number.isFinite(companyId) && companyId > 0
-        ? `${base}/onboarding?type=business&claim=${companyId}&name=${encodeURIComponent(companyName)}`
-        : `${base}/onboarding?type=business`;
+    const ref = body.ref ? String(body.ref).slice(0, 80) : '';
+    const inviteQ = new URLSearchParams();
+    inviteQ.set('email', email);
+    if (Number.isFinite(companyId) && companyId > 0) {
+      inviteQ.set('claim', String(companyId));
+      inviteQ.set('companyId', String(companyId));
+    }
+    if (companyName) inviteQ.set('name', companyName);
+    if (ref) inviteQ.set('ref', ref);
+    if (note) inviteQ.set('message', note);
+    const inviteHref = `${base}/invite?${inviteQ.toString()}`;
     const dirHref = `${base}/directory`;
 
     const resend = getResend();
     const { error } = await resend.emails.send({
       from: getResendFrom(),
       to: [email],
-      subject: `You're invited to SupplierAdvisor — claim ${companyName}`,
+      subject: `You're invited to SupplierAdvisor — ${companyName}`,
       html: `
         <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto">
           <h2 style="color:#0077b6">Join the SupplierAdvisor network</h2>
           <p>Someone invited <strong>${companyName}</strong> to SupplierAdvisor® — the B2B trade OS for verified partners.</p>
           ${note ? `<p style="color:#475569">${note}</p>` : ''}
           <p>
-            <a href="${claimHref}" style="display:inline-block;background:#00b4d8;color:#fff;padding:10px 18px;border-radius:999px;text-decoration:none;font-weight:700">Claim listing / register →</a>
+            <a href="${inviteHref}" style="display:inline-block;background:#00b4d8;color:#fff;padding:10px 18px;border-radius:999px;text-decoration:none;font-weight:700">Accept invite →</a>
           </p>
           <p style="margin-top:12px"><a href="${dirHref}" style="color:#00b4d8">Browse the directory →</a></p>
         </div>

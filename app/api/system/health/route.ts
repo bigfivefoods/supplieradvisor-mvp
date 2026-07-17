@@ -48,6 +48,19 @@ export async function GET() {
     process.env.PAYSTACK_SECRET_KEY || process.env.PAYSTACK_SECRET
   );
   const paystackPublic = Boolean(process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY);
+  let paystackPulse: Awaited<
+    ReturnType<typeof import('@/lib/system/paystack-pulse').loadPaystackWebhookPulse>
+  > | null = null;
+  if (paystackSecret) {
+    try {
+      const { loadPaystackWebhookPulse } = await import(
+        '@/lib/system/paystack-pulse'
+      );
+      paystackPulse = await loadPaystackWebhookPulse();
+    } catch {
+      paystackPulse = null;
+    }
+  }
   checks.paystack = {
     // Secret is required for verify + webhook CIPC — public key alone is not enough
     ok: paystackSecret,
@@ -64,6 +77,11 @@ export async function GET() {
       secretKey: paystackSecret,
       ops:
         'Vercel → Project → Settings → Environment Variables → PAYSTACK_SECRET_KEY (Production). Redeploy once after setting.',
+      webhookPulse: paystackPulse,
+      webhookStale: paystackPulse?.stale ?? !paystackSecret,
+      webhookLastAt: paystackPulse?.lastAt ?? null,
+      webhookAgeHours: paystackPulse?.ageHours ?? null,
+      webhookLast24h: paystackPulse?.last24hCount ?? 0,
     },
   };
   checks.verifynow = {

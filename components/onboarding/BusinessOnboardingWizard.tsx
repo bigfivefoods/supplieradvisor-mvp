@@ -84,6 +84,7 @@ export default function BusinessOnboardingWizard() {
   const typeParam = searchParams.get('type') || 'business';
   const claimId = Number(searchParams.get('claim') || 0) || null;
   const claimName = searchParams.get('name') || '';
+  const prefillEmail = searchParams.get('email') || '';
   const { ready, authenticated, user, login } = usePrivy();
 
   const initialType = BUSINESS_TYPES.some((t) => t.id === typeParam) ? typeParam : 'business';
@@ -93,6 +94,10 @@ export default function BusinessOnboardingWizard() {
   const [done, setDone] = useState(false);
   const [doneProfileId, setDoneProfileId] = useState<number | null>(null);
   const [doneLifetime, setDoneLifetime] = useState(false);
+  const [claimConflict, setClaimConflict] = useState<{
+    profileId: number;
+    connectHref?: string;
+  } | null>(null);
   const [form, setForm] = useState<FormState>({
     business_type: initialType,
     trading_name: claimName || '',
@@ -103,7 +108,7 @@ export default function BusinessOnboardingWizard() {
     city: '',
     website: '',
     contact_name: '',
-    contact_email: '',
+    contact_email: prefillEmail || '',
     contact_phone: '',
     short_description: '',
   });
@@ -192,7 +197,18 @@ export default function BusinessOnboardingWizard() {
       });
       const data = await res.json();
       if (!res.ok) {
-        toast.error(data.error || 'Registration failed');
+        if (data.code === 'ALREADY_CLAIMED' && (data.profileId || claimId)) {
+          const pid = Number(data.profileId || claimId);
+          setClaimConflict({
+            profileId: pid,
+            connectHref: data.connectHref || `/c/${pid}`,
+          });
+          toast.message('Listing already has an owner', {
+            description: 'Connect as a partner or sign in with the owner account.',
+          });
+        } else {
+          toast.error(data.error || 'Registration failed');
+        }
         setSubmitting(false);
         return;
       }
@@ -222,6 +238,40 @@ export default function BusinessOnboardingWizard() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]">
         <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
+      </div>
+    );
+  }
+
+  if (claimConflict) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] px-6">
+        <div className="max-w-md w-full rounded-3xl border border-amber-200 bg-white p-8 shadow-sm text-center">
+          <h1 className="text-2xl font-black text-slate-900 mb-2">
+            Listing already claimed
+          </h1>
+          <p className="text-sm text-neutral-600 mb-6 leading-relaxed">
+            Company #{claimConflict.profileId} already has an owner on
+            SupplierAdvisor. You can connect as a trade partner, or sign in with
+            the owner account to manage the listing.
+          </p>
+          <div className="flex flex-col gap-2">
+            <Link
+              href={claimConflict.connectHref || `/c/${claimConflict.profileId}`}
+              className="btn-primary !py-3 text-sm"
+            >
+              View listing & connect
+            </Link>
+            <Link
+              href={`/login?next=${encodeURIComponent(`/c/${claimConflict.profileId}`)}`}
+              className="btn-secondary !py-3 text-sm"
+            >
+              Sign in as owner
+            </Link>
+            <Link href="/onboarding?type=business" className="text-xs font-semibold text-[#0077b6] hover:underline mt-2">
+              Register a new company instead
+            </Link>
+          </div>
+        </div>
       </div>
     );
   }

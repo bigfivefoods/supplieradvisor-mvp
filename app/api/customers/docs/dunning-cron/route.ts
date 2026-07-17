@@ -76,6 +76,11 @@ async function runDunning(limit = 80) {
     }
     const markerPrefix = `[dunning day${step.day}`;
     const notes = inv.notes != null ? String(inv.notes) : '';
+    if (/\[dunning paused/i.test(notes)) {
+      skipped += 1;
+      results.push({ id: inv.id, skipped: true, reason: 'paused' });
+      continue;
+    }
     // Already sent this ladder level — skip (higher levels fire when day threshold rises)
     if (notes.includes(markerPrefix)) {
       skipped += 1;

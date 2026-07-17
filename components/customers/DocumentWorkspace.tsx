@@ -804,6 +804,75 @@ function DocInner({
     }
   };
 
+  const toggleDunningPause = async (doc: DocRecord) => {
+    const paused = String(doc.notes || '').includes('[dunning paused');
+    setBusyId(Number(doc.id));
+    try {
+      const res = await fetch('/api/customers/docs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          type: 'invoice',
+          id: doc.id,
+          action: 'set_dunning_pause',
+          pause: !paused,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      toast.success(paused ? 'Dunning resumed' : 'Dunning paused on this invoice');
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const setPaymentPlan = async (id: number) => {
+    const plan = window.prompt(
+      'Payment plan notes (e.g. 3 x monthly installments from next Friday):',
+      ''
+    );
+    if (plan === null || !String(plan).trim()) return;
+    const ptp = window.prompt(
+      'First installment / promise date YYYY-MM-DD (optional):',
+      new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10)
+    );
+    if (ptp === null) return;
+    setBusyId(id);
+    try {
+      const res = await fetch('/api/customers/docs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          type: 'invoice',
+          id,
+          action: 'set_payment_plan',
+          plan: String(plan).trim(),
+          promise_to_pay_date:
+            ptp && /^\d{4}-\d{2}-\d{2}$/.test(ptp.trim())
+              ? ptp.trim()
+              : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      toast.success('Payment plan recorded', {
+        description: data.promise_to_pay_date
+          ? `Promise ${data.promise_to_pay_date}`
+          : undefined,
+      });
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const setPromiseToPay = async (id: number) => {
     setBusyId(id);
     try {
@@ -2213,6 +2282,36 @@ function DocInner({
                           {d.promise_to_pay_date
                             ? `Promise ${String(d.promise_to_pay_date).slice(0, 10)}`
                             : 'Promise to pay'}
+                        </button>
+                      )}
+                    {type === 'invoice' &&
+                      ['overdue', 'sent', 'partial'].includes(
+                        String(d.status || '').toLowerCase()
+                      ) && (
+                        <button
+                          type="button"
+                          disabled={busyId === d.id}
+                          onClick={() => void toggleDunningPause(d)}
+                          className="btn-secondary !py-1.5 !px-3 text-xs"
+                          title="Pause or resume automatic dunning emails"
+                        >
+                          {String(d.notes || '').includes('[dunning paused')
+                            ? 'Resume dunning'
+                            : 'Pause dunning'}
+                        </button>
+                      )}
+                    {type === 'invoice' &&
+                      !['paid', 'void', 'cancelled'].includes(
+                        String(d.status || '').toLowerCase()
+                      ) && (
+                        <button
+                          type="button"
+                          disabled={busyId === d.id}
+                          onClick={() => void setPaymentPlan(d.id)}
+                          className="btn-secondary !py-1.5 !px-3 text-xs border-violet-200 text-violet-900"
+                          title="Record installment / payment plan notes"
+                        >
+                          Payment plan
                         </button>
                       )}
                     {type === 'invoice' && d.status !== 'paid' && d.status !== 'void' && (

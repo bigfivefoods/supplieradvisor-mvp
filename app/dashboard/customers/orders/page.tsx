@@ -277,9 +277,9 @@ function InboundPosList() {
         toast.success(`PO #${poId} accepted — buyer notified`, {
           duration: 10000,
           action: {
-            label: 'Create invoice',
+            label: 'Invoice now',
             onClick: () => {
-              window.location.href = `/dashboard/customers/invoices?fromPo=${poId}`;
+              void invoiceNow(poId);
             },
           },
         });
@@ -287,6 +287,98 @@ function InboundPosList() {
         toast.success(`PO #${poId} → ${status}`);
       }
       await load();
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  /** One-click draft invoice from accepted PO lines */
+  const invoiceNow = async (
+    poId: number,
+    buyerProfileId?: number | null
+  ) => {
+    if (!privyUserId) {
+      toast.error('Sign in required');
+      return;
+    }
+    setBusyId(poId);
+    toast.loading(`Creating invoice from PO #${poId}…`, { id: 'inv-now' });
+    try {
+      const res = await fetch('/api/customers/docs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          type: 'invoice',
+          action: 'create_from_po',
+          poId,
+          buyerProfileId: buyerProfileId || undefined,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (data.code === 'DUPLICATE_FROM_PO' && data.existing?.id) {
+          toast.message('Invoice already exists', {
+            id: 'inv-now',
+            action: {
+              label: 'Open',
+              onClick: () => {
+                window.location.href = `/dashboard/customers/invoices?fromPo=${poId}`;
+              },
+            },
+          });
+          return;
+        }
+        if (data.code === 'OVER_CREDIT_LIMIT') {
+          const ok = window.confirm(
+            `${data.error}\n\nOverride credit limit and create invoice?`
+          );
+          if (!ok) {
+            toast.dismiss('inv-now');
+            return;
+          }
+          const retry = await fetch('/api/customers/docs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              companyId,
+              type: 'invoice',
+              action: 'create_from_po',
+              poId,
+              buyerProfileId: buyerProfileId || undefined,
+              acknowledgeCredit: true,
+            }),
+          });
+          const retryData = await retry.json().catch(() => ({}));
+          if (!retry.ok) throw new Error(retryData.error || 'Failed');
+          toast.success(`Draft invoice created for PO #${poId}`, {
+            id: 'inv-now',
+            action: {
+              label: 'Open invoices',
+              onClick: () => {
+                window.location.href = `/dashboard/customers/invoices?fromPo=${poId}`;
+              },
+            },
+          });
+          return;
+        }
+        throw new Error(data.error || 'Invoice failed');
+      }
+      toast.success(`Draft invoice created for PO #${poId}`, {
+        id: 'inv-now',
+        description: data.invoiceSharedToBuyer
+          ? 'Shared with buyer — email PDF when ready'
+          : 'Review and share/email when ready',
+        action: {
+          label: 'Open invoices',
+          onClick: () => {
+            window.location.href = `/dashboard/customers/invoices?fromPo=${poId}`;
+          },
+        },
+      });
+      await load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed', { id: 'inv-now' });
     } finally {
       setBusyId(null);
     }
@@ -663,17 +755,29 @@ function InboundPosList() {
                           </button>
                         );
                       })}
-                      {['accepted', 'funded', 'paid'].includes(st) && (
+                      {['accepted', 'funded', 'paid', 'open', 'confirmed'].includes(st) && (
                         <>
+                          <button
+                            type="button"
+                            disabled={busyId === po.id}
+                            onClick={() => void invoiceNow(po.id, po.buyer_profile_id)}
+                            className="px-4 py-2 rounded-2xl text-sm font-bold bg-[#00b4d8] text-white inline-flex items-center gap-1.5 hover:bg-[#0096c7] disabled:opacity-50"
+                            title="Create draft invoice from PO lines in one click"
+                          >
+                            {busyId === po.id ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : null}
+                            Invoice now
+                          </button>
                           <Link
                             href={`/dashboard/customers/invoices?fromPo=${po.id}${
                               po.buyer_profile_id
                                 ? `&buyerProfileId=${po.buyer_profile_id}`
                                 : ''
                             }`}
-                            className="px-4 py-2 rounded-2xl text-sm font-bold bg-[#00b4d8] text-white inline-flex items-center gap-1.5 hover:bg-[#0096c7]"
+                            className="px-3 py-2 rounded-2xl text-xs font-bold border border-sky-200 bg-white text-sky-900 inline-flex items-center gap-1.5 hover:bg-sky-50"
                           >
-                            Create invoice
+                            Review form
                           </Link>
                           <button
                             type="button"

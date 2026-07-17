@@ -205,6 +205,335 @@ export async function POST(request: NextRequest) {
     const table = TABLES[kind];
     const now = new Date().toISOString();
 
+    // ── One-click invoice from accepted inbound PO ────────────────────────
+    if (action === 'create_from_po') {
+      const poId = Number(body.poId || body.source_po_id || 0);
+      if (!Number.isFinite(poId) || poId <= 0) {
+        return NextResponse.json({ error: 'poId required' }, { status: 400 });
+      }
+
+      // Double-invoice guard
+      const { data: existingInv } = await supabase
+        .from('customer_invoices')
+        .select('id, invoice_number, status, source_po_id')
+        .eq('profile_id', companyId)
+        .eq('source_po_id', poId)
+        .limit(1)
+        .maybeSingle();
+      if (existingInv?.id) {
+        return NextResponse.json(
+          {
+            error: `Invoice already exists for PO #${poId}`,
+            code: 'DUPLICATE_FROM_PO',
+            existing: existingInv,
+            document: existingInv,
+          },
+          { status: 409 }
+        );
+      }
+
+      const { data: po, error: poErr } = await supabase
+        .from('purchase_orders')
+        .select('*')
+        .eq('id', poId)
+        .or(
+          `supplier_profile_id.eq.${companyId},supplier_id.eq.${companyId}`
+        )
+        .maybeSingle();
+      if (poErr || !po) {
+        return NextResponse.json(
+          { error: poErr?.message || 'PO not found or not assigned to you' },
+          { status: 404 }
+        );
+      }
+      const poSt = String(po.status || '').toLowerCase();
+      if (!['accepted', 'funded', 'open', 'confirmed', 'invoiced'].includes(poSt)) {
+        return NextResponse.json(
+          {
+            error: `PO status is ${poSt || 'unknown'} — accept the PO before invoicing`,
+            code: 'PO_NOT_READY',
+          },
+          { status: 400 }
+        );
+      }
+
+      const rawItems = Array.isArray(po.items) ? po.items : [];
+      let items = normalizeItems(
+        rawItems.map((it: Record<string, unknown>) => ({
+          name: String(it.item_name || it.name || 'Line'),
+          quantity: Number(it.quantity || 1),
+          unit_price: Number(it.unit_price || 0),
+          uom: it.uom || 'unit',
+          line_total:
+            Number(it.quantity || 1) * Number(it.unit_price || 0),
+        }))
+      );
+      if (!items.length && Number(po.total_amount) > 0) {
+        items = normalizeItems([
+          {
+            name: String(po.description || `PO #${poId}`),
+            quantity: 1,
+            unit_price: Number(po.total_amount),
+            uom: 'lot',
+            line_total: Number(po.total_amount),
+          },
+        ]);
+      }
+      if (!items.length) {
+        return NextResponse.json(
+          { error: 'PO has no line items to invoice' },
+          { status: 400 }
+        );
+      }
+
+      const taxRate = body.tax_rate != null ? Number(body.tax_rate) : 15;
+      const totals = calcDocTotals(items, taxRate);
+
+      // Resolve / create CRM customer from buyer profile
+      let customerId: number | null =
+        body.customer_id != null ? Number(body.customer_id) : null;
+      const buyerProfileId = Number(
+        body.buyerProfileId || po.buyer_profile_id || 0
+      );
+      if (!customerId && buyerProfileId > 0) {
+        const { data: linked } = await supabase
+          .from('customers')
+          .select('id')
+          .eq('profile_id', companyId)
+          .eq('linked_profile_id', buyerProfileId)
+          .limit(1)
+          .maybeSingle();
+        if (linked?.id) customerId = Number(linked.id);
+      }
+      if (!customerId && buyerProfileId > 0) {
+        const { data: peer } = await supabase
+          .from('profiles')
+          .select('trading_name, legal_name, email, country')
+          .eq('id', buyerProfileId)
+          .maybeSingle();
+        const name =
+          peer?.trading_name ||
+          peer?.legal_name ||
+          po.buyer_name ||
+          `Buyer #${buyerProfileId}`;
+        const { data: created } = await supabase
+          .from('customers')
+          .insert({
+            profile_id: companyId,
+            trading_name: name,
+            linked_profile_id: buyerProfileId,
+            email: peer?.email || null,
+            country: peer?.country || null,
+            status: 'active',
+            notes: `Auto from PO #${poId}`,
+          })
+          .select('id')
+          .single();
+        if (created?.id) customerId = Number(created.id);
+      }
+
+      const customer = await loadCustomer(supabase, customerId);
+      if (customerId && body.acknowledgeCredit !== true) {
+        try {
+          const { checkCustomerCreditLimit } = await import(
+            '@/lib/customers/credit-limit'
+          );
+          const credit = await checkCustomerCreditLimit(supabase, {
+            companyId,
+            customerId,
+            additionalAmount: Number(totals.total_amount || 0),
+          });
+          if (!credit.ok) {
+            return NextResponse.json(
+              {
+                ...credit,
+                error: `Credit limit exceeded (limit ${credit.creditLimit}, projected ${credit.projected})`,
+              },
+              { status: 409 }
+            );
+          }
+        } catch {
+          /* soft */
+        }
+      }
+
+      const invBody = {
+        companyId,
+        type: 'invoice',
+        customer_id: customerId,
+        currency: po.currency || 'ZAR',
+        tax_rate: taxRate,
+        notes: `From purchase order #${poId}`,
+        items,
+        status: 'draft',
+        source_po_id: poId,
+        due_date: body.due_date || null,
+      };
+      const payload = buildPayload(
+        'invoice',
+        invBody,
+        companyId,
+        items,
+        totals,
+        customer
+      );
+      const inserted = await insertDocTolerant(
+        supabase,
+        'customer_invoices',
+        payload
+      );
+      if (!inserted.ok) {
+        return NextResponse.json(
+          { error: inserted.error },
+          { status: 500 }
+        );
+      }
+
+      let documentOut = inserted.data as Record<string, unknown>;
+      // Mark PO invoiced
+      await supabase
+        .from('purchase_orders')
+        .update({ status: 'invoiced', updated_at: now })
+        .eq('id', poId)
+        .or(
+          `supplier_profile_id.eq.${companyId},supplier_id.eq.${companyId}`
+        );
+
+      // Auto-share when customer linked
+      if (customerId && documentOut.id) {
+        try {
+          const notSuspended = await assertSellerCustomerNotSuspended(
+            companyId,
+            customerId
+          );
+          if (notSuspended.ok) {
+            const { data: shared } = await supabase
+              .from('customer_invoices')
+              .update({ visibility: 'shared', updated_at: now })
+              .eq('id', Number(documentOut.id))
+              .eq('profile_id', companyId)
+              .select('*')
+              .maybeSingle();
+            if (shared) documentOut = shared as Record<string, unknown>;
+          }
+        } catch {
+          /* soft */
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        action: 'create_from_po',
+        document: documentOut,
+        type: 'invoice',
+        poId,
+        invoiceSharedToBuyer: String(documentOut.visibility || '') === 'shared',
+      });
+    }
+
+    // ── Dunning pause / resume ────────────────────────────────────────────
+    if (
+      (action === 'set_dunning_pause' || action === 'set_payment_plan') &&
+      body.id
+    ) {
+      if (kind !== 'invoice') {
+        return NextResponse.json(
+          { error: 'Invoice only' },
+          { status: 400 }
+        );
+      }
+      const { data: inv, error } = await supabase
+        .from('customer_invoices')
+        .select('id, notes, status')
+        .eq('id', Number(body.id))
+        .eq('profile_id', companyId)
+        .maybeSingle();
+      if (error || !inv) {
+        return NextResponse.json(
+          { error: error?.message || 'Not found' },
+          { status: 404 }
+        );
+      }
+      let notes = inv.notes != null ? String(inv.notes) : '';
+      if (action === 'set_dunning_pause') {
+        const pause = body.pause !== false;
+        if (pause) {
+          if (!notes.includes('[dunning paused]')) {
+            notes = notes
+              ? `${notes}\n[dunning paused ${now.slice(0, 10)}]`
+              : `[dunning paused ${now.slice(0, 10)}]`;
+          }
+        } else {
+          notes = notes
+            .split('\n')
+            .filter((l) => !/\[dunning paused/.test(l))
+            .join('\n');
+          notes = notes
+            ? `${notes}\n[dunning resumed ${now.slice(0, 10)}]`
+            : `[dunning resumed ${now.slice(0, 10)}]`;
+        }
+      } else {
+        // payment plan
+        const plan = String(body.plan || body.notes || '').trim().slice(0, 500);
+        if (!plan) {
+          return NextResponse.json(
+            { error: 'plan text required' },
+            { status: 400 }
+          );
+        }
+        const installments = body.installments != null
+          ? Number(body.installments)
+          : null;
+        const line = `[payment plan ${now.slice(0, 10)}] ${plan}${
+          installments ? ` · ${installments} installments` : ''
+        }`;
+        notes = notes ? `${notes}\n${line}` : line;
+        // Optional promise date from plan
+        const ptp = body.promise_to_pay_date
+          ? String(body.promise_to_pay_date).slice(0, 10)
+          : null;
+        if (ptp && /^\d{4}-\d{2}-\d{2}$/.test(ptp)) {
+          const { error: pErr } = await supabase
+            .from('customer_invoices')
+            .update({
+              notes,
+              promise_to_pay_date: ptp,
+              updated_at: now,
+            })
+            .eq('id', inv.id)
+            .eq('profile_id', companyId);
+          if (pErr && /promise_to_pay|column/i.test(pErr.message || '')) {
+            await supabase
+              .from('customer_invoices')
+              .update({ notes, updated_at: now })
+              .eq('id', inv.id);
+          } else if (pErr) {
+            return NextResponse.json({ error: pErr.message }, { status: 500 });
+          }
+          return NextResponse.json({
+            success: true,
+            action: 'set_payment_plan',
+            promise_to_pay_date: ptp,
+          });
+        }
+      }
+      const { data: updated, error: uErr } = await supabase
+        .from('customer_invoices')
+        .update({ notes: notes || null, updated_at: now })
+        .eq('id', inv.id)
+        .eq('profile_id', companyId)
+        .select('*')
+        .single();
+      if (uErr) {
+        return NextResponse.json({ error: uErr.message }, { status: 500 });
+      }
+      return NextResponse.json({
+        success: true,
+        action,
+        invoice: updated,
+      });
+    }
+
     // ── Convert quote → order ──────────────────────────────────────────────
     if (action === 'convert_to_order' && body.id) {
       const { data: quote, error } = await supabase
@@ -807,12 +1136,10 @@ export async function POST(request: NextRequest) {
     if (
       Number.isFinite(custIdForCredit) &&
       custIdForCredit > 0 &&
-      ['invoice', 'order', 'quote'].includes(kind) &&
-      body.forceCredit !== true &&
-      body.acknowledgeCredit !== true
+      ['invoice', 'order', 'quote'].includes(kind)
     ) {
       try {
-        const { checkCustomerCreditLimit } = await import(
+        const { checkCustomerCreditLimit, recordCreditOverride } = await import(
           '@/lib/customers/credit-limit'
         );
         const credit = await checkCustomerCreditLimit(supabase, {
@@ -821,18 +1148,40 @@ export async function POST(request: NextRequest) {
           additionalAmount: Number(totals.total_amount || 0),
         });
         if (!credit.ok) {
-          return NextResponse.json(
-            {
-              error: `Credit limit exceeded for ${credit.customerName || 'customer'} (limit ${credit.creditLimit.toLocaleString()}, open ${credit.openBalance.toLocaleString()}, this doc would reach ${credit.projected.toLocaleString()}).`,
-              code: 'OVER_CREDIT_LIMIT',
-              creditLimit: credit.creditLimit,
-              openBalance: credit.openBalance,
-              projected: credit.projected,
-              overBy: credit.overBy,
-              hint: 'Raise the credit limit, collect payment, or resubmit with acknowledgeCredit: true to override.',
-            },
-            { status: 409 }
-          );
+          const isHold = credit.code === 'CREDIT_HOLD';
+          const allowOverride =
+            body.forceCredit === true || body.acknowledgeCredit === true;
+          if (isHold && !body.forceCreditHold) {
+            return NextResponse.json(
+              {
+                error: `Customer is on credit hold after repeated overrides. Clear hold on the customer profile before trading.`,
+                code: 'CREDIT_HOLD',
+                creditHold: true,
+                overrideCount: credit.overrideCount,
+              },
+              { status: 409 }
+            );
+          }
+          if (!allowOverride) {
+            return NextResponse.json(
+              {
+                error: `Credit limit exceeded for ${credit.customerName || 'customer'} (limit ${credit.creditLimit.toLocaleString()}, open ${credit.openBalance.toLocaleString()}, this doc would reach ${credit.projected.toLocaleString()}).`,
+                code: 'OVER_CREDIT_LIMIT',
+                creditLimit: credit.creditLimit,
+                openBalance: credit.openBalance,
+                projected: credit.projected,
+                overBy: credit.overBy,
+                overrideCount: credit.overrideCount,
+                hint: 'Raise the credit limit, collect payment, or resubmit with acknowledgeCredit: true to override (3 overrides → credit hold).',
+              },
+              { status: 409 }
+            );
+          }
+          // Record override toward auto-hold
+          await recordCreditOverride(supabase, {
+            companyId,
+            customerId: custIdForCredit,
+          });
         }
       } catch (e) {
         console.warn('credit check soft-fail', e);

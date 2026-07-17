@@ -35,6 +35,10 @@ function Inner() {
   const [queue, setQueue] = useState<Array<Record<string, unknown>>>([]);
   const [queueErr, setQueueErr] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [paystackPulse, setPaystackPulse] = useState<Record<
+    string,
+    unknown
+  > | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -44,6 +48,25 @@ function Inner() {
       const res = await fetch(`/api/system/verifications?${params}`);
       const json = await res.json();
       setData(json);
+
+      try {
+        const hRes = await fetch('/api/system/health', { cache: 'no-store' });
+        const h = await hRes.json().catch(() => ({}));
+        const detail = h?.checks?.paystack?.detail as
+          | Record<string, unknown>
+          | undefined;
+        setPaystackPulse(
+          (detail?.webhookPulse as Record<string, unknown>) || {
+            lastAt: detail?.webhookLastAt,
+            ageHours: detail?.webhookAgeHours,
+            last24hCount: detail?.webhookLast24h,
+            stale: detail?.webhookStale,
+            secretKey: detail?.secretKey,
+          }
+        );
+      } catch {
+        setPaystackPulse(null);
+      }
 
       // Platform queue (ops secret optional — may 403 for normal users)
       setQueueErr(null);
@@ -132,6 +155,35 @@ function Inner() {
       />
 
       <OpsHealthStrip />
+
+      {paystackPulse ? (
+        <div
+          className={`mb-4 rounded-2xl border px-4 py-3 text-xs ${
+            paystackPulse.stale || paystackPulse.secretKey === false
+              ? 'border-rose-200 bg-rose-50 text-rose-950'
+              : 'border-emerald-200 bg-emerald-50 text-emerald-950'
+          }`}
+        >
+          <p className="font-black text-sm mb-0.5">Paystack webhook pulse</p>
+          <p className="leading-relaxed">
+            Secret:{' '}
+            <strong>
+              {paystackPulse.secretKey === false ? 'missing' : 'set'}
+            </strong>
+            {paystackPulse.lastAt
+              ? ` · last event ${String(paystackPulse.lastAt).slice(0, 19).replace('T', ' ')} (${paystackPulse.ageHours ?? '?'}h ago)`
+              : ' · no CIPC webhook events logged yet'}
+            {paystackPulse.last24hCount != null
+              ? ` · ${paystackPulse.last24hCount} in last 24h`
+              : ''}
+          </p>
+          {paystackPulse.lastSummary ? (
+            <p className="mt-1 text-[11px] opacity-90 truncate">
+              {String(paystackPulse.lastSummary)}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       {loading ? (
         <div className="py-20 flex justify-center">

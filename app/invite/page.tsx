@@ -1,53 +1,116 @@
 'use client';
 
-import { Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
-import { Loader2 } from 'lucide-react';
-import InviteClaimFlow from '@/components/onboarding/InviteClaimFlow';
-import Link from 'next/link';
-
 /**
- * /invite?token= or /invite?invite=
- * Unified entry for team / business / customer invites via kind query.
+ * Invite accept landing — email invite → onboarding with claim + referral attribution.
+ * Query: email, companyId|claim, name, ref, message
  */
-function InviteRouter() {
-  const searchParams = useSearchParams();
-  const token = searchParams.get('token') || searchParams.get('invite');
-  const kindParam = searchParams.get('kind');
-  const kind =
-    kindParam === 'business'
-      ? 'business'
-      : kindParam === 'customer'
-        ? 'customer'
-        : 'team';
+import { Suspense, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { ArrowRight, Building2, Sparkles, Loader2 } from 'lucide-react';
 
-  if (!token) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] px-6">
-        <div className="max-w-md text-center bg-white border border-neutral-200 rounded-3xl p-10">
-          <h1 className="text-3xl font-bold mb-3">Missing invitation</h1>
-          <p className="text-neutral-600 mb-8">This link is incomplete.</p>
-          <Link href="/" className="btn-primary py-3 px-8 inline-flex">
-            Home
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  return <InviteClaimFlow token={token} kind={kind} />;
-}
-
-export default function InvitePage() {
+export default function InviteAcceptPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]">
+        <div className="min-h-screen flex items-center justify-center">
           <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
         </div>
       }
     >
-      <InviteRouter />
+      <InviteInner />
     </Suspense>
+  );
+}
+
+function InviteInner() {
+  const sp = useSearchParams();
+  const router = useRouter();
+  const email = sp.get('email') || '';
+  const claim = sp.get('claim') || sp.get('companyId') || '';
+  const name = sp.get('name') || '';
+  const ref = sp.get('ref') || sp.get('referral') || '';
+  const message = sp.get('message') || '';
+
+  const [seconds, setSeconds] = useState(4);
+
+  const target = useMemo(() => {
+    const q = new URLSearchParams();
+    q.set('type', 'business');
+    if (claim) q.set('claim', claim);
+    if (name) q.set('name', name);
+    if (ref) q.set('ref', ref);
+    if (email) q.set('email', email);
+    return `/onboarding?${q.toString()}`;
+  }, [claim, name, ref, email]);
+
+  useEffect(() => {
+    if (ref && typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('sa_referral_code', ref);
+      } catch {
+        /* */
+      }
+    }
+  }, [ref]);
+
+  useEffect(() => {
+    if (seconds <= 0) {
+      router.replace(target);
+      return;
+    }
+    const t = window.setTimeout(() => setSeconds((s) => s - 1), 1000);
+    return () => window.clearTimeout(t);
+  }, [seconds, router, target]);
+
+  return (
+    <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center px-4">
+      <div className="max-w-lg w-full rounded-3xl border border-neutral-200 bg-white p-8 shadow-sm text-center">
+        <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-50 text-[#00b4d8] mb-4">
+          <Sparkles className="w-6 h-6" />
+        </div>
+        <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+          You&apos;re invited to SupplierAdvisor
+        </h1>
+        <p className="mt-2 text-sm text-neutral-600 leading-relaxed">
+          {name
+            ? `Join the network${claim ? ` and claim ${name}` : ''}.`
+            : 'Join the verified B2B trade network.'}
+          {email ? (
+            <>
+              {' '}
+              Invite sent to <strong>{email}</strong>.
+            </>
+          ) : null}
+        </p>
+        {message ? (
+          <p className="mt-3 text-xs text-slate-500 italic">“{message}”</p>
+        ) : null}
+        {claim ? (
+          <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-left text-xs text-emerald-950">
+            <Building2 className="w-4 h-4 inline mr-1.5" />
+            Claim listing #{claim}
+            {name ? ` · ${name}` : ''}
+            {ref ? ` · referred by ${ref}` : ''}
+          </div>
+        ) : null}
+        <Link
+          href={target}
+          className="mt-6 btn-primary !py-3 !px-6 text-sm inline-flex items-center gap-2"
+        >
+          Continue to register
+          <ArrowRight className="w-4 h-4" />
+        </Link>
+        <p className="mt-3 text-[11px] text-neutral-400">
+          Redirecting in {seconds}s…
+        </p>
+        <Link
+          href="/directory"
+          className="mt-4 block text-xs font-semibold text-[#0077b6] hover:underline"
+        >
+          Browse directory first
+        </Link>
+      </div>
+    </div>
   );
 }
