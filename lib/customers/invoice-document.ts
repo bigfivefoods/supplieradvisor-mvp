@@ -462,6 +462,25 @@ export function renderCommercialDocumentHtml(doc: DocRenderInput): string {
       letter-spacing: -0.03em;
       line-height: 1.15;
     }
+    /* Quotation emphasis */
+    body.kind-quote .doc-type { color: #0e7490; }
+    body.kind-quote .topbar {
+      background: linear-gradient(90deg, #0e7490, #00b4d8, #67e8f9);
+    }
+    body.kind-quote .totals {
+      background: linear-gradient(160deg, #ecfeff, #fff);
+      border-color: #67e8f9;
+    }
+    .quote-banner {
+      background: linear-gradient(90deg, #e0f7fc, #f0f9ff);
+      border: 1px solid #bae6fd;
+      border-radius: 10px;
+      padding: 8px 12px;
+      margin-bottom: 12px;
+      font-size: 11px;
+      color: #0e7490;
+      font-weight: 600;
+    }
     .verified {
       display: inline-block; font-size: 9px; font-weight: 700; color: var(--ok);
       background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 999px;
@@ -653,7 +672,7 @@ export function renderCommercialDocumentHtml(doc: DocRenderInput): string {
     }
   </style>
 </head>
-<body>
+<body class="kind-${esc(doc.kind)}">
   <div class="sheet">
     <div class="sheet-body">
       <div class="topbar"></div>
@@ -680,6 +699,18 @@ export function renderCommercialDocumentHtml(doc: DocRenderInput): string {
           </div>
         </div>
 
+        ${
+          doc.kind === 'quote'
+            ? `<div class="quote-banner">${
+                doc.validUntil
+                  ? `This quotation is valid until <strong>${esc(
+                      String(doc.validUntil).slice(0, 10)
+                    )}</strong>. Prices subject to stock availability and order confirmation.`
+                  : 'This quotation is provided for commercial discussion. Prices subject to stock availability and order confirmation.'
+              }</div>`
+            : ''
+        }
+
         <div class="parties">
           <div class="card">
             <div class="card-label">Bill to</div>
@@ -693,7 +724,7 @@ export function renderCommercialDocumentHtml(doc: DocRenderInput): string {
             <table class="meta">
               ${doc.issuedAt ? `<tr><td>Date</td><td>${esc(String(doc.issuedAt).slice(0, 10))}</td></tr>` : ''}
               ${doc.dueDate ? `<tr><td>Due date</td><td><strong>${esc(String(doc.dueDate).slice(0, 10))}</strong></td></tr>` : ''}
-              ${doc.validUntil ? `<tr><td>Valid until</td><td>${esc(String(doc.validUntil).slice(0, 10))}</td></tr>` : ''}
+              ${doc.validUntil ? `<tr><td>Valid until</td><td><strong>${esc(String(doc.validUntil).slice(0, 10))}</strong></td></tr>` : ''}
               <tr><td>Currency</td><td>${esc(ccy)}</td></tr>
             </table>
           </div>
@@ -716,7 +747,7 @@ export function renderCommercialDocumentHtml(doc: DocRenderInput): string {
           <div class="totals">
             <div class="line"><span>Subtotal</span><span>${esc(formatMoney(doc.subtotal, ccy))}</span></div>
             <div class="line"><span>Tax (${esc(doc.taxRate)}%)</span><span>${esc(formatMoney(doc.taxAmount, ccy))}</span></div>
-            <div class="grand"><span>Total due</span><span>${esc(formatMoney(doc.totalAmount, ccy))}</span></div>
+            <div class="grand"><span>${doc.kind === 'quote' ? 'Total' : 'Total due'}</span><span>${esc(formatMoney(doc.totalAmount, ccy))}</span></div>
           </div>
         </div>
 

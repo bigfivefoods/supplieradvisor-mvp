@@ -6,6 +6,14 @@ import {
   legacyPrivyFrom,
 } from '@/lib/auth/api-auth';
 import { loadCommercialDocument } from '@/lib/customers/load-commercial-doc';
+import {
+  buildCommercialDocumentPdf,
+  commercialPdfFilename,
+} from '@/lib/customers/commercial-doc-pdf';
+import {
+  buildDocShareToken,
+  commercialDocPdfUrl,
+} from '@/lib/customers/doc-share-token';
 
 const TABLES = {
   quote: 'customer_quotes',
@@ -55,7 +63,6 @@ export async function POST(request: NextRequest) {
     }
 
     const {
-      html,
       input,
       toEmail,
       bankDetailsIncluded,
@@ -158,23 +165,38 @@ export async function POST(request: NextRequest) {
     const subject = isResend
       ? `Reminder: ${LABELS[type]} ${number} from ${sellerName}`
       : `${LABELS[type]} ${number} from ${sellerName}`;
+    const firstName = input.contactName
+      ? String(input.contactName).split(' ')[0]
+      : '';
     const intro =
       body.message != null && String(body.message).trim()
-        ? `<p style="font-family:system-ui,sans-serif;max-width:640px">${String(body.message)
+        ? `<p style="font-family:system-ui,sans-serif;max-width:640px;color:#0f172a;line-height:1.5">${String(
+            body.message
+          )
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;')}</p>`
         : type === 'invoice'
           ? isResend
-            ? `<p style="font-family:system-ui,sans-serif;max-width:640px">Hi${
-                input.contactName ? ` ${String(input.contactName).split(' ')[0]}` : ''
-              },<br/><br/>This is a <strong>resend</strong> of <strong>invoice ${number}</strong> from <strong>${sellerName}</strong>. Payment can be made by bank transfer — details are on the invoice. Use <strong>${number}</strong> as your payment reference.</p>`
-            : `<p style="font-family:system-ui,sans-serif;max-width:640px">Hi${
-                input.contactName ? ` ${String(input.contactName).split(' ')[0]}` : ''
-              },<br/><br/>Please find <strong>invoice ${number}</strong> from <strong>${sellerName}</strong>. Payment can be made by bank transfer — details are on the invoice. Use <strong>${number}</strong> as your payment reference.</p>`
-          : `<p style="font-family:system-ui,sans-serif;max-width:640px">Please find your ${LABELS[type].toLowerCase()} <strong>${number}</strong> from <strong>${sellerName}</strong>${
-              isResend ? ' (resend)' : ''
-            }.</p>`;
+            ? `<p style="font-family:system-ui,sans-serif;max-width:640px;color:#0f172a;line-height:1.5">Hi${
+                firstName ? ` ${firstName}` : ''
+              },<br/><br/>This is a <strong>resend</strong> of <strong>invoice ${number}</strong> from <strong>${sellerName}</strong>. The PDF is attached — payment details are on the invoice. Use <strong>${number}</strong> as your payment reference.</p>`
+            : `<p style="font-family:system-ui,sans-serif;max-width:640px;color:#0f172a;line-height:1.5">Hi${
+                firstName ? ` ${firstName}` : ''
+              },<br/><br/>Please find <strong>invoice ${number}</strong> from <strong>${sellerName}</strong> as a PDF attachment. Payment can be made by bank transfer — details are on the invoice. Use <strong>${number}</strong> as your payment reference.</p>`
+          : type === 'quote'
+            ? `<p style="font-family:system-ui,sans-serif;max-width:640px;color:#0f172a;line-height:1.5">Hi${
+                firstName ? ` ${firstName}` : ''
+              },<br/><br/>Please find <strong>quotation ${number}</strong> from <strong>${sellerName}</strong> as a PDF attachment${
+                isResend ? ' (resend)' : ''
+              }.${
+                input.validUntil
+                  ? ` Valid until <strong>${String(input.validUntil).slice(0, 10)}</strong>.`
+                  : ''
+              }</p>`
+            : `<p style="font-family:system-ui,sans-serif;max-width:640px;color:#0f172a;line-height:1.5">Please find your ${LABELS[type].toLowerCase()} <strong>${number}</strong> from <strong>${sellerName}</strong> as a PDF attachment${
+                isResend ? ' (resend)' : ''
+              }.</p>`;
 
     const cc: string[] = [];
     if (body.ccMe !== false) {
@@ -191,6 +213,31 @@ export async function POST(request: NextRequest) {
       if (me.includes('@') && me !== to) cc.push(me);
     }
 
+    // Beautiful PDF attachment (pdfkit)
+    let pdfBuffer: Buffer;
+    let pdfName: string;
+    try {
+      pdfBuffer = await buildCommercialDocumentPdf(input);
+      pdfName = commercialPdfFilename(input);
+    } catch (pdfErr) {
+      console.error('commercial PDF build failed:', pdfErr);
+      return NextResponse.json(
+        {
+          error: 'Failed to generate PDF attachment',
+          hint: pdfErr instanceof Error ? pdfErr.message : 'PDF error',
+        },
+        { status: 500 }
+      );
+    }
+
+    const shareToken = buildDocShareToken({
+      companyId,
+      type,
+      id,
+      ttlSeconds: type === 'quote' ? 60 * 60 * 24 * 45 : 60 * 60 * 24 * 30,
+    });
+    const pdfLink = commercialDocPdfUrl(shareToken);
+
     const resend = getResend();
     const from = getResendFrom();
     const replyTo =
@@ -199,17 +246,32 @@ export async function POST(request: NextRequest) {
       input.seller.contact_email ||
       undefined;
 
+    const emailHtml = `
+      <div style="font-family:system-ui,sans-serif;max-width:640px;margin:0 auto">
+        ${intro}
+        <p style="margin:20px 0">
+          <a href="${pdfLink}"
+             style="display:inline-block;background:#00b4d8;color:#fff;padding:12px 20px;border-radius:999px;text-decoration:none;font-weight:700">
+            Open PDF ${LABELS[type].toLowerCase()} →
+          </a>
+        </p>
+        <p style="font-size:13px;color:#64748b">The formal PDF is also attached to this email for your records.</p>
+        <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0"/>
+        <p style="font-size:12px;color:#94a3b8">Sent via SupplierAdvisor® · ${sellerName}</p>
+      </div>
+    `;
+
     const { data: sent, error: sendErr } = await resend.emails.send({
       from,
       to: [to],
       cc: cc.length ? cc : undefined,
       replyTo: replyTo || undefined,
       subject,
-      html: `${intro}<hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0"/>${html}`,
+      html: emailHtml,
       attachments: [
         {
-          filename: `${type}-${number}.html`,
-          content: Buffer.from(html, 'utf8').toString('base64'),
+          filename: pdfName,
+          content: pdfBuffer.toString('base64'),
         },
       ],
     });
@@ -292,6 +354,9 @@ export async function POST(request: NextRequest) {
       cc,
       subject,
       resend: isResend,
+      attachment: pdfName,
+      format: 'pdf',
+      pdfUrl: pdfLink,
       bankDetailsIncluded,
       bankVerified:
         String(input.seller.bank_verification_status || '').toLowerCase() ===

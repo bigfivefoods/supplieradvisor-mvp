@@ -4,11 +4,14 @@ import {
   legacyPrivyFrom,
 } from '@/lib/auth/api-auth';
 import { loadCommercialDocument } from '@/lib/customers/load-commercial-doc';
+import {
+  buildCommercialDocumentPdf,
+  commercialPdfFilename,
+} from '@/lib/customers/commercial-doc-pdf';
 
 /**
- * GET ?companyId=&type=invoice&id=
- * Print-ready HTML (browser Print → Save as PDF).
- * Uses company logo, VAT, reg, bank + customer contact from CRM profile.
+ * GET ?companyId=&type=invoice|quote|order&id=&format=html|pdf
+ * Default format=html (print-ready). format=pdf returns real PDF (pdfkit).
  */
 export async function GET(request: NextRequest) {
   try {
@@ -19,8 +22,13 @@ export async function GET(request: NextRequest) {
       | 'quote'
       | 'order'
       | 'invoice';
+    const format = String(sp.get('format') || 'html').toLowerCase();
+
     if (!Number.isFinite(companyId) || !Number.isFinite(id)) {
-      return NextResponse.json({ error: 'companyId, type, id required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'companyId, type, id required' },
+        { status: 400 }
+      );
     }
 
     const gate = await requireCompanyAccess(request, companyId, {
@@ -31,6 +39,19 @@ export async function GET(request: NextRequest) {
     const loaded = await loadCommercialDocument({ companyId, type, id });
     if (!loaded.ok) {
       return NextResponse.json({ error: loaded.error }, { status: loaded.status });
+    }
+
+    if (format === 'pdf') {
+      const pdf = await buildCommercialDocumentPdf(loaded.input);
+      const filename = commercialPdfFilename(loaded.input);
+      return new NextResponse(new Uint8Array(pdf), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `inline; filename="${filename}"`,
+          'Cache-Control': 'no-store',
+        },
+      });
     }
 
     return new NextResponse(loaded.html, {

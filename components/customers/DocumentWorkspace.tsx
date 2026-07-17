@@ -20,6 +20,7 @@ import {
   EyeOff,
   Mail,
   FileDown,
+  MessageCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePrivy } from '@privy-io/react-auth';
@@ -43,7 +44,6 @@ import { commercialDocWhatsAppText } from '@/lib/invites/whatsapp';
 import { CompanyRequired, CustomersHeader } from '@/components/customers/CustomersShell';
 import CommissionBadge from '@/components/sales/CommissionBadge';
 import FxRateStrip from '@/components/fx/FxRateStrip';
-import WhatsAppShareButton from '@/components/ui/WhatsAppShareButton';
 
 type DocType = 'quote' | 'order' | 'invoice';
 
@@ -709,10 +709,62 @@ function DocInner({
     if (res.ok) void load();
   };
 
-  /** Open print-ready HTML (browser → Print → Save as PDF). */
+  /** Open real PDF (pdfkit) in a new tab — also works as download. */
   const openPrintPdf = (id: number) => {
-    const url = `/api/customers/docs/render?companyId=${companyId}&type=${type}&id=${id}`;
+    const url = `/api/customers/docs/render?companyId=${companyId}&type=${type}&id=${id}&format=pdf`;
     window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  /** Public PDF link for WhatsApp (signed token, no login). */
+  const [waShareBusyId, setWaShareBusyId] = useState<number | null>(null);
+  const shareDocOnWhatsApp = async (doc: DocRecord) => {
+    setWaShareBusyId(Number(doc.id));
+    try {
+      const res = await fetch('/api/customers/docs/share-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          type,
+          id: doc.id,
+          privyUserId,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not create PDF link');
+      const text = commercialDocWhatsAppText({
+        kind: type,
+        number: String(doc[cfg.numberField] || doc.id),
+        customerName: (doc.customer_name as string) || null,
+        contactName: (doc.contact_name as string) || null,
+        amount: Number(doc.total_amount || 0),
+        currency: String(doc.currency || 'ZAR'),
+        status: doc.status || null,
+        dueDate: (doc.due_date as string) || null,
+        validUntil: (doc.valid_until as string) || null,
+        promisedDate: (doc.promised_date as string) || null,
+        notes: (doc.notes as string) || null,
+        lineSummary: (Array.isArray(doc.items) ? (doc.items as DocLineItem[]) : [])
+          .filter((l) => l?.name)
+          .slice(0, 6)
+          .map((l) => {
+            const qty = Number(l.quantity || 0);
+            const uom = l.uom ? ` ${l.uom}` : '';
+            return `${l.name} × ${qty}${uom}`;
+          }),
+        link: data.pdfUrl || null,
+      });
+      // Open WhatsApp with PDF link in message
+      const { openWhatsAppShare } = await import('@/lib/invites/whatsapp');
+      openWhatsAppShare({ phone: resolveDocPhone(doc), text });
+      toast.success('WhatsApp opened with PDF link', {
+        description: 'Customer can open the formal PDF from the message.',
+      });
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'WhatsApp share failed');
+    } finally {
+      setWaShareBusyId(null);
+    }
   };
 
   const resolveDocPhone = (doc: DocRecord): string | null => {
@@ -727,40 +779,9 @@ function DocInner({
     return String(c.phone || '').trim() || null;
   };
 
-  const buildDocWhatsAppText = (doc: DocRecord): string => {
-    const num = String(doc[cfg.numberField] || doc.id);
-    const items = Array.isArray(doc.items) ? (doc.items as DocLineItem[]) : [];
-    const lineSummary = items
-      .filter((l) => l?.name)
-      .slice(0, 8)
-      .map((l) => {
-        const qty = Number(l.quantity || 0);
-        const uom = l.uom ? ` ${l.uom}` : '';
-        const price = formatMoney(
-          Number(l.unit_price || 0),
-          String(doc.currency || 'ZAR')
-        );
-        return `${l.name} × ${qty}${uom} @ ${price}`;
-      });
-    return commercialDocWhatsAppText({
-      kind: type,
-      number: num,
-      customerName: (doc.customer_name as string) || null,
-      contactName: (doc.contact_name as string) || null,
-      amount: Number(doc.total_amount || 0),
-      currency: String(doc.currency || 'ZAR'),
-      status: doc.status || null,
-      dueDate: (doc.due_date as string) || null,
-      validUntil: (doc.valid_until as string) || null,
-      promisedDate: (doc.promised_date as string) || null,
-      notes: (doc.notes as string) || null,
-      lineSummary,
-    });
-  };
-
   /**
    * Email or resend document to customer; CC you by default.
-   * Invoices include company bank details from Company → Profile.
+   * Attaches formal PDF (quotes, orders, invoices).
    */
   const emailDoc = async (doc: DocRecord, opts?: { resend?: boolean }) => {
     const st = String(doc.status || '').toLowerCase();
@@ -897,9 +918,14 @@ function DocInner({
       if (data.bankVerified) bits.push('bank AVS');
       const stamp = bits.length ? ` · ${bits.join(', ')} on document` : '';
       toast.success(
-        `${data.resend ? 'Resent' : 'Emailed'} ${data.to}${
+        `${data.resend ? 'Resent' : 'Emailed'} PDF to ${data.to}${
           data.cc?.length ? ` (CC ${data.cc.join(', ')})` : ''
-        }${stamp}`
+        }${stamp}`,
+        {
+          description: data.attachment
+            ? `Attached ${data.attachment}`
+            : 'Formal PDF attached',
+        }
       );
       if (data.bankWarning || !data.bankDetailsIncluded) {
         toast.message(
@@ -1404,10 +1430,10 @@ function DocInner({
                       type="button"
                       onClick={() => openPrintPdf(d.id)}
                       className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
-                      title="Open print-ready document — use browser Print → Save as PDF"
+                      title="Open formal PDF (downloadable)"
                     >
                       <FileDown className="w-3.5 h-3.5" />
-                      PDF / print
+                      PDF
                     </button>
                     <button
                       type="button"
@@ -1443,12 +1469,20 @@ function DocInner({
                         </>
                       )}
                     </button>
-                    <WhatsAppShareButton
-                      text={buildDocWhatsAppText(d)}
-                      phone={resolveDocPhone(d)}
-                      label="WhatsApp"
-                      title="Share this document on WhatsApp to your customer"
-                    />
+                    <button
+                      type="button"
+                      disabled={waShareBusyId === d.id || busyId === d.id}
+                      onClick={() => void shareDocOnWhatsApp(d)}
+                      className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1 border-emerald-300/70 text-emerald-800 hover:bg-emerald-50"
+                      title="Share formal PDF link on WhatsApp"
+                    >
+                      {waShareBusyId === d.id ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <MessageCircle className="w-3.5 h-3.5" />
+                      )}
+                      WhatsApp PDF
+                    </button>
                     <button
                       type="button"
                       disabled={busyId === d.id}

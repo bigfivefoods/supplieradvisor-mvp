@@ -157,18 +157,21 @@ export function commercialDocWhatsAppText(params: {
   }
 
   if (params.link?.trim()) {
-    lines.push(``, `View / print:`, params.link.trim());
+    lines.push(``, `📄 Download PDF ${label.toLowerCase()}:`, params.link.trim());
   } else {
     lines.push(
       ``,
-      `Reply on WhatsApp if you have questions, or request the PDF if you need a formal copy.`
+      `Reply on WhatsApp if you have questions — we can resend the formal PDF anytime.`
     );
   }
 
   if (params.kind === 'invoice') {
-    lines.push(``, `Thank you — payment details are on the invoice PDF if emailed.`);
+    lines.push(``, `Thank you — payment details are on the invoice PDF.`);
   } else if (params.kind === 'quote') {
-    lines.push(``, `Happy to adjust quantities or lead times — just reply here.`);
+    lines.push(
+      ``,
+      `Open the PDF for the full formal quotation. Happy to adjust quantities or lead times — just reply here.`
+    );
   } else {
     lines.push(``, `We'll keep you updated on fulfilment.`);
   }
