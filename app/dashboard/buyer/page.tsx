@@ -34,6 +34,8 @@ import {
   type HubModule,
 } from '@/components/chrome/CommandHubChrome';
 import JourneyChecklist from '@/components/journey/JourneyChecklist';
+import TradeNextBanner from '@/components/journey/TradeNextBanner';
+import { computeHubNextAction } from '@/lib/connections/next-action';
 
 type WorkspaceSupplier = {
   connectionId: number;
@@ -164,6 +166,16 @@ function BuyerHubInner() {
       />
 
       <JourneyChecklist role="buyer" />
+
+      {!loading ? (
+        <TradeNextBanner
+          action={computeHubNextAction({
+            role: 'buyer',
+            openOutboundPos: 0,
+            pendingConnections: 0,
+          })}
+        />
+      ) : null}
 
       <HubHero
         pill="Live buy · connect → settle"

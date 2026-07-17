@@ -30,6 +30,7 @@ import CompanyLogo from '@/components/business/CompanyLogo';
 import TrustBadges from '@/components/business/TrustBadges';
 import EmptyState from '@/components/ui/EmptyState';
 import type { NetworkEdge } from '@/lib/connections/types';
+import { computePeerTradeNextAction } from '@/lib/connections/next-action';
 
 type WorkspacePo = {
   id: number;
@@ -225,106 +226,26 @@ function PeerInner() {
     })}`;
   };
 
-  /** Single primary CTA based on connection + open trade state */
-  const nextAction = (() => {
-    if (edge.suspended) {
-      return {
-        title: 'Connection suspended',
-        body: 'Unsuspend from Network before raising new POs.',
-        href: '/dashboard/connections',
-        cta: 'Open network',
-      };
-    }
-    const st = String(edge.status || '').toLowerCase();
-    if (st === 'pending') {
-      if (edge.direction === 'received') {
-        return {
-          title: 'Respond to connection request',
-          body: `${name} is waiting — accept to unlock POs and documents.`,
-          href: '/dashboard/connections',
-          cta: 'Review request',
-        };
-      }
-      return {
-        title: 'Waiting for acceptance',
-        body: `Your request to ${name} is still pending.`,
-        href: '/dashboard/connections',
-        cta: 'View network',
-      };
-    }
-    if (st !== 'accepted') {
-      return {
-        title: 'Connect first',
-        body: 'Accept or request a connection to trade with this company.',
-        href: '/dashboard/suppliers/discover',
-        cta: 'Discover partners',
-      };
-    }
-    // We sell to this peer (customer/buyer role) — accept inbound first, then invoice
-    const awaitingAccept = openPos.find(
-      (p) => String(p.status || '').toLowerCase() === 'sent'
-    );
-    if (weAreSeller && awaitingAccept) {
-      return {
-        title: 'Accept inbound purchase order',
-        body: `PO ${awaitingAccept.po_number || `#${awaitingAccept.id}`} from ${name} is waiting for your accept.`,
-        href: `/dashboard/customers/orders?tab=inbound&po=${awaitingAccept.id}`,
-        cta: 'Review & accept',
-      };
-    }
-    const invoiceablePo = openPos.find((p) => {
-      const s = String(p.status || '').toLowerCase();
-      return ['accepted', 'funded', 'open', 'confirmed'].includes(s);
-    });
-    if (weAreSeller && invoiceablePo) {
-      return {
-        title: 'Create invoice from open PO',
-        body: `PO ${invoiceablePo.po_number || `#${invoiceablePo.id}`} is ready to bill ${name}.`,
-        href: `/dashboard/customers/invoices?fromPo=${invoiceablePo.id}&buyerProfileId=${peerId}`,
-        cta: 'Create invoice',
-      };
-    }
-    if ((wsMeta.poOpen ?? openPos.length) > 0) {
-      return {
-        title: 'Continue open purchase orders',
-        body: `${wsMeta.poOpen ?? openPos.length} open PO(s) with ${name}. Track delivery, accept, or invoice.`,
-        href: weAreSeller
-          ? '/dashboard/customers/orders?tab=inbound'
-          : edge.hrefs.po || '/dashboard/suppliers/po',
-        cta: 'Open POs',
-      };
-    }
-    if ((wsMeta.invOpen ?? openInvs.length) > 0) {
-      return {
-        title: 'Follow up on open invoices',
-        body: `${wsMeta.invOpen ?? openInvs.length} open invoice(s) with this partner.`,
-        href: '/dashboard/customers/invoices',
-        cta: 'Open invoices',
-      };
-    }
-    if (edge.role === 'supplier' || edge.role === 'seller') {
-      return {
-        title: 'Raise a purchase order',
-        body: `You're ready to buy from ${name}. Pick catalogue lines and send a PO.`,
-        href: edge.hrefs.po || '/dashboard/suppliers/po',
-        cta: 'Raise PO',
-      };
-    }
-    if (weAreSeller) {
-      return {
-        title: 'Send a quote or invoice',
-        body: `${name} is a customer connection — share commercial documents next.`,
-        href: `/dashboard/customers/invoices?buyerProfileId=${peerId}`,
-        cta: 'Create invoice',
-      };
-    }
-    return {
-      title: 'Start the trade loop',
-      body: 'Raise a PO, share pricing, or rate this partner after delivery.',
-      href: edge.hrefs.po || '/dashboard/suppliers/po',
-      cta: 'Raise PO',
-    };
-  })();
+  /** Single primary CTA — shared trade-loop engine */
+  const weAreBuyer =
+    edge.role === 'supplier' ||
+    edge.role === 'seller' ||
+    edge.connection_type === 'supplier';
+  const nextAction = computePeerTradeNextAction({
+    peerId,
+    peerName: name,
+    connectionStatus: String(edge.status || ''),
+    connectionDirection: edge.direction,
+    suspended: Boolean(edge.suspended),
+    weAreSeller: Boolean(weAreSeller),
+    weAreBuyer: Boolean(weAreBuyer) || !weAreSeller,
+    openPos,
+    openInvs,
+    poOpenCount: wsMeta.poOpen,
+    invOpenCount: wsMeta.invOpen,
+    poHref: edge.hrefs.po,
+    ratingsHref: edge.hrefs.ratings,
+  });
 
   return (
     <ConnectionsPage>

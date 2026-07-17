@@ -291,6 +291,56 @@ export async function sendRegistrationReport(opts: {
       }
     }
 
+    // Platform-wide verification outcomes in window (not only new signups)
+    let cipcVerified = 0;
+    let cipcMismatch = 0;
+    let cipcFailed = 0;
+    let cipcPaidNotVerified = 0;
+    let openInboundSent = 0;
+    try {
+      const { data: acts } = await supabase
+        .from('activity_log')
+        .select('id, action, metadata, created_at, summary')
+        .eq('action', 'business.verification_verifynow')
+        .gte('created_at', win.from)
+        .lt('created_at', win.to)
+        .limit(500);
+      for (const a of acts || []) {
+        const m =
+          a.metadata && typeof a.metadata === 'object'
+            ? (a.metadata as Record<string, unknown>)
+            : {};
+        const st = String(m.status || '').toLowerCase();
+        if (st === 'verified') cipcVerified += 1;
+        else if (st === 'mismatch') cipcMismatch += 1;
+        else if (st === 'failed') cipcFailed += 1;
+        else cipcFailed += 1;
+        if (st && st !== 'verified' && (m.paystackReference || m.paystack_reference)) {
+          cipcPaidNotVerified += 1;
+        }
+      }
+    } catch {
+      /* soft */
+    }
+
+    try {
+      const { count } = await supabase
+        .from('purchase_orders')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'sent')
+        .gte('created_at', win.from)
+        .lt('created_at', win.to);
+      openInboundSent = count ?? 0;
+    } catch {
+      /* soft */
+    }
+
+    const verifyFailedOrMismatch = rows.filter((r) =>
+      ['failed', 'mismatch', 'pending'].includes(
+        String(r.verification_status || '').toLowerCase()
+      )
+    ).length;
+
     const metrics: Record<string, number | string> = {
       signups: rows.length,
       waitlist_signups: waitlistCount,
@@ -305,6 +355,12 @@ export async function sendRegistrationReport(opts: {
       with_reg_number: withReg,
       with_vat: withVat,
       verified,
+      verify_pending_failed_mismatch: verifyFailedOrMismatch,
+      cipc_verified_events: cipcVerified,
+      cipc_mismatch_events: cipcMismatch,
+      cipc_failed_events: cipcFailed,
+      cipc_paid_not_verified_events: cipcPaidNotVerified,
+      pos_sent_in_window: openInboundSent,
       lifetime,
       trial,
       onboarding_rows: anyOnboarding,
@@ -361,11 +417,11 @@ export async function sendRegistrationReport(opts: {
       ['Signups', String(rows.length)],
       ['Waitlist', String(waitlistCount)],
       ['Referred', `${referred} (${metrics.referral_rate_pct}%)`],
+      ['CIPC verified', String(cipcVerified)],
+      ['CIPC paid≠badge', String(cipcPaidNotVerified)],
+      ['Mismatch / fail', `${cipcMismatch} / ${cipcFailed}`],
+      ['POs status=sent', String(openInboundSent)],
       ['Trial / Lifetime', `${trial} / ${lifetime}`],
-      ['Phone on file', String(withPhone)],
-      ['Logo / VAT / Reg', `${withLogo} / ${withVat} / ${withReg}`],
-      ['Onboarding tracked', String(anyOnboarding)],
-      ['Onboarding done', String(fullyDone)],
     ]
       .map(
         ([label, val]) => `
@@ -404,8 +460,13 @@ export async function sendRegistrationReport(opts: {
             bySub.map((x) => `${x.key} (${x.n})`).join(', ') || '—'
           )}</li>
           <li><strong>Discoverable:</strong> ${discoverable}/${rows.length}
-            · <strong>Verified:</strong> ${verified}/${rows.length}
+            · <strong>Verified (new cohort):</strong> ${verified}/${rows.length}
             · <strong>Owner links created:</strong> ${ownersCreated}</li>
+          <li><strong>CIPC events (platform):</strong>
+            verified ${cipcVerified} · mismatch ${cipcMismatch} · failed ${cipcFailed}
+            · paid-not-verified ${cipcPaidNotVerified}</li>
+          <li><strong>Trade pulse:</strong> POs created as <code>sent</code> in window: ${openInboundSent}
+            · Ops queue: <code>/dashboard/my-business/verifications</code></li>
           ${
             stepLines
               ? `<li><strong>Golden-path steps hit:</strong> ${escapeHtml(stepLines)}</li>`

@@ -36,6 +36,8 @@ import {
   type HubModule,
 } from '@/components/chrome/CommandHubChrome';
 import JourneyChecklist from '@/components/journey/JourneyChecklist';
+import TradeNextBanner from '@/components/journey/TradeNextBanner';
+import { computeHubNextAction } from '@/lib/connections/next-action';
 import CatalogueEmptyBanner from '@/components/business/CatalogueEmptyBanner';
 
 type Summary = {
@@ -236,6 +238,17 @@ function HubInner() {
 
       <JourneyChecklist role="supplier" />
       <CatalogueEmptyBanner />
+
+      {!loading ? (
+        <TradeNextBanner
+          action={computeHubNextAction({
+            role: 'supplier',
+            openInboundPos: 0,
+            catalogueEmpty: false,
+            pendingConnections: 0,
+          })}
+        />
+      ) : null}
 
       {warning && (
         <AlertBanner>

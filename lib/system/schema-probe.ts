@@ -42,12 +42,12 @@ export const OPTIONAL_COMMERCIAL_COLUMNS: Array<{
   {
     table: 'profiles',
     column: 'verification_payment_ref',
-    migrationHint: 'platform improvements / bank verify migrations',
+    migrationHint: '20260717_verification_payment_ref.sql',
   },
   {
     table: 'profiles',
     column: 'verified_at',
-    migrationHint: 'optional; status lives in verification_status + metadata',
+    migrationHint: '20260717_verification_payment_ref.sql',
   },
 ];
 
