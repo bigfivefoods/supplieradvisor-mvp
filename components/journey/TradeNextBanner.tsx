@@ -23,12 +23,22 @@ export default function TradeNextBanner({
           </p>
         </div>
       </div>
-      <Link
-        href={action.href}
-        className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center gap-1.5 shrink-0"
-      >
-        {action.cta} <ArrowRight className="w-4 h-4" />
-      </Link>
+      <div className="flex flex-wrap items-center gap-2 shrink-0">
+        {action.secondaryHref && action.secondaryCta ? (
+          <Link
+            href={action.secondaryHref}
+            className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-1.5"
+          >
+            {action.secondaryCta}
+          </Link>
+        ) : null}
+        <Link
+          href={action.href}
+          className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center gap-1.5"
+        >
+          {action.cta} <ArrowRight className="w-4 h-4" />
+        </Link>
+      </div>
     </div>
   );
 }

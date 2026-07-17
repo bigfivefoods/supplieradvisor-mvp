@@ -10,6 +10,9 @@ export type TradeNextAction = {
   href: string;
   cta: string;
   priority: number;
+  /** Optional second CTA (e.g. resend overdue, WhatsApp) */
+  secondaryHref?: string;
+  secondaryCta?: string;
 };
 
 export type TradeOpenPo = {
@@ -239,6 +242,8 @@ export function computeHubNextAction(opts: {
   draftInvoices?: number;
   /** Seller CRM: overdue / past-due open invoices */
   overdueInvoices?: number;
+  /** 0–100 profile completeness for discover quality */
+  profileCompleteness?: number | null;
   catalogueEmpty?: boolean;
   verificationStatus?: string | null;
 }): TradeNextAction {
@@ -253,9 +258,12 @@ export function computeHubNextAction(opts: {
           : v === 'pending'
             ? 'Finish company verification'
             : 'Retry company verification',
-      body: 'Complete CIPC verification so partners trust your public profile.',
+      body:
+        v === 'mismatch'
+          ? 'CIPC name does not match your profile — apply the registered name and re-verify without re-paying.'
+          : 'Complete CIPC verification so partners trust your public profile.',
       href: '/dashboard/my-business/profile#identity',
-      cta: 'Open profile',
+      cta: v === 'mismatch' ? 'Fix name match' : 'Open profile',
     };
   }
 
@@ -267,6 +275,23 @@ export function computeHubNextAction(opts: {
       body: `${opts.pendingConnections} pending connection(s) need a response.`,
       href: '/dashboard/connections?focus=incoming',
       cta: 'Open inbox',
+    };
+  }
+
+  // Low completeness hurts discovery before trade volume matters
+  const completeness = Number(opts.profileCompleteness);
+  if (
+    Number.isFinite(completeness) &&
+    completeness >= 0 &&
+    completeness < 25
+  ) {
+    return {
+      id: 'profile_completeness',
+      priority: 88,
+      title: 'Complete your company profile',
+      body: `Profile is ${Math.round(completeness)}% complete — reach 25%+ so partners can discover you.`,
+      href: '/dashboard/my-business/profile',
+      cta: 'Complete profile',
     };
   }
 
@@ -285,7 +310,7 @@ export function computeHubNextAction(opts: {
     };
   }
 
-  // Seller: overdue AR first (money stuck)
+  // Seller: overdue AR first (money stuck) — deep-link opens resend tools
   if (
     (opts.role === 'main' || opts.role === 'supplier') &&
     (opts.overdueInvoices || 0) > 0
@@ -294,9 +319,11 @@ export function computeHubNextAction(opts: {
       id: 'overdue_invoices',
       priority: 84,
       title: 'Overdue invoices need follow-up',
-      body: `${opts.overdueInvoices} invoice(s) past due — resend or mark paid.`,
-      href: '/dashboard/customers/invoices?status=overdue',
-      cta: 'Open overdue',
+      body: `${opts.overdueInvoices} invoice(s) past due — resend PDF or share on WhatsApp.`,
+      href: '/dashboard/customers/invoices?status=overdue&action=resend',
+      cta: 'Resend overdue',
+      secondaryHref: '/dashboard/customers/invoices?status=overdue',
+      secondaryCta: 'Open list',
     };
   }
 
@@ -327,6 +354,22 @@ export function computeHubNextAction(opts: {
       body: `${opts.openOutboundPos} PO(s) — track accept, receive OTIFEF, and rate.`,
       href: '/dashboard/suppliers/po',
       cta: 'Open POs',
+    };
+  }
+
+  // Soft completeness nudge (25–69%) after trade priorities
+  if (
+    Number.isFinite(completeness) &&
+    completeness >= 25 &&
+    completeness < 70
+  ) {
+    return {
+      id: 'profile_strengthen',
+      priority: 55,
+      title: 'Strengthen your public profile',
+      body: `Profile is ${Math.round(completeness)}% complete — logo, contacts, and industry improve discovery.`,
+      href: '/dashboard/my-business/profile',
+      cta: 'Improve profile',
     };
   }
 

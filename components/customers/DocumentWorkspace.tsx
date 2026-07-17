@@ -148,7 +148,9 @@ function DocInner({
     Number(searchParams.get('buyerProfileId') || 0) || null;
   const focusDocId = Number(searchParams.get('docId') || searchParams.get('invoiceId') || 0) || null;
   const statusFromUrl = String(searchParams.get('status') || '').toLowerCase();
+  const actionFromUrl = String(searchParams.get('action') || '').toLowerCase();
   const fromPoApplied = useRef(false);
+  const overdueResendHinted = useRef(false);
   const cfg = CONFIG[type];
   const [docs, setDocs] = useState<DocRecord[]>([]);
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
@@ -465,6 +467,31 @@ function DocInner({
     const hit = docs.find((d) => Number(d.id) === focusDocId);
     if (hit) openExistingInvoice(hit, null);
   }, [focusDocId, loading, type, docs, openExistingInvoice]);
+
+  // Hub next-action: ?status=overdue&action=resend — toast once when list ready
+  useEffect(() => {
+    if (
+      type !== 'invoice' ||
+      loading ||
+      actionFromUrl !== 'resend' ||
+      overdueResendHinted.current
+    ) {
+      return;
+    }
+    const n = docs.filter(
+      (d) => String(d.status || '').toLowerCase() === 'overdue'
+    ).length;
+    if (statusFilter !== 'overdue' && statusFromUrl === 'overdue') {
+      setStatusFilter('overdue');
+    }
+    if (n > 0) {
+      overdueResendHinted.current = true;
+      toast.message(`${n} overdue invoice${n === 1 ? '' : 's'}`, {
+        description: 'Use Resend first / Resend all, or WhatsApp PDF on a row.',
+        duration: 8000,
+      });
+    }
+  }, [type, loading, actionFromUrl, docs, statusFilter, statusFromUrl]);
 
   const totals = useMemo(
     () => calcDocTotals(lines.filter((l) => l.name), Number(taxRate) || 0),
@@ -868,70 +895,82 @@ function DocInner({
   /**
    * Email or resend document to customer; CC you by default.
    * Attaches formal PDF (quotes, orders, invoices).
+   * quiet: bulk overdue resend — no prompts, uses contact_email.
    */
-  const emailDoc = async (doc: DocRecord, opts?: { resend?: boolean }) => {
+  const emailDoc = async (
+    doc: DocRecord,
+    opts?: { resend?: boolean; quiet?: boolean; to?: string }
+  ): Promise<boolean> => {
     const st = String(doc.status || '').toLowerCase();
     const isResend =
       opts?.resend === true ||
       ['sent', 'partial', 'overdue', 'paid', 'viewed'].includes(st);
+    const quiet = opts?.quiet === true;
 
     // Optional override when resending (wrong address, reminder, etc.)
-    let toOverride: string | undefined;
-    if (isResend) {
+    let toOverride: string | undefined = opts?.to?.trim() || undefined;
+    if (isResend && !quiet && !toOverride) {
       const current = String(doc.contact_email || '').trim();
       const entered = window.prompt(
         'Resend to this email (leave as-is or change):',
         current || ''
       );
-      if (entered === null) return; // cancelled
+      if (entered === null) return false; // cancelled
       toOverride = entered.trim();
       if (!toOverride.includes('@')) {
         toast.error('Enter a valid email address to resend');
-        return;
+        return false;
       }
+    }
+    if (quiet && !toOverride) {
+      const current = String(doc.contact_email || '').trim();
+      if (!current.includes('@')) return false;
+      toOverride = current;
     }
 
     setBusyId(Number(doc.id));
     try {
-      // Pre-send quality checklist (bank / logo / VAT / reg)
-      try {
-        const qParams = new URLSearchParams({
-          companyId: String(companyId),
-          type,
-          id: String(doc.id),
-        });
-        const qRes = await fetch(`/api/customers/docs/quality?${qParams}`);
-        const qData = await qRes.json().catch(() => ({}));
-        if (qRes.ok && qData.checklist) {
-          const lines = (qData.checklist as Array<{
-            label: string;
-            ok: boolean;
-            required?: boolean;
-          }>)
-            .map(
-              (c) =>
-                `${c.ok ? '✓' : c.required ? '✗' : '○'} ${c.label}${
-                  c.required && !c.ok ? ' (required for invoices)' : ''
-                }`
-            )
-            .join('\n');
-          const soft = Array.isArray(qData.softWarnings)
-            ? (qData.softWarnings as string[]).slice(0, 3).join('\n• ')
-            : '';
-          const msg = [
-            `Document quality before send:\n${lines}`,
-            soft ? `\nTips:\n• ${soft}` : '',
-            qData.ready === false
-              ? '\n\nContinue anyway? (Bank details can be forced on invoices.)'
-              : '\n\nSend email now?',
-          ].join('');
-          if (!window.confirm(msg)) {
-            setBusyId(null);
-            return;
+      // Pre-send quality checklist (bank / logo / VAT / reg) — skip UI when quiet
+      if (!quiet) {
+        try {
+          const qParams = new URLSearchParams({
+            companyId: String(companyId),
+            type,
+            id: String(doc.id),
+          });
+          const qRes = await fetch(`/api/customers/docs/quality?${qParams}`);
+          const qData = await qRes.json().catch(() => ({}));
+          if (qRes.ok && qData.checklist) {
+            const lines = (qData.checklist as Array<{
+              label: string;
+              ok: boolean;
+              required?: boolean;
+            }>)
+              .map(
+                (c) =>
+                  `${c.ok ? '✓' : c.required ? '✗' : '○'} ${c.label}${
+                    c.required && !c.ok ? ' (required for invoices)' : ''
+                  }`
+              )
+              .join('\n');
+            const soft = Array.isArray(qData.softWarnings)
+              ? (qData.softWarnings as string[]).slice(0, 3).join('\n• ')
+              : '';
+            const msg = [
+              `Document quality before send:\n${lines}`,
+              soft ? `\nTips:\n• ${soft}` : '',
+              qData.ready === false
+                ? '\n\nContinue anyway? (Bank details can be forced on invoices.)'
+                : '\n\nSend email now?',
+            ].join('');
+            if (!window.confirm(msg)) {
+              setBusyId(null);
+              return false;
+            }
           }
+        } catch {
+          /* non-blocking if quality API fails */
         }
-      } catch {
-        /* non-blocking if quality API fails */
       }
 
       const res = await fetch('/api/customers/docs/send', {
@@ -951,9 +990,11 @@ function DocInner({
       const data = await res.json();
       if (!res.ok) {
         if (data.code === 'BANK_DETAILS_REQUIRED') {
-          const force = window.confirm(
-            `${data.error || 'Bank details missing'}.\n\n${data.hint || data.bankWarning || ''}\n\nSend invoice anyway without bank details?`
-          );
+          const force = quiet
+            ? true
+            : window.confirm(
+                `${data.error || 'Bank details missing'}.\n\n${data.hint || data.bankWarning || ''}\n\nSend invoice anyway without bank details?`
+              );
           if (force) {
             const retry = await fetch('/api/customers/docs/send', {
               method: 'POST',
@@ -966,6 +1007,7 @@ function DocInner({
                 privyUserId,
                 resend: isResend,
                 forceSend: true,
+                acknowledgeSoftWarnings: true,
                 ...(toOverride ? { to: toOverride } : {}),
               }),
             });
@@ -973,67 +1015,105 @@ function DocInner({
             if (!retry.ok) {
               throw new Error(retryData.error || retryData.hint || 'Send failed');
             }
-            toast.success(
-              `Emailed ${retryData.to} without bank details — add Banking on profile when ready.`
-            );
-            void load();
-            return;
+            if (!quiet) {
+              toast.success(
+                `Emailed ${retryData.to} without bank details — add Banking on profile when ready.`
+              );
+            }
+            if (!quiet) void load();
+            return true;
           }
           toast.message(data.hint || data.bankWarning || 'Add bank details first', {
             duration: 7000,
           });
-          return;
+          return false;
         }
         throw new Error(data.error || data.hint || 'Send failed');
       }
-      if (
-        Array.isArray(data.softWarnings) &&
-        data.softWarnings.length > 0
-      ) {
-        toast.message('Sent — profile tips', {
-          description: (data.softWarnings as string[]).slice(0, 2).join(' '),
-          duration: 8000,
-        });
-      }
-      const bits: string[] = [];
-      if (data.bankDetailsIncluded) bits.push('bank details');
-      if (data.hasLogo) bits.push('logo');
-      if (data.hasVat) bits.push('VAT');
-      if (data.hasRegistration) bits.push('reg no.');
-      if (data.sellerVerified) bits.push('verified');
-      if (data.bankVerified) bits.push('bank AVS');
-      const stamp = bits.length ? ` · ${bits.join(', ')} on document` : '';
-      if (type === 'invoice' && data.statusPromoted === 'sent') {
-        toast.message('Invoice status → sent', {
-          description: data.invoiceShared
-            ? 'Shared with buyer · PDF emailed'
-            : 'PDF emailed — share with buyer if they use SupplierAdvisor',
-          duration: 6000,
-        });
-      }
-      toast.success(
-        `${data.resend ? 'Resent' : 'Emailed'} PDF to ${data.to}${
-          data.cc?.length ? ` (CC ${data.cc.join(', ')})` : ''
-        }${stamp}`,
-        {
-          description: data.attachment
-            ? `Attached ${data.attachment}`
-            : 'Formal PDF attached',
+      if (!quiet) {
+        if (
+          Array.isArray(data.softWarnings) &&
+          data.softWarnings.length > 0
+        ) {
+          toast.message('Sent — profile tips', {
+            description: (data.softWarnings as string[]).slice(0, 2).join(' '),
+            duration: 8000,
+          });
         }
-      );
-      if (data.bankWarning || !data.bankDetailsIncluded) {
-        toast.message(
-          data.bankWarning ||
-            'No bank details on this invoice — add them under My Business → Profile → Banking.',
-          { duration: 7000 }
+        const bits: string[] = [];
+        if (data.bankDetailsIncluded) bits.push('bank details');
+        if (data.hasLogo) bits.push('logo');
+        if (data.hasVat) bits.push('VAT');
+        if (data.hasRegistration) bits.push('reg no.');
+        if (data.sellerVerified) bits.push('verified');
+        if (data.bankVerified) bits.push('bank AVS');
+        const stamp = bits.length ? ` · ${bits.join(', ')} on document` : '';
+        if (type === 'invoice' && data.statusPromoted === 'sent') {
+          toast.message('Invoice status → sent', {
+            description: data.invoiceShared
+              ? 'Shared with buyer · PDF emailed'
+              : 'PDF emailed — share with buyer if they use SupplierAdvisor',
+            duration: 6000,
+          });
+        }
+        toast.success(
+          `${data.resend ? 'Resent' : 'Emailed'} PDF to ${data.to}${
+            data.cc?.length ? ` (CC ${data.cc.join(', ')})` : ''
+          }${stamp}`,
+          {
+            description: data.attachment
+              ? `Attached ${data.attachment}`
+              : 'Formal PDF attached',
+          }
         );
+        if (data.bankWarning || !data.bankDetailsIncluded) {
+          toast.message(
+            data.bankWarning ||
+              'No bank details on this invoice — add them under My Business → Profile → Banking.',
+            { duration: 7000 }
+          );
+        }
+        void load();
       }
-      void load();
+      return true;
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Send failed');
+      if (!quiet) toast.error(e instanceof Error ? e.message : 'Send failed');
+      return false;
     } finally {
       setBusyId(null);
     }
+  };
+
+  /** Bulk / first-invoice resend for overdue AR follow-up */
+  const resendOverdueInvoices = async (mode: 'first' | 'all') => {
+    const list = docs.filter(
+      (d) => String(d.status || '').toLowerCase() === 'overdue'
+    );
+    if (!list.length) {
+      toast.message('No overdue invoices in this view');
+      return;
+    }
+    const targets = mode === 'first' ? list.slice(0, 1) : list.slice(0, 15);
+    let ok = 0;
+    let fail = 0;
+    toast.loading(
+      mode === 'first'
+        ? 'Resending first overdue invoice…'
+        : `Resending ${targets.length} overdue invoice(s)…`,
+      { id: 'overdue-resend' }
+    );
+    for (const d of targets) {
+      const sent = await emailDoc(d, { resend: true, quiet: true });
+      if (sent) ok += 1;
+      else fail += 1;
+    }
+    void load();
+    toast.success(
+      `Resent ${ok} overdue invoice${ok === 1 ? '' : 's'}${
+        fail ? ` · ${fail} skipped (no email?)` : ''
+      }`,
+      { id: 'overdue-resend' }
+    );
   };
 
   /** Toggle visibility=shared | seller_only. New share blocked while customer suspended (409). */
@@ -1468,7 +1548,7 @@ function DocInner({
         </div>
       )}
 
-      <div className="flex flex-wrap gap-2 mb-4">
+      <div className="flex flex-wrap gap-2 mb-4 items-center">
         <select
           className={
             sales
@@ -1484,6 +1564,50 @@ function DocInner({
           ))}
         </select>
       </div>
+
+      {type === 'invoice' &&
+      (statusFilter === 'overdue' || actionFromUrl === 'resend') ? (
+        <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+          <div className="text-xs text-amber-950 font-medium leading-relaxed">
+            <span className="font-black">Overdue follow-up</span>
+            {' — '}
+            {
+              docs.filter(
+                (d) => String(d.status || '').toLowerCase() === 'overdue'
+              ).length
+            }{' '}
+            overdue invoice(s). Resend PDF by email or open WhatsApp with a
+            share link from each row.
+          </div>
+          <div className="flex flex-wrap gap-2 shrink-0">
+            <button
+              type="button"
+              disabled={busyId != null || loading}
+              onClick={() => void resendOverdueInvoices('first')}
+              className="btn-secondary !py-2 !px-3 text-xs"
+            >
+              Resend first
+            </button>
+            <button
+              type="button"
+              disabled={busyId != null || loading}
+              onClick={() => {
+                if (
+                  !window.confirm(
+                    'Resend all overdue invoices in this list (up to 15) using each contact email?'
+                  )
+                ) {
+                  return;
+                }
+                void resendOverdueInvoices('all');
+              }}
+              className="btn-primary !py-2 !px-3 text-xs"
+            >
+              Resend all overdue
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <div
         className={

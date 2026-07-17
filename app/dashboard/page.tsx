@@ -50,6 +50,7 @@ import FirstHourKickstart from '@/components/dashboard/FirstHourKickstart';
 import CatalogueEmptyBanner from '@/components/business/CatalogueEmptyBanner';
 import TradeNextBanner from '@/components/journey/TradeNextBanner';
 import { computeHubNextAction } from '@/lib/connections/next-action';
+import CipcMismatchBanner from '@/components/business/CipcMismatchBanner';
 
 type CompanyData = {
   id: number;
@@ -675,29 +676,36 @@ export default function DashboardCommandCenter() {
       />
 
       {!loading ? (
-        <TradeNextBanner
-          action={computeHubNextAction({
-            role: 'main',
-            openOutboundPos: openPos,
-            openInboundPos: Number(ops?.customerPosOpen || 0),
-            pendingConnections: pendingIn,
-            draftInvoices: Number(
-              crm?.invoicesDraft ??
-                trade?.invoicesDraft ??
-                kpis?.invoicesDraft ??
-                0
-            ),
-            overdueInvoices: Number(
-              crm?.invoicesOverdue ??
-                trade?.invoicesOverdue ??
-                kpis?.invoicesOverdue ??
-                0
-            ),
-            verificationStatus: company?.verification_status,
-            catalogueEmpty:
-              (kpis?.products ?? inventory?.products ?? 0) === 0,
-          })}
-        />
+        <>
+          <CipcMismatchBanner
+            verificationStatus={company?.verification_status}
+            onFixed={() => void load()}
+          />
+          <TradeNextBanner
+            action={computeHubNextAction({
+              role: 'main',
+              openOutboundPos: openPos,
+              openInboundPos: Number(ops?.customerPosOpen || 0),
+              pendingConnections: pendingIn,
+              draftInvoices: Number(
+                crm?.invoicesDraft ??
+                  trade?.invoicesDraft ??
+                  kpis?.invoicesDraft ??
+                  0
+              ),
+              overdueInvoices: Number(
+                crm?.invoicesOverdue ??
+                  trade?.invoicesOverdue ??
+                  kpis?.invoicesOverdue ??
+                  0
+              ),
+              profileCompleteness: completeness,
+              verificationStatus: company?.verification_status,
+              catalogueEmpty:
+                (kpis?.products ?? inventory?.products ?? 0) === 0,
+            })}
+          />
+        </>
       ) : null}
 
       <GoldenPathChecklist />
