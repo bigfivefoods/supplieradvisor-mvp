@@ -1339,11 +1339,23 @@ function ProfileInner() {
       )}
 
       {/* CIPC name mismatch — fix without re-paying */}
-      {!isVerified &&
-        (verificationStatus === 'mismatch' ||
-          String(displayVerification?.nameMatch || metaVerification?.name_match || '') ===
-            'mismatch') &&
-        (displayVerification?.companyName || metaVerification?.company_name) && (
+      {(() => {
+        const cipcNameStr = String(
+          displayVerification?.companyName ||
+            metaVerification?.company_name ||
+            ''
+        ).trim();
+        const nameMatchStr = String(
+          displayVerification?.nameMatch ||
+            metaVerification?.name_match ||
+            ''
+        ).toLowerCase();
+        const showMismatch =
+          !isVerified &&
+          (verificationStatus === 'mismatch' || nameMatchStr === 'mismatch') &&
+          cipcNameStr.length > 0;
+        if (!showMismatch) return null;
+        return (
           <div className="mb-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-3 text-xs text-amber-950">
             <div className="flex items-start gap-2">
               <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-700" />
@@ -1355,7 +1367,7 @@ function ProfileInner() {
                       On your profile
                     </div>
                     <div className="font-semibold text-slate-800 mt-0.5 truncate">
-                      {form.trading_name || form.legal_name || '—'}
+                      {String(form.trading_name || form.legal_name || '—')}
                     </div>
                   </div>
                   <div className="rounded-lg bg-white/80 border border-emerald-200 px-2.5 py-2">
@@ -1363,11 +1375,7 @@ function ProfileInner() {
                       From CIPC
                     </div>
                     <div className="font-semibold text-emerald-900 mt-0.5 truncate">
-                      {String(
-                        displayVerification?.companyName ||
-                          metaVerification?.company_name ||
-                          ''
-                      )}
+                      {cipcNameStr}
                     </div>
                   </div>
                 </div>
@@ -1386,7 +1394,8 @@ function ProfileInner() {
               </div>
             </div>
           </div>
-        )}
+        );
+      })()}
 
       <nav
         className="sticky top-0 z-20 mb-3 flex gap-1 overflow-x-auto rounded-xl border border-neutral-200 bg-white/95 px-2 py-1.5 shadow-sm backdrop-blur"
