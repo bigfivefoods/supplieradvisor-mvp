@@ -76,6 +76,8 @@ function BuyerHubInner() {
     active: 0,
     suspended: 0,
   });
+  const [openOutboundPos, setOpenOutboundPos] = useState(0);
+  const [pendingConnections, setPendingConnections] = useState(0);
 
   const load = useCallback(async () => {
     if (!privyUserId) {
@@ -89,9 +91,14 @@ function BuyerHubInner() {
         buyerCompanyId: String(companyId),
         privyUserId,
       });
-      const res = await fetch(`/api/buyer/workspace?${params}`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to load workspace');
+      const qs = `companyId=${companyId}&privyUserId=${encodeURIComponent(privyUserId)}`;
+      const [wsRes, poRes, connRes] = await Promise.all([
+        fetch(`/api/buyer/workspace?${params}`),
+        fetch(`/api/suppliers/purchase-orders?${qs}`),
+        fetch(`/api/connections?${qs}`),
+      ]);
+      const data = await wsRes.json();
+      if (!wsRes.ok) throw new Error(data.error || 'Failed to load workspace');
       setSuppliers(data.suppliers || []);
       setCounts(
         data.counts || {
@@ -100,9 +107,25 @@ function BuyerHubInner() {
           suspended: 0,
         }
       );
+
+      if (poRes.ok) {
+        const poData = await poRes.json();
+        setOpenOutboundPos(Number(poData.counts?.open || 0));
+      } else {
+        setOpenOutboundPos(0);
+      }
+
+      if (connRes.ok) {
+        const connData = await connRes.json();
+        setPendingConnections(Number(connData.summary?.pendingIn || 0));
+      } else {
+        setPendingConnections(0);
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Could not load buyer workspace');
       setSuppliers([]);
+      setOpenOutboundPos(0);
+      setPendingConnections(0);
     } finally {
       setLoading(false);
     }
@@ -171,8 +194,8 @@ function BuyerHubInner() {
         <TradeNextBanner
           action={computeHubNextAction({
             role: 'buyer',
-            openOutboundPos: 0,
-            pendingConnections: 0,
+            openOutboundPos,
+            pendingConnections,
           })}
         />
       ) : null}

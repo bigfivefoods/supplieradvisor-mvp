@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { usePrivy } from '@privy-io/react-auth';
 import {
   Truck,
   Plus,
@@ -17,6 +18,7 @@ import {
   Globe,
   RefreshCw,
 } from 'lucide-react';
+import { getCanonicalUserId } from '@/lib/auth/identity';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { otifefBand, trustBand } from '@/lib/suppliers/types';
 import {
@@ -76,27 +78,55 @@ export default function SuppliersHubPage() {
 
 function HubInner() {
   const companyId = getSelectedCompanyId()!;
+  const { user, ready } = usePrivy();
+  const privyUserId = getCanonicalUserId(user?.id);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
   const [warning, setWarning] = useState<string | null>(null);
+  const [openInboundPos, setOpenInboundPos] = useState(0);
+  const [pendingConnections, setPendingConnections] = useState(0);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/suppliers/summary?companyId=${companyId}`);
-      const data = await res.json();
+      const qs = privyUserId
+        ? `companyId=${companyId}&privyUserId=${encodeURIComponent(privyUserId)}`
+        : `companyId=${companyId}`;
+      const [sumRes, poRes, connRes] = await Promise.all([
+        fetch(`/api/suppliers/summary?companyId=${companyId}`),
+        fetch(`/api/customers/purchase-orders?${qs}`),
+        fetch(`/api/connections?${qs}`),
+      ]);
+      const data = await sumRes.json();
       setSummary(data.summary || null);
       setWarning(data.warning || null);
+
+      if (poRes.ok) {
+        const poData = await poRes.json();
+        setOpenInboundPos(Number(poData.counts?.open || 0));
+      } else {
+        setOpenInboundPos(0);
+      }
+
+      if (connRes.ok) {
+        const connData = await connRes.json();
+        setPendingConnections(Number(connData.summary?.pendingIn || 0));
+      } else {
+        setPendingConnections(0);
+      }
     } catch {
       setSummary(null);
+      setOpenInboundPos(0);
+      setPendingConnections(0);
     } finally {
       setLoading(false);
     }
-  }, [companyId]);
+  }, [companyId, privyUserId]);
 
   useEffect(() => {
+    if (!ready) return;
     void load();
-  }, [load]);
+  }, [ready, load]);
 
   const ot = summary?.otifef;
   const band = otifefBand(ot?.overall || 0);
@@ -243,9 +273,9 @@ function HubInner() {
         <TradeNextBanner
           action={computeHubNextAction({
             role: 'supplier',
-            openInboundPos: 0,
+            openInboundPos,
             catalogueEmpty: false,
-            pendingConnections: 0,
+            pendingConnections,
           })}
         />
       ) : null}

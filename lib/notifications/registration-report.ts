@@ -297,10 +297,19 @@ export async function sendRegistrationReport(opts: {
     let cipcFailed = 0;
     let cipcPaidNotVerified = 0;
     let openInboundSent = 0;
+    type PaidNotVerifiedRow = {
+      profileId: number | null;
+      name: string;
+      status: string;
+      payRef: string;
+      when: string;
+    };
+    const paidNotVerifiedRows: PaidNotVerifiedRow[] = [];
+    const paidNotVerifiedIds = new Set<number>();
     try {
       const { data: acts } = await supabase
         .from('activity_log')
-        .select('id, action, metadata, created_at, summary')
+        .select('id, action, metadata, created_at, summary, profile_id, entity_id')
         .eq('action', 'business.verification_verifynow')
         .gte('created_at', win.from)
         .lt('created_at', win.to)
@@ -315,12 +324,53 @@ export async function sendRegistrationReport(opts: {
         else if (st === 'mismatch') cipcMismatch += 1;
         else if (st === 'failed') cipcFailed += 1;
         else cipcFailed += 1;
-        if (st && st !== 'verified' && (m.paystackReference || m.paystack_reference)) {
+        const payRef = String(
+          m.paystackReference || m.paystack_reference || ''
+        ).trim();
+        if (st && st !== 'verified' && payRef) {
           cipcPaidNotVerified += 1;
+          const pid = Number(
+            a.profile_id || a.entity_id || m.profileId || m.profile_id || 0
+          );
+          const profileId = Number.isFinite(pid) && pid > 0 ? pid : null;
+          if (profileId) paidNotVerifiedIds.add(profileId);
+          paidNotVerifiedRows.push({
+            profileId,
+            name: String(a.summary || `Company #${profileId || '?'}`),
+            status: st,
+            payRef,
+            when: a.created_at
+              ? new Date(a.created_at).toISOString().slice(0, 16).replace('T', ' ')
+              : '—',
+          });
         }
       }
     } catch {
       /* soft */
+    }
+
+    // Resolve trading names for paid≠badge list
+    if (paidNotVerifiedIds.size > 0) {
+      try {
+        const { data: named } = await supabase
+          .from('profiles')
+          .select('id, trading_name, legal_name, verification_status, email')
+          .in('id', [...paidNotVerifiedIds]);
+        const nameById = new Map<number, string>();
+        for (const p of named || []) {
+          nameById.set(
+            Number(p.id),
+            String(p.trading_name || p.legal_name || `Company #${p.id}`)
+          );
+        }
+        for (const row of paidNotVerifiedRows) {
+          if (row.profileId && nameById.has(row.profileId)) {
+            row.name = nameById.get(row.profileId)!;
+          }
+        }
+      } catch {
+        /* soft */
+      }
     }
 
     try {
@@ -408,6 +458,36 @@ export async function sendRegistrationReport(opts: {
           .join('')
       : `<tr><td colspan="7" style="padding:16px;color:#64748b">No new company registrations in this window.</td></tr>`;
 
+    // Deduplicate paid≠badge by profile (keep latest event)
+    const paidNotVerifiedUnique = (() => {
+      const byId = new Map<string, PaidNotVerifiedRow>();
+      for (const r of paidNotVerifiedRows) {
+        const key = r.profileId ? `p:${r.profileId}` : `ref:${r.payRef}`;
+        byId.set(key, r);
+      }
+      return [...byId.values()].slice(0, 40);
+    })();
+
+    const paidNotVerifiedHtml = paidNotVerifiedUnique.length
+      ? paidNotVerifiedUnique
+          .map((r) => {
+            const companyCell = r.profileId
+              ? `<a href="${appBase()}/c/${r.profileId}" style="color:#b45309;font-weight:600">${escapeHtml(r.name)}</a> <span style="color:#94a3b8">#${r.profileId}</span>`
+              : escapeHtml(r.name);
+            const ops = r.profileId
+              ? `<a href="${appBase()}/dashboard/my-business/verifications" style="color:#0077b6">ops queue</a>`
+              : '—';
+            return `<tr>
+              <td style="padding:6px 8px;border-bottom:1px solid #fde68a">${r.when} UTC</td>
+              <td style="padding:6px 8px;border-bottom:1px solid #fde68a">${companyCell}</td>
+              <td style="padding:6px 8px;border-bottom:1px solid #fde68a">${escapeHtml(r.status)}</td>
+              <td style="padding:6px 8px;border-bottom:1px solid #fde68a;font-family:monospace;font-size:11px">${escapeHtml(r.payRef.slice(0, 28))}</td>
+              <td style="padding:6px 8px;border-bottom:1px solid #fde68a">${ops}</td>
+            </tr>`;
+          })
+          .join('')
+      : `<tr><td colspan="5" style="padding:12px;color:#64748b">No paid-not-verified CIPC events in this window.</td></tr>`;
+
     const stepLines = Object.entries(stepHits)
       .sort((a, b) => b[1] - a[1])
       .map(([k, n]) => `${k}: ${n}`)
@@ -473,6 +553,25 @@ export async function sendRegistrationReport(opts: {
               : '<li><strong>Golden-path steps:</strong> no onboarding progress rows yet for this cohort</li>'
           }
         </ul>
+
+        <h3 style="font-size:14px;margin:20px 0 8px">Paid ≠ verified badge</h3>
+        <p style="font-size:12px;color:#92400e;margin:0 0 8px">
+          CIPC ran with a Paystack ref but status is not <code>verified</code>
+          (${paidNotVerifiedUnique.length} unique · ${cipcPaidNotVerified} events).
+          Action: ops queue recover / re-run / apply CIPC name.
+        </p>
+        <table style="width:100%;border-collapse:collapse;font-size:12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px">
+          <thead>
+            <tr style="background:#fef3c7;text-align:left">
+              <th style="padding:8px">When</th>
+              <th style="padding:8px">Company</th>
+              <th style="padding:8px">Status</th>
+              <th style="padding:8px">Pay ref</th>
+              <th style="padding:8px">Ops</th>
+            </tr>
+          </thead>
+          <tbody>${paidNotVerifiedHtml}</tbody>
+        </table>
 
         <h3 style="font-size:14px;margin:20px 0 8px">Who signed up</h3>
         <table style="width:100%;border-collapse:collapse;font-size:12px">

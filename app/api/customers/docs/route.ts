@@ -498,11 +498,58 @@ export async function POST(request: NextRequest) {
       ({ markOnboardingSteps }) => markOnboardingSteps(companyId, 'first_trade')
     );
 
+    // fromPo create: mark purchase_orders status=invoiced (soft — column/status may vary)
+    let poMarkedInvoiced: number | null = null;
+    if (kind === 'invoice') {
+      const sourcePoId =
+        body.source_po_id != null
+          ? Number(body.source_po_id)
+          : Number(
+              (inserted.data as { source_po_id?: unknown } | null)?.source_po_id
+            );
+      if (Number.isFinite(sourcePoId) && sourcePoId > 0) {
+        try {
+          const invId = Number(
+            (inserted.data as { id?: unknown } | null)?.id
+          );
+          const patch: Record<string, unknown> = {
+            status: 'invoiced',
+            updated_at: now,
+          };
+          // invoice_id on PO is optional — strip if column missing via soft retry
+          if (Number.isFinite(invId) && invId > 0) {
+            patch.invoice_id = invId;
+          }
+          let { error: poErr } = await supabase
+            .from('purchase_orders')
+            .update(patch)
+            .eq('id', sourcePoId)
+            .or(
+              `supplier_profile_id.eq.${companyId},supplier_id.eq.${companyId}`
+            );
+          if (poErr && /invoice_id|column/i.test(poErr.message || '')) {
+            const retry = await supabase
+              .from('purchase_orders')
+              .update({ status: 'invoiced', updated_at: now })
+              .eq('id', sourcePoId)
+              .or(
+                `supplier_profile_id.eq.${companyId},supplier_id.eq.${companyId}`
+              );
+            poErr = retry.error;
+          }
+          if (!poErr) poMarkedInvoiced = sourcePoId;
+        } catch {
+          /* soft */
+        }
+      }
+    }
+
     return NextResponse.json({
       success: true,
       document: inserted.data,
       type: kind,
       goldenPath,
+      poMarkedInvoiced,
     });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Error' }, { status: 500 });
