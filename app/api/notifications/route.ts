@@ -324,14 +324,54 @@ export async function GET(request: NextRequest) {
           n.metadata && typeof n.metadata === 'object'
             ? (n.metadata as Record<string, unknown>)
             : {};
+        // Prefer explicit deep links from writers (docs / OTIFEF / rate)
         let href = '/dashboard';
-        if (type === 'connection_accepted' || type === 'connection_request') {
+        const pickPath = (...keys: string[]) => {
+          for (const k of keys) {
+            const v = meta[k];
+            if (typeof v === 'string' && v.startsWith('/')) return v;
+          }
+          return null;
+        };
+        const deep =
+          pickPath('href', 'docsHref', 'rateHref', 'otifefHref', 'url') || null;
+
+        if (deep) {
+          href = deep;
+        } else if (type === 'connection_accepted' || type === 'connection_request') {
           const peer = Number(meta.peerProfileId || meta.requesterProfileId || 0);
           href = peer
             ? `/dashboard/connections/${peer}`
             : '/dashboard/connections';
-        } else if (type === 'invoice_sent' || type === 'invoice_overdue') {
+        } else if (
+          type === 'invoice_sent' ||
+          type === 'invoice_overdue' ||
+          type === 'promise_to_pay_due'
+        ) {
           href = '/dashboard/customers/invoices';
+        } else if (type === 'invoice_received' || type === 'po_invoiced') {
+          const invId = Number(meta.invoiceId || 0);
+          const seller = Number(meta.sellerProfileId || meta.supplierProfileId || 0);
+          href =
+            invId > 0
+              ? `/dashboard/buyer/documents?invoiceId=${invId}${
+                  seller > 0 ? `&supplierProfileId=${seller}` : ''
+                }`
+              : '/dashboard/buyer/documents';
+        } else if (type === 'invoice_paid' || type === 'rate_after_paid') {
+          const ratee = Number(
+            meta.sellerProfileId || meta.ratee || meta.buyerProfileId || 0
+          );
+          const poId = Number(meta.poId || 0);
+          if (type === 'rate_after_paid' && ratee > 0) {
+            href = `/dashboard/customers/ratings?ratee=${ratee}`;
+          } else if (ratee > 0) {
+            href = `/dashboard/suppliers/ratings?ratee=${ratee}${
+              poId > 0 ? `&fromPo=${poId}` : ''
+            }`;
+          } else {
+            href = '/dashboard/suppliers/ratings';
+          }
         } else if (type === 'po_accepted_invoice') {
           const poId = Number(meta.poId || 0);
           const buyer = Number(meta.buyerProfileId || 0);
@@ -344,17 +384,19 @@ export async function GET(request: NextRequest) {
         } else if (type === 'po_received') {
           href = '/dashboard/customers/orders?tab=inbound';
         } else if (type.includes('verif')) {
-          href = '/dashboard/my-business/profile';
-        }
-        if (typeof meta.href === 'string' && meta.href.startsWith('/')) {
-          href = String(meta.href);
+          href = '/dashboard/my-business/profile#identity';
         }
         notifications.push({
           id: `ntab-${n.id}`,
           severity:
-            type.includes('fail') || type.includes('overdue')
+            type.includes('fail') ||
+            type.includes('overdue') ||
+            type === 'promise_to_pay_due' ||
+            type === 'invoice_paid'
               ? 'warning'
-              : 'info',
+              : type === 'rate_after_paid' || type === 'po_invoiced'
+                ? 'info'
+                : 'info',
           title: String(n.title || type),
           body: String(n.body || ''),
           href,

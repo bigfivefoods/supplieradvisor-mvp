@@ -51,6 +51,7 @@ import CatalogueEmptyBanner from '@/components/business/CatalogueEmptyBanner';
 import TradeNextBanner from '@/components/journey/TradeNextBanner';
 import { computeHubNextAction } from '@/lib/connections/next-action';
 import CipcMismatchBanner from '@/components/business/CipcMismatchBanner';
+import PaidNotBadgedBanner from '@/components/business/PaidNotBadgedBanner';
 
 type CompanyData = {
   id: number;
@@ -683,6 +684,7 @@ export default function DashboardCommandCenter() {
 
       {!loading ? (
         <>
+          <PaidNotBadgedBanner onFixed={() => void load()} />
           <CipcMismatchBanner
             verificationStatus={company?.verification_status}
             onFixed={() => void load()}

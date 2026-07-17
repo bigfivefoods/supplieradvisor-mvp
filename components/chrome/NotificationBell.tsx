@@ -17,6 +17,20 @@ type Note = {
   source: string;
 };
 
+/** Short label for the primary deep-link action */
+function actionLabel(href: string): string {
+  const h = href.toLowerCase();
+  if (h.includes('/ratings')) return 'Rate';
+  if (h.includes('otifef') || h.includes('/suppliers/po')) return 'OTIFEF';
+  if (h.includes('/buyer/documents')) return 'View invoice';
+  if (h.includes('frompo=') || h.includes('/customers/invoices')) return 'Invoice';
+  if (h.includes('/customers/orders')) return 'Inbound PO';
+  if (h.includes('/profile')) return 'Profile';
+  if (h.includes('/connections')) return 'Network';
+  if (h.includes('/ar')) return 'AR';
+  return 'Open';
+}
+
 const iconFor = (s: Note['severity']) => {
   if (s === 'critical' || s === 'warning') return AlertTriangle;
   if (s === 'positive') return CheckCircle2;
@@ -221,6 +235,11 @@ export default function NotificationBell() {
                           <div className="text-xs text-neutral-500 mt-0.5 line-clamp-2">
                             {n.body}
                           </div>
+                          {n.href && n.href !== '/dashboard' ? (
+                            <div className="mt-1 text-[10px] font-bold uppercase tracking-wide text-[#00b4d8]">
+                              {actionLabel(n.href)} →
+                            </div>
+                          ) : null}
                         </div>
                       </Link>
                       <button

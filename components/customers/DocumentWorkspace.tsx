@@ -717,13 +717,13 @@ function DocInner({
               ? 'Shared with the buyer on platform.'
               : 'Not auto-shared — assign customer & Share.',
             notifyBit,
-            'Review bank details, then “Email when ready” for the PDF.',
+            'Use Email PDF or WhatsApp PDF on the banner below.',
           ].join(' '),
           duration: 12000,
           action:
-            !shared && Number.isFinite(createdId) && createdId > 0
+            Number.isFinite(createdId) && createdId > 0
               ? {
-                  label: 'Scroll to share',
+                  label: shared ? 'Email PDF' : 'Scroll to invoice',
                   onClick: () => {
                     document
                       .getElementById(`doc-row-${createdId}`)
@@ -734,8 +734,8 @@ function DocInner({
         });
         setFromPoBanner(
           shared
-            ? `Draft invoice for PO #${fromPo} is shared. ${notifyBit} Use “Email when ready” when lines and bank details look right.`
-            : `Draft invoice for PO #${fromPo} was not auto-shared. ${notifyBit} Assign a customer, Share, then “Email when ready”.`
+            ? `Draft invoice for PO #${fromPo} is shared. ${notifyBit}`
+            : `Draft invoice for PO #${fromPo} was not auto-shared. ${notifyBit} Assign a customer & Share first if needed.`
         );
         if (Number.isFinite(createdId) && createdId > 0) {
           setHighlightDocId(createdId);
@@ -1514,25 +1514,63 @@ function DocInner({
 
       {!showForm && fromPoBanner ? (
         <div
-          className={`mb-4 rounded-xl border px-3 py-2.5 text-xs font-medium ${
+          className={`mb-4 rounded-2xl border px-4 py-3 text-xs font-medium ${
             /not auto-shared|Not shared|Share with/i.test(fromPoBanner)
               ? 'border-amber-200 bg-amber-50 text-amber-950'
               : 'border-emerald-200 bg-emerald-50 text-emerald-950'
           }`}
         >
-          {fromPoBanner}
+          <p className="leading-relaxed">{fromPoBanner}</p>
           {highlightDocId ? (
-            <button
-              type="button"
-              className="ml-2 underline font-bold"
-              onClick={() => {
-                document
-                  .getElementById(`doc-row-${highlightDocId}`)
-                  ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              }}
-            >
-              Jump to invoice →
-            </button>
+            <div className="mt-2.5 flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="underline font-bold"
+                onClick={() => {
+                  document
+                    .getElementById(`doc-row-${highlightDocId}`)
+                    ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }}
+              >
+                Jump to invoice →
+              </button>
+              <button
+                type="button"
+                disabled={busyId === highlightDocId}
+                onClick={() => {
+                  const doc = docs.find((d) => Number(d.id) === highlightDocId);
+                  if (!doc) {
+                    toast.message('Invoice still loading — try again in a moment');
+                    void load();
+                    return;
+                  }
+                  void emailDoc(doc, { quiet: true });
+                }}
+                className="inline-flex items-center gap-1 rounded-full bg-[#00b4d8] px-3 py-1.5 text-[11px] font-bold text-white hover:bg-[#0096c7] disabled:opacity-50"
+              >
+                <Mail className="w-3 h-3" />
+                Email PDF now
+              </button>
+              <button
+                type="button"
+                disabled={
+                  waShareBusyId === highlightDocId || busyId === highlightDocId
+                }
+                onClick={() => {
+                  const doc = docs.find((d) => Number(d.id) === highlightDocId);
+                  if (!doc) {
+                    toast.message('Invoice still loading — try again in a moment');
+                    void load();
+                    return;
+                  }
+                  void shareDocOnWhatsApp(doc);
+                }}
+                className="inline-flex items-center gap-1 rounded-full bg-[#25D366] px-3 py-1.5 text-[11px] font-bold text-white hover:bg-[#1ebe57] disabled:opacity-50"
+              >
+                <MessageCircle className="w-3 h-3" />
+                WhatsApp PDF
+              </button>
+            </div>
           ) : null}
         </div>
       ) : null}
