@@ -457,8 +457,6 @@ export async function buildCommercialDocumentPdf(
         const maxLogoH = 44;
         doc.image(logoBuf, leftX, heroTop, {
           fit: [maxLogoW, maxLogoH],
-          align: 'left',
-          valign: 'top',
         });
         // Approximate space used (pdfkit doesn't return drawn size easily)
         textLeft = leftX;
