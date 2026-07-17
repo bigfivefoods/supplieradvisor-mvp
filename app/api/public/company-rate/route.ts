@@ -118,18 +118,15 @@ export async function GET(request: NextRequest) {
       try {
         const { data: peer } = await supabase
           .from('company_ratings')
-          .select('overall, stars, rating')
+          .select('overall')
           .eq('ratee_profile_id', companyId)
+          .eq('status', 'published')
           .limit(100);
         if (peer && peer.length) {
           ratingCount = peer.length;
           avgStars =
             Math.round(
-              (peer.reduce(
-                (s, r) =>
-                  s + Number(r.overall ?? r.stars ?? r.rating ?? 0),
-                0
-              ) /
+              (peer.reduce((s, r) => s + Number(r.overall || 0), 0) /
                 peer.length) *
                 10
             ) / 10;
