@@ -27,6 +27,14 @@
     {
       "path": "/api/business/location-backfill?limit=200",
       "schedule": "15 4 * * *"
+    },
+    {
+      "path": "/api/onboarding/registration-report/cron?period=daily",
+      "schedule": "30 6 * * *"
+    },
+    {
+      "path": "/api/onboarding/registration-report/cron?period=weekly",
+      "schedule": "0 7 * * 1"
     }
   ]
 }
