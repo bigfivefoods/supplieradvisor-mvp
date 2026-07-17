@@ -64,6 +64,8 @@ export type ColumnProbe = {
 export async function probeProfileColumns(): Promise<{
   ok: boolean;
   missing: string[];
+  optionalMissing: Array<{ table: string; column: string; hint: string }>;
+  ghostColumns: string[];
   probes: ColumnProbe[];
   hint?: string;
 }> {
