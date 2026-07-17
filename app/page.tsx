@@ -423,12 +423,12 @@ export default function LandingPage() {
                   Start {COMPANY_TRIAL_DAYS}-day free trial
                   <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-0.5" />
                 </Link>
-                <a
-                  href="#why-join"
+                <Link
+                  href="/directory"
                   className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-7 py-3.5 text-base font-semibold text-slate-800 shadow-sm transition-all hover:border-[#00b4d8] hover:text-[#0077b6]"
                 >
-                  Why the world joins
-                </a>
+                  Browse company directory
+                </Link>
               </div>
 
               <p className="mt-5 text-sm text-slate-500">

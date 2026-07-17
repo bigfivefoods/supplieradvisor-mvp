@@ -2,6 +2,7 @@ import type { MetadataRoute } from 'next';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { isEligibleForDiscovery } from '@/lib/business/completeness';
 import { companyPublicPath, SITE_URL } from '@/lib/seo/company-public';
+import { facetSlug } from '@/lib/seo/directory-data';
 
 /** Prefer www canonical host for Google Search Console */
 const BASE = SITE_URL;
@@ -93,27 +94,58 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       if (batch.length < pageSize) break;
     }
 
-    const companyUrls: MetadataRoute.Sitemap = allCompanies
-      .filter((p) => isEligibleForDiscovery(p).ok)
-      .map((p) => {
-        const verified =
-          String(p.verification_status || '').toLowerCase() === 'verified';
-        const path = companyPublicPath({
-          id: Number(p.id),
-          trading_name:
-            p.trading_name != null ? String(p.trading_name) : null,
-          legal_name: p.legal_name != null ? String(p.legal_name) : null,
-        });
-        return {
-          url: `${BASE}${path}`,
-          lastModified: p.updated_at
-            ? new Date(String(p.updated_at))
-            : undefined,
-          changeFrequency: 'weekly' as const,
-          // Verified companies rank higher for crawl priority
-          priority: verified ? 0.85 : 0.7,
-        };
+    const discoverable = allCompanies.filter((p) =>
+      isEligibleForDiscovery(p).ok
+    );
+
+    const companyUrls: MetadataRoute.Sitemap = discoverable.map((p) => {
+      const verified =
+        String(p.verification_status || '').toLowerCase() === 'verified';
+      const path = companyPublicPath({
+        id: Number(p.id),
+        trading_name:
+          p.trading_name != null ? String(p.trading_name) : null,
+        legal_name: p.legal_name != null ? String(p.legal_name) : null,
       });
+      return {
+        url: `${BASE}${path}`,
+        lastModified: p.updated_at
+          ? new Date(String(p.updated_at))
+          : undefined,
+        changeFrequency: 'weekly' as const,
+        priority: verified ? 0.85 : 0.7,
+      };
+    });
+
+    // Industry + city hub landing pages for long-tail SEO
+    const industries = [
+      ...new Set(
+        discoverable
+          .map((p) => (p.industry != null ? String(p.industry).trim() : ''))
+          .filter(Boolean)
+      ),
+    ];
+    const cities = [
+      ...new Set(
+        discoverable
+          .map((p) => (p.city != null ? String(p.city).trim() : ''))
+          .filter(Boolean)
+      ),
+    ];
+    const industryHubs: MetadataRoute.Sitemap = industries
+      .slice(0, 80)
+      .map((ind) => ({
+        url: `${BASE}/directory/industry/${facetSlug(ind)}`,
+        lastModified: now,
+        changeFrequency: 'weekly' as const,
+        priority: 0.75,
+      }));
+    const cityHubs: MetadataRoute.Sitemap = cities.slice(0, 80).map((city) => ({
+      url: `${BASE}/directory/city/${facetSlug(city)}`,
+      lastModified: now,
+      changeFrequency: 'weekly' as const,
+      priority: 0.75,
+    }));
 
     const { data: products } = await supabase
       .from('products')
@@ -130,7 +162,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         priority: 0.55,
       }));
 
-    return [...staticRoutes, ...companyUrls, ...productUrls];
+    return [
+      ...staticRoutes,
+      ...industryHubs,
+      ...cityHubs,
+      ...companyUrls,
+      ...productUrls,
+    ];
   } catch {
     return staticRoutes;
   }

@@ -14,7 +14,8 @@ const LINKS = [
   { id: 'trust', label: 'Trust' },
   { id: 'pricing', label: 'Pricing' },
   { id: 'network', label: 'Companies' },
-  { id: 'directory', label: 'Directory' },
+  /** SEO directory — full page, not just in-page hash */
+  { id: 'directory', label: 'Directory', href: '/directory' as const },
 ] as const;
 
 
@@ -60,17 +61,8 @@ export default function LandingNav() {
 
   const scrollTo = (id: string) => {
     setOpen(false);
-    // Directory opens the rich company search tab
-    if (id === 'directory') {
-      if (typeof window !== 'undefined') {
-        window.history.replaceState(null, '', '#directory');
-        window.dispatchEvent(new HashChangeEvent('hashchange'));
-      }
-    }
     window.setTimeout(() => {
-      const el =
-        document.getElementById(id) ||
-        (id === 'directory' ? document.getElementById('network') : null);
+      const el = document.getElementById(id);
       if (!el) return;
       const y = el.getBoundingClientRect().top + window.scrollY - 72;
       window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
@@ -115,16 +107,26 @@ export default function LandingNav() {
           </Link>
 
           <nav className="hidden items-center gap-0.5 md:flex" aria-label="Primary">
-            {LINKS.map((l) => (
-              <button
-                key={l.id}
-                type="button"
-                onClick={() => scrollTo(l.id)}
-                className="rounded-full px-2.5 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 hover:text-[#0077b6] lg:px-3.5"
-              >
-                {l.label}
-              </button>
-            ))}
+            {LINKS.map((l) =>
+              'href' in l && l.href ? (
+                <Link
+                  key={l.id}
+                  href={l.href}
+                  className="rounded-full px-2.5 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 hover:text-[#0077b6] lg:px-3.5"
+                >
+                  {l.label}
+                </Link>
+              ) : (
+                <button
+                  key={l.id}
+                  type="button"
+                  onClick={() => scrollTo(l.id)}
+                  className="rounded-full px-2.5 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 hover:text-[#0077b6] lg:px-3.5"
+                >
+                  {l.label}
+                </button>
+              )
+            )}
           </nav>
 
           <div className="hidden items-center gap-2 md:flex">
@@ -173,16 +175,27 @@ export default function LandingNav() {
           />
           <div className="absolute left-0 right-0 top-16 max-h-[min(80vh,calc(100dvh-4rem))] overflow-y-auto border-b border-slate-200 bg-white shadow-xl sm:top-[4.25rem]">
             <div className="mx-auto flex max-w-screen-2xl flex-col gap-1 px-4 py-4 sm:px-6">
-              {LINKS.map((l) => (
-                <button
-                  key={l.id}
-                  type="button"
-                  onClick={() => scrollTo(l.id)}
-                  className="rounded-2xl px-4 py-3.5 text-left text-base font-semibold text-slate-800 touch-manipulation hover:bg-sky-50 hover:text-[#0077b6]"
-                >
-                  {l.label}
-                </button>
-              ))}
+              {LINKS.map((l) =>
+                'href' in l && l.href ? (
+                  <Link
+                    key={l.id}
+                    href={l.href}
+                    onClick={() => setOpen(false)}
+                    className="rounded-2xl px-4 py-3.5 text-left text-base font-semibold text-slate-800 touch-manipulation hover:bg-sky-50 hover:text-[#0077b6]"
+                  >
+                    {l.label}
+                  </Link>
+                ) : (
+                  <button
+                    key={l.id}
+                    type="button"
+                    onClick={() => scrollTo(l.id)}
+                    className="rounded-2xl px-4 py-3.5 text-left text-base font-semibold text-slate-800 touch-manipulation hover:bg-sky-50 hover:text-[#0077b6]"
+                  >
+                    {l.label}
+                  </button>
+                )
+              )}
               <div className="mt-1 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3">
                 <button
                   type="button"

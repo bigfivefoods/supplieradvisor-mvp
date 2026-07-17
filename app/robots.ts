@@ -13,7 +13,16 @@ export default function robots(): MetadataRoute.Robots {
     rules: [
       {
         userAgent: '*',
-        allow: ['/', '/c/', '/directory', '/pricing', '/privacy', '/terms'],
+        allow: [
+          '/',
+          '/c/',
+          '/directory',
+          '/directory/industry/',
+          '/directory/city/',
+          '/pricing',
+          '/privacy',
+          '/terms',
+        ],
         disallow: [
           '/api/',
           '/dashboard/',

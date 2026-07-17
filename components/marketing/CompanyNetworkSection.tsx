@@ -738,6 +738,21 @@ export default function CompanyNetworkSection() {
               trust you can see before you trade.
             </p>
           </div>
+          <div className="mt-6 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+            <Link
+              href="/directory"
+              className="inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-6 py-3 text-sm font-bold text-white shadow-sm hover:bg-[#0099b8]"
+            >
+              Open full SEO directory
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link
+              href="/directory"
+              className="text-sm font-semibold text-[#0077b6] hover:underline"
+            >
+              Browse by industry & city →
+            </Link>
+          </div>
           <div className="mt-6">
             <FoundingWaitlist />
           </div>
