@@ -85,12 +85,35 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    let bankSuggestions: unknown[] = [];
+    if (action === 'confirm' && result.claim) {
+      try {
+        const { suggestBankMatchesForPayment } = await import(
+          '@/lib/banking/suggest-for-claim'
+        );
+        bankSuggestions = await suggestBankMatchesForPayment({
+          profileId: companyId,
+          amount: Number(result.claim.amount),
+          reference: result.claim.reference,
+          invoiceNumber: result.claim.invoice_number,
+          paidAt: result.claim.resolved_at || new Date().toISOString(),
+        });
+      } catch {
+        bankSuggestions = [];
+      }
+    }
+
     return NextResponse.json({
       success: true,
       action,
       claim: result.claim,
       invoice: result.invoice || null,
       ledgerId: result.ledgerId ?? null,
+      bankSuggestions,
+      bankMatchHint:
+        bankSuggestions.length > 0
+          ? 'Unallocated bank inflows match this payment — apply from Bank reconciliation'
+          : undefined,
     });
   } catch (e: unknown) {
     return NextResponse.json(

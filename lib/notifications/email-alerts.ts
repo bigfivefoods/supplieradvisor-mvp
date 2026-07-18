@@ -203,6 +203,63 @@ export async function notifyInvoiceSent(params: {
   }
 }
 
+/** Buyer: seller confirmed or rejected their payment claim. */
+export async function notifyPaymentClaimResolvedToBuyer(params: {
+  buyerProfileId: number;
+  sellerProfileId?: number | null;
+  sellerName?: string | null;
+  invoiceId: number;
+  invoiceNumber?: string | null;
+  amount: number;
+  currency?: string | null;
+  outcome: 'confirmed' | 'rejected';
+}): Promise<void> {
+  try {
+    const to = await companyEmails(params.buyerProfileId);
+    const ccy = (params.currency || 'ZAR').toUpperCase();
+    const amt = `${ccy} ${Number(params.amount).toLocaleString(undefined, {
+      maximumFractionDigits: 2,
+    })}`;
+    const inv = params.invoiceNumber || `#${params.invoiceId}`;
+    const seller = params.sellerName || 'Your supplier';
+    const ok = params.outcome === 'confirmed';
+    const docsHref = `${appBase()}/dashboard/buyer/documents?invoiceId=${params.invoiceId}${
+      params.sellerProfileId
+        ? `&supplierProfileId=${params.sellerProfileId}`
+        : ''
+    }`;
+    const rateHref =
+      params.sellerProfileId
+        ? `${appBase()}/dashboard/suppliers/ratings?ratee=${params.sellerProfileId}`
+        : `${appBase()}/dashboard?ratePrompt=open`;
+    await sendAlert({
+      to,
+      subject: ok
+        ? `[SupplierAdvisor] Payment confirmed — ${inv}`
+        : `[SupplierAdvisor] Payment claim not accepted — ${inv}`,
+      html: `
+        <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto">
+          <h2 style="color:${ok ? '#047857' : '#b91c1c'}">${
+            ok ? 'Payment confirmed' : 'Payment claim rejected'
+          }</h2>
+          <p><strong>${seller}</strong> ${
+            ok ? 'confirmed' : 'did not accept'
+          } your payment claim for invoice <strong>${inv}</strong> (${amt}).</p>
+          ${
+            ok
+              ? `<p>The amount is on their AR ledger. Next: receive goods (OTIFEF) if needed, then rate your partner.</p>
+                 <p><a href="${rateHref}" style="display:inline-block;background:#00b4d8;color:#fff;padding:10px 18px;border-radius:999px;text-decoration:none;font-weight:700">Rate supplier →</a></p>`
+              : `<p>Contact the supplier if this is unexpected. You can re-submit a claim with a bank reference.</p>
+                 <p><a href="${docsHref}" style="color:#00b4d8;font-weight:700">Open invoice →</a></p>`
+          }
+        </div>
+      `,
+    });
+  } catch (e) {
+    console.warn('notifyPaymentClaimResolvedToBuyer', e);
+  }
+}
+
 /** Seller: buyer claimed they paid an invoice — confirm on AR. */
 export async function notifyPaymentClaimToSeller(params: {
   sellerProfileId: number;

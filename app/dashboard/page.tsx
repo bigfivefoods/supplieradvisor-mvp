@@ -48,6 +48,7 @@ import GoldenPathChecklist from '@/components/onboarding/GoldenPathChecklist';
 import RatingPromptBanner from '@/components/ratings/RatingPromptBanner';
 import FirstHourKickstart from '@/components/dashboard/FirstHourKickstart';
 import FirstTradeOrchestrator from '@/components/dashboard/FirstTradeOrchestrator';
+import TrustDeltaStrip from '@/components/dashboard/TrustDeltaStrip';
 import CatalogueEmptyBanner from '@/components/business/CatalogueEmptyBanner';
 import TradeNextBanner from '@/components/journey/TradeNextBanner';
 import { computeHubNextAction } from '@/lib/connections/next-action';
@@ -684,6 +685,7 @@ export default function DashboardCommandCenter() {
         )}
       />
       {!loading ? <FirstTradeOrchestrator /> : null}
+      {!loading ? <TrustDeltaStrip /> : null}
 
       {!loading ? (
         <>

@@ -71,7 +71,20 @@ function Inner() {
   const [loading, setLoading] = useState(true);
   const [invites, setInvites] = useState<InviteRow[]>([]);
   const [metrics, setMetrics] = useState<NetworkMetrics | null>(null);
+  const [funnel, setFunnel] = useState<
+    Array<{
+      email: string;
+      sent: number;
+      opened: number;
+      accepted: number;
+      status: string;
+      quality: string;
+      personalNote: boolean;
+    }>
+  >([]);
+  const [remainingToday, setRemainingToday] = useState<number | null>(null);
   const [email, setEmail] = useState('');
+  const [note, setNote] = useState('');
   const [csv, setCsv] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -89,6 +102,10 @@ function Inner() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
       setInvites(data.invites || []);
+      setFunnel(data.funnel || []);
+      setRemainingToday(
+        data.remainingToday != null ? Number(data.remainingToday) : null
+      );
       if (mRes.ok) {
         const md = await mRes.json().catch(() => ({}));
         setMetrics((md.metrics as NetworkMetrics) || null);
@@ -120,6 +137,7 @@ function Inner() {
           privyUserId,
           action: 'send',
           email,
+          note: note.trim() || undefined,
         }),
       });
       const data = await res.json();
@@ -145,11 +163,18 @@ function Inner() {
           privyUserId,
           action: 'bulk',
           csv,
+          note: note.trim() || undefined,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
-      toast.success(`Sent ${data.sent} invite(s)`);
+      toast.success(
+        `Sent ${data.sent} invite(s)${
+          data.remainingToday != null
+            ? ` · ${data.remainingToday} left today`
+            : ''
+        }`
+      );
       setCsv('');
       void load();
     } catch (e: unknown) {
@@ -160,6 +185,16 @@ function Inner() {
   };
 
   const resend = async (to: string) => {
+    const personal =
+      note.trim() ||
+      window.prompt(
+        'Personal note required for resend (quality gate):',
+        'Following up — would love to trade on SupplierAdvisor.'
+      );
+    if (!personal?.trim()) {
+      toast.message('Resend cancelled — note required');
+      return;
+    }
     setBusy(true);
     try {
       const res = await fetch('/api/business/network-invites', {
@@ -170,6 +205,7 @@ function Inner() {
           privyUserId,
           action: 'resend',
           email: to,
+          note: String(personal).trim(),
         }),
       });
       const data = await res.json();
@@ -278,6 +314,34 @@ function Inner() {
         </div>
       ) : null}
 
+      {funnel.length > 0 ? (
+        <div className="mb-4 rounded-2xl border border-violet-100 bg-violet-50/40 p-4">
+          <p className="text-xs font-bold text-violet-950 mb-2">
+            Invite funnel (per email)
+            {remainingToday != null
+              ? ` · ${remainingToday} invites left today`
+              : ''}
+          </p>
+          <ul className="max-h-40 overflow-y-auto divide-y divide-violet-100 text-xs">
+            {funnel.slice(0, 12).map((f) => (
+              <li
+                key={f.email}
+                className="py-1.5 flex flex-wrap items-center justify-between gap-2"
+              >
+                <span className="font-semibold text-slate-800">{f.email}</span>
+                <span className="text-neutral-500">
+                  sent {f.sent}
+                  {f.opened ? ` · open ${f.opened}` : ''}
+                  {f.accepted ? ` · accept ${f.accepted}` : ''} · {f.status}
+                  {f.quality === 'low' ? ' · low quality' : ''}
+                  {f.personalNote ? ' · noted' : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       <div className="grid lg:grid-cols-2 gap-4 mb-6">
         <div className="rounded-2xl border border-neutral-200 bg-white p-4 space-y-2">
           <p className="text-xs font-bold text-slate-800">Send invite</p>
@@ -299,9 +363,18 @@ function Inner() {
               Send
             </button>
           </div>
+          <textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            rows={2}
+            className="w-full rounded-xl border border-neutral-200 px-3 py-2 text-xs"
+            placeholder="Personal note (required for resend & bulk &gt;5)"
+          />
         </div>
         <div className="rounded-2xl border border-neutral-200 bg-white p-4 space-y-2">
-          <p className="text-xs font-bold text-slate-800">Bulk CSV (max 40)</p>
+          <p className="text-xs font-bold text-slate-800">
+            Bulk CSV (max 15/batch · daily cap)
+          </p>
           <textarea
             value={csv}
             onChange={(e) => setCsv(e.target.value)}

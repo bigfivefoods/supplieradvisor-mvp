@@ -90,6 +90,20 @@ export async function GET() {
       ? undefined
       : 'VERIFYNOW_API_KEY not set',
   };
+  const opsAlert = Boolean(
+    process.env.OPS_ALERT_EMAIL || process.env.PAYSTACK_OPS_EMAIL
+  );
+  checks.ops_alert = {
+    ok: opsAlert,
+    error: opsAlert
+      ? undefined
+      : 'OPS_ALERT_EMAIL (or PAYSTACK_OPS_EMAIL) not set — CIPC/webhook SLA emails soft-skip',
+    detail: {
+      opsBoard: '/api/system/ops-board',
+      opsUi: '/dashboard/my-business/ops',
+      migrations: 'docs/OPS_MIGRATIONS.md',
+    },
+  };
   const twilioOk = Boolean(
     process.env.TWILIO_ACCOUNT_SID &&
       process.env.TWILIO_AUTH_TOKEN &&

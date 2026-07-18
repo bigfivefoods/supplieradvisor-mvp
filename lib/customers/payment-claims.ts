@@ -329,6 +329,18 @@ export async function resolvePaymentClaim(opts: {
     } catch {
       /* soft */
     }
+    void import('@/lib/notifications/email-alerts')
+      .then(({ notifyPaymentClaimResolvedToBuyer }) =>
+        notifyPaymentClaimResolvedToBuyer({
+          buyerProfileId: Number(claim.buyer_profile_id),
+          sellerProfileId: opts.sellerProfileId,
+          invoiceId: Number(claim.invoice_id),
+          amount: Number(claim.amount),
+          currency: claim.currency,
+          outcome: 'rejected',
+        })
+      )
+      .catch(() => undefined);
     return { ok: true, claim: updated as PaymentClaim };
   }
 
@@ -480,6 +492,55 @@ export async function resolvePaymentClaim(opts: {
         fx_rate: fxRate,
       },
     });
+  } catch {
+    /* soft */
+  }
+
+  void import('@/lib/notifications/email-alerts')
+    .then(async ({ notifyPaymentClaimResolvedToBuyer }) => {
+      let sellerName: string | null = null;
+      try {
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('trading_name, legal_name')
+          .eq('id', opts.sellerProfileId)
+          .maybeSingle();
+        sellerName =
+          (prof?.trading_name || prof?.legal_name || null) as string | null;
+      } catch {
+        /* soft */
+      }
+      await notifyPaymentClaimResolvedToBuyer({
+        buyerProfileId: Number(claim.buyer_profile_id),
+        sellerProfileId: opts.sellerProfileId,
+        sellerName,
+        invoiceId: Number(claim.invoice_id),
+        invoiceNumber: inv.invoice_number
+          ? String(inv.invoice_number)
+          : null,
+        amount,
+        currency: String(claim.currency || inv.currency || 'ZAR'),
+        outcome: 'confirmed',
+      });
+    })
+    .catch(() => undefined);
+
+  // Soft: create rating prompts both ways after settle
+  try {
+    if (claim.buyer_profile_id) {
+      const { promptAfterInvoicePaid } = await import(
+        '@/lib/ratings/create-prompt'
+      );
+      await promptAfterInvoicePaid({
+        sellerProfileId: opts.sellerProfileId,
+        customerLinkedProfileId: Number(claim.buyer_profile_id),
+        customerName: inv.customer_name
+          ? String(inv.customer_name)
+          : null,
+        invoiceId: Number(claim.invoice_id),
+        userId: opts.actorUserId,
+      });
+    }
   } catch {
     /* soft */
   }

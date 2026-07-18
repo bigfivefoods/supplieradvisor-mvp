@@ -1,56 +1,52 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { clientIp, rateLimit } from '@/lib/security/rate-limit';
 
 /**
- * POST { event: 'opened'|'accepted', ref?, email?, claim? }
- * Soft tracking for invite funnel (activity_log on referrer company).
+ * Public invite funnel track (open/accept).
+ * POST { companyId|ref, email, event: 'open'|'accept' }
+ * Rate-limited softly by not requiring secrets — activity_log only.
  */
 export async function POST(request: NextRequest) {
   try {
-    const ip = clientIp(request);
-    const rl = rateLimit({
-      key: `invite-track:${ip}`,
-      limit: 60,
-      windowMs: 60 * 60 * 1000,
-    });
-    if (!rl.ok) {
-      return NextResponse.json({ ok: true, skipped: true });
-    }
-
     const body = await request.json().catch(() => ({}));
-    const event = String(body.event || 'opened').toLowerCase();
-    const ref = Number(body.ref || 0);
+    const companyId = Number(body.companyId || body.ref);
     const email = String(body.email || '')
       .toLowerCase()
       .trim();
-    if (!Number.isFinite(ref) || ref <= 0) {
-      return NextResponse.json({ ok: true, skipped: true, reason: 'no_ref' });
+    const event = String(body.event || 'open').toLowerCase();
+    if (!Number.isFinite(companyId) || companyId <= 0 || !email.includes('@')) {
+      return NextResponse.json(
+        { error: 'companyId/ref and email required' },
+        { status: 400 }
+      );
+    }
+    if (!['open', 'opened', 'accept', 'accepted'].includes(event)) {
+      return NextResponse.json({ error: 'event must be open|accept' }, { status: 400 });
     }
 
     const supabase = getSupabaseServer();
+    const action =
+      event.startsWith('accept')
+        ? 'network.invite_accepted'
+        : 'network.invite_opened';
     await supabase.from('activity_log').insert({
-      profile_id: ref,
-      action:
-        event === 'accepted'
-          ? 'network.invite_accepted'
-          : 'network.invite_opened',
+      profile_id: companyId,
+      actor_user_id: 'public:invite-track',
+      action,
       entity_type: 'invite',
-      entity_id: email || String(body.claim || 'anon'),
-      summary:
-        event === 'accepted'
-          ? `Invite accepted${email ? ` · ${email}` : ''}`
-          : `Invite opened${email ? ` · ${email}` : ''}`,
+      entity_id: email,
+      summary: `Invite ${action.includes('accept') ? 'accepted' : 'opened'}: ${email}`,
       metadata: {
-        email: email || null,
-        claim: body.claim || null,
-        event,
-        status: event === 'accepted' ? 'accepted' : 'opened',
+        email,
+        status: action.includes('accept') ? 'accepted' : 'opened',
+        source: 'public_track',
       },
     });
-
-    return NextResponse.json({ ok: true });
-  } catch {
-    return NextResponse.json({ ok: true, soft: true });
+    return NextResponse.json({ success: true, action });
+  } catch (e: unknown) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : 'Error' },
+      { status: 500 }
+    );
   }
 }

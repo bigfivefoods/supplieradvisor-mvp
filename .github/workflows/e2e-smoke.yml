@@ -27,7 +27,7 @@ jobs:
           PLAYWRIGHT_BASE_URL: ${{ vars.PLAYWRIGHT_BASE_URL || 'https://www.supplieradvisor.com' }}
         run: |
           npm run test:e2e:auth
-          npx playwright test e2e/trade-loop-smoke.spec.ts e2e/happy-path-api.spec.ts e2e/golden-path-smoke.spec.ts e2e/major-bets-smoke.spec.ts e2e/paid-verification-smoke.spec.ts
+          npx playwright test e2e/trade-loop-smoke.spec.ts e2e/happy-path-api.spec.ts e2e/golden-path-smoke.spec.ts e2e/major-bets-smoke.spec.ts e2e/paid-verification-smoke.spec.ts e2e/growth-settles.spec.ts
 
   playwright-session:
     name: Session e2e (optional secrets)
@@ -51,4 +51,4 @@ jobs:
           E2E_COMPANY_ID: ${{ secrets.E2E_COMPANY_ID }}
           E2E_SUPPLIER_PROFILE_ID: ${{ secrets.E2E_SUPPLIER_PROFILE_ID }}
         run: |
-          npx playwright test e2e/authenticated-session.spec.ts e2e/trade-loop-smoke.spec.ts e2e/golden-path-auth.spec.ts e2e/major-bets-auth.spec.ts
+          npx playwright test e2e/authenticated-session.spec.ts e2e/trade-loop-smoke.spec.ts e2e/golden-path-auth.spec.ts e2e/major-bets-auth.spec.ts e2e/growth-settles.spec.ts

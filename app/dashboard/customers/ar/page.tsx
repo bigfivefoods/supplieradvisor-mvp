@@ -360,10 +360,24 @@ function Inner() {
       if (!res.ok) throw new Error(data.error || 'Failed');
       toast.success(
         action === 'confirm'
-          ? 'Payment posted to AR ledger'
+          ? data.bankSuggestions?.length
+            ? `Posted to ledger · ${data.bankSuggestions.length} bank match suggestion(s)`
+            : 'Payment posted to AR ledger'
           : 'Claim rejected',
-        { id: 'claim-res' }
+        {
+          id: 'claim-res',
+          description: data.bankMatchHint || undefined,
+        }
       );
+      if (
+        action === 'confirm' &&
+        Array.isArray(data.bankSuggestions) &&
+        data.bankSuggestions.length
+      ) {
+        toast.message('Bank reconcile may match this inflow', {
+          description: 'Open Accounting → Bank reconciliation → Auto-match',
+        });
+      }
       void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed', {

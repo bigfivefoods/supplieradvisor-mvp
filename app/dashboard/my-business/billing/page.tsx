@@ -545,6 +545,11 @@ function BillingInner() {
                 <p className="mt-2 text-sm text-slate-600">
                   Per company · unlimited team seats · full ERP
                 </p>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Plans: monthly · 1y (−15%) · 2y (−25%) · 3y (−30%). Founding
+                  free seats (first {founding?.limit ?? 25}) while available —
+                  not a perpetual open offer.
+                </p>
               </div>
               <StatusBadge sub={sub} />
             </div>

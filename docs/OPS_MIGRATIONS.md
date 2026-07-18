@@ -41,6 +41,21 @@ Auth: `Authorization: Bearer $CRON_SECRET`
 
 **Installments (first-class):** `customer_invoice_installments` via `20260718_installments_collections.sql` + `GET/POST /api/customers/installments`. Dual-writes notes `[installments]` for compat. Mark paid posts ledger.
 
+## Ops control plane (P0)
+
+| Item | Path |
+|------|------|
+| Board API | `GET /api/system/ops-board` (CRON_SECRET or referral ops) |
+| UI | `/dashboard/my-business/ops` |
+| Checklist | Paystack secret, webhook pulse, CIPC SLA breaches, AR ledger / claims / installments tables, OPS_ALERT_EMAIL |
+
+```bash
+# After deploy — tip SHA must match
+curl -sS "$APP_URL/api/system/health" | jq '{deploy,paystack:.checks.paystack.ok,opsAlert:env.OPS_ALERT_EMAIL}'
+# With CRON_SECRET:
+curl -sS -H "Authorization: Bearer $CRON_SECRET" "$APP_URL/api/system/ops-board" | jq '.board.readiness'
+```
+
 **First trade (30 min):** `GET/POST /api/business/first-trade` + dashboard orchestrator (bootstrap customer + draft invoice).
 
 **Network density:** `GET /api/business/network-metrics` + cards on `/dashboard/network-invites`.

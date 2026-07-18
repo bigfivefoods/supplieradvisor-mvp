@@ -92,6 +92,33 @@ export async function sendDunningForInvoice(opts: {
   }
   if (balance <= 0.009) return { ok: true, skipped: true, reason: 'paid' };
 
+  // Soft: if installments exist and next open installment is not yet due, skip ladder
+  try {
+    const { loadInstallmentsForInvoice } = await import(
+      '@/lib/customers/installments'
+    );
+    const inst = await loadInstallmentsForInvoice(
+      Number(inv.profile_id),
+      Number(inv.id),
+      inv.notes as string
+    );
+    const openInst = inst.rows.filter((r) => !r.paid);
+    if (openInst.length) {
+      const next = openInst[0];
+      if (next.date && next.date > today) {
+        return {
+          ok: true,
+          skipped: true,
+          reason: 'installment_not_due',
+          day: 0,
+        };
+      }
+      // Overdue installment: ensure dunning uses invoice balance (already set)
+    }
+  } catch {
+    /* soft */
+  }
+
   const dpd = daysPastDue(inv.due_date as string, today);
   const step = pickDunningStep(Math.max(dpd, 1));
   let notes = inv.notes != null ? String(inv.notes) : '';
