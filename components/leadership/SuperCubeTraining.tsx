@@ -64,6 +64,53 @@ type Dimension = {
   practices: string[];
 };
 
+/** Super-Cube face icon — keeps artwork small inside a fixed placeholder. */
+function DimIcon({
+  icon,
+  alt = '',
+  size = 'md',
+  className = '',
+}: {
+  icon: string;
+  alt?: string;
+  size?: 'xs' | 'sm' | 'md' | 'lg';
+  className?: string;
+}) {
+  const box =
+    size === 'xs'
+      ? 'h-7 w-7'
+      : size === 'sm'
+        ? 'h-8 w-8'
+        : size === 'lg'
+          ? 'h-12 w-12'
+          : 'h-9 w-9';
+  const img =
+    size === 'xs'
+      ? 'h-4 w-4'
+      : size === 'sm'
+        ? 'h-5 w-5'
+        : size === 'lg'
+          ? 'h-8 w-8'
+          : 'h-6 w-6';
+  return (
+    <span
+      className={`inline-flex ${box} shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white/90 ${className}`}
+      aria-hidden={alt ? undefined : true}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={`/images/${icon}`}
+        alt={alt}
+        width={32}
+        height={32}
+        className={`${img} object-contain`}
+        loading="lazy"
+        decoding="async"
+      />
+    </span>
+  );
+}
+
 const DIMENSIONS: Dimension[] = [
   {
     key: 'choices',
@@ -741,7 +788,7 @@ export default function SuperCubeTraining({
                 <img
                   src="/images/supercube-logo-for-home-page.png"
                   alt="Super-Cube® Leadership Model"
-                  className="h-36 sm:h-44 w-auto object-contain drop-shadow-xl"
+                  className="h-24 sm:h-28 w-auto max-w-[min(100%,280px)] object-contain drop-shadow-xl"
                 />
                 <div className="mt-6 grid grid-cols-3 gap-2 w-full max-w-sm">
                   {DIMENSIONS.map((d) => (
@@ -756,12 +803,7 @@ export default function SuperCubeTraining({
                       }}
                       className="rounded-2xl border border-white bg-white/90 p-2.5 text-center shadow-sm hover:border-[#00b4d8]/40 hover:shadow-md transition-all"
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={`/images/${d.icon}`}
-                        alt=""
-                        className="w-8 h-8 mx-auto object-contain mb-1"
-                      />
+                      <DimIcon icon={d.icon} size="sm" className="mx-auto mb-1" />
                       <div className="text-[10px] font-bold" style={{ color: d.color }}>
                         {d.name}
                       </div>
@@ -916,12 +958,7 @@ export default function SuperCubeTraining({
                           : undefined
                       }
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={`/images/${d.icon}`}
-                        alt=""
-                        className="w-10 h-10 object-contain shrink-0"
-                      />
+                      <DimIcon icon={d.icon} size="sm" />
                       <div className="min-w-0">
                         <div className="font-bold text-sm" style={{ color: d.color }}>
                           {d.name}
@@ -938,12 +975,7 @@ export default function SuperCubeTraining({
                 style={{ borderColor: `${activeDimension.color}33` }}
               >
                 <div className="flex flex-wrap items-start gap-4 mb-5">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={`/images/${activeDimension.icon}`}
-                    alt=""
-                    className="w-16 h-16 object-contain"
-                  />
+                  <DimIcon icon={activeDimension.icon} size="lg" />
                   <div>
                     <h3
                       className="text-2xl font-black tracking-tight"
@@ -1077,12 +1109,7 @@ export default function SuperCubeTraining({
                   }}
                   className="rounded-2xl border border-neutral-200 bg-white px-2 py-3 text-center hover:border-[#00b4d8]/40 transition-colors"
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={`/images/${d.icon}`}
-                    alt=""
-                    className="w-7 h-7 mx-auto object-contain mb-1"
-                  />
+                  <DimIcon icon={d.icon} size="xs" className="mx-auto mb-1" />
                   <div className="text-xl font-black tabular-nums" style={{ color: d.color }}>
                     {s}
                   </div>
@@ -1118,12 +1145,7 @@ export default function SuperCubeTraining({
                     className="w-full px-5 py-4 flex items-center justify-between gap-3 hover:bg-neutral-50/80 text-left"
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={`/images/${dim.icon}`}
-                        alt=""
-                        className="w-11 h-11 object-contain shrink-0"
-                      />
+                      <DimIcon icon={dim.icon} size="md" />
                       <div className="min-w-0">
                         <div className="font-bold text-slate-800">{dim.name}</div>
                         <div className="text-xs text-neutral-500 line-clamp-1">
@@ -1381,12 +1403,7 @@ export default function SuperCubeTraining({
                     const band = scoreBand(s);
                     return (
                       <div key={d.key} className="flex items-center gap-3">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={`/images/${d.icon}`}
-                          alt=""
-                          className="w-8 h-8 object-contain shrink-0"
-                        />
+                        <DimIcon icon={d.icon} size="sm" />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2 mb-1">
                             <span className="text-sm font-bold text-slate-800">{d.name}</span>
@@ -1441,12 +1458,7 @@ export default function SuperCubeTraining({
                       {rec.score}
                     </span>
                   </div>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={`/images/${rec.icon}`}
-                    alt=""
-                    className="w-14 h-14 object-contain mb-3"
-                  />
+                  <DimIcon icon={rec.icon} size="lg" className="mb-3" />
                   <h4 className="font-bold text-lg" style={{ color: rec.color }}>
                     {rec.name}
                   </h4>
@@ -1482,12 +1494,7 @@ export default function SuperCubeTraining({
           {strongest[0] && (
             <div className="rounded-3xl border border-emerald-100 bg-gradient-to-br from-emerald-50/80 to-white p-6 sm:p-8">
               <div className="flex flex-wrap items-start gap-4">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={`/images/${strongest[0].icon}`}
-                  alt=""
-                  className="w-14 h-14 object-contain"
-                />
+                <DimIcon icon={strongest[0].icon} size="lg" />
                 <div className="flex-1 min-w-0">
                   <p className="text-[11px] font-black uppercase tracking-widest text-emerald-600 mb-1">
                     Multiply your strength
