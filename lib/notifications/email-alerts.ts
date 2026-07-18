@@ -260,7 +260,7 @@ export async function notifyPaymentClaimResolvedToBuyer(params: {
   }
 }
 
-/** Seller: buyer claimed they paid an invoice — confirm on AR. */
+/** Seller: buyer claimed they paid an invoice — confirm on Money hub. */
 export async function notifyPaymentClaimToSeller(params: {
   sellerProfileId: number;
   buyerProfileId?: number | null;
@@ -269,6 +269,7 @@ export async function notifyPaymentClaimToSeller(params: {
   amount: number;
   currency?: string | null;
   reference?: string | null;
+  proofUrl?: string | null;
 }): Promise<void> {
   try {
     const to = await companyEmails(params.sellerProfileId);
@@ -277,7 +278,10 @@ export async function notifyPaymentClaimToSeller(params: {
       maximumFractionDigits: 2,
     })}`;
     const inv = params.invoiceNumber || `#${params.invoiceId}`;
-    const arHref = `${appBase()}/dashboard/customers/ar`;
+    const moneyHref = `${appBase()}/dashboard/customers/money`;
+    const proof = params.proofUrl
+      ? String(params.proofUrl).slice(0, 500)
+      : '';
     await sendAlert({
       to,
       subject: `[SupplierAdvisor] Buyer payment claim — ${inv} · ${amt}`,
@@ -292,10 +296,15 @@ export async function notifyPaymentClaimToSeller(params: {
                 ? `<li>Reference: <strong>${params.reference}</strong></li>`
                 : ''
             }
+            ${
+              proof
+                ? `<li>Proof of payment: <a href="${proof}">View POP</a></li>`
+                : ''
+            }
           </ul>
-          <p>Confirm the claim to post it to your AR payment ledger (or reject if incorrect).</p>
+          <p>Confirm the claim on Money hub to post AR ledger (or reject if incorrect).</p>
           <p style="margin-top:16px">
-            <a href="${arHref}" style="display:inline-block;background:#00b4d8;color:#fff;padding:10px 18px;border-radius:999px;text-decoration:none;font-weight:700">Open AR &amp; claims →</a>
+            <a href="${moneyHref}" style="display:inline-block;background:#00b4d8;color:#fff;padding:10px 18px;border-radius:999px;text-decoration:none;font-weight:700">Open Money hub →</a>
           </p>
         </div>
       `,

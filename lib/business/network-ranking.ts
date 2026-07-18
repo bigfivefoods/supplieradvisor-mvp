@@ -85,6 +85,24 @@ export async function loadOpenToTradeRanking(opts?: {
       rankScore += 5;
       reasons.push('recently active');
     }
+    // Catalogue / open-to-trade flags in metadata
+    const hasCatalogue =
+      meta.catalogue_count != null
+        ? Number(meta.catalogue_count) > 0
+        : Boolean(meta.has_catalogue || meta.catalogue_ready);
+    if (hasCatalogue) {
+      rankScore += 8;
+      reasons.push('catalogue ready');
+    }
+    if (meta.open_to_trade === true || settings.open_to_trade === true) {
+      rankScore += 6;
+      reasons.push('open to trade');
+    }
+    // Industry / city match vs filter already applied; soft boost for complete profile
+    if (r.city && r.industry && r.country) {
+      rankScore += 4;
+      reasons.push('complete location');
+    }
 
     ranked.push({
       id: Number(r.id),

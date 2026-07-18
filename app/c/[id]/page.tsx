@@ -565,6 +565,14 @@ export default async function PublicCompanyPage({
             >
               Request to trade
             </Link>
+            <Link
+              href={`/login?next=${encodeURIComponent(
+                `/dashboard/settle?peer=${c.id}`
+              )}`}
+              className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-1.5"
+            >
+              Start settle
+            </Link>
             {website ? (
               <a
                 href={

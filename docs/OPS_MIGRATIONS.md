@@ -36,7 +36,17 @@ Auth: `Authorization: Bearer $CRON_SECRET`
 
 **Collections UI:** `/dashboard/customers/ar` — aging, customer rollup, **payment ledger**, broken promises, PDF statement.
 
+**Money hub (settle-by-default):** `/dashboard/customers/money` · buyer POP + claims `/dashboard/buyer/money`
+
+**Settle command center:** `/dashboard/settle` · USDC escrow hub `/dashboard/escrow`
+
+**Settle smoke (non-mutating):** `GET /api/system/settle-smoke` — claims + ledger + installments + proof_url / promise columns.
+
+**POP upload:** `POST /api/buyer/payment-proof` (multipart) → `proof_url` on claim.
+
 **AR ledger API:** `GET/POST /api/customers/ar-ledger` (requires `20260717_ar_ledger.sql`). Mark-paid also writes ledger rows when the table exists.
+
+**Storage:** public bucket `company-documents` (or `payment-proofs`) for POP files.
 
 **Buyer payment claims:** `POST /api/buyer/payment-claim` → seller confirm on AR (`/api/customers/payment-claims`). Needs `20260717_payment_claims_and_ledger_fx.sql`. Confirm posts ledger + FX snapshot.
 

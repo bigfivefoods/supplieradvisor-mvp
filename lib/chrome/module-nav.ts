@@ -144,6 +144,10 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Order', href: '/dashboard/customers/orders' },
       { name: 'Inbound', href: '/dashboard/customers/orders?tab=inbound' },
       { name: 'Invoice', href: '/dashboard/customers/invoices' },
+      { name: 'Money', href: '/dashboard/customers/money' },
+      { name: 'AR', href: '/dashboard/customers/ar' },
+      { name: 'Settle', href: '/dashboard/settle' },
+      { name: 'Escrow', href: '/dashboard/escrow' },
       { name: 'Rate', href: '/dashboard/customers/ratings' },
       { name: 'Report', href: '/dashboard/customers/report' },
     ],
@@ -391,6 +395,7 @@ export const BUYER_LIFECYCLE = {
     { label: 'Source', href: '/dashboard/buyer/suppliers' },
     { label: 'Order', href: '/dashboard/buyer/pos' },
     { label: 'Docs', href: '/dashboard/buyer/documents' },
+    { label: 'Money', href: '/dashboard/buyer/money' },
     { label: 'Rate', href: '/dashboard/buyer/reviews' },
   ] as ProcessStep[],
 };

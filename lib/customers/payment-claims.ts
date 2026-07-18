@@ -198,6 +198,7 @@ export async function createPaymentClaim(opts: {
         amount,
         currency: row.currency,
         reference: opts.reference,
+        proofUrl: opts.proofUrl,
       })
     )
     .catch(() => undefined);

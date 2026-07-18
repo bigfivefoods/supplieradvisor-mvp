@@ -199,11 +199,11 @@ export async function loadFirstTradePlan(
     {
       id: 'collect_or_rate',
       title: 'Collect payment or rate partner',
-      body: 'Mark paid (or confirm buyer claim), then rate — trust loop closes.',
+      body: 'Confirm buyer claims on Money hub (or mark paid), then rate — trust loop closes.',
       href: hasPaid
         ? '/dashboard?ratePrompt=open'
-        : '/dashboard/customers/ar',
-      cta: hasPaid ? 'Rate partner' : 'AR & collections',
+        : '/dashboard/customers/money',
+      cta: hasPaid ? 'Rate partner' : 'Open Money hub',
       done: collectDone,
       minutes: 10,
     },
@@ -222,7 +222,7 @@ export async function loadFirstTradePlan(
       : 'Open invoices and send a document.';
   else if (!hasPaid)
     finishHint =
-      'Mark the invoice paid (or confirm a buyer claim) to close money.';
+      'Open Money hub — confirm a buyer claim or mark paid to close settle.';
   else if (!rated)
     finishHint = 'Rate your partner — peer stars complete the trust loop.';
   else finishHint = 'First trade loop complete.';

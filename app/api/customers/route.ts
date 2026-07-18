@@ -202,6 +202,72 @@ export async function PATCH(request: NextRequest) {
     const supabase = getSupabaseServer();
     const action = String(body.action || '').toLowerCase();
 
+    // Apply credit hold (status + notes marker)
+    if (action === 'set_credit_hold') {
+      const { data: cust, error: cErr } = await supabase
+        .from('customers')
+        .select('id, notes, profile_id, status')
+        .eq('id', Number(body.id))
+        .maybeSingle();
+      if (cErr || !cust) {
+        return NextResponse.json(
+          { error: cErr?.message || 'Customer not found' },
+          { status: 404 }
+        );
+      }
+      if (Number.isFinite(companyId) && Number(cust.profile_id) !== companyId) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+      let notes = cust.notes != null ? String(cust.notes) : '';
+      if (!/\[credit hold\]/i.test(notes)) {
+        notes = notes
+          ? `${notes}\n[credit hold] ${new Date().toISOString().slice(0, 10)}`
+          : `[credit hold] ${new Date().toISOString().slice(0, 10)}`;
+      }
+      const { data, error } = await supabase
+        .from('customers')
+        .update({
+          notes: notes.trim() || null,
+          status: 'credit_hold',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', Number(body.id))
+        .select('*')
+        .maybeSingle();
+      if (error) {
+        // Soft: status enum may reject credit_hold
+        if (/status|check|invalid/i.test(error.message || '')) {
+          const retry = await supabase
+            .from('customers')
+            .update({
+              notes: notes.trim() || null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', Number(body.id))
+            .select('*')
+            .maybeSingle();
+          if (retry.error) {
+            return NextResponse.json(
+              { error: retry.error.message },
+              { status: 500 }
+            );
+          }
+          return NextResponse.json({
+            success: true,
+            customer: retry.data,
+            action: 'set_credit_hold',
+            statusUpdated: false,
+          });
+        }
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+      return NextResponse.json({
+        success: true,
+        customer: data,
+        action: 'set_credit_hold',
+      });
+    }
+
     // Clear auto credit hold (and optionally reset override counter)
     if (action === 'clear_credit_hold') {
       const { data: cust, error: cErr } = await supabase

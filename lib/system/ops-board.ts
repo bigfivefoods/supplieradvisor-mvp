@@ -44,6 +44,14 @@ export type OpsBoardSnapshot = {
     blockers: string[];
     warnings: string[];
   };
+  /** Soft settle path health (tables + claim/ledger) */
+  settleLive: {
+    ok: boolean;
+    claimsTable: boolean | null;
+    ledgerTable: boolean | null;
+    installmentsTable: boolean | null;
+    smokePath: string;
+  };
 };
 
 export async function loadOpsBoard(): Promise<OpsBoardSnapshot> {
@@ -205,6 +213,19 @@ export async function loadOpsBoard(): Promise<OpsBoardSnapshot> {
   if (cipc.slaBreaches > 0)
     warnings.push(`${cipc.slaBreaches} CIPC SLA breach(es)`);
 
+  const settleLive = {
+    ok:
+      schema.arLedger !== false &&
+      schema.paymentClaims !== false,
+    claimsTable: schema.paymentClaims,
+    ledgerTable: schema.arLedger,
+    installmentsTable: schema.installments,
+    smokePath: '/api/system/settle-smoke',
+  };
+  if (!settleLive.ok) {
+    warnings.push('Settle path incomplete — see settle-smoke');
+  }
+
   return {
     at: new Date().toISOString(),
     deploy,
@@ -220,5 +241,6 @@ export async function loadOpsBoard(): Promise<OpsBoardSnapshot> {
       blockers,
       warnings,
     },
+    settleLive,
   };
 }

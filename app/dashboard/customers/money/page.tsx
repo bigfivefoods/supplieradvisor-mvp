@@ -38,6 +38,8 @@ type Hub = {
     invoice_number?: string | null;
     customer_name?: string | null;
     reference?: string | null;
+    proof_url?: string | null;
+    notes?: string | null;
   }>;
   topOpenInvoices: Array<{
     id: number;
@@ -311,19 +313,56 @@ function Inner() {
               </p>
               <ul className="text-xs space-y-1">
                 {hub.creditAlerts!.map((c) => (
-                  <li key={c.customerId}>
-                    <Link
-                      href="/dashboard/customers/profiles"
-                      className="font-bold text-rose-900 underline"
+                  <li
+                    key={c.customerId}
+                    className="flex flex-wrap items-center justify-between gap-2"
+                  >
+                    <span>
+                      <Link
+                        href="/dashboard/customers/profiles"
+                        className="font-bold text-rose-900 underline"
+                      >
+                        {c.customerName}
+                      </Link>
+                      {' · open '}
+                      {c.openBalance.toLocaleString()} / limit{' '}
+                      {c.creditLimit.toLocaleString()}
+                      {c.overBy > 0
+                        ? ` · over by ${c.overBy.toLocaleString()}`
+                        : ' · on hold'}
+                    </span>
+                    <button
+                      type="button"
+                      className="rounded-full border border-rose-300 bg-white px-2 py-0.5 text-[10px] font-bold text-rose-900"
+                      onClick={() => {
+                        void (async () => {
+                          try {
+                            const res = await fetch('/api/customers', {
+                              method: 'PATCH',
+                              headers: {
+                                'Content-Type': 'application/json',
+                              },
+                              body: JSON.stringify({
+                                companyId,
+                                id: c.customerId,
+                                action: 'set_credit_hold',
+                              }),
+                            });
+                            const data = await res.json().catch(() => ({}));
+                            if (!res.ok)
+                              throw new Error(data.error || 'Failed');
+                            toast.success('Credit hold applied');
+                            void load();
+                          } catch (e: unknown) {
+                            toast.error(
+                              e instanceof Error ? e.message : 'Failed'
+                            );
+                          }
+                        })();
+                      }}
                     >
-                      {c.customerName}
-                    </Link>
-                    {' · open '}
-                    {c.openBalance.toLocaleString()} / limit{' '}
-                    {c.creditLimit.toLocaleString()}
-                    {c.overBy > 0
-                      ? ` · over by ${c.overBy.toLocaleString()}`
-                      : ' · on hold'}
+                      Apply hold
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -401,7 +440,7 @@ function Inner() {
                     key={c.id}
                     className="flex flex-wrap items-center justify-between gap-2 text-xs bg-white rounded-xl border border-teal-100 px-3 py-2"
                   >
-                    <span>
+                    <span className="min-w-0">
                       <strong>
                         {Number(c.amount).toLocaleString()} {c.currency || ''}
                       </strong>
@@ -409,6 +448,24 @@ function Inner() {
                       {c.invoice_number || `inv #${c.invoice_id}`}
                       {c.customer_name ? ` · ${c.customer_name}` : ''}
                       {c.reference ? ` · ref ${c.reference}` : ''}
+                      {c.proof_url ? (
+                        <>
+                          {' · '}
+                          <a
+                            href={String(c.proof_url)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-bold text-teal-800 underline"
+                          >
+                            View POP
+                          </a>
+                        </>
+                      ) : null}
+                      {c.notes ? (
+                        <span className="block text-neutral-500 mt-0.5 truncate max-w-xs">
+                          {String(c.notes).slice(0, 120)}
+                        </span>
+                      ) : null}
                     </span>
                     <span className="flex gap-1">
                       <button
@@ -467,11 +524,54 @@ function Inner() {
                         {inv.due_date ? ` · due ${inv.due_date}` : ''}
                       </span>
                     </div>
-                    <span className="font-black tabular-nums">
-                      {inv.balance.toLocaleString(undefined, {
-                        maximumFractionDigits: 0,
-                      })}{' '}
-                      {inv.currency}
+                    <span className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        className="text-[10px] font-bold text-amber-900 underline"
+                        onClick={() => {
+                          const d = window.prompt(
+                            'Promise-to-pay date (YYYY-MM-DD)',
+                            new Date(Date.now() + 7 * 86400000)
+                              .toISOString()
+                              .slice(0, 10)
+                          );
+                          if (!d) return;
+                          void (async () => {
+                            try {
+                              const res = await fetch('/api/customers/docs', {
+                                method: 'POST',
+                                headers: {
+                                  'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({
+                                  companyId,
+                                  type: 'invoice',
+                                  id: inv.id,
+                                  action: 'set_promise_to_pay',
+                                  promise_to_pay_date: d.slice(0, 10),
+                                }),
+                              });
+                              const data = await res.json().catch(() => ({}));
+                              if (!res.ok)
+                                throw new Error(data.error || 'Failed');
+                              toast.success(`Promise set to ${d.slice(0, 10)}`);
+                              void load();
+                            } catch (e: unknown) {
+                              toast.error(
+                                e instanceof Error ? e.message : 'Failed'
+                              );
+                            }
+                          })();
+                        }}
+                      >
+                        Set promise
+                      </button>
+                      <span className="font-black tabular-nums">
+                        {inv.balance.toLocaleString(undefined, {
+                          maximumFractionDigits: 0,
+                        })}{' '}
+                        {inv.currency}
+                      </span>
                     </span>
                   </li>
                 ))

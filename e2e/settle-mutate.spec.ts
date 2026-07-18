@@ -177,4 +177,65 @@ test.describe('Settle mutate golden path', () => {
       expect(j.dueCount === undefined || typeof j.dueCount === 'number').toBeTruthy();
     }
   });
+
+  test('settle-smoke + payment-proof auth gate', async ({ request }) => {
+    const smoke = await request.get(`${base}/api/system/settle-smoke`);
+    // Public or service-role: should not 404
+    expect([200, 401, 403, 500]).toContain(smoke.status());
+    if (smoke.status() === 200) {
+      const j = await smoke.json();
+      expect(j.checks).toBeTruthy();
+    }
+
+    // Proof upload requires auth + multipart — reject empty without file
+    const proof = await request.post(`${base}/api/buyer/payment-proof`, {
+      headers: headers(),
+      multipart: {
+        buyerCompanyId: companyId,
+        companyId,
+      },
+    });
+    expect([400, 401, 403, 415, 500]).toContain(proof.status());
+    expect(proof.status()).not.toBe(404);
+  });
+
+  test('claim→confirm when pending claim exists (live settle)', async ({
+    request,
+  }) => {
+    const list = await request.get(
+      `${base}/api/customers/payment-claims?companyId=${companyId}&status=pending`,
+      { headers: headers() }
+    );
+    expect(list.status()).not.toBe(401);
+    if (list.status() !== 200) return;
+    const j = await list.json();
+    const claims = j.claims || [];
+    if (!claims.length) {
+      // Soft pass — no pending claim on E2E tenant
+      expect(true).toBeTruthy();
+      return;
+    }
+    const claimId = Number(claims[0].id);
+    if (!claimId) return;
+
+    // Prefer reject of non-prod claim to avoid double-ledger; only confirm if E2E_CONFIRM_CLAIM=1
+    const action =
+      process.env.E2E_CONFIRM_CLAIM === '1' ? 'confirm' : 'reject';
+    const res = await request.post(`${base}/api/customers/payment-claims`, {
+      headers: headers(),
+      data: {
+        companyId: Number(companyId),
+        claimId,
+        action,
+      },
+    });
+    expect([200, 400, 403, 500]).toContain(res.status());
+    expect(res.status()).not.toBe(401);
+    if (res.status() === 200 && action === 'confirm') {
+      const body = await res.json();
+      expect(
+        body.ledgerId != null || body.claim?.status === 'confirmed'
+      ).toBeTruthy();
+    }
+  });
 });

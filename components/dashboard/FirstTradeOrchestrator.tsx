@@ -279,15 +279,11 @@ export default function FirstTradeOrchestrator({
           {plan.steps.find((s) => s.id === 'send')?.done &&
           !plan.signals?.paidInvoiceCount ? (
             <Link
-              href={
-                plan.activeInvoiceId
-                  ? `/dashboard/customers/invoices?id=${plan.activeInvoiceId}`
-                  : '/dashboard/customers/ar'
-              }
+              href="/dashboard/customers/money"
               className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-950 text-xs font-bold px-3 py-2"
             >
               <Wallet className="w-3.5 h-3.5" />
-              Mark paid / AR
+              Collect on Money hub
             </Link>
           ) : null}
           {plan.nextStep && !canSend ? (

@@ -307,6 +307,9 @@ export async function GET() {
       migrationsDoc: 'docs/OPS_MIGRATIONS.md',
       opsBoard: '/api/system/ops-board',
       opsUi: '/dashboard/my-business/ops',
+      settleSmoke: '/api/system/settle-smoke',
+      settleUi: '/dashboard/settle',
+      moneyHub: '/dashboard/customers/money',
     };
 
     return NextResponse.json({

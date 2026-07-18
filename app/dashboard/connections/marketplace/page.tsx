@@ -129,7 +129,22 @@ function BrowseInner() {
         }
         return;
       }
-      toast.success('Inquiry sent to seller');
+      const sellerId = selected.seller_profile_id;
+      toast.success('Inquiry sent — next: connect & request trade', {
+        action: sellerId
+          ? {
+              label: 'Request trade',
+              onClick: () => {
+                window.location.href = `/dashboard/connections/discover?peer=${sellerId}`;
+              },
+            }
+          : {
+              label: 'Open network',
+              onClick: () => {
+                window.location.href = '/dashboard/connections';
+              },
+            },
+      });
       setSelected(null);
       setInqMsg('');
       setInqQty('1');
@@ -149,7 +164,7 @@ function BrowseInner() {
         eyebrow="Network marketplace"
         title="Market"
         titleAccent="place"
-        description="Buy and sell inventory goods & services across the SupplierAdvisor network. Connected partners trade with trust; open listings reach the whole market."
+        description="B2B catalogue → inquiry → connect → first trade → Money hub. Listings from inventory; settle off-chain (claims) or on-chain (USDC escrow)."
         action={
           <>
             <Link
@@ -157,6 +172,18 @@ function BrowseInner() {
               className="btn-primary !py-2.5 !px-5 text-sm"
             >
               <Store className="w-4 h-4" /> Sell from inventory
+            </Link>
+            <Link
+              href="/dashboard/connections/discover"
+              className="btn-secondary !py-2.5 !px-5 text-sm"
+            >
+              <ShoppingBag className="w-4 h-4" /> Open-to-trade
+            </Link>
+            <Link
+              href="/dashboard/customers/money"
+              className="btn-secondary !py-2.5 !px-5 text-sm"
+            >
+              <Wallet className="w-4 h-4" /> Money hub
             </Link>
             <Link
               href="/dashboard/inventory/products"
@@ -167,6 +194,29 @@ function BrowseInner() {
           </>
         }
       />
+
+      <div className="mb-6 rounded-2xl border border-sky-200 bg-gradient-to-r from-sky-50 via-white to-emerald-50 px-4 py-3 text-xs text-slate-700">
+        <p className="font-black text-slate-900 text-sm">Marketplace trade path</p>
+        <ol className="mt-1.5 list-decimal list-inside space-y-0.5 leading-relaxed">
+          <li>Browse listings or publish from inventory.</li>
+          <li>Send inquiry → connect / request-to-trade if not linked.</li>
+          <li>Issue PO or invoice → collect on Money hub (or fund USDC escrow on PO).</li>
+        </ol>
+        <div className="flex flex-wrap gap-2 mt-2">
+          <Link
+            href="/dashboard/suppliers/po"
+            className="font-bold text-[#0077b6] underline"
+          >
+            Purchase orders / escrow
+          </Link>
+          <Link
+            href="/dashboard/escrow"
+            className="font-bold text-[#0077b6] underline"
+          >
+            USDC escrow guide
+          </Link>
+        </div>
+      </div>
 
       {warning && (
         <AlertBanner>
@@ -364,6 +414,30 @@ function BrowseInner() {
                   <Wallet className="w-3 h-3" /> On-chain ready
                 </div>
               )}
+              <div className="flex flex-wrap gap-2 mt-2">
+                {selected.seller_profile_id ? (
+                  <Link
+                    href={`/dashboard/connections/discover?peer=${selected.seller_profile_id}`}
+                    className="text-[11px] font-bold text-[#0077b6] underline"
+                  >
+                    Request to trade
+                  </Link>
+                ) : null}
+                <Link
+                  href="/dashboard/settle"
+                  className="text-[11px] font-bold text-emerald-800 underline"
+                >
+                  Settle path
+                </Link>
+                {selected.seller?.wallet_address ? (
+                  <Link
+                    href="/dashboard/escrow"
+                    className="text-[11px] font-bold text-amber-900 underline"
+                  >
+                    USDC escrow
+                  </Link>
+                ) : null}
+              </div>
             </div>
 
             {selected.description && (

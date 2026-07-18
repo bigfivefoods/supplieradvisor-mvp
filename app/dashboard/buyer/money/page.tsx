@@ -1,11 +1,19 @@
 'use client';
 
 /**
- * Buyer Money hub — open invoices + claim status + pay path.
+ * Buyer Money hub — open invoices + claim status + POP upload.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Loader2, RefreshCw, Banknote, Wallet } from 'lucide-react';
+import {
+  Loader2,
+  RefreshCw,
+  Banknote,
+  Wallet,
+  Upload,
+  X,
+  FileText,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { usePrivy } from '@privy-io/react-auth';
 import { getCanonicalUserId } from '@/lib/auth/identity';
@@ -57,6 +65,15 @@ function Inner() {
     }>
   >([]);
   const [claimBusy, setClaimBusy] = useState<number | null>(null);
+  const [claimModal, setClaimModal] = useState<Inv | null>(null);
+  const [refInput, setRefInput] = useState('');
+  const [notesInput, setNotesInput] = useState(
+    'Payment made — please confirm on AR.'
+  );
+  const [proofUrl, setProofUrl] = useState<string | null>(null);
+  const [proofName, setProofName] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -82,24 +99,50 @@ function Inner() {
     void load();
   }, [load]);
 
-  const claimPaid = async (inv: Inv) => {
-    if (!inv.supplier_profile_id || !privyUserId) {
-      toast.error('Supplier context missing');
-      return;
-    }
+  const openClaim = (inv: Inv) => {
     if (inv.claimStatus === 'pending' || inv.claimStatus === 'confirmed') {
       toast.message(`Claim already ${inv.claimStatus}`);
       return;
     }
-    const ref = window.prompt('Payment reference (bank/EFT ref)', '') || '';
-    const proof = window.prompt(
-      'Proof URL (optional — paste link to POP / PDF / image)',
-      ''
-    );
-    const notes = window.prompt(
-      'Notes for seller (optional)',
-      'Payment made — please confirm on AR.'
-    );
+    setClaimModal(inv);
+    setRefInput('');
+    setNotesInput('Payment made — please confirm on AR.');
+    setProofUrl(null);
+    setProofName(null);
+  };
+
+  const uploadProof = async (file: File) => {
+    if (!claimModal) return;
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('buyerCompanyId', String(companyId));
+      form.append('companyId', String(companyId));
+      form.append('invoiceId', String(claimModal.id));
+      if (privyUserId) form.append('privyUserId', privyUserId);
+      const res = await fetch('/api/buyer/payment-proof', {
+        method: 'POST',
+        body: form,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Upload failed');
+      setProofUrl(String(data.proofUrl || data.url));
+      setProofName(file.name);
+      toast.success('Proof of payment uploaded');
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Upload failed');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const submitClaim = async () => {
+    const inv = claimModal;
+    if (!inv?.supplier_profile_id || !privyUserId) {
+      toast.error('Supplier context missing');
+      return;
+    }
     setClaimBusy(inv.id);
     try {
       const res = await fetch('/api/buyer/payment-claim', {
@@ -112,14 +155,15 @@ function Inner() {
           invoiceId: inv.id,
           amount: inv.balance,
           currency: inv.currency,
-          reference: ref || null,
-          proofUrl: proof?.trim() || null,
-          notes: notes?.trim() || null,
+          reference: refInput.trim() || null,
+          proofUrl: proofUrl || null,
+          notes: notesInput.trim() || null,
         }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Failed');
       toast.success('Claim submitted — seller will confirm');
+      setClaimModal(null);
       void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed');
@@ -139,8 +183,7 @@ function Inner() {
         <ol className="mt-1.5 list-decimal list-inside space-y-0.5">
           <li>Pay the supplier using bank details on the invoice PDF.</li>
           <li>
-            Click <strong>I paid</strong> with your bank reference (+ optional proof
-            URL).
+            Click <strong>I paid</strong> — attach POP (PDF/image) + bank reference.
           </li>
           <li>Seller confirms → claim shows confirmed → rate the supplier.</li>
         </ol>
@@ -159,6 +202,12 @@ function Inner() {
           className="btn-secondary !py-2 !px-3 text-sm"
         >
           All shared docs
+        </Link>
+        <Link
+          href="/dashboard/buyer/suppliers"
+          className="btn-secondary !py-2 !px-3 text-sm"
+        >
+          Find suppliers
         </Link>
       </div>
 
@@ -184,9 +233,29 @@ function Inner() {
           <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
         </div>
       ) : invoices.length === 0 ? (
-        <p className="text-sm text-neutral-500 text-center py-12">
-          No open shared invoices. Suppliers share invoices after they bill you.
-        </p>
+        <div className="rounded-2xl border border-dashed border-neutral-300 bg-white px-6 py-12 text-center">
+          <p className="text-sm font-bold text-slate-800">
+            No open shared invoices yet
+          </p>
+          <p className="text-xs text-neutral-500 mt-1 max-w-md mx-auto leading-relaxed">
+            When a supplier bills you, they share the invoice. Connect with open-to-trade
+            partners, or open Docs if a share link was sent by email.
+          </p>
+          <div className="flex flex-wrap justify-center gap-2 mt-4">
+            <Link
+              href="/dashboard/connections/discover"
+              className="rounded-full bg-[#00b4d8] text-white text-xs font-bold px-4 py-2"
+            >
+              Discover partners
+            </Link>
+            <Link
+              href="/dashboard/buyer/documents"
+              className="rounded-full border text-xs font-bold px-4 py-2"
+            >
+              Shared documents
+            </Link>
+          </div>
+        </div>
       ) : (
         <ul className="space-y-2">
           {invoices.map((inv) => (
@@ -248,7 +317,7 @@ function Inner() {
                   <button
                     type="button"
                     disabled={claimBusy === inv.id}
-                    onClick={() => void claimPaid(inv)}
+                    onClick={() => openClaim(inv)}
                     className="inline-flex items-center gap-1 rounded-full bg-emerald-700 text-white text-[11px] font-bold px-3 py-1.5 disabled:opacity-50"
                   >
                     <Banknote className="w-3.5 h-3.5" />
@@ -293,6 +362,110 @@ function Inner() {
             ))}
           </ul>
         </section>
+      ) : null}
+
+      {claimModal ? (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-3">
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-xl border border-neutral-200 p-5">
+            <div className="flex items-start justify-between gap-2 mb-3">
+              <div>
+                <p className="text-sm font-black text-slate-900">
+                  Claim payment
+                </p>
+                <p className="text-xs text-neutral-500">
+                  {claimModal.invoice_number || `Invoice #${claimModal.id}`} ·{' '}
+                  {claimModal.balance.toLocaleString()} {claimModal.currency}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setClaimModal(null)}
+                className="p-1 rounded-lg hover:bg-neutral-100"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              Bank / EFT reference
+            </label>
+            <input
+              value={refInput}
+              onChange={(e) => setRefInput(e.target.value)}
+              className="w-full rounded-xl border border-neutral-200 px-3 py-2 text-sm mb-3"
+              placeholder="e.g. EFT-12345"
+            />
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              Proof of payment (PDF or image)
+            </label>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*,application/pdf"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void uploadProof(f);
+              }}
+            />
+            <div className="flex flex-wrap gap-2 mb-3">
+              <button
+                type="button"
+                disabled={uploading}
+                onClick={() => fileRef.current?.click()}
+                className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50 text-emerald-950 text-xs font-bold px-3 py-2 disabled:opacity-50"
+              >
+                {uploading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Upload className="w-3.5 h-3.5" />
+                )}
+                {proofUrl ? 'Replace POP' : 'Upload POP'}
+              </button>
+              {proofUrl ? (
+                <a
+                  href={proofUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-xs font-bold text-[#0077b6] underline"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  {proofName || 'View proof'}
+                </a>
+              ) : (
+                <span className="text-[11px] text-neutral-400 self-center">
+                  Optional but recommended
+                </span>
+              )}
+            </div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              Notes for seller
+            </label>
+            <textarea
+              value={notesInput}
+              onChange={(e) => setNotesInput(e.target.value)}
+              rows={2}
+              className="w-full rounded-xl border border-neutral-200 px-3 py-2 text-sm mb-4"
+            />
+            <div className="flex gap-2 justify-end">
+              <button
+                type="button"
+                onClick={() => setClaimModal(null)}
+                className="rounded-full border px-3 py-2 text-xs font-bold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={claimBusy === claimModal.id || uploading}
+                onClick={() => void submitClaim()}
+                className="rounded-full bg-emerald-700 text-white px-4 py-2 text-xs font-bold disabled:opacity-50"
+              >
+                {claimBusy === claimModal.id ? 'Submitting…' : 'Submit claim'}
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
     </>
   );
