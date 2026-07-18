@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, Suspense } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import {
   Loader2,
   CreditCard,
@@ -48,7 +49,9 @@ declare global {
 export default function BusinessBillingPage() {
   return (
     <CompanyRequired>
-      <BillingInner />
+      <Suspense fallback={null}>
+        <BillingInner />
+      </Suspense>
     </CompanyRequired>
   );
 }
@@ -58,6 +61,9 @@ function BillingInner() {
   const { user } = usePrivy();
   const privyUserId = getCanonicalUserId(user?.id);
   const email = extractEmailFromPrivyUser(user);
+  const searchParams = useSearchParams();
+  const payFocus = searchParams?.get('pay') === '1';
+  const plansRef = useRef<HTMLDivElement>(null);
 
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
@@ -130,6 +136,14 @@ function BillingInner() {
     branchCode: '',
     taxNumber: '',
   });
+
+  useEffect(() => {
+    if (!payFocus || loading) return;
+    const t = window.setTimeout(() => {
+      plansRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 200);
+    return () => window.clearTimeout(t);
+  }, [payFocus, loading, subscription]);
 
   const load = useCallback(async () => {
     if (!companyId) return;
@@ -430,6 +444,13 @@ function BillingInner() {
       ? sub.trialEndsAt
       : sub?.endsAt || sub?.trialEndsAt;
 
+  const trialEndingSoon =
+    Boolean(sub?.isTrial) &&
+    sub?.hasAccess &&
+    sub?.daysRemaining != null &&
+    sub.daysRemaining <= 7;
+  const needPay = Boolean(sub && !sub.hasAccess && !sub.isLifetime);
+
   return (
     <BusinessPage>
       <BusinessHeader
@@ -447,8 +468,58 @@ function BillingInner() {
         }
       />
 
+      {(needPay || trialEndingSoon || payFocus) && !sub?.isLifetime ? (
+        <div
+          className={`mb-6 rounded-2xl border px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3 justify-between ${
+            needPay
+              ? 'border-rose-300 bg-rose-50'
+              : 'border-amber-300 bg-amber-50'
+          }`}
+        >
+          <div className="text-sm">
+            <p
+              className={`font-black ${
+                needPay ? 'text-rose-950' : 'text-amber-950'
+              }`}
+            >
+              {needPay
+                ? 'Trial or plan ended — pay to restore trade tools'
+                : `Trial ends in ${sub?.daysRemaining ?? '?'} day(s) — pick a prepaid term`}
+            </p>
+            <p
+              className={`text-xs mt-0.5 ${
+                needPay ? 'text-rose-900/80' : 'text-amber-900/80'
+              }`}
+            >
+              From R{COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo · save up to 30% with
+              multi-year. Paystack checkout below.
+              {founding && !founding.full && founding.remaining > 0
+                ? ` · ${founding.remaining} founding free seat(s) may still be open.`
+                : ''}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() =>
+              plansRef.current?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start',
+              })
+            }
+            className={`shrink-0 inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-bold text-white ${
+              needPay
+                ? 'bg-rose-700 hover:bg-rose-800'
+                : 'bg-amber-800 hover:bg-amber-900'
+            }`}
+          >
+            <CreditCard className="w-3.5 h-3.5" />
+            Choose plan &amp; pay
+          </button>
+        </div>
+      ) : null}
+
       <div className="grid gap-6 lg:grid-cols-5">
-        <div className="lg:col-span-3 space-y-6">
+        <div className="lg:col-span-3 space-y-6" ref={plansRef} id="billing-plans">
           <Panel className="p-6 sm:p-8 relative overflow-hidden">
             <Sparkles className="absolute top-4 right-4 w-8 h-8 text-amber-400/40" />
             <div className="flex flex-wrap items-end justify-between gap-4">

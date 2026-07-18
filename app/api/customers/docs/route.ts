@@ -1048,16 +1048,68 @@ export async function POST(request: NextRequest) {
       }
       if (uErr) return NextResponse.json({ error: uErr.message }, { status: 500 });
 
-      // First-class AR ledger row (soft if migration not applied)
+      // First-class AR ledger row + multi-currency FX snapshot (soft if migrations missing)
       if (thisPayment > 0) {
         try {
           const { recordArPayment } = await import('@/lib/customers/ar-ledger');
+          const payCcy = String(inv.currency || 'ZAR').toUpperCase();
+          let amountBase: number | null = null;
+          let baseCurrency: string | null = null;
+          let fxRate: number | null = null;
+          try {
+            const { data: prof } = await supabase
+              .from('profiles')
+              .select('primary_currency')
+              .eq('id', companyId)
+              .maybeSingle();
+            baseCurrency = String(
+              prof?.primary_currency || 'ZAR'
+            ).toUpperCase();
+            if (baseCurrency === payCcy) {
+              amountBase = thisPayment;
+              fxRate = 1;
+            } else {
+              const { convertAmount } = await import('@/lib/fx/types');
+              const fxRes = await fetch(
+                'https://api.frankfurter.dev/v1/latest?base=USD',
+                { next: { revalidate: 900 } }
+              ).catch(() => null);
+              let rates: Record<string, number> = {
+                USD: 1,
+                ZAR: 18.5,
+                EUR: 0.92,
+                GBP: 0.79,
+              };
+              if (fxRes?.ok) {
+                const jd = (await fxRes.json()) as {
+                  rates?: Record<string, number>;
+                };
+                rates = { USD: 1 };
+                for (const [k, v] of Object.entries(jd.rates || {})) {
+                  rates[k.toUpperCase()] = Number(v);
+                }
+              }
+              const conv = convertAmount(
+                thisPayment,
+                payCcy,
+                baseCurrency,
+                rates
+              );
+              if (conv != null) {
+                amountBase = Math.round(conv * 100) / 100;
+                const one = convertAmount(1, payCcy, baseCurrency, rates);
+                fxRate = one != null ? Math.round(one * 1e8) / 1e8 : null;
+              }
+            }
+          } catch {
+            /* soft FX */
+          }
           await recordArPayment({
             profile_id: companyId,
             invoice_id: Number(inv.id),
             customer_id: inv.customer_id ? Number(inv.customer_id) : null,
             amount: thisPayment,
-            currency: String(inv.currency || 'ZAR'),
+            currency: payCcy,
             paid_at: now,
             method: body.payment_method
               ? String(body.payment_method).slice(0, 40)
@@ -1070,6 +1122,10 @@ export async function POST(request: NextRequest) {
               ? String(body.payment_notes).slice(0, 500)
               : null,
             created_by: _gate.userId || null,
+            amount_base: amountBase,
+            base_currency: baseCurrency,
+            fx_rate: fxRate,
+            fx_as_of: now.slice(0, 10),
           });
         } catch {
           /* ledger optional */

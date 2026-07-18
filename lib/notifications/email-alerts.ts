@@ -203,6 +203,51 @@ export async function notifyInvoiceSent(params: {
   }
 }
 
+/** Seller: buyer claimed they paid an invoice — confirm on AR. */
+export async function notifyPaymentClaimToSeller(params: {
+  sellerProfileId: number;
+  buyerProfileId?: number | null;
+  invoiceId: number;
+  invoiceNumber?: string | null;
+  amount: number;
+  currency?: string | null;
+  reference?: string | null;
+}): Promise<void> {
+  try {
+    const to = await companyEmails(params.sellerProfileId);
+    const ccy = (params.currency || 'ZAR').toUpperCase();
+    const amt = `${ccy} ${Number(params.amount).toLocaleString(undefined, {
+      maximumFractionDigits: 2,
+    })}`;
+    const inv = params.invoiceNumber || `#${params.invoiceId}`;
+    const arHref = `${appBase()}/dashboard/customers/ar`;
+    await sendAlert({
+      to,
+      subject: `[SupplierAdvisor] Buyer payment claim — ${inv} · ${amt}`,
+      html: `
+        <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto">
+          <h2 style="color:#0f766e">Buyer reported a payment</h2>
+          <p>A connected buyer claimed they paid invoice <strong>${inv}</strong>.</p>
+          <ul>
+            <li>Amount: <strong>${amt}</strong></li>
+            ${
+              params.reference
+                ? `<li>Reference: <strong>${params.reference}</strong></li>`
+                : ''
+            }
+          </ul>
+          <p>Confirm the claim to post it to your AR payment ledger (or reject if incorrect).</p>
+          <p style="margin-top:16px">
+            <a href="${arHref}" style="display:inline-block;background:#00b4d8;color:#fff;padding:10px 18px;border-radius:999px;text-decoration:none;font-weight:700">Open AR &amp; claims →</a>
+          </p>
+        </div>
+      `,
+    });
+  } catch (e) {
+    console.warn('notifyPaymentClaimToSeller', e);
+  }
+}
+
 /** On-platform buyer: seller marked invoice paid — open rate (one-tap deep link). */
 export async function notifyInvoicePaidToBuyer(params: {
   buyerProfileId: number;

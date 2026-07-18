@@ -89,12 +89,27 @@ function Inner() {
     }>
   >([]);
   const [ledgerWarning, setLedgerWarning] = useState<string | null>(null);
+  const [paymentClaims, setPaymentClaims] = useState<
+    Array<{
+      id: number;
+      invoice_id: number;
+      amount: number;
+      currency?: string;
+      reference?: string | null;
+      invoice_number?: string | null;
+      customer_name?: string | null;
+      claimed_at?: string;
+      status?: string;
+    }>
+  >([]);
+  const [claimBusy, setClaimBusy] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [agingRes, custRes, histRes, dunRes, ledRes] = await Promise.all([
+      const [agingRes, custRes, histRes, dunRes, ledRes, claimRes] =
+        await Promise.all([
         fetch(`/api/customers/ar-aging?companyId=${companyId}`, {
           cache: 'no-store',
         }),
@@ -112,6 +127,10 @@ function Inner() {
         fetch(`/api/customers/ar-ledger?companyId=${companyId}&limit=25`, {
           cache: 'no-store',
         }).catch(() => null),
+        fetch(
+          `/api/customers/payment-claims?companyId=${companyId}&status=pending`,
+          { cache: 'no-store' }
+        ).catch(() => null),
       ]);
       const data = await agingRes.json();
       if (!agingRes.ok) throw new Error(data.error || 'Failed to load AR');
@@ -179,6 +198,25 @@ function Inner() {
       } else {
         setLedgerEntries([]);
         setLedgerWarning(null);
+      }
+
+      if (claimRes && claimRes.ok) {
+        const c = await claimRes.json().catch(() => ({}));
+        setPaymentClaims(
+          ((c.claims || []) as Array<{
+            id: number;
+            invoice_id: number;
+            amount: number;
+            currency?: string;
+            reference?: string | null;
+            invoice_number?: string | null;
+            customer_name?: string | null;
+            claimed_at?: string;
+            status?: string;
+          }>) || []
+        );
+      } else {
+        setPaymentClaims([]);
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed');
@@ -301,6 +339,39 @@ function Inner() {
       '_blank',
       'noopener,noreferrer'
     );
+  };
+
+  const resolveClaim = async (
+    claimId: number,
+    action: 'confirm' | 'reject'
+  ) => {
+    setClaimBusy(claimId);
+    toast.loading(
+      action === 'confirm' ? 'Confirming into ledger…' : 'Rejecting claim…',
+      { id: 'claim-res' }
+    );
+    try {
+      const res = await fetch('/api/customers/payment-claims', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyId, claimId, action }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      toast.success(
+        action === 'confirm'
+          ? 'Payment posted to AR ledger'
+          : 'Claim rejected',
+        { id: 'claim-res' }
+      );
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed', {
+        id: 'claim-res',
+      });
+    } finally {
+      setClaimBusy(null);
+    }
   };
 
   const dunningAction = async (
@@ -491,6 +562,58 @@ function Inner() {
               </div>
             </div>
           </div>
+
+          {paymentClaims.length > 0 ? (
+            <div className="rounded-2xl border border-teal-300 bg-gradient-to-br from-teal-50 to-white px-4 py-3">
+              <div className="text-[10px] font-bold uppercase text-teal-900 mb-1">
+                Buyer payment claims ({paymentClaims.length})
+              </div>
+              <p className="text-[11px] text-teal-900/70 mb-2">
+                Buyers reported payment — confirm to post a ledger line and
+                update invoice balance.
+              </p>
+              <ul className="space-y-2">
+                {paymentClaims.map((c) => (
+                  <li
+                    key={c.id}
+                    className="flex flex-wrap items-center justify-between gap-2 text-xs border border-teal-100 rounded-xl bg-white px-3 py-2"
+                  >
+                    <div>
+                      <span className="font-bold text-slate-900">
+                        {Number(c.amount).toLocaleString(undefined, {
+                          maximumFractionDigits: 2,
+                        })}{' '}
+                        {c.currency || baseCurrency}
+                      </span>
+                      <span className="text-neutral-500 ml-1.5">
+                        {c.invoice_number || `inv #${c.invoice_id}`}
+                        {c.customer_name ? ` · ${c.customer_name}` : ''}
+                        {c.reference ? ` · ref ${c.reference}` : ''}
+                      </span>
+                    </div>
+                    <span className="flex gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        disabled={claimBusy === c.id}
+                        onClick={() => void resolveClaim(c.id, 'confirm')}
+                        className="rounded-full bg-teal-700 text-white px-2.5 py-1 text-[10px] font-bold disabled:opacity-50"
+                      >
+                        Confirm
+                      </button>
+                      <button
+                        type="button"
+                        disabled={claimBusy === c.id}
+                        onClick={() => void resolveClaim(c.id, 'reject')}
+                        className="rounded-full border border-neutral-200 px-2.5 py-1 text-[10px] font-bold text-neutral-600 disabled:opacity-50"
+                      >
+                        Reject
+                      </button>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
 
           <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50/80 to-white px-4 py-3">
             <div className="flex items-center justify-between gap-2 mb-2">

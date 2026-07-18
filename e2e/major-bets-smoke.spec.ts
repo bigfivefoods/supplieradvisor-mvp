@@ -54,4 +54,23 @@ test.describe('Major bets smoke (unauth)', () => {
     });
     expect([401, 402, 403, 404]).toContain(res.status());
   });
+
+  test('buyer payment claim requires auth', async ({ request }) => {
+    const res = await request.post(`${base}/api/buyer/payment-claim`, {
+      data: {
+        buyerCompanyId: 1,
+        supplierProfileId: 2,
+        invoiceId: 1,
+        amount: 100,
+      },
+    });
+    expect([401, 403]).toContain(res.status());
+  });
+
+  test('seller payment-claims requires auth', async ({ request }) => {
+    const res = await request.get(
+      `${base}/api/customers/payment-claims?companyId=1`
+    );
+    expect([401, 403]).toContain(res.status());
+  });
 });

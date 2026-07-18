@@ -97,23 +97,22 @@ export default function SubscriptionAccessBanner() {
                   {sub.status === 'past_due'
                     ? 'Payment past due'
                     : sub.isTrial || sub.status === 'expired'
-                      ? 'Trial or subscription ended'
+                      ? 'Trial ended — subscribe to continue trading'
                       : 'Access expired'}
                 </strong>
                 <span className="text-rose-900/90">
                   {' '}
-                  — restore access from{' '}
-                  {formatZar(COMPANY_SUBSCRIPTION_MONTHLY_ZAR)}/mo, or check if
-                  founding free seats remain.
+                  — plans from {formatZar(COMPANY_SUBSCRIPTION_MONTHLY_ZAR)}
+                  /mo (save up to 30% prepaid). Profile &amp; billing stay open.
                 </span>
               </div>
             </div>
             <Link
-              href="/dashboard/my-business/billing"
+              href="/dashboard/my-business/billing?pay=1"
               className="shrink-0 inline-flex items-center justify-center gap-1.5 rounded-full bg-rose-700 px-4 py-2 text-xs font-bold text-white hover:bg-rose-800 touch-manipulation"
             >
               <CreditCard className="w-3.5 h-3.5" />
-              Open billing
+              Pay &amp; restore access
             </Link>
           </div>
         </div>
@@ -126,23 +125,24 @@ export default function SubscriptionAccessBanner() {
               <Clock className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
               <div className="text-sm text-amber-950">
                 <strong className="font-bold">
-                  {sub.isTrial ? 'Trial' : 'Subscription'} ends
+                  {sub.isTrial ? 'Free trial' : 'Subscription'} ends
                   {daysLabel ? ` in ${daysLabel}` : ' soon'}
                 </strong>
                 <span className="text-amber-900/90">
                   {' '}
-                  — renew, prepay (save up to 30%), or claim founding free if
-                  seats remain.
+                  — pick a prepaid term on billing (save up to 30%) before
+                  trade tools lock. From{' '}
+                  {formatZar(COMPANY_SUBSCRIPTION_MONTHLY_ZAR)}/mo.
                 </span>
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <Link
-                href="/dashboard/my-business/billing"
+                href="/dashboard/my-business/billing?pay=1"
                 className="inline-flex items-center justify-center gap-1.5 rounded-full bg-amber-800 px-4 py-2 text-xs font-bold text-white hover:bg-amber-900 touch-manipulation"
               >
                 <CreditCard className="w-3.5 h-3.5" />
-                Billing
+                Choose plan
               </Link>
               <button
                 type="button"
@@ -162,21 +162,21 @@ export default function SubscriptionAccessBanner() {
           <div className="w-full max-w-md rounded-3xl border border-rose-100 bg-white shadow-2xl p-6 text-center">
             <AlertTriangle className="w-10 h-10 text-rose-500 mx-auto mb-3" />
             <h2 className="text-lg font-black text-slate-900">
-              Subscribe to continue
+              Trial ended — pay to continue
             </h2>
             <p className="text-sm text-slate-600 mt-2 leading-relaxed">
-              Your free trial or paid period has ended. Profile, team, and
-              billing stay available. Plans start at{' '}
-              {formatZar(COMPANY_SUBSCRIPTION_MONTHLY_ZAR)}/mo — founding free
-              seats (first 25 companies) may still be open on billing.
+              Trade tools (invoices, AR, network) pause when the trial ends.
+              Profile, team, and billing stay open. Plans from{' '}
+              {formatZar(COMPANY_SUBSCRIPTION_MONTHLY_ZAR)}/mo with prepaid
+              discounts — founding free seats may still be available.
             </p>
             <div className="mt-5 flex flex-col sm:flex-row gap-2 justify-center">
               <Link
-                href="/dashboard/my-business/billing"
+                href="/dashboard/my-business/billing?pay=1"
                 className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#00b4d8] to-[#0077b6] px-5 py-2.5 text-sm font-bold text-white"
               >
                 <CreditCard className="w-4 h-4" />
-                Go to billing
+                Pay now on billing
               </Link>
               <Link
                 href="/dashboard/my-business/profile"

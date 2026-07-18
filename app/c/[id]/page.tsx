@@ -23,6 +23,7 @@ import {
 } from '@/lib/seo/company-public';
 import { facetSlug, loadDirectory } from '@/lib/seo/directory-data';
 import DirectoryInviteForm from '@/components/seo/DirectoryInviteForm';
+import VerifiedSlaBadge from '@/components/seo/VerifiedSlaBadge';
 
 /** Aggregate public ratings (quote QR + invoice feedback). Soft if table missing. */
 async function loadPublicRatingStats(companyId: number): Promise<{
@@ -401,7 +402,7 @@ export default async function PublicCompanyPage({
               <p className="mt-2 text-sm text-neutral-600 leading-relaxed">
                 {seoLead}.
               </p>
-              <div className="mt-2">
+              <div className="mt-2 flex flex-wrap items-center gap-2">
                 <TrustBadges
                   isVerified={verified}
                   verificationStatus={c.verification_status}
@@ -410,6 +411,9 @@ export default async function PublicCompanyPage({
                   trustScore={c.trust_score}
                   otifefPct={c.otifef_average}
                 />
+                {verified ? (
+                  <VerifiedSlaBadge verified companyName={name} compact />
+                ) : null}
               </div>
               {publicRatings.count > 0 && publicRatings.avg != null ? (
                 <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-950">
@@ -431,6 +435,10 @@ export default async function PublicCompanyPage({
                 </p>
               )}
             </div>
+          </div>
+
+          <div className="mt-5">
+            <VerifiedSlaBadge verified={verified} companyName={name} />
           </div>
 
           <h2 className="sr-only">Company details</h2>

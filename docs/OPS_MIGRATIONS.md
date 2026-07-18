@@ -9,6 +9,7 @@ supabase/migrations/20260716_customer_invoices_source_po_id.sql
 supabase/migrations/20260717_verification_payment_ref.sql
 supabase/migrations/20260717_customer_invoices_promise_to_pay.sql
 supabase/migrations/20260717_ar_ledger.sql
+supabase/migrations/20260717_payment_claims_and_ledger_fx.sql
 ```
 
 ## Collections crons (Vercel)
@@ -34,6 +35,8 @@ Auth: `Authorization: Bearer $CRON_SECRET`
 **Collections UI:** `/dashboard/customers/ar` — aging, customer rollup, **payment ledger**, broken promises, PDF statement.
 
 **AR ledger API:** `GET/POST /api/customers/ar-ledger` (requires `20260717_ar_ledger.sql`). Mark-paid also writes ledger rows when the table exists.
+
+**Buyer payment claims:** `POST /api/buyer/payment-claim` → seller confirm on AR (`/api/customers/payment-claims`). Needs `20260717_payment_claims_and_ledger_fx.sql`. Confirm posts ledger + FX snapshot.
 
 **First trade (30 min):** `GET/POST /api/business/first-trade` + dashboard orchestrator (bootstrap customer + draft invoice).
 

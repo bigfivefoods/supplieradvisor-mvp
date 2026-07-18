@@ -116,7 +116,8 @@ export default async function DirectoryPage({
             </h1>
             <p className="text-sm text-neutral-600 mt-1 max-w-xl">
               Discover suppliers and trade partners listed on SupplierAdvisor.
-              Browse by industry or city for Google-friendly hub pages.
+              CIPC-verified companies complete a paid identity check with a
+              24-hour verification SLA — money → trust for B2B trade.
             </p>
           </div>
           <div className="flex flex-col sm:flex-row gap-2 shrink-0">

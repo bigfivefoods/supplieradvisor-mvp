@@ -12,7 +12,9 @@ import {
   FileDown,
   Star,
   Package,
+  Banknote,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { getCanonicalUserId } from '@/lib/auth/identity';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { formatMoney, statusBadgeClass } from '@/lib/customers/documents';
@@ -119,6 +121,7 @@ function BuyerDocumentsInner() {
   );
   const [highlightId, setHighlightId] = useState<number | null>(focusDocId);
   const focusApplied = useRef(false);
+  const [claimBusy, setClaimBusy] = useState<number | null>(null);
 
   // Sync URL supplier filter on first paint / navigation
   useEffect(() => {
@@ -274,6 +277,57 @@ function BuyerDocumentsInner() {
     return documents.find((d) => Number(d.id) === highlightId) || null;
   }, [documents, highlightId]);
 
+  const claimPaid = async (doc: SharedDoc) => {
+    const sid = Number(doc.supplier_profile_id || 0);
+    if (!sid || !privyUserId) {
+      toast.error('Supplier context missing');
+      return;
+    }
+    const st = String(doc.status || '').toLowerCase();
+    if (['paid', 'void', 'cancelled', 'draft'].includes(st)) {
+      toast.message(`Invoice is already ${st}`);
+      return;
+    }
+    const total = Number(doc.total_amount || 0);
+    const paid = Number(
+      (doc as { amount_paid?: number }).amount_paid || 0
+    );
+    const balance = Math.max(0, total - paid) || total;
+    const ref = window.prompt(
+      'Payment reference (optional — bank ref / EFT)',
+      ''
+    );
+    setClaimBusy(Number(doc.id));
+    toast.loading('Submitting payment claim…', { id: 'claim-pay' });
+    try {
+      const res = await fetch('/api/buyer/payment-claim', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          buyerCompanyId: companyId,
+          privyUserId,
+          supplierProfileId: sid,
+          invoiceId: Number(doc.id),
+          amount: balance,
+          currency: doc.currency || 'ZAR',
+          reference: ref || null,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Claim failed');
+      toast.success(
+        data.message || 'Claim sent — seller will confirm into AR ledger',
+        { id: 'claim-pay' }
+      );
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed', {
+        id: 'claim-pay',
+      });
+    } finally {
+      setClaimBusy(null);
+    }
+  };
+
   return (
     <>
       <BuyerHeader
@@ -354,6 +408,23 @@ function BuyerDocumentsInner() {
               <Star className="w-3.5 h-3.5" />
               3 · Rate supplier
             </Link>
+            {!['paid', 'void', 'cancelled', 'draft'].includes(
+              String(focusedDoc.status || '').toLowerCase()
+            ) ? (
+              <button
+                type="button"
+                disabled={claimBusy === Number(focusedDoc.id)}
+                onClick={() => void claimPaid(focusedDoc)}
+                className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50 px-4 py-2 text-xs font-bold text-emerald-950 hover:bg-emerald-100 disabled:opacity-50"
+              >
+                {claimBusy === Number(focusedDoc.id) ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Banknote className="w-3.5 h-3.5" />
+                )}
+                I paid — notify seller
+              </button>
+            ) : null}
           </div>
         </div>
       ) : null}
@@ -531,6 +602,23 @@ function BuyerDocumentsInner() {
                     >
                       OTIFEF
                     </Link>
+                    {!['paid', 'void', 'cancelled', 'draft'].includes(
+                      String(doc.status || '').toLowerCase()
+                    ) ? (
+                      <button
+                        type="button"
+                        disabled={claimBusy === Number(doc.id)}
+                        onClick={() => void claimPaid(doc)}
+                        className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-950 hover:bg-emerald-100 disabled:opacity-50"
+                      >
+                        {claimBusy === Number(doc.id) ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Banknote className="w-3.5 h-3.5" />
+                        )}
+                        I paid
+                      </button>
+                    ) : null}
                     <Link
                       href={`/dashboard/suppliers/ratings?ratee=${doc.supplier_profile_id}${
                         Number(doc.source_po_id) > 0

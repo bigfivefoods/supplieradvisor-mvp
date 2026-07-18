@@ -20,6 +20,11 @@ export type ArLedgerEntry = {
   notes?: string | null;
   created_by?: string | null;
   created_at?: string;
+  /** Multi-currency: amount in company base currency at payment time */
+  amount_base?: number | null;
+  base_currency?: string | null;
+  fx_rate?: number | null;
+  fx_as_of?: string | null;
 };
 
 export function isMissingLedgerTable(msg: string | undefined | null): boolean {
@@ -38,7 +43,7 @@ export async function recordArPayment(
 }> {
   try {
     const supabase = getSupabaseServer();
-    const row = {
+    const row: Record<string, unknown> = {
       profile_id: entry.profile_id,
       invoice_id: entry.invoice_id,
       customer_id: entry.customer_id ?? null,
@@ -51,11 +56,35 @@ export async function recordArPayment(
       notes: entry.notes || null,
       created_by: entry.created_by || null,
     };
-    const { data, error } = await supabase
+    if (entry.amount_base != null) row.amount_base = entry.amount_base;
+    if (entry.base_currency) row.base_currency = entry.base_currency;
+    if (entry.fx_rate != null) row.fx_rate = entry.fx_rate;
+    if (entry.fx_as_of) row.fx_as_of = entry.fx_as_of;
+
+    let { data, error } = await supabase
       .from('customer_invoice_payments')
       .insert(row)
       .select('*')
       .maybeSingle();
+    // Soft: drop FX columns if migration not applied
+    if (
+      error &&
+      /amount_base|base_currency|fx_rate|fx_as_of|column|schema cache/i.test(
+        error.message || ''
+      )
+    ) {
+      delete row.amount_base;
+      delete row.base_currency;
+      delete row.fx_rate;
+      delete row.fx_as_of;
+      const retry = await supabase
+        .from('customer_invoice_payments')
+        .insert(row)
+        .select('*')
+        .maybeSingle();
+      data = retry.data;
+      error = retry.error;
+    }
     if (error) {
       if (isMissingLedgerTable(error.message)) {
         return { ok: true, entry: null, tableMissing: true };

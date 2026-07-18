@@ -101,6 +101,93 @@ async function loadStatement(companyId: number, customerId: number) {
     return { ok: false as const, error: 'No open invoices for this customer' };
   }
 
+  // Recent ledger payments for this customer (first-class AR)
+  let payments: Array<{
+    paidAt: string;
+    invoiceNumber: string;
+    amount: number;
+    currency: string;
+    reference?: string | null;
+    method?: string | null;
+    amountBase?: number | null;
+    baseCurrency?: string | null;
+    fxRate?: number | null;
+  }> = [];
+  let paymentsTotal = 0;
+  try {
+    const invIds = (invs || []).map((i) => Number(i.id));
+    // Also include recently paid invoices for payment history
+    const { data: paidInv } = await supabase
+      .from('customer_invoices')
+      .select('id, invoice_number')
+      .eq('profile_id', companyId)
+      .eq('customer_id', customerId)
+      .limit(100);
+    const allIds = [
+      ...new Set([
+        ...invIds,
+        ...(paidInv || []).map((i) => Number(i.id)),
+      ]),
+    ];
+    const numMap = new Map(
+      (paidInv || []).map((i) => [
+        Number(i.id),
+        String(i.invoice_number || `#${i.id}`),
+      ])
+    );
+    for (const inv of invs || []) {
+      numMap.set(
+        Number(inv.id),
+        String(inv.invoice_number || `#${inv.id}`)
+      );
+    }
+    if (allIds.length) {
+      let led: Array<Record<string, unknown>> | null = null;
+      const full = await supabase
+        .from('customer_invoice_payments')
+        .select(
+          'invoice_id, amount, currency, paid_at, reference, method, amount_base, base_currency, fx_rate'
+        )
+        .eq('profile_id', companyId)
+        .in('invoice_id', allIds)
+        .order('paid_at', { ascending: false })
+        .limit(40);
+      if (full.error && /amount_base|fx_rate|column|schema cache/i.test(full.error.message || '')) {
+        const basic = await supabase
+          .from('customer_invoice_payments')
+          .select('invoice_id, amount, currency, paid_at, reference, method')
+          .eq('profile_id', companyId)
+          .in('invoice_id', allIds)
+          .order('paid_at', { ascending: false })
+          .limit(40);
+        led = (basic.data || []) as Array<Record<string, unknown>>;
+      } else {
+        led = (full.data || []) as Array<Record<string, unknown>>;
+      }
+      for (const p of led || []) {
+        const amt = Number(p.amount || 0);
+        paymentsTotal += amt;
+        payments.push({
+          paidAt: String(p.paid_at || ''),
+          invoiceNumber:
+            numMap.get(Number(p.invoice_id)) || `#${p.invoice_id}`,
+          amount: amt,
+          currency: String(p.currency || currency),
+          reference: p.reference ? String(p.reference) : null,
+          method: p.method ? String(p.method) : null,
+          amountBase:
+            p.amount_base != null ? Number(p.amount_base) : null,
+          baseCurrency: p.base_currency
+            ? String(p.base_currency)
+            : null,
+          fxRate: p.fx_rate != null ? Number(p.fx_rate) : null,
+        });
+      }
+    }
+  } catch {
+    payments = [];
+  }
+
   const sellerName =
     seller?.trading_name || seller?.legal_name || `Company #${companyId}`;
   const pdf = await buildArStatementPdf({
@@ -110,6 +197,8 @@ async function loadStatement(companyId: number, customerId: number) {
     lines,
     openTotal,
     currency,
+    payments,
+    paymentsTotal,
   });
 
   return {
@@ -123,6 +212,7 @@ async function loadStatement(companyId: number, customerId: number) {
     currency,
     today,
     lineCount: lines.length,
+    paymentCount: payments.length,
     filename: `statement-${customerId}-${today}.pdf`,
   };
 }

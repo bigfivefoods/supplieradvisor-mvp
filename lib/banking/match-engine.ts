@@ -435,6 +435,48 @@ export async function runAutoMatch(opts: AutoMatchOptions): Promise<AutoMatchRes
     );
   }
 
+  // CRM AR: customer_invoices (trade-loop receivables) — auto-suggest bank ↔ AR
+  try {
+    const { data: crmInv } = await supabase
+      .from('customer_invoices')
+      .select(
+        'id, invoice_number, customer_name, total_amount, amount_paid, status, issue_date, due_date, currency'
+      )
+      .eq('profile_id', opts.companyId)
+      .in('status', ['sent', 'partial', 'overdue', 'viewed', 'unpaid', 'issued'])
+      .limit(400);
+    const existingIds = new Set(invoices.map((i) => Number(i.id)));
+    for (const row of crmInv || []) {
+      const id = Number(row.id);
+      // Offset CRM ids into a high range only if colliding with accounting invoices
+      // Prefer raw id; match apply path handles customer_invoices via kind marker
+      if (existingIds.has(id)) continue;
+      const total = Number(row.total_amount || 0);
+      const paid = Number(row.amount_paid || 0);
+      invoices.push({
+        id,
+        invoice_number: row.invoice_number
+          ? String(row.invoice_number)
+          : `CRM-${id}`,
+        direction: 'receivable',
+        counterparty_name: row.customer_name
+          ? String(row.customer_name)
+          : null,
+        total_amount: total,
+        amount_paid: paid,
+        balance_due: Math.max(0, total - paid),
+        status: row.status ? String(row.status) : null,
+        invoice_date: row.issue_date
+          ? String(row.issue_date).slice(0, 10)
+          : null,
+        due_date: row.due_date ? String(row.due_date).slice(0, 10) : null,
+      });
+      existingIds.add(id);
+    }
+  } catch {
+    /* customer_invoices optional */
+  }
+
   const { data: rules } = await supabase
     .from('bank_match_rules')
     .select('*')
