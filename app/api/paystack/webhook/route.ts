@@ -3,7 +3,10 @@ import { createHmac, timingSafeEqual } from 'crypto';
 import { getPaystackSecretKey } from '@/lib/billing/paystack';
 import { clawbackReferralForSourceRef } from '@/lib/billing/referral-controls';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { recordPaystackWebhookPulse } from '@/lib/system/paystack-pulse';
+import {
+  loadPaystackWebhookPulse,
+  recordPaystackWebhookPulse,
+} from '@/lib/system/paystack-pulse';
 
 export const runtime = 'nodejs';
 
@@ -214,8 +217,21 @@ export async function POST(request: NextRequest) {
   }
 }
 
-/** GET — Paystack dashboard "Test webhook" / ops probe without signature */
-export async function GET() {
+/** GET — Paystack dashboard probe / ops reachability (no signature). */
+export async function GET(request: NextRequest) {
+  // Optional: ?ping=1 records a soft heartbeat so health pulse leaves "never"
+  const ping = request.nextUrl.searchParams.get('ping');
+  if (ping === '1' || ping === 'true') {
+    await recordPaystackWebhookPulse({
+      event: 'http.get_probe',
+      reference: `get-probe-${Date.now()}`,
+      handled: 'get_probe',
+      action: 'billing.paystack_webhook_ping',
+      summary: 'Paystack webhook endpoint GET probe (public reachability)',
+      metadata: { source: 'GET /api/paystack/webhook?ping=1' },
+    });
+  }
+  const pulse = await loadPaystackWebhookPulse();
   return NextResponse.json({
     ok: true,
     service: 'paystack-webhook',
@@ -224,5 +240,7 @@ export async function GET() {
       'Paystack Dashboard → Settings → Webhooks → https://www.supplieradvisor.com/api/paystack/webhook',
     events: ['charge.success', 'refund.*'],
     public: true,
+    pulse,
+    tip: 'Append ?ping=1 once after deploy to seed ops pulse without a real payment',
   });
 }

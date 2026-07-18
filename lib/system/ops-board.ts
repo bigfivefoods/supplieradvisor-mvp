@@ -211,8 +211,11 @@ export async function loadOpsBoard(): Promise<OpsBoardSnapshot> {
     warnings.push('Run 20260717_payment_claims_and_ledger_fx.sql');
   if (schema.installments === false)
     warnings.push('Run 20260718_installments_collections.sql');
-  if (paystack.stale && env.paystackSecret)
-    warnings.push('Paystack webhook pulse stale');
+  if (paystack.status === 'stale' && paystack.lastAt && env.paystackSecret)
+    warnings.push(
+      `Paystack webhook pulse stale (ageHours=${paystack.ageHours ?? '—'})`
+    );
+  // status=never is informational only (first event not yet seen)
   if (cipc.slaBreaches > 0)
     warnings.push(`${cipc.slaBreaches} CIPC SLA breach(es)`);
 

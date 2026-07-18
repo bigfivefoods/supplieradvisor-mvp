@@ -63,12 +63,12 @@ export async function loadPaystackWebhookPulse(): Promise<PaystackWebhookPulse> 
       .gte('created_at', since);
 
     if (!latest?.created_at) {
-      // Never received: still flag stale for ops attention, but status=never
-      // so UI can show "configure webhook / send test" instead of "broken"
+      // Never received ≠ stale: endpoint may be healthy but no charge yet.
+      // status=never for ops UI; stale only after we had traffic then went quiet.
       return {
         ...empty,
         last24hCount: count ?? 0,
-        stale: true,
+        stale: false,
         status: 'never',
       };
     }

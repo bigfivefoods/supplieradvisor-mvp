@@ -57,14 +57,14 @@ async function run(request: NextRequest) {
       process.env.PAYSTACK_SECRET_KEY || process.env.PAYSTACK_SECRET
     );
     const pulse = await loadPaystackWebhookPulse();
-    // Never-seen is a config warning (status=never), not an infinite "broken" firehose
-    // once secret is set — still alert until first webhook lands.
+    // Email only when we had traffic and it went quiet, or secret missing.
+    // "never" alone no longer forces daily stale emails (middleware was fixed;
+    // first real charge.success or ops ping clears status).
     const stale =
       force ||
       !secretOk ||
       pulse.status === 'stale' ||
-      (pulse.ageHours != null && pulse.ageHours >= threshold) ||
-      (pulse.status === 'never' && secretOk);
+      (pulse.ageHours != null && pulse.ageHours >= threshold);
 
     // ── Dead-letter auto-replay + SLA breach scan ──────────────────────────
     const deadLetter: Array<{

@@ -296,19 +296,28 @@ export async function GET() {
       p0Warnings.push('VERIFYNOW_API_KEY not set — CIPC match soft-fails');
     }
     if (paystackPulse?.stale && checks.paystack.ok) {
-      if (paystackPulse.status === 'never' || !paystackPulse.lastAt) {
+      // Only treat age-stale as a health warning once we have seen at least one event.
+      // "never" is configuration noise after a fresh deploy until first charge/test ping.
+      if (paystackPulse.status === 'stale' && paystackPulse.lastAt) {
         p0Warnings.push(
-          'Paystack webhook never recorded — ensure Dashboard webhook URL is https://www.supplieradvisor.com/api/paystack/webhook (charge.success). Middleware must allow /webhook (public). Send a test payment or POST /api/system/paystack-webhook-ping with CRON_SECRET.'
+          `Paystack webhook pulse stale (ageHours=${paystackPulse.ageHours ?? '—'}, threshold=${paystackPulse.staleHoursThreshold ?? 72}) — check Paystack Dashboard delivery logs`
         );
-      } else {
+      } else if (
+        (paystackPulse.status === 'never' || !paystackPulse.lastAt) &&
+        process.env.PAYSTACK_WARN_NEVER === '1'
+      ) {
         p0Warnings.push(
-          `Paystack webhook pulse stale (ageHours=${paystackPulse.ageHours ?? '—'}, threshold=${paystackPulse.staleHoursThreshold ?? 72})`
+          'Paystack webhook never recorded — set Dashboard URL to /api/paystack/webhook and send a test charge (or POST /api/system/paystack-webhook-ping)'
         );
       }
     }
-    if (!checks.twilio_whatsapp.ok) {
+    // Twilio is optional (wa.me / email fallback). Only warn when explicitly required.
+    if (
+      !checks.twilio_whatsapp.ok &&
+      process.env.TWILIO_REQUIRED === '1'
+    ) {
       p0Warnings.push(
-        'Twilio WhatsApp incomplete — PDF delivery uses mobile share fallback'
+        'Twilio WhatsApp required but incomplete — set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM'
       );
     }
 
