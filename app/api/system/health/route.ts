@@ -107,21 +107,36 @@ export async function GET() {
       migrations: 'docs/OPS_MIGRATIONS.md',
     },
   };
-  const twilioOk = Boolean(
-    process.env.TWILIO_ACCOUNT_SID &&
-      process.env.TWILIO_AUTH_TOKEN &&
-      process.env.TWILIO_WHATSAPP_FROM
+  const twilioSid = Boolean(
+    process.env.TWILIO_ACCOUNT_SID || process.env.TWILIO_SID
   );
+  const twilioToken = Boolean(
+    process.env.TWILIO_AUTH_TOKEN || process.env.TWILIO_TOKEN
+  );
+  const twilioFrom = Boolean(
+    process.env.TWILIO_WHATSAPP_FROM ||
+      process.env.TWILIO_FROM ||
+      process.env.TWILIO_WHATSAPP_NUMBER
+  );
+  const twilioOk = twilioSid && twilioToken && twilioFrom;
   checks.twilio_whatsapp = {
     ok: twilioOk,
     error: twilioOk
       ? undefined
-      : 'Twilio WhatsApp not fully set (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM) — PDF documents fall back to mobile share / link',
+      : 'Twilio WhatsApp not fully set — claim/PDF WhatsApp soft-skips. Need TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN + TWILIO_WHATSAPP_FROM',
     detail: {
-      accountSid: Boolean(process.env.TWILIO_ACCOUNT_SID),
-      authToken: Boolean(process.env.TWILIO_AUTH_TOKEN),
-      from: Boolean(process.env.TWILIO_WHATSAPP_FROM),
-      ops: 'Vercel env: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM (whatsapp:+…). Enables real PDF document attach on WhatsApp PDF.',
+      accountSid: twilioSid,
+      authToken: twilioToken,
+      from: twilioFrom,
+      missing: [
+        !twilioSid ? 'TWILIO_ACCOUNT_SID' : null,
+        !twilioToken ? 'TWILIO_AUTH_TOKEN' : null,
+        !twilioFrom ? 'TWILIO_WHATSAPP_FROM' : null,
+      ].filter(Boolean),
+      setup: 'bash scripts/setup-twilio-env.sh  OR  Vercel → Env → add three vars → Redeploy',
+      smoke: 'GET/POST /api/system/twilio-smoke (CRON_SECRET)',
+      docs: 'docs/alerts-whatsapp.md',
+      sandboxFrom: 'whatsapp:+14155238886',
     },
   };
   checks.inventory_passport = {

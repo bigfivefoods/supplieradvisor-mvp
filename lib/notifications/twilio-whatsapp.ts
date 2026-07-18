@@ -1,21 +1,72 @@
 /**
  * Twilio WhatsApp alerts (optional).
- * Env:
- *   TWILIO_ACCOUNT_SID
- *   TWILIO_AUTH_TOKEN
- *   TWILIO_WHATSAPP_FROM  e.g. whatsapp:+14155238886 (sandbox) or approved sender
+ * Env (any alias works):
+ *   TWILIO_ACCOUNT_SID | TWILIO_SID
+ *   TWILIO_AUTH_TOKEN | TWILIO_TOKEN
+ *   TWILIO_WHATSAPP_FROM | TWILIO_FROM  e.g. whatsapp:+14155238886
  *   TWILIO_WHATSAPP_TO_DEFAULT optional fallback whatsapp:+27…
  *
  * Soft-fail if not configured.
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 
+export function getTwilioAccountSid(): string {
+  return String(
+    process.env.TWILIO_ACCOUNT_SID || process.env.TWILIO_SID || ''
+  ).trim();
+}
+
+export function getTwilioAuthToken(): string {
+  return String(
+    process.env.TWILIO_AUTH_TOKEN || process.env.TWILIO_TOKEN || ''
+  ).trim();
+}
+
+/** Ensures whatsapp:+… form for Twilio From / To */
+export function normalizeWhatsAppAddress(raw: string): string {
+  const t = String(raw || '').trim();
+  if (!t) return '';
+  if (t.startsWith('whatsapp:')) return t;
+  const digits = t.replace(/[^\d+]/g, '');
+  const e164 = digits.startsWith('+') ? digits : `+${digits}`;
+  return `whatsapp:${e164}`;
+}
+
+export function getTwilioWhatsAppFrom(): string {
+  const raw = String(
+    process.env.TWILIO_WHATSAPP_FROM ||
+      process.env.TWILIO_FROM ||
+      process.env.TWILIO_WHATSAPP_NUMBER ||
+      ''
+  ).trim();
+  return raw ? normalizeWhatsAppAddress(raw) : '';
+}
+
 export function isTwilioWhatsAppConfigured(): boolean {
   return Boolean(
-    process.env.TWILIO_ACCOUNT_SID &&
-      process.env.TWILIO_AUTH_TOKEN &&
-      process.env.TWILIO_WHATSAPP_FROM
+    getTwilioAccountSid() && getTwilioAuthToken() && getTwilioWhatsAppFrom()
   );
+}
+
+export function twilioConfigStatus(): {
+  configured: boolean;
+  accountSid: boolean;
+  authToken: boolean;
+  from: boolean;
+  fromPreview: string | null;
+  defaultTo: boolean;
+} {
+  const from = getTwilioWhatsAppFrom();
+  return {
+    configured: isTwilioWhatsAppConfigured(),
+    accountSid: Boolean(getTwilioAccountSid()),
+    authToken: Boolean(getTwilioAuthToken()),
+    from: Boolean(from),
+    fromPreview: from
+      ? `${from.slice(0, 14)}…${from.slice(-4)}`
+      : null,
+    defaultTo: Boolean(process.env.TWILIO_WHATSAPP_TO_DEFAULT),
+  };
 }
 
 function appBase() {
@@ -27,12 +78,7 @@ function appBase() {
 }
 
 function normalizeWhatsApp(to: string): string {
-  const t = to.trim();
-  if (t.startsWith('whatsapp:')) return t;
-  // digits only E.164
-  const digits = t.replace(/[^\d+]/g, '');
-  const e164 = digits.startsWith('+') ? digits : `+${digits}`;
-  return `whatsapp:${e164}`;
+  return normalizeWhatsAppAddress(to);
 }
 
 async function companyPhones(profileId: number): Promise<string[]> {
@@ -87,9 +133,9 @@ export async function sendWhatsApp(params: {
   if (!isTwilioWhatsAppConfigured()) {
     return { ok: false, sent: 0, error: 'Twilio WhatsApp not configured' };
   }
-  const sid = process.env.TWILIO_ACCOUNT_SID!;
-  const token = process.env.TWILIO_AUTH_TOKEN!;
-  const from = process.env.TWILIO_WHATSAPP_FROM!;
+  const sid = getTwilioAccountSid();
+  const token = getTwilioAuthToken();
+  const from = getTwilioWhatsAppFrom();
   const url = `https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`;
   const auth = Buffer.from(`${sid}:${token}`).toString('base64');
   const media =
@@ -102,7 +148,7 @@ export async function sendWhatsApp(params: {
   for (const raw of params.to.slice(0, 5)) {
     try {
       const body = new URLSearchParams({
-        From: from.startsWith('whatsapp:') ? from : `whatsapp:${from}`,
+        From: from,
         To: normalizeWhatsApp(raw),
         Body: params.body.slice(0, 1500),
       });
