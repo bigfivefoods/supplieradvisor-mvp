@@ -42,6 +42,8 @@ Auth: `Authorization: Bearer $CRON_SECRET`
 
 **Settle smoke (non-mutating):** `GET /api/system/settle-smoke` — claims + ledger + installments + proof_url / promise columns.
 
+**Next deploy runbook:** `docs/NEXT_DEPLOY_CHECKLIST.md` (SQL, storage, Twilio, dual-tenant E2E).
+
 **POP upload:** `POST /api/buyer/payment-proof` (multipart) → `proof_url` on claim.
 
 **AR ledger API:** `GET/POST /api/customers/ar-ledger` (requires `20260717_ar_ledger.sql`). Mark-paid also writes ledger rows when the table exists.

@@ -272,3 +272,69 @@ export async function whatsappBankSyncFailed(params: {
     console.warn('whatsappBankSyncFailed', e);
   }
 }
+
+/** Seller: buyer submitted a payment claim — confirm on Money hub. */
+export async function whatsappPaymentClaimToSeller(params: {
+  sellerProfileId: number;
+  invoiceId: number;
+  invoiceNumber?: string | null;
+  amount: number;
+  currency?: string | null;
+  reference?: string | null;
+}): Promise<void> {
+  if (!isTwilioWhatsAppConfigured()) return;
+  try {
+    const phones = await companyPhones(params.sellerProfileId);
+    if (!phones.length) return;
+    const ccy = (params.currency || 'ZAR').toUpperCase();
+    const amt = Number(params.amount).toLocaleString(undefined, {
+      maximumFractionDigits: 2,
+    });
+    const inv = params.invoiceNumber || `#${params.invoiceId}`;
+    const ref = params.reference ? ` ref ${params.reference}` : '';
+    const href = `${appBase()}/dashboard/customers/money`;
+    await sendWhatsApp({
+      to: phones,
+      body: `SupplierAdvisor: buyer claimed payment ${ccy} ${amt} on ${inv}${ref}. Confirm on Money hub: ${href}`,
+    });
+  } catch (e) {
+    console.warn('whatsappPaymentClaimToSeller', e);
+  }
+}
+
+/** Buyer: seller confirmed or rejected payment claim. */
+export async function whatsappPaymentClaimResolvedToBuyer(params: {
+  buyerProfileId: number;
+  invoiceId: number;
+  invoiceNumber?: string | null;
+  amount: number;
+  currency?: string | null;
+  outcome: 'confirmed' | 'rejected';
+  sellerName?: string | null;
+  sellerProfileId?: number | null;
+}): Promise<void> {
+  if (!isTwilioWhatsAppConfigured()) return;
+  try {
+    const phones = await companyPhones(params.buyerProfileId);
+    if (!phones.length) return;
+    const ccy = (params.currency || 'ZAR').toUpperCase();
+    const amt = Number(params.amount).toLocaleString(undefined, {
+      maximumFractionDigits: 2,
+    });
+    const inv = params.invoiceNumber || `#${params.invoiceId}`;
+    const seller = params.sellerName || 'Your supplier';
+    const ok = params.outcome === 'confirmed';
+    const moneyHref = `${appBase()}/dashboard/buyer/money`;
+    const rateHref = params.sellerProfileId
+      ? `${appBase()}/dashboard/suppliers/ratings?ratee=${params.sellerProfileId}`
+      : `${appBase()}/dashboard?ratePrompt=open`;
+    await sendWhatsApp({
+      to: phones,
+      body: ok
+        ? `SupplierAdvisor: ${seller} confirmed your payment (${ccy} ${amt}) on ${inv}. Rate them: ${rateHref}`
+        : `SupplierAdvisor: ${seller} did not accept your payment claim on ${inv} (${ccy} ${amt}). Check Money: ${moneyHref}`,
+    });
+  } catch (e) {
+    console.warn('whatsappPaymentClaimResolvedToBuyer', e);
+  }
+}

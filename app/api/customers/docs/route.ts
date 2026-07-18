@@ -333,7 +333,7 @@ export async function POST(request: NextRequest) {
       }
 
       const customer = await loadCustomer(supabase, customerId);
-      if (customerId && body.acknowledgeCredit !== true) {
+      if (customerId && body.forceCreditHold !== true) {
         try {
           const { checkCustomerCreditLimit } = await import(
             '@/lib/customers/credit-limit'
@@ -344,13 +344,29 @@ export async function POST(request: NextRequest) {
             additionalAmount: Number(totals.total_amount || 0),
           });
           if (!credit.ok) {
-            return NextResponse.json(
-              {
-                ...credit,
-                error: `Credit limit exceeded (limit ${credit.creditLimit}, projected ${credit.projected})`,
-              },
-              { status: 409 }
-            );
+            if (credit.code === 'CREDIT_HOLD') {
+              return NextResponse.json(
+                {
+                  error:
+                    'Customer is on credit hold. Clear hold on the customer profile before invoicing from PO.',
+                  code: 'CREDIT_HOLD',
+                  creditHold: true,
+                  overrideCount: credit.overrideCount,
+                },
+                { status: 409 }
+              );
+            }
+            if (body.acknowledgeCredit !== true && body.forceCredit !== true) {
+              return NextResponse.json(
+                {
+                  ...credit,
+                  error: `Credit limit exceeded (limit ${credit.creditLimit}, projected ${credit.projected})`,
+                  code: 'OVER_CREDIT_LIMIT',
+                  hint: 'Collect payment, raise limit, or resubmit with acknowledgeCredit: true',
+                },
+                { status: 409 }
+              );
+            }
           }
         } catch {
           /* soft */
@@ -775,6 +791,50 @@ export async function POST(request: NextRequest) {
       }
       const items = normalizeItems(order.items);
       const totals = calcDocTotals(items, Number(order.tax_rate ?? 15));
+      // Credit hold blocks convert → invoice (same as create)
+      const orderCustId = order.customer_id ? Number(order.customer_id) : 0;
+      if (orderCustId > 0 && body.forceCreditHold !== true) {
+        try {
+          const { checkCustomerCreditLimit, recordCreditOverride } =
+            await import('@/lib/customers/credit-limit');
+          const credit = await checkCustomerCreditLimit(supabase, {
+            companyId,
+            customerId: orderCustId,
+            additionalAmount: Number(totals.total_amount || 0),
+          });
+          if (!credit.ok) {
+            if (credit.code === 'CREDIT_HOLD') {
+              return NextResponse.json(
+                {
+                  error:
+                    'Customer is on credit hold. Clear hold before converting to invoice.',
+                  code: 'CREDIT_HOLD',
+                  creditHold: true,
+                },
+                { status: 409 }
+              );
+            }
+            const allow =
+              body.forceCredit === true || body.acknowledgeCredit === true;
+            if (!allow) {
+              return NextResponse.json(
+                {
+                  ...credit,
+                  error: `Credit limit exceeded (limit ${credit.creditLimit}, projected ${credit.projected})`,
+                  code: 'OVER_CREDIT_LIMIT',
+                },
+                { status: 409 }
+              );
+            }
+            await recordCreditOverride(supabase, {
+              companyId,
+              customerId: orderCustId,
+            });
+          }
+        } catch {
+          /* soft */
+        }
+      }
       const due = new Date();
       due.setDate(due.getDate() + 30);
       const invPayload = {

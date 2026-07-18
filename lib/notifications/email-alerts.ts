@@ -232,6 +232,21 @@ export async function notifyPaymentClaimResolvedToBuyer(params: {
       params.sellerProfileId
         ? `${appBase()}/dashboard/suppliers/ratings?ratee=${params.sellerProfileId}`
         : `${appBase()}/dashboard?ratePrompt=open`;
+    void import('@/lib/notifications/twilio-whatsapp')
+      .then(({ whatsappPaymentClaimResolvedToBuyer }) =>
+        whatsappPaymentClaimResolvedToBuyer({
+          buyerProfileId: params.buyerProfileId,
+          invoiceId: params.invoiceId,
+          invoiceNumber: params.invoiceNumber,
+          amount: params.amount,
+          currency: params.currency,
+          outcome: params.outcome,
+          sellerName: params.sellerName,
+          sellerProfileId: params.sellerProfileId,
+        })
+      )
+      .catch(() => undefined);
+
     await sendAlert({
       to,
       subject: ok
@@ -282,6 +297,19 @@ export async function notifyPaymentClaimToSeller(params: {
     const proof = params.proofUrl
       ? String(params.proofUrl).slice(0, 500)
       : '';
+    void import('@/lib/notifications/twilio-whatsapp')
+      .then(({ whatsappPaymentClaimToSeller }) =>
+        whatsappPaymentClaimToSeller({
+          sellerProfileId: params.sellerProfileId,
+          invoiceId: params.invoiceId,
+          invoiceNumber: params.invoiceNumber,
+          amount: params.amount,
+          currency: params.currency,
+          reference: params.reference,
+        })
+      )
+      .catch(() => undefined);
+
     await sendAlert({
       to,
       subject: `[SupplierAdvisor] Buyer payment claim — ${inv} · ${amt}`,

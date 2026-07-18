@@ -109,6 +109,24 @@ function Inner() {
   const [dunBusy, setDunBusy] = useState(false);
   const [bankSugs, setBankSugs] = useState<BankSug[]>([]);
   const [bankInvoiceId, setBankInvoiceId] = useState<number | null>(null);
+  const [dunningPreview, setDunningPreview] = useState<
+    Array<{
+      id: number;
+      invoice_number?: string | null;
+      customer_name?: string | null;
+      contact_email?: string | null;
+      balance: number;
+      currency?: string;
+      due_date?: string | null;
+      days_past_due?: number;
+      ladder_day?: number;
+      ladder_label?: string;
+      paused?: boolean;
+      already_sent_level?: boolean;
+      would_send?: boolean;
+    }>
+  >([]);
+  const [showDunPreview, setShowDunPreview] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -125,6 +143,19 @@ function Inner() {
       setHub(null);
     } finally {
       setLoading(false);
+    }
+  }, [companyId]);
+
+  const loadDunningPreview = useCallback(async () => {
+    try {
+      const res = await fetch(
+        `/api/customers/docs/dunning-preview?companyId=${companyId}`,
+        { cache: 'no-store' }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) setDunningPreview(data.preview || data.items || []);
+    } catch {
+      setDunningPreview([]);
     }
   }, [companyId]);
 
@@ -201,23 +232,71 @@ function Inner() {
     }
   };
 
+  const openDunningPreview = async () => {
+    setShowDunPreview(true);
+    await loadDunningPreview();
+  };
+
+  const dunningOne = async (
+    id: number,
+    action: 'dunning_send_now' | 'dunning_skip' | 'set_dunning_pause'
+  ) => {
+    try {
+      const res = await fetch('/api/customers/docs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          type: 'invoice',
+          id,
+          action,
+          pause: action === 'set_dunning_pause' ? true : undefined,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      toast.success(
+        action === 'dunning_send_now'
+          ? 'Dunning sent'
+          : action === 'set_dunning_pause'
+            ? 'Dunning paused'
+            : 'Level skipped'
+      );
+      void loadDunningPreview();
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    }
+  };
+
   const sendDunningNow = async () => {
-    const ids = hub?.dunningInvoiceIds || [];
-    if (!ids.length) {
-      toast.message('No overdue invoices for dunning');
+    // Prefer preview list (excludes paused / already-sent); fall back to hub ids
+    if (!showDunPreview || !dunningPreview.length) {
+      await openDunningPreview();
+      toast.message('Review dunning preview, then confirm send');
+      return;
+    }
+    const toSend = dunningPreview
+      .filter(
+        (p) =>
+          !p.paused && p.would_send === true && !p.already_sent_level
+      )
+      .slice(0, 8);
+    if (!toSend.length) {
+      toast.message('Nothing to send — all paused, already sent, or no email');
       return;
     }
     setDunBusy(true);
     let sent = 0;
     try {
-      for (const id of ids.slice(0, 8)) {
+      for (const row of toSend) {
         const res = await fetch('/api/customers/docs', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             companyId,
             type: 'invoice',
-            id,
+            id: row.id,
             action: 'dunning_send_now',
           }),
         });
@@ -225,6 +304,7 @@ function Inner() {
       }
       toast.success(`Dunning sent for ${sent} invoice(s)`);
       void load();
+      void loadDunningPreview();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Dunning failed');
     } finally {
@@ -256,6 +336,13 @@ function Inner() {
                 className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`}
               />
               Refresh
+            </button>
+            <button
+              type="button"
+              onClick={() => void openDunningPreview()}
+              className="btn-secondary !py-2 !px-3 text-sm"
+            >
+              Dunning preview
             </button>
             <button
               type="button"
@@ -366,6 +453,96 @@ function Inner() {
                   </li>
                 ))}
               </ul>
+            </section>
+          ) : null}
+
+          {showDunPreview ? (
+            <section className="rounded-2xl border border-orange-300 bg-orange-50/50 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                <p className="text-sm font-black text-orange-950">
+                  Dunning preview — who gets emailed next
+                </p>
+                <button
+                  type="button"
+                  className="text-[10px] font-bold underline text-orange-900"
+                  onClick={() => setShowDunPreview(false)}
+                >
+                  Hide
+                </button>
+              </div>
+              <p className="text-[11px] text-orange-900/80 mb-2 leading-relaxed">
+                Pause customers you should not blast. Send-now only hits non-paused
+                rows (max 8). Sample: gentle day 1 → firm day 7 → final day 14.
+              </p>
+              {dunningPreview.length === 0 ? (
+                <p className="text-xs text-neutral-500">
+                  No overdue candidates (or preview empty).
+                </p>
+              ) : (
+                <ul className="text-xs space-y-2 max-h-56 overflow-y-auto">
+                  {dunningPreview.slice(0, 15).map((p) => (
+                    <li
+                      key={p.id}
+                      className="flex flex-wrap items-center justify-between gap-2 bg-white rounded-xl border border-orange-100 px-3 py-2"
+                    >
+                      <span>
+                        <Link
+                          href={`/dashboard/customers/invoices?id=${p.id}`}
+                          className="font-bold underline text-orange-950"
+                        >
+                          {p.invoice_number || `#${p.id}`}
+                        </Link>
+                        {' · '}
+                        {p.customer_name || '—'}
+                        {p.ladder_day != null
+                          ? ` · day ${p.ladder_day} (${p.ladder_label || ''})`
+                          : ''}
+                        {p.days_past_due != null
+                          ? ` · ${p.days_past_due}d late`
+                          : ''}
+                        {p.balance != null
+                          ? ` · ${Number(p.balance).toLocaleString()} ${
+                              p.currency || ''
+                            }`
+                          : ''}
+                        {p.paused ? (
+                          <span className="ml-1 font-bold text-neutral-500">
+                            · paused
+                          </span>
+                        ) : null}
+                        {p.already_sent_level ? (
+                          <span className="ml-1 text-neutral-400">
+                            · already sent
+                          </span>
+                        ) : null}
+                        {!p.contact_email ? (
+                          <span className="ml-1 text-rose-700 font-bold">
+                            · no email
+                          </span>
+                        ) : null}
+                      </span>
+                      <span className="flex gap-1">
+                        <button
+                          type="button"
+                          className="rounded-full bg-orange-700 text-white px-2 py-0.5 text-[10px] font-bold"
+                          onClick={() => void dunningOne(p.id, 'dunning_send_now')}
+                        >
+                          Send
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-full border px-2 py-0.5 text-[10px] font-bold"
+                          onClick={() =>
+                            void dunningOne(p.id, 'set_dunning_pause')
+                          }
+                        >
+                          Pause
+                        </button>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </section>
           ) : null}
 

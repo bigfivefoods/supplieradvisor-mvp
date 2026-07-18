@@ -19,6 +19,8 @@ Both are **soft-fail** — missing config never breaks the primary API.
 | Ship blocked by QA hold | ✓ | ✓ |
 | Regulatory / recall pack export | ✓ | ✓ |
 | Bank sync failure | ✓ | ✓ |
+| Buyer payment claim (seller) | ✓ | ✓ |
+| Payment claim confirmed/rejected (buyer) | ✓ | ✓ |
 
 ## Recipients
 
