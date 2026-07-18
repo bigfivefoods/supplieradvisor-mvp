@@ -522,6 +522,7 @@ export async function loadBuyerMoneyHub(buyerCompanyId: number): Promise<{
     status: string;
     due_date: string | null;
     claimStatus: string | null;
+    rejectReason?: string | null;
     bank_name: string | null;
     bank_account: string | null;
     bank_branch: string | null;
