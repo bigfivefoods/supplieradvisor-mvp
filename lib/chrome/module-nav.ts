@@ -131,6 +131,11 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Book', href: '/dashboard/suppliers/network' },
       { name: 'Invite', href: '/dashboard/suppliers/invites' },
       { name: 'Order', href: '/dashboard/suppliers/po' },
+      {
+        name: 'Escrow',
+        href: '/dashboard/escrow',
+        desc: 'USDC / ETH PO escrow rails',
+      },
       { name: 'Score', href: '/dashboard/suppliers/performance' },
       { name: 'Rate', href: '/dashboard/suppliers/ratings' },
       { name: 'Report', href: '/dashboard/suppliers/report' },
@@ -153,7 +158,6 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Money', href: '/dashboard/customers/money' },
       { name: 'AR', href: '/dashboard/customers/ar' },
       { name: 'Settle', href: '/dashboard/settle' },
-      { name: 'Escrow', href: '/dashboard/escrow' },
       { name: 'Rate', href: '/dashboard/customers/ratings' },
       { name: 'Report', href: '/dashboard/customers/report' },
     ],
@@ -376,7 +380,8 @@ export function sidebarModulesFromNav() {
  * (e.g. Settle/Escrow command centres under Customers).
  */
 const EXTRA_LIFECYCLE_PREFIXES: Record<string, readonly string[]> = {
-  customers: ['/dashboard/settle', '/dashboard/escrow'],
+  customers: ['/dashboard/settle'],
+  suppliers: ['/dashboard/escrow'],
   network: ['/dashboard/invite-business'],
 };
 

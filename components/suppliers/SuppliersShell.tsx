@@ -16,6 +16,7 @@ export const SUPPLIERS_NAV: readonly NavItem[] = [
   { href: '/dashboard/suppliers/add', label: 'Add' },
   { href: '/dashboard/suppliers/invites', label: 'Invites' },
   { href: '/dashboard/suppliers/po', label: 'POs' },
+  { href: '/dashboard/escrow', label: 'Escrow' },
   { href: '/dashboard/suppliers/performance', label: 'OTIFEF' },
   { href: '/dashboard/suppliers/ratings', label: 'Ratings' },
   { href: '/dashboard/suppliers/report', label: 'Report' },
@@ -39,11 +40,14 @@ export function SuppliersHeader({
   description,
   action,
   titleAccent,
+  showNav = false,
 }: {
   title: string;
   description?: string;
   action?: React.ReactNode;
   titleAccent?: string;
+  /** Secondary pill nav (POs / Escrow…). Process rail covers the rest. */
+  showNav?: boolean;
 }) {
   return (
     <RelationshipHeader
@@ -54,6 +58,7 @@ export function SuppliersHeader({
       titleAccent={titleAccent}
       description={description}
       action={action}
+      nav={showNav ? <SuppliersNav /> : undefined}
     />
   );
 }

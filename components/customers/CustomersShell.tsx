@@ -20,7 +20,6 @@ export const CUSTOMERS_NAV: readonly NavItem[] = [
   { href: '/dashboard/customers/money', label: 'Money' },
   { href: '/dashboard/customers/ar', label: 'AR aging' },
   { href: '/dashboard/settle', label: 'Settle' },
-  { href: '/dashboard/escrow', label: 'Escrow' },
   { href: '/dashboard/customers/loyalty', label: 'Loyalty' },
   { href: '/dashboard/customers/claims', label: 'Claims' },
   { href: '/dashboard/customers/contracts', label: 'Contracts' },

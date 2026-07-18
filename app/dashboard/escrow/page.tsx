@@ -17,9 +17,9 @@ import {
 } from '@/lib/contracts/escrow';
 import {
   CompanyRequired,
-  CustomersHeader,
-  CustomersPage,
-} from '@/components/customers/CustomersShell';
+  SuppliersHeader,
+  SuppliersPage,
+} from '@/components/suppliers/SuppliersShell';
 
 export default function EscrowHubPage() {
   return (
@@ -38,12 +38,12 @@ function EscrowInner() {
   const ethAddr = getPoEscrowAddress();
 
   return (
-    <CustomersPage>
-      <CustomersHeader
+    <SuppliersPage>
+      <SuppliersHeader
         title="On-chain"
         titleAccent="Escrow"
         showNav
-        description="Prefer fiat settle via Money hub (claims + AR ledger). Use USDC on Base when counterparties need programmable release after ship/confirm."
+        description="PO escrow lives next to purchase orders. Prefer fiat Money hub for claims; use USDC on Base when counterparties need programmable release after ship/confirm."
       />
 
       <div className="max-w-3xl">
