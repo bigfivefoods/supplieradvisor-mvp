@@ -76,6 +76,7 @@ export async function POST(request: NextRequest) {
       actorUserId: gate.userId,
       amountOverride:
         body.amount != null ? Number(body.amount) : undefined,
+      rejectReason: body.rejectReason || body.reason || null,
     });
 
     if (!result.ok) {

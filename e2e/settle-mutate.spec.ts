@@ -178,6 +178,18 @@ test.describe('Settle mutate golden path', () => {
     }
   });
 
+  test('statement pack + bank-suggest-claim auth', async ({ request }) => {
+    const pack = await request.get(
+      `${base}/api/customers/ar-statement?companyId=${companyId}&format=pack`,
+      { headers: headers() }
+    );
+    expect(pack.status()).not.toBe(401);
+    if (pack.status() === 200) {
+      const j = await pack.json();
+      expect(j.pack === undefined || Array.isArray(j.pack?.customers)).toBeTruthy();
+    }
+  });
+
   test('settle funnel + network density', async ({ request }) => {
     const funnel = await request.get(
       `${base}/api/business/settle-funnel?companyId=${companyId}`,

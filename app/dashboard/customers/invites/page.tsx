@@ -9,6 +9,7 @@ import {
   Ban,
   UserPlus,
   Clock,
+  Rocket,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePrivy } from '@privy-io/react-auth';
@@ -441,6 +442,68 @@ function InvitesInner() {
                               <Ban className="w-4 h-4" />
                             </button>
                           )}
+                          <button
+                            type="button"
+                            disabled={busy}
+                            title="Start first trade (draft invoice)"
+                            className="p-2 inline-flex rounded-xl hover:bg-emerald-50 text-emerald-800 disabled:opacity-50"
+                            onClick={() => {
+                              void (async () => {
+                                try {
+                                  const res = await fetch(
+                                    '/api/business/invite-first-trade',
+                                    {
+                                      method: 'POST',
+                                      headers: {
+                                        'Content-Type': 'application/json',
+                                      },
+                                      body: JSON.stringify({
+                                        companyId,
+                                        privyUserId,
+                                        customerName:
+                                          inv.customer_name ||
+                                          inv.full_name ||
+                                          undefined,
+                                        customerEmail: inv.email || undefined,
+                                      }),
+                                    }
+                                  );
+                                  const data = await res
+                                    .json()
+                                    .catch(() => ({}));
+                                  if (!res.ok)
+                                    throw new Error(
+                                      data.error || data.message || 'Failed'
+                                    );
+                                  toast.success(
+                                    data.message || 'First-trade draft ready',
+                                    {
+                                      action: data.nextHref
+                                        ? {
+                                            label: 'Open invoice',
+                                            onClick: () => {
+                                              window.location.href =
+                                                data.nextHref;
+                                            },
+                                          }
+                                        : undefined,
+                                    }
+                                  );
+                                  if (data.nextHref) {
+                                    window.setTimeout(() => {
+                                      window.location.href = data.nextHref;
+                                    }, 800);
+                                  }
+                                } catch (e: unknown) {
+                                  toast.error(
+                                    e instanceof Error ? e.message : 'Failed'
+                                  );
+                                }
+                              })();
+                            }}
+                          >
+                            <Rocket className="w-4 h-4" />
+                          </button>
                           <Link
                             href={`/dashboard/customers/onboard?id=${inv.customer_id}`}
                             className="p-2 inline-flex rounded-xl hover:bg-neutral-100 text-neutral-600 text-xs font-medium px-2"

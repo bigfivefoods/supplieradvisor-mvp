@@ -444,6 +444,29 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    let shareChecklist: unknown = null;
+    if (type === 'invoice') {
+      try {
+        const { ensureInvoiceSharedForBuyer } = await import(
+          '@/lib/customers/share-checklist'
+        );
+        shareChecklist = await ensureInvoiceSharedForBuyer({
+          companyId,
+          invoiceId: id,
+          actorUserId: gate.userId || 'seller',
+        });
+        if (
+          shareChecklist &&
+          typeof shareChecklist === 'object' &&
+          (shareChecklist as { ok?: boolean }).ok
+        ) {
+          invoiceShared = true;
+        }
+      } catch {
+        shareChecklist = null;
+      }
+    }
+
     return NextResponse.json({
       success: true,
       emailId: sent?.id,
@@ -455,6 +478,7 @@ export async function POST(request: NextRequest) {
       format: 'pdf',
       pdfUrl: pdfLink,
       invoiceShared: type === 'invoice' ? invoiceShared : undefined,
+      shareChecklist,
       statusPromoted:
         type === 'invoice' &&
         ['draft', '', 'open'].includes(String(doc.status || '').toLowerCase())

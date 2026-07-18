@@ -269,6 +269,7 @@ export async function resolvePaymentClaim(opts: {
   action: 'confirm' | 'reject';
   actorUserId: string;
   amountOverride?: number;
+  rejectReason?: string | null;
 }): Promise<
   | {
       ok: true;
@@ -307,16 +308,37 @@ export async function resolvePaymentClaim(opts: {
   const now = new Date().toISOString();
 
   if (opts.action === 'reject') {
-    const { data: updated, error: uErr } = await supabase
+    const reason = String(opts.rejectReason || '').trim().slice(0, 500);
+    const notesExtra = reason
+      ? `${claim.notes ? String(claim.notes) + '\n' : ''}[reject reason] ${reason}`
+      : claim.notes;
+    const updatePayload: Record<string, unknown> = {
+      status: 'rejected',
+      resolved_at: now,
+      resolved_by: opts.actorUserId,
+    };
+    if (notesExtra != null) updatePayload.notes = notesExtra;
+
+    let { data: updated, error: uErr } = await supabase
       .from('customer_payment_claims')
-      .update({
-        status: 'rejected',
-        resolved_at: now,
-        resolved_by: opts.actorUserId,
-      })
+      .update(updatePayload)
       .eq('id', opts.claimId)
       .select('*')
       .maybeSingle();
+    if (uErr && /notes|column/i.test(uErr.message || '')) {
+      const retry = await supabase
+        .from('customer_payment_claims')
+        .update({
+          status: 'rejected',
+          resolved_at: now,
+          resolved_by: opts.actorUserId,
+        })
+        .eq('id', opts.claimId)
+        .select('*')
+        .maybeSingle();
+      updated = retry.data;
+      uErr = retry.error;
+    }
     if (uErr) return { ok: false, error: uErr.message, status: 500 };
     try {
       await supabase.from('activity_log').insert({
@@ -325,7 +347,10 @@ export async function resolvePaymentClaim(opts: {
         action: 'ar.payment_claim_rejected',
         entity_type: 'customer_payment_claims',
         entity_id: String(opts.claimId),
-        summary: `Rejected payment claim #${opts.claimId}`,
+        summary: reason
+          ? `Rejected claim #${opts.claimId}: ${reason.slice(0, 80)}`
+          : `Rejected payment claim #${opts.claimId}`,
+        metadata: { reason: reason || null },
       });
     } catch {
       /* soft */

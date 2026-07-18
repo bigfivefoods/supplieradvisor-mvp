@@ -21,6 +21,9 @@ import {
   CustomersPage,
 } from '@/components/customers/CustomersShell';
 import SettleFunnelStrip from '@/components/dashboard/SettleFunnelStrip';
+import ClaimDecisionDrawer, {
+  type ClaimRow,
+} from '@/components/customers/ClaimDecisionDrawer';
 
 type Hub = {
   openAr: number;
@@ -132,6 +135,20 @@ function Inner() {
     }>
   >([]);
   const [showDunPreview, setShowDunPreview] = useState(false);
+  const [claimDrawer, setClaimDrawer] = useState<ClaimRow | null>(null);
+  const [statementPack, setStatementPack] = useState<{
+    customers: Array<{
+      customerId: number;
+      customerName: string;
+      openBalance: number;
+      openInvoiceCount: number;
+      currency: string;
+      pdfHref: string;
+    }>;
+    totalOpen: number;
+    customerCount: number;
+  } | null>(null);
+  const [stmtBusy, setStmtBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -168,42 +185,24 @@ function Inner() {
     void load();
   }, [load]);
 
-  const resolveClaim = async (
-    claimId: number,
-    action: 'confirm' | 'reject'
-  ) => {
-    setClaimBusy(claimId);
+  const loadStatementPack = async () => {
+    setStmtBusy(true);
     try {
-      const res = await fetch('/api/customers/payment-claims', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ companyId, claimId, action }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'Failed');
-      toast.success(
-        action === 'confirm'
-          ? data.bankAutoApplied?.ok
-            ? 'Ledger posted + bank line linked'
-            : 'Posted to AR ledger'
-          : 'Claim rejected — buyer notified',
-        {
-          description: data.bankMatchHint || undefined,
-        }
+      const res = await fetch(
+        `/api/customers/ar-statement?companyId=${companyId}&format=pack`,
+        { cache: 'no-store' }
       );
-      if (
-        action === 'confirm' &&
-        Array.isArray(data.bankSuggestions) &&
-        data.bankSuggestions.length
-      ) {
-        setBankSugs(data.bankSuggestions as BankSug[]);
-        setBankInvoiceId(Number(data.claim?.invoice_id) || null);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      setStatementPack(data.pack || null);
+      if (!(data.pack?.customers || []).length) {
+        toast.message('No open-AR customers for statements');
       }
-      void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed');
+      setStatementPack(null);
     } finally {
-      setClaimBusy(null);
+      setStmtBusy(false);
     }
   };
 
@@ -364,72 +363,11 @@ function Inner() {
             </button>
             <button
               type="button"
+              disabled={stmtBusy}
               className="btn-secondary !py-2 !px-3 text-sm"
-              onClick={() => {
-                void (async () => {
-                  try {
-                    const res = await fetch(
-                      `/api/customers/ar-statement?companyId=${companyId}&format=pack`,
-                      { cache: 'no-store' }
-                    );
-                    const data = await res.json();
-                    if (!res.ok) throw new Error(data.error || 'Failed');
-                    const pack = data.pack;
-                    const n = pack?.customerCount || 0;
-                    if (!n) {
-                      toast.message('No open-AR customers for statements');
-                      return;
-                    }
-                    toast.success(
-                      `Statement pack: ${n} customer(s) · open ${Number(
-                        pack.totalOpen || 0
-                      ).toLocaleString()}`,
-                      {
-                        description: 'Open PDF per customer or email pack',
-                        action: {
-                          label: 'Email all',
-                          onClick: () => {
-                            void (async () => {
-                              const r = await fetch(
-                                '/api/customers/ar-statement',
-                                {
-                                  method: 'POST',
-                                  headers: {
-                                    'Content-Type': 'application/json',
-                                  },
-                                  body: JSON.stringify({
-                                    companyId,
-                                    action: 'email_pack',
-                                  }),
-                                }
-                              );
-                              const j = await r.json().catch(() => ({}));
-                              if (!r.ok)
-                                throw new Error(j.error || 'Email pack failed');
-                              toast.success(
-                                `Emailed ${j.emailed}/${j.attempted} statements`
-                              );
-                            })().catch((e: unknown) =>
-                              toast.error(
-                                e instanceof Error ? e.message : 'Failed'
-                              )
-                            );
-                          },
-                        },
-                      }
-                    );
-                    // Open first PDF as sample
-                    const first = pack.customers?.[0];
-                    if (first?.pdfHref) {
-                      window.open(first.pdfHref, '_blank');
-                    }
-                  } catch (e: unknown) {
-                    toast.error(e instanceof Error ? e.message : 'Failed');
-                  }
-                })();
-              }}
+              onClick={() => void loadStatementPack()}
             >
-              Statement pack
+              {stmtBusy ? 'Loading…' : 'Statement pack'}
             </button>
             <Link
               href="/dashboard/customers/ar"
@@ -730,15 +668,99 @@ function Inner() {
             </section>
           ) : null}
 
+          {statementPack && statementPack.customers?.length > 0 ? (
+            <section className="rounded-2xl border border-sky-200 bg-sky-50/40 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                <p className="text-sm font-black text-sky-950">
+                  Statement pack · {statementPack.customerCount} customer(s) · open{' '}
+                  {Number(statementPack.totalOpen || 0).toLocaleString()}
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    className="text-[10px] font-bold rounded-full bg-sky-700 text-white px-2.5 py-1"
+                    onClick={() => {
+                      void (async () => {
+                        try {
+                          const r = await fetch('/api/customers/ar-statement', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              companyId,
+                              action: 'email_pack',
+                            }),
+                          });
+                          const j = await r.json().catch(() => ({}));
+                          if (!r.ok) throw new Error(j.error || 'Failed');
+                          toast.success(
+                            `Emailed ${j.emailed}/${j.attempted} statements`
+                          );
+                        } catch (e: unknown) {
+                          toast.error(
+                            e instanceof Error ? e.message : 'Failed'
+                          );
+                        }
+                      })();
+                    }}
+                  >
+                    Email all
+                  </button>
+                  <button
+                    type="button"
+                    className="text-[10px] font-bold underline text-sky-900"
+                    onClick={() => setStatementPack(null)}
+                  >
+                    Hide
+                  </button>
+                </div>
+              </div>
+              <div className="overflow-x-auto max-h-56 overflow-y-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-left text-neutral-500 border-b">
+                      <th className="py-1.5 pr-2">Customer</th>
+                      <th className="py-1.5 pr-2">Open</th>
+                      <th className="py-1.5 pr-2">Invs</th>
+                      <th className="py-1.5">PDF</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {statementPack.customers.map((c) => (
+                      <tr key={c.customerId} className="border-b border-sky-100">
+                        <td className="py-1.5 pr-2 font-semibold">
+                          {c.customerName}
+                        </td>
+                        <td className="py-1.5 pr-2 tabular-nums">
+                          {c.openBalance.toLocaleString()} {c.currency}
+                        </td>
+                        <td className="py-1.5 pr-2">{c.openInvoiceCount}</td>
+                        <td className="py-1.5">
+                          <a
+                            href={c.pdfHref}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-bold text-[#0077b6] underline"
+                          >
+                            Open
+                          </a>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ) : null}
+
           {hub.pendingClaims > 0 ? (
             <section className="rounded-2xl border border-teal-300 bg-teal-50/50 p-4">
               <p className="text-sm font-black text-teal-950 mb-1 flex items-center gap-2">
                 <Banknote className="w-4 h-4" />
-                Claim inbox — confirm to post ledger
+                Claim inbox — open to decide
               </p>
               <p className="text-[11px] text-teal-900/80 mb-2">
-                Sorted by age. SLA {Number(process.env.NEXT_PUBLIC_CLAIM_SLA_HOURS || 24)}h —
-                confirm posts AR; high-confidence bank lines auto-link.
+                Sorted by age. Open a claim for POP preview, bank match, confirm or
+                reject with reason.
               </p>
               <ul className="space-y-2">
                 {hub.claims.map((c) => (
@@ -767,48 +789,31 @@ function Inner() {
                       {' · '}
                       {c.invoice_number || `inv #${c.invoice_id}`}
                       {c.customer_name ? ` · ${c.customer_name}` : ''}
-                      {c.reference ? ` · ref ${c.reference}` : ''}
                       {c.proof_url ? (
-                        <>
-                          {' · '}
-                          <a
-                            href={String(c.proof_url)}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="font-bold text-teal-800 underline"
-                          >
-                            View POP
-                          </a>
-                        </>
-                      ) : null}
-                      {c.notes ? (
-                        <span className="block text-neutral-500 mt-0.5 truncate max-w-xs">
-                          {String(c.notes).slice(0, 120)}
-                        </span>
+                        <span className="ml-1 text-teal-800 font-bold">· POP</span>
                       ) : null}
                     </span>
-                    <span className="flex gap-1">
-                      <button
-                        type="button"
-                        disabled={claimBusy === c.id}
-                        onClick={() => void resolveClaim(c.id, 'confirm')}
-                        className="rounded-full bg-teal-700 text-white px-2.5 py-1 text-[10px] font-bold"
-                      >
-                        Confirm
-                      </button>
-                      <button
-                        type="button"
-                        disabled={claimBusy === c.id}
-                        onClick={() => void resolveClaim(c.id, 'reject')}
-                        className="rounded-full border px-2.5 py-1 text-[10px] font-bold"
-                      >
-                        Reject
-                      </button>
-                    </span>
+                    <button
+                      type="button"
+                      disabled={claimBusy === c.id}
+                      onClick={() => setClaimDrawer(c as ClaimRow)}
+                      className="rounded-full bg-teal-700 text-white px-3 py-1 text-[10px] font-bold"
+                    >
+                      Review
+                    </button>
                   </li>
                 ))}
               </ul>
             </section>
+          ) : null}
+
+          {claimDrawer ? (
+            <ClaimDecisionDrawer
+              companyId={companyId}
+              claim={claimDrawer}
+              onClose={() => setClaimDrawer(null)}
+              onResolved={() => void load()}
+            />
           ) : null}
 
           <section className="rounded-2xl border border-neutral-200 bg-white overflow-hidden">

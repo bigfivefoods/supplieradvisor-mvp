@@ -1457,11 +1457,20 @@ function DocInner({
         if (data.bankVerified) bits.push('bank AVS');
         const stamp = bits.length ? ` · ${bits.join(', ')} on document` : '';
         if (type === 'invoice' && data.statusPromoted === 'sent') {
+          const sc = data.shareChecklist as
+            | { checks?: Array<{ id: string; ok: boolean; detail: string }> }
+            | undefined;
+          const checkBits = (sc?.checks || [])
+            .map((c) => `${c.ok ? '✓' : '✗'} ${c.detail}`)
+            .slice(0, 3)
+            .join(' · ');
           toast.message('Invoice status → sent', {
-            description: data.invoiceShared
-              ? 'Shared with buyer · PDF emailed'
-              : 'PDF emailed — share with buyer if they use SupplierAdvisor',
-            duration: 6000,
+            description:
+              checkBits ||
+              (data.invoiceShared
+                ? 'Shared with buyer · PDF emailed'
+                : 'PDF emailed — share with buyer if they use SupplierAdvisor'),
+            duration: 8000,
           });
         }
         toast.success(
