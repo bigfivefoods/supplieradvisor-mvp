@@ -33,10 +33,10 @@ export function middleware(request: NextRequest) {
     if (pathname === '/api/sam/chat' && request.method === 'GET') {
       return response;
     }
-    // Cron / webhooks use their own secrets
+    // Cron / provider webhooks use their own secrets (Paystack path is /webhook singular)
     if (
       pathname.includes('/cron') ||
-      pathname.includes('/webhooks/') ||
+      pathname.includes('/webhook') ||
       request.headers.get('x-cron-secret')
     ) {
       return response;

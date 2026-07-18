@@ -57,12 +57,14 @@ async function run(request: NextRequest) {
       process.env.PAYSTACK_SECRET_KEY || process.env.PAYSTACK_SECRET
     );
     const pulse = await loadPaystackWebhookPulse();
+    // Never-seen is a config warning (status=never), not an infinite "broken" firehose
+    // once secret is set — still alert until first webhook lands.
     const stale =
       force ||
       !secretOk ||
-      pulse.stale ||
+      pulse.status === 'stale' ||
       (pulse.ageHours != null && pulse.ageHours >= threshold) ||
-      (!pulse.lastAt && secretOk);
+      (pulse.status === 'never' && secretOk);
 
     // ── Dead-letter auto-replay + SLA breach scan ──────────────────────────
     const deadLetter: Array<{

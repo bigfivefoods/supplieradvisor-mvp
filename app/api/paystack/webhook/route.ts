@@ -3,15 +3,18 @@ import { createHmac, timingSafeEqual } from 'crypto';
 import { getPaystackSecretKey } from '@/lib/billing/paystack';
 import { clawbackReferralForSourceRef } from '@/lib/billing/referral-controls';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
+import { recordPaystackWebhookPulse } from '@/lib/system/paystack-pulse';
 
 export const runtime = 'nodejs';
 
 /**
  * POST /api/paystack/webhook
- * Verify Paystack signature; on charge.refund / refund.processed claw back referral fees.
+ * Verify Paystack signature; on charge.success run CIPC; always record pulse.
  *
  * Configure in Paystack Dashboard → Settings → Webhooks:
  *   https://www.supplieradvisor.com/api/paystack/webhook
+ *
+ * Must stay public (no Privy) — middleware allows paths containing /webhook.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -43,19 +46,33 @@ export async function POST(request: NextRequest) {
     const eventName = String(event.event || '').toLowerCase();
     const data = event.data || {};
 
-    // Refund / reverse paths from Paystack
-    const isRefund =
-      eventName.includes('refund') ||
-      eventName === 'charge.dispute.create' ||
-      (eventName === 'charge.success' &&
-        String(data.status || '').toLowerCase() === 'reversed');
-
     const reference = String(
       data.reference ||
         data.transaction_reference ||
         (data.transaction as { reference?: string } | undefined)?.reference ||
         ''
     ).trim();
+
+    // Heartbeat: every accepted webhook updates ops pulse (even ignored events)
+    void recordPaystackWebhookPulse({
+      event: eventName || 'unknown',
+      reference: reference || null,
+      handled: 'received',
+      summary: `Paystack webhook received: ${eventName || 'unknown'}`,
+      action: 'billing.paystack_webhook_received',
+      metadata: {
+        status: data.status != null ? String(data.status) : null,
+        amount: data.amount != null ? Number(data.amount) : null,
+        currency: data.currency != null ? String(data.currency) : null,
+      },
+    });
+
+    // Refund / reverse paths from Paystack
+    const isRefund =
+      eventName.includes('refund') ||
+      eventName === 'charge.dispute.create' ||
+      (eventName === 'charge.success' &&
+        String(data.status || '').toLowerCase() === 'reversed');
 
     if (isRefund && reference) {
       const claw = await clawbackReferralForSourceRef({
@@ -64,18 +81,27 @@ export async function POST(request: NextRequest) {
         actorUserId: 'paystack:webhook',
       });
 
+      void recordPaystackWebhookPulse({
+        event: eventName,
+        reference,
+        handled: 'referral_clawback',
+        action: 'billing.paystack_refund_webhook',
+        summary: `Refund webhook ${eventName}: voided ${claw.voided}, clawbacks ${claw.clawbacksOpened}`,
+        metadata: { claw },
+      });
+
       try {
         const supabase = getSupabaseServer();
-        await supabase.from('audit_activity').insert({
+        await supabase.from('activity_log').insert({
+          actor_user_id: 'paystack:webhook',
           action: 'billing.paystack_refund_webhook',
           entity_type: 'paystack',
           entity_id: reference,
           summary: `Refund webhook ${eventName}: voided ${claw.voided}, clawbacks ${claw.clawbacksOpened}`,
-          metadata: { event: eventName, claw, data },
-          created_at: new Date().toISOString(),
+          metadata: { event: eventName, claw, reference },
         });
       } catch {
-        /* audit table optional */
+        /* soft */
       }
 
       return NextResponse.json({
@@ -87,11 +113,6 @@ export async function POST(request: NextRequest) {
     }
 
     // R69 CIPC company verification — run even if browser closed after Paystack
-    const isChargeSuccess =
-      eventName === 'charge.success' ||
-      (eventName === 'charge.success' &&
-        String(data.status || '').toLowerCase() === 'success');
-
     if (
       (eventName === 'charge.success' || String(data.status || '') === 'success') &&
       reference
@@ -115,6 +136,14 @@ export async function POST(request: NextRequest) {
               expectedCurrency: 'ZAR',
             });
             if (!v.ok && process.env.NODE_ENV === 'production') {
+              void recordPaystackWebhookPulse({
+                event: eventName,
+                reference,
+                companyId,
+                handled: 'cipc_verify_skipped',
+                action: 'billing.paystack_cipc_webhook',
+                summary: `CIPC skipped: ${v.error}`,
+              });
               return NextResponse.json({
                 received: true,
                 handled: 'cipc_verify_skipped',
@@ -132,6 +161,16 @@ export async function POST(request: NextRequest) {
             paystackReference: reference,
             actorUserId: 'paystack:webhook',
             source: 'paystack_webhook',
+          });
+
+          void recordPaystackWebhookPulse({
+            event: eventName,
+            reference,
+            companyId,
+            handled: 'cipc_after_payment',
+            action: 'billing.paystack_cipc_webhook',
+            summary: `Paystack charge.success → CIPC ${result.status}: ${result.message}`,
+            metadata: { result },
           });
 
           try {
@@ -155,13 +194,17 @@ export async function POST(request: NextRequest) {
             reference,
             companyId,
             cipc: result,
-            isChargeSuccess,
           });
         }
       }
     }
 
-    return NextResponse.json({ received: true, handled: 'ignored', event: eventName });
+    return NextResponse.json({
+      received: true,
+      handled: 'ignored',
+      event: eventName,
+      pulse: true,
+    });
   } catch (e: unknown) {
     console.error('Paystack webhook error:', e);
     return NextResponse.json(
@@ -169,4 +212,17 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+/** GET — Paystack dashboard "Test webhook" / ops probe without signature */
+export async function GET() {
+  return NextResponse.json({
+    ok: true,
+    service: 'paystack-webhook',
+    path: '/api/paystack/webhook',
+    configure:
+      'Paystack Dashboard → Settings → Webhooks → https://www.supplieradvisor.com/api/paystack/webhook',
+    events: ['charge.success', 'refund.*'],
+    public: true,
+  });
 }

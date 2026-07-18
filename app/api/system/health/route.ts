@@ -296,9 +296,15 @@ export async function GET() {
       p0Warnings.push('VERIFYNOW_API_KEY not set — CIPC match soft-fails');
     }
     if (paystackPulse?.stale && checks.paystack.ok) {
-      p0Warnings.push(
-        `Paystack webhook pulse stale (ageHours=${paystackPulse.ageHours ?? '—'})`
-      );
+      if (paystackPulse.status === 'never' || !paystackPulse.lastAt) {
+        p0Warnings.push(
+          'Paystack webhook never recorded — ensure Dashboard webhook URL is https://www.supplieradvisor.com/api/paystack/webhook (charge.success). Middleware must allow /webhook (public). Send a test payment or POST /api/system/paystack-webhook-ping with CRON_SECRET.'
+        );
+      } else {
+        p0Warnings.push(
+          `Paystack webhook pulse stale (ageHours=${paystackPulse.ageHours ?? '—'}, threshold=${paystackPulse.staleHoursThreshold ?? 72})`
+        );
+      }
     }
     if (!checks.twilio_whatsapp.ok) {
       p0Warnings.push(

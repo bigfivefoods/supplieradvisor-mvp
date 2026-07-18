@@ -10,6 +10,7 @@ export const PUBLIC_API_PREFIXES = [
   '/api/system/settle-smoke',
   '/api/invites/validate',
   '/api/banking/webhooks/',
+  '/api/paystack/webhook',
   '/api/inventory/products/public',
   '/api/geo',
   // join claim/profile are under /api/public/ already
@@ -23,12 +24,15 @@ const PUBLIC_EXACT = new Set([
   '/api/system/settle-smoke',
   '/api/fx/rates',
   '/api/invites/validate',
+  '/api/paystack/webhook',
 ]);
 
 export function isPublicApiPath(pathname: string): boolean {
   const p = pathname.split('?')[0] || pathname;
   if (PUBLIC_EXACT.has(p)) return true;
   if (p === '/api/geo' || p.startsWith('/api/geo/')) return true;
+  // Provider webhooks (Paystack, banking, etc.) — never require Privy
+  if (p.includes('/webhook')) return true;
   return PUBLIC_API_PREFIXES.some(
     (prefix) => p === prefix.replace(/\/$/, '') || p.startsWith(prefix)
   );
