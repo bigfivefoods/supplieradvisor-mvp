@@ -95,31 +95,110 @@ export async function GET(request: NextRequest) {
     type BucketKey = 'current' | 'd1_30' | 'd31_60' | 'd61_90' | 'd90_plus';
     const buckets: Record<
       BucketKey,
-      { count: number; amount: number; invoices: Array<Record<string, unknown>> }
+      {
+        count: number;
+        amount: number;
+        amountBase: number;
+        invoices: Array<Record<string, unknown>>;
+      }
     > = {
-      current: { count: 0, amount: 0, invoices: [] },
-      d1_30: { count: 0, amount: 0, invoices: [] },
-      d31_60: { count: 0, amount: 0, invoices: [] },
-      d61_90: { count: 0, amount: 0, invoices: [] },
-      d90_plus: { count: 0, amount: 0, invoices: [] },
+      current: { count: 0, amount: 0, amountBase: 0, invoices: [] },
+      d1_30: { count: 0, amount: 0, amountBase: 0, invoices: [] },
+      d31_60: { count: 0, amount: 0, amountBase: 0, invoices: [] },
+      d61_90: { count: 0, amount: 0, amountBase: 0, invoices: [] },
+      d90_plus: { count: 0, amount: 0, amountBase: 0, invoices: [] },
     };
 
     let openTotal = 0;
+    let openTotalBase: number | null = 0;
     let partialCount = 0;
     let overdueCount = 0;
     let brokenPromiseCount = 0;
     const todayIso = today.toISOString().slice(0, 10);
 
+    // FX rates for multi-currency base rollup (company primary_currency)
+    let baseCurrency = 'ZAR';
+    let ratesUsd: Record<string, number> = {
+      ZAR: 18.5,
+      USD: 1,
+      EUR: 0.92,
+      GBP: 0.79,
+    };
+    let convertAmountFn: typeof import('@/lib/fx/types').convertAmount | null =
+      null;
+    try {
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('primary_currency')
+        .eq('id', companyId)
+        .maybeSingle();
+      baseCurrency = String(prof?.primary_currency || 'ZAR').toUpperCase();
+      const fxRes = await fetch(
+        'https://api.frankfurter.dev/v1/latest?base=USD',
+        { next: { revalidate: 900 } }
+      ).catch(() => null);
+      if (fxRes?.ok) {
+        const fxJson = (await fxRes.json()) as {
+          rates?: Record<string, number>;
+        };
+        ratesUsd = { USD: 1 };
+        for (const [k, v] of Object.entries(fxJson.rates || {})) {
+          ratesUsd[k.toUpperCase()] = Number(v);
+        }
+      }
+      convertAmountFn = (await import('@/lib/fx/types')).convertAmount;
+    } catch {
+      convertAmountFn = null;
+    }
+
+    // Batch ledger paid totals (avoid N+1)
+    const ledgerPaidByInv = new Map<number, number>();
+    try {
+      const invIds = (data || []).map((i) => Number(i.id)).filter(Boolean);
+      if (invIds.length) {
+        const { data: led } = await supabase
+          .from('customer_invoice_payments')
+          .select('invoice_id, amount')
+          .eq('profile_id', companyId)
+          .in('invoice_id', invIds.slice(0, 400));
+        for (const row of led || []) {
+          const id = Number(row.invoice_id);
+          ledgerPaidByInv.set(
+            id,
+            (ledgerPaidByInv.get(id) || 0) + Number(row.amount || 0)
+          );
+        }
+      }
+    } catch {
+      /* table optional */
+    }
+
+    let convertedAny = false;
     for (const inv of data || []) {
       const st = String(inv.status || '').toLowerCase();
       if (st === 'draft') continue; // aging is for issued AR
       const total = Number(inv.total_amount || 0);
-      const paid = Number(inv.amount_paid || 0);
+      let paid = Number(inv.amount_paid || 0);
+      const ledPaid = ledgerPaidByInv.get(Number(inv.id));
+      if (ledPaid != null) paid = Math.max(paid, ledPaid);
       const balance = Math.max(0, total - paid);
       if (balance <= 0.001 && st === 'paid') continue;
       if (balance <= 0.001 && st !== 'partial') continue;
 
+      const ccy = String(inv.currency || 'ZAR').toUpperCase();
+      let balanceBase = balance;
+      if (convertAmountFn && ccy !== baseCurrency) {
+        const conv = convertAmountFn(balance, ccy, baseCurrency, ratesUsd);
+        if (conv != null && Number.isFinite(conv)) {
+          balanceBase = conv;
+          convertedAny = true;
+        }
+      } else {
+        convertedAny = true;
+      }
+
       openTotal += balance;
+      openTotalBase = (openTotalBase || 0) + balanceBase;
       if (st === 'partial') partialCount += 1;
 
       const dueRaw = inv.due_date || inv.issue_date || inv.created_at;
@@ -151,6 +230,7 @@ export async function GET(request: NextRequest) {
 
       buckets[key].count += 1;
       buckets[key].amount += balance;
+      buckets[key].amountBase += balanceBase;
       if (buckets[key].invoices.length < 25) {
         buckets[key].invoices.push({
           id: inv.id,
@@ -158,6 +238,7 @@ export async function GET(request: NextRequest) {
           customer_name: inv.customer_name,
           status: inv.status,
           balance,
+          balance_base: Math.round(balanceBase * 100) / 100,
           total_amount: total,
           amount_paid: paid,
           currency: inv.currency || 'ZAR',
@@ -169,56 +250,19 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Base-currency open total (company primary_currency)
-    let baseCurrency = 'ZAR';
-    let openTotalBase: number | null = null;
-    try {
-      const { data: prof } = await supabase
-        .from('profiles')
-        .select('primary_currency')
-        .eq('id', companyId)
-        .maybeSingle();
-      baseCurrency = String(prof?.primary_currency || 'ZAR').toUpperCase();
-      const fxRes = await fetch(
-        `${request.nextUrl.origin}/api/fx/rates?base=USD`,
-        { next: { revalidate: 900 } }
-      ).catch(() => null);
-      const fxJson = fxRes && fxRes.ok ? await fxRes.json().catch(() => null) : null;
-      const ratesUsd =
-        (fxJson?.rates as Record<string, number>) ||
-        ({
-          ZAR: 18.5,
-          USD: 1,
-          EUR: 0.92,
-          GBP: 0.79,
-        } as Record<string, number>);
-      const { convertAmount } = await import('@/lib/fx/types');
-      let sumBase = 0;
-      let convertedAny = false;
-      for (const inv of data || []) {
-        const st = String(inv.status || '').toLowerCase();
-        if (st === 'draft') continue;
-        const total = Number(inv.total_amount || 0);
-        const paid = Number(inv.amount_paid || 0);
-        const balance = Math.max(0, total - paid);
-        if (balance <= 0.001) continue;
-        const ccy = String(inv.currency || 'ZAR').toUpperCase();
-        const conv = convertAmount(balance, ccy, baseCurrency, {
-          ...ratesUsd,
-          USD: 1,
-        });
-        if (conv != null && Number.isFinite(conv)) {
-          sumBase += conv;
-          convertedAny = true;
-        } else if (ccy === baseCurrency) {
-          sumBase += balance;
-          convertedAny = true;
-        }
-      }
-      if (convertedAny) openTotalBase = Math.round(sumBase * 100) / 100;
-    } catch {
-      openTotalBase = null;
-    }
+    if (!convertedAny) openTotalBase = null;
+    else openTotalBase = Math.round((openTotalBase || 0) * 100) / 100;
+
+    const fmtBucket = (
+      label: string,
+      b: (typeof buckets)[BucketKey]
+    ) => ({
+      label,
+      count: b.count,
+      amount: Math.round(b.amount * 100) / 100,
+      amountBase: Math.round(b.amountBase * 100) / 100,
+      invoices: b.invoices,
+    });
 
     return NextResponse.json({
       success: true,
@@ -229,31 +273,11 @@ export async function GET(request: NextRequest) {
       overdueCount,
       brokenPromiseCount,
       buckets: {
-        current: {
-          label: 'Current (not yet due)',
-          ...buckets.current,
-          amount: Math.round(buckets.current.amount * 100) / 100,
-        },
-        d1_30: {
-          label: '1–30 days',
-          ...buckets.d1_30,
-          amount: Math.round(buckets.d1_30.amount * 100) / 100,
-        },
-        d31_60: {
-          label: '31–60 days',
-          ...buckets.d31_60,
-          amount: Math.round(buckets.d31_60.amount * 100) / 100,
-        },
-        d61_90: {
-          label: '61–90 days',
-          ...buckets.d61_90,
-          amount: Math.round(buckets.d61_90.amount * 100) / 100,
-        },
-        d90_plus: {
-          label: '90+ days',
-          ...buckets.d90_plus,
-          amount: Math.round(buckets.d90_plus.amount * 100) / 100,
-        },
+        current: fmtBucket('Current (not yet due)', buckets.current),
+        d1_30: fmtBucket('1–30 days', buckets.d1_30),
+        d31_60: fmtBucket('31–60 days', buckets.d31_60),
+        d61_90: fmtBucket('61–90 days', buckets.d61_90),
+        d90_plus: fmtBucket('90+ days', buckets.d90_plus),
       },
     });
   } catch (e: unknown) {

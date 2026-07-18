@@ -71,10 +71,25 @@ export async function sendDunningForInvoice(opts: {
     return { ok: false, reason: 'forbidden' };
   }
 
-  const balance = Math.max(
+  // Prefer ledger-aware open balance (partials / claims / installments)
+  let balance = Math.max(
     0,
     Number(inv.total_amount || 0) - Number(inv.amount_paid || 0)
   );
+  try {
+    const { invoiceOpenBalance } = await import(
+      '@/lib/customers/open-balance'
+    );
+    const b = await invoiceOpenBalance(Number(inv.profile_id), {
+      id: Number(inv.id),
+      total_amount: inv.total_amount as number,
+      amount_paid: inv.amount_paid as number,
+      status: inv.status as string,
+    });
+    balance = b.balance;
+  } catch {
+    /* soft */
+  }
   if (balance <= 0.009) return { ok: true, skipped: true, reason: 'paid' };
 
   const dpd = daysPastDue(inv.due_date as string, today);

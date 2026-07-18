@@ -459,14 +459,16 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // ── Installment mark paid ─────────────────────────────────────────────
+    // ── Installment mark paid (table + notes + ledger) ───────────────────
     if (action === 'mark_installment_paid' && body.id) {
       if (kind !== 'invoice') {
         return NextResponse.json({ error: 'Invoice only' }, { status: 400 });
       }
       const { data: inv, error } = await supabase
         .from('customer_invoices')
-        .select('id, notes, amount_paid, total_amount, status')
+        .select(
+          'id, notes, amount_paid, total_amount, status, currency, customer_id'
+        )
         .eq('id', Number(body.id))
         .eq('profile_id', companyId)
         .maybeSingle();
@@ -477,12 +479,16 @@ export async function POST(request: NextRequest) {
         );
       }
       const {
-        parseInstallments,
-        writeInstallments,
+        markInstallmentPaid,
         installmentSummary,
+        loadInstallmentsForInvoice,
       } = await import('@/lib/customers/installments');
-      const rows = parseInstallments(inv.notes as string);
-      if (!rows.length) {
+      const loaded = await loadInstallmentsForInvoice(
+        companyId,
+        Number(inv.id),
+        inv.notes as string
+      );
+      if (!loaded.rows.length) {
         return NextResponse.json(
           { error: 'No structured installments on this invoice' },
           { status: 400 }
@@ -491,35 +497,34 @@ export async function POST(request: NextRequest) {
       const idx =
         body.index != null
           ? Number(body.index)
-          : rows.findIndex((r) => !r.paid);
-      if (idx < 0 || idx >= rows.length) {
+          : loaded.rows.findIndex((r) => !r.paid);
+      const result = await markInstallmentPaid({
+        profileId: companyId,
+        invoiceId: Number(inv.id),
+        index: idx,
+        paid: body.paid !== false,
+        actorUserId: _gate.userId,
+        notes: inv.notes as string,
+        totalAmount: Number(inv.total_amount || 0),
+        amountPaid: Number(inv.amount_paid || 0),
+        currency: String(inv.currency || 'ZAR'),
+        customerId: inv.customer_id ? Number(inv.customer_id) : null,
+      });
+      if (!result.ok) {
         return NextResponse.json(
-          { error: 'Invalid installment index' },
+          { error: result.error || 'Failed' },
           { status: 400 }
         );
       }
-      const paidFlag = body.paid !== false;
-      rows[idx] = { ...rows[idx], paid: paidFlag };
-      const notes = writeInstallments(inv.notes as string, rows);
-      const sum = installmentSummary(rows);
-      // Soft-sync amount_paid to sum of paid installments when sensible
-      let amountPaid = Number(inv.amount_paid || 0);
-      if (paidFlag) {
-        amountPaid = Math.max(amountPaid, sum.paid);
-      }
-      const total = Number(inv.total_amount || 0);
-      const fullyPaid = total > 0 && amountPaid >= total - 0.01;
-      const nextStatus = fullyPaid
-        ? 'paid'
-        : amountPaid > 0
-          ? 'partial'
-          : inv.status;
+      const fullyPaid =
+        Number(inv.total_amount || 0) > 0 &&
+        result.amountPaid >= Number(inv.total_amount) - 0.01;
       const { data: updated, error: uErr } = await supabase
         .from('customer_invoices')
         .update({
-          notes,
-          amount_paid: amountPaid,
-          status: nextStatus,
+          notes: result.notes,
+          amount_paid: result.amountPaid,
+          status: result.status,
           paid_at: fullyPaid ? now : null,
           updated_at: now,
         })
@@ -534,8 +539,9 @@ export async function POST(request: NextRequest) {
         success: true,
         action: 'mark_installment_paid',
         invoice: updated,
-        installments: rows,
-        summary: sum,
+        installments: result.rows,
+        summary: installmentSummary(result.rows),
+        tableMissing: result.tableMissing,
       });
     }
 
@@ -578,7 +584,7 @@ export async function POST(request: NextRequest) {
       }
       const { data: inv, error } = await supabase
         .from('customer_invoices')
-        .select('id, notes, status')
+        .select('id, notes, status, customer_id, currency')
         .eq('id', Number(body.id))
         .eq('profile_id', companyId)
         .maybeSingle();
@@ -636,29 +642,29 @@ export async function POST(request: NextRequest) {
           plan || 'structured installments'
         }${countHint ? ` · ${countHint} installments` : ''}`;
         notes = notes ? `${notes}\n${line}` : line;
+        let scheduleRows = structured;
         if (structured.length) {
-          // Replace prior structured block
-          notes = notes.replace(
-            /\[installments\][\s\S]*?\[\/installments\]/g,
-            ''
-          ).trim();
-          const { writeInstallments } = await import(
+          const { replaceInstallmentSchedule } = await import(
             '@/lib/customers/installments'
           );
-          notes = writeInstallments(
+          const replaced = await replaceInstallmentSchedule({
+            profileId: companyId,
+            invoiceId: Number(inv.id),
+            customerId: inv.customer_id ? Number(inv.customer_id) : null,
+            currency: String(inv.currency || 'ZAR'),
             notes,
-            structured.map((s, index) => ({
-              date: s.date,
-              amount: s.amount,
-              paid: false,
-              index,
-            }))
-          );
+            schedule: structured,
+          });
+          notes = replaced.notes;
+          scheduleRows = replaced.rows.map((r) => ({
+            date: r.date,
+            amount: r.amount,
+          }));
         }
         // Optional promise date from plan (first installment)
         const ptp = body.promise_to_pay_date
           ? String(body.promise_to_pay_date).slice(0, 10)
-          : structured[0]?.date || null;
+          : scheduleRows[0]?.date || null;
         if (ptp && /^\d{4}-\d{2}-\d{2}$/.test(ptp)) {
           const { error: pErr } = await supabase
             .from('customer_invoices')
@@ -681,7 +687,7 @@ export async function POST(request: NextRequest) {
             success: true,
             action: 'set_payment_plan',
             promise_to_pay_date: ptp,
-            installments: structured,
+            installments: scheduleRows,
           });
         }
       }

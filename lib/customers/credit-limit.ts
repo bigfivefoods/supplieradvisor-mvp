@@ -79,23 +79,31 @@ export async function checkCustomerCreditLimit(
     };
   }
 
-  // Open AR across invoices
-  const { data: invs } = await supabase
-    .from('customer_invoices')
-    .select('total_amount, amount_paid, status')
-    .eq('profile_id', opts.companyId)
-    .eq('customer_id', opts.customerId)
-    .in('status', [...OPEN])
-    .limit(400);
-
+  // Open AR — ledger-aware when customer_invoice_payments exists
   let openBalance = 0;
-  for (const inv of invs || []) {
-    const st = String(inv.status || '').toLowerCase();
-    if (st === 'void' || st === 'cancelled' || st === 'paid') continue;
-    openBalance += Math.max(
-      0,
-      Number(inv.total_amount || 0) - Number(inv.amount_paid || 0)
+  try {
+    const { customerOpenBalance } = await import(
+      '@/lib/customers/open-balance'
     );
+    const ar = await customerOpenBalance(opts.companyId, opts.customerId);
+    openBalance = ar.openBalance;
+  } catch {
+    const { data: invs } = await supabase
+      .from('customer_invoices')
+      .select('total_amount, amount_paid, status')
+      .eq('profile_id', opts.companyId)
+      .eq('customer_id', opts.customerId)
+      .in('status', [...OPEN])
+      .limit(400);
+
+    for (const inv of invs || []) {
+      const st = String(inv.status || '').toLowerCase();
+      if (st === 'void' || st === 'cancelled' || st === 'paid') continue;
+      openBalance += Math.max(
+        0,
+        Number(inv.total_amount || 0) - Number(inv.amount_paid || 0)
+      );
+    }
   }
 
   const projected = openBalance + Math.max(0, opts.additionalAmount);

@@ -73,4 +73,18 @@ test.describe('Major bets smoke (unauth)', () => {
     );
     expect([401, 403]).toContain(res.status());
   });
+
+  test('installments API requires auth', async ({ request }) => {
+    const res = await request.get(
+      `${base}/api/customers/installments?companyId=1&invoiceId=1`
+    );
+    expect([401, 403]).toContain(res.status());
+  });
+
+  test('verification SLA page is public', async ({ request }) => {
+    const res = await request.get(`${base}/verification-sla`);
+    expect(res.status()).toBe(200);
+    const html = await res.text();
+    expect(html.toLowerCase()).toContain('cipc');
+  });
 });

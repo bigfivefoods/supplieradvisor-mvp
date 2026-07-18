@@ -378,7 +378,12 @@ export async function matchBankToInvoice(params: {
     .eq('id', params.invoiceId)
     .eq('profile_id', params.profileId)
     .maybeSingle();
-  if (!inv) return { ok: false, error: 'Invoice not found', status: 404 };
+
+  // CRM AR path: customer_invoices (trade-loop receivables)
+  if (!inv) {
+    const crm = await matchBankToCrmInvoice(params, txn, txnDate);
+    return crm;
+  }
 
   const amount = round2(Math.abs(Number(txn.amount || 0)));
   const isInflow = Number(txn.amount) > 0;
@@ -447,4 +452,130 @@ export async function matchBankToInvoice(params: {
     .eq('id', txn.id);
 
   return { ok: true, paymentId: payment.id };
+}
+
+/**
+ * Apply bank inflow to CRM customer_invoices (trade-loop AR) + ledger.
+ */
+async function matchBankToCrmInvoice(
+  params: {
+    profileId: number;
+    bankTxnId: number | string;
+    invoiceId: number;
+    privyUserId?: string | null;
+    method?: string;
+  },
+  txn: Record<string, unknown>,
+  txnDate: string
+): Promise<
+  | { ok: true; paymentId: number }
+  | { ok: false; error: string; status: number }
+> {
+  const supabase = getSupabaseServer();
+  const amount = round2(Math.abs(Number(txn.amount || 0)));
+  const isInflow = Number(txn.amount) > 0;
+  if (!isInflow) {
+    return {
+      ok: false,
+      error: 'CRM customer invoices only match bank inflows (receipts)',
+      status: 400,
+    };
+  }
+
+  const { data: inv } = await supabase
+    .from('customer_invoices')
+    .select('*')
+    .eq('id', params.invoiceId)
+    .eq('profile_id', params.profileId)
+    .maybeSingle();
+  if (!inv) {
+    return { ok: false, error: 'Invoice not found', status: 404 };
+  }
+  const st = String(inv.status || '').toLowerCase();
+  if (['paid', 'void', 'cancelled', 'draft'].includes(st)) {
+    return {
+      ok: false,
+      error: `CRM invoice is ${st}`,
+      status: 400,
+    };
+  }
+
+  const paidAt = `${txnDate}T12:00:00.000Z`;
+  const { recordArPayment, sumLedgerPaid } = await import(
+    '@/lib/customers/ar-ledger'
+  );
+  const ledger = await recordArPayment({
+    profile_id: params.profileId,
+    invoice_id: Number(inv.id),
+    customer_id: inv.customer_id ? Number(inv.customer_id) : null,
+    amount,
+    currency: String(
+      (txn.currency as string) || inv.currency || 'ZAR'
+    ),
+    paid_at: paidAt,
+    method: params.method || 'bank_match',
+    reference: txn.reference ? String(txn.reference) : null,
+    notes: txn.description
+      ? `Bank: ${String(txn.description).slice(0, 200)}`
+      : `Bank txn ${params.bankTxnId}`,
+    created_by: params.privyUserId || null,
+  });
+  if (!ledger.ok) {
+    return { ok: false, error: ledger.error, status: 500 };
+  }
+
+  let nextPaid = Number(inv.amount_paid || 0) + amount;
+  const sum = await sumLedgerPaid(params.profileId, Number(inv.id));
+  if (sum.total != null && !sum.tableMissing) nextPaid = sum.total;
+  const total = Number(inv.total_amount || 0);
+  const fullyPaid = total <= 0 ? nextPaid > 0 : nextPaid >= total - 0.01;
+  const nextStatus = fullyPaid ? 'paid' : nextPaid > 0 ? 'partial' : st;
+  const now = new Date().toISOString();
+
+  await supabase
+    .from('customer_invoices')
+    .update({
+      amount_paid: nextPaid,
+      status: nextStatus,
+      paid_at: fullyPaid ? now : inv.paid_at || null,
+      updated_at: now,
+    })
+    .eq('id', inv.id);
+
+  // Soft: mark bank line reconciled (matched_invoice_id may be CRM id)
+  try {
+    await supabase
+      .from('bank_transactions')
+      .update({
+        allocation_status: 'matched_invoice',
+        matched_invoice_id: inv.id,
+        status: 'reconciled',
+        counterparty_name:
+          inv.customer_name || txn.counterparty_name || null,
+        allocated_at: now,
+        allocated_by: params.privyUserId || null,
+        updated_at: now,
+        notes: `CRM AR match inv ${inv.invoice_number || inv.id}`,
+      })
+      .eq('id', txn.id);
+  } catch {
+    /* soft column set */
+    try {
+      await supabase
+        .from('bank_transactions')
+        .update({
+          allocation_status: 'matched_invoice',
+          status: 'reconciled',
+          updated_at: now,
+        })
+        .eq('id', txn.id);
+    } catch {
+      /* soft */
+    }
+  }
+
+  return {
+    ok: true,
+    paymentId: ledger.entry?.id ? Number(ledger.entry.id) : Number(inv.id),
+  };
 }

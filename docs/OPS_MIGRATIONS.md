@@ -10,6 +10,7 @@ supabase/migrations/20260717_verification_payment_ref.sql
 supabase/migrations/20260717_customer_invoices_promise_to_pay.sql
 supabase/migrations/20260717_ar_ledger.sql
 supabase/migrations/20260717_payment_claims_and_ledger_fx.sql
+supabase/migrations/20260718_installments_collections.sql
 ```
 
 ## Collections crons (Vercel)
@@ -37,6 +38,8 @@ Auth: `Authorization: Bearer $CRON_SECRET`
 **AR ledger API:** `GET/POST /api/customers/ar-ledger` (requires `20260717_ar_ledger.sql`). Mark-paid also writes ledger rows when the table exists.
 
 **Buyer payment claims:** `POST /api/buyer/payment-claim` → seller confirm on AR (`/api/customers/payment-claims`). Needs `20260717_payment_claims_and_ledger_fx.sql`. Confirm posts ledger + FX snapshot.
+
+**Installments (first-class):** `customer_invoice_installments` via `20260718_installments_collections.sql` + `GET/POST /api/customers/installments`. Dual-writes notes `[installments]` for compat. Mark paid posts ledger.
 
 **First trade (30 min):** `GET/POST /api/business/first-trade` + dashboard orchestrator (bootstrap customer + draft invoice).
 

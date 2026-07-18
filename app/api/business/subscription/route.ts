@@ -345,6 +345,59 @@ export async function GET(request: NextRequest) {
         legalName: row.legal_name,
       });
 
+    // Usage / seat messaging (company plan = unlimited seats; show activity meters)
+    let usage: {
+      teamActive: number;
+      teamInvited: number;
+      invoicesOpen: number;
+      customersBook: number;
+      seatModel: string;
+      seatNote: string;
+    } = {
+      teamActive: 0,
+      teamInvited: 0,
+      invoicesOpen: 0,
+      customersBook: 0,
+      seatModel: 'unlimited_users',
+      seatNote:
+        'Company plan includes unlimited team seats — billed per company, not per user.',
+    };
+    try {
+      const sb = getSupabaseServer();
+      const [teamA, teamI, invs, custs] = await Promise.all([
+        sb
+          .from('business_users')
+          .select('id', { count: 'exact', head: true })
+          .eq('profile_id', companyId)
+          .eq('status', 'active'),
+        sb
+          .from('business_users')
+          .select('id', { count: 'exact', head: true })
+          .eq('profile_id', companyId)
+          .in('status', ['invited', 'pending']),
+        sb
+          .from('customer_invoices')
+          .select('id', { count: 'exact', head: true })
+          .eq('profile_id', companyId)
+          .in('status', ['sent', 'partial', 'overdue', 'viewed', 'draft']),
+        sb
+          .from('customers')
+          .select('id', { count: 'exact', head: true })
+          .eq('profile_id', companyId),
+      ]);
+      usage = {
+        teamActive: teamA.count ?? 0,
+        teamInvited: teamI.count ?? 0,
+        invoicesOpen: invs.count ?? 0,
+        customersBook: custs.count ?? 0,
+        seatModel: 'unlimited_users',
+        seatNote:
+          'Company plan includes unlimited team seats — billed per company, not per user.',
+      };
+    } catch {
+      /* soft */
+    }
+
     return NextResponse.json({
       success: true,
       companyId,
@@ -352,6 +405,7 @@ export async function GET(request: NextRequest) {
       billingEmail: row.email || null,
       subscription,
       pricing: pricingPayload(),
+      usage,
       trialJustStarted,
       lifetimeJustGranted,
       foundingFreeSlots: FOUNDING_FREE_COMPANY_LIMIT,

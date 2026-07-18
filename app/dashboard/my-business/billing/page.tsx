@@ -79,6 +79,14 @@ function BillingInner() {
     eligible: boolean;
     isLifetime: boolean;
   } | null>(null);
+  const [usage, setUsage] = useState<{
+    teamActive: number;
+    teamInvited: number;
+    invoicesOpen: number;
+    customersBook: number;
+    seatModel: string;
+    seatNote: string;
+  } | null>(null);
   const [lifetimeGrantedToast, setLifetimeGrantedToast] = useState(false);
   const [termId, setTermId] = useState<BillingTermId>('1y');
   const selectedTerm = getBillingTerm(termId);
@@ -162,6 +170,7 @@ function BillingInner() {
       setSubscription(data.subscription || null);
       setReferral(data.referral || null);
       setFounding(data.founding || null);
+      setUsage(data.usage || null);
       const kyc = data.referral?.payoutKyc;
       if (kyc) {
         setKycForm((f) => ({
@@ -534,11 +543,56 @@ function BillingInner() {
                   </span>
                 </div>
                 <p className="mt-2 text-sm text-slate-600">
-                  Per company · unlimited users · full ERP
+                  Per company · unlimited team seats · full ERP
                 </p>
               </div>
               <StatusBadge sub={sub} />
             </div>
+
+            {usage ? (
+              <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50/90 px-4 py-3">
+                <p className="text-xs font-bold text-slate-800">
+                  Usage &amp; seats
+                </p>
+                <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                  {usage.seatNote}
+                </p>
+                <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+                  <div className="rounded-xl bg-white border border-slate-100 px-2 py-2">
+                    <div className="text-lg font-black text-slate-900">
+                      {usage.teamActive}
+                    </div>
+                    <div className="text-[10px] font-bold uppercase text-slate-400">
+                      Active seats
+                    </div>
+                  </div>
+                  <div className="rounded-xl bg-white border border-slate-100 px-2 py-2">
+                    <div className="text-lg font-black text-slate-900">
+                      {usage.teamInvited}
+                    </div>
+                    <div className="text-[10px] font-bold uppercase text-slate-400">
+                      Invited
+                    </div>
+                  </div>
+                  <div className="rounded-xl bg-white border border-slate-100 px-2 py-2">
+                    <div className="text-lg font-black text-slate-900">
+                      {usage.invoicesOpen}
+                    </div>
+                    <div className="text-[10px] font-bold uppercase text-slate-400">
+                      Open invoices
+                    </div>
+                  </div>
+                  <div className="rounded-xl bg-white border border-slate-100 px-2 py-2">
+                    <div className="text-lg font-black text-slate-900">
+                      {usage.customersBook}
+                    </div>
+                    <div className="text-[10px] font-bold uppercase text-slate-400">
+                      Customers
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
 
             <ul className="mt-6 space-y-2 text-sm text-slate-700">
               <li className="flex gap-2">

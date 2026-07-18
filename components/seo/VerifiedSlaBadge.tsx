@@ -72,9 +72,16 @@ export default function VerifiedSlaBadge({
             Money → trust path: pay R69 → CIPC match → public badge
           </p>
           <p className="text-[11px] text-neutral-500 mt-2">
-            Learn more in the{' '}
+            Learn more about the{' '}
+            <Link
+              href="/verification-sla"
+              className="font-semibold text-[#0077b6] hover:underline"
+            >
+              paid CIPC verification SLA
+            </Link>{' '}
+            or browse the{' '}
             <Link href="/directory" className="font-semibold text-[#0077b6] hover:underline">
-              verified company directory
+              verified directory
             </Link>
             .
           </p>
