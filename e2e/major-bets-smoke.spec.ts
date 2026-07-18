@@ -87,4 +87,11 @@ test.describe('Major bets smoke (unauth)', () => {
     const html = await res.text();
     expect(html.toLowerCase()).toContain('cipc');
   });
+
+  test('first-trade requires auth', async ({ request }) => {
+    const res = await request.post(`${base}/api/business/first-trade`, {
+      data: { companyId: 1, action: 'send' },
+    });
+    expect([401, 403]).toContain(res.status());
+  });
 });

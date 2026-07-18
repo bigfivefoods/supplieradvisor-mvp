@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
-import { Star, X } from 'lucide-react';
+import { Star, X, Package } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
@@ -292,11 +292,26 @@ export default function RatingPromptBanner() {
                   Rate {p.counterparty_name || 'your trading partner'}
                 </div>
                 <p className="text-xs text-amber-900/80 mt-0.5 leading-relaxed">
-                  Prompted {contextLabel(p)}. Suppliers and customers rate each
-                  other — peer stars and OTIFEF build trust for the network.
+                  Prompted {contextLabel(p)}. Close the loop: capture OTIFEF if
+                  goods moved, then leave peer stars — both feed trust.
                 </p>
               </div>
               <div className="flex flex-wrap gap-2 shrink-0">
+                {(String(p.context_type || '').toLowerCase() === 'po' ||
+                  p.context_id) && (
+                  <Link
+                    href={
+                      String(p.context_type || '').toLowerCase() === 'po' &&
+                      p.context_id
+                        ? `/dashboard/suppliers/po?po=${p.context_id}`
+                        : '/dashboard/suppliers/po'
+                    }
+                    className="rounded-full border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-bold text-sky-950 hover:bg-sky-100 inline-flex items-center gap-1"
+                  >
+                    <Package className="w-3.5 h-3.5" />
+                    OTIFEF
+                  </Link>
+                )}
                 <button
                   type="button"
                   onClick={() => setActive(p)}
@@ -349,6 +364,29 @@ export default function RatingPromptBanner() {
               </button>
             </div>
             <div className="p-3 sm:p-4">
+              <div className="mb-3 rounded-2xl border border-sky-100 bg-sky-50/80 px-3 py-2.5 text-xs text-sky-950">
+                <p className="font-bold flex items-center gap-1.5">
+                  <Package className="w-3.5 h-3.5" />
+                  Close the loop (2 steps)
+                </p>
+                <ol className="mt-1.5 space-y-1 text-[11px] text-sky-900/90 list-decimal list-inside">
+                  <li>
+                    If goods moved:{' '}
+                    <Link
+                      href={
+                        String(active.context_type || '').toLowerCase() ===
+                          'po' && active.context_id
+                          ? `/dashboard/suppliers/po?po=${active.context_id}`
+                          : '/dashboard/suppliers/po'
+                      }
+                      className="font-bold text-[#0077b6] underline"
+                    >
+                      Record OTIFEF on the PO
+                    </Link>
+                  </li>
+                  <li>Leave peer stars below (subjective trust)</li>
+                </ol>
+              </div>
               <RateCompanyForm
                 companyId={companyId}
                 privyUserId={privyUserId}

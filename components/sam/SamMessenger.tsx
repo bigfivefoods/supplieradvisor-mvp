@@ -31,12 +31,12 @@ type HistoryRow = {
 };
 
 const DEFAULT_SUGGESTIONS = [
+  'How do I close my first trade loop in 30 minutes?',
   'How do I invite a supplier to my network?',
-  'Explain quotes → orders → invoices',
-  'How does sales contractor commission work?',
+  'Explain quotes → orders → invoices → mark paid → rate',
+  'How does buyer “I paid” and seller confirm work?',
   'Where do I set company billing and prepaid terms?',
   'How do I receive stock into inventory?',
-  'Open the screens for QA holds and stock ship',
   'Where is the 3-day golden path and trust ratings?',
 ];
 
@@ -61,9 +61,18 @@ function suggestionsForPath(pathname: string | null): string[] {
   }
   if (p.includes('/customers/quotes') || p.includes('/customers/invoices')) {
     return [
-      'How do I add finished goods from my catalogue to a quote?',
-      'Explain quotes → orders → invoices',
+      'How do I send an invoice and close the first-trade loop?',
+      'Explain quotes → orders → invoices → mark paid → rate',
       'How do multi-currency product prices work on lines?',
+      'How do buyer payment claims appear on AR?',
+    ];
+  }
+  if (p.includes('/customers/ar') || p.includes('/buyer/documents')) {
+    return [
+      'How does the buyer “I paid” claim work?',
+      'Where do I confirm a payment claim into the AR ledger?',
+      'How do installments and partial payments work?',
+      'How do multi-currency aging and base currency totals work?',
     ];
   }
   if (p.includes('/inventory/products')) {

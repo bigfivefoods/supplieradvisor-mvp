@@ -549,6 +549,14 @@ export default async function PublicCompanyPage({
 
           <div className="mt-8 flex flex-wrap gap-3 items-center">
             <PublicConnectButton peerId={c.id} peerName={name} />
+            <Link
+              href={`/login?next=${encodeURIComponent(
+                `/dashboard?peerTrade=${c.id}&peerName=${encodeURIComponent(name)}`
+              )}`}
+              className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center gap-1.5"
+            >
+              Connect &amp; trade
+            </Link>
             {website ? (
               <a
                 href={

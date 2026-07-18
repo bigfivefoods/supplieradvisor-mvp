@@ -55,13 +55,16 @@ export default async function IndustryHubPage({ params }: Props) {
   if (!industry) notFound();
 
   const { companies, cities, countries } = await loadDirectory({ industry });
+  const verifiedCount = companies.filter(
+    (c) => String(c.verification_status || '').toLowerCase() === 'verified'
+  ).length;
 
   const canonical = `${SITE_URL}/directory/industry/${facetSlug(industry)}`;
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'CollectionPage',
     name: `${industry} suppliers on SupplierAdvisor`,
-    description: `Directory of ${industry} companies on the SupplierAdvisor trade network.`,
+    description: `Directory of ${industry} companies on the SupplierAdvisor trade network. ${verifiedCount} CIPC-verified listings with a 24h paid verification SLA.`,
     url: canonical,
     numberOfItems: companies.length,
     mainEntity: {
@@ -113,8 +116,12 @@ export default async function IndustryHubPage({ params }: Props) {
           <p className="text-sm text-neutral-600 mt-1 max-w-2xl">
             {companies.length} discoverable compan
             {companies.length === 1 ? 'y' : 'ies'} in{' '}
-            <strong>{industry}</strong> on SupplierAdvisor. Connect, raise POs,
-            and trade with verified partners.
+            <strong>{industry}</strong> on SupplierAdvisor
+            {verifiedCount > 0
+              ? ` · ${verifiedCount} CIPC-verified (paid identity, 24h SLA)`
+              : ''}
+            . Connect, raise POs, and close the trade loop with verified
+            partners.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <Link
@@ -122,6 +129,12 @@ export default async function IndustryHubPage({ params }: Props) {
               className="btn-secondary !py-2 !px-3 text-xs"
             >
               All industries
+            </Link>
+            <Link
+              href="/verification-sla"
+              className="btn-secondary !py-2 !px-3 text-xs"
+            >
+              Verification SLA
             </Link>
             <Link
               href="/onboarding?type=business"

@@ -6,11 +6,12 @@ import {
 import {
   loadFirstTradePlan,
   bootstrapFirstTrade,
+  sendFirstTradeInvoice,
 } from '@/lib/business/first-trade';
 
 /**
  * GET  ?companyId= — 30-min first-trade plan + progress
- * POST { companyId, action: 'bootstrap', ... } — one-click customer + draft invoice
+ * POST { companyId, action: 'bootstrap'|'send'|'plan' }
  */
 export async function GET(request: NextRequest) {
   try {
@@ -51,9 +52,33 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, plan });
     }
 
+    if (action === 'send' || action === 'send_draft') {
+      const result = await sendFirstTradeInvoice({
+        companyId,
+        actorUserId: gate.userId || 'user',
+        invoiceId: body.invoiceId != null ? Number(body.invoiceId) : null,
+      });
+      const plan = await loadFirstTradePlan(companyId);
+      if (!result.ok) {
+        return NextResponse.json(
+          { error: result.error || result.message, plan },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json({
+        success: true,
+        action: 'send',
+        ...result,
+        plan,
+        openHref: result.invoiceId
+          ? `/dashboard/customers/invoices?id=${result.invoiceId}`
+          : '/dashboard/customers/invoices',
+      });
+    }
+
     if (action !== 'bootstrap') {
       return NextResponse.json(
-        { error: 'Unknown action', hint: 'bootstrap | plan' },
+        { error: 'Unknown action', hint: 'bootstrap | send | plan' },
         { status: 400 }
       );
     }

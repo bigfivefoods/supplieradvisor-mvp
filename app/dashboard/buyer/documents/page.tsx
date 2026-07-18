@@ -122,6 +122,12 @@ function BuyerDocumentsInner() {
   const [highlightId, setHighlightId] = useState<number | null>(focusDocId);
   const focusApplied = useRef(false);
   const [claimBusy, setClaimBusy] = useState<number | null>(null);
+  const [claimByInvoice, setClaimByInvoice] = useState<
+    Record<
+      number,
+      { status: string; amount?: number; claimed_at?: string; id?: number }
+    >
+  >({});
 
   // Sync URL supplier filter on first paint / navigation
   useEffect(() => {
@@ -185,6 +191,38 @@ function BuyerDocumentsInner() {
     }
   }, [companyId, privyUserId, supplierFromUrl, supplierFilter]);
 
+  const loadClaims = useCallback(async () => {
+    if (!companyId) return;
+    try {
+      const res = await fetch(
+        `/api/buyer/payment-claim?buyerCompanyId=${companyId}`,
+        { cache: 'no-store' }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return;
+      const map: Record<
+        number,
+        { status: string; amount?: number; claimed_at?: string; id?: number }
+      > = {};
+      for (const c of data.claims || []) {
+        const invId = Number(c.invoice_id);
+        if (!invId) continue;
+        // Keep latest by claimed_at order (API returns newest first)
+        if (!map[invId]) {
+          map[invId] = {
+            status: String(c.status || 'pending'),
+            amount: c.amount != null ? Number(c.amount) : undefined,
+            claimed_at: c.claimed_at ? String(c.claimed_at) : undefined,
+            id: c.id != null ? Number(c.id) : undefined,
+          };
+        }
+      }
+      setClaimByInvoice(map);
+    } catch {
+      /* soft */
+    }
+  }, [companyId]);
+
   const load = useCallback(async () => {
     if (!privyUserId) {
       setLoading(false);
@@ -206,6 +244,7 @@ function BuyerDocumentsInner() {
       if (!res.ok) throw new Error(data.error || 'Failed to load documents');
       setDocuments(data.documents || []);
       setConnectionSuspended(Boolean(data.connectionSuspended));
+      void loadClaims();
 
       // Prefer documents API suppliers[] when workspace list is empty (merge flags)
       const apiSuppliers: Array<{
@@ -243,7 +282,7 @@ function BuyerDocumentsInner() {
     } finally {
       setLoading(false);
     }
-  }, [companyId, privyUserId, type, supplierFilter]);
+  }, [companyId, privyUserId, type, supplierFilter, loadClaims]);
 
   useEffect(() => {
     if (!ready) return;
@@ -319,6 +358,7 @@ function BuyerDocumentsInner() {
         data.message || 'Claim sent — seller will confirm into AR ledger',
         { id: 'claim-pay' }
       );
+      void loadClaims();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed', {
         id: 'claim-pay',
@@ -326,6 +366,36 @@ function BuyerDocumentsInner() {
     } finally {
       setClaimBusy(null);
     }
+  };
+
+  const claimBadge = (invoiceId: number) => {
+    const c = claimByInvoice[invoiceId];
+    if (!c) return null;
+    const st = String(c.status || '').toLowerCase();
+    const cls =
+      st === 'confirmed'
+        ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+        : st === 'rejected'
+          ? 'border-rose-200 bg-rose-50 text-rose-900'
+          : 'border-amber-200 bg-amber-50 text-amber-950';
+    const label =
+      st === 'confirmed'
+        ? 'Payment confirmed by seller'
+        : st === 'rejected'
+          ? 'Claim rejected'
+          : 'Payment claim pending';
+    return (
+      <span
+        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold ${cls}`}
+      >
+        {label}
+        {c.amount != null
+          ? ` · ${Number(c.amount).toLocaleString(undefined, {
+              maximumFractionDigits: 0,
+            })}`
+          : ''}
+      </span>
+    );
   };
 
   return (
@@ -408,9 +478,12 @@ function BuyerDocumentsInner() {
               <Star className="w-3.5 h-3.5" />
               3 · Rate supplier
             </Link>
+            {claimBadge(Number(focusedDoc.id))}
             {!['paid', 'void', 'cancelled', 'draft'].includes(
               String(focusedDoc.status || '').toLowerCase()
-            ) ? (
+            ) &&
+            claimByInvoice[Number(focusedDoc.id)]?.status !== 'pending' &&
+            claimByInvoice[Number(focusedDoc.id)]?.status !== 'confirmed' ? (
               <button
                 type="button"
                 disabled={claimBusy === Number(focusedDoc.id)}
@@ -537,6 +610,9 @@ function BuyerDocumentsInner() {
                           {String(doc.status)}
                         </span>
                       )}
+                      {String(doc.doc_type || '') === 'invoice'
+                        ? claimBadge(Number(doc.id))
+                        : null}
                       {doc.connection_suspended && <SuspendedBadge />}
                     </div>
                     <h3 className="font-bold text-lg">{docLabel(doc)}</h3>
@@ -604,7 +680,9 @@ function BuyerDocumentsInner() {
                     </Link>
                     {!['paid', 'void', 'cancelled', 'draft'].includes(
                       String(doc.status || '').toLowerCase()
-                    ) ? (
+                    ) &&
+                    claimByInvoice[Number(doc.id)]?.status !== 'pending' &&
+                    claimByInvoice[Number(doc.id)]?.status !== 'confirmed' ? (
                       <button
                         type="button"
                         disabled={claimBusy === Number(doc.id)}

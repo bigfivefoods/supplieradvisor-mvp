@@ -1971,9 +1971,10 @@ function Inner() {
         <Modal title="Auto-match bank lines" onClose={() => setShowAutoMatch(false)} wide>
           <div className="space-y-4">
             <p className="text-sm text-slate-600 leading-relaxed">
-              Scores unallocated lines against open AR/AP invoices (reference, amount, date,
-              counterparty), your match rules, and keyword heuristics. Apply only high-confidence
-              matches (≥80%).
+              Scores unallocated lines against open AR/AP invoices and CRM customer
+              invoices (trade-loop receivables) using reference, amount, date, and
+              counterparty — plus your match rules and keyword heuristics. Apply only
+              high-confidence matches (≥80%). CRM matches post to the AR payment ledger.
             </p>
             <div className="flex flex-wrap gap-2">
               <button

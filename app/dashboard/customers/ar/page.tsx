@@ -533,7 +533,7 @@ function Inner() {
                   })}
                 </div>
                 <div className="text-[10px] text-sky-800/70 mt-0.5">
-                  FX indicative
+                  FX indicative · missing rates fall back to document currency
                 </div>
               </div>
             ) : null}

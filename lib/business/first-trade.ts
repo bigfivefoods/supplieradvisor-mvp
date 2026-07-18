@@ -38,7 +38,15 @@ export type FirstTradePlan = {
     invoiceCount: number;
     sentInvoiceCount: number;
     poCount: number;
+    paidInvoiceCount: number;
+    rated: boolean;
   };
+  /** Latest draft or open starter invoice for one-click send */
+  activeInvoiceId: number | null;
+  activeInvoiceNumber: string | null;
+  activeInvoiceStatus: string | null;
+  /** One-line coaching for UI */
+  finishHint: string | null;
   bootstrapReady: boolean;
   at: string;
 };
@@ -89,16 +97,72 @@ export async function loadFirstTradePlan(
   const hasSent = sentInvoiceCount > 0;
   // collect/rate: any paid invoice or any rating later — mark done when paid exists
   let hasPaid = false;
+  let paidInvoiceCount = 0;
   try {
     const { count } = await supabase
       .from('customer_invoices')
       .select('id', { count: 'exact', head: true })
       .eq('profile_id', companyId)
       .in('status', ['paid', 'partial']);
-    hasPaid = (count || 0) > 0;
+    paidInvoiceCount = count || 0;
+    hasPaid = paidInvoiceCount > 0;
   } catch {
     hasPaid = false;
   }
+
+  let rated = false;
+  try {
+    const { count } = await supabase
+      .from('company_ratings')
+      .select('id', { count: 'exact', head: true })
+      .eq('rater_profile_id', companyId)
+      .eq('status', 'published');
+    rated = (count || 0) > 0;
+  } catch {
+    rated = false;
+  }
+
+  // Active invoice for one-click send / collect
+  let activeInvoiceId: number | null = null;
+  let activeInvoiceNumber: string | null = null;
+  let activeInvoiceStatus: string | null = null;
+  try {
+    const { data: draft } = await supabase
+      .from('customer_invoices')
+      .select('id, invoice_number, status')
+      .eq('profile_id', companyId)
+      .eq('status', 'draft')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (draft?.id) {
+      activeInvoiceId = Number(draft.id);
+      activeInvoiceNumber = draft.invoice_number
+        ? String(draft.invoice_number)
+        : null;
+      activeInvoiceStatus = 'draft';
+    } else {
+      const { data: open } = await supabase
+        .from('customer_invoices')
+        .select('id, invoice_number, status')
+        .eq('profile_id', companyId)
+        .in('status', ['sent', 'viewed', 'partial', 'overdue'])
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (open?.id) {
+        activeInvoiceId = Number(open.id);
+        activeInvoiceNumber = open.invoice_number
+          ? String(open.invoice_number)
+          : null;
+        activeInvoiceStatus = String(open.status || '');
+      }
+    }
+  } catch {
+    /* soft */
+  }
+
+  const collectDone = hasPaid || rated;
 
   const steps: FirstTradeStep[] = [
     {
@@ -114,7 +178,9 @@ export async function loadFirstTradePlan(
       id: 'document',
       title: 'Create quote, PO, or invoice',
       body: 'Draft a commercial document for that customer.',
-      href: '/dashboard/customers/invoices?new=1',
+      href: activeInvoiceId
+        ? `/dashboard/customers/invoices?id=${activeInvoiceId}`
+        : '/dashboard/customers/invoices?new=1',
       cta: 'New invoice',
       done: hasDoc,
       minutes: 10,
@@ -122,19 +188,23 @@ export async function loadFirstTradePlan(
     {
       id: 'send',
       title: 'Send the document',
-      body: 'Email or WhatsApp PDF so the buyer sees it outside the platform.',
-      href: '/dashboard/customers/invoices',
+      body: 'Mark sent and email/WhatsApp PDF so the buyer sees it.',
+      href: activeInvoiceId
+        ? `/dashboard/customers/invoices?id=${activeInvoiceId}`
+        : '/dashboard/customers/invoices',
       cta: 'Open invoices',
       done: hasSent,
       minutes: 5,
     },
     {
       id: 'collect_or_rate',
-      title: 'Mark paid or rate partner',
-      body: 'Close the money loop or leave a peer star after delivery.',
-      href: '/dashboard/customers/ar',
-      cta: 'AR & collections',
-      done: hasPaid,
+      title: 'Collect payment or rate partner',
+      body: 'Mark paid (or confirm buyer claim), then rate — trust loop closes.',
+      href: hasPaid
+        ? '/dashboard?ratePrompt=open'
+        : '/dashboard/customers/ar',
+      cta: hasPaid ? 'Rate partner' : 'AR & collections',
+      done: collectDone,
       minutes: 10,
     },
   ];
@@ -142,6 +212,20 @@ export async function loadFirstTradePlan(
   const doneCount = steps.filter((s) => s.done).length;
   const progressPercent = Math.round((doneCount / steps.length) * 100);
   const nextStep = steps.find((s) => !s.done) || null;
+
+  let finishHint: string | null = null;
+  if (!hasCustomer) finishHint = 'Add a customer, or use Start for me.';
+  else if (!hasDoc) finishHint = 'Create a draft invoice, or use Start for me.';
+  else if (!hasSent)
+    finishHint = activeInvoiceId
+      ? 'Send your draft invoice (one click below).'
+      : 'Open invoices and send a document.';
+  else if (!hasPaid)
+    finishHint =
+      'Mark the invoice paid (or confirm a buyer claim) to close money.';
+  else if (!rated)
+    finishHint = 'Rate your partner — peer stars complete the trust loop.';
+  else finishHint = 'First trade loop complete.';
 
   return {
     companyId,
@@ -157,9 +241,149 @@ export async function loadFirstTradePlan(
       invoiceCount,
       sentInvoiceCount,
       poCount,
+      paidInvoiceCount,
+      rated,
     },
+    activeInvoiceId,
+    activeInvoiceNumber,
+    activeInvoiceStatus,
+    finishHint,
     bootstrapReady: !hasCustomer || !hasDoc,
     at: new Date().toISOString(),
+  };
+}
+
+/**
+ * Mark draft invoice as sent (share path). Soft email if Resend + contact.
+ */
+export async function sendFirstTradeInvoice(opts: {
+  companyId: number;
+  actorUserId: string;
+  invoiceId?: number | null;
+}): Promise<{
+  ok: boolean;
+  invoiceId: number | null;
+  emailed: boolean;
+  message: string;
+  error?: string;
+}> {
+  const supabase = getSupabaseServer();
+  let invoiceId = opts.invoiceId ? Number(opts.invoiceId) : null;
+  if (!invoiceId) {
+    const plan = await loadFirstTradePlan(opts.companyId);
+    invoiceId = plan.activeInvoiceId;
+  }
+  if (!invoiceId) {
+    return {
+      ok: false,
+      invoiceId: null,
+      emailed: false,
+      message: 'No draft invoice — run Start for me first',
+      error: 'no_invoice',
+    };
+  }
+
+  const { data: inv, error } = await supabase
+    .from('customer_invoices')
+    .select(
+      'id, status, invoice_number, contact_email, customer_name, total_amount, currency, visibility, shared_with_buyer'
+    )
+    .eq('id', invoiceId)
+    .eq('profile_id', opts.companyId)
+    .maybeSingle();
+  if (error || !inv) {
+    return {
+      ok: false,
+      invoiceId,
+      emailed: false,
+      message: error?.message || 'Invoice not found',
+      error: 'not_found',
+    };
+  }
+
+  const now = new Date().toISOString();
+  const st = String(inv.status || '').toLowerCase();
+  const nextStatus = ['draft', ''].includes(st) ? 'sent' : st;
+  const updatePayload: Record<string, unknown> = {
+    status: nextStatus,
+    updated_at: now,
+    visibility: 'shared',
+    shared_with_buyer: true,
+  };
+  let { error: uErr } = await supabase
+    .from('customer_invoices')
+    .update(updatePayload)
+    .eq('id', invoiceId);
+  if (uErr && /visibility|shared_with_buyer|column|schema cache/i.test(uErr.message || '')) {
+    const retry = await supabase
+      .from('customer_invoices')
+      .update({ status: nextStatus, updated_at: now })
+      .eq('id', invoiceId);
+    uErr = retry.error;
+  }
+  if (uErr) {
+    return {
+      ok: false,
+      invoiceId,
+      emailed: false,
+      message: uErr.message,
+      error: 'update_failed',
+    };
+  }
+
+  let emailed = false;
+  const to = String(inv.contact_email || '').trim();
+  if (to.includes('@') && process.env.RESEND_API_KEY) {
+    try {
+      const { getResend, getResendFrom } = await import('@/lib/resend');
+      const resend = getResend();
+      const num = inv.invoice_number || `#${invoiceId}`;
+      await resend.emails.send({
+        from: getResendFrom(),
+        to: [to],
+        subject: `Invoice ${num} from SupplierAdvisor`,
+        html: `<p>Hello${inv.customer_name ? ` ${inv.customer_name}` : ''},</p>
+          <p>Invoice <strong>${num}</strong> is ready
+          (${inv.currency || 'ZAR'} ${Number(inv.total_amount || 0).toLocaleString()}).</p>
+          <p>View shared documents in your SupplierAdvisor buyer workspace when connected.</p>`,
+      });
+      emailed = true;
+    } catch {
+      emailed = false;
+    }
+  }
+
+  try {
+    await supabase.from('activity_log').insert({
+      profile_id: opts.companyId,
+      actor_user_id: opts.actorUserId,
+      action: 'onboarding.first_trade_sent',
+      entity_type: 'customer_invoices',
+      entity_id: String(invoiceId),
+      summary: `First-trade send: inv ${inv.invoice_number || invoiceId}${
+        emailed ? ' · emailed' : ''
+      }`,
+    });
+  } catch {
+    /* soft */
+  }
+
+  try {
+    const { markOnboardingSteps } = await import('@/lib/onboarding/checklist');
+    await markOnboardingSteps(opts.companyId, 'first_trade');
+  } catch {
+    /* soft */
+  }
+
+  return {
+    ok: true,
+    invoiceId,
+    emailed,
+    message: emailed
+      ? 'Invoice marked sent and emailed to contact'
+      : to.includes('@')
+        ? 'Invoice marked sent (email soft-failed — open Invoices to resend)'
+        : 'Invoice marked sent — add contact email to auto-email next time',
   };
 }
 
