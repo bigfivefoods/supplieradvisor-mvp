@@ -14,10 +14,12 @@ import {
  */
 export const CONNECTIONS_NAV: readonly NavItem[] = [
   { href: '/dashboard/connections', label: 'Graph', exact: true },
+  { href: '/dashboard/connections/discover', label: 'Open to trade' },
   { href: '/dashboard/suppliers/discover', label: 'Discover' },
   { href: '/dashboard/connections/pricing', label: 'Pricing' },
   { href: '/dashboard/connections/marketplace', label: 'Marketplace' },
   { href: '/dashboard/connections/marketplace/sell', label: 'Sell' },
+  { href: '/dashboard/settle', label: 'Settle' },
   { href: '/dashboard/invite-business', label: 'Invite' },
 ] as const;
 

@@ -93,6 +93,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Team', href: '/dashboard/my-business/team' },
       { name: 'Sales program', href: '/dashboard/my-business/sales-program' },
       { name: 'Billing', href: '/dashboard/my-business/billing' },
+      { name: 'Ops', href: '/dashboard/my-business/ops', desc: 'P0 readiness + settle health' },
       { name: 'Trust', href: '/dashboard/my-business/trust' },
       { name: 'Referral ops', href: '/dashboard/my-business/referral-ops' },
       { name: 'Docs', href: '/dashboard/my-business/documents' },
@@ -108,6 +109,11 @@ export const MODULE_NAV: readonly ModuleNav[] = [
     resource: 'network',
     steps: [
       { name: 'Graph', href: '/dashboard/connections', exact: true },
+      {
+        name: 'Open trade',
+        href: '/dashboard/connections/discover',
+        desc: 'Ranked open-to-trade partners',
+      },
       { name: 'Price', href: '/dashboard/connections/pricing' },
       { name: 'Market', href: '/dashboard/connections/marketplace' },
       { name: 'Invite', href: '/dashboard/invite-business' },
@@ -365,6 +371,15 @@ export function sidebarModulesFromNav() {
   }));
 }
 
+/**
+ * Extra path prefixes that belong to a module but live outside its hub href
+ * (e.g. Settle/Escrow command centres under Customers).
+ */
+const EXTRA_LIFECYCLE_PREFIXES: Record<string, readonly string[]> = {
+  customers: ['/dashboard/settle', '/dashboard/escrow'],
+  network: ['/dashboard/invite-business'],
+};
+
 /** Process rail lifecycles from the same critical steps */
 export function lifecyclesFromNav(): Array<{
   id: string;
@@ -374,7 +389,7 @@ export function lifecyclesFromNav(): Array<{
 }> {
   return MODULE_NAV.filter((m) => m.id !== 'home' && m.steps.length > 0).map((m) => ({
     id: m.id,
-    prefixes: [m.href],
+    prefixes: [m.href, ...(EXTRA_LIFECYCLE_PREFIXES[m.id] || [])],
     title: m.name,
     steps: m.steps.map((s) => ({
       label: s.name,

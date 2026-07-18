@@ -15,8 +15,21 @@ import {
   isEscrowConfigured,
   getPoEscrowAddress,
 } from '@/lib/contracts/escrow';
+import {
+  CompanyRequired,
+  CustomersHeader,
+  CustomersPage,
+} from '@/components/customers/CustomersShell';
 
 export default function EscrowHubPage() {
+  return (
+    <CompanyRequired>
+      <EscrowInner />
+    </CompanyRequired>
+  );
+}
+
+function EscrowInner() {
   const usdcOn = isUsdcEscrowConfigured();
   const ethOn = isEscrowConfigured();
   const chainId = getUsdcEscrowChainId();
@@ -25,19 +38,15 @@ export default function EscrowHubPage() {
   const ethAddr = getPoEscrowAddress();
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8">
-      <div className="mb-6">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-[#0077b6]">
-          Settlement rails
-        </p>
-        <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-          On-chain escrow
-        </h1>
-        <p className="text-sm text-slate-600 mt-1 leading-relaxed">
-          Prefer fiat settle via Money hub (claims + AR ledger). Use USDC on Base when
-          counterparties need programmable release after ship/confirm.
-        </p>
-      </div>
+    <CustomersPage>
+      <CustomersHeader
+        title="On-chain"
+        titleAccent="Escrow"
+        showNav
+        description="Prefer fiat settle via Money hub (claims + AR ledger). Use USDC on Base when counterparties need programmable release after ship/confirm."
+      />
+
+      <div className="max-w-3xl">
 
       <div className="grid sm:grid-cols-2 gap-3 mb-6">
         <div
@@ -140,6 +149,7 @@ export default function EscrowHubPage() {
           Deploy guide: <code>docs/usdc-escrow-base.md</code>
         </p>
       </section>
-    </div>
+      </div>
+    </CustomersPage>
   );
 }

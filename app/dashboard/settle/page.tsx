@@ -16,6 +16,11 @@ import {
 } from 'lucide-react';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import InevitableNextBanner from '@/components/dashboard/InevitableNextBanner';
+import {
+  CompanyRequired,
+  CustomersHeader,
+  CustomersPage,
+} from '@/components/customers/CustomersShell';
 
 const CARDS = [
   {
@@ -70,57 +75,61 @@ const CARDS = [
 ] as const;
 
 export default function SettleCommandPage() {
+  return (
+    <CompanyRequired>
+      <SettleInner />
+    </CompanyRequired>
+  );
+}
+
+function SettleInner() {
   const companyId = getSelectedCompanyId();
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
-      <div className="mb-4">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">
-          Live settle
-        </p>
-        <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-          Settle command center
-        </h1>
-        <p className="text-sm text-slate-600 mt-1 max-w-2xl leading-relaxed">
-          Proof &amp; live settle: claims with POP, ledger confirm, rating loop, and
-          optional on-chain escrow. Prefer Money hub for day-to-day cash.
-        </p>
-      </div>
+    <CustomersPage>
+      <CustomersHeader
+        title="Settle"
+        titleAccent="Command"
+        showNav
+        description="Proof & live settle: claims with POP, ledger confirm, rating loop, and optional on-chain escrow. Prefer Money hub for day-to-day cash."
+      />
 
-      {companyId ? <InevitableNextBanner /> : null}
+      <div className="max-w-4xl">
+        {companyId ? <InevitableNextBanner /> : null}
 
-      <div className="grid sm:grid-cols-2 gap-3">
-        {CARDS.map((c) => (
-          <Link
-            key={c.href}
-            href={c.href}
-            className="group rounded-2xl border border-neutral-200 bg-white p-4 hover:border-[#00b4d8]/50 hover:shadow-sm transition-all"
-          >
-            <div className="flex items-start gap-3">
-              <div className="rounded-xl bg-slate-50 border border-neutral-100 p-2">
-                <c.icon className="w-4 h-4 text-[#0077b6]" />
+        <div className="grid sm:grid-cols-2 gap-3">
+          {CARDS.map((c) => (
+            <Link
+              key={c.href}
+              href={c.href}
+              className="group rounded-2xl border border-neutral-200 bg-white p-4 hover:border-[#00b4d8]/50 hover:shadow-sm transition-all"
+            >
+              <div className="flex items-start gap-3">
+                <div className="rounded-xl bg-slate-50 border border-neutral-100 p-2">
+                  <c.icon className="w-4 h-4 text-[#0077b6]" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-black text-slate-900 group-hover:text-[#0077b6] flex items-center gap-1">
+                    {c.title}
+                    <ArrowRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </p>
+                  <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
+                    {c.body}
+                  </p>
+                </div>
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-black text-slate-900 group-hover:text-[#0077b6] flex items-center gap-1">
-                  {c.title}
-                  <ArrowRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </p>
-                <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
-                  {c.body}
-                </p>
-              </div>
-            </div>
-          </Link>
-        ))}
-      </div>
+            </Link>
+          ))}
+        </div>
 
-      <div className="mt-8 rounded-2xl border border-neutral-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
-        <p className="font-bold text-slate-800">Ops smoke</p>
-        <p className="mt-0.5">
-          <code className="text-[11px]">GET /api/system/settle-smoke</code> — claims,
-          ledger, installments, promise-to-pay columns.
-        </p>
+        <div className="mt-8 rounded-2xl border border-neutral-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+          <p className="font-bold text-slate-800">Ops smoke</p>
+          <p className="mt-0.5">
+            <code className="text-[11px]">GET /api/system/settle-smoke</code> — claims,
+            ledger, installments, promise-to-pay columns.
+          </p>
+        </div>
       </div>
-    </div>
+    </CustomersPage>
   );
 }

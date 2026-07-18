@@ -19,6 +19,8 @@ export const CUSTOMERS_NAV: readonly NavItem[] = [
   { href: '/dashboard/customers/invoices', label: 'Invoices' },
   { href: '/dashboard/customers/money', label: 'Money' },
   { href: '/dashboard/customers/ar', label: 'AR aging' },
+  { href: '/dashboard/settle', label: 'Settle' },
+  { href: '/dashboard/escrow', label: 'Escrow' },
   { href: '/dashboard/customers/loyalty', label: 'Loyalty' },
   { href: '/dashboard/customers/claims', label: 'Claims' },
   { href: '/dashboard/customers/contracts', label: 'Contracts' },
@@ -43,11 +45,14 @@ export function CustomersHeader({
   description,
   action,
   titleAccent,
+  showNav = false,
 }: {
   title: string;
   description?: string;
   action?: React.ReactNode;
   titleAccent?: string;
+  /** Secondary pill nav (Money / Settle / Escrow…). Process rail covers the rest. */
+  showNav?: boolean;
 }) {
   return (
     <RelationshipHeader
@@ -58,6 +63,7 @@ export function CustomersHeader({
       titleAccent={titleAccent}
       description={description}
       action={action}
+      nav={showNav ? <CustomersNav /> : undefined}
     />
   );
 }

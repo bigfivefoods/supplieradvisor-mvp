@@ -317,6 +317,7 @@ function Inner() {
       <CustomersHeader
         title="Money"
         titleAccent="Settle"
+        showNav
         description="Open AR, buyer payment claims, installments, dunning, and ledger — settle by default."
         action={
           <div className="flex flex-wrap gap-2">

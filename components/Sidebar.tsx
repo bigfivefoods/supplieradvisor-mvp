@@ -55,6 +55,13 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
           pathname.startsWith('/dashboard/invite-business')
         );
       }
+      if (mod.href === '/dashboard/customers') {
+        return (
+          pathname.startsWith('/dashboard/customers') ||
+          pathname.startsWith('/dashboard/settle') ||
+          pathname.startsWith('/dashboard/escrow')
+        );
+      }
       return pathname === mod.href || pathname.startsWith(`${mod.href}/`);
     });
     if (!active || active.sub.length === 0) return;
@@ -73,6 +80,14 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
         pathname === '/dashboard/connections' ||
         pathname.startsWith('/dashboard/connections/') ||
         pathname.startsWith('/dashboard/invite-business')
+      );
+    }
+    if (href === '/dashboard/customers') {
+      return (
+        pathname === '/dashboard/customers' ||
+        pathname.startsWith('/dashboard/customers/') ||
+        pathname.startsWith('/dashboard/settle') ||
+        pathname.startsWith('/dashboard/escrow')
       );
     }
     return pathname === href || pathname.startsWith(`${href}/`);

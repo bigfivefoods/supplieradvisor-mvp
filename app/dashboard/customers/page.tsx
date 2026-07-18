@@ -148,6 +148,14 @@ function HubInner() {
       accent: 'from-violet-50 to-white border-violet-100',
     },
     {
+      href: '/dashboard/customers/money',
+      icon: Wallet,
+      code: '$',
+      title: 'Money hub',
+      desc: 'Settle-by-default: claims, POP, dunning, installments, ledger.',
+      accent: 'from-emerald-50 to-white border-emerald-100',
+    },
+    {
       href: '/dashboard/customers/ar',
       icon: Wallet,
       code: 'AR',
@@ -156,6 +164,14 @@ function HubInner() {
       accent: 'from-amber-50 to-white border-amber-100',
       metric: s?.overdueFollowups ?? '—',
       metricLabel: 'overdue signals',
+    },
+    {
+      href: '/dashboard/settle',
+      icon: Handshake,
+      code: 'ST',
+      title: 'Settle command',
+      desc: 'Money, buyer claims, first trade, USDC escrow — one command center.',
+      accent: 'from-teal-50 to-white border-teal-100',
     },
     {
       href: '/dashboard/customers/loyalty',
