@@ -56,6 +56,33 @@ if blockers:
 print("\nP0 blockers clear (warnings may remain).")
 PY
 
+echo
+echo "=== settle-smoke ==="
+SETTLE=$(curl -sS "$APP_URL/api/system/settle-smoke" || true)
+if [[ -z "$SETTLE" ]]; then
+  echo "FAIL  settle-smoke unreachable"
+else
+  python3 - <<'PY' "$SETTLE"
+import json, sys
+d = json.loads(sys.argv[1])
+if d.get("code") == "UNAUTHORIZED" or d.get("error", "").startswith("Authentication"):
+    print("FAIL  settle-smoke returns 401 — deploy tip that public-paths includes /api/system/settle-smoke")
+    sys.exit(3)
+print(f"settleLive = {d.get('settleLive')}  ok = {d.get('ok')}")
+for b in d.get("blockers") or []:
+    print(f"BLOCKER  {b}")
+for w in d.get("warnings") or []:
+    print(f"WARN     {w}")
+checks = d.get("checks") or {}
+bad = [k for k, v in checks.items() if isinstance(v, dict) and v.get("ok") is False]
+if bad:
+    print("failed checks:", ", ".join(bad[:12]))
+if d.get("blockers"):
+    sys.exit(1)
+print("settle-smoke OK" if d.get("settleLive") or d.get("ok") else "settle-smoke soft issues")
+PY
+fi
+
 if [[ -n "${CRON_SECRET:-}" ]]; then
   echo
   echo -n "ops-board readiness… "
@@ -67,8 +94,16 @@ b=d.get('board') or {}
 r=b.get('readiness') or {}
 print('ok=', r.get('ok'), 'blockers=', r.get('blockers'))
 print('analytics=', b.get('analytics'))
+print('settleLive=', b.get('settleLive'))
 " 2>/dev/null || echo "(parse failed)"
+else
+  echo
+  echo "HINT  Set CRON_SECRET to also probe /api/system/ops-board"
 fi
 
 echo
-echo "Done. Migrations: docs/OPS_MIGRATIONS.md · UI: /dashboard/my-business/ops"
+echo "=== remaining ops (not auto-fixable without your secrets) ==="
+echo "1. Vercel env OPS_ALERT_EMAIL=you@company.com  (then redeploy)"
+echo "2. Paystack webhook → $APP_URL/api/paystack/webhook  (charge.success)"
+echo "3. Optional Twilio: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM"
+echo "Done. UI: $APP_URL/dashboard/my-business/ops · docs/OPS_MIGRATIONS.md"

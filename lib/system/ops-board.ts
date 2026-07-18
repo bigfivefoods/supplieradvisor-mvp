@@ -63,7 +63,9 @@ export async function loadOpsBoard(): Promise<OpsBoardSnapshot> {
     resend: Boolean(process.env.RESEND_API_KEY),
     cronSecret: Boolean(process.env.CRON_SECRET),
     opsAlertEmail: Boolean(
-      process.env.OPS_ALERT_EMAIL || process.env.PAYSTACK_OPS_EMAIL
+      process.env.OPS_ALERT_EMAIL ||
+        process.env.OPS_EMAIL_ALERT ||
+        process.env.PAYSTACK_OPS_EMAIL
     ),
     verifynow: Boolean(process.env.VERIFYNOW_API_KEY),
   };
@@ -201,7 +203,8 @@ export async function loadOpsBoard(): Promise<OpsBoardSnapshot> {
   if (!env.paystackSecret) blockers.push('PAYSTACK_SECRET_KEY missing');
   if (!env.cronSecret) blockers.push('CRON_SECRET missing');
   if (!env.resend) warnings.push('RESEND_API_KEY missing (emails soft-fail)');
-  if (!env.opsAlertEmail) warnings.push('OPS_ALERT_EMAIL not set (SLA/webhook alerts)');
+  if (!env.opsAlertEmail)
+    warnings.push('Ops alert email not set (OPS_ALERT_EMAIL or OPS_EMAIL_ALERT)');
   if (!env.verifynow) warnings.push('VERIFYNOW_API_KEY missing (CIPC soft-fails)');
   if (schema.arLedger === false) blockers.push('Run 20260717_ar_ledger.sql');
   if (schema.paymentClaims === false)

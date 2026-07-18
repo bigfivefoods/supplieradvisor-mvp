@@ -91,13 +91,16 @@ export async function GET() {
       : 'VERIFYNOW_API_KEY not set',
   };
   const opsAlert = Boolean(
-    process.env.OPS_ALERT_EMAIL || process.env.PAYSTACK_OPS_EMAIL
+    // Accept OPS_ALERT_EMAIL, OPS_EMAIL_ALERT (prod), PAYSTACK_OPS_EMAIL
+    process.env.OPS_ALERT_EMAIL ||
+      process.env.OPS_EMAIL_ALERT ||
+      process.env.PAYSTACK_OPS_EMAIL
   );
   checks.ops_alert = {
     ok: opsAlert,
     error: opsAlert
       ? undefined
-      : 'OPS_ALERT_EMAIL (or PAYSTACK_OPS_EMAIL) not set — CIPC/webhook SLA emails soft-skip',
+      : 'OPS_ALERT_EMAIL / OPS_EMAIL_ALERT / PAYSTACK_OPS_EMAIL not set — CIPC/webhook SLA emails soft-skip',
     detail: {
       opsBoard: '/api/system/ops-board',
       opsUi: '/dashboard/my-business/ops',
@@ -268,7 +271,7 @@ export async function GET() {
     }
     if (!checks.ops_alert.ok) {
       p0Warnings.push(
-        'OPS_ALERT_EMAIL not set — CIPC/webhook SLA emails will not send'
+        'Ops alert email not set (use OPS_ALERT_EMAIL or OPS_EMAIL_ALERT) — CIPC/webhook SLA emails will not send'
       );
     }
     if (!checks.resend.ok) {

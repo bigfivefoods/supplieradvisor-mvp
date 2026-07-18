@@ -139,15 +139,8 @@ async function run(request: NextRequest) {
       }
     }
 
-    const opsEmail = (
-      process.env.OPS_ALERT_EMAIL ||
-      process.env.PAYSTACK_OPS_EMAIL ||
-      process.env.RESEND_REPLY_TO ||
-      ''
-    )
-      .split(',')
-      .map((e) => e.trim().toLowerCase())
-      .filter((e) => e.includes('@'));
+    const { getOpsAlertEmails } = await import('@/lib/system/ops-alert-email');
+    const opsEmail = getOpsAlertEmails();
 
     let emailed = false;
     const shouldEmail =

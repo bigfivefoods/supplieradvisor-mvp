@@ -7,6 +7,7 @@ export const PUBLIC_API_PREFIXES = [
   '/api/fx/rates',
   '/api/system/health',
   '/api/system/trade-loop-smoke',
+  '/api/system/settle-smoke',
   '/api/invites/validate',
   '/api/banking/webhooks/',
   '/api/inventory/products/public',
@@ -15,16 +16,18 @@ export const PUBLIC_API_PREFIXES = [
   // Note: GET /api/sam/chat health is allowed in middleware by method check
 ] as const;
 
+/** Public readiness / smoke endpoints (no Privy) — keep in sync with middleware. */
+const PUBLIC_EXACT = new Set([
+  '/api/system/health',
+  '/api/system/trade-loop-smoke',
+  '/api/system/settle-smoke',
+  '/api/fx/rates',
+  '/api/invites/validate',
+]);
+
 export function isPublicApiPath(pathname: string): boolean {
   const p = pathname.split('?')[0] || pathname;
-  if (
-    p === '/api/system/health' ||
-    p === '/api/system/trade-loop-smoke' ||
-    p === '/api/fx/rates'
-  ) {
-    return true;
-  }
-  if (p === '/api/invites/validate') return true;
+  if (PUBLIC_EXACT.has(p)) return true;
   if (p === '/api/geo' || p.startsWith('/api/geo/')) return true;
   return PUBLIC_API_PREFIXES.some(
     (prefix) => p === prefix.replace(/\/$/, '') || p.startsWith(prefix)
