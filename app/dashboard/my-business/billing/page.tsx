@@ -208,10 +208,8 @@ function BillingInner() {
           const hub = hubJ.hub || {};
           setSettleProof({
             openAr: Number(hub.openAr || 0),
-            claimsConfirmed30d: Number(hub.pendingClaims || 0), // soft: pending as activity signal
-            ledgerPayments30d: Array.isArray(hub.recentLedger)
-              ? hub.recentLedger.length
-              : 0,
+            claimsConfirmed30d: Number(hub.pendingClaims || 0),
+            ledgerPayments30d: Number(hub.settled30d || 0),
             currency: hub.baseCurrency || 'ZAR',
           });
         }

@@ -53,8 +53,12 @@ export default function CommercialValueBanner({
               {openAr != null
                 ? ` · open AR ${ccy} ${Number(openAr).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
                 : ''}
-              {ledger != null ? ` · ${ledger} ledger payment(s) · 30d` : ''}
-              {claims != null ? ` · ${claims} claim(s) confirmed · 30d` : ''}
+              {ledger != null && Number(ledger) > 0
+                ? ` · ${ccy} ${Number(ledger).toLocaleString(undefined, { maximumFractionDigits: 0 })} settled · 30d`
+                : ''}
+              {claims != null && Number(claims) > 0
+                ? ` · ${claims} claim(s) waiting`
+                : ''}
             </p>
           )}
           <ul className="mt-2 text-xs text-slate-600 space-y-1 list-disc list-inside">

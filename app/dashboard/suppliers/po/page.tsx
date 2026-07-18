@@ -171,6 +171,11 @@ function PoInner() {
   const companyId = getSelectedCompanyId()!;
   const privyUserId = getCanonicalUserId(user?.id);
   const preselectSupplierId = Number(searchParams.get('supplierId') || 0) || null;
+  const peerProfileId =
+    Number(searchParams.get('peer') || searchParams.get('sellerProfileId') || 0) ||
+    null;
+  const fromListingId = Number(searchParams.get('fromListing') || 0) || null;
+  const listingTitle = String(searchParams.get('q') || '').trim();
   const escrowEnabled = isSupplierPoEscrowEnabled();
 
   const { address: connectedWallet } = useAccount();
@@ -546,10 +551,69 @@ function PoInner() {
           s.status === 'preferred'
       );
       setSuppliers(filtered);
-      // Preselect from ?supplierId= (network Raise PO)
+      // Preselect from ?supplierId= (network Raise PO) or ?peer= platform profile
       if (preselectSupplierId && filtered.some((s) => s.id === preselectSupplierId)) {
         setSelectedSrmId(preselectSupplierId);
         setTab('create');
+      } else if (peerProfileId) {
+        const byPeer = filtered.find(
+          (s) => Number(s.linked_profile_id) === peerProfileId
+        );
+        if (byPeer) {
+          setSelectedSrmId(byPeer.id);
+          setTab('create');
+        }
+      }
+      // Catalogue / market handoff: prefill first line from listing title
+      if (listingTitle) {
+        setDescription(`PO from marketplace: ${listingTitle}`);
+        setLineItems([
+          {
+            product_id: null,
+            item_name: listingTitle.slice(0, 120),
+            quantity: 1,
+            unit_price: 0,
+            uom: 'ea',
+          },
+        ]);
+        setTab('create');
+        toast.message('Listing prefilled — set qty, price, then create PO');
+      }
+      if (fromListingId && companyId) {
+        try {
+          const lr = await fetch(
+            `/api/marketplace/listings?companyId=${companyId}&mode=browse`
+          );
+          if (lr.ok) {
+            const lj = await lr.json();
+            const listing = (lj.listings || []).find(
+              (x: { id?: number }) => Number(x.id) === fromListingId
+            );
+            if (listing) {
+              setDescription(
+                `Marketplace listing #${fromListingId}: ${listing.title || ''}`
+              );
+              setLineItems([
+                {
+                  product_id: listing.product_id
+                    ? Number(listing.product_id)
+                    : null,
+                  item_name: String(listing.title || listingTitle || 'Item').slice(
+                    0,
+                    120
+                  ),
+                  quantity: Number(listing.min_order_qty || 1) || 1,
+                  unit_price: Number(listing.unit_price || 0) || 0,
+                  uom: String(listing.uom || 'ea'),
+                },
+              ]);
+              if (listing.currency) setPoCurrency(String(listing.currency));
+              setTab('create');
+            }
+          }
+        } catch {
+          /* soft */
+        }
       }
       if (!poRes.ok) toast.error(pos.error || 'Failed to load POs');
       setPurchaseOrders(pos.purchaseOrders || []);
@@ -557,7 +621,7 @@ function PoInner() {
     } finally {
       setLoading(false);
     }
-  }, [companyId, privyUserId, preselectSupplierId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [companyId, privyUserId, preselectSupplierId, peerProfileId, fromListingId, listingTitle]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     void load();

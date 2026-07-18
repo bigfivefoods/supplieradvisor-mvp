@@ -69,6 +69,8 @@ export type MoneyHubSnapshot = {
     openBalance: number;
     overBy: number;
   }>;
+  /** Ledger payments received in last 30 days (settle proof) */
+  settled30d: number;
   at: string;
 };
 
@@ -334,6 +336,22 @@ export async function loadSellerMoneyHub(
     /* soft */
   }
 
+  let settled30d = 0;
+  try {
+    const since = new Date(Date.now() - 30 * 86400000).toISOString();
+    const { data: pays } = await supabase
+      .from('customer_invoice_payments')
+      .select('amount')
+      .eq('profile_id', companyId)
+      .gte('paid_at', since)
+      .limit(500);
+    for (const p of pays || []) {
+      settled30d += Number(p.amount || 0);
+    }
+  } catch {
+    settled30d = 0;
+  }
+
   return {
     companyId,
     openAr: Math.round(openAr * 100) / 100,
@@ -352,6 +370,7 @@ export async function loadSellerMoneyHub(
     dunningInvoiceIds: dunningInvoiceIds.slice(0, 20),
     brokenPromises,
     creditAlerts: creditAlerts.slice(0, 12),
+    settled30d: Math.round(settled30d * 100) / 100,
     at: new Date().toISOString(),
   };
 }

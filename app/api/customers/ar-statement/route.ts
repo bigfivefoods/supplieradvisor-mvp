@@ -258,23 +258,86 @@ async function loadStatement(companyId: number, customerId: number) {
 }
 
 /**
- * GET ?companyId=&customerId= — PDF statement of open invoices for one customer.
+ * GET ?companyId=&customerId= — PDF for one customer
+ * GET ?companyId=&format=pack — JSON list of open-AR customers + statement URLs (statement pack)
  */
 export async function GET(request: NextRequest) {
   try {
     const sp = request.nextUrl.searchParams;
     const companyId = Number(sp.get('companyId'));
     const customerId = Number(sp.get('customerId'));
-    if (!Number.isFinite(companyId) || !Number.isFinite(customerId)) {
-      return NextResponse.json(
-        { error: 'companyId and customerId required' },
-        { status: 400 }
-      );
+    const format = String(sp.get('format') || '').toLowerCase();
+
+    if (!Number.isFinite(companyId) || companyId <= 0) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
     const gate = await requireCompanyAccess(request, companyId, {
       legacyPrivyUserId: legacyPrivyFrom(request),
     });
     if (!gate.ok) return gate.response;
+
+    // Statement pack: all customers with open AR
+    if (format === 'pack' || format === 'summary') {
+      const supabase = getSupabaseServer();
+      const { data: invs } = await supabase
+        .from('customer_invoices')
+        .select(
+          'customer_id, customer_name, total_amount, amount_paid, currency, status'
+        )
+        .eq('profile_id', companyId)
+        .in('status', [...OPEN])
+        .limit(400);
+      const byCust = new Map<
+        number,
+        { name: string; open: number; currency: string; count: number }
+      >();
+      for (const inv of invs || []) {
+        const cid = Number(inv.customer_id || 0);
+        if (!cid) continue;
+        const bal = Math.max(
+          0,
+          Number(inv.total_amount || 0) - Number(inv.amount_paid || 0)
+        );
+        if (bal <= 0.009) continue;
+        const prev = byCust.get(cid) || {
+          name: String(inv.customer_name || `Customer #${cid}`),
+          open: 0,
+          currency: String(inv.currency || 'ZAR'),
+          count: 0,
+        };
+        prev.open += bal;
+        prev.count += 1;
+        byCust.set(cid, prev);
+      }
+      const customers = [...byCust.entries()]
+        .map(([id, v]) => ({
+          customerId: id,
+          customerName: v.name,
+          openBalance: Math.round(v.open * 100) / 100,
+          openInvoiceCount: v.count,
+          currency: v.currency,
+          pdfHref: `/api/customers/ar-statement?companyId=${companyId}&customerId=${id}`,
+        }))
+        .sort((a, b) => b.openBalance - a.openBalance);
+
+      return NextResponse.json({
+        success: true,
+        pack: {
+          companyId,
+          customerCount: customers.length,
+          totalOpen: customers.reduce((s, c) => s + c.openBalance, 0),
+          customers,
+        },
+        at: new Date().toISOString(),
+      });
+    }
+
+    if (!Number.isFinite(customerId) || customerId <= 0) {
+      return NextResponse.json(
+        { error: 'customerId required (or format=pack)' },
+        { status: 400 }
+      );
+    }
 
     const result = await loadStatement(companyId, customerId);
     if (!result.ok) {
@@ -298,19 +361,17 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * POST { companyId, customerId, to?, action: 'email' }
- * Email PDF statement to customer (or override to=).
+ * POST { companyId, customerId, to?, action: 'email' | 'email_pack' }
+ * Email PDF statement to customer, or email_pack for all open-AR customers (max 15).
  */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
     const companyId = Number(body.companyId);
-    const customerId = Number(body.customerId);
-    if (!Number.isFinite(companyId) || !Number.isFinite(customerId)) {
-      return NextResponse.json(
-        { error: 'companyId and customerId required' },
-        { status: 400 }
-      );
+    const action = String(body.action || 'email').toLowerCase();
+
+    if (!Number.isFinite(companyId) || companyId <= 0) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
     const gate = await requireCompanyAccess(request, companyId, {
       legacyPrivyUserId: legacyPrivyFrom(request, body),
@@ -321,6 +382,67 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'RESEND_API_KEY not configured' },
         { status: 503 }
+      );
+    }
+
+    // Bulk statement pack email
+    if (action === 'email_pack') {
+      const supabase = getSupabaseServer();
+      const { data: invs } = await supabase
+        .from('customer_invoices')
+        .select('customer_id, total_amount, amount_paid, status')
+        .eq('profile_id', companyId)
+        .in('status', [...OPEN])
+        .limit(400);
+      const custIds = new Set<number>();
+      for (const inv of invs || []) {
+        const cid = Number(inv.customer_id || 0);
+        const bal =
+          Number(inv.total_amount || 0) - Number(inv.amount_paid || 0);
+        if (cid > 0 && bal > 0.009) custIds.add(cid);
+      }
+      let emailed = 0;
+      const errors: string[] = [];
+      for (const customerId of [...custIds].slice(0, 15)) {
+        try {
+          const result = await loadStatement(companyId, customerId);
+          if (!result.ok) continue;
+          const to = String(result.contactEmail || '').trim().toLowerCase();
+          if (!to.includes('@')) {
+            errors.push(`#${customerId}: no email`);
+            continue;
+          }
+          const resend = getResend();
+          await resend.emails.send({
+            from: getResendFrom(),
+            to: [to],
+            subject: `Account statement — ${result.customerName}`,
+            html: `<p>Open balance: <strong>${result.currency} ${result.openTotal.toLocaleString()}</strong>. PDF attached.</p>`,
+            attachments: [
+              { filename: result.filename, content: result.pdf },
+            ],
+          });
+          emailed += 1;
+        } catch (e: unknown) {
+          errors.push(
+            `#${customerId}: ${e instanceof Error ? e.message : 'fail'}`
+          );
+        }
+      }
+      return NextResponse.json({
+        success: true,
+        action: 'email_pack',
+        emailed,
+        attempted: Math.min(15, custIds.size),
+        errors: errors.slice(0, 10),
+      });
+    }
+
+    const customerId = Number(body.customerId);
+    if (!Number.isFinite(customerId) || customerId <= 0) {
+      return NextResponse.json(
+        { error: 'customerId required' },
+        { status: 400 }
       );
     }
 

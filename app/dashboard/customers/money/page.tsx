@@ -71,6 +71,7 @@ type Hub = {
     invoice_number?: string | null;
   }>;
   dunningInvoiceIds?: number[];
+  settled30d?: number;
   brokenPromises?: Array<{
     id: number;
     invoice_number: string | null;
@@ -361,6 +362,75 @@ function Inner() {
             >
               {dunBusy ? 'Sending…' : 'Dunning send-now'}
             </button>
+            <button
+              type="button"
+              className="btn-secondary !py-2 !px-3 text-sm"
+              onClick={() => {
+                void (async () => {
+                  try {
+                    const res = await fetch(
+                      `/api/customers/ar-statement?companyId=${companyId}&format=pack`,
+                      { cache: 'no-store' }
+                    );
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error || 'Failed');
+                    const pack = data.pack;
+                    const n = pack?.customerCount || 0;
+                    if (!n) {
+                      toast.message('No open-AR customers for statements');
+                      return;
+                    }
+                    toast.success(
+                      `Statement pack: ${n} customer(s) · open ${Number(
+                        pack.totalOpen || 0
+                      ).toLocaleString()}`,
+                      {
+                        description: 'Open PDF per customer or email pack',
+                        action: {
+                          label: 'Email all',
+                          onClick: () => {
+                            void (async () => {
+                              const r = await fetch(
+                                '/api/customers/ar-statement',
+                                {
+                                  method: 'POST',
+                                  headers: {
+                                    'Content-Type': 'application/json',
+                                  },
+                                  body: JSON.stringify({
+                                    companyId,
+                                    action: 'email_pack',
+                                  }),
+                                }
+                              );
+                              const j = await r.json().catch(() => ({}));
+                              if (!r.ok)
+                                throw new Error(j.error || 'Email pack failed');
+                              toast.success(
+                                `Emailed ${j.emailed}/${j.attempted} statements`
+                              );
+                            })().catch((e: unknown) =>
+                              toast.error(
+                                e instanceof Error ? e.message : 'Failed'
+                              )
+                            );
+                          },
+                        },
+                      }
+                    );
+                    // Open first PDF as sample
+                    const first = pack.customers?.[0];
+                    if (first?.pdfHref) {
+                      window.open(first.pdfHref, '_blank');
+                    }
+                  } catch (e: unknown) {
+                    toast.error(e instanceof Error ? e.message : 'Failed');
+                  }
+                })();
+              }}
+            >
+              Statement pack
+            </button>
             <Link
               href="/dashboard/customers/ar"
               className="btn-primary !py-2 !px-3 text-sm"
@@ -397,9 +467,10 @@ function Inner() {
               warn={hub.pendingClaims > 0}
             />
             <Kpi
-              label="Installments overdue"
-              value={String(hub.overdueInstallments)}
-              warn={hub.overdueInstallments > 0}
+              label="Settled 30d"
+              value={String(
+                Math.round(Number(hub.settled30d || 0)).toLocaleString()
+              )}
             />
           </div>
 

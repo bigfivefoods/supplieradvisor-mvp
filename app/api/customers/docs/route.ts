@@ -1804,6 +1804,12 @@ export async function PATCH(request: NextRequest) {
         }
       }
     }
+    const runShareChecklist =
+      kind === 'invoice' &&
+      body.status !== undefined &&
+      String(body.status).toLowerCase() === 'sent' &&
+      Number.isFinite(Number(body.companyId)) &&
+      Number(body.companyId) > 0;
     if (body.notes !== undefined) updates.notes = body.notes;
     if (body.customer_id !== undefined) updates.customer_id = body.customer_id;
     if (body.valid_until !== undefined) updates.valid_until = body.valid_until;
@@ -1942,7 +1948,29 @@ export async function PATCH(request: NextRequest) {
 
     const { data, error } = await q.select('*').single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ success: true, document: data, type: kind });
+
+    let shareChecklist: unknown = null;
+    if (runShareChecklist) {
+      try {
+        const { ensureInvoiceSharedForBuyer } = await import(
+          '@/lib/customers/share-checklist'
+        );
+        shareChecklist = await ensureInvoiceSharedForBuyer({
+          companyId: Number(body.companyId),
+          invoiceId: docId,
+          actorUserId: String(body.privyUserId || 'seller'),
+        });
+      } catch {
+        shareChecklist = null;
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      document: data,
+      type: kind,
+      shareChecklist,
+    });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Error' }, { status: 500 });
   }
