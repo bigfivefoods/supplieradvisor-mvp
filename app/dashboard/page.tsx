@@ -52,6 +52,7 @@ import TrustDeltaStrip from '@/components/dashboard/TrustDeltaStrip';
 import PeerTradeKickstart from '@/components/dashboard/PeerTradeKickstart';
 import InevitableNextBanner from '@/components/dashboard/InevitableNextBanner';
 import NotificationCenter from '@/components/dashboard/NotificationCenter';
+import SettleFunnelStrip from '@/components/dashboard/SettleFunnelStrip';
 import CatalogueEmptyBanner from '@/components/business/CatalogueEmptyBanner';
 import TradeNextBanner from '@/components/journey/TradeNextBanner';
 import { computeHubNextAction } from '@/lib/connections/next-action';
@@ -691,6 +692,7 @@ export default function DashboardCommandCenter() {
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
             <InevitableNextBanner />
+            <SettleFunnelStrip />
           </div>
           <NotificationCenter compact />
         </div>

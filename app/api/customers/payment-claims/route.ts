@@ -86,6 +86,7 @@ export async function POST(request: NextRequest) {
     }
 
     let bankSuggestions: unknown[] = [];
+    let bankAutoApplied: unknown = null;
     if (action === 'confirm' && result.claim) {
       try {
         const { suggestBankMatchesForPayment } = await import(
@@ -101,6 +102,34 @@ export async function POST(request: NextRequest) {
       } catch {
         bankSuggestions = [];
       }
+
+      // Auto-apply best high-confidence bank match when requested (default on)
+      const autoBank =
+        body.autoBankMatch !== false && body.autoBankMatch !== '0';
+      const best = Array.isArray(bankSuggestions)
+        ? (bankSuggestions as Array<{ confidence?: number; bankTxnId?: unknown }>)[0]
+        : null;
+      if (
+        autoBank &&
+        best &&
+        Number(best.confidence || 0) >= 80 &&
+        best.bankTxnId != null &&
+        result.claim.invoice_id
+      ) {
+        try {
+          const { applyBankMatchToInvoice } = await import(
+            '@/lib/banking/apply-match-for-claim'
+          );
+          bankAutoApplied = await applyBankMatchToInvoice({
+            profileId: companyId,
+            bankTxnId: best.bankTxnId as string | number,
+            invoiceId: Number(result.claim.invoice_id),
+            actorUserId: gate.userId,
+          });
+        } catch {
+          bankAutoApplied = null;
+        }
+      }
     }
 
     return NextResponse.json({
@@ -110,10 +139,13 @@ export async function POST(request: NextRequest) {
       invoice: result.invoice || null,
       ledgerId: result.ledgerId ?? null,
       bankSuggestions,
+      bankAutoApplied,
       bankMatchHint:
-        bankSuggestions.length > 0
-          ? 'Unallocated bank inflows match this payment — apply from Bank reconciliation'
-          : undefined,
+        bankAutoApplied
+          ? 'High-confidence bank line auto-linked to this invoice'
+          : bankSuggestions.length > 0
+            ? 'Unallocated bank inflows match this payment — apply from Money hub or Bank reconciliation'
+            : undefined,
     });
   } catch (e: unknown) {
     return NextResponse.json(

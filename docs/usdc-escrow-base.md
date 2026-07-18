@@ -39,6 +39,26 @@ NEXT_PUBLIC_USDC_ESCROW_ADDRESS=0x...   # from deploy output
 NEXT_PUBLIC_ZAR_PER_USD=18             # demo fiat→USDC only
 ```
 
+## Base mainnet (production crypto — optional)
+
+Only when you have a real treasury process (not for day-to-day ZAR AR):
+
+```bash
+NEXT_PUBLIC_USDC_ESCROW_CHAIN_ID=8453
+NEXT_PUBLIC_USDC_TOKEN_ADDRESS=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913  # native USDC on Base
+NEXT_PUBLIC_USDC_ESCROW_ADDRESS=0x...   # your mainnet deploy
+NEXT_PUBLIC_USDC_ESCROW_ENABLED=true
+```
+
+Checklist:
+
+1. Deploy `POEscrowUSDC` to Base mainnet with a controlled owner key  
+2. Multisig / hardware wallet for owner  
+3. Document fund→ship→confirm runbook for support  
+4. Keep **Money hub** default for SA ZAR settle  
+
+UI: `/dashboard/escrow` (under Suppliers nav).
+
 ## App wiring
 
 | Piece | Path |

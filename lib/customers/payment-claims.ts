@@ -546,6 +546,23 @@ export async function resolvePaymentClaim(opts: {
     /* soft */
   }
 
+  // Trust moves on settle
+  try {
+    const { bumpTrustOnSettle } = await import(
+      '@/lib/customers/trust-from-settle'
+    );
+    await bumpTrustOnSettle({
+      sellerProfileId: opts.sellerProfileId,
+      buyerProfileId: claim.buyer_profile_id
+        ? Number(claim.buyer_profile_id)
+        : null,
+      delta: 1.5,
+      reason: `claim #${opts.claimId} confirmed`,
+    });
+  } catch {
+    /* soft */
+  }
+
   return {
     ok: true,
     claim: updatedClaim as PaymentClaim,

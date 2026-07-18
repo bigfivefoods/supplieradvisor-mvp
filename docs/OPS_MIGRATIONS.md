@@ -25,6 +25,7 @@ supabase/migrations/20260718_installments_collections.sql
 | `/api/system/paystack-pulse-cron` | daily 08:00 UTC | Webhook stale alert + **CIPC SLA auto-rerun** + breach email |
 | `/api/business/network-invites/sequence-cron` | daily 09:30 UTC | Invite resend day 3 / day 7 if not accepted |
 | `/api/system/activation-digest-cron` | Mondays 08:00 UTC | Weekly ops activation + P0 readiness email |
+| `/api/system/claim-sla-cron` | daily 10:00 UTC | Nudge sellers on payment claims pending &gt;24h |
 
 Auth: `Authorization: Bearer $CRON_SECRET`
 

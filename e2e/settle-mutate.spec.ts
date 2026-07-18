@@ -178,6 +178,24 @@ test.describe('Settle mutate golden path', () => {
     }
   });
 
+  test('settle funnel + network density', async ({ request }) => {
+    const funnel = await request.get(
+      `${base}/api/business/settle-funnel?companyId=${companyId}`,
+      { headers: headers() }
+    );
+    expect(funnel.status()).not.toBe(401);
+    if (funnel.status() === 200) {
+      const j = await funnel.json();
+      expect(Array.isArray(j.funnel?.stages)).toBeTruthy();
+    }
+
+    const dens = await request.get(
+      `${base}/api/business/network-density?companyId=${companyId}`,
+      { headers: headers() }
+    );
+    expect(dens.status()).not.toBe(401);
+  });
+
   test('settle-smoke + payment-proof auth gate', async ({ request }) => {
     const smoke = await request.get(`${base}/api/system/settle-smoke`);
     // Public or service-role: should not 404

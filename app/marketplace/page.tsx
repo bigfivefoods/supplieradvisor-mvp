@@ -3,6 +3,7 @@
 /**
  * Public B2B marketplace storefront — unauthenticated browse of public listings.
  * Deep links into login → connections marketplace for RFQ / trade.
+ * SEO: pair with app/marketplace/layout.tsx metadata.
  */
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';

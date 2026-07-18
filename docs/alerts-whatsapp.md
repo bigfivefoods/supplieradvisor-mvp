@@ -94,6 +94,18 @@ curl -sS https://www.supplieradvisor.com/api/system/health | jq '.checks.twilio_
 | 401 on twilio-smoke | Wrong `CRON_SECRET` |
 | Messages to other numbers fail | Sandbox only talks to joined numbers — apply for WhatsApp Business for production |
 
+## WhatsApp Business (production scale)
+
+Sandbox is fine for demos. For claim SLA / dunning to arbitrary SA numbers:
+
+1. Twilio → Messaging → WhatsApp senders → request **WhatsApp Business**  
+2. Complete Meta Business verification  
+3. Replace `TWILIO_WHATSAPP_FROM` with your approved `whatsapp:+27…` sender  
+4. Use message templates for outbound business-initiated traffic outside the 24h session  
+5. Keep email (Resend) as primary; WA remains soft-fail  
+
+App already soft-skips when Twilio is unset (`TWILIO_REQUIRED=1` forces health warning).
+
 ## Code
 
 - `lib/notifications/email-alerts.ts`
