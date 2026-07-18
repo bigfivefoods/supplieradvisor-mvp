@@ -21,6 +21,8 @@ export async function loadOpenToTradeRanking(opts?: {
   industry?: string | null;
   city?: string | null;
   limit?: number;
+  /** Viewer company — boost mutual / accepted connections */
+  viewerCompanyId?: number | null;
 }): Promise<RankedCompany[]> {
   const supabase = getSupabaseServer();
   let q = supabase
@@ -37,6 +39,30 @@ export async function loadOpenToTradeRanking(opts?: {
 
   const { data, error } = await q;
   if (error || !data) return [];
+
+  // Mutual / accepted edges for viewer
+  const connectedIds = new Set<number>();
+  const viewerId = Number(opts?.viewerCompanyId || 0);
+  if (viewerId > 0) {
+    try {
+      const { data: edges } = await supabase
+        .from('business_connections')
+        .select('requester_profile_id, requestee_profile_id, status')
+        .or(
+          `requester_profile_id.eq.${viewerId},requestee_profile_id.eq.${viewerId}`
+        )
+        .eq('status', 'accepted')
+        .limit(200);
+      for (const e of edges || []) {
+        const a = Number(e.requester_profile_id);
+        const b = Number(e.requestee_profile_id);
+        if (a === viewerId && b > 0) connectedIds.add(b);
+        if (b === viewerId && a > 0) connectedIds.add(a);
+      }
+    } catch {
+      /* soft */
+    }
+  }
 
   const ranked: RankedCompany[] = [];
   for (const raw of data) {
@@ -102,6 +128,12 @@ export async function loadOpenToTradeRanking(opts?: {
     if (r.city && r.industry && r.country) {
       rankScore += 4;
       reasons.push('complete location');
+    }
+    const peerId = Number(r.id);
+    if (viewerId > 0 && peerId === viewerId) continue;
+    if (connectedIds.has(peerId)) {
+      rankScore += 12;
+      reasons.push('already connected');
     }
 
     ranked.push({

@@ -130,12 +130,18 @@ function BrowseInner() {
         return;
       }
       const sellerId = selected.seller_profile_id;
-      toast.success('Inquiry sent — next: connect & request trade', {
+      const title = selected.title || 'listing';
+      toast.success('Inquiry sent — continue the trade path', {
+        description: 'Connect → PO / first trade → Money hub',
         action: sellerId
           ? {
-              label: 'Request trade',
+              label: selected.is_connected ? 'Raise PO' : 'Request trade',
               onClick: () => {
-                window.location.href = `/dashboard/connections/discover?peer=${sellerId}`;
+                if (selected.is_connected) {
+                  window.location.href = `/dashboard/suppliers/po?peer=${sellerId}&fromListing=${selected.id}&q=${encodeURIComponent(title)}`;
+                } else {
+                  window.location.href = `/dashboard/connections/discover?peer=${sellerId}`;
+                }
               },
             }
           : {
@@ -416,12 +422,22 @@ function BrowseInner() {
               )}
               <div className="flex flex-wrap gap-2 mt-2">
                 {selected.seller_profile_id ? (
-                  <Link
-                    href={`/dashboard/connections/discover?peer=${selected.seller_profile_id}`}
-                    className="text-[11px] font-bold text-[#0077b6] underline"
-                  >
-                    Request to trade
-                  </Link>
+                  <>
+                    <Link
+                      href={`/dashboard/connections/discover?peer=${selected.seller_profile_id}`}
+                      className="text-[11px] font-bold text-[#0077b6] underline"
+                    >
+                      Request to trade
+                    </Link>
+                    {selected.is_connected ? (
+                      <Link
+                        href={`/dashboard/suppliers/po?peer=${selected.seller_profile_id}&fromListing=${selected.id}`}
+                        className="text-[11px] font-bold text-violet-800 underline"
+                      >
+                        Raise PO
+                      </Link>
+                    ) : null}
+                  </>
                 ) : null}
                 <Link
                   href="/dashboard/settle"
@@ -429,14 +445,12 @@ function BrowseInner() {
                 >
                   Settle path
                 </Link>
-                {selected.seller?.wallet_address ? (
-                  <Link
-                    href="/dashboard/escrow"
-                    className="text-[11px] font-bold text-amber-900 underline"
-                  >
-                    USDC escrow
-                  </Link>
-                ) : null}
+                <Link
+                  href="/dashboard/escrow"
+                  className="text-[11px] font-bold text-amber-900 underline"
+                >
+                  USDC escrow
+                </Link>
               </div>
             </div>
 

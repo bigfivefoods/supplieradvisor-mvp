@@ -1746,7 +1746,64 @@ export async function PATCH(request: NextRequest) {
     const docId = Number(body.id);
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
 
-    if (body.status !== undefined) updates.status = body.status;
+    if (body.status !== undefined) {
+      updates.status = body.status;
+      // Credit hold blocks marking invoice sent
+      if (
+        kind === 'invoice' &&
+        String(body.status).toLowerCase() === 'sent' &&
+        body.forceCreditHold !== true
+      ) {
+        const companyId = Number(body.companyId);
+        const custId = Number(
+          body.customer_id || updates.customer_id || 0
+        );
+        let resolveCust = custId;
+        if (
+          (!Number.isFinite(resolveCust) || resolveCust <= 0) &&
+          Number.isFinite(companyId) &&
+          companyId > 0
+        ) {
+          const { data: invRow } = await supabase
+            .from('customer_invoices')
+            .select('customer_id')
+            .eq('id', docId)
+            .eq('profile_id', companyId)
+            .maybeSingle();
+          resolveCust = Number(invRow?.customer_id || 0);
+        }
+        if (
+          Number.isFinite(companyId) &&
+          companyId > 0 &&
+          Number.isFinite(resolveCust) &&
+          resolveCust > 0
+        ) {
+          try {
+            const { checkCustomerCreditLimit } = await import(
+              '@/lib/customers/credit-limit'
+            );
+            const credit = await checkCustomerCreditLimit(supabase, {
+              companyId,
+              customerId: resolveCust,
+              additionalAmount: 0,
+            });
+            if (!credit.ok && credit.code === 'CREDIT_HOLD') {
+              return NextResponse.json(
+                {
+                  error:
+                    'Customer is on credit hold — clear hold before marking the invoice sent.',
+                  code: 'CREDIT_HOLD',
+                  creditHold: true,
+                },
+                { status: 409 }
+              );
+            }
+          } catch {
+            /* soft */
+          }
+        }
+      }
+    }
     if (body.notes !== undefined) updates.notes = body.notes;
     if (body.customer_id !== undefined) updates.customer_id = body.customer_id;
     if (body.valid_until !== undefined) updates.valid_until = body.valid_until;
@@ -1835,6 +1892,32 @@ export async function PATCH(request: NextRequest) {
             { error: notSuspended.error },
             { status: notSuspended.status }
           );
+        }
+        // Credit hold blocks share (unless forceCreditHold)
+        if (kind === 'invoice' && body.forceCreditHold !== true) {
+          try {
+            const { checkCustomerCreditLimit } = await import(
+              '@/lib/customers/credit-limit'
+            );
+            const credit = await checkCustomerCreditLimit(supabase, {
+              companyId,
+              customerId: nextCustomerId,
+              additionalAmount: 0,
+            });
+            if (!credit.ok && credit.code === 'CREDIT_HOLD') {
+              return NextResponse.json(
+                {
+                  error:
+                    'Customer is on credit hold — clear hold before sharing invoices with the buyer.',
+                  code: 'CREDIT_HOLD',
+                  creditHold: true,
+                },
+                { status: 409 }
+              );
+            }
+          } catch {
+            /* soft */
+          }
         }
       } else if (changingVisibility && nextVisibility === 'seller_only') {
         // Unshare: membership when companyId/privy provided (tighten access while suspended OK)

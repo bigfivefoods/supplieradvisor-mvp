@@ -78,8 +78,25 @@ Credit hold probe: `E2E_CREDIT_HOLD_CUSTOMER_ID=` on a customer already on hold.
 | `/dashboard/settle` | Command center |
 | Claim email / WhatsApp | Money hub deep link |
 
+## One-command ops
+
+```bash
+APP_URL=https://www.supplieradvisor.com \
+EXPECT_COMMIT=$(git rev-parse --short HEAD) \
+CRON_SECRET=… \
+bash scripts/ops-live-week.sh
+```
+
+Seeds Paystack pulse via `GET /api/paystack/webhook?ping=1`, checks settle-smoke, health, crons.
+
+## Public market
+
+- Storefront: `/marketplace` (unauth)
+- API: `/api/public/marketplace-listings`
+
 ## Done when
 
 - Smoke green  
 - One real claim→confirm with POP  
-- Ops digests not erroring (Resend + OPS_ALERT_EMAIL)
+- Ops digests not erroring (Resend + OPS_ALERT_EMAIL / OPS_EMAIL_ALERT)
+- Banner quiet (no false Twilio/Paystack never noise)

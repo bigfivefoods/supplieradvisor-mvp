@@ -190,8 +190,27 @@ export default function FirstTradeOrchestrator({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || data.message || 'Send failed');
-      toast.success(data.message || 'Invoice sent', { id: 'ft-send' });
+      toast.success(data.message || 'Invoice sent — open Money hub', {
+        id: 'ft-send',
+        action: {
+          label: 'Money hub',
+          onClick: () => {
+            window.location.href = '/dashboard/customers/money';
+          },
+        },
+      });
       if (data.plan) setPlan(data.plan as Plan);
+      // Soft handoff after send so collect is inevitable
+      try {
+        if (typeof window !== 'undefined' && !sessionStorage.getItem(`ft-money-${companyId}`)) {
+          sessionStorage.setItem(`ft-money-${companyId}`, '1');
+          window.setTimeout(() => {
+            window.location.href = '/dashboard/customers/money?from=first-trade';
+          }, 1200);
+        }
+      } catch {
+        /* soft */
+      }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed', { id: 'ft-send' });
     } finally {
@@ -278,13 +297,18 @@ export default function FirstTradeOrchestrator({
           ) : null}
           {plan.steps.find((s) => s.id === 'send')?.done &&
           !plan.signals?.paidInvoiceCount ? (
-            <Link
-              href="/dashboard/customers/money"
-              className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-950 text-xs font-bold px-3 py-2"
-            >
-              <Wallet className="w-3.5 h-3.5" />
-              Collect on Money hub
-            </Link>
+            <>
+              <Link
+                href="/dashboard/customers/money"
+                className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-950 text-xs font-bold px-3 py-2"
+              >
+                <Wallet className="w-3.5 h-3.5" />
+                Collect on Money hub
+              </Link>
+              <span className="text-[11px] text-emerald-900/80 font-semibold max-w-[14rem] leading-snug">
+                Waiting for pay — buyer claims appear on Money; confirm → ledger → rate.
+              </span>
+            </>
           ) : null}
           {plan.nextStep && !canSend ? (
             <Link

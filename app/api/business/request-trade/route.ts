@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
       '@/lib/business/network-ranking'
     );
     const ranked = await loadOpenToTradeRanking({
+      viewerCompanyId: companyId > 0 ? companyId : null,
       industry: request.nextUrl.searchParams.get('industry'),
       city: request.nextUrl.searchParams.get('city'),
       limit: Number(request.nextUrl.searchParams.get('limit') || 30),

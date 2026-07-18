@@ -11,6 +11,7 @@ export const PUBLIC_API_PREFIXES = [
   '/api/invites/validate',
   '/api/banking/webhooks/',
   '/api/paystack/webhook',
+  '/api/public/marketplace-listings',
   '/api/inventory/products/public',
   '/api/geo',
   // join claim/profile are under /api/public/ already

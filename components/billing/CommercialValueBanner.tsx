@@ -14,12 +14,25 @@ export default function CommercialValueBanner({
   trialDaysLeft,
   foundingRemaining,
   show,
+  settleProof,
 }: {
   trialDaysLeft?: number | null;
   foundingRemaining?: number | null;
   show: boolean;
+  /** Live settle metrics — why pay for Money hub */
+  settleProof?: {
+    openAr?: number | null;
+    claimsConfirmed30d?: number | null;
+    ledgerPayments30d?: number | null;
+    currency?: string | null;
+  } | null;
 }) {
   if (!show) return null;
+
+  const ccy = (settleProof?.currency || 'ZAR').toUpperCase();
+  const openAr = settleProof?.openAr;
+  const claims = settleProof?.claimsConfirmed30d;
+  const ledger = settleProof?.ledgerPayments30d;
 
   return (
     <div className="mb-4 rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 via-white to-violet-50 px-4 py-4">
@@ -34,6 +47,16 @@ export default function CommercialValueBanner({
               </span>
             ) : null}
           </p>
+          {(openAr != null || claims != null || ledger != null) && (
+            <p className="mt-1.5 text-xs font-semibold text-emerald-900 bg-emerald-50 border border-emerald-100 rounded-xl px-2.5 py-1.5 inline-block">
+              Your settle proof
+              {openAr != null
+                ? ` · open AR ${ccy} ${Number(openAr).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                : ''}
+              {ledger != null ? ` · ${ledger} ledger payment(s) · 30d` : ''}
+              {claims != null ? ` · ${claims} claim(s) confirmed · 30d` : ''}
+            </p>
+          )}
           <ul className="mt-2 text-xs text-slate-600 space-y-1 list-disc list-inside">
             <li>
               <strong>Money hub</strong> — claims, AR ledger, dunning, bank match

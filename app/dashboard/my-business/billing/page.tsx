@@ -70,6 +70,12 @@ function BillingInner() {
   const [paying, setPaying] = useState(false);
   const [companyName, setCompanyName] = useState('');
   const [billingEmail, setBillingEmail] = useState<string | null>(null);
+  const [settleProof, setSettleProof] = useState<{
+    openAr?: number | null;
+    claimsConfirmed30d?: number | null;
+    ledgerPayments30d?: number | null;
+    currency?: string | null;
+  } | null>(null);
   const [subscription, setSubscription] =
     useState<CompanySubscriptionInfo | null>(null);
   const [founding, setFounding] = useState<{
@@ -189,6 +195,28 @@ function BillingInner() {
         });
       } else if (data.trialJustStarted) {
         toast.success(`${COMPANY_TRIAL_DAYS}-day free trial started`);
+      }
+
+      // Soft settle proof for commercial banner
+      try {
+        const hubRes = await fetch(
+          `/api/customers/money-hub?companyId=${companyId}`,
+          { cache: 'no-store' }
+        );
+        if (hubRes.ok) {
+          const hubJ = await hubRes.json();
+          const hub = hubJ.hub || {};
+          setSettleProof({
+            openAr: Number(hub.openAr || 0),
+            claimsConfirmed30d: Number(hub.pendingClaims || 0), // soft: pending as activity signal
+            ledgerPayments30d: Array.isArray(hub.recentLedger)
+              ? hub.recentLedger.length
+              : 0,
+            currency: hub.baseCurrency || 'ZAR',
+          });
+        }
+      } catch {
+        setSettleProof(null);
       }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Load failed');
@@ -484,6 +512,7 @@ function BillingInner() {
         )}
         trialDaysLeft={sub?.daysRemaining}
         foundingRemaining={founding?.remaining}
+        settleProof={settleProof}
       />
 
       {(needPay || trialEndingSoon || payFocus) && !sub?.isLifetime ? (

@@ -126,6 +126,26 @@ function EscrowInner() {
         </div>
       </section>
 
+      <section className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 text-xs text-slate-700 mb-6">
+        <p className="font-black text-emerald-950 text-sm">When to use escrow vs Money hub</p>
+        <ul className="mt-2 space-y-1 list-disc list-inside leading-relaxed">
+          <li>
+            <strong>Money hub (default)</strong> — ZAR invoices, buyer POP claims, AR ledger,
+            dunning. Day-to-day B2B.
+          </li>
+          <li>
+            <strong>USDC escrow</strong> — cross-border / demo / high-trust POs where release is
+            tied to ship + confirm on Base.
+          </li>
+        </ul>
+        <Link
+          href="/dashboard/suppliers/po"
+          className="inline-flex items-center gap-1 mt-3 font-bold text-[#0077b6]"
+        >
+          Open POs to fund escrow <ArrowRight className="w-3.5 h-3.5" />
+        </Link>
+      </section>
+
       <section className="rounded-2xl border border-violet-200 bg-violet-50/40 p-5 text-xs text-slate-700 leading-relaxed">
         <p className="font-black text-violet-950 text-sm">Ops env checklist</p>
         <ul className="mt-2 space-y-1 list-disc list-inside">
@@ -150,6 +170,6 @@ function EscrowInner() {
         </p>
       </section>
       </div>
-    </CustomersPage>
+    </SuppliersPage>
   );
 }
