@@ -91,6 +91,18 @@ export async function loadInevitableNextAction(
     st !== 'verified' &&
     Boolean(payRef || v.paystack_reference || v.paystackReference);
 
+  const slaHours = Number(process.env.CLAIM_SLA_HOURS || 24);
+  let slaClaims = 0;
+  for (const c of claims.claims) {
+    const claimed = c.claimed_at ? Date.parse(String(c.claimed_at)) : NaN;
+    if (
+      Number.isFinite(claimed) &&
+      (Date.now() - claimed) / 3600000 >= slaHours
+    ) {
+      slaClaims += 1;
+    }
+  }
+
   const action = computeHubNextAction({
     role: 'main',
     pendingConnections: pendingConn.count ?? 0,
@@ -99,6 +111,7 @@ export async function loadInevitableNextAction(
     openInboundPos: inboundPo.count ?? 0,
     invoiceableInboundPos: 0,
     pendingPaymentClaims: claims.claims.length,
+    slaClaims,
     ratingsDue: ratingPrompts.count ?? 0,
     brokenPromises,
     verificationStatus: st,
@@ -109,6 +122,7 @@ export async function loadInevitableNextAction(
     ...action,
     signals: {
       pendingClaims: claims.claims.length,
+      slaClaims,
       overdueInvoices: overdueInv.count ?? 0,
       ratingsDue: ratingPrompts.count ?? 0,
       brokenPromises,

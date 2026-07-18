@@ -2372,6 +2372,24 @@ function PoInner() {
                               <Package className="w-3 h-3" /> Receive + OTIFEF
                             </button>
                           )}
+                          {/* One-click path: seller invoice from this PO when we sell */}
+                          {['accepted', 'funded', 'sent'].includes(
+                            String(po.status)
+                          ) &&
+                            !resolveInvoiceId(po) &&
+                            (po.buyer_profile_id || po.supplier_profile_id) && (
+                              <Link
+                                href={`/dashboard/customers/invoices?fromPo=${po.id}${
+                                  po.buyer_profile_id
+                                    ? `&buyerProfileId=${po.buyer_profile_id}`
+                                    : ''
+                                }`}
+                                className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
+                                title="Create commercial invoice from this PO (seller cash-out)"
+                              >
+                                <FileText className="w-3 h-3" /> Invoice now
+                              </Link>
+                            )}
                           {String(po.status).toLowerCase() === 'invoiced' &&
                             po.invoice_shared === false && (
                               <span

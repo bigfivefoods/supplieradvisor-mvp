@@ -246,6 +246,8 @@ export function computeHubNextAction(opts: {
   overdueInvoices?: number;
   /** Buyer payment claims awaiting confirm */
   pendingPaymentClaims?: number;
+  /** Claims past SLA hours (priority over generic claims) */
+  slaClaims?: number;
   /** Rating prompts due */
   ratingsDue?: number;
   /** Broken promise-to-pay count */
@@ -285,7 +287,23 @@ export function computeHubNextAction(opts: {
     };
   }
 
-  // Settle-by-default: claims before generic module work
+  // Settle-by-default: SLA claims first, then any pending claims
+  if (
+    (opts.role === 'supplier' || opts.role === 'main') &&
+    (opts.slaClaims || 0) > 0
+  ) {
+    return {
+      id: 'payment_claims_sla',
+      priority: 95,
+      title: 'SLA claims need confirm',
+      body: `${opts.slaClaims} claim(s) past SLA — open Money hub Review drawer and confirm or reject.`,
+      href: '/dashboard/customers/money',
+      cta: 'Claim inbox',
+      secondaryHref: '/dashboard/customers/ar',
+      secondaryCta: 'AR aging',
+    };
+  }
+
   if (
     (opts.role === 'supplier' || opts.role === 'main') &&
     (opts.pendingPaymentClaims || 0) > 0

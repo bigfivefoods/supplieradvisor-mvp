@@ -389,6 +389,7 @@ export async function loadBuyerMoneyHub(buyerCompanyId: number): Promise<{
     status: string;
     due_date: string | null;
     claimStatus: string | null;
+    rejectReason?: string | null;
     bank_name: string | null;
     bank_account: string | null;
     bank_branch: string | null;
@@ -401,17 +402,22 @@ export async function loadBuyerMoneyHub(buyerCompanyId: number): Promise<{
     claimed_at?: string;
     resolved_at?: string | null;
     reference?: string | null;
+    notes?: string | null;
+    rejectReason?: string | null;
   }>;
   pendingClaims: number;
   confirmedClaims: number;
+  rejectedClaims: number;
   at: string;
 }> {
   const supabase = getSupabaseServer();
 
   // Claims by this buyer
   let claimByInv = new Map<number, string>();
+  let rejectReasonByInv = new Map<number, string>();
   let pendingClaims = 0;
   let confirmedClaims = 0;
+  let rejectedClaims = 0;
   const claimTimeline: Array<{
     invoice_id: number;
     status: string;
@@ -420,33 +426,75 @@ export async function loadBuyerMoneyHub(buyerCompanyId: number): Promise<{
     claimed_at?: string;
     resolved_at?: string | null;
     reference?: string | null;
+    notes?: string | null;
+    rejectReason?: string | null;
   }> = [];
   try {
     const { data: claims } = await supabase
       .from('customer_payment_claims')
       .select(
-        'invoice_id, status, amount, currency, claimed_at, resolved_at, reference'
+        'invoice_id, status, amount, currency, claimed_at, resolved_at, reference, notes'
       )
       .eq('buyer_profile_id', buyerCompanyId)
       .order('claimed_at', { ascending: false })
       .limit(80);
     for (const c of claims || []) {
       const id = Number(c.invoice_id);
-      if (!claimByInv.has(id)) claimByInv.set(id, String(c.status || ''));
-      if (c.status === 'pending') pendingClaims += 1;
-      if (c.status === 'confirmed') confirmedClaims += 1;
+      const st = String(c.status || '');
+      // Prefer latest status per invoice (query is newest first)
+      if (!claimByInv.has(id)) claimByInv.set(id, st);
+      if (st === 'pending') pendingClaims += 1;
+      if (st === 'confirmed') confirmedClaims += 1;
+      if (st === 'rejected') rejectedClaims += 1;
+      const notes = c.notes != null ? String(c.notes) : '';
+      let rejectReason: string | null = null;
+      const m = notes.match(/\[reject reason\]\s*(.+)/i);
+      if (m) rejectReason = m[1].trim().slice(0, 300);
+      if (rejectReason && !rejectReasonByInv.has(id)) {
+        rejectReasonByInv.set(id, rejectReason);
+      }
       claimTimeline.push({
         invoice_id: id,
-        status: String(c.status || ''),
+        status: st,
         amount: Number(c.amount || 0),
         currency: String(c.currency || 'ZAR'),
         claimed_at: c.claimed_at ? String(c.claimed_at) : undefined,
         resolved_at: c.resolved_at ? String(c.resolved_at) : null,
         reference: c.reference ? String(c.reference) : null,
+        notes: notes || null,
+        rejectReason,
       });
     }
   } catch {
-    /* soft */
+    /* soft — notes column may be missing */
+    try {
+      const { data: claims } = await supabase
+        .from('customer_payment_claims')
+        .select(
+          'invoice_id, status, amount, currency, claimed_at, resolved_at, reference'
+        )
+        .eq('buyer_profile_id', buyerCompanyId)
+        .order('claimed_at', { ascending: false })
+        .limit(80);
+      for (const c of claims || []) {
+        const id = Number(c.invoice_id);
+        if (!claimByInv.has(id)) claimByInv.set(id, String(c.status || ''));
+        if (c.status === 'pending') pendingClaims += 1;
+        if (c.status === 'confirmed') confirmedClaims += 1;
+        if (c.status === 'rejected') rejectedClaims += 1;
+        claimTimeline.push({
+          invoice_id: id,
+          status: String(c.status || ''),
+          amount: Number(c.amount || 0),
+          currency: String(c.currency || 'ZAR'),
+          claimed_at: c.claimed_at ? String(c.claimed_at) : undefined,
+          resolved_at: c.resolved_at ? String(c.resolved_at) : null,
+          reference: c.reference ? String(c.reference) : null,
+        });
+      }
+    } catch {
+      /* soft */
+    }
   }
 
   // Shared invoices via connections (reuse buyer docs pattern lightly)
@@ -556,6 +604,7 @@ export async function loadBuyerMoneyHub(buyerCompanyId: number): Promise<{
         status: String(inv.status || ''),
         due_date: inv.due_date ? String(inv.due_date).slice(0, 10) : null,
         claimStatus: claimByInv.get(Number(inv.id)) || null,
+        rejectReason: rejectReasonByInv.get(Number(inv.id)) || null,
         bank_name: seller?.bank_name || null,
         bank_account: seller?.bank_account || null,
         bank_branch: seller?.bank_branch || null,
@@ -571,6 +620,7 @@ export async function loadBuyerMoneyHub(buyerCompanyId: number): Promise<{
     claimTimeline: claimTimeline.slice(0, 20),
     pendingClaims,
     confirmedClaims,
+    rejectedClaims,
     at: new Date().toISOString(),
   };
 }

@@ -33,6 +33,7 @@ type Inv = {
   status: string;
   due_date: string | null;
   claimStatus: string | null;
+  rejectReason?: string | null;
   bank_name?: string | null;
   bank_account?: string | null;
   bank_branch?: string | null;
@@ -62,6 +63,7 @@ function Inner() {
       claimed_at?: string;
       resolved_at?: string | null;
       reference?: string | null;
+      rejectReason?: string | null;
     }>
   >([]);
   const [claimBusy, setClaimBusy] = useState<number | null>(null);
@@ -100,13 +102,22 @@ function Inner() {
   }, [load]);
 
   const openClaim = (inv: Inv) => {
-    if (inv.claimStatus === 'pending' || inv.claimStatus === 'confirmed') {
-      toast.message(`Claim already ${inv.claimStatus}`);
+    if (inv.claimStatus === 'pending') {
+      toast.message('Claim already pending — wait for seller confirm');
       return;
     }
+    if (inv.claimStatus === 'confirmed') {
+      toast.message('Claim already confirmed');
+      return;
+    }
+    // rejected or no claim → allow (re)claim
     setClaimModal(inv);
     setRefInput('');
-    setNotesInput('Payment made — please confirm on AR.');
+    setNotesInput(
+      inv.claimStatus === 'rejected'
+        ? 'Re-claim after rejection — please re-check amount and reference.'
+        : 'Payment made — please confirm on AR.'
+    );
     setProofUrl(null);
     setProofName(null);
   };
@@ -292,6 +303,15 @@ function Inner() {
                     </span>
                   ) : null}
                 </div>
+                {inv.claimStatus === 'rejected' && inv.rejectReason ? (
+                  <div className="text-[11px] text-rose-800 mt-1 bg-rose-50 border border-rose-100 rounded-lg px-2 py-1 max-w-md">
+                    <strong>Seller said:</strong> {inv.rejectReason}
+                  </div>
+                ) : inv.claimStatus === 'rejected' ? (
+                  <div className="text-[11px] text-rose-700 mt-1">
+                    Claim rejected — re-claim with correct amount/ref + POP.
+                  </div>
+                ) : null}
                 {inv.bank_name || inv.bank_account ? (
                   <div className="text-[11px] text-slate-600 mt-1 font-mono">
                     Pay: {inv.bank_name || 'Bank'}
@@ -321,7 +341,7 @@ function Inner() {
                     className="inline-flex items-center gap-1 rounded-full bg-emerald-700 text-white text-[11px] font-bold px-3 py-1.5 disabled:opacity-50"
                   >
                     <Banknote className="w-3.5 h-3.5" />
-                    I paid
+                    {inv.claimStatus === 'rejected' ? 'Re-claim' : 'I paid'}
                   </button>
                 ) : null}
               </div>
@@ -358,6 +378,11 @@ function Inner() {
                 {c.resolved_at
                   ? ` · resolved ${String(c.resolved_at).slice(0, 10)}`
                   : ''}
+                {c.rejectReason ? (
+                  <span className="block text-rose-700 mt-0.5">
+                    Reason: {c.rejectReason}
+                  </span>
+                ) : null}
               </li>
             ))}
           </ul>

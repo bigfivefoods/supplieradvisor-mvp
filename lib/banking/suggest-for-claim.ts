@@ -23,6 +23,33 @@ export async function suggestBankMatchesForPayment(opts: {
 }): Promise<BankClaimSuggestion[]> {
   try {
     const supabase = getSupabaseServer();
+
+    // Learned patterns from prior claim auto-matches
+    const learned: string[] = [];
+    try {
+      const since = new Date(Date.now() - 180 * 86400000).toISOString();
+      const { data: learnedRows } = await supabase
+        .from('activity_log')
+        .select('metadata')
+        .eq('profile_id', opts.profileId)
+        .eq('action', 'banking.match_learned')
+        .gte('created_at', since)
+        .order('created_at', { ascending: false })
+        .limit(40);
+      for (const row of learnedRows || []) {
+        const meta =
+          row.metadata && typeof row.metadata === 'object'
+            ? (row.metadata as Record<string, unknown>)
+            : {};
+        const p = String(meta.pattern || '')
+          .toLowerCase()
+          .trim();
+        if (p.length > 3) learned.push(p);
+      }
+    } catch {
+      /* soft */
+    }
+
     const { data: txns } = await supabase
       .from('bank_transactions')
       .select(
@@ -69,6 +96,15 @@ export async function suggestBankMatchesForPayment(opts: {
       if (invNum && hay.replace(/\s/g, '').includes(invNum)) {
         confidence += 25;
         reasons.push('invoice number in description');
+      }
+
+      // Learned counterparty / description patterns
+      for (const p of learned) {
+        if (p.length >= 4 && hay.includes(p)) {
+          confidence += 20;
+          reasons.push('learned pattern');
+          break;
+        }
       }
 
       const txnDate =

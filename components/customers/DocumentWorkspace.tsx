@@ -1364,9 +1364,32 @@ function DocInner({
             const soft = Array.isArray(qData.softWarnings)
               ? (qData.softWarnings as string[]).slice(0, 3).join('\n• ')
               : '';
+            const shareBits: string[] = [];
+            if (type === 'invoice') {
+              const hasCust = Boolean(doc.customer_id);
+              const shared =
+                String(doc.visibility || '').toLowerCase() === 'shared' ||
+                Boolean(
+                  (doc as { shared_with_buyer?: boolean }).shared_with_buyer
+                );
+              const hasEmail = String(
+                doc.contact_email || toOverride || ''
+              ).includes('@');
+              shareBits.push(
+                `${hasCust ? '✓' : '✗'} Customer assigned`,
+                `${hasEmail ? '✓' : '✗'} Buyer email`,
+                `${shared ? '✓' : '○'} Shared flag (will force-share on send)`
+              );
+            }
             const msg = [
               `Document quality before send:\n${lines}`,
+              shareBits.length
+                ? `\nShare checklist:\n${shareBits.join('\n')}`
+                : '',
               soft ? `\nTips:\n• ${soft}` : '',
+              type === 'invoice'
+                ? '\n\nSend: email PDF + status→sent + share to linked buyer when possible.'
+                : '',
               qData.ready === false
                 ? '\n\nContinue anyway? (Bank details can be forced on invoices.)'
                 : '\n\nSend email now?',
