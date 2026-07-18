@@ -557,6 +557,14 @@ export default async function PublicCompanyPage({
             >
               Connect &amp; trade
             </Link>
+            <Link
+              href={`/login?next=${encodeURIComponent(
+                `/dashboard/connections?requestTrade=${c.id}&name=${encodeURIComponent(name)}`
+              )}`}
+              className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-1.5"
+            >
+              Request to trade
+            </Link>
             {website ? (
               <a
                 href={

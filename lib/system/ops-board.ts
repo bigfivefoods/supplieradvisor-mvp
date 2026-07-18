@@ -29,6 +29,16 @@ export type OpsBoardSnapshot = {
   };
   claims: { pending: number };
   invites24h: number;
+  /** Activation / commercial funnel analytics (activity_log + soft counts) */
+  analytics: {
+    firstTradeBootstrap24h: number;
+    firstTradeSent24h: number;
+    claimsPending: number;
+    claimsConfirmed24h: number;
+    connectionAccepted24h: number;
+    requestToTrade24h: number;
+    ratingsPublished24h: number;
+  };
   readiness: {
     ok: boolean;
     blockers: string[];
@@ -63,6 +73,15 @@ export async function loadOpsBoard(): Promise<OpsBoardSnapshot> {
   };
   let claimsPending = 0;
   let invites24h = 0;
+  const analytics = {
+    firstTradeBootstrap24h: 0,
+    firstTradeSent24h: 0,
+    claimsPending: 0,
+    claimsConfirmed24h: 0,
+    connectionAccepted24h: 0,
+    requestToTrade24h: 0,
+    ratingsPublished24h: 0,
+  };
 
   try {
     const supabase = getSupabaseServer();
@@ -129,6 +148,42 @@ export async function loadOpsBoard(): Promise<OpsBoardSnapshot> {
       ])
       .gte('created_at', since);
     invites24h = invCount ?? 0;
+
+    const countAction = async (actions: string[]) => {
+      const { count } = await supabase
+        .from('activity_log')
+        .select('id', { count: 'exact', head: true })
+        .in('action', actions)
+        .gte('created_at', since);
+      return count ?? 0;
+    };
+    analytics.firstTradeBootstrap24h = await countAction([
+      'onboarding.first_trade_bootstrap',
+    ]);
+    analytics.firstTradeSent24h = await countAction([
+      'onboarding.first_trade_sent',
+    ]);
+    analytics.claimsConfirmed24h = await countAction([
+      'ar.payment_claim_confirmed',
+    ]);
+    analytics.connectionAccepted24h = await countAction([
+      'network.connection_accepted',
+      'network.accept',
+    ]);
+    analytics.requestToTrade24h = await countAction([
+      'network.request_to_trade',
+    ]);
+    analytics.claimsPending = claimsPending;
+    try {
+      const { count } = await supabase
+        .from('company_ratings')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'published')
+        .gte('created_at', since);
+      analytics.ratingsPublished24h = count ?? 0;
+    } catch {
+      analytics.ratingsPublished24h = 0;
+    }
   } catch {
     /* soft */
   }
@@ -159,6 +214,7 @@ export async function loadOpsBoard(): Promise<OpsBoardSnapshot> {
     cipc,
     claims: { pending: claimsPending },
     invites24h,
+    analytics,
     readiness: {
       ok: blockers.length === 0,
       blockers,

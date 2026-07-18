@@ -10,6 +10,7 @@ export const BUYER_NAV = [
   { href: '/dashboard/buyer/suppliers', label: 'Suppliers' },
   { href: '/dashboard/buyer/pos', label: 'Purchase orders' },
   { href: '/dashboard/buyer/documents', label: 'Documents' },
+  { href: '/dashboard/buyer/money', label: 'Money' },
 ] as const;
 
 export function BuyerCompanyRequired({ children }: { children: React.ReactNode }) {

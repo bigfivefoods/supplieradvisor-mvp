@@ -231,6 +231,21 @@ function HubInner() {
       };
       toast.success(labels[action] || 'Updated');
       void load();
+      // P1: after accept, drive first-trade with peer prefilled
+      if (action === 'accept' && edge.peer?.id) {
+        const peerId = Number(edge.peer.id);
+        const name = peerDisplayName(edge);
+        toast.message('Start first trade with this partner?', {
+          action: {
+            label: 'First trade',
+            onClick: () => {
+              window.location.href = `/dashboard?peerTrade=${peerId}&peerName=${encodeURIComponent(
+                name
+              )}`;
+            },
+          },
+        });
+      }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed');
     } finally {

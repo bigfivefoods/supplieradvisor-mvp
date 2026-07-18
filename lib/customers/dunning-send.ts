@@ -147,6 +147,27 @@ export async function sendDunningForInvoice(opts: {
   const toCustomer = String(inv.contact_email || '').trim();
   const profileId = Number(inv.profile_id);
   const invNum = inv.invoice_number || `#${inv.id}`;
+
+  // Soft: mention overdue installment if schedule is past due
+  let installmentNote = '';
+  try {
+    const { loadInstallmentsForInvoice } = await import(
+      '@/lib/customers/installments'
+    );
+    const inst = await loadInstallmentsForInvoice(
+      profileId,
+      Number(inv.id),
+      inv.notes as string
+    );
+    const overdueInst = inst.rows.filter(
+      (r) => !r.paid && r.date && r.date <= today
+    );
+    if (overdueInst.length) {
+      installmentNote = ` An installment of ${overdueInst[0].amount} was due ${overdueInst[0].date}.`;
+    }
+  } catch {
+    /* soft */
+  }
   const ccy = String(inv.currency || 'ZAR').toUpperCase();
   const { emails: sellerEmails, tradingName } = await resolveCompanyEmails(
     profileId,
@@ -177,7 +198,7 @@ export async function sendDunningForInvoice(opts: {
     html: `
       <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto">
         <h2 style="color:#b45309">${step.subject}</h2>
-        <p>${tone}</p>
+        <p>${tone}${installmentNote}</p>
         <p>Customer: <strong>${inv.customer_name || 'Account'}</strong><br/>
         Balance: <strong>${ccy} ${balance.toLocaleString(undefined, { maximumFractionDigits: 2 })}</strong><br/>
         Due: ${String(inv.due_date).slice(0, 10)}</p>

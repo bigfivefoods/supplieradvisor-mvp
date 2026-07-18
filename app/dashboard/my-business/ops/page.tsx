@@ -38,6 +38,15 @@ type Board = {
   };
   claims?: { pending?: number };
   invites24h?: number;
+  analytics?: {
+    firstTradeBootstrap24h?: number;
+    firstTradeSent24h?: number;
+    claimsPending?: number;
+    claimsConfirmed24h?: number;
+    connectionAccepted24h?: number;
+    requestToTrade24h?: number;
+    ratingsPublished24h?: number;
+  };
   readiness?: {
     ok?: boolean;
     blockers?: string[];
@@ -237,6 +246,45 @@ function Inner() {
             </div>
           ) : null}
 
+          {board.analytics ? (
+            <div className="rounded-2xl border border-sky-100 bg-sky-50/50 p-4">
+              <p className="text-xs font-bold text-sky-950 mb-2">
+                Activation funnel (24h)
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+                <Analytic
+                  label="FT bootstrap"
+                  value={board.analytics.firstTradeBootstrap24h ?? 0}
+                />
+                <Analytic
+                  label="FT sent"
+                  value={board.analytics.firstTradeSent24h ?? 0}
+                />
+                <Analytic
+                  label="Claims confirmed"
+                  value={board.analytics.claimsConfirmed24h ?? 0}
+                />
+                <Analytic
+                  label="Connections"
+                  value={board.analytics.connectionAccepted24h ?? 0}
+                />
+                <Analytic
+                  label="Request-to-trade"
+                  value={board.analytics.requestToTrade24h ?? 0}
+                />
+                <Analytic
+                  label="Ratings published"
+                  value={board.analytics.ratingsPublished24h ?? 0}
+                />
+                <Analytic
+                  label="Claims open"
+                  value={board.analytics.claimsPending ?? 0}
+                />
+                <Analytic label="Invites" value={board.invites24h ?? 0} />
+              </div>
+            </div>
+          ) : null}
+
           <p className="text-[11px] text-neutral-400">
             Snapshot {board.at} · invites 24h: {board.invites24h ?? 0} · OPS_ALERT:{' '}
             {board.env?.opsAlertEmail ? 'set' : 'missing'}
@@ -290,5 +338,18 @@ function SchemaRow({ name, ok }: { name: string; ok?: boolean | null }) {
         {ok === true ? 'ok' : ok === false ? 'missing' : '—'}
       </span>
     </li>
+  );
+}
+
+function Analytic({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-xl bg-white border border-sky-100 px-2 py-2">
+      <div className="text-lg font-black text-slate-900 tabular-nums">
+        {value}
+      </div>
+      <div className="text-[10px] font-bold uppercase text-slate-400">
+        {label}
+      </div>
+    </div>
   );
 }

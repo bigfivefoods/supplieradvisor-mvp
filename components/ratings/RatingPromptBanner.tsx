@@ -193,6 +193,14 @@ export default function RatingPromptBanner() {
 
   const dismiss = async (promptId: number) => {
     if (!companyId) return;
+    // Hard trust close: require snooze reason (not silent dismiss)
+    const reason = window.prompt(
+      'Snooze rating? Enter a short reason (required — trust loop closes after trade):',
+      'Will rate after delivery confirmation'
+    );
+    if (!reason?.trim()) {
+      return;
+    }
     try {
       await fetch('/api/business/rating-prompts', {
         method: 'POST',
@@ -202,6 +210,7 @@ export default function RatingPromptBanner() {
           action: 'dismiss',
           promptId,
           privyUserId,
+          reason: reason.trim().slice(0, 200),
         }),
       });
       setPrompts((p) => p.filter((x) => x.id !== promptId));
@@ -282,7 +291,8 @@ export default function RatingPromptBanner() {
                 type="button"
                 className="absolute right-2 top-2 p-1 text-amber-800/50 hover:text-amber-900"
                 onClick={() => void dismiss(p.id)}
-                aria-label="Dismiss"
+                aria-label="Snooze with reason"
+                title="Snooze requires a reason"
               >
                 <X className="w-4 h-4" />
               </button>

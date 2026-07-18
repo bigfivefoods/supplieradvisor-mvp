@@ -1,0 +1,101 @@
+/**
+ * Open-to-trade discovery ranking: verified + density signals + OTIFEF/trust.
+ */
+import { getSupabaseServer } from '@/lib/supabase/server-client';
+
+export type RankedCompany = {
+  id: number;
+  trading_name: string | null;
+  legal_name: string | null;
+  industry: string | null;
+  city: string | null;
+  country: string | null;
+  verification_status: string | null;
+  trust_score: number | null;
+  otifef_average: number | null;
+  rankScore: number;
+  reasons: string[];
+};
+
+export async function loadOpenToTradeRanking(opts?: {
+  industry?: string | null;
+  city?: string | null;
+  limit?: number;
+}): Promise<RankedCompany[]> {
+  const supabase = getSupabaseServer();
+  let q = supabase
+    .from('profiles')
+    .select(
+      'id, trading_name, legal_name, industry, city, country, verification_status, trust_score, otifef_average, is_discoverable, metadata, settings'
+    )
+    .not('trading_name', 'is', null)
+    .order('trust_score', { ascending: false })
+    .limit(120);
+
+  if (opts?.industry) q = q.ilike('industry', opts.industry);
+  if (opts?.city) q = q.ilike('city', opts.city);
+
+  const { data, error } = await q;
+  if (error || !data) return [];
+
+  const ranked: RankedCompany[] = [];
+  for (const raw of data) {
+    const r = raw as Record<string, unknown>;
+    if (r.is_discoverable === false || r.is_discoverable === 'false') continue;
+
+    // open_to_trade preference when present
+    let openToTrade = true;
+    const meta =
+      r.metadata && typeof r.metadata === 'object'
+        ? (r.metadata as Record<string, unknown>)
+        : {};
+    if (typeof meta.open_to_trade === 'boolean') openToTrade = meta.open_to_trade;
+    const settings =
+      r.settings && typeof r.settings === 'object'
+        ? (r.settings as Record<string, unknown>)
+        : {};
+    if (typeof settings.open_to_trade === 'boolean') {
+      openToTrade = settings.open_to_trade;
+    }
+    if (!openToTrade) continue;
+
+    const verified =
+      String(r.verification_status || '').toLowerCase() === 'verified';
+    const trust = r.trust_score != null ? Number(r.trust_score) : 0;
+    const otifef = r.otifef_average != null ? Number(r.otifef_average) : 0;
+    const reasons: string[] = [];
+    let rankScore = 20;
+    if (verified) {
+      rankScore += 35;
+      reasons.push('CIPC verified');
+    }
+    if (trust > 0) {
+      rankScore += Math.min(30, trust * 0.3);
+      reasons.push(`trust ${Math.round(trust)}`);
+    }
+    if (otifef > 0) {
+      rankScore += Math.min(20, otifef * 0.2);
+      reasons.push(`OTIFEF ${Math.round(otifef)}`);
+    }
+    if (r.city) rankScore += 3;
+    if (r.industry) rankScore += 2;
+
+    ranked.push({
+      id: Number(r.id),
+      trading_name: r.trading_name != null ? String(r.trading_name) : null,
+      legal_name: r.legal_name != null ? String(r.legal_name) : null,
+      industry: r.industry != null ? String(r.industry) : null,
+      city: r.city != null ? String(r.city) : null,
+      country: r.country != null ? String(r.country) : null,
+      verification_status:
+        r.verification_status != null ? String(r.verification_status) : null,
+      trust_score: trust || null,
+      otifef_average: otifef || null,
+      rankScore: Math.round(rankScore),
+      reasons,
+    });
+  }
+
+  ranked.sort((a, b) => b.rankScore - a.rankScore);
+  return ranked.slice(0, opts?.limit || 40);
+}

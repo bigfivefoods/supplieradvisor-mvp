@@ -499,6 +499,24 @@ export async function PATCH(request: NextRequest) {
       meta.accepted_by = mem.userId;
       meta.accepted_at = now;
       updates.metadata = meta;
+      // Soft: log activation for first-trade funnel
+      try {
+        await supabase.from('activity_log').insert({
+          profile_id: companyId,
+          actor_user_id: mem.userId,
+          action: 'network.connection_accepted',
+          entity_type: 'business_connections',
+          entity_id: String(conn.id),
+          summary: `Accepted connection with peer #${requesterId}`,
+          metadata: {
+            peerId: requesterId,
+            next: 'first_trade',
+            firstTradeHref: `/dashboard?peerTrade=${requesterId}`,
+          },
+        });
+      } catch {
+        /* soft */
+      }
     } else if (action === 'decline') {
       if (requesteeId !== companyId) {
         return NextResponse.json(
