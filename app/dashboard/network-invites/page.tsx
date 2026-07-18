@@ -83,6 +83,9 @@ function Inner() {
     }>
   >([]);
   const [remainingToday, setRemainingToday] = useState<number | null>(null);
+  const [activation, setActivation] = useState<
+    Array<{ id: string; label: string; count: number; pct: number | null }>
+  >([]);
   const [email, setEmail] = useState('');
   const [note, setNote] = useState('');
   const [csv, setCsv] = useState('');
@@ -91,11 +94,14 @@ function Inner() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [res, mRes] = await Promise.all([
+      const [res, mRes, aRes] = await Promise.all([
         fetch(`/api/business/network-invites?companyId=${companyId}`, {
           cache: 'no-store',
         }),
         fetch(`/api/business/network-metrics?companyId=${companyId}`, {
+          cache: 'no-store',
+        }),
+        fetch(`/api/business/activation-funnel?companyId=${companyId}`, {
           cache: 'no-store',
         }),
       ]);
@@ -109,6 +115,10 @@ function Inner() {
       if (mRes.ok) {
         const md = await mRes.json().catch(() => ({}));
         setMetrics((md.metrics as NetworkMetrics) || null);
+      }
+      if (aRes.ok) {
+        const ad = await aRes.json().catch(() => ({}));
+        setActivation(ad.funnel?.stages || []);
       }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed');
@@ -311,6 +321,32 @@ function Inner() {
               ) : null}
             </p>
           ) : null}
+        </div>
+      ) : null}
+
+      {activation.length > 0 ? (
+        <div className="mb-4 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4">
+          <p className="text-xs font-bold text-emerald-950 mb-2">
+            Activation funnel (this company)
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 text-center text-[10px]">
+            {activation.map((s) => (
+              <div
+                key={s.id}
+                className="rounded-lg bg-white border border-emerald-100 px-1.5 py-2"
+              >
+                <div className="text-base font-black text-slate-900">
+                  {s.count}
+                </div>
+                <div className="font-bold text-slate-500 leading-tight">
+                  {s.label}
+                </div>
+                {s.pct != null ? (
+                  <div className="text-emerald-700 font-bold">{s.pct}%</div>
+                ) : null}
+              </div>
+            ))}
+          </div>
         </div>
       ) : null}
 

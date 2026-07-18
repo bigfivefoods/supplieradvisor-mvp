@@ -188,6 +188,45 @@ async function loadStatement(companyId: number, customerId: number) {
     payments = [];
   }
 
+  // Open installments for statement
+  let installments: Array<{
+    dueDate: string;
+    amount: number;
+    paid: boolean;
+    invoiceNumber: string;
+  }> = [];
+  try {
+    const invIds = (invs || []).map((i) => Number(i.id));
+    if (invIds.length) {
+      const { data: inst } = await supabase
+        .from('customer_invoice_installments')
+        .select('due_date, amount, status, amount_paid, invoice_id')
+        .eq('profile_id', companyId)
+        .in('invoice_id', invIds)
+        .order('due_date', { ascending: true })
+        .limit(40);
+      const numMap = new Map(
+        (invs || []).map((i) => [
+          Number(i.id),
+          String(i.invoice_number || `#${i.id}`),
+        ])
+      );
+      for (const r of inst || []) {
+        installments.push({
+          dueDate: String(r.due_date || '').slice(0, 10),
+          amount: Number(r.amount || 0),
+          paid:
+            String(r.status) === 'paid' ||
+            Number(r.amount_paid || 0) >= Number(r.amount || 0) - 0.01,
+          invoiceNumber:
+            numMap.get(Number(r.invoice_id)) || `#${r.invoice_id}`,
+        });
+      }
+    }
+  } catch {
+    installments = [];
+  }
+
   const sellerName =
     seller?.trading_name || seller?.legal_name || `Company #${companyId}`;
   const pdf = await buildArStatementPdf({
@@ -199,6 +238,7 @@ async function loadStatement(companyId: number, customerId: number) {
     currency,
     payments,
     paymentsTotal,
+    installments,
   });
 
   return {

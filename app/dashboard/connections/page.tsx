@@ -269,14 +269,20 @@ function HubInner() {
         eyebrow="Company network"
         title="Connections"
         titleAccent="Command"
-        description="One graph for every company you trade with. Request → accept → pricing, POs, invoices, and on-chain settlement in a secure ecosystem."
+        description="One graph for every company you trade with. Request → accept → first trade → money hub. Discover open-to-trade partners ranked by trust."
         action={
           <>
             <Link
-              href="/dashboard/suppliers/discover"
+              href="/dashboard/connections/discover"
               className="btn-primary !py-2.5 !px-5 text-sm"
             >
-              <Search className="w-4 h-4" /> Find companies
+              <Search className="w-4 h-4" /> Open to trade
+            </Link>
+            <Link
+              href="/dashboard/suppliers/discover"
+              className="btn-secondary !py-2.5 !px-5 text-sm"
+            >
+              Find companies
             </Link>
             <Link
               href="/dashboard/invite-business"

@@ -56,6 +56,24 @@ type Hub = {
     paid_at: string;
     method?: string | null;
   }>;
+  installments?: Array<{
+    id: number;
+    invoice_id: number;
+    due_date: string;
+    amount: number;
+    overdue: boolean;
+    invoice_number?: string | null;
+  }>;
+  dunningInvoiceIds?: number[];
+};
+
+type BankSug = {
+  bankTxnId: number | string;
+  amount: number;
+  confidence: number;
+  reason: string;
+  description?: string | null;
+  reference?: string | null;
 };
 
 export default function SellerMoneyHubPage() {
@@ -71,6 +89,9 @@ function Inner() {
   const [hub, setHub] = useState<Hub | null>(null);
   const [loading, setLoading] = useState(true);
   const [claimBusy, setClaimBusy] = useState<number | null>(null);
+  const [dunBusy, setDunBusy] = useState(false);
+  const [bankSugs, setBankSugs] = useState<BankSug[]>([]);
+  const [bankInvoiceId, setBankInvoiceId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -113,11 +134,84 @@ function Inner() {
           description: data.bankMatchHint || undefined,
         }
       );
+      if (
+        action === 'confirm' &&
+        Array.isArray(data.bankSuggestions) &&
+        data.bankSuggestions.length
+      ) {
+        setBankSugs(data.bankSuggestions as BankSug[]);
+        setBankInvoiceId(Number(data.claim?.invoice_id) || null);
+      }
       void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed');
     } finally {
       setClaimBusy(null);
+    }
+  };
+
+  const applyBankMatch = async (sug: BankSug) => {
+    if (!bankInvoiceId) {
+      toast.message('Open Bank reconciliation to apply matches');
+      return;
+    }
+    toast.loading('Matching bank line to invoice…', { id: 'bank-m' });
+    try {
+      // Reuse accounting allocate via bank auto-match style endpoint
+      const res = await fetch('/api/accounting/match-invoice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          bankTxnId: sug.bankTxnId,
+          invoiceId: bankInvoiceId,
+        }),
+      }).catch(() => null);
+      if (!res || !res.ok) {
+        // Fallback: open recon with hint
+        toast.message('Apply in Bank reconciliation', {
+          id: 'bank-m',
+          description: `Txn ${sug.bankTxnId} · conf ${sug.confidence}%`,
+        });
+        window.location.href = `/dashboard/accounting/bank-reconciliation?matchTxn=${sug.bankTxnId}&invoiceId=${bankInvoiceId}`;
+        return;
+      }
+      toast.success('Bank line matched to invoice', { id: 'bank-m' });
+      setBankSugs([]);
+      void load();
+    } catch {
+      toast.message('Open Bank reconciliation to finish match', { id: 'bank-m' });
+    }
+  };
+
+  const sendDunningNow = async () => {
+    const ids = hub?.dunningInvoiceIds || [];
+    if (!ids.length) {
+      toast.message('No overdue invoices for dunning');
+      return;
+    }
+    setDunBusy(true);
+    let sent = 0;
+    try {
+      for (const id of ids.slice(0, 8)) {
+        const res = await fetch('/api/customers/docs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyId,
+            type: 'invoice',
+            id,
+            action: 'dunning_send_now',
+          }),
+        });
+        if (res.ok) sent += 1;
+      }
+      toast.success(`Dunning sent for ${sent} invoice(s)`);
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Dunning failed');
+    } finally {
+      setDunBusy(false);
     }
   };
 
@@ -145,6 +239,14 @@ function Inner() {
                 className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`}
               />
               Refresh
+            </button>
+            <button
+              type="button"
+              disabled={dunBusy}
+              onClick={() => void sendDunningNow()}
+              className="btn-secondary !py-2 !px-3 text-sm"
+            >
+              {dunBusy ? 'Sending…' : 'Dunning send-now'}
             </button>
             <Link
               href="/dashboard/customers/ar"
@@ -276,6 +378,62 @@ function Inner() {
               )}
             </ul>
           </section>
+
+          {bankSugs.length > 0 ? (
+            <section className="rounded-2xl border border-sky-300 bg-sky-50 p-4">
+              <p className="text-sm font-black text-sky-950 mb-2">
+                Bank match suggestions (from last confirm)
+              </p>
+              <ul className="space-y-2 text-xs">
+                {bankSugs.map((s) => (
+                  <li
+                    key={String(s.bankTxnId)}
+                    className="flex flex-wrap items-center justify-between gap-2 bg-white rounded-xl border border-sky-100 px-3 py-2"
+                  >
+                    <span>
+                      {s.amount.toLocaleString()} · conf {s.confidence}% ·{' '}
+                      {s.reason}
+                      {s.reference ? ` · ref ${s.reference}` : ''}
+                    </span>
+                    <button
+                      type="button"
+                      className="rounded-full bg-sky-700 text-white px-2.5 py-1 text-[10px] font-bold"
+                      onClick={() => void applyBankMatch(s)}
+                    >
+                      Apply match
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          {(hub.installments || []).length > 0 ? (
+            <section className="rounded-2xl border border-violet-200 bg-violet-50/40 p-4">
+              <p className="text-xs font-bold text-violet-950 mb-2">
+                Installment schedule
+              </p>
+              <ul className="text-xs space-y-1 max-h-40 overflow-y-auto">
+                {hub.installments!.map((r) => (
+                  <li
+                    key={r.id}
+                    className={r.overdue ? 'text-rose-800 font-semibold' : ''}
+                  >
+                    {r.due_date} · {r.amount.toLocaleString()} · inv{' '}
+                    {r.invoice_number || r.invoice_id}
+                    {r.overdue ? ' · OVERDUE' : ''}
+                    {' · '}
+                    <Link
+                      href={`/dashboard/customers/invoices?id=${r.invoice_id}`}
+                      className="text-[#0077b6] underline"
+                    >
+                      open
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
 
           {hub.recentLedger.length > 0 ? (
             <section className="rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4">

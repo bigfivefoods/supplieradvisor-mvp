@@ -20,6 +20,10 @@ export async function GET(request: NextRequest) {
     });
     if (!gate.ok) return gate.response;
 
+    const format = String(
+      request.nextUrl.searchParams.get('format') || ''
+    ).toLowerCase();
+
     const supabase = getSupabaseServer();
     type InvRow = {
       id: number;
@@ -264,6 +268,55 @@ export async function GET(request: NextRequest) {
       invoices: b.invoices,
     });
 
+    const bucketPayload = {
+      current: fmtBucket('Current (not yet due)', buckets.current),
+      d1_30: fmtBucket('1–30 days', buckets.d1_30),
+      d31_60: fmtBucket('31–60 days', buckets.d31_60),
+      d61_90: fmtBucket('61–90 days', buckets.d61_90),
+      d90_plus: fmtBucket('90+ days', buckets.d90_plus),
+    };
+
+    if (format === 'csv') {
+      const lines = [
+        'bucket,invoice_id,invoice_number,customer_name,status,due_date,days_past_due,balance,balance_base,currency,base_currency',
+      ];
+      const esc = (v: unknown) => {
+        const s = v != null ? String(v) : '';
+        if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+        return s;
+      };
+      for (const [key, b] of Object.entries(bucketPayload)) {
+        const bucket = b as {
+          label: string;
+          invoices: Array<Record<string, unknown>>;
+        };
+        for (const inv of bucket.invoices || []) {
+          lines.push(
+            [
+              esc(bucket.label || key),
+              inv.id,
+              esc(inv.invoice_number),
+              esc(inv.customer_name),
+              esc(inv.status),
+              esc(inv.due_date),
+              inv.days_past_due ?? '',
+              inv.balance ?? '',
+              inv.balance_base ?? '',
+              esc(inv.currency),
+              esc(baseCurrency),
+            ].join(',')
+          );
+        }
+      }
+      return new NextResponse(lines.join('\n'), {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': `attachment; filename="ar-aging-${companyId}.csv"`,
+        },
+      });
+    }
+
     return NextResponse.json({
       success: true,
       openTotal: Math.round(openTotal * 100) / 100,
@@ -272,13 +325,7 @@ export async function GET(request: NextRequest) {
       partialCount,
       overdueCount,
       brokenPromiseCount,
-      buckets: {
-        current: fmtBucket('Current (not yet due)', buckets.current),
-        d1_30: fmtBucket('1–30 days', buckets.d1_30),
-        d31_60: fmtBucket('31–60 days', buckets.d31_60),
-        d61_90: fmtBucket('61–90 days', buckets.d61_90),
-        d90_plus: fmtBucket('90+ days', buckets.d90_plus),
-      },
+      buckets: bucketPayload,
     });
   } catch (e: unknown) {
     return NextResponse.json(

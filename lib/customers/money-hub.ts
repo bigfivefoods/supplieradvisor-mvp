@@ -37,6 +37,19 @@ export type MoneyHubSnapshot = {
     due_date: string | null;
     status: string;
   }>;
+  /** Open installment schedule rows (table or empty) */
+  installments: Array<{
+    id: number;
+    invoice_id: number;
+    due_date: string;
+    amount: number;
+    amount_paid: number;
+    status: string;
+    overdue: boolean;
+    invoice_number?: string | null;
+  }>;
+  /** Invoice ids due for dunning send-now */
+  dunningInvoiceIds: number[];
   at: string;
 };
 
@@ -108,20 +121,48 @@ export async function loadSellerMoneyHub(
 
   let openInstallments = 0;
   let overdueInstallments = 0;
+  const installments: MoneyHubSnapshot['installments'] = [];
+  const dunningInvoiceIds: number[] = [];
   try {
     const { data: inst } = await supabase
       .from('customer_invoice_installments')
-      .select('id, due_date, status, amount, amount_paid')
+      .select(
+        'id, invoice_id, due_date, status, amount, amount_paid, sequence_no'
+      )
       .eq('profile_id', companyId)
       .in('status', ['open', 'partial'])
+      .order('due_date', { ascending: true })
       .limit(200);
+    const invNums = new Map(
+      topOpenInvoices.map((i) => [i.id, i.invoice_number])
+    );
     for (const r of inst || []) {
       openInstallments += 1;
       const due = String(r.due_date || '').slice(0, 10);
-      if (due && due < today) overdueInstallments += 1;
+      const overdue = Boolean(due && due < today);
+      if (overdue) overdueInstallments += 1;
+      installments.push({
+        id: Number(r.id),
+        invoice_id: Number(r.invoice_id),
+        due_date: due,
+        amount: Number(r.amount || 0),
+        amount_paid: Number(r.amount_paid || 0),
+        status: String(r.status || 'open'),
+        overdue,
+        invoice_number: invNums.get(Number(r.invoice_id)) || null,
+      });
     }
   } catch {
     /* table optional */
+  }
+
+  for (const inv of topOpenInvoices) {
+    if (
+      inv.status === 'overdue' ||
+      (inv.due_date && inv.due_date < today)
+    ) {
+      dunningInvoiceIds.push(inv.id);
+    }
   }
 
   let recentLedger: MoneyHubSnapshot['recentLedger'] = [];
@@ -171,6 +212,8 @@ export async function loadSellerMoneyHub(
     recentLedger,
     claims: claims as unknown as Array<Record<string, unknown>>,
     topOpenInvoices,
+    installments: installments.slice(0, 25),
+    dunningInvoiceIds: dunningInvoiceIds.slice(0, 20),
     at: new Date().toISOString(),
   };
 }

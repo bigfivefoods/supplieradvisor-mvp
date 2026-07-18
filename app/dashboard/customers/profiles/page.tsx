@@ -309,6 +309,15 @@ function ProfilesInner() {
                       <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800">
                         {c.status || 'active'}
                       </span>
+                      {c.credit_limit != null &&
+                      Number(c.credit_limit) > 0 ? (
+                        <span
+                          className="text-[10px] font-bold text-slate-500"
+                          title="Credit limit (open AR checked ledger-aware on write)"
+                        >
+                          Limit {Number(c.credit_limit).toLocaleString()}
+                        </span>
+                      ) : null}
                       {String(c.notes || '').includes('[credit hold]') ||
                       String(c.status || '').toLowerCase() === 'credit_hold' ? (
                         <div className="mt-1">

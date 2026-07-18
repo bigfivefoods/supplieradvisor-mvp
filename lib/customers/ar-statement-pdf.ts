@@ -25,6 +25,13 @@ export type StatementPaymentLine = {
   fxRate?: number | null;
 };
 
+export type StatementInstallmentLine = {
+  dueDate: string;
+  amount: number;
+  paid: boolean;
+  invoiceNumber: string;
+};
+
 export type StatementInput = {
   sellerName: string;
   customerName: string;
@@ -35,6 +42,7 @@ export type StatementInput = {
   payments?: StatementPaymentLine[];
   paymentsTotal?: number;
   baseCurrency?: string | null;
+  installments?: StatementInstallmentLine[];
 };
 
 export async function buildArStatementPdf(
@@ -126,6 +134,31 @@ export async function buildArStatementPdf(
         { width: 100, align: 'right' }
       );
       doc.moveDown(0.55);
+    }
+
+    if (input.installments && input.installments.length > 0) {
+      doc.moveDown(0.8);
+      if (doc.y > 640) doc.addPage();
+      doc
+        .fontSize(10)
+        .fillColor('#0f172a')
+        .text('Installment schedule');
+      doc.moveDown(0.35);
+      for (const row of input.installments) {
+        if (doc.y > 720) doc.addPage();
+        doc
+          .fontSize(9)
+          .fillColor(row.paid ? '#64748b' : '#0f172a')
+          .text(
+            `${row.dueDate} · ${row.invoiceNumber} · ${row.amount.toLocaleString(
+              undefined,
+              { maximumFractionDigits: 2 }
+            )}${row.paid ? ' · paid' : ' · open'}`,
+            48,
+            doc.y
+          );
+        doc.moveDown(0.45);
+      }
     }
 
     if (input.payments && input.payments.length > 0) {

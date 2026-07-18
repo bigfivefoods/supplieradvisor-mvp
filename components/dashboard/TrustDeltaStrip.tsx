@@ -42,7 +42,9 @@ export default function TrustDeltaStrip() {
       }
       if (pRes?.ok) {
         const p = await pRes.json().catch(() => ({}));
-        setPendingPrompts((p.prompts || []).length);
+        setPendingPrompts(
+          Number(p.dueCount ?? (p.prompts || []).length) || 0
+        );
       }
     } catch {
       /* soft */
@@ -73,7 +75,7 @@ export default function TrustDeltaStrip() {
           </p>
           <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
             {pendingPrompts > 0
-              ? `${pendingPrompts} rating prompt(s) waiting — close the trust loop after trade.`
+              ? `${pendingPrompts} rating(s) due — snooze requires a reason; re-prompts after 7 days.`
               : stars != null
                 ? `Peer stars avg ${stars.toFixed(1)}. Keep rating after paid invoices.`
                 : 'Rate partners after settle to lift peer-star contribution.'}

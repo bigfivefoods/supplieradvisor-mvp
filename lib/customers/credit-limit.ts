@@ -14,7 +14,14 @@ const OPEN = [
 ] as const;
 
 export type CreditCheckResult =
-  | { ok: true; creditLimit: number | null; openBalance: number; projected: number; creditHold?: boolean }
+  | {
+      ok: true;
+      creditLimit: number | null;
+      openBalance: number;
+      projected: number;
+      creditHold?: boolean;
+      fromLedger?: boolean;
+    }
   | {
       ok: false;
       code: 'OVER_CREDIT_LIMIT' | 'CREDIT_HOLD';
@@ -25,6 +32,7 @@ export type CreditCheckResult =
       customerName: string | null;
       creditHold?: boolean;
       overrideCount?: number;
+      fromLedger?: boolean;
     };
 
 const OVERRIDE_HOLD_THRESHOLD = 3;
@@ -81,12 +89,14 @@ export async function checkCustomerCreditLimit(
 
   // Open AR — ledger-aware when customer_invoice_payments exists
   let openBalance = 0;
+  let fromLedger = false;
   try {
     const { customerOpenBalance } = await import(
       '@/lib/customers/open-balance'
     );
     const ar = await customerOpenBalance(opts.companyId, opts.customerId);
     openBalance = ar.openBalance;
+    fromLedger = ar.fromLedger;
   } catch {
     const { data: invs } = await supabase
       .from('customer_invoices')
@@ -108,7 +118,13 @@ export async function checkCustomerCreditLimit(
 
   const projected = openBalance + Math.max(0, opts.additionalAmount);
   if (projected <= limit + 0.01) {
-    return { ok: true, creditLimit: limit, openBalance, projected };
+    return {
+      ok: true,
+      creditLimit: limit,
+      openBalance,
+      projected,
+      fromLedger,
+    };
   }
 
   return {
@@ -123,6 +139,7 @@ export async function checkCustomerCreditLimit(
         ? String(cust.trading_name || cust.legal_name)
         : null,
     overrideCount,
+    fromLedger,
   };
 }
 

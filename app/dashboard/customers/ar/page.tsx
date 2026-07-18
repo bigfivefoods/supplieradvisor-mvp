@@ -458,6 +458,13 @@ function Inner() {
         description="Aging buckets, customer rollup, broken promises, and PDF statements. Weekly digest Mon · monthly statement email 1st."
         action={
           <div className="flex flex-wrap gap-2">
+            <a
+              href={`/api/customers/ar-aging?companyId=${companyId}&format=csv`}
+              className="btn-secondary !py-2 !px-3 text-sm inline-flex items-center gap-1.5"
+            >
+              <FileDown className="w-4 h-4" />
+              Aging CSV
+            </a>
             <button
               type="button"
               onClick={() => void load()}

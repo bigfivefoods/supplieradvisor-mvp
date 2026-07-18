@@ -75,7 +75,15 @@ function Inner() {
       toast.message(`Claim already ${inv.claimStatus}`);
       return;
     }
-    const ref = window.prompt('Payment reference (optional)', '') || '';
+    const ref = window.prompt('Payment reference (bank/EFT ref)', '') || '';
+    const proof = window.prompt(
+      'Proof URL (optional — paste link to POP / PDF / image)',
+      ''
+    );
+    const notes = window.prompt(
+      'Notes for seller (optional)',
+      'Payment made — please confirm on AR.'
+    );
     setClaimBusy(inv.id);
     try {
       const res = await fetch('/api/buyer/payment-claim', {
@@ -89,6 +97,8 @@ function Inner() {
           amount: inv.balance,
           currency: inv.currency,
           reference: ref || null,
+          proofUrl: proof?.trim() || null,
+          notes: notes?.trim() || null,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -108,6 +118,17 @@ function Inner() {
         title="Money"
         description="Open shared invoices, payment claims, and pay notifications — settle with suppliers."
       />
+      <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-700 leading-relaxed">
+        <p className="font-bold text-slate-900">How to pay &amp; close the loop</p>
+        <ol className="mt-1.5 list-decimal list-inside space-y-0.5">
+          <li>Pay the supplier using bank details on the invoice PDF.</li>
+          <li>
+            Click <strong>I paid</strong> with your bank reference (+ optional proof
+            URL).
+          </li>
+          <li>Seller confirms → claim shows confirmed → rate the supplier.</li>
+        </ol>
+      </div>
       <div className="flex flex-wrap gap-2 mb-4">
         <button
           type="button"

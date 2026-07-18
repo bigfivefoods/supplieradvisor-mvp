@@ -21,26 +21,57 @@ export async function GET(request: NextRequest) {
     if (!gate.ok) return gate.response;
 
     const supabase = getSupabaseServer();
+    const now = new Date().toISOString();
+    // Pending + snoozed/dismissed whose due_at has passed (7-day re-prompt)
     const { data, error } = await supabase
       .from('rating_prompts')
       .select('*')
       .eq('profile_id', companyId)
-      .eq('status', 'pending')
+      .in('status', ['pending', 'dismissed', 'snoozed'])
       .order('created_at', { ascending: false })
-      .limit(20);
+      .limit(40);
 
     if (error) {
       if (/relation|does not exist/i.test(error.message)) {
         return NextResponse.json({
           success: true,
           prompts: [],
+          dueCount: 0,
           warning: 'Run 20260716_platform_improvements.sql',
         });
       }
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, prompts: data || [] });
+    const prompts = (data || []).filter((p) => {
+      const st = String(p.status || '');
+      if (st === 'pending') return true;
+      // Re-surface dismissed/snoozed after due_at
+      const due = p.due_at ? String(p.due_at) : null;
+      return due != null && due <= now;
+    });
+
+    // Soft: re-open snoozed rows that are due
+    for (const p of prompts) {
+      if (String(p.status) !== 'pending') {
+        try {
+          await supabase
+            .from('rating_prompts')
+            .update({ status: 'pending', updated_at: now })
+            .eq('id', p.id)
+            .eq('profile_id', companyId);
+          p.status = 'pending';
+        } catch {
+          /* soft */
+        }
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      prompts: prompts.slice(0, 20),
+      dueCount: prompts.length,
+    });
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },
@@ -118,17 +149,41 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, prompt: data });
     }
 
-    if (action === 'dismiss' || action === 'complete') {
+    if (action === 'dismiss' || action === 'snooze' || action === 'complete') {
       const promptId = Number(body.promptId);
       if (!Number.isFinite(promptId)) {
         return NextResponse.json({ error: 'promptId required' }, { status: 400 });
       }
+      const reason =
+        body.reason != null ? String(body.reason).trim().slice(0, 200) : null;
+      if (
+        (action === 'dismiss' || action === 'snooze') &&
+        !reason
+      ) {
+        return NextResponse.json(
+          { error: 'reason required to snooze trust prompt' },
+          { status: 400 }
+        );
+      }
+      const snoozeDays = Number(body.days || 7);
+      const dueAt = new Date(
+        Date.now() + Math.max(1, snoozeDays) * 86400000
+      ).toISOString();
       const { data, error } = await supabase
         .from('rating_prompts')
         .update({
-          status: action === 'complete' ? 'completed' : 'dismissed',
+          status:
+            action === 'complete'
+              ? 'completed'
+              : action === 'snooze' || action === 'dismiss'
+                ? 'snoozed'
+                : 'dismissed',
           completed_at: action === 'complete' ? now : null,
+          due_at: action === 'complete' ? null : dueAt,
           updated_at: now,
+          metadata: reason
+            ? { snooze_reason: reason, snoozed_at: now }
+            : undefined,
         })
         .eq('id', promptId)
         .eq('profile_id', companyId)
@@ -136,12 +191,43 @@ export async function POST(request: NextRequest) {
         .maybeSingle();
 
       if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        // soft retry without metadata
+        const retry = await supabase
+          .from('rating_prompts')
+          .update({
+            status: action === 'complete' ? 'completed' : 'snoozed',
+            completed_at: action === 'complete' ? now : null,
+            due_at: action === 'complete' ? null : dueAt,
+            updated_at: now,
+          })
+          .eq('id', promptId)
+          .eq('profile_id', companyId)
+          .select('id')
+          .maybeSingle();
+        if (retry.error || !retry.data) {
+          return NextResponse.json(
+            { error: error.message },
+            { status: 500 }
+          );
+        }
+        return NextResponse.json({
+          success: true,
+          promptId,
+          status: action === 'complete' ? 'completed' : 'snoozed',
+          due_at: dueAt,
+          reason,
+        });
       }
       if (!data) {
         return NextResponse.json({ error: 'Prompt not found' }, { status: 404 });
       }
-      return NextResponse.json({ success: true, promptId, status: action });
+      return NextResponse.json({
+        success: true,
+        promptId,
+        status: action === 'complete' ? 'completed' : 'snoozed',
+        due_at: dueAt,
+        reason,
+      });
     }
 
     return NextResponse.json(

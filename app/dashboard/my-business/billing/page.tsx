@@ -37,6 +37,7 @@ import {
   BusinessPage,
 } from '@/components/business/BusinessShell';
 import { Panel } from '@/components/relationship/RelationshipChrome';
+import CommercialValueBanner from '@/components/billing/CommercialValueBanner';
 
 declare global {
   interface Window {
@@ -475,6 +476,14 @@ function BillingInner() {
             Refresh
           </button>
         }
+      />
+
+      <CommercialValueBanner
+        show={Boolean(
+          !sub?.isLifetime && (needPay || trialEndingSoon || payFocus || sub?.isTrial)
+        )}
+        trialDaysLeft={sub?.daysRemaining}
+        foundingRemaining={founding?.remaining}
       />
 
       {(needPay || trialEndingSoon || payFocus) && !sub?.isLifetime ? (
