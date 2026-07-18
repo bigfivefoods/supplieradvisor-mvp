@@ -89,6 +89,19 @@ bash scripts/ops-live-week.sh
 
 Seeds Paystack pulse via `GET /api/paystack/webhook?ping=1`, checks settle-smoke, health, crons.
 
+## Dual-tenant settle CI
+
+```bash
+cp scripts/e2e-dual-settle.env.example .env.e2e.local
+# fill tokens + company ids
+set -a && source .env.e2e.local && set +a
+npx playwright test e2e/claim-settle-dual.spec.ts e2e/paystack-cipc-drill.spec.ts
+```
+
+## Claim SLA
+
+Cron: `/api/system/claim-sla-cron` daily 10:00 UTC (needs `CRON_SECRET` + Resend).
+
 ## Public market
 
 - Storefront: `/marketplace` (unauth)

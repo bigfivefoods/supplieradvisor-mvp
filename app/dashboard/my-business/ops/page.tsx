@@ -15,6 +15,7 @@ import {
   BusinessPage,
 } from '@/components/business/BusinessShell';
 import { getCanonicalUserId } from '@/lib/auth/identity';
+import SettleFunnelStrip from '@/components/dashboard/SettleFunnelStrip';
 
 type Board = {
   at: string;
@@ -141,6 +142,7 @@ function Inner() {
         </div>
       ) : board ? (
         <div className="space-y-4">
+          <SettleFunnelStrip />
           <div
             className={`rounded-2xl border px-4 py-3 ${
               board.readiness?.ok

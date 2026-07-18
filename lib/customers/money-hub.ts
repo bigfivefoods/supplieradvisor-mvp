@@ -25,7 +25,13 @@ export type MoneyHubSnapshot = {
     method?: string | null;
     reference?: string | null;
   }>;
-  claims: Array<Record<string, unknown>>;
+  claims: Array<
+    Record<string, unknown> & {
+      ageHours?: number;
+      slaBreached?: boolean;
+      claimed_at?: string;
+    }
+  >;
   topOpenInvoices: Array<{
     id: number;
     invoice_number: string | null;
@@ -230,10 +236,24 @@ export async function loadSellerMoneyHub(
     /* soft */
   }
 
-  const { claims } = await listClaimsForSeller(companyId, {
+  const { claims: rawClaims } = await listClaimsForSeller(companyId, {
     status: 'pending',
     limit: 20,
   });
+  const slaHours = Number(process.env.CLAIM_SLA_HOURS || 24);
+  const claims = [...rawClaims]
+    .map((c) => {
+      const claimed = c.claimed_at ? Date.parse(String(c.claimed_at)) : NaN;
+      const ageHours = Number.isFinite(claimed)
+        ? Math.max(0, Math.round((Date.now() - claimed) / 3600000))
+        : 0;
+      return {
+        ...c,
+        ageHours,
+        slaBreached: ageHours >= slaHours,
+      };
+    })
+    .sort((a, b) => (b.ageHours || 0) - (a.ageHours || 0));
 
   let openInstallments = 0;
   let overdueInstallments = 0;
@@ -326,7 +346,7 @@ export async function loadSellerMoneyHub(
     overdueInstallments,
     dunningDue,
     recentLedger,
-    claims: claims as unknown as Array<Record<string, unknown>>,
+    claims: claims as unknown as MoneyHubSnapshot['claims'],
     topOpenInvoices,
     installments: installments.slice(0, 25),
     dunningInvoiceIds: dunningInvoiceIds.slice(0, 20),

@@ -331,16 +331,30 @@ export async function resolvePaymentClaim(opts: {
       /* soft */
     }
     void import('@/lib/notifications/email-alerts')
-      .then(({ notifyPaymentClaimResolvedToBuyer }) =>
-        notifyPaymentClaimResolvedToBuyer({
+      .then(async ({ notifyPaymentClaimResolvedToBuyer }) => {
+        let sellerName: string | null = null;
+        try {
+          const { data: prof } = await supabase
+            .from('profiles')
+            .select('trading_name, legal_name')
+            .eq('id', opts.sellerProfileId)
+            .maybeSingle();
+          sellerName = (prof?.trading_name ||
+            prof?.legal_name ||
+            null) as string | null;
+        } catch {
+          /* soft */
+        }
+        await notifyPaymentClaimResolvedToBuyer({
           buyerProfileId: Number(claim.buyer_profile_id),
           sellerProfileId: opts.sellerProfileId,
+          sellerName,
           invoiceId: Number(claim.invoice_id),
           amount: Number(claim.amount),
           currency: claim.currency,
           outcome: 'rejected',
-        })
-      )
+        });
+      })
       .catch(() => undefined);
     return { ok: true, claim: updated as PaymentClaim };
   }

@@ -20,6 +20,7 @@ import {
   CustomersHeader,
   CustomersPage,
 } from '@/components/customers/CustomersShell';
+import SettleFunnelStrip from '@/components/dashboard/SettleFunnelStrip';
 
 type Hub = {
   openAr: number;
@@ -40,6 +41,9 @@ type Hub = {
     reference?: string | null;
     proof_url?: string | null;
     notes?: string | null;
+    claimed_at?: string;
+    ageHours?: number;
+    slaBreached?: boolean;
   }>;
   topOpenInvoices: Array<{
     id: number;
@@ -177,7 +181,11 @@ function Inner() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Failed');
       toast.success(
-        action === 'confirm' ? 'Posted to AR ledger' : 'Claim rejected',
+        action === 'confirm'
+          ? data.bankAutoApplied?.ok
+            ? 'Ledger posted + bank line linked'
+            : 'Posted to AR ledger'
+          : 'Claim rejected — buyer notified',
         {
           description: data.bankMatchHint || undefined,
         }
@@ -373,6 +381,7 @@ function Inner() {
         </p>
       ) : (
         <div className="space-y-6">
+          <SettleFunnelStrip />
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <Kpi
               label="Open AR"
@@ -396,8 +405,12 @@ function Inner() {
 
           {(hub.creditAlerts || []).length > 0 ? (
             <section className="rounded-2xl border border-rose-300 bg-rose-50/60 p-4">
-              <p className="text-sm font-black text-rose-950 mb-2">
-                Credit limit alerts
+              <p className="text-sm font-black text-rose-950 mb-1">
+                Credit policy
+              </p>
+              <p className="text-[11px] text-rose-900/80 mb-2 leading-relaxed">
+                Over-limit or held customers cannot be invoiced/shared until balance
+                drops or you clear hold. Collect on Money, then release.
               </p>
               <ul className="text-xs space-y-1">
                 {hub.creditAlerts!.map((c) => (
@@ -418,39 +431,79 @@ function Inner() {
                       {c.overBy > 0
                         ? ` · over by ${c.overBy.toLocaleString()}`
                         : ' · on hold'}
+                      {c.overBy > 0 ? (
+                        <span className="block text-[10px] text-rose-800/80 mt-0.5">
+                          Collect ≥ {c.overBy.toLocaleString()} to return under
+                          limit, or raise credit limit on profile.
+                        </span>
+                      ) : null}
                     </span>
-                    <button
-                      type="button"
-                      className="rounded-full border border-rose-300 bg-white px-2 py-0.5 text-[10px] font-bold text-rose-900"
-                      onClick={() => {
-                        void (async () => {
-                          try {
-                            const res = await fetch('/api/customers', {
-                              method: 'PATCH',
-                              headers: {
-                                'Content-Type': 'application/json',
-                              },
-                              body: JSON.stringify({
-                                companyId,
-                                id: c.customerId,
-                                action: 'set_credit_hold',
-                              }),
-                            });
-                            const data = await res.json().catch(() => ({}));
-                            if (!res.ok)
-                              throw new Error(data.error || 'Failed');
-                            toast.success('Credit hold applied');
-                            void load();
-                          } catch (e: unknown) {
-                            toast.error(
-                              e instanceof Error ? e.message : 'Failed'
-                            );
-                          }
-                        })();
-                      }}
-                    >
-                      Apply hold
-                    </button>
+                    <span className="flex gap-1">
+                      <button
+                        type="button"
+                        className="rounded-full border border-rose-300 bg-white px-2 py-0.5 text-[10px] font-bold text-rose-900"
+                        onClick={() => {
+                          void (async () => {
+                            try {
+                              const res = await fetch('/api/customers', {
+                                method: 'PATCH',
+                                headers: {
+                                  'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({
+                                  companyId,
+                                  id: c.customerId,
+                                  action: 'set_credit_hold',
+                                }),
+                              });
+                              const data = await res.json().catch(() => ({}));
+                              if (!res.ok)
+                                throw new Error(data.error || 'Failed');
+                              toast.success('Credit hold applied');
+                              void load();
+                            } catch (e: unknown) {
+                              toast.error(
+                                e instanceof Error ? e.message : 'Failed'
+                              );
+                            }
+                          })();
+                        }}
+                      >
+                        Apply hold
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-full border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-900"
+                        onClick={() => {
+                          void (async () => {
+                            try {
+                              const res = await fetch('/api/customers', {
+                                method: 'PATCH',
+                                headers: {
+                                  'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({
+                                  companyId,
+                                  id: c.customerId,
+                                  action: 'clear_credit_hold',
+                                }),
+                              });
+                              const data = await res.json().catch(() => ({}));
+                              if (!res.ok)
+                                throw new Error(data.error || 'Failed');
+                              toast.success('Hold cleared — pay to stay under limit');
+                              void load();
+                            } catch (e: unknown) {
+                              toast.error(
+                                e instanceof Error ? e.message : 'Failed'
+                              );
+                            }
+                          })();
+                        }}
+                      >
+                        Clear hold
+                      </button>
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -608,17 +661,35 @@ function Inner() {
 
           {hub.pendingClaims > 0 ? (
             <section className="rounded-2xl border border-teal-300 bg-teal-50/50 p-4">
-              <p className="text-sm font-black text-teal-950 mb-2 flex items-center gap-2">
+              <p className="text-sm font-black text-teal-950 mb-1 flex items-center gap-2">
                 <Banknote className="w-4 h-4" />
-                Buyer payment claims
+                Claim inbox — confirm to post ledger
+              </p>
+              <p className="text-[11px] text-teal-900/80 mb-2">
+                Sorted by age. SLA {Number(process.env.NEXT_PUBLIC_CLAIM_SLA_HOURS || 24)}h —
+                confirm posts AR; high-confidence bank lines auto-link.
               </p>
               <ul className="space-y-2">
                 {hub.claims.map((c) => (
                   <li
                     key={c.id}
-                    className="flex flex-wrap items-center justify-between gap-2 text-xs bg-white rounded-xl border border-teal-100 px-3 py-2"
+                    className={`flex flex-wrap items-center justify-between gap-2 text-xs bg-white rounded-xl border px-3 py-2 ${
+                      c.slaBreached
+                        ? 'border-rose-300 bg-rose-50/40'
+                        : 'border-teal-100'
+                    }`}
                   >
                     <span className="min-w-0">
+                      {c.slaBreached ? (
+                        <span className="mr-1.5 rounded-full bg-rose-600 text-white text-[9px] font-black px-1.5 py-0.5 uppercase">
+                          SLA
+                        </span>
+                      ) : null}
+                      {c.ageHours != null ? (
+                        <span className="mr-1.5 font-bold text-amber-900">
+                          {c.ageHours}h
+                        </span>
+                      ) : null}
                       <strong>
                         {Number(c.amount).toLocaleString()} {c.currency || ''}
                       </strong>

@@ -56,6 +56,9 @@ export default function TrustScorePage() {
   const [exporting, setExporting] = useState(false);
   const [data, setData] = useState<TrustPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [history, setHistory] = useState<
+    Array<{ id?: number; summary?: string; created_at?: string; action?: string }>
+  >([]);
 
   const exportPack = async () => {
     if (!companyId) return;
@@ -99,6 +102,18 @@ export default function TrustScorePage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed to load trust score');
       setData(json);
+      try {
+        const hRes = await fetch(
+          `/api/business/trust-history?companyId=${companyId}`,
+          { cache: 'no-store' }
+        );
+        if (hRes.ok) {
+          const hj = await hRes.json();
+          setHistory(hj.events || []);
+        }
+      } catch {
+        setHistory([]);
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Error');
     } finally {
@@ -166,6 +181,34 @@ export default function TrustScorePage() {
               {data?.formula?.description || TRUST_PUBLIC_COPY.loopBody}
             </p>
           </div>
+
+          {history.length > 0 ? (
+            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/40 p-5">
+              <h2 className="text-sm font-black text-emerald-950">
+                Settle → trust history
+              </h2>
+              <p className="text-xs text-emerald-900/80 mt-1 mb-2">
+                Claim confirms and settle events that moved your score.
+              </p>
+              <ul className="text-xs space-y-1.5 max-h-48 overflow-y-auto">
+                {history.slice(0, 15).map((e, i) => (
+                  <li key={e.id || i} className="text-slate-700">
+                    <span className="font-bold text-emerald-900">
+                      {String(e.created_at || '').slice(0, 10)}
+                    </span>
+                    {' · '}
+                    {e.summary || e.action}
+                  </li>
+                ))}
+              </ul>
+              <Link
+                href="/dashboard/customers/money"
+                className="inline-flex items-center gap-1 mt-3 text-xs font-bold text-[#0077b6]"
+              >
+                Confirm claims to grow trust <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+          ) : null}
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5">
             <h2 className="text-sm font-black text-slate-900">

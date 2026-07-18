@@ -331,6 +331,20 @@ export async function sendFirstTradeInvoice(opts: {
     };
   }
 
+  // Share reliability checklist (visibility + buyer notify when linked)
+  try {
+    const { ensureInvoiceSharedForBuyer } = await import(
+      '@/lib/customers/share-checklist'
+    );
+    await ensureInvoiceSharedForBuyer({
+      companyId: opts.companyId,
+      invoiceId,
+      actorUserId: opts.actorUserId,
+    });
+  } catch {
+    /* soft */
+  }
+
   let emailed = false;
   const to = String(inv.contact_email || '').trim();
   if (to.includes('@') && process.env.RESEND_API_KEY) {

@@ -59,6 +59,41 @@ export async function applyBankMatchToInvoice(opts: {
       /* soft */
     }
 
+    // Learn counterparty → invoice pattern for future auto-match
+    try {
+      const { data: txn } = await supabase
+        .from('bank_transactions')
+        .select('description, reference, counterparty_name, amount')
+        .eq('id', opts.bankTxnId)
+        .eq('profile_id', opts.profileId)
+        .maybeSingle();
+      if (txn) {
+        const key = String(
+          txn.counterparty_name || txn.reference || txn.description || ''
+        )
+          .toLowerCase()
+          .replace(/\s+/g, ' ')
+          .slice(0, 80);
+        if (key.length > 3) {
+          await supabase.from('activity_log').insert({
+            profile_id: opts.profileId,
+            actor_user_id: opts.actorUserId || 'system',
+            action: 'banking.match_learned',
+            entity_type: 'customer_invoices',
+            entity_id: String(opts.invoiceId),
+            summary: `Learned bank pattern → inv #${opts.invoiceId}`,
+            metadata: {
+              pattern: key,
+              invoiceId: opts.invoiceId,
+              amount: txn.amount,
+            },
+          });
+        }
+      }
+    } catch {
+      /* soft */
+    }
+
     return { ok: true, bankTxnId: opts.bankTxnId };
   } catch (e: unknown) {
     return {
