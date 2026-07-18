@@ -9,6 +9,7 @@ import { RainbowKitProvider, getDefaultConfig } from '@rainbow-me/rainbowkit';
 import { base, baseSepolia, sepolia } from 'wagmi/chains';
 import ApiAuthBridge from '@/components/auth/ApiAuthBridge';
 import SchemaHealthBanner from '@/components/system/SchemaHealthBanner';
+import OpsLiveBanner from '@/components/system/OpsLiveBanner';
 import InstallAppBanner from '@/components/pwa/InstallAppBanner';
 import ServiceWorkerRegister from '@/components/pwa/ServiceWorkerRegister';
 import '@rainbow-me/rainbowkit/styles.css';
@@ -83,6 +84,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
             <ApiAuthBridge>
               <ServiceWorkerRegister />
               <SchemaHealthBanner />
+              <OpsLiveBanner />
               <div className="min-h-dvh pointer-events-auto isolate">{children}</div>
               <InstallAppBanner />
             </ApiAuthBridge>

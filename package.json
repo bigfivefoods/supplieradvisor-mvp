@@ -20,6 +20,8 @@
     "smoke:golden": "playwright test e2e/golden-path-smoke.spec.ts",
     "smoke:golden:auth": "playwright test e2e/golden-path-auth.spec.ts",
     "smoke:majors": "playwright test e2e/major-bets-smoke.spec.ts e2e/major-bets-auth.spec.ts",
+    "ops:p0": "bash scripts/ops-p0-check.sh",
+    "ops:verify": "node scripts/verify-platform.mjs",
     "deploy:usdc-escrow": "node scripts/deploy-usdc-escrow.mjs",
     "deploy:usdc-hardhat": "cd contracts/contracts && npx hardhat compile && npx tsx scripts/deploy-usdc.ts"
   },

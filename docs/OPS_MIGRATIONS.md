@@ -45,16 +45,29 @@ Auth: `Authorization: Bearer $CRON_SECRET`
 
 | Item | Path |
 |------|------|
+| Public readiness | `GET /api/system/health` → `p0Readiness` (blockers/warnings, no secrets) |
 | Board API | `GET /api/system/ops-board` (CRON_SECRET or referral ops) |
-| UI | `/dashboard/my-business/ops` |
-| Checklist | Paystack secret, webhook pulse, CIPC SLA breaches, AR ledger / claims / installments tables, OPS_ALERT_EMAIL |
+| UI | `/dashboard/my-business/ops` + global **OpsLiveBanner** |
+| CLI | `bash scripts/ops-p0-check.sh` · `node scripts/verify-platform.mjs` |
+| Checklist | Paystack secret, webhook pulse, CIPC SLA breaches, AR ledger / claims / installments tables, OPS_ALERT_EMAIL, tip SHA |
 
 ```bash
-# After deploy — tip SHA must match
-curl -sS "$APP_URL/api/system/health" | jq '{deploy,paystack:.checks.paystack.ok,opsAlert:env.OPS_ALERT_EMAIL}'
-# With CRON_SECRET:
+# After every production deploy (P0)
+export APP_URL=https://www.supplieradvisor.com
+export EXPECT_COMMIT=$(git rev-parse --short HEAD)
+bash scripts/ops-p0-check.sh
+
+# Health payload
+curl -sS "$APP_URL/api/system/health" | jq '{deploy, p0Readiness, settleMissing, paystack:.checks.paystack.ok}'
+
+# Ops board (secret)
 curl -sS -H "Authorization: Bearer $CRON_SECRET" "$APP_URL/api/system/ops-board" | jq '.board.readiness'
+
+# Local schema (service role)
+node scripts/verify-platform.mjs
 ```
+
+**P0 pass criteria:** `p0Readiness.ok === true`, `deploy.commitShort` matches shipped tip, Paystack webhook not stale, settle tables present.
 
 **First trade (30 min):** `GET/POST /api/business/first-trade` + dashboard orchestrator (bootstrap customer + draft invoice).
 

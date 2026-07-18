@@ -28,13 +28,18 @@ const checks = [
   { table: 'rating_prompts', col: 'status' },
   { table: 'company_onboarding_progress', col: 'steps' },
   { table: 'founding_waitlist', col: 'email' },
+  // P0 settle-by-default tables
+  { table: 'customer_invoice_payments', col: 'amount', migration: '20260717_ar_ledger.sql' },
+  { table: 'customer_payment_claims', col: 'status', migration: '20260717_payment_claims_and_ledger_fx.sql' },
+  { table: 'customer_invoice_installments', col: 'due_date', migration: '20260718_installments_collections.sql' },
 ];
 
 let failed = 0;
 for (const c of checks) {
   const { error } = await supabase.from(c.table).select(c.col).limit(1);
   if (error) {
-    console.log(`FAIL  ${c.table}.${c.col} — ${error.message}`);
+    const mig = c.migration ? ` · run ${c.migration}` : '';
+    console.log(`FAIL  ${c.table}.${c.col} — ${error.message}${mig}`);
     failed += 1;
   } else {
     console.log(`OK    ${c.table}.${c.col}`);
@@ -42,7 +47,7 @@ for (const c of checks) {
 }
 
 if (failed) {
-  console.error(`\n${failed} check(s) failed. Apply pending SQL migrations.`);
+  console.error(`\n${failed} check(s) failed. Apply pending SQL migrations (docs/OPS_MIGRATIONS.md).`);
   process.exit(1);
 }
-console.log('\nAll platform checks passed.');
+console.log('\nAll platform checks passed (including P0 settle tables).');
