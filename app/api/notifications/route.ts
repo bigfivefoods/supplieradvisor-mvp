@@ -508,6 +508,67 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Settle: buyer payment claims awaiting confirm
+    try {
+      const { data: claimRows } = await supabase
+        .from('customer_payment_claims')
+        .select('id, invoice_id, amount, currency, claimed_at, status')
+        .eq('seller_profile_id', companyId)
+        .eq('status', 'pending')
+        .order('claimed_at', { ascending: false })
+        .limit(8);
+      if (claimRows?.length) {
+        notifications.push({
+          id: 'payment-claims-pending',
+          severity: 'warning',
+          title: `${claimRows.length} buyer payment claim${
+            claimRows.length === 1 ? '' : 's'
+          } to confirm`,
+          body: 'Confirm on Money hub to post AR ledger lines.',
+          href: '/dashboard/customers/money',
+          created_at: claimRows[0].claimed_at || new Date().toISOString(),
+          source: 'collections',
+        });
+        for (const c of claimRows.slice(0, 3)) {
+          notifications.push({
+            id: `payment-claim-${c.id}`,
+            severity: 'info',
+            title: `Claim ${Number(c.amount || 0).toLocaleString()} ${
+              c.currency || ''
+            }`,
+            body: `Invoice #${c.invoice_id} — open Money hub to confirm or reject`,
+            href: `/dashboard/customers/money`,
+            created_at: c.claimed_at || new Date().toISOString(),
+            source: 'collections',
+          });
+        }
+      }
+    } catch {
+      /* table optional */
+    }
+
+    // Overdue AR nudge
+    try {
+      const { count: overdueN } = await supabase
+        .from('customer_invoices')
+        .select('id', { count: 'exact', head: true })
+        .eq('profile_id', companyId)
+        .eq('status', 'overdue');
+      if ((overdueN || 0) > 0) {
+        notifications.push({
+          id: 'ar-overdue',
+          severity: (overdueN || 0) >= 3 ? 'warning' : 'info',
+          title: `${overdueN} overdue invoice${overdueN === 1 ? '' : 's'}`,
+          body: 'Collect on Money hub — dunning send-now and claims.',
+          href: '/dashboard/customers/money',
+          created_at: new Date().toISOString(),
+          source: 'collections',
+        });
+      }
+    } catch {
+      /* soft */
+    }
+
     // Trust loop — pending peer ratings (also emailed via digest cron)
     if (!ratingPrompts.error && (ratingPrompts.data || []).length) {
       const rows = ratingPrompts.data || [];

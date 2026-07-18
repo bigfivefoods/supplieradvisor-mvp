@@ -123,6 +123,32 @@ test.describe('Settle mutate golden path', () => {
     }
   });
 
+  test('next-action + notifications deep-links', async ({ request }) => {
+    const next = await request.get(
+      `${base}/api/business/next-action?companyId=${companyId}`,
+      { headers: headers() }
+    );
+    expect(next.status()).not.toBe(401);
+    if (next.status() === 200) {
+      const j = await next.json();
+      expect(j.action?.href).toBeTruthy();
+      expect(j.action?.cta).toBeTruthy();
+    }
+
+    const notif = await request.get(
+      `${base}/api/notifications?companyId=${companyId}`,
+      { headers: headers() }
+    );
+    expect(notif.status()).not.toBe(401);
+    if (notif.status() === 200) {
+      const j = await notif.json();
+      expect(Array.isArray(j.notifications)).toBeTruthy();
+      for (const n of (j.notifications || []).slice(0, 8)) {
+        if (n.href) expect(String(n.href).startsWith('/')).toBeTruthy();
+      }
+    }
+  });
+
   test('ledger list soft path (claim→ledger readiness)', async ({ request }) => {
     const res = await request.get(
       `${base}/api/customers/ar-ledger?companyId=${companyId}`,

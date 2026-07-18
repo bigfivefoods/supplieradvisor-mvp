@@ -26,7 +26,7 @@ export async function loadOpenToTradeRanking(opts?: {
   let q = supabase
     .from('profiles')
     .select(
-      'id, trading_name, legal_name, industry, city, country, verification_status, trust_score, otifef_average, is_discoverable, metadata, settings'
+      'id, trading_name, legal_name, industry, city, country, verification_status, trust_score, otifef_average, is_discoverable, metadata, settings, updated_at'
     )
     .not('trading_name', 'is', null)
     .order('trust_score', { ascending: false })
@@ -79,6 +79,12 @@ export async function loadOpenToTradeRanking(opts?: {
     }
     if (r.city) rankScore += 3;
     if (r.industry) rankScore += 2;
+    // Recency boost if profile updated in last 90 days
+    const updated = r.updated_at ? Date.parse(String(r.updated_at)) : 0;
+    if (updated && Date.now() - updated < 90 * 86400000) {
+      rankScore += 5;
+      reasons.push('recently active');
+    }
 
     ranked.push({
       id: Number(r.id),

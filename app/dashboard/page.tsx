@@ -50,6 +50,7 @@ import FirstHourKickstart from '@/components/dashboard/FirstHourKickstart';
 import FirstTradeOrchestrator from '@/components/dashboard/FirstTradeOrchestrator';
 import TrustDeltaStrip from '@/components/dashboard/TrustDeltaStrip';
 import PeerTradeKickstart from '@/components/dashboard/PeerTradeKickstart';
+import InevitableNextBanner from '@/components/dashboard/InevitableNextBanner';
 import CatalogueEmptyBanner from '@/components/business/CatalogueEmptyBanner';
 import TradeNextBanner from '@/components/journey/TradeNextBanner';
 import { computeHubNextAction } from '@/lib/connections/next-action';
@@ -685,6 +686,7 @@ export default function DashboardCommandCenter() {
             (crm?.invoicesDraft ?? trade?.invoicesDraft ?? kpis?.invoicesDraft ?? 0)
         )}
       />
+      {!loading ? <InevitableNextBanner /> : null}
       {!loading ? (
         <Suspense fallback={null}>
           <PeerTradeKickstart />

@@ -19,11 +19,15 @@ type Inv = {
   id: number;
   invoice_number: string | null;
   supplier_profile_id: number | null;
+  supplier_name?: string | null;
   balance: number;
   currency: string;
   status: string;
   due_date: string | null;
   claimStatus: string | null;
+  bank_name?: string | null;
+  bank_account?: string | null;
+  bank_branch?: string | null;
 };
 
 export default function BuyerMoneyPage() {
@@ -41,6 +45,17 @@ function Inner() {
   const [loading, setLoading] = useState(true);
   const [invoices, setInvoices] = useState<Inv[]>([]);
   const [pendingClaims, setPendingClaims] = useState(0);
+  const [claimTimeline, setClaimTimeline] = useState<
+    Array<{
+      invoice_id: number;
+      status: string;
+      amount: number;
+      currency: string;
+      claimed_at?: string;
+      resolved_at?: string | null;
+      reference?: string | null;
+    }>
+  >([]);
   const [claimBusy, setClaimBusy] = useState<number | null>(null);
 
   const load = useCallback(async () => {
@@ -54,6 +69,7 @@ function Inner() {
       if (!res.ok) throw new Error(data.error || 'Failed');
       setInvoices(data.hub?.openInvoices || []);
       setPendingClaims(Number(data.hub?.pendingClaims || 0));
+      setClaimTimeline(data.hub?.claimTimeline || []);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed');
       setInvoices([]);
@@ -190,6 +206,7 @@ function Inner() {
                   {inv.invoice_number || `Invoice #${inv.id}`}
                 </Link>
                 <div className="text-xs text-neutral-500 mt-0.5">
+                  {inv.supplier_name ? `${inv.supplier_name} · ` : ''}
                   {inv.status}
                   {inv.due_date ? ` · due ${inv.due_date}` : ''}
                   {inv.claimStatus ? (
@@ -206,6 +223,17 @@ function Inner() {
                     </span>
                   ) : null}
                 </div>
+                {inv.bank_name || inv.bank_account ? (
+                  <div className="text-[11px] text-slate-600 mt-1 font-mono">
+                    Pay: {inv.bank_name || 'Bank'}
+                    {inv.bank_account ? ` · ${inv.bank_account}` : ''}
+                    {inv.bank_branch ? ` · branch ${inv.bank_branch}` : ''}
+                  </div>
+                ) : (
+                  <div className="text-[11px] text-neutral-400 mt-1">
+                    Bank details on invoice PDF if not listed
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <span className="font-black tabular-nums text-sm">
@@ -232,6 +260,40 @@ function Inner() {
           ))}
         </ul>
       )}
+
+      {claimTimeline.length > 0 ? (
+        <section className="mt-8 rounded-2xl border border-neutral-200 bg-white p-4">
+          <p className="text-xs font-bold text-slate-800 mb-2">
+            Claim timeline
+          </p>
+          <ul className="text-xs space-y-1.5 max-h-48 overflow-y-auto">
+            {claimTimeline.map((c, i) => (
+              <li key={`${c.invoice_id}-${i}`}>
+                <span
+                  className={
+                    c.status === 'confirmed'
+                      ? 'text-emerald-700 font-bold'
+                      : c.status === 'pending'
+                        ? 'text-amber-800 font-bold'
+                        : 'text-rose-700 font-bold'
+                  }
+                >
+                  {c.status}
+                </span>
+                {' · inv #'}
+                {c.invoice_id} · {c.amount.toLocaleString()} {c.currency}
+                {c.reference ? ` · ref ${c.reference}` : ''}
+                {c.claimed_at
+                  ? ` · claimed ${String(c.claimed_at).slice(0, 10)}`
+                  : ''}
+                {c.resolved_at
+                  ? ` · resolved ${String(c.resolved_at).slice(0, 10)}`
+                  : ''}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
     </>
   );
 }

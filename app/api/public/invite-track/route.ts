@@ -1,13 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
+import { rateLimit, clientIp } from '@/lib/http/rate-limit';
 
 /**
  * Public invite funnel track (open/accept).
  * POST { companyId|ref, email, event: 'open'|'accept' }
- * Rate-limited softly by not requiring secrets — activity_log only.
+ * Rate-limited — activity_log only.
  */
 export async function POST(request: NextRequest) {
   try {
+    const ip = clientIp(request);
+    const rl = rateLimit(`invite-track:${ip}`, {
+      limit: 60,
+      windowMs: 60_000,
+    });
+    if (!rl.ok) {
+      return NextResponse.json(
+        { error: 'Rate limited', retryAfterSec: rl.retryAfterSec },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(rl.retryAfterSec) },
+        }
+      );
+    }
+
     const body = await request.json().catch(() => ({}));
     const companyId = Number(body.companyId || body.ref);
     const email = String(body.email || '')

@@ -244,28 +244,104 @@ export function computeHubNextAction(opts: {
   draftInvoices?: number;
   /** Seller CRM: overdue / past-due open invoices */
   overdueInvoices?: number;
+  /** Buyer payment claims awaiting confirm */
+  pendingPaymentClaims?: number;
+  /** Rating prompts due */
+  ratingsDue?: number;
+  /** Broken promise-to-pay count */
+  brokenPromises?: number;
   /** 0–100 profile completeness for discover quality */
   profileCompleteness?: number | null;
   catalogueEmpty?: boolean;
   verificationStatus?: string | null;
+  /** Paid but not badged */
+  paidNotVerified?: boolean;
 }): TradeNextAction {
   const v = String(opts.verificationStatus || '').toLowerCase();
-  if (v === 'mismatch' || v === 'failed' || v === 'pending') {
+  if (opts.paidNotVerified || v === 'mismatch' || v === 'failed' || v === 'pending') {
     return {
       id: 'fix_verify',
-      priority: 95,
+      priority: 96,
       title:
-        v === 'mismatch'
-          ? 'Fix CIPC name match'
-          : v === 'pending'
-            ? 'Finish company verification'
-            : 'Retry company verification',
+        opts.paidNotVerified
+          ? 'Payment taken — apply CIPC badge'
+          : v === 'mismatch'
+            ? 'Fix CIPC name match'
+            : v === 'pending'
+              ? 'Finish company verification'
+              : 'Retry company verification',
       body:
-        v === 'mismatch'
-          ? 'CIPC name does not match your profile — apply the registered name and re-verify without re-paying.'
-          : 'Complete CIPC verification so partners trust your public profile.',
+        opts.paidNotVerified
+          ? 'R69 is recorded but the verified badge is missing — re-run CIPC with no second charge.'
+          : v === 'mismatch'
+            ? 'CIPC name does not match your profile — apply the registered name and re-verify without re-paying.'
+            : 'Complete CIPC verification so partners trust your public profile.',
       href: '/dashboard/my-business/profile#identity',
-      cta: v === 'mismatch' ? 'Fix name match' : 'Open profile',
+      cta: opts.paidNotVerified
+        ? 'Fix badge'
+        : v === 'mismatch'
+          ? 'Fix name match'
+          : 'Open profile',
+    };
+  }
+
+  // Settle-by-default: claims before generic module work
+  if (
+    (opts.role === 'supplier' || opts.role === 'main') &&
+    (opts.pendingPaymentClaims || 0) > 0
+  ) {
+    return {
+      id: 'payment_claims',
+      priority: 94,
+      title: 'Confirm buyer payment claims',
+      body: `${opts.pendingPaymentClaims} buyer claim(s) waiting — confirm to post AR ledger.`,
+      href: '/dashboard/customers/money',
+      cta: 'Open Money hub',
+      secondaryHref: '/dashboard/customers/ar',
+      secondaryCta: 'AR aging',
+    };
+  }
+
+  if ((opts.ratingsDue || 0) > 0) {
+    return {
+      id: 'ratings_due',
+      priority: 93,
+      title: 'Rate trading partners',
+      body: `${opts.ratingsDue} rating(s) due — close the trust loop after settle.`,
+      href: '/dashboard?ratePrompt=open',
+      cta: 'Rate now',
+      secondaryHref: '/dashboard/my-business/trust',
+      secondaryCta: 'Trust score',
+    };
+  }
+
+  if (
+    (opts.role === 'supplier' || opts.role === 'main') &&
+    (opts.brokenPromises || 0) > 0
+  ) {
+    return {
+      id: 'broken_promises',
+      priority: 92,
+      title: 'Broken promise-to-pay',
+      body: `${opts.brokenPromises} promise date(s) past with open balance — follow up on Money / AR.`,
+      href: '/dashboard/customers/money',
+      cta: 'Collections',
+    };
+  }
+
+  if (
+    (opts.role === 'supplier' || opts.role === 'main') &&
+    (opts.overdueInvoices || 0) > 0
+  ) {
+    return {
+      id: 'overdue_money',
+      priority: 91,
+      title: 'Collect overdue AR',
+      body: `${opts.overdueInvoices} overdue invoice(s) — dunning and claims live on Money hub.`,
+      href: '/dashboard/customers/money',
+      cta: 'Open Money',
+      secondaryHref: '/dashboard/customers/ar',
+      secondaryCta: 'Aging',
     };
   }
 

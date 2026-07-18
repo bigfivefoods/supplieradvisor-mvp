@@ -5,6 +5,7 @@ import {
 } from '@/lib/auth/api-auth';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { getResend, getResendFrom } from '@/lib/resend';
+import { rateLimit, clientIp } from '@/lib/http/rate-limit';
 
 /**
  * POST { companyId, peerId, message }
@@ -42,6 +43,21 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = clientIp(request);
+    const rl = rateLimit(`request-trade:${ip}`, {
+      limit: 30,
+      windowMs: 60_000,
+    });
+    if (!rl.ok) {
+      return NextResponse.json(
+        { error: 'Rate limited', retryAfterSec: rl.retryAfterSec },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(rl.retryAfterSec) },
+        }
+      );
+    }
+
     const body = await request.json().catch(() => ({}));
     const companyId = Number(body.companyId);
     const peerId = Number(body.peerId);
@@ -59,6 +75,21 @@ export async function POST(request: NextRequest) {
       legacyPrivyUserId: legacyPrivyFrom(request, body),
     });
     if (!gate.ok) return gate.response;
+
+    // Per-company daily soft cap
+    const companyRl = rateLimit(`request-trade-co:${companyId}`, {
+      limit: 40,
+      windowMs: 24 * 3600_000,
+    });
+    if (!companyRl.ok) {
+      return NextResponse.json(
+        {
+          error: 'Daily request-to-trade cap reached for this company',
+          code: 'TRADE_REQ_CAP',
+        },
+        { status: 429 }
+      );
+    }
 
     const message = String(body.message || body.note || '')
       .trim()

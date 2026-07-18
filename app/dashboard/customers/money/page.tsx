@@ -65,6 +65,21 @@ type Hub = {
     invoice_number?: string | null;
   }>;
   dunningInvoiceIds?: number[];
+  brokenPromises?: Array<{
+    id: number;
+    invoice_number: string | null;
+    customer_name: string | null;
+    promise_to_pay_date: string;
+    balance: number;
+    currency: string;
+  }>;
+  creditAlerts?: Array<{
+    customerId: number;
+    customerName: string;
+    creditLimit: number;
+    openBalance: number;
+    overBy: number;
+  }>;
 };
 
 type BankSug = {
@@ -288,6 +303,91 @@ function Inner() {
               warn={hub.overdueInstallments > 0}
             />
           </div>
+
+          {(hub.creditAlerts || []).length > 0 ? (
+            <section className="rounded-2xl border border-rose-300 bg-rose-50/60 p-4">
+              <p className="text-sm font-black text-rose-950 mb-2">
+                Credit limit alerts
+              </p>
+              <ul className="text-xs space-y-1">
+                {hub.creditAlerts!.map((c) => (
+                  <li key={c.customerId}>
+                    <Link
+                      href="/dashboard/customers/profiles"
+                      className="font-bold text-rose-900 underline"
+                    >
+                      {c.customerName}
+                    </Link>
+                    {' · open '}
+                    {c.openBalance.toLocaleString()} / limit{' '}
+                    {c.creditLimit.toLocaleString()}
+                    {c.overBy > 0
+                      ? ` · over by ${c.overBy.toLocaleString()}`
+                      : ' · on hold'}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          {(hub.brokenPromises || []).length > 0 ? (
+            <section className="rounded-2xl border border-amber-300 bg-amber-50/70 p-4">
+              <p className="text-sm font-black text-amber-950 mb-2 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4" />
+                Broken promise-to-pay
+              </p>
+              <ul className="text-xs space-y-1">
+                {hub.brokenPromises!.map((p) => (
+                  <li key={p.id}>
+                    <Link
+                      href={`/dashboard/customers/invoices?id=${p.id}`}
+                      className="font-bold underline text-amber-950"
+                    >
+                      {p.invoice_number || `#${p.id}`}
+                    </Link>
+                    {' · '}
+                    {p.customer_name || 'Customer'} · promise{' '}
+                    {p.promise_to_pay_date} · {p.balance.toLocaleString()}{' '}
+                    {p.currency}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          {hub.openAr < 0.01 &&
+          hub.pendingClaims === 0 &&
+          (hub.brokenPromises || []).length === 0 ? (
+            <section className="rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-sky-50 p-5">
+              <p className="text-sm font-black text-emerald-950">
+                Settled — nothing urgent on collections
+              </p>
+              <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                No open AR or pending claims. Grow volume or close the trust
+                loop next.
+              </p>
+              <div className="flex flex-wrap gap-2 mt-3">
+                <Link
+                  href="/dashboard/connections/discover"
+                  className="rounded-full bg-[#00b4d8] text-white text-xs font-bold px-3 py-1.5"
+                >
+                  Discover open-to-trade
+                </Link>
+                <Link
+                  href="/dashboard?ratePrompt=open"
+                  className="rounded-full border border-emerald-300 bg-white text-emerald-950 text-xs font-bold px-3 py-1.5"
+                >
+                  Rate partners
+                </Link>
+                <Link
+                  href="/dashboard/customers/invoices"
+                  className="rounded-full border border-sky-200 bg-white text-sky-900 text-xs font-bold px-3 py-1.5"
+                >
+                  Issue invoice
+                </Link>
+              </div>
+            </section>
+          ) : null}
 
           {hub.pendingClaims > 0 ? (
             <section className="rounded-2xl border border-teal-300 bg-teal-50/50 p-4">

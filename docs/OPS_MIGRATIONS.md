@@ -24,6 +24,7 @@ supabase/migrations/20260718_installments_collections.sql
 | `/api/customers/docs/dunning-cron` | daily 06:45 UTC | Overdue ladder day 1 / 7 / 14 emails |
 | `/api/system/paystack-pulse-cron` | daily 08:00 UTC | Webhook stale alert + **CIPC SLA auto-rerun** + breach email |
 | `/api/business/network-invites/sequence-cron` | daily 09:30 UTC | Invite resend day 3 / day 7 if not accepted |
+| `/api/system/activation-digest-cron` | Mondays 08:00 UTC | Weekly ops activation + P0 readiness email |
 
 Auth: `Authorization: Bearer $CRON_SECRET`
 

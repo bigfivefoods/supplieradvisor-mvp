@@ -3,8 +3,6 @@
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { listClaimsForSeller } from '@/lib/customers/payment-claims';
-import { sumLedgerPaid } from '@/lib/customers/ar-ledger';
-
 const OPEN = ['sent', 'partial', 'overdue', 'viewed', 'unpaid', 'issued'] as const;
 
 export type MoneyHubSnapshot = {
@@ -50,6 +48,21 @@ export type MoneyHubSnapshot = {
   }>;
   /** Invoice ids due for dunning send-now */
   dunningInvoiceIds: number[];
+  brokenPromises: Array<{
+    id: number;
+    invoice_number: string | null;
+    customer_name: string | null;
+    promise_to_pay_date: string;
+    balance: number;
+    currency: string;
+  }>;
+  creditAlerts: Array<{
+    customerId: number;
+    customerName: string;
+    creditLimit: number;
+    openBalance: number;
+    overBy: number;
+  }>;
   at: string;
 };
 
@@ -59,31 +72,72 @@ export async function loadSellerMoneyHub(
   const supabase = getSupabaseServer();
   const today = new Date().toISOString().slice(0, 10);
 
-  const { data: invs } = await supabase
-    .from('customer_invoices')
-    .select(
-      'id, invoice_number, customer_name, total_amount, amount_paid, currency, due_date, status, notes'
-    )
-    .eq('profile_id', companyId)
-    .in('status', [...OPEN])
-    .order('due_date', { ascending: true })
-    .limit(200);
+  // Soft-select promise_to_pay_date (column may be missing pre-migration)
+  let invs: Array<Record<string, unknown>> | null = null;
+  {
+    const withPtp = await supabase
+      .from('customer_invoices')
+      .select(
+        'id, invoice_number, customer_name, customer_id, total_amount, amount_paid, currency, due_date, status, notes, promise_to_pay_date'
+      )
+      .eq('profile_id', companyId)
+      .in('status', [...OPEN])
+      .order('due_date', { ascending: true })
+      .limit(200);
+    if (withPtp.error) {
+      const fallback = await supabase
+        .from('customer_invoices')
+        .select(
+          'id, invoice_number, customer_name, customer_id, total_amount, amount_paid, currency, due_date, status, notes'
+        )
+        .eq('profile_id', companyId)
+        .in('status', [...OPEN])
+        .order('due_date', { ascending: true })
+        .limit(200);
+      invs = (fallback.data || []) as Array<Record<string, unknown>>;
+    } else {
+      invs = (withPtp.data || []) as Array<Record<string, unknown>>;
+    }
+  }
 
   let openAr = 0;
   let overdueCount = 0;
   let partialCount = 0;
   let dunningDue = 0;
   const topOpenInvoices: MoneyHubSnapshot['topOpenInvoices'] = [];
+  const brokenPromises: MoneyHubSnapshot['brokenPromises'] = [];
+  const openByCustomer = new Map<
+    number,
+    { name: string; balance: number }
+  >();
+
+  // I: batch ledger sums (avoid N+1 sumLedgerPaid)
+  const ledgerByInv = new Map<number, number>();
+  try {
+    const invIds = (invs || []).map((i) => Number(i.id)).filter(Boolean);
+    if (invIds.length) {
+      const { data: led } = await supabase
+        .from('customer_invoice_payments')
+        .select('invoice_id, amount')
+        .eq('profile_id', companyId)
+        .in('invoice_id', invIds.slice(0, 400));
+      for (const row of led || []) {
+        const id = Number(row.invoice_id);
+        ledgerByInv.set(
+          id,
+          (ledgerByInv.get(id) || 0) + Number(row.amount || 0)
+        );
+      }
+    }
+  } catch {
+    /* table optional */
+  }
 
   for (const inv of invs || []) {
     const st = String(inv.status || '').toLowerCase();
     let paid = Number(inv.amount_paid || 0);
-    try {
-      const sum = await sumLedgerPaid(companyId, Number(inv.id));
-      if (sum.total != null && !sum.tableMissing) paid = Math.max(paid, sum.total);
-    } catch {
-      /* soft */
-    }
+    const ledPaid = ledgerByInv.get(Number(inv.id));
+    if (ledPaid != null) paid = Math.max(paid, ledPaid);
     const balance = Math.max(0, Number(inv.total_amount || 0) - paid);
     if (balance <= 0.009) continue;
     openAr += balance;
@@ -112,6 +166,68 @@ export async function loadSellerMoneyHub(
         status: st,
       });
     }
+
+    const ptpRaw = inv.promise_to_pay_date;
+    const ptp =
+      ptpRaw != null && String(ptpRaw).trim()
+        ? String(ptpRaw).slice(0, 10)
+        : null;
+    if (ptp && ptp < today && balance > 0.01 && brokenPromises.length < 15) {
+      brokenPromises.push({
+        id: Number(inv.id),
+        invoice_number: inv.invoice_number
+          ? String(inv.invoice_number)
+          : null,
+        customer_name: inv.customer_name ? String(inv.customer_name) : null,
+        promise_to_pay_date: ptp,
+        balance: Math.round(balance * 100) / 100,
+        currency: String(inv.currency || 'ZAR'),
+      });
+    }
+
+    const cid = inv.customer_id ? Number(inv.customer_id) : 0;
+    if (cid > 0) {
+      const prev = openByCustomer.get(cid) || {
+        name: String(inv.customer_name || `Customer #${cid}`),
+        balance: 0,
+      };
+      prev.balance += balance;
+      openByCustomer.set(cid, prev);
+    }
+  }
+
+  const creditAlerts: MoneyHubSnapshot['creditAlerts'] = [];
+  try {
+    const custIds = [...openByCustomer.keys()];
+    if (custIds.length) {
+      const { data: custs } = await supabase
+        .from('customers')
+        .select('id, trading_name, legal_name, credit_limit, notes, status')
+        .eq('profile_id', companyId)
+        .in('id', custIds.slice(0, 80));
+      for (const c of custs || []) {
+        const limit = Number(c.credit_limit);
+        if (!Number.isFinite(limit) || limit <= 0) continue;
+        const open = openByCustomer.get(Number(c.id));
+        if (!open) continue;
+        const hold =
+          /\[credit hold\]/i.test(String(c.notes || '')) ||
+          String(c.status || '').toLowerCase() === 'credit_hold';
+        if (open.balance > limit + 0.01 || hold) {
+          creditAlerts.push({
+            customerId: Number(c.id),
+            customerName: String(
+              c.trading_name || c.legal_name || open.name
+            ),
+            creditLimit: limit,
+            openBalance: Math.round(open.balance * 100) / 100,
+            overBy: Math.round((open.balance - limit) * 100) / 100,
+          });
+        }
+      }
+    }
+  } catch {
+    /* soft */
   }
 
   const { claims } = await listClaimsForSeller(companyId, {
@@ -214,6 +330,8 @@ export async function loadSellerMoneyHub(
     topOpenInvoices,
     installments: installments.slice(0, 25),
     dunningInvoiceIds: dunningInvoiceIds.slice(0, 20),
+    brokenPromises,
+    creditAlerts: creditAlerts.slice(0, 12),
     at: new Date().toISOString(),
   };
 }
@@ -224,6 +342,7 @@ export async function loadBuyerMoneyHub(buyerCompanyId: number): Promise<{
     id: number;
     invoice_number: string | null;
     supplier_profile_id: number | null;
+    supplier_name: string | null;
     total_amount: number;
     amount_paid: number;
     balance: number;
@@ -231,6 +350,18 @@ export async function loadBuyerMoneyHub(buyerCompanyId: number): Promise<{
     status: string;
     due_date: string | null;
     claimStatus: string | null;
+    bank_name: string | null;
+    bank_account: string | null;
+    bank_branch: string | null;
+  }>;
+  claimTimeline: Array<{
+    invoice_id: number;
+    status: string;
+    amount: number;
+    currency: string;
+    claimed_at?: string;
+    resolved_at?: string | null;
+    reference?: string | null;
   }>;
   pendingClaims: number;
   confirmedClaims: number;
@@ -242,10 +373,21 @@ export async function loadBuyerMoneyHub(buyerCompanyId: number): Promise<{
   let claimByInv = new Map<number, string>();
   let pendingClaims = 0;
   let confirmedClaims = 0;
+  const claimTimeline: Array<{
+    invoice_id: number;
+    status: string;
+    amount: number;
+    currency: string;
+    claimed_at?: string;
+    resolved_at?: string | null;
+    reference?: string | null;
+  }> = [];
   try {
     const { data: claims } = await supabase
       .from('customer_payment_claims')
-      .select('invoice_id, status')
+      .select(
+        'invoice_id, status, amount, currency, claimed_at, resolved_at, reference'
+      )
       .eq('buyer_profile_id', buyerCompanyId)
       .order('claimed_at', { ascending: false })
       .limit(80);
@@ -254,6 +396,15 @@ export async function loadBuyerMoneyHub(buyerCompanyId: number): Promise<{
       if (!claimByInv.has(id)) claimByInv.set(id, String(c.status || ''));
       if (c.status === 'pending') pendingClaims += 1;
       if (c.status === 'confirmed') confirmedClaims += 1;
+      claimTimeline.push({
+        invoice_id: id,
+        status: String(c.status || ''),
+        amount: Number(c.amount || 0),
+        currency: String(c.currency || 'ZAR'),
+        claimed_at: c.claimed_at ? String(c.claimed_at) : undefined,
+        resolved_at: c.resolved_at ? String(c.resolved_at) : null,
+        reference: c.reference ? String(c.reference) : null,
+      });
     }
   } catch {
     /* soft */
@@ -276,6 +427,7 @@ export async function loadBuyerMoneyHub(buyerCompanyId: number): Promise<{
     id: number;
     invoice_number: string | null;
     supplier_profile_id: number | null;
+    supplier_name: string | null;
     total_amount: number;
     amount_paid: number;
     balance: number;
@@ -283,7 +435,51 @@ export async function loadBuyerMoneyHub(buyerCompanyId: number): Promise<{
     status: string;
     due_date: string | null;
     claimStatus: string | null;
+    bank_name: string | null;
+    bank_account: string | null;
+    bank_branch: string | null;
   }> = [];
+
+  // Batch supplier bank details
+  const bankBySupplier = new Map<
+    number,
+    {
+      name: string | null;
+      bank_name: string | null;
+      bank_account: string | null;
+      bank_branch: string | null;
+    }
+  >();
+  if (supplierIds.length) {
+    const { data: sellers } = await supabase
+      .from('profiles')
+      .select(
+        'id, trading_name, legal_name, bank_name, bank_account_number, branch_code, metadata'
+      )
+      .in('id', supplierIds.slice(0, 20));
+    for (const s of sellers || []) {
+      const meta =
+        s.metadata && typeof s.metadata === 'object'
+          ? (s.metadata as Record<string, unknown>)
+          : {};
+      const bank =
+        meta.bank && typeof meta.bank === 'object'
+          ? (meta.bank as Record<string, unknown>)
+          : {};
+      bankBySupplier.set(Number(s.id), {
+        name: String(s.trading_name || s.legal_name || ''),
+        bank_name: String(
+          s.bank_name || bank.name || bank.bank_name || ''
+        ) || null,
+        bank_account: String(
+          s.bank_account_number || bank.account_number || bank.account || ''
+        ) || null,
+        bank_branch: String(
+          s.branch_code || bank.branch_code || bank.branch || ''
+        ) || null,
+      });
+    }
+  }
 
   for (const sid of supplierIds.slice(0, 20)) {
     const { data: invs } = await supabase
@@ -294,6 +490,7 @@ export async function loadBuyerMoneyHub(buyerCompanyId: number): Promise<{
       .eq('profile_id', sid)
       .in('status', [...OPEN, 'partial'])
       .limit(30);
+    const seller = bankBySupplier.get(sid);
     for (const inv of invs || []) {
       const shared =
         inv.shared_with_buyer === true ||
@@ -312,6 +509,7 @@ export async function loadBuyerMoneyHub(buyerCompanyId: number): Promise<{
           ? String(inv.invoice_number)
           : null,
         supplier_profile_id: sid,
+        supplier_name: seller?.name || null,
         total_amount: total,
         amount_paid: paid,
         balance,
@@ -319,6 +517,9 @@ export async function loadBuyerMoneyHub(buyerCompanyId: number): Promise<{
         status: String(inv.status || ''),
         due_date: inv.due_date ? String(inv.due_date).slice(0, 10) : null,
         claimStatus: claimByInv.get(Number(inv.id)) || null,
+        bank_name: seller?.bank_name || null,
+        bank_account: seller?.bank_account || null,
+        bank_branch: seller?.bank_branch || null,
       });
     }
   }
@@ -328,6 +529,7 @@ export async function loadBuyerMoneyHub(buyerCompanyId: number): Promise<{
   return {
     companyId: buyerCompanyId,
     openInvoices: openInvoices.slice(0, 40),
+    claimTimeline: claimTimeline.slice(0, 20),
     pendingClaims,
     confirmedClaims,
     at: new Date().toISOString(),

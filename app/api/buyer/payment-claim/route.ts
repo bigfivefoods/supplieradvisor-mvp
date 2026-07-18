@@ -6,6 +6,7 @@ import {
 import { assertCustomerConnection } from '@/lib/customers/access';
 import { createPaymentClaim } from '@/lib/customers/payment-claims';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
+import { rateLimit, clientIp } from '@/lib/http/rate-limit';
 
 /**
  * Buyer asserts "I paid" on a shared seller invoice.
@@ -55,6 +56,21 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = clientIp(request);
+    const rl = rateLimit(`payment-claim:${ip}`, {
+      limit: 40,
+      windowMs: 60_000,
+    });
+    if (!rl.ok) {
+      return NextResponse.json(
+        { error: 'Rate limited', retryAfterSec: rl.retryAfterSec },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(rl.retryAfterSec) },
+        }
+      );
+    }
+
     const body = await request.json().catch(() => ({}));
     const buyerCompanyId = Number(body.buyerCompanyId || body.companyId);
     const supplierProfileId = Number(
