@@ -428,6 +428,9 @@ export async function syncBooksOnAccept(opts: {
  * Soft book sync when a connection request is still pending.
  * Only seeds the **requester's** books so they can quote / invoice / PO
  * without re-adding the peer — without claiming the peer accepted.
+ *
+ * Always seeds CRM: signed-up businesses you requested are invoiceable/quoteable
+ * immediately (they already exist on the platform; accept only unlocks mutual portal).
  * Full mesh (both sides) still runs on accept via syncBooksOnAccept.
  */
 export async function syncBooksOnInvite(opts: {
@@ -445,47 +448,27 @@ export async function syncBooksOnInvite(opts: {
     const requestee = await loadProfileLite(opts.requesteeId);
     if (!requestee) return { srmIds, crmIds };
 
-    if (type === 'supplier') {
-      // requester=buyer inviting a supplier → buyer SRM book
-      const srm = await ensureSrmBookEntry({
-        buyerProfileId: opts.requesterId,
-        supplierProfileId: opts.requesteeId,
-        connectionId: opts.connectionId,
-        inviteStatus: 'invited',
-        userId: opts.userId,
-        peer: requestee,
-      });
-      if (srm) srmIds.push(srm);
-    } else if (type === 'customer') {
-      // requester=seller inviting a customer → seller CRM book
-      const crm = await ensureCrmBookEntry({
-        sellerProfileId: opts.requesterId,
-        buyerProfileId: opts.requesteeId,
-        connectionId: opts.connectionId,
-        inviteStatus: 'invited',
-        peer: requestee,
-      });
-      if (crm) crmIds.push(crm);
-    } else {
-      // partner — requester can trade either way once accepted; seed both books now
-      const srm = await ensureSrmBookEntry({
-        buyerProfileId: opts.requesterId,
-        supplierProfileId: opts.requesteeId,
-        connectionId: opts.connectionId,
-        inviteStatus: 'invited',
-        userId: opts.userId,
-        peer: requestee,
-      });
-      if (srm) srmIds.push(srm);
+    // Always CRM — quote & invoice while connection is pending
+    const crm = await ensureCrmBookEntry({
+      sellerProfileId: opts.requesterId,
+      buyerProfileId: opts.requesteeId,
+      connectionId: opts.connectionId,
+      inviteStatus: 'invited',
+      peer: requestee,
+    });
+    if (crm) crmIds.push(crm);
 
-      const crm = await ensureCrmBookEntry({
-        sellerProfileId: opts.requesterId,
-        buyerProfileId: opts.requesteeId,
+    // SRM for supplier/partner (buyer-side book). Skip pure customer-type edges.
+    if (type !== 'customer') {
+      const srm = await ensureSrmBookEntry({
+        buyerProfileId: opts.requesterId,
+        supplierProfileId: opts.requesteeId,
         connectionId: opts.connectionId,
         inviteStatus: 'invited',
+        userId: opts.userId,
         peer: requestee,
       });
-      if (crm) crmIds.push(crm);
+      if (srm) srmIds.push(srm);
     }
   } catch (e) {
     console.warn('syncBooksOnInvite soft-fail:', e);
@@ -533,41 +516,16 @@ export async function seedRequesterBooksFromPendingInvites(
       if (!Number.isFinite(peerId) || peerId <= 0) continue;
       const type = String(edge.connection_type || 'partner').toLowerCase();
 
-      if (type === 'supplier') {
-        const srm = await ensureSrmBookEntry({
-          buyerProfileId: companyId,
-          supplierProfileId: peerId,
-          connectionId: connId,
-          inviteStatus: 'invited',
-          userId: opts?.userId,
-        });
-        if (srm) seededSrm += 1;
-      } else if (type === 'customer') {
-        const crm = await ensureCrmBookEntry({
-          sellerProfileId: companyId,
-          buyerProfileId: peerId,
-          connectionId: connId,
-          inviteStatus: 'invited',
-        });
-        if (crm) seededCrm += 1;
-      } else {
-        // partner — seed both so quote/invoice and PO are available
-        const crm = await ensureCrmBookEntry({
-          sellerProfileId: companyId,
-          buyerProfileId: peerId,
-          connectionId: connId,
-          inviteStatus: 'invited',
-        });
-        if (crm) seededCrm += 1;
-        const srm = await ensureSrmBookEntry({
-          buyerProfileId: companyId,
-          supplierProfileId: peerId,
-          connectionId: connId,
-          inviteStatus: 'invited',
-          userId: opts?.userId,
-        });
-        if (srm) seededSrm += 1;
-      }
+      // Every pending outbound request → CRM (quote/invoice signed-up peers)
+      const result = await syncBooksOnInvite({
+        requesterId: companyId,
+        requesteeId: peerId,
+        connectionId: connId,
+        connectionType: type,
+        userId: opts?.userId,
+      });
+      seededCrm += result.crmIds.length;
+      seededSrm += result.srmIds.length;
     }
   } catch (e) {
     console.warn('seedRequesterBooksFromPendingInvites soft-fail:', e);

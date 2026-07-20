@@ -7,6 +7,7 @@ import {
   findConnectionBetween,
   loadProfileLite,
   syncBooksOnAccept,
+  syncBooksOnInvite,
   upsertNetworkConnection,
   userOwnsBothCompanies,
 } from '@/lib/connections/sync';
@@ -174,18 +175,27 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Outgoing pending already exists
+    // Outgoing pending already exists — still seed CRM so quote/invoice works
     if (
       existingEdge &&
       String(existingEdge.status) === 'pending' &&
       Number(existingEdge.requester_profile_id) === companyId
     ) {
+      await syncBooksOnInvite({
+        requesterId: companyId,
+        requesteeId: targetProfileId,
+        connectionId: Number(existingEdge.id),
+        connectionType: String(existingEdge.connection_type || 'supplier'),
+        userId: mem.userId,
+      });
       return NextResponse.json({
         success: true,
         connectionId: Number(existingEdge.id),
         status: 'pending',
         alreadyPending: true,
-        message: 'Connection request already sent — waiting for them to accept',
+        booksSynced: true,
+        message:
+          'Connection request already sent — you can quote & invoice them while waiting for accept',
       });
     }
 
@@ -260,6 +270,15 @@ export async function POST(request: NextRequest) {
         })
         .eq('profile_id', companyId)
         .eq('linked_profile_id', targetProfileId);
+
+      // Seed CRM (and SRM) so requester can quote/invoice signed-up peer immediately
+      await syncBooksOnInvite({
+        requesterId: companyId,
+        requesteeId: targetProfileId,
+        connectionId,
+        connectionType: String(body.connectionType || 'supplier'),
+        userId: mem.userId,
+      });
     }
 
     await logActivity({

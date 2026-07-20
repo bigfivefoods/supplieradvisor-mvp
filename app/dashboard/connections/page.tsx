@@ -512,8 +512,9 @@ function HubInner() {
               {tab === 'all' ? 'No connections yet' : 'Nothing in this filter'}
             </p>
             <p className="text-xs text-neutral-500 max-w-md mx-auto mb-6">
-              Find a company on SupplierAdvisor and send a connection request. When they accept,
-              you can set pricing, raise POs, and settle on-chain.
+              Find a signed-up company and send a connection request. You can quote and invoice
+              them immediately while the request is pending; mutual POs and portal share unlock
+              after they accept.
             </p>
             <div className="flex flex-wrap justify-center gap-2">
               <Link
@@ -577,8 +578,8 @@ function HubInner() {
       <OperatingPrinciples
         items={[
           {
-            title: 'Request, then handshake',
-            body: 'Trade only after both companies accept. Edges unlock POs, pricing, documents, and settlement.',
+            title: 'Quote while they decide',
+            body: 'After you send a request to a signed-up company, quote and invoice them right away. Accept unlocks mutual POs, pricing agreements, and portal share.',
           },
           {
             title: 'One graph, many roles',
@@ -674,9 +675,28 @@ function EdgeRow({
             : '—'}
         </div>
 
-        {connected && !edge.suspended && (
+        {(connected || pendingOut) && !edge.suspended && (
           <div className="flex flex-wrap gap-2 mt-3">
-            {edge.hrefs.po && (
+            {pendingOut ? (
+              <>
+                <Link
+                  href={`/dashboard/customers/quotes?buyerProfileId=${peer.id}`}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100"
+                >
+                  <FileText className="w-3 h-3" /> Quote
+                </Link>
+                <Link
+                  href={`/dashboard/customers/invoices?buyerProfileId=${peer.id}`}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-900 hover:bg-emerald-100"
+                >
+                  <Wallet className="w-3 h-3" /> Invoice
+                </Link>
+                <span className="text-[10px] text-neutral-500 self-center">
+                  Available while request is pending
+                </span>
+              </>
+            ) : null}
+            {connected && edge.hrefs.po && (
               <Link
                 href={edge.hrefs.po}
                 className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-[#00b4d8]/25 bg-[#00b4d8]/10 text-[#0077b6] hover:bg-[#00b4d8]/15"
@@ -684,25 +704,29 @@ function EdgeRow({
                 <ShoppingCart className="w-3 h-3" /> POs
               </Link>
             )}
-            <Link
-              href="/dashboard/connections/pricing"
-              className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-neutral-200 text-neutral-600 hover:border-[#00b4d8]/40"
-            >
-              <FileText className="w-3 h-3 text-[#00b4d8]" /> Pricing
-            </Link>
-            <Link
-              href="/dashboard/accounting/accounts-receivable"
-              className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-neutral-200 text-neutral-600 hover:border-[#00b4d8]/40"
-            >
-              <Wallet className="w-3 h-3 text-emerald-600" /> Invoice
-            </Link>
-            <Link
-              href="/dashboard/accounting/accounts-payable"
-              className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-neutral-200 text-neutral-600 hover:border-[#00b4d8]/40"
-            >
-              <CreditCard className="w-3 h-3 text-violet-600" /> Pay
-            </Link>
-            {edge.hrefs.ratings && (
+            {connected && (
+              <>
+                <Link
+                  href="/dashboard/connections/pricing"
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-neutral-200 text-neutral-600 hover:border-[#00b4d8]/40"
+                >
+                  <FileText className="w-3 h-3 text-[#00b4d8]" /> Pricing
+                </Link>
+                <Link
+                  href={`/dashboard/customers/invoices?buyerProfileId=${peer.id}`}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-neutral-200 text-neutral-600 hover:border-[#00b4d8]/40"
+                >
+                  <Wallet className="w-3 h-3 text-emerald-600" /> Invoice
+                </Link>
+                <Link
+                  href="/dashboard/accounting/accounts-payable"
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-neutral-200 text-neutral-600 hover:border-[#00b4d8]/40"
+                >
+                  <CreditCard className="w-3 h-3 text-violet-600" /> Pay
+                </Link>
+              </>
+            )}
+            {connected && edge.hrefs.ratings && (
               <Link
                 href={edge.hrefs.ratings}
                 className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-neutral-200 text-neutral-600 hover:border-[#00b4d8]/40"

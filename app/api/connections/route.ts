@@ -11,6 +11,7 @@ import {
 } from '@/lib/connections/types';
 import {
   findConnectionBetween,
+  seedRequesterBooksFromPendingInvites,
   softSyncSuspend,
   syncBooksOnAccept,
   syncBooksOnInvite,
@@ -46,6 +47,15 @@ export async function GET(request: NextRequest) {
     if (!_gate.ok) return _gate.response;
 
     let membershipWarning: string | undefined;
+
+    // Pending outbound requests → CRM so quote/invoice works before accept
+    try {
+      await seedRequesterBooksFromPendingInvites(companyId, {
+        userId: privyUserId || null,
+      });
+    } catch {
+      /* soft */
+    }
 
     const supabase = getSupabaseServer();
 

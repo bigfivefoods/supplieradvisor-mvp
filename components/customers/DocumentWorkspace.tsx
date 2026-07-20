@@ -149,12 +149,18 @@ function DocInner({
   const searchParams = useSearchParams();
   const fromPo = Number(searchParams.get('fromPo') || 0) || null;
   const buyerProfileIdParam =
-    Number(searchParams.get('buyerProfileId') || 0) || null;
+    Number(
+      searchParams.get('buyerProfileId') ||
+        searchParams.get('linkedProfileId') ||
+        searchParams.get('peer') ||
+        0
+    ) || null;
   const focusDocId = Number(searchParams.get('docId') || searchParams.get('invoiceId') || 0) || null;
   const statusFromUrl = String(searchParams.get('status') || '').toLowerCase();
   const actionFromUrl = String(searchParams.get('action') || '').toLowerCase();
   const whatsappFromUrl = searchParams.get('whatsapp') === '1';
   const fromPoApplied = useRef(false);
+  const peerCustomerApplied = useRef(false);
   const overdueResendHinted = useRef(false);
   const whatsappTriggered = useRef(false);
   const cfg = CONFIG[type];
@@ -209,12 +215,6 @@ function DocInner({
     statusFromUrl && statusFromUrl !== 'all' ? statusFromUrl : 'all'
   );
 
-  useEffect(() => {
-    if (statusFromUrl && statusFromUrl !== 'all') {
-      setStatusFilter(statusFromUrl);
-    }
-  }, [statusFromUrl]);
-
   const [customerId, setCustomerId] = useState('');
   const [docCurrency, setDocCurrency] = useState('ZAR');
   const [taxRate, setTaxRate] = useState('15');
@@ -229,6 +229,37 @@ function DocInner({
   const [pendingProductId, setPendingProductId] = useState('');
   const [pendingProductCurrency, setPendingProductCurrency] = useState('');
   const [productSearch, setProductSearch] = useState('');
+
+  useEffect(() => {
+    if (statusFromUrl && statusFromUrl !== 'all') {
+      setStatusFilter(statusFromUrl);
+    }
+  }, [statusFromUrl]);
+
+  // Prefill customer from linked platform peer (pending connection / network)
+  useEffect(() => {
+    if (peerCustomerApplied.current) return;
+    if (fromPo) return; // from-PO path handles its own match
+    if (!buyerProfileIdParam || buyerProfileIdParam <= 0) return;
+    if (loading || !customers.length) return;
+    const match = customers.find(
+      (c) =>
+        Number((c as { linked_profile_id?: number | null }).linked_profile_id) ===
+        buyerProfileIdParam
+    );
+    if (match) {
+      peerCustomerApplied.current = true;
+      setCustomerId(String(match.id));
+      setShowForm(true);
+      toast.message(
+        `Customer selected: ${match.trading_name || match.legal_name || 'peer'}`,
+        {
+          description:
+            'Connection may still be pending — you can quote & invoice now.',
+        }
+      );
+    }
+  }, [buyerProfileIdParam, customers, loading, fromPo]);
 
   const load = useCallback(async () => {
     setLoading(true);
