@@ -13,6 +13,7 @@ import {
   findConnectionBetween,
   softSyncSuspend,
   syncBooksOnAccept,
+  syncBooksOnInvite,
   upsertNetworkConnection,
   userOwnsBothCompanies,
 } from '@/lib/connections/sync';
@@ -307,6 +308,32 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Outbound still pending — re-seed requester books (quote/invoice without re-add)
+    if (
+      existing &&
+      String(existing.status) === 'pending' &&
+      Number(existing.requester_profile_id) === companyId
+    ) {
+      const resolvedPendingType = String(
+        existing.connection_type || connectionType || 'partner'
+      );
+      await syncBooksOnInvite({
+        requesterId: companyId,
+        requesteeId: targetProfileId,
+        connectionId: Number(existing.id),
+        connectionType: resolvedPendingType,
+        userId: mem.userId,
+      });
+      return NextResponse.json({
+        success: true,
+        connectionId: Number(existing.id),
+        status: 'pending',
+        alreadyPending: true,
+        booksSynced: true,
+        sameOwner,
+      });
+    }
+
     // If they already sent us a pending request, accept it instead of creating reverse
     if (
       existing &&
@@ -371,15 +398,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: up.error }, { status: 500 });
     }
 
+    const resolvedType =
+      connectionType === 'supplier' || connectionType === 'customer'
+        ? connectionType
+        : 'partner';
+
     if (status === 'accepted') {
       await syncBooksOnAccept({
         requesterId: companyId,
         requesteeId: targetProfileId,
         connectionId: up.connectionId,
-        connectionType:
-          connectionType === 'supplier' || connectionType === 'customer'
-            ? connectionType
-            : 'partner',
+        connectionType: resolvedType,
+        userId: mem.userId,
+      });
+    } else {
+      // Pending: seed requester books so they can quote/invoice/PO without re-adding
+      await syncBooksOnInvite({
+        requesterId: companyId,
+        requesteeId: targetProfileId,
+        connectionId: up.connectionId,
+        connectionType: resolvedType,
         userId: mem.userId,
       });
     }

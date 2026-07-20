@@ -34,6 +34,10 @@ import {
   type DocLineItem,
 } from '@/lib/customers/documents';
 import type { CustomerRecord } from '@/lib/customers/types';
+import {
+  customerInviteStatusLabel,
+  resolveCustomerConnectionPhase,
+} from '@/lib/customers/types';
 import type { ProductRecord } from '@/lib/inventory/types';
 import { COMMON_CURRENCIES, productPriceList } from '@/lib/inventory/types';
 import {
@@ -1822,10 +1826,28 @@ function DocInner({
                 onChange={(e) => setCustomerId(e.target.value)}
               >
                 <option value="">Select customer…</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>{c.trading_name}</option>
-                ))}
+                {customers.map((c) => {
+                  const phase = resolveCustomerConnectionPhase({
+                    invite_status: c.invite_status,
+                    linked_profile_id: c.linked_profile_id,
+                  });
+                  const badge =
+                    phase === 'not_invited'
+                      ? ''
+                      : ` · ${customerInviteStatusLabel(c.invite_status, c.linked_profile_id)}`;
+                  return (
+                    <option key={c.id} value={c.id}>
+                      {c.trading_name}
+                      {badge}
+                    </option>
+                  );
+                })}
               </select>
+              <p className="text-[10px] text-neutral-400 mt-1 leading-relaxed">
+                Quote and invoice anytime — even while a connect invite is pending.
+                Same customer record is reused when they accept (no re-add). Buyer
+                portal share unlocks after they connect.
+              </p>
             </div>
             <div>
               <label className="text-xs font-medium text-neutral-500">

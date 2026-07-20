@@ -154,7 +154,9 @@ export type CustomerInvitationStatus = (typeof CUSTOMER_INVITATION_STATUSES)[num
 
 /**
  * Resolve CRM connection phase for UI badges.
- * Prefer linked_profile_id → Connected when not suspended (handles lagging invite_status).
+ * Explicit invite lifecycle wins over linked_profile_id so soft network invites
+ * (linked peer + invite_status=invited) still show as Invited — not Connected.
+ * Accepted / suspended / linked-without-pending → Connected.
  */
 export function resolveCustomerConnectionPhase(c: {
   invite_status?: string | null;
@@ -162,8 +164,9 @@ export function resolveCustomerConnectionPhase(c: {
 }): string {
   const s = (c.invite_status || 'not_invited').toLowerCase();
   if (s === 'suspended') return 'suspended';
-  if (c.linked_profile_id) return 'accepted';
-  return s;
+  if (s === 'invited' || s === 'declined' || s === 'expired') return s;
+  if (s === 'accepted' || c.linked_profile_id) return 'accepted';
+  return s || 'not_invited';
 }
 
 /** UI label for CRM connection phase. accepted → "Connected". */
@@ -244,11 +247,13 @@ export function invitationAttemptStatusClass(status?: string | null): string {
   }
 }
 
-/** Whether the seller can send/resend a platform invite for this CRM row. */
+/** Whether the seller can send/resend a platform email invite for this CRM row. */
 export function canInviteCustomer(c: {
   invite_status?: string | null;
   linked_profile_id?: number | null;
 }): boolean {
+  // Soft network invite also sets linked_profile_id before accept — email invite
+  // is only for offline CRM rows (network path already covers linked peers).
   if (c.linked_profile_id) return false;
   const s = (c.invite_status || 'not_invited').toLowerCase();
   return s !== 'accepted' && s !== 'suspended';

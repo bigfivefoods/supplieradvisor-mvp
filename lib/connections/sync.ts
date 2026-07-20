@@ -106,14 +106,15 @@ export async function ensureSrmBookEntry(opts: {
   const now = new Date().toISOString();
   const inviteStatus = opts.inviteStatus || 'accepted';
 
-  const { data: existing } = await supabase
+  // 1) Prefer existing hard-link to this platform company
+  const { data: byLink } = await supabase
     .from('srm_suppliers')
     .select('id')
     .eq('profile_id', opts.buyerProfileId)
     .eq('linked_profile_id', opts.supplierProfileId)
     .maybeSingle();
 
-  if (existing?.id) {
+  if (byLink?.id) {
     await supabase
       .from('srm_suppliers')
       .update({
@@ -124,18 +125,54 @@ export async function ensureSrmBookEntry(opts: {
         linked_profile_id: opts.supplierProfileId,
         updated_at: now,
       })
-      .eq('id', existing.id);
-    return Number(existing.id);
+      .eq('id', byLink.id);
+    return Number(byLink.id);
   }
 
   const peer =
     opts.peer || (await loadProfileLite(opts.supplierProfileId));
   if (!peer) return null;
 
+  // 2) Reuse offline / invited SRM row with same email (avoid re-adding)
+  const email = peer.email ? String(peer.email).trim().toLowerCase() : '';
+  if (email) {
+    const { data: emailRows } = await supabase
+      .from('srm_suppliers')
+      .select('id, linked_profile_id, email')
+      .eq('profile_id', opts.buyerProfileId)
+      .ilike('email', email)
+      .limit(5);
+    const byEmail = (emailRows || []).find((r) => {
+      const linked = r.linked_profile_id != null ? Number(r.linked_profile_id) : null;
+      return linked == null || linked === opts.supplierProfileId;
+    });
+    if (byEmail?.id) {
+      await supabase
+        .from('srm_suppliers')
+        .update({
+          connection_id: opts.connectionId ?? undefined,
+          invite_status: inviteStatus,
+          invite_accepted_at: inviteStatus === 'accepted' ? now : null,
+          status: inviteStatus === 'accepted' ? 'active' : 'prospect',
+          linked_profile_id: opts.supplierProfileId,
+          trading_name: peer.trading_name || undefined,
+          legal_name: peer.legal_name || peer.trading_name || undefined,
+          contact_name: peer.contact_name || undefined,
+          city: peer.city || undefined,
+          country: peer.country || undefined,
+          industry: peer.industry || undefined,
+          updated_at: now,
+        })
+        .eq('id', byEmail.id);
+      return Number(byEmail.id);
+    }
+  }
+
   const verified =
     peer.is_verified === true ||
     String(peer.verification_status || '').toLowerCase() === 'verified';
 
+  // 3) Insert once
   const { data: created, error } = await supabase
     .from('srm_suppliers')
     .insert({
@@ -188,14 +225,15 @@ export async function ensureCrmBookEntry(opts: {
   const now = new Date().toISOString();
   const inviteStatus = opts.inviteStatus || 'accepted';
 
-  const { data: existing } = await supabase
+  // 1) Prefer existing hard-link to this platform company (no duplicate)
+  const { data: byLink } = await supabase
     .from('customers')
     .select('id')
     .eq('profile_id', opts.sellerProfileId)
     .eq('linked_profile_id', opts.buyerProfileId)
     .maybeSingle();
 
-  if (existing?.id) {
+  if (byLink?.id) {
     await supabase
       .from('customers')
       .update({
@@ -205,13 +243,48 @@ export async function ensureCrmBookEntry(opts: {
         linked_profile_id: opts.buyerProfileId,
         updated_at: now,
       })
-      .eq('id', existing.id);
-    return Number(existing.id);
+      .eq('id', byLink.id);
+    return Number(byLink.id);
   }
 
   const peer = opts.peer || (await loadProfileLite(opts.buyerProfileId));
   if (!peer) return null;
 
+  // 2) Reuse offline / invited CRM row with same email (avoid re-adding)
+  const email = peer.email ? String(peer.email).trim().toLowerCase() : '';
+  if (email) {
+    const { data: emailRows } = await supabase
+      .from('customers')
+      .select('id, linked_profile_id, email')
+      .eq('profile_id', opts.sellerProfileId)
+      .ilike('email', email)
+      .limit(5);
+    const byEmail = (emailRows || []).find((r) => {
+      const linked = r.linked_profile_id != null ? Number(r.linked_profile_id) : null;
+      return linked == null || linked === opts.buyerProfileId;
+    });
+    if (byEmail?.id) {
+      await supabase
+        .from('customers')
+        .update({
+          connection_id: opts.connectionId ?? undefined,
+          invite_status: inviteStatus,
+          status: inviteStatus === 'accepted' ? 'active' : 'prospect',
+          linked_profile_id: opts.buyerProfileId,
+          trading_name: peer.trading_name || undefined,
+          legal_name: peer.legal_name || undefined,
+          contact_name: peer.contact_name || undefined,
+          city: peer.city || undefined,
+          country: peer.country || undefined,
+          industry: peer.industry || undefined,
+          updated_at: now,
+        })
+        .eq('id', byEmail.id);
+      return Number(byEmail.id);
+    }
+  }
+
+  // 3) Insert once
   const { data: created, error } = await supabase
     .from('customers')
     .insert({
@@ -228,6 +301,7 @@ export async function ensureCrmBookEntry(opts: {
       connection_id: opts.connectionId || null,
       invite_status: inviteStatus,
       status: inviteStatus === 'accepted' ? 'active' : 'prospect',
+      source: inviteStatus === 'accepted' ? 'network_accept' : 'network_invite',
       updated_at: now,
     })
     .select('id')
@@ -345,6 +419,76 @@ export async function syncBooksOnAccept(opts: {
     }
   } catch (e) {
     console.warn('syncBooksOnAccept soft-fail:', e);
+  }
+
+  return { srmIds, crmIds };
+}
+
+/**
+ * Soft book sync when a connection request is still pending.
+ * Only seeds the **requester's** books so they can quote / invoice / PO
+ * without re-adding the peer — without claiming the peer accepted.
+ * Full mesh (both sides) still runs on accept via syncBooksOnAccept.
+ */
+export async function syncBooksOnInvite(opts: {
+  requesterId: number;
+  requesteeId: number;
+  connectionId: number;
+  connectionType: string;
+  userId?: string | null;
+}): Promise<{ srmIds: number[]; crmIds: number[] }> {
+  const type = String(opts.connectionType || 'partner').toLowerCase();
+  const srmIds: number[] = [];
+  const crmIds: number[] = [];
+
+  try {
+    const requestee = await loadProfileLite(opts.requesteeId);
+    if (!requestee) return { srmIds, crmIds };
+
+    if (type === 'supplier') {
+      // requester=buyer inviting a supplier → buyer SRM book
+      const srm = await ensureSrmBookEntry({
+        buyerProfileId: opts.requesterId,
+        supplierProfileId: opts.requesteeId,
+        connectionId: opts.connectionId,
+        inviteStatus: 'invited',
+        userId: opts.userId,
+        peer: requestee,
+      });
+      if (srm) srmIds.push(srm);
+    } else if (type === 'customer') {
+      // requester=seller inviting a customer → seller CRM book
+      const crm = await ensureCrmBookEntry({
+        sellerProfileId: opts.requesterId,
+        buyerProfileId: opts.requesteeId,
+        connectionId: opts.connectionId,
+        inviteStatus: 'invited',
+        peer: requestee,
+      });
+      if (crm) crmIds.push(crm);
+    } else {
+      // partner — requester can trade either way once accepted; seed both books now
+      const srm = await ensureSrmBookEntry({
+        buyerProfileId: opts.requesterId,
+        supplierProfileId: opts.requesteeId,
+        connectionId: opts.connectionId,
+        inviteStatus: 'invited',
+        userId: opts.userId,
+        peer: requestee,
+      });
+      if (srm) srmIds.push(srm);
+
+      const crm = await ensureCrmBookEntry({
+        sellerProfileId: opts.requesterId,
+        buyerProfileId: opts.requesteeId,
+        connectionId: opts.connectionId,
+        inviteStatus: 'invited',
+        peer: requestee,
+      });
+      if (crm) crmIds.push(crm);
+    }
+  } catch (e) {
+    console.warn('syncBooksOnInvite soft-fail:', e);
   }
 
   return { srmIds, crmIds };

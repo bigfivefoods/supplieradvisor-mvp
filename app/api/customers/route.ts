@@ -128,6 +128,55 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Reuse unlinked CRM row with same email (quote/invoice before connect accept)
+    const emailKey = body.email ? String(body.email).trim().toLowerCase() : '';
+    if (emailKey) {
+      const { data: emailHits } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('profile_id', companyId)
+        .ilike('email', emailKey)
+        .limit(5);
+      const emailMatch = (emailHits || []).find((r) => {
+        const linked =
+          r.linked_profile_id != null ? Number(r.linked_profile_id) : null;
+        return (
+          linked == null ||
+          (linkedProfileId != null && linked === linkedProfileId)
+        );
+      });
+      if (emailMatch) {
+        if (linkedProfileId != null && !emailMatch.linked_profile_id) {
+          const now = new Date().toISOString();
+          const { data: updated } = await supabase
+            .from('customers')
+            .update({
+              linked_profile_id: linkedProfileId,
+              invite_status: body.invite_status || emailMatch.invite_status || 'invited',
+              trading_name:
+                String(body.trading_name || emailMatch.trading_name || '').trim() ||
+                emailMatch.trading_name,
+              updated_at: now,
+            })
+            .eq('id', emailMatch.id)
+            .select('*')
+            .single();
+          return NextResponse.json({
+            success: true,
+            customer: updated || emailMatch,
+            alreadyLinked: true,
+            mergedByEmail: true,
+          });
+        }
+        return NextResponse.json({
+          success: true,
+          customer: emailMatch,
+          alreadyLinked: true,
+          mergedByEmail: true,
+        });
+      }
+    }
+
     const payload: Record<string, unknown> = {
       profile_id: companyId,
       trading_name: String(body.trading_name).trim(),
