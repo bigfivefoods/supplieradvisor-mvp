@@ -6,6 +6,7 @@ import { buildBusinessInviteLink, businessInviteEmailHtml } from '@/lib/invites/
 import { INVITE_EXPIRY_DAYS } from '@/lib/auth/identity';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 import { referredByInsertField } from '@/lib/billing/supply-chain-referral';
+import { syncBooksOnInvite } from '@/lib/connections/sync';
 
 /**
  * POST /api/invite-business
@@ -110,6 +111,18 @@ export async function POST(request: NextRequest) {
         console.warn('invite-business connection soft-fail:', connErr.message);
       } else if (conn?.id) {
         connectionId = Number(conn.id);
+        // Seed inviter CRM/SRM immediately so they can quote & invoice before accept
+        try {
+          await syncBooksOnInvite({
+            requesterId: inviterId,
+            requesteeId: Number(newProfile.id),
+            connectionId: Number(conn.id),
+            connectionType,
+            userId: String(invitedBy || 'invite-business'),
+          });
+        } catch (seedErr) {
+          console.warn('invite-business CRM seed soft-fail:', seedErr);
+        }
       }
     }
 

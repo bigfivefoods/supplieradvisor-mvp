@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { assertCustomersAccess } from '@/lib/customers/access';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import { seedRequesterBooksFromPendingInvites } from '@/lib/connections/sync';
 
 export async function GET(request: NextRequest) {
   try {
@@ -19,6 +20,17 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: mem.error }, { status: mem.status });
       }
     }
+
+    // Soft-seed CRM from pending connect / system invites so quote & invoice
+    // pickers always include invited peers before they accept.
+    try {
+      await seedRequesterBooksFromPendingInvites(companyId, {
+        userId: privyUserId || null,
+      });
+    } catch {
+      /* soft */
+    }
+
     const supabase = getSupabaseServer();
     let query = supabase
       .from('customers')

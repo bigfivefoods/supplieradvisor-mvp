@@ -1844,9 +1844,9 @@ function DocInner({
                 })}
               </select>
               <p className="text-[10px] text-neutral-400 mt-1 leading-relaxed">
-                Quote and invoice anytime — even while a connect invite is pending.
-                Same customer record is reused when they accept (no re-add). Buyer
-                portal share unlocks after they connect.
+                Invited companies appear here even before they accept the connect
+                request — quote and invoice now. Same customer is reused when they
+                accept (no re-add). Buyer portal share unlocks after they connect.
               </p>
             </div>
             <div>

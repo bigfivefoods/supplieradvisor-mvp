@@ -494,6 +494,88 @@ export async function syncBooksOnInvite(opts: {
   return { srmIds, crmIds };
 }
 
+/**
+ * Backfill CRM (and optional SRM) book rows for pending outbound connection
+ * invites. Call when listing customers so invited-but-not-accepted peers are
+ * always available for quotes/invoices without re-adding them.
+ */
+export async function seedRequesterBooksFromPendingInvites(
+  companyId: number,
+  opts?: { limit?: number; userId?: string | null }
+): Promise<{ seededCrm: number; seededSrm: number }> {
+  let seededCrm = 0;
+  let seededSrm = 0;
+  if (!Number.isFinite(companyId) || companyId <= 0) {
+    return { seededCrm, seededSrm };
+  }
+
+  try {
+    const supabase = getSupabaseServer();
+    const limit = Math.min(Math.max(opts?.limit ?? 40, 1), 80);
+    const { data: edges, error } = await supabase
+      .from('business_connections')
+      .select(
+        'id, requester_profile_id, requestee_profile_id, connection_type, status'
+      )
+      .eq('requester_profile_id', companyId)
+      .eq('status', 'pending')
+      .order('updated_at', { ascending: false })
+      .limit(limit);
+
+    if (error || !edges?.length) {
+      if (error) console.warn('seedRequesterBooksFromPendingInvites:', error.message);
+      return { seededCrm, seededSrm };
+    }
+
+    for (const edge of edges) {
+      const peerId = Number(edge.requestee_profile_id);
+      const connId = Number(edge.id);
+      if (!Number.isFinite(peerId) || peerId <= 0) continue;
+      const type = String(edge.connection_type || 'partner').toLowerCase();
+
+      if (type === 'supplier') {
+        const srm = await ensureSrmBookEntry({
+          buyerProfileId: companyId,
+          supplierProfileId: peerId,
+          connectionId: connId,
+          inviteStatus: 'invited',
+          userId: opts?.userId,
+        });
+        if (srm) seededSrm += 1;
+      } else if (type === 'customer') {
+        const crm = await ensureCrmBookEntry({
+          sellerProfileId: companyId,
+          buyerProfileId: peerId,
+          connectionId: connId,
+          inviteStatus: 'invited',
+        });
+        if (crm) seededCrm += 1;
+      } else {
+        // partner — seed both so quote/invoice and PO are available
+        const crm = await ensureCrmBookEntry({
+          sellerProfileId: companyId,
+          buyerProfileId: peerId,
+          connectionId: connId,
+          inviteStatus: 'invited',
+        });
+        if (crm) seededCrm += 1;
+        const srm = await ensureSrmBookEntry({
+          buyerProfileId: companyId,
+          supplierProfileId: peerId,
+          connectionId: connId,
+          inviteStatus: 'invited',
+          userId: opts?.userId,
+        });
+        if (srm) seededSrm += 1;
+      }
+    }
+  } catch (e) {
+    console.warn('seedRequesterBooksFromPendingInvites soft-fail:', e);
+  }
+
+  return { seededCrm, seededSrm };
+}
+
 export async function softSyncSuspend(opts: {
   requesterId: number;
   requesteeId: number;
