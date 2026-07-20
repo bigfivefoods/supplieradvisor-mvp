@@ -28,6 +28,16 @@ Both are **soft-fail** — missing config never breaks the primary API.
 - Active `business_users` with roles owner/admin/finance/ops
 - Optional `TWILIO_WHATSAPP_TO_DEFAULT=whatsapp:+27…` for sandbox testing
 
+## Product surfaces that send WhatsApp
+
+| Surface | Behaviour |
+|---------|-----------|
+| Invoice / quote / order **WhatsApp** | Twilio PDF MediaUrl if configured; else client `wa.me` + PDF link |
+| Payment **claim** notify (seller) | Twilio text via `whatsappPaymentClaimToSeller` |
+| Claim resolved (buyer) | Twilio text soft |
+| Connections **Sent → WhatsApp bank** | Client `wa.me` with bank details from `/api/business/bank-share` (no Twilio required) |
+| Ops QA / escrow / bank sync | Soft Twilio when configured |
+
 ## Twilio sandbox (fastest path to green health)
 
 ### 1. Twilio console (5 minutes)

@@ -24,11 +24,13 @@ import {
   ArrowRight,
   CreditCard,
   Building2,
+  MessageCircle,
 } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
+import { openWhatsAppShare } from '@/lib/invites/whatsapp';
 import {
   roleBadgeClass,
   roleLabel,
@@ -542,6 +544,7 @@ function HubInner() {
                 edge={edge}
                 busy={busyId === edge.id}
                 onAct={act}
+                companyId={companyId}
               />
             ))}
           </ul>
@@ -608,6 +611,7 @@ function EdgeRow({
   edge,
   busy,
   onAct,
+  companyId,
 }: {
   edge: NetworkEdge;
   busy: boolean;
@@ -615,6 +619,7 @@ function EdgeRow({
     e: NetworkEdge,
     a: 'accept' | 'decline' | 'cancel' | 'suspend' | 'unsuspend'
   ) => void;
+  companyId: number;
 }) {
   const peer = edge.peer;
   const name = peerDisplayName(edge);
@@ -624,6 +629,49 @@ function EdgeRow({
   const pendingIn = edge.status === 'pending' && edge.direction === 'received';
   const pendingOut = edge.status === 'pending' && edge.direction === 'sent';
   const connected = edge.status === 'accepted';
+  const [waBusy, setWaBusy] = useState(false);
+
+  const shareBankWhatsApp = async () => {
+    setWaBusy(true);
+    try {
+      const params = new URLSearchParams({
+        companyId: String(companyId),
+        peerName: name,
+      });
+      const res = await fetch(`/api/business/bank-share?${params}`, {
+        cache: 'no-store',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to load bank details');
+      if (!data.hasBank) {
+        toast.message('Add your bank details first', {
+          description: data.hint,
+          action: {
+            label: 'Profile',
+            onClick: () => {
+              window.location.href =
+                data.setupBankHref || '/dashboard/my-business/profile#banking';
+            },
+          },
+        });
+        return;
+      }
+      openWhatsAppShare({
+        // Edge peer may not include phone — open contact picker when unknown
+        phone:
+          (peer as { phone?: string | null; contact_phone?: string | null })
+            .phone ||
+          (peer as { contact_phone?: string | null }).contact_phone ||
+          null,
+        text: String(data.text || ''),
+      });
+      toast.success('WhatsApp opened with bank details');
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'WhatsApp share failed');
+    } finally {
+      setWaBusy(false);
+    }
+  };
 
   return (
     <li className="px-5 py-4 flex flex-col lg:flex-row lg:items-center gap-4 justify-between">
@@ -678,23 +726,42 @@ function EdgeRow({
         {(connected || pendingOut) && !edge.suspended && (
           <div className="flex flex-wrap gap-2 mt-3">
             {pendingOut ? (
-              <>
-                <Link
-                  href={`/dashboard/customers/quotes?buyerProfileId=${peer.id}`}
-                  className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100"
-                >
-                  <FileText className="w-3 h-3" /> Quote
-                </Link>
-                <Link
-                  href={`/dashboard/customers/invoices?buyerProfileId=${peer.id}`}
-                  className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-900 hover:bg-emerald-100"
-                >
-                  <Wallet className="w-3 h-3" /> Invoice
-                </Link>
-                <span className="text-[10px] text-neutral-500 self-center">
-                  Available while request is pending
-                </span>
-              </>
+              <div className="w-full rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2.5 space-y-2">
+                <p className="text-[10px] font-black uppercase tracking-wider text-amber-900">
+                  Decision desk · pending accept
+                </p>
+                <p className="text-[11px] text-amber-950/90 leading-relaxed">
+                  They&apos;re already on SupplierAdvisor — quote, invoice, or share bank
+                  details now. Mutual POs unlock after they accept.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Link
+                    href={`/dashboard/customers/quotes?buyerProfileId=${peer.id}`}
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-amber-300 bg-white text-amber-950 hover:bg-amber-100"
+                  >
+                    <FileText className="w-3 h-3" /> Quote
+                  </Link>
+                  <Link
+                    href={`/dashboard/customers/invoices?buyerProfileId=${peer.id}`}
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-emerald-300 bg-white text-emerald-950 hover:bg-emerald-100"
+                  >
+                    <Wallet className="w-3 h-3" /> Invoice
+                  </Link>
+                  <button
+                    type="button"
+                    disabled={waBusy}
+                    onClick={() => void shareBankWhatsApp()}
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-sky-300 bg-white text-sky-950 hover:bg-sky-50 disabled:opacity-50"
+                  >
+                    {waBusy ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <MessageCircle className="w-3 h-3" />
+                    )}
+                    WhatsApp bank
+                  </button>
+                </div>
+              </div>
             ) : null}
             {connected && edge.hrefs.po && (
               <Link

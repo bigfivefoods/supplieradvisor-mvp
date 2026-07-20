@@ -95,6 +95,55 @@ export default function FirstTradeOrchestrator({
   if (!companyId || loading) return null;
   if (!plan) return null;
 
+  // Paid but not rated — intermediate completion strip
+  if (
+    !plan.complete &&
+    plan.signals?.paidInvoiceCount &&
+    plan.signals.paidInvoiceCount > 0 &&
+    !plan.signals?.rated
+  ) {
+    return (
+      <div className="mb-4 rounded-2xl border border-amber-300 bg-gradient-to-br from-amber-50 via-white to-emerald-50 px-4 py-4 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+          <div className="flex items-start gap-2 min-w-0">
+            <Star className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-black text-amber-950">
+                Payment in — close the trust loop
+              </p>
+              <p className="text-xs text-amber-900/85 mt-0.5 leading-relaxed">
+                You have a paid / partial invoice. Rate your partner and invite the
+                next trading company so density compounds.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 shrink-0">
+            <Link
+              href="/dashboard?ratePrompt=open"
+              className="inline-flex items-center gap-1.5 rounded-full bg-amber-700 text-white text-xs font-bold px-3 py-2"
+            >
+              <Star className="w-3.5 h-3.5" />
+              Rate partner
+            </Link>
+            <Link
+              href="/dashboard/invite-business"
+              className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-white text-amber-950 text-xs font-bold px-3 py-2"
+            >
+              Invite next
+            </Link>
+            <Link
+              href="/dashboard/customers/money"
+              className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white text-slate-700 text-xs font-bold px-3 py-2"
+            >
+              <Wallet className="w-3.5 h-3.5" />
+              Money hub
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Success strip after complete (dismissible via session)
   if (plan.complete) {
     if (dismissedDone) return null;
@@ -108,19 +157,32 @@ export default function FirstTradeOrchestrator({
                 First trade loop closed
               </p>
               <p className="text-xs text-emerald-900/85 mt-0.5 leading-relaxed">
-                Document sent, payment path live
+                Document sent, payment settled
                 {plan.signals?.rated ? ', and a peer rating recorded' : ''}.
-                Keep inviting partners and running the same loop.
+                Invite the next partner and run the same settle loop.
               </p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 shrink-0">
             <Link
-              href="/dashboard?ratePrompt=open"
+              href="/dashboard/invite-business"
               className="inline-flex items-center gap-1.5 rounded-full bg-emerald-700 text-white text-xs font-bold px-3 py-2"
             >
+              <Rocket className="w-3.5 h-3.5" />
+              Invite next partner
+            </Link>
+            <Link
+              href="/dashboard/connections"
+              className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-white text-emerald-950 text-xs font-bold px-3 py-2"
+            >
+              Connections
+            </Link>
+            <Link
+              href="/dashboard?ratePrompt=open"
+              className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-white text-emerald-900 text-xs font-bold px-3 py-2"
+            >
               <Star className="w-3.5 h-3.5" />
-              Rate partners
+              Rate
             </Link>
             <button
               type="button"

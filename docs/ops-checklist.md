@@ -78,6 +78,32 @@ Trigger once each (email + WhatsApp if configured):
 11. Subscription reminders — `GET /api/business/subscription/cron` (trial 7d/1d, expiry 7d/1d)
 12. Migration `20260716_subscription_reminders.sql` for `subscription_reminder_meta`
 
+## 6. Dual-tenant settle + quote-before-accept
+
+After each network/money deploy:
+
+1. **Twilio** — `bash scripts/setup-twilio-env.sh` then `GET /api/system/twilio-smoke` (or accept soft-skip)
+2. **Dry-run** — follow **`docs/dual-tenant-settle-dry-run.md`**
+3. **Connections → Sent** — pending peer shows Quote / Invoice / WhatsApp bank
+4. **Money hub** — top claim bank suggest + Confirm → ledger
+5. **First-trade strip** — after paid invoice: Rate partner + Invite next
+6. **Automated** (optional mutate):
+
+```bash
+export E2E_ACCESS_TOKEN=… E2E_COMPANY_ID=…
+export E2E_BUYER_TOKEN=… E2E_BUYER_COMPANY_ID=… E2E_MUTATE=1
+npx playwright test e2e/claim-settle-dual.spec.ts e2e/quote-before-accept-smoke.spec.ts
+```
+
+## 7. Health gates
+
+```bash
+curl -sS "$APP_URL/api/system/health" | jq '{ok, degraded, p0: .p0Readiness.ok, deploy: .deploy.commitShort, twilio: .checks.twilio_whatsapp.ok}'
+```
+
+- `p0Readiness.ok` must be true before marketing “settle-by-default”
+- `twilio_whatsapp.ok` false is degraded only — commercial docs still use wa.me fallback
+
 ```sql
 -- Waitlist peek when table exists
 SELECT id, email, company_name, status, created_at

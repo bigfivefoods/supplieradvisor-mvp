@@ -242,13 +242,23 @@ export default function ClaimDecisionDrawer({
 
         {!showReject ? (
           <div className="flex flex-col gap-2">
+            {previewBanks[0] && previewBanks[0].confidence >= 80 ? (
+              <p className="text-[11px] text-sky-900 bg-sky-50 border border-sky-100 rounded-xl px-3 py-2">
+                High-confidence bank match ({previewBanks[0].confidence}% ·{' '}
+                {previewBanks[0].reason}) will apply on confirm.
+              </p>
+            ) : null}
             <button
               type="button"
               disabled={busy}
               onClick={() => void resolve('confirm')}
               className="w-full rounded-full bg-teal-700 text-white text-sm font-bold py-2.5 disabled:opacity-50"
             >
-              {busy ? 'Working…' : 'Confirm → ledger (+ bank if match)'}
+              {busy
+                ? 'Working…'
+                : previewBanks[0] && previewBanks[0].confidence >= 80
+                  ? 'Confirm → ledger + bank match'
+                  : 'Confirm → ledger (+ bank if match)'}
             </button>
             <button
               type="button"

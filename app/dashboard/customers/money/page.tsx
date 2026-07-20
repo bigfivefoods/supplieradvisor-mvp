@@ -21,6 +21,7 @@ import {
   CustomersPage,
 } from '@/components/customers/CustomersShell';
 import SettleFunnelStrip from '@/components/dashboard/SettleFunnelStrip';
+import FirstTradeOrchestrator from '@/components/dashboard/FirstTradeOrchestrator';
 import ClaimDecisionDrawer, {
   type ClaimRow,
 } from '@/components/customers/ClaimDecisionDrawer';
@@ -181,9 +182,86 @@ function Inner() {
     }
   }, [companyId]);
 
+  /** Preload bank suggestions for top pending claim (decision desk). */
+  const loadTopClaimBankSugs = useCallback(
+    async (claimId: number, invoiceId: number) => {
+      try {
+        const res = await fetch(
+          `/api/customers/bank-suggest-claim?companyId=${companyId}&claimId=${claimId}`,
+          { cache: 'no-store' }
+        );
+        if (!res.ok) {
+          setBankSugs([]);
+          setBankInvoiceId(null);
+          return;
+        }
+        const j = await res.json();
+        const list = (j.suggestions || []) as BankSug[];
+        setBankSugs(list);
+        setBankInvoiceId(invoiceId);
+      } catch {
+        setBankSugs([]);
+      }
+    },
+    [companyId]
+  );
+
+  const quickConfirmClaim = async (claim: Hub['claims'][0]) => {
+    setClaimBusy(claim.id);
+    toast.loading('Confirming claim → ledger…', { id: 'qclaim' });
+    try {
+      const res = await fetch('/api/customers/payment-claims', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          claimId: claim.id,
+          action: 'confirm',
+          autoBankMatch: true,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      toast.success(
+        data.bankAutoApplied?.ok
+          ? 'Ledger + bank match applied'
+          : 'Posted to AR ledger',
+        { id: 'qclaim', description: data.bankMatchHint || undefined }
+      );
+      setBankSugs([]);
+      setClaimDrawer(null);
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed', { id: 'qclaim' });
+    } finally {
+      setClaimBusy(null);
+    }
+  };
+
   useEffect(() => {
     void load();
   }, [load]);
+
+  // After hub loads: bank-suggest for top claim + optional auto-open drawer once
+  useEffect(() => {
+    if (!hub?.claims?.length) return;
+    const top = [...hub.claims].sort((a, b) => {
+      if (a.slaBreached && !b.slaBreached) return -1;
+      if (!a.slaBreached && b.slaBreached) return 1;
+      return (b.ageHours || 0) - (a.ageHours || 0);
+    })[0];
+    if (!top) return;
+    void loadTopClaimBankSugs(top.id, top.invoice_id);
+    try {
+      const key = `money-claim-auto-${companyId}`;
+      if (sessionStorage.getItem(key) !== '1' && hub.pendingClaims > 0) {
+        sessionStorage.setItem(key, '1');
+        setClaimDrawer(top as ClaimRow);
+      }
+    } catch {
+      /* soft */
+    }
+  }, [hub, companyId, loadTopClaimBankSugs]);
 
   const loadStatementPack = async () => {
     setStmtBusy(true);
@@ -390,6 +468,7 @@ function Inner() {
       ) : (
         <div className="space-y-6">
           <SettleFunnelStrip />
+          <FirstTradeOrchestrator compact />
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <Kpi
               label="Open AR"
@@ -756,14 +835,54 @@ function Inner() {
             <section className="rounded-2xl border border-teal-300 bg-teal-50/50 p-4">
               <p className="text-sm font-black text-teal-950 mb-1 flex items-center gap-2">
                 <Banknote className="w-4 h-4" />
-                Claim inbox — open to decide
+                Claim inbox — decide & settle
               </p>
               <p className="text-[11px] text-teal-900/80 mb-2">
-                Sorted by age. Open a claim for POP preview, bank match, confirm or
-                reject with reason.
+                SLA first, then oldest. Bank match suggestions load for the top claim.
+                Confirm posts ledger and auto-links bank when confidence is high.
               </p>
+              {(() => {
+                const sortedClaims = [...hub.claims].sort((a, b) => {
+                  if (a.slaBreached && !b.slaBreached) return -1;
+                  if (!a.slaBreached && b.slaBreached) return 1;
+                  return (b.ageHours || 0) - (a.ageHours || 0);
+                });
+                const top = sortedClaims[0];
+                if (!bankSugs.length || !top) return null;
+                return (
+                <div className="mb-3 rounded-xl border border-sky-200 bg-sky-50/80 px-3 py-2 text-[11px] text-sky-950">
+                  <p className="font-bold mb-1">
+                    Top claim bank suggest ({bankSugs[0].confidence}% ·{' '}
+                    {bankSugs[0].reason})
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={claimBusy === top.id}
+                      onClick={() => void quickConfirmClaim(top)}
+                      className="rounded-full bg-teal-700 text-white px-3 py-1 text-[10px] font-bold disabled:opacity-50"
+                    >
+                      Confirm + apply bank match
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setClaimDrawer(top as ClaimRow)}
+                      className="rounded-full border border-teal-300 bg-white px-3 py-1 text-[10px] font-bold"
+                    >
+                      Review details
+                    </button>
+                  </div>
+                </div>
+                );
+              })()}
               <ul className="space-y-2">
-                {hub.claims.map((c) => (
+                {[...hub.claims]
+                  .sort((a, b) => {
+                    if (a.slaBreached && !b.slaBreached) return -1;
+                    if (!a.slaBreached && b.slaBreached) return 1;
+                    return (b.ageHours || 0) - (a.ageHours || 0);
+                  })
+                  .map((c) => (
                   <li
                     key={c.id}
                     className={`flex flex-wrap items-center justify-between gap-2 text-xs bg-white rounded-xl border px-3 py-2 ${
@@ -793,14 +912,24 @@ function Inner() {
                         <span className="ml-1 text-teal-800 font-bold">· POP</span>
                       ) : null}
                     </span>
-                    <button
-                      type="button"
-                      disabled={claimBusy === c.id}
-                      onClick={() => setClaimDrawer(c as ClaimRow)}
-                      className="rounded-full bg-teal-700 text-white px-3 py-1 text-[10px] font-bold"
-                    >
-                      Review
-                    </button>
+                    <span className="flex flex-wrap gap-1.5">
+                      <button
+                        type="button"
+                        disabled={claimBusy === c.id}
+                        onClick={() => void quickConfirmClaim(c)}
+                        className="rounded-full bg-teal-700 text-white px-3 py-1 text-[10px] font-bold disabled:opacity-50"
+                      >
+                        {claimBusy === c.id ? '…' : 'Confirm'}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={claimBusy === c.id}
+                        onClick={() => setClaimDrawer(c as ClaimRow)}
+                        className="rounded-full border border-teal-200 bg-white text-teal-900 px-3 py-1 text-[10px] font-bold"
+                      >
+                        Review
+                      </button>
+                    </span>
                   </li>
                 ))}
               </ul>

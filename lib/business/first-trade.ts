@@ -224,8 +224,9 @@ export async function loadFirstTradePlan(
     finishHint =
       'Open Money hub — confirm a buyer claim or mark paid to close settle.';
   else if (!rated)
-    finishHint = 'Rate your partner — peer stars complete the trust loop.';
-  else finishHint = 'First trade loop complete.';
+    finishHint =
+      'Rate your partner, then invite the next company — trust + density.';
+  else finishHint = 'First trade loop complete — invite the next partner.';
 
   return {
     companyId,

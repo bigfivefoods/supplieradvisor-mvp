@@ -336,3 +336,94 @@ export function openWhatsAppShare(opts: {
     'noopener,noreferrer'
   );
 }
+
+/**
+ * Bank details for EFT after a quote/invoice (or while connection is pending).
+ * Use from Connections "Sent" decision desk or invoice follow-up.
+ */
+export function bankDetailsWhatsAppText(params: {
+  sellerName?: string | null;
+  contactName?: string | null;
+  peerName?: string | null;
+  bankName?: string | null;
+  accountName?: string | null;
+  accountNumber?: string | null;
+  branchCode?: string | null;
+  accountType?: string | null;
+  referenceHint?: string | null;
+  invoiceNumber?: string | null;
+  amount?: number | null;
+  currency?: string | null;
+  siteLink?: string | null;
+}): string {
+  const first =
+    (params.contactName || params.peerName || '')
+      .trim()
+      .split(/\s+/)[0] || 'there';
+  const seller = (params.sellerName || '').trim() || 'us';
+  const site =
+    (params.siteLink || '').trim() || 'https://www.supplieradvisor.com';
+  const lines: string[] = [
+    `Hi ${first}! 👋`,
+    ``,
+    `Banking details from *${seller}* for EFT payment:`,
+  ];
+  if (params.bankName?.trim()) lines.push(`Bank: *${params.bankName.trim()}*`);
+  if (params.accountName?.trim())
+    lines.push(`Account name: ${params.accountName.trim()}`);
+  if (params.accountNumber?.trim())
+    lines.push(`Account number: *${params.accountNumber.trim()}*`);
+  if (params.branchCode?.trim())
+    lines.push(`Branch: ${params.branchCode.trim()}`);
+  if (params.accountType?.trim())
+    lines.push(`Type: ${params.accountType.trim()}`);
+  if (params.amount != null && Number.isFinite(Number(params.amount))) {
+    lines.push(
+      `Amount: *${formatWhatsAppMoney(params.amount, params.currency || 'ZAR')}*`
+    );
+  }
+  const ref =
+    params.invoiceNumber?.trim() ||
+    params.referenceHint?.trim() ||
+    null;
+  if (ref) {
+    lines.push(``, `Please use reference: *${ref}*`);
+  } else {
+    lines.push(``, `Please use your company name as payment reference.`);
+  }
+  lines.push(
+    ``,
+    `After payment, claim POP on SupplierAdvisor so we can confirm to the ledger.`,
+    ``,
+    `—`,
+    `Sent via *SupplierAdvisor®*`,
+    site
+  );
+  return lines.join('\n');
+}
+
+/** Short nudge after claim is confirmed (seller → buyer optional). */
+export function claimConfirmedWhatsAppText(params: {
+  contactName?: string | null;
+  invoiceNumber?: string | null;
+  amount?: number | null;
+  currency?: string | null;
+  sellerName?: string | null;
+}): string {
+  const first =
+    (params.contactName || '').trim().split(/\s+/)[0] || 'there';
+  const inv = params.invoiceNumber || 'your invoice';
+  const seller = (params.sellerName || '').trim() || 'your supplier';
+  const amt =
+    params.amount != null
+      ? formatWhatsAppMoney(params.amount, params.currency || 'ZAR')
+      : null;
+  return [
+    `Hi ${first}!`,
+    ``,
+    `We've confirmed payment${amt ? ` of *${amt}*` : ''} on *${inv}* for *${seller}*.`,
+    `Thank you — it is posted to our ledger.`,
+    ``,
+    `— SupplierAdvisor®`,
+  ].join('\n');
+}
