@@ -12,6 +12,12 @@ import {
   type PermissionResource,
 } from '@/lib/business/permissions';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import { getSupabaseServer } from '@/lib/supabase/server-client';
+import {
+  extractEnabledModulesFromMetadata,
+  listCompanyModuleOptions,
+  normalizeEnabledModules,
+} from '@/lib/business/company-modules';
 
 /**
  * GET ?companyId=&privyUserId=
@@ -43,6 +49,20 @@ export async function GET(request: NextRequest) {
 
     const roleMeta = TEAM_ROLE_OPTIONS.find((r) => r.value === mem.role);
 
+    // Company module enablement (sidebar) — default all selected
+    let enabledModules = normalizeEnabledModules(null);
+    try {
+      const supabase = getSupabaseServer();
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('metadata')
+        .eq('id', companyId)
+        .maybeSingle();
+      enabledModules = extractEnabledModulesFromMetadata(prof?.metadata);
+    } catch {
+      /* soft — fail open all modules */
+    }
+
     return NextResponse.json({
       success: true,
       membership: {
@@ -61,6 +81,8 @@ export async function GET(request: NextRequest) {
         canWriteDocuments: canWrite(mem.role, 'documents'),
       },
       matrix,
+      enabledModules,
+      moduleOptions: listCompanyModuleOptions(),
     });
   } catch (e: unknown) {
     return NextResponse.json(

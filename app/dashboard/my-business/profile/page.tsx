@@ -40,6 +40,14 @@ import {
 } from '@/lib/business/industries';
 import { uploadCompanyAssetServerFirst } from '@/lib/business/uploadCompanyAssets';
 import SearchVisibilityCard from '@/components/business/SearchVisibilityCard';
+import {
+  extractEnabledModulesFromMetadata,
+  isAlwaysOnModule,
+  listCompanyModuleOptions,
+  mergeEnabledModulesIntoMetadata,
+  normalizeEnabledModules,
+  type EnabledModulesMap,
+} from '@/lib/business/company-modules';
 
 const LocationMap = dynamic(() => import('@/components/LocationMap'), {
   ssr: false,
@@ -554,6 +562,11 @@ function ProfileInner() {
       longitude: form.longitude ?? form.lng ?? null,
       lat: form.latitude ?? form.lat ?? null,
       lng: form.longitude ?? form.lng ?? null,
+      // Preserve metadata (incl. enabled_modules) on full save
+      metadata:
+        form.metadata && typeof form.metadata === 'object'
+          ? form.metadata
+          : undefined,
       ...overrides,
     };
   };
@@ -1502,6 +1515,7 @@ function ProfileInner() {
           { id: 'contacts', label: 'Contacts' },
           { id: 'location', label: 'Location' },
           { id: 'industry', label: 'Industry' },
+          { id: 'modules', label: 'Modules' },
           { id: 'banking', label: 'Banking' },
           { id: 'licenses', label: 'Licenses' },
         ].map((s) => (
@@ -2356,6 +2370,143 @@ function ProfileInner() {
             </div>
           </Panel>
         </div>
+
+        {/* ── Workspace modules (sidebar) ── */}
+        <Panel id="modules" title="Workspace modules">
+          <div className="p-4 space-y-3">
+            <p className="text-xs text-neutral-600 leading-relaxed">
+              Choose which modules appear in your company sidebar. Default is{' '}
+              <strong>all selected</strong>. Home, Company, and Guide stay on so you can
+              always manage the business. Toggles save immediately.
+            </p>
+            <div className="flex flex-wrap gap-3 mb-1">
+              <button
+                type="button"
+                className="text-[11px] font-bold text-[#0077b6] underline"
+                onClick={() => {
+                  const all = normalizeEnabledModules(null);
+                  const nextMeta = mergeEnabledModulesIntoMetadata(
+                    form.metadata,
+                    all
+                  );
+                  setForm((p) => ({ ...p, metadata: nextMeta }));
+                  void persistPartial({ metadata: nextMeta })
+                    .then(() => {
+                      toast.success('All modules enabled');
+                      window.dispatchEvent(new Event('sa:company-changed'));
+                    })
+                    .catch((e: unknown) =>
+                      toast.error(
+                        e instanceof Error ? e.message : 'Could not save modules'
+                      )
+                    );
+                }}
+              >
+                Select all
+              </button>
+              <button
+                type="button"
+                className="text-[11px] font-bold text-neutral-500 underline"
+                onClick={() => {
+                  const map = normalizeEnabledModules(null);
+                  for (const opt of listCompanyModuleOptions()) {
+                    if (!opt.alwaysOn) map[opt.id] = false;
+                  }
+                  const nextMeta = mergeEnabledModulesIntoMetadata(
+                    form.metadata,
+                    map
+                  );
+                  setForm((p) => ({ ...p, metadata: nextMeta }));
+                  void persistPartial({ metadata: nextMeta })
+                    .then(() => {
+                      toast.success('Optional modules turned off');
+                      window.dispatchEvent(new Event('sa:company-changed'));
+                    })
+                    .catch((e: unknown) =>
+                      toast.error(
+                        e instanceof Error ? e.message : 'Could not save modules'
+                      )
+                    );
+                }}
+              >
+                Clear optional
+              </button>
+            </div>
+            <ul className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              {listCompanyModuleOptions().map((opt) => {
+                const enabled = extractEnabledModulesFromMetadata(form.metadata);
+                const on = enabled[opt.id] !== false;
+                return (
+                  <li key={opt.id}>
+                    <label
+                      className={`flex items-start gap-2.5 rounded-xl border px-3 py-2.5 cursor-pointer transition-colors ${
+                        on
+                          ? 'border-[#00b4d8]/40 bg-[#00b4d8]/5'
+                          : 'border-neutral-200 bg-white hover:border-neutral-300'
+                      } ${opt.alwaysOn ? 'opacity-90' : ''}`}
+                    >
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 rounded border-neutral-300 text-[#00b4d8] focus:ring-[#00b4d8]"
+                        checked={on}
+                        disabled={opt.alwaysOn}
+                        onChange={(e) => {
+                          if (opt.alwaysOn || isAlwaysOnModule(opt.id)) return;
+                          const prev = extractEnabledModulesFromMetadata(
+                            form.metadata
+                          );
+                          const map: EnabledModulesMap = {
+                            ...prev,
+                            [opt.id]: e.target.checked,
+                          };
+                          for (const o of listCompanyModuleOptions()) {
+                            if (o.alwaysOn) map[o.id] = true;
+                          }
+                          const nextMeta = mergeEnabledModulesIntoMetadata(
+                            form.metadata,
+                            map
+                          );
+                          setForm((p) => ({ ...p, metadata: nextMeta }));
+                          void persistPartial({ metadata: nextMeta })
+                            .then(() => {
+                              toast.message(
+                                e.target.checked
+                                  ? `${opt.name} shown in sidebar`
+                                  : `${opt.name} hidden from sidebar`
+                              );
+                              window.dispatchEvent(
+                                new Event('sa:company-changed')
+                              );
+                            })
+                            .catch((err: unknown) =>
+                              toast.error(
+                                err instanceof Error
+                                  ? err.message
+                                  : 'Could not save modules'
+                              )
+                            );
+                        }}
+                      />
+                      <span className="min-w-0">
+                        <span className="block text-sm font-bold text-slate-900">
+                          {opt.name}
+                          {opt.alwaysOn ? (
+                            <span className="ml-1.5 text-[10px] font-semibold uppercase text-neutral-400">
+                              always on
+                            </span>
+                          ) : null}
+                        </span>
+                        <span className="block text-[11px] text-neutral-500 leading-snug mt-0.5">
+                          {opt.description}
+                        </span>
+                      </span>
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </Panel>
 
         {/* ── Banking + Licenses ── */}
         <div className="grid lg:grid-cols-2 gap-3 sm:gap-4">

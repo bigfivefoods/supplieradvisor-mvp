@@ -48,7 +48,15 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
   const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>(() =>
     loadExpanded()
   );
-  const { role, canViewModule, homePath, roleLabel, rights, loading } = useCompanyRole();
+  const {
+    role,
+    canViewModule,
+    homePath,
+    roleLabel,
+    rights,
+    loading,
+    isCompanyModuleEnabled,
+  } = useCompanyRole();
 
   const visibleModules = useMemo(() => {
     // sales_contractor must only see Sales (enforced in /sales SalesShell;
@@ -57,12 +65,14 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
       return modules.filter((mod) => mod.id === 'sales-portal');
     }
     return modules.filter((mod) => {
+      // Company profile module toggles (default all on)
+      if (!isCompanyModuleEnabled(mod.id)) return false;
       const resource = SIDEBAR_MODULE_RESOURCE[mod.id];
       if (!resource) return true;
       if (!role) return true;
       return canViewModule(resource);
     });
-  }, [role, canViewModule]);
+  }, [role, canViewModule, isCompanyModuleEnabled]);
 
   const toggleModule = (id: string) => {
     setExpandedModules((prev) => {

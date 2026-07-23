@@ -13,6 +13,11 @@ import {
   resourceLabel,
   type TeamRole,
 } from '@/lib/business/permissions';
+import {
+  isModuleEnabled,
+  moduleIdForPath,
+  normalizeEnabledModules,
+} from '@/lib/business/company-modules';
 
 /**
  * Soft route guard for limited roles (e.g. sales_contractor).
@@ -79,6 +84,23 @@ export default function ModuleAccessGate({ children }: { children: React.ReactNo
           }
           return;
         }
+
+        // Company disabled this module in profile (default all enabled)
+        const enabled = normalizeEnabledModules(data.enabledModules);
+        const modId = moduleIdForPath(pathname);
+        if (modId && !isModuleEnabled(enabled, modId)) {
+          const home = defaultHomePathForRole(role) || '/dashboard';
+          if (home !== pathname) {
+            setDenied(
+              `This company has turned off the “${modId}” module. Enable it under Company → Profile → Modules.`
+            );
+            router.replace(home);
+          } else {
+            setDenied(null);
+          }
+          return;
+        }
+
         setDenied(null);
       } catch {
         if (!cancelled) setDenied(null);

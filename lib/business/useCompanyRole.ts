@@ -13,6 +13,11 @@ import {
   type TeamRole,
   type PermissionResource,
 } from '@/lib/business/permissions';
+import {
+  isModuleEnabled,
+  normalizeEnabledModules,
+  type EnabledModulesMap,
+} from '@/lib/business/company-modules';
 
 const FINANCE_CRITICAL: TeamRole[] = ['owner', 'admin', 'finance'];
 const QA_OVERRIDE_ROLES: TeamRole[] = ['owner', 'admin'];
@@ -30,6 +35,9 @@ export type CompanyRoleState = {
   canViewModule: (resource: PermissionResource) => boolean;
   canWriteModule: (resource: PermissionResource) => boolean;
   canAccessRoute: (pathname: string | null | undefined) => boolean;
+  /** Company profile module toggles (sidebar). Default all true. */
+  enabledModules: EnabledModulesMap;
+  isCompanyModuleEnabled: (moduleId: string) => boolean;
   /** Period lock, hard finance close */
   canFinanceCritical: boolean;
   /** QA inspections write */
@@ -55,7 +63,7 @@ export function useCompanyRole(): CompanyRoleState {
     typeof window !== 'undefined' ? getSelectedCompanyId() : null
   );
 
-  // Stay in sync when user switches company without full remount
+  // Stay in sync when user switches company or updates module prefs
   useEffect(() => {
     const sync = () => setCompanyId(getSelectedCompanyId());
     sync();
@@ -73,10 +81,14 @@ export function useCompanyRole(): CompanyRoleState {
   const [rights, setRights] = useState('');
   const [memberId, setMemberId] = useState<number | null>(null);
   const [canManageTeam, setCanManageTeam] = useState(false);
+  const [enabledModules, setEnabledModules] = useState<EnabledModulesMap>(() =>
+    normalizeEnabledModules(null)
+  );
 
   const refresh = useCallback(async () => {
     if (!companyId || !privyUserId) {
       setRole(null);
+      setEnabledModules(normalizeEnabledModules(null));
       setLoading(false);
       return;
     }
@@ -98,6 +110,7 @@ export function useCompanyRole(): CompanyRoleState {
       setRights(String(mem.rights || ''));
       setMemberId(mem.memberId != null ? Number(mem.memberId) : null);
       setCanManageTeam(Boolean(mem.canManageTeam));
+      setEnabledModules(normalizeEnabledModules(data.enabledModules));
     } catch {
       setRole(null);
     } finally {
@@ -107,6 +120,15 @@ export function useCompanyRole(): CompanyRoleState {
 
   useEffect(() => {
     void refresh();
+  }, [refresh]);
+
+  // Re-fetch when profile module toggles save (same company)
+  useEffect(() => {
+    const onModules = () => {
+      void refresh();
+    };
+    window.addEventListener('sa:company-changed', onModules);
+    return () => window.removeEventListener('sa:company-changed', onModules);
   }, [refresh]);
 
   const ready = !loading && (!companyId || role != null || !privyUserId);
@@ -123,6 +145,10 @@ export function useCompanyRole(): CompanyRoleState {
     (pathname: string | null | undefined) =>
       role ? canAccessPath(role, pathname, 'view') : true,
     [role]
+  );
+  const isCompanyModuleEnabled = useCallback(
+    (moduleId: string) => isModuleEnabled(enabledModules, moduleId),
+    [enabledModules]
   );
 
   const homePath = useMemo(() => defaultHomePathForRole(role), [role]);
@@ -144,6 +170,8 @@ export function useCompanyRole(): CompanyRoleState {
     canViewModule,
     canWriteModule,
     canAccessRoute,
+    enabledModules,
+    isCompanyModuleEnabled,
     canFinanceCritical,
     canOpsWrite,
     canQaOverride,
