@@ -1,13 +1,25 @@
 /**
  * Last Paystack webhook activity for ops health (from activity_log).
+ *
+ * Real delivery actions (charge/refund/CIPC) drive "stale".
+ * GET ?ping=1 probes prove reachability only — they must not raise a 72h
+ * stale warning when there are simply no payments (common between CIPC charges).
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 
-const PULSE_ACTIONS = [
+/** Real Paystack → us traffic (Dashboard delivery) */
+const REAL_PULSE_ACTIONS = [
   'billing.paystack_webhook_received',
   'billing.paystack_cipc_webhook',
   'billing.paystack_refund_webhook',
-  'billing.paystack_webhook_ping',
+] as const;
+
+/** Ops probes (GET ?ping=1, health seed) — not Dashboard delivery */
+const PROBE_PULSE_ACTIONS = ['billing.paystack_webhook_ping'] as const;
+
+const PULSE_ACTIONS = [
+  ...REAL_PULSE_ACTIONS,
+  ...PROBE_PULSE_ACTIONS,
 ] as const;
 
 export type PaystackWebhookPulse = {
@@ -18,16 +30,27 @@ export type PaystackWebhookPulse = {
   lastCompanyId: number | null;
   lastReference: string | null;
   last24hCount: number;
-  /** True when last event older than threshold, or never seen while secret is configured */
+  /** True only when a *real* webhook went quiet past threshold */
   stale: boolean;
-  /** never | ok | stale | unknown */
-  status: 'never' | 'ok' | 'stale' | 'unknown';
+  /** never | ok | stale | probe_only | unknown */
+  status: 'never' | 'ok' | 'stale' | 'probe_only' | 'unknown';
   staleHoursThreshold: number;
+  /** Latest real charge/refund/CIPC pulse (if any) */
+  lastRealAt?: string | null;
+  lastRealAgeHours?: number | null;
+  lastProbeAt?: string | null;
 };
 
 function thresholdHours(): number {
   const n = Number(process.env.PAYSTACK_WEBHOOK_STALE_HOURS || 72);
   return Number.isFinite(n) && n > 0 ? n : 72;
+}
+
+function ageHoursFrom(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const lastMs = new Date(String(iso)).getTime();
+  if (!Number.isFinite(lastMs)) return null;
+  return Math.max(0, Math.round((Date.now() - lastMs) / 3600000));
 }
 
 export async function loadPaystackWebhookPulse(): Promise<PaystackWebhookPulse> {
@@ -40,64 +63,100 @@ export async function loadPaystackWebhookPulse(): Promise<PaystackWebhookPulse> 
     lastCompanyId: null,
     lastReference: null,
     last24hCount: 0,
-    stale: true,
+    stale: false,
     status: 'never',
     staleHoursThreshold: thr,
+    lastRealAt: null,
+    lastRealAgeHours: null,
+    lastProbeAt: null,
   };
 
   try {
     const supabase = getSupabaseServer();
-    const { data: latest } = await supabase
-      .from('activity_log')
-      .select('profile_id, action, summary, metadata, created_at')
-      .in('action', [...PULSE_ACTIONS])
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
     const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-    const { count } = await supabase
-      .from('activity_log')
-      .select('id', { count: 'exact', head: true })
-      .in('action', [...PULSE_ACTIONS])
-      .gte('created_at', since);
+
+    const [latestAny, latestReal, latestProbe, countRes] = await Promise.all([
+      supabase
+        .from('activity_log')
+        .select('profile_id, action, summary, metadata, created_at')
+        .in('action', [...PULSE_ACTIONS])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from('activity_log')
+        .select('profile_id, action, summary, metadata, created_at')
+        .in('action', [...REAL_PULSE_ACTIONS])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from('activity_log')
+        .select('created_at')
+        .in('action', [...PROBE_PULSE_ACTIONS])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from('activity_log')
+        .select('id', { count: 'exact', head: true })
+        .in('action', [...PULSE_ACTIONS])
+        .gte('created_at', since),
+    ]);
+
+    const latest = latestAny.data;
+    const real = latestReal.data;
+    const probeAt = latestProbe.data?.created_at
+      ? String(latestProbe.data.created_at)
+      : null;
+    const last24hCount = countRes.count ?? 0;
 
     if (!latest?.created_at) {
-      // Never received ≠ stale: endpoint may be healthy but no charge yet.
-      // status=never for ops UI; stale only after we had traffic then went quiet.
       return {
         ...empty,
-        last24hCount: count ?? 0,
+        last24hCount,
         stale: false,
         status: 'never',
       };
     }
 
-    const lastMs = new Date(String(latest.created_at)).getTime();
-    const ageHours = Math.max(
-      0,
-      Math.round((Date.now() - lastMs) / 3600000)
-    );
     const meta =
       latest.metadata && typeof latest.metadata === 'object'
         ? (latest.metadata as Record<string, unknown>)
         : {};
-    const isStale = ageHours >= thr;
+    const lastAt = String(latest.created_at);
+    const ageHours = ageHoursFrom(lastAt);
+    const lastRealAt = real?.created_at ? String(real.created_at) : null;
+    const lastRealAgeHours = ageHoursFrom(lastRealAt);
+
+    // Stale only when we have seen real Paystack delivery and it went quiet
+    const isStale =
+      lastRealAt != null &&
+      lastRealAgeHours != null &&
+      lastRealAgeHours >= thr;
+
+    let status: PaystackWebhookPulse['status'] = 'ok';
+    if (isStale) status = 'stale';
+    else if (!lastRealAt) status = 'probe_only';
+    else status = 'ok';
 
     return {
-      lastAt: String(latest.created_at),
+      lastAt,
       ageHours,
       lastAction: String(latest.action || ''),
       lastSummary: latest.summary ? String(latest.summary) : null,
       lastCompanyId: latest.profile_id ? Number(latest.profile_id) : null,
       lastReference: meta.reference ? String(meta.reference) : null,
-      last24hCount: count ?? 0,
+      last24hCount,
       stale: isStale,
-      status: isStale ? 'stale' : 'ok',
+      status,
       staleHoursThreshold: thr,
+      lastRealAt,
+      lastRealAgeHours,
+      lastProbeAt: probeAt,
     };
   } catch {
-    return { ...empty, status: 'unknown' };
+    return { ...empty, status: 'unknown', stale: false };
   }
 }
 

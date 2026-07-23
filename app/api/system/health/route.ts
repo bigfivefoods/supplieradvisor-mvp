@@ -295,21 +295,21 @@ export async function GET() {
     if (!checks.verifynow.ok) {
       p0Warnings.push('VERIFYNOW_API_KEY not set — CIPC match soft-fails');
     }
-    if (paystackPulse?.stale && checks.paystack.ok) {
-      // Only treat age-stale as a health warning once we have seen at least one event.
-      // "never" is configuration noise after a fresh deploy until first charge/test ping.
-      if (paystackPulse.status === 'stale' && paystackPulse.lastAt) {
+    if (checks.paystack.ok && paystackPulse) {
+      // Stale only for *real* charge/refund silence (not GET ?ping=1 probes).
+      if (paystackPulse.status === 'stale' && paystackPulse.stale) {
         p0Warnings.push(
-          `Paystack webhook pulse stale (ageHours=${paystackPulse.ageHours ?? '—'}, threshold=${paystackPulse.staleHoursThreshold ?? 72}) — check Paystack Dashboard delivery logs`
+          `Paystack real webhook quiet (last charge/CIPC ${paystackPulse.lastRealAgeHours ?? paystackPulse.ageHours ?? '—'}h ago, threshold=${paystackPulse.staleHoursThreshold ?? 72}h) — check Paystack Dashboard → Webhooks delivery logs for https://www.supplieradvisor.com/api/paystack/webhook`
         );
       } else if (
         (paystackPulse.status === 'never' || !paystackPulse.lastAt) &&
         process.env.PAYSTACK_WARN_NEVER === '1'
       ) {
         p0Warnings.push(
-          'Paystack webhook never recorded — set Dashboard URL to /api/paystack/webhook and send a test charge (or POST /api/system/paystack-webhook-ping)'
+          'Paystack webhook never recorded — set Dashboard URL to /api/paystack/webhook and send a test charge (or GET /api/paystack/webhook?ping=1)'
         );
       }
+      // probe_only = endpoint reachable / ops ping only — not a warning
     }
     // Twilio is optional (wa.me / email fallback). Only warn when explicitly required.
     if (

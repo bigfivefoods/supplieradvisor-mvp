@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { assertCronSecret } from '@/lib/auth/api-auth';
-import { loadPaystackWebhookPulse } from '@/lib/system/paystack-pulse';
+import {
+  loadPaystackWebhookPulse,
+  recordPaystackWebhookPulse,
+} from '@/lib/system/paystack-pulse';
 import { getResend, getResendFrom } from '@/lib/resend';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { buildVerificationSla } from '@/lib/business/verification-sla';
@@ -56,15 +59,29 @@ async function run(request: NextRequest) {
     const secretOk = Boolean(
       process.env.PAYSTACK_SECRET_KEY || process.env.PAYSTACK_SECRET
     );
+
+    // Soft reachability heartbeat (does not count as "real" delivery for stale)
+    try {
+      await recordPaystackWebhookPulse({
+        event: 'cron.pulse',
+        reference: `cron-probe-${Date.now()}`,
+        handled: 'cron_probe',
+        action: 'billing.paystack_webhook_ping',
+        summary: 'Paystack pulse cron reachability probe',
+        metadata: { source: 'paystack-pulse-cron' },
+      });
+    } catch {
+      /* soft */
+    }
+
     const pulse = await loadPaystackWebhookPulse();
-    // Email only when we had traffic and it went quiet, or secret missing.
-    // "never" alone no longer forces daily stale emails (middleware was fixed;
-    // first real charge.success or ops ping clears status).
+    // Email only when *real* webhooks went quiet, secret missing, or SLA breaches.
+    // GET/cron probes alone never force stale emails between CIPC charges.
     const stale =
       force ||
       !secretOk ||
-      pulse.status === 'stale' ||
-      (pulse.ageHours != null && pulse.ageHours >= threshold);
+      (pulse.stale && pulse.status === 'stale') ||
+      (pulse.lastRealAgeHours != null && pulse.lastRealAgeHours >= threshold);
 
     // ── Dead-letter auto-replay + SLA breach scan ──────────────────────────
     const deadLetter: Array<{

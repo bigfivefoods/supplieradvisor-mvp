@@ -211,11 +211,13 @@ export async function loadOpsBoard(): Promise<OpsBoardSnapshot> {
     warnings.push('Run 20260717_payment_claims_and_ledger_fx.sql');
   if (schema.installments === false)
     warnings.push('Run 20260718_installments_collections.sql');
-  if (paystack.status === 'stale' && paystack.lastAt && env.paystackSecret)
+  // Only warn on real charge/refund silence — not GET ?ping=1 probe age
+  if (paystack.stale && paystack.status === 'stale' && env.paystackSecret) {
     warnings.push(
-      `Paystack webhook pulse stale (ageHours=${paystack.ageHours ?? '—'})`
+      `Paystack real webhook quiet (lastRealAgeHours=${paystack.lastRealAgeHours ?? paystack.ageHours ?? '—'}) — check Dashboard delivery logs`
     );
-  // status=never is informational only (first event not yet seen)
+  }
+  // status=never / probe_only is informational (no charge.success yet)
   if (cipc.slaBreaches > 0)
     warnings.push(`${cipc.slaBreaches} CIPC SLA breach(es)`);
 
