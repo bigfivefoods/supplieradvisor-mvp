@@ -229,6 +229,11 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'BOM', href: '/dashboard/manufacturing/bills-of-materials' },
       { name: 'Run', href: '/dashboard/manufacturing/production-orders' },
       { name: 'Cells', href: '/dashboard/manufacturing/work-centers' },
+      {
+        name: 'Costs',
+        href: '/dashboard/manufacturing/cost-centres',
+        desc: 'BUs, stations, assets & cost centres',
+      },
     ],
   },
   {

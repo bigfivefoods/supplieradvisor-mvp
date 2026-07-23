@@ -10,6 +10,7 @@ import {
   Loader2,
   Network,
   RefreshCw,
+  Wallet,
   Workflow,
 } from 'lucide-react';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -90,6 +91,14 @@ const MODULES = [
     title: 'Work cells',
     desc: 'Capacity, efficiency, WIP load — the physics of your factory.',
     accent: 'from-slate-50 to-white border-slate-200',
+  },
+  {
+    href: '/dashboard/manufacturing/cost-centres',
+    icon: Wallet,
+    code: 'COST',
+    title: 'Cost centres',
+    desc: 'Business units, stations, assets, and expense allocation — know what each centre costs.',
+    accent: 'from-rose-50 to-white border-rose-100',
   },
 ] as const;
 

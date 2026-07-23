@@ -17,6 +17,10 @@ export const MANUFACTURING_NAV: readonly NavItem[] = [
   { href: '/dashboard/manufacturing/master-production-schedules', label: 'MPS' },
   { href: '/dashboard/manufacturing/mrp', label: 'MRP' },
   { href: '/dashboard/manufacturing/work-centers', label: 'Cells' },
+  {
+    href: '/dashboard/manufacturing/cost-centres',
+    label: 'Cost centres',
+  },
 ] as const;
 
 
@@ -140,11 +144,17 @@ export function SchemaHint({ message }: { message?: string }) {
   if (!message) return null;
   return (
     <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900 mb-4">
-      <strong className="font-bold">Schema:</strong> {message} Run{' '}
+      <strong className="font-bold">Schema:</strong> {message} Run manufacturing
+      migrations under{' '}
       <code className="font-mono bg-white/80 px-1 rounded">
-        supabase/migrations/20260710_manufacturing_module.sql
+        supabase/migrations/
       </code>{' '}
-      on production Supabase if tables are missing.
+      (e.g. <code className="font-mono bg-white/80 px-1 rounded">20260710_manufacturing_module.sql</code>
+      ,{' '}
+      <code className="font-mono bg-white/80 px-1 rounded">
+        20260720_manufacturing_cost_structure.sql
+      </code>
+      ) on production Supabase if tables are missing.
     </div>
   );
 }
