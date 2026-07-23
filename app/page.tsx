@@ -393,9 +393,9 @@ export default function LandingPage() {
           <div className="grid items-center gap-10 lg:grid-cols-12 lg:gap-12 xl:gap-14">
             {/* ── Text (1/3) ── */}
             <div className="flex flex-col justify-center text-center lg:col-span-4 lg:text-left">
-              <h1 className="text-[2.1rem] font-black leading-[1.06] tracking-[-0.04em] text-slate-900 sm:text-5xl lg:text-[2.45rem] xl:text-[2.85rem] lg:tracking-[-0.045em]">
+              <h1 className="text-[2.75rem] font-black leading-[1.02] tracking-[-0.045em] text-slate-900 sm:text-6xl md:text-7xl lg:text-[3.15rem] xl:text-[3.65rem] 2xl:text-[4rem] lg:tracking-[-0.05em]">
                 The world&apos;s most trusted
-                <span className="mt-1.5 block bg-gradient-to-r from-[#00b4d8] via-[#0096c7] to-[#0077b6] bg-clip-text text-transparent">
+                <span className="mt-2 block bg-gradient-to-r from-[#00b4d8] via-[#0096c7] to-[#0077b6] bg-clip-text text-transparent">
                   supplier advice — and OS.
                 </span>
               </h1>
