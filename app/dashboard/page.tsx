@@ -58,6 +58,7 @@ import TradeNextBanner from '@/components/journey/TradeNextBanner';
 import { computeHubNextAction } from '@/lib/connections/next-action';
 import CipcMismatchBanner from '@/components/business/CipcMismatchBanner';
 import PaidNotBadgedBanner from '@/components/business/PaidNotBadgedBanner';
+import { formatMoneyDisplay } from '@/lib/format/money';
 
 type CompanyData = {
   id: number;
@@ -165,13 +166,23 @@ type MfgSnap = {
 type FinSnap = {
   arOpen?: number;
   arBalance?: number;
+  arOverdue?: number;
+  arOverdueAmount?: number;
   apOpen?: number;
   apBalance?: number;
+  apOverdue?: number;
+  apOverdueAmount?: number;
   coaAccounts?: number;
   journalsPosted?: number;
+  journalsDraft?: number;
   bankAccounts?: number;
+  bankBalance?: number;
   unreconciled?: number;
   monthPayments?: number;
+  monthPaymentsAmount?: number;
+  assets?: number;
+  assetsBookValue?: number;
+  currency?: string;
 };
 
 type IntelSnap = {
@@ -202,16 +213,8 @@ function greeting() {
   return 'Good evening';
 }
 
-function money(n: number, currency = 'ZAR') {
-  try {
-    return new Intl.NumberFormat(undefined, {
-      style: 'currency',
-      currency: currency || 'ZAR',
-      maximumFractionDigits: 0,
-    }).format(n || 0);
-  } catch {
-    return `${currency} ${Math.round(n || 0).toLocaleString()}`;
-  }
+function money(n: number, currency = 'ZAR', compact = true) {
+  return formatMoneyDisplay(n, currency, { compact });
 }
 
 function formatRelative(iso: string | null | undefined) {
@@ -400,14 +403,24 @@ export default function DashboardCommandCenter() {
         const s = f.summary || f;
         setFin({
           arOpen: s.arOpen,
-          arBalance: s.arOpenAmount ?? s.arBalance,
+          arBalance: Number(s.arOpenAmount ?? s.arBalance ?? 0),
+          arOverdue: s.arOverdue,
+          arOverdueAmount: Number(s.arOverdueAmount ?? 0),
           apOpen: s.apOpen,
-          apBalance: s.apOpenAmount ?? s.apBalance,
+          apBalance: Number(s.apOpenAmount ?? s.apBalance ?? 0),
+          apOverdue: s.apOverdue,
+          apOverdueAmount: Number(s.apOverdueAmount ?? 0),
           coaAccounts: s.coaActive ?? s.coaCount,
           journalsPosted: s.journalsPosted,
+          journalsDraft: s.journalsDraft,
           bankAccounts: s.bankAccounts,
+          bankBalance: Number(s.bankBalance ?? 0),
           unreconciled: s.unreconciled,
           monthPayments: s.paymentsThisMonth,
+          monthPaymentsAmount: Number(s.paymentsThisMonthAmount ?? 0),
+          assets: s.assets,
+          assetsBookValue: Number(s.assetsBookValue ?? 0),
+          currency: s.currency,
         });
       } else setFin(null);
 
@@ -455,8 +468,17 @@ export default function DashboardCommandCenter() {
   const inMotion =
     (ops?.workOrdersInFlight ?? 0) + (ops?.shipmentsInMotion ?? 0);
 
-  const arValue = fin?.arBalance ?? trade?.arOpenValue ?? kpis?.arOpenValue ?? 0;
-  const apValue = fin?.apBalance ?? trade?.apOpenValue ?? kpis?.apOpenValue ?? 0;
+  // Prefer live accounting summary; fall back to dashboard trade/kpis
+  const finCcy = fin?.currency || baseCcy;
+  const arValue = Number(
+    fin?.arBalance ?? trade?.arOpenValue ?? kpis?.arOpenValue ?? 0
+  );
+  const apValue = Number(
+    fin?.apBalance ?? trade?.apOpenValue ?? kpis?.apOpenValue ?? 0
+  );
+  const arCount = fin?.arOpen ?? trade?.arOpen ?? kpis?.arOpen ?? 0;
+  const apCount = fin?.apOpen ?? trade?.apOpen ?? kpis?.apOpen ?? 0;
+  const bankBal = Number(fin?.bankBalance ?? 0);
   const completeness = business?.profileCompleteness ?? kpis?.profileCompleteness ?? 0;
 
   const toggle = (id: string) =>
@@ -516,11 +538,18 @@ export default function DashboardCommandCenter() {
       },
       {
         label: 'AR open',
-        value: money(arValue, baseCcy),
-        sub: `${trade?.arOpen ?? kpis?.arOpen ?? fin?.arOpen ?? 0} invoices`,
+        value: money(arValue, finCcy),
+        sub:
+          (fin?.arOverdue ?? 0) > 0
+            ? `${arCount} inv · ${fin?.arOverdue} overdue`
+            : `${arCount} open invoice${arCount === 1 ? '' : 's'}`,
         href: '/dashboard/accounting/accounts-receivable',
         icon: Wallet,
-        accent: 'emerald' as TelemetryAccent,
+        accent: ((fin?.arOverdue ?? 0) > 0
+          ? 'amber'
+          : arValue > 0
+            ? 'emerald'
+            : 'slate') as TelemetryAccent,
       },
       {
         label: 'In motion',
@@ -548,10 +577,12 @@ export default function DashboardCommandCenter() {
       pendingIn,
       crm,
       baseCcy,
+      finCcy,
       openPos,
       trade,
       srm,
       arValue,
+      arCount,
       fin,
       inMotion,
       ops,
@@ -953,11 +984,13 @@ export default function DashboardCommandCenter() {
               icon={Landmark}
               code="FIN"
               title="Financial"
-              summary={`${money(arValue, baseCcy)} AR · ${money(apValue, baseCcy)} AP`}
+              summary={`${money(arValue, finCcy)} AR · ${money(apValue, finCcy)} AP · ${money(bankBal, finCcy)} bank`}
               badge={
                 (fin?.unreconciled ?? 0) > 0
                   ? { label: `${fin?.unreconciled} unreconciled`, tone: 'warn' }
-                  : { label: 'Books live', tone: 'good' }
+                  : fin
+                    ? { label: 'Books live', tone: 'good' }
+                    : { label: 'Loading books…', tone: 'warn' }
               }
               href="/dashboard/accounting"
               accent="from-violet-50 to-white border-violet-100"
@@ -966,57 +999,64 @@ export default function DashboardCommandCenter() {
                 metrics={[
                   {
                     label: 'AR open',
-                    value: money(arValue, baseCcy),
-                    sub: `${fin?.arOpen ?? trade?.arOpen ?? kpis?.arOpen ?? 0} invoices`,
+                    value: money(arValue, finCcy),
+                    sub: `${arCount} invoice${arCount === 1 ? '' : 's'}`,
                     href: '/dashboard/accounting/accounts-receivable',
                     tone: arValue > 0 ? 'warn' : 'good',
                   },
                   {
                     label: 'AP open',
-                    value: money(apValue, baseCcy),
-                    sub: `${fin?.apOpen ?? trade?.apOpen ?? kpis?.apOpen ?? 0} bills`,
+                    value: money(apValue, finCcy),
+                    sub: `${apCount} bill${apCount === 1 ? '' : 's'}`,
                     href: '/dashboard/accounting/accounts-payable',
                   },
                   {
-                    label: 'Working capital proxy',
-                    value: money(arValue - apValue, baseCcy),
-                    sub: 'AR − AP (open)',
+                    label: 'AR − AP',
+                    value: money(arValue - apValue, finCcy),
+                    sub: 'Working capital proxy',
                     href: '/dashboard/accounting/management',
                     tone: arValue - apValue >= 0 ? 'good' : 'warn',
                   },
                   {
-                    label: 'CoA accounts',
-                    value: fin?.coaAccounts ?? '—',
-                    sub: 'Active chart',
-                    href: '/dashboard/accounting/chart-of-accounts',
-                  },
-                  {
-                    label: 'Journals posted',
-                    value: fin?.journalsPosted ?? '—',
-                    sub: 'Ledger activity',
-                    href: '/dashboard/accounting/journal-entries',
-                  },
-                  {
-                    label: 'Bank accounts',
-                    value: fin?.bankAccounts ?? '—',
+                    label: 'Bank balance',
+                    value: money(bankBal, finCcy),
                     sub:
                       (fin?.unreconciled ?? 0) > 0
-                        ? `${fin?.unreconciled} unreconciled lines`
-                        : 'Reconciled pulse',
+                        ? `${fin?.unreconciled} unreconciled`
+                        : `${fin?.bankAccounts ?? 0} account${(fin?.bankAccounts ?? 0) === 1 ? '' : 's'}`,
                     href: '/dashboard/accounting/bank-reconciliation',
                     tone: (fin?.unreconciled ?? 0) > 0 ? 'warn' : 'default',
                   },
                   {
-                    label: 'Catalogue currencies',
-                    value: (kpis?.catalogueCurrencies || []).length || 1,
-                    sub: (kpis?.catalogueCurrencies || [baseCcy]).slice(0, 4).join(' · ') || baseCcy,
-                    href: '/dashboard/inventory/products',
+                    label: 'AR overdue',
+                    value: money(fin?.arOverdueAmount ?? 0, finCcy),
+                    sub: `${fin?.arOverdue ?? 0} past due`,
+                    href: '/dashboard/accounting/accounts-receivable',
+                    tone: (fin?.arOverdue ?? 0) > 0 ? 'bad' : 'good',
                   },
                   {
-                    label: 'Multi-ccy products',
-                    value: inventory?.multiCurrencyProducts ?? kpis?.multiCurrencyProducts ?? 0,
-                    sub: 'Priced in >1 currency',
-                    href: '/dashboard/inventory/products',
+                    label: 'Payments MTD',
+                    value: money(fin?.monthPaymentsAmount ?? 0, finCcy),
+                    sub: `${fin?.monthPayments ?? 0} this month`,
+                    href: '/dashboard/accounting/payments',
+                  },
+                  {
+                    label: 'Journals posted',
+                    value: fin?.journalsPosted ?? '—',
+                    sub:
+                      (fin?.journalsDraft ?? 0) > 0
+                        ? `${fin?.journalsDraft} draft`
+                        : 'Ledger activity',
+                    href: '/dashboard/accounting/journal-entries',
+                  },
+                  {
+                    label: 'CoA / assets',
+                    value: fin?.coaAccounts ?? '—',
+                    sub:
+                      fin?.assetsBookValue != null && fin.assetsBookValue > 0
+                        ? `Assets ${money(fin.assetsBookValue, finCcy)}`
+                        : 'Active chart of accounts',
+                    href: '/dashboard/accounting/chart-of-accounts',
                   },
                 ]}
               />
@@ -1875,7 +1915,9 @@ function ExpandableSection({
             <div className="text-base sm:text-lg font-black tracking-tight text-slate-900">
               {title}
             </div>
-            <div className="text-xs text-neutral-500 mt-0.5 truncate">{summary}</div>
+            <div className="text-[11px] sm:text-xs text-neutral-500 mt-0.5 line-clamp-2 leading-snug break-words">
+              {summary}
+            </div>
           </div>
           <ChevronDown
             className={`w-5 h-5 shrink-0 text-neutral-400 transition-transform duration-200 ${
@@ -1914,26 +1956,33 @@ function ExpandableSection({
 
 function MetricGrid({ metrics }: { metrics: Metric[] }) {
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
       {metrics.map((m) => {
         const inner = (
           <>
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400 mb-1">
-              {m.label}
-            </div>
-            <div className={`text-lg sm:text-xl font-black tabular-nums tracking-tight ${toneClass(m.tone)}`}>
+            <div className="sa-metric-label mb-1">{m.label}</div>
+            <div
+              className={`sa-metric-value ${toneClass(m.tone)}`}
+              title={String(m.value)}
+            >
               {m.value}
             </div>
             {m.sub && (
-              <div className="text-[11px] text-neutral-500 mt-0.5 line-clamp-2">{m.sub}</div>
+              <div className="text-[10px] sm:text-[11px] text-neutral-500 mt-0.5 line-clamp-2 leading-snug">
+                {m.sub}
+              </div>
             )}
           </>
         );
         const cls =
-          'rounded-2xl border border-neutral-200/90 bg-white p-3 sm:p-3.5 shadow-sm transition-colors';
+          'sa-metric-card rounded-2xl border border-neutral-200/90 bg-white p-2.5 sm:p-3.5 shadow-sm transition-colors min-w-0';
         if (m.href) {
           return (
-            <Link key={m.label} href={m.href} className={`${cls} hover:border-[#00b4d8]/50 hover:bg-sky-50/30`}>
+            <Link
+              key={m.label}
+              href={m.href}
+              className={`${cls} hover:border-[#00b4d8]/50 hover:bg-sky-50/30`}
+            >
               {inner}
             </Link>
           );

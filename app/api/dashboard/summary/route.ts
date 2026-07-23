@@ -1095,24 +1095,23 @@ export async function POST(request: NextRequest) {
     const acctInvoices = accountingInvoicesRes.error
       ? []
       : accountingInvoicesRes.data || [];
+    // Match accounting module: open = not paid/void + positive balance
+    const invBal = (i: { total_amount?: unknown; amount_paid?: unknown }) =>
+      Math.max(0, Number(i.total_amount || 0) - Number(i.amount_paid || 0));
     const arOpen = acctInvoices.filter(
       (i) =>
         i.direction === 'receivable' &&
-        !['paid', 'void', 'cancelled'].includes(String(i.status || '').toLowerCase())
+        !['paid', 'void', 'cancelled'].includes(String(i.status || '').toLowerCase()) &&
+        invBal(i) > 0
     );
     const apOpen = acctInvoices.filter(
       (i) =>
         i.direction === 'payable' &&
-        !['paid', 'void', 'cancelled'].includes(String(i.status || '').toLowerCase())
+        !['paid', 'void', 'cancelled'].includes(String(i.status || '').toLowerCase()) &&
+        invBal(i) > 0
     );
-    const arOpenValue = arOpen.reduce(
-      (s, i) => s + Math.max(0, Number(i.total_amount || 0) - Number(i.amount_paid || 0)),
-      0
-    );
-    const apOpenValue = apOpen.reduce(
-      (s, i) => s + Math.max(0, Number(i.total_amount || 0) - Number(i.amount_paid || 0)),
-      0
-    );
+    const arOpenValue = arOpen.reduce((s, i) => s + invBal(i), 0);
+    const apOpenValue = apOpen.reduce((s, i) => s + invBal(i), 0);
 
     const listings = marketplaceListingsRes.error
       ? []

@@ -713,16 +713,14 @@ function Kpi({
         : 'border-neutral-200 bg-white';
   return (
     <div
-      className={`min-w-0 overflow-hidden rounded-2xl border px-3.5 py-3 sm:px-4 sm:py-3.5 ${cls}`}
+      className={`sa-metric-card min-w-0 overflow-hidden rounded-2xl border px-3 py-2.5 sm:px-4 sm:py-3.5 ${cls}`}
     >
-      <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500 leading-snug break-words">
-        {label}
-      </div>
-      <div className="text-base font-black tabular-nums leading-tight text-slate-900 sm:text-lg break-all">
+      <div className="sa-metric-label mb-1">{label}</div>
+      <div className="sa-metric-value text-slate-900" title={value}>
         {value}
       </div>
       {sub && (
-        <div className="mt-1 text-[11px] leading-snug text-neutral-500 break-words">
+        <div className="mt-1 text-[10px] sm:text-[11px] leading-snug text-neutral-500 line-clamp-2">
           {sub}
         </div>
       )}

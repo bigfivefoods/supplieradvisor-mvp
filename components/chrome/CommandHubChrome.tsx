@@ -73,27 +73,31 @@ export function TelemetryCard({
 }) {
   const inner = (
     <div
-      className={`rounded-2xl border bg-gradient-to-br ${ACCENTS[accent]} px-4 py-3.5 shadow-sm h-full ${
+      className={`sa-metric-card rounded-2xl border bg-gradient-to-br ${ACCENTS[accent]} px-3 py-3 sm:px-4 sm:py-3.5 shadow-sm h-full min-w-0 ${
         href ? 'hover:border-[#00b4d8]/50 hover:shadow-md transition-all' : ''
       }`}
     >
-      <div className="flex items-start justify-between gap-2 mb-1">
-        <div className="text-[10px] font-black uppercase tracking-[0.16em] text-neutral-400">
+      <div className="flex items-start justify-between gap-2 mb-1 min-w-0">
+        <div className="sa-metric-label min-w-0 flex-1">
           {label}
         </div>
         {Icon && (
-          <div className="w-7 h-7 rounded-lg bg-white/80 border border-white flex items-center justify-center text-[#00b4d8]">
+          <div className="w-7 h-7 shrink-0 rounded-lg bg-white/80 border border-white flex items-center justify-center text-[#00b4d8]">
             <Icon className="w-3.5 h-3.5" />
           </div>
         )}
       </div>
-      <div className="text-2xl sm:text-3xl font-black tabular-nums tracking-tight text-slate-900">
+      <div className="sa-metric-value text-slate-900" title={String(value)}>
         {value}
       </div>
-      {sub && <div className="text-[11px] text-neutral-500 mt-0.5 font-medium">{sub}</div>}
+      {sub && (
+        <div className="text-[10px] sm:text-[11px] text-neutral-500 mt-0.5 font-medium line-clamp-2 leading-snug">
+          {sub}
+        </div>
+      )}
     </div>
   );
-  if (href) return <Link href={href}>{inner}</Link>;
+  if (href) return <Link href={href} className="min-w-0 block h-full">{inner}</Link>;
   return inner;
 }
 
@@ -179,19 +183,22 @@ export function HubModuleCard({
   return (
     <Link
       href={m.href}
-      className={`group rounded-3xl border bg-gradient-to-br ${gradient} p-6 shadow-sm hover:shadow-md hover:border-[#00b4d8]/40 transition-all`}
+      className={`sa-metric-card group rounded-3xl border bg-gradient-to-br ${gradient} p-4 sm:p-6 shadow-sm hover:shadow-md hover:border-[#00b4d8]/40 transition-all min-w-0`}
     >
-      <div className="flex items-start justify-between mb-4">
-        <div className="w-11 h-11 rounded-2xl bg-white border border-cyan-50 flex items-center justify-center shadow-sm text-[#0077b6]">
+      <div className="flex items-start justify-between gap-3 mb-4 min-w-0">
+        <div className="w-11 h-11 shrink-0 rounded-2xl bg-white border border-cyan-50 flex items-center justify-center shadow-sm text-[#0077b6]">
           <Icon className="w-5 h-5" />
         </div>
-        <div className="text-right">
+        <div className="text-right min-w-0 max-w-[55%]">
           <div className="text-[10px] font-black tracking-widest text-neutral-400 font-mono">
             {m.code}
           </div>
           {m.metric !== undefined && (
             <>
-              <div className="text-lg font-black tabular-nums text-slate-800 mt-0.5">
+              <div
+                className="sa-metric-value-sm text-slate-800 mt-0.5"
+                title={String(m.metric)}
+              >
                 {m.metric}
               </div>
               {m.metricLabel && (
@@ -203,10 +210,10 @@ export function HubModuleCard({
           )}
         </div>
       </div>
-      <h3 className="text-lg font-black text-slate-800 mb-1.5 group-hover:text-[#0077b6] transition-colors">
+      <h3 className="text-base sm:text-lg font-black text-slate-800 mb-1.5 group-hover:text-[#0077b6] transition-colors">
         {m.title}
       </h3>
-      <p className="text-sm text-neutral-500 leading-relaxed mb-3">{m.desc}</p>
+      <p className="text-sm text-neutral-500 leading-relaxed mb-3 line-clamp-3">{m.desc}</p>
       <span className="inline-flex items-center gap-1 text-xs font-bold text-[#00b4d8]">
         Open{' '}
         <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
@@ -243,7 +250,11 @@ export function HubTelemetryGrid({
   className?: string;
 }) {
   return (
-    <div className={`grid grid-cols-2 lg:grid-cols-4 gap-3 ${className}`}>{children}</div>
+    <div
+      className={`grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2 sm:gap-3 min-w-0 ${className}`}
+    >
+      {children}
+    </div>
   );
 }
 

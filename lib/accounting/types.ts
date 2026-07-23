@@ -356,17 +356,27 @@ export const PAYMENT_METHODS = [
   'other',
 ] as const;
 
-export function formatMoney(amount: number | null | undefined, currency = 'ZAR'): string {
+export function formatMoney(
+  amount: number | null | undefined,
+  currency = 'ZAR',
+  opts?: { compact?: boolean }
+): string {
   const n = Number(amount || 0);
+  const ccy = currency || 'ZAR';
+  const abs = Math.abs(n);
+  // Auto-compact large values so KPI cards don't overflow on mobile
+  const compact =
+    opts?.compact === true || (opts?.compact !== false && abs >= 100_000);
   try {
     return new Intl.NumberFormat('en-ZA', {
       style: 'currency',
-      currency: currency || 'ZAR',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
+      currency: ccy,
+      notation: compact ? 'compact' : 'standard',
+      minimumFractionDigits: compact ? 0 : 2,
+      maximumFractionDigits: compact ? 1 : 2,
     }).format(n);
   } catch {
-    return `${currency} ${n.toFixed(2)}`;
+    return `${ccy} ${n.toFixed(compact ? 0 : 2)}`;
   }
 }
 
