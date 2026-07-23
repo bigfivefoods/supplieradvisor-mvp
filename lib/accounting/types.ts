@@ -212,6 +212,8 @@ export type BankTransaction = {
 export type AccountingEntity = {
   id: number;
   profile_id?: number | null;
+  /** Company profile this entity represents (group company / self) */
+  linked_profile_id?: number | null;
   code: string;
   name: string;
   legal_name?: string | null;
@@ -224,6 +226,10 @@ export type AccountingEntity = {
   address?: string | null;
   metadata?: Record<string, unknown> | null;
   created_at?: string;
+  /** Enriched from company_group_links when present */
+  group_link_type?: string | null;
+  group_link_label?: string | null;
+  group_role?: 'parent' | 'child' | null;
 };
 
 export type AccountingPeriod = {

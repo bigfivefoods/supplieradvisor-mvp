@@ -156,6 +156,7 @@ Feature flag: `CUSTOMER_INVITES_ENABLED` (default true when unset).
 | `business_users` | Team memberships, permissions, invite expiry |
 | `business_connections` | Partner network links (status, type, notes, metadata incl. `suspended` for customer edges) |
 | `company_group_links` | Holding/subsidiary, association membership, franchise, JV, affiliates (`parent_profile_id` ↔ `child_profile_id`, status pending\|active\|…). Migration: `20260723_company_group_links.sql`. API: `/api/business/group-links`. UI: `/dashboard/my-business/group`. |
+| `accounting_entities` | Legal entities for multi-entity books; optional `linked_profile_id` ties to group companies. Sync via `POST /api/accounting/entities` action `sync_group`. Migration: `20260723_accounting_entities_group.sql`. |
 | `invitations` | Team / supplier invites |
 
 ### Procurement
