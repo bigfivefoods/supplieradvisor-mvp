@@ -106,6 +106,30 @@ export function forwardMonthKeys(count: number, ref: Date = new Date()): string[
   return keys;
 }
 
+/**
+ * `count` consecutive months starting at the month of `ref` (inclusive),
+ * then forward. e.g. Mar 2026 + 12 → Mar 2026 … Feb 2027.
+ */
+export function forwardMonthKeysFrom(
+  count: number,
+  ref: Date = new Date()
+): string[] {
+  const keys: string[] = [];
+  const d = new Date(ref.getFullYear(), ref.getMonth(), 1);
+  for (let i = 0; i < count; i++) {
+    const m = new Date(d.getFullYear(), d.getMonth() + i, 1);
+    keys.push(monthKey(m));
+  }
+  return keys;
+}
+
+/** Last calendar day of YYYY-MM as YYYY-MM-DD. */
+export function monthEndIso(yearMonth: string): string {
+  const [y, m] = yearMonth.split('-').map(Number);
+  const lastDay = new Date(y, m, 0).getDate();
+  return `${yearMonth}-${String(lastDay).padStart(2, '0')}`;
+}
+
 export function emptyBucket(key: string): MonthBucket {
   return {
     key,

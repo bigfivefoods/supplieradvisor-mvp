@@ -8,6 +8,7 @@ import {
   emptyBucket,
   finalizeBuckets,
   forwardMonthKeys,
+  forwardMonthKeysFrom,
   horizonsFromMax,
   monthKey,
   parseHorizons,
@@ -19,8 +20,9 @@ import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/li
 
 /**
  * GET ?companyId=&report=trial_balance|pnl|balance_sheet|ar_aging|ap_aging|cashflow|management_accounts|budget_vs_actual|trends|forecast
- * Optional: from=&to= (YYYY-MM-DD), year= (budget), months=12 (history), horizons=1,3,6,9,12 | horizonMonths=12,
- * includePipeline=1
+ * Optional: from=&to= (YYYY-MM-DD), year= (budget), months=12 (history),
+ * direction=forward (with from: N months starting at from, going forward),
+ * horizons=1,3,6,9,12 | horizonMonths=12, includePipeline=1
  */
 export async function GET(request: NextRequest) {
   try {
@@ -606,9 +608,21 @@ export async function GET(request: NextRequest) {
           : [1, 3, 6, 9, 12];
       const maxHorizon = Math.max(...horizons, 1);
 
-      // History keys: explicit from→to month span when both provided, else trailing N months
+      // History keys:
+      // - direction=forward (+ from): N months starting at `from` month, going forward
+      // - from+to: month span between them
+      // - else: trailing N months ending at `to` or today
+      const direction = (
+        request.nextUrl.searchParams.get('direction') || ''
+      ).toLowerCase();
       let keys: string[];
-      if (from && to) {
+      if (direction === 'forward' && from) {
+        const start = new Date(from + 'T12:00:00');
+        keys = forwardMonthKeysFrom(
+          historyMonths,
+          Number.isNaN(start.getTime()) ? new Date() : start
+        );
+      } else if (from && to) {
         const start = new Date(from + 'T12:00:00');
         const end = new Date(to + 'T12:00:00');
         keys = [];
@@ -626,11 +640,11 @@ export async function GET(request: NextRequest) {
           to ? new Date(to + 'T12:00:00') : new Date()
         );
       }
-      const rangeFrom = from || `${keys[0]}-01`;
+      const rangeFrom = `${keys[0]}-01`;
       const lastKey = keys[keys.length - 1];
       const [ly, lm] = lastKey.split('-').map(Number);
       const lastDay = new Date(ly, lm, 0).getDate();
-      const rangeTo = to || `${lastKey}-${String(lastDay).padStart(2, '0')}`;
+      const rangeTo = `${lastKey}-${String(lastDay).padStart(2, '0')}`;
 
       const { data: accounts } = await supabase
         .from('chart_of_accounts')

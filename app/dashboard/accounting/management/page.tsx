@@ -174,10 +174,14 @@ function Inner() {
       });
       if (privyUserId) params.set('privyUserId', privyUserId);
 
+      // 12-month trend: always start at the selected period start (`from`)
+      // and run 12 months forward (not trailing history ending today).
       const trendParams = new URLSearchParams({
         companyId: String(companyId),
         report: 'trends',
         months: '12',
+        direction: 'forward',
+        from,
       });
       if (privyUserId) trendParams.set('privyUserId', privyUserId);
 
@@ -594,7 +598,7 @@ function Inner() {
               <>
                 <ChartCard
                   title="12-month P&L trend"
-                  subtitle="Posted monthly history (context beyond this period)"
+                  subtitle={`From selected start (${from}) · 12 months forward`}
                   height={280}
                   className="lg:col-span-2"
                 >
@@ -607,7 +611,7 @@ function Inner() {
                 </ChartCard>
                 <ChartCard
                   title="12-month cash trend"
-                  subtitle="Bank inflows / outflows · net dashed"
+                  subtitle={`From selected start (${from}) · bank in / out · net dashed`}
                   height={260}
                   className="lg:col-span-2"
                 >
