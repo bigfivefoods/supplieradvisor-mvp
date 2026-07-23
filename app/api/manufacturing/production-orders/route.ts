@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { nextOrderNumber } from '@/lib/manufacturing/types';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import { captureProductionOrderLabor } from '@/lib/manufacturing/capture-order-labor';
 
 export async function GET(request: NextRequest) {
   try {
@@ -113,6 +114,9 @@ export async function POST(request: NextRequest) {
       product_id: productId,
       bom_id: bomId,
       work_center_id: body.work_center_id ? Number(body.work_center_id) : null,
+      work_station_id: body.work_station_id
+        ? Number(body.work_station_id)
+        : null,
       qty_planned: Number(body.qty_planned ?? body.qty ?? 1),
       qty_completed: Number(body.qty_completed ?? 0),
       qty_scrapped: Number(body.qty_scrapped ?? 0),
@@ -164,10 +168,12 @@ export async function PATCH(request: NextRequest) {
       'actual_start',
       'actual_end',
       'work_center_id',
+      'work_station_id',
       'bom_id',
       'product_id',
       'customer_ref',
       'notes',
+      'labor_hours',
     ]) {
       if (body[key] !== undefined) updates[key] = body[key];
     }
@@ -208,6 +214,23 @@ export async function PATCH(request: NextRequest) {
       updates.status = 'hold';
     }
 
+    // log_hours: set hours without forcing complete
+    if (body.action === 'log_hours') {
+      if (body.labor_hours !== undefined) {
+        updates.labor_hours = Number(body.labor_hours);
+      }
+      if (body.work_center_id !== undefined) {
+        updates.work_center_id = body.work_center_id
+          ? Number(body.work_center_id)
+          : null;
+      }
+      if (body.work_station_id !== undefined) {
+        updates.work_station_id = body.work_station_id
+          ? Number(body.work_station_id)
+          : null;
+      }
+    }
+
     const { data, error } = await supabase
       .from('manufacturing_production_orders')
       .update(updates)
@@ -217,7 +240,50 @@ export async function PATCH(request: NextRequest) {
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-    return NextResponse.json({ success: true, order: data });
+
+    // Labor → cost centre (hours × cell/station rate)
+    let labor: Awaited<ReturnType<typeof captureProductionOrderLabor>> | null =
+      null;
+    const shouldCapture =
+      body.action === 'log_hours' ||
+      body.action === 'capture_cost' ||
+      body.action === 'complete' ||
+      body.captureLabor === true ||
+      (body.status === 'complete' && body.captureLabor !== false);
+
+    if (shouldCapture) {
+      labor = await captureProductionOrderLabor({
+        companyId,
+        orderId: id,
+        laborHours:
+          body.labor_hours != null
+            ? Number(body.labor_hours)
+            : body.action === 'log_hours' && updates.labor_hours != null
+              ? Number(updates.labor_hours)
+              : null,
+        useElapsed: body.useElapsed !== false,
+        replace: body.action !== 'log_hours' || body.replaceLabor !== false,
+        note: body.labor_note || null,
+      });
+    }
+
+    // Re-load order so response includes labor fields when present
+    let orderOut = data;
+    if (labor?.ok && !labor.skipped) {
+      const { data: refreshed } = await supabase
+        .from('manufacturing_production_orders')
+        .select('*')
+        .eq('id', id)
+        .eq('profile_id', companyId)
+        .maybeSingle();
+      if (refreshed) orderOut = refreshed;
+    }
+
+    return NextResponse.json({
+      success: true,
+      order: orderOut,
+      labor,
+    });
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },

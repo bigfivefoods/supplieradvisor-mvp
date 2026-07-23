@@ -29,7 +29,12 @@ import {
 } from '@/components/manufacturing/ManufacturingShell';
 
 type Product = { id: number; name: string; sku?: string | null };
-type WorkCenter = { id: number; code: string; name: string };
+type WorkCenter = {
+  id: number;
+  code: string;
+  name: string;
+  cost_per_hour?: number;
+};
 type Order = {
   id: number;
   order_number: string;
@@ -41,6 +46,7 @@ type Order = {
   work_center_id?: number | null;
   work_center_code?: string | null;
   work_center_name?: string | null;
+  work_station_id?: number | null;
   qty_planned: number;
   qty_completed: number;
   qty_scrapped: number;
@@ -48,6 +54,12 @@ type Order = {
   priority: number;
   scheduled_start?: string | null;
   scheduled_end?: string | null;
+  actual_start?: string | null;
+  actual_end?: string | null;
+  labor_hours?: number | null;
+  labor_rate?: number | null;
+  labor_cost?: number | null;
+  labor_captured_at?: string | null;
   notes?: string | null;
 };
 
@@ -170,7 +182,15 @@ function OrdersInner() {
       toast.error(data.error || 'Update failed');
       return;
     }
-    toast.success(`Order ${action}`);
+    if (data.labor?.ok && !data.labor?.skipped) {
+      toast.success(data.labor.message || `Labor ${data.labor.laborCost}`);
+    } else if (data.labor && !data.labor.ok) {
+      toast.message(data.labor.message || 'Labor not captured', {
+        description: 'Order updated — set cell cost/hour or enter hours',
+      });
+    } else {
+      toast.success(`Order ${action}`);
+    }
     void load();
   };
 
@@ -186,6 +206,7 @@ function OrdersInner() {
       return;
     }
     if (!companyId) return;
+    const complete = qty >= Number(order.qty_planned);
     const res = await fetch('/api/manufacturing/production-orders', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -193,16 +214,74 @@ function OrdersInner() {
         companyId,
         id: order.id,
         qty_completed: qty,
-        status: qty >= Number(order.qty_planned) ? 'complete' : 'in_progress',
-        actual_end: qty >= Number(order.qty_planned) ? new Date().toISOString() : undefined,
+        status: complete ? 'complete' : 'in_progress',
+        actual_end: complete ? new Date().toISOString() : undefined,
+        captureLabor: complete,
       }),
     });
+    const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      toast.error('Update failed');
+      toast.error(data.error || 'Update failed');
       return;
     }
-    toast.success('Progress logged');
+    if (data.labor?.ok && !data.labor?.skipped) {
+      toast.success(`Progress + ${data.labor.message}`);
+    } else {
+      toast.success('Progress logged');
+    }
     void load();
+  };
+
+  /** Log shop-floor hours → labor cost (hours × cell rate) */
+  const logHours = async (order: Order) => {
+    const rateHint = workCenters.find((w) => w.id === order.work_center_id)
+      ?.cost_per_hour;
+    const raw = prompt(
+      `Labor hours for ${order.order_number}` +
+        (rateHint != null && Number(rateHint) > 0
+          ? ` (cell rate R${rateHint}/h)`
+          : ' (set cost/hour on work cell for $ capture)'),
+      String(order.labor_hours || '')
+    );
+    if (raw == null) return;
+    const hours = Number(raw);
+    if (!Number.isFinite(hours) || hours < 0) {
+      toast.error('Invalid hours');
+      return;
+    }
+    await act(order.id, 'log_hours', {
+      labor_hours: hours,
+      captureLabor: true,
+      replaceLabor: true,
+    });
+  };
+
+  const completeWithLabor = async (order: Order) => {
+    const rateHint = workCenters.find((w) => w.id === order.work_center_id)
+      ?.cost_per_hour;
+    const raw = prompt(
+      `Complete ${order.order_number} — labor hours (blank = use clock start→now)` +
+        (rateHint != null && Number(rateHint) > 0
+          ? `\nCell rate: R${rateHint}/h`
+          : '\nTip: set cost/hour on the work cell first'),
+      order.labor_hours != null && Number(order.labor_hours) > 0
+        ? String(order.labor_hours)
+        : ''
+    );
+    if (raw == null) return;
+    const extra: Record<string, unknown> = {
+      captureLabor: true,
+      useElapsed: true,
+    };
+    if (String(raw).trim() !== '') {
+      const hours = Number(raw);
+      if (!Number.isFinite(hours) || hours < 0) {
+        toast.error('Invalid hours');
+        return;
+      }
+      extra.labor_hours = hours;
+    }
+    await act(order.id, 'complete', extra);
   };
 
   return (
