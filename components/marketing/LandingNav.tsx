@@ -8,11 +8,12 @@ import { usePrivy } from '@privy-io/react-auth';
 import { useRouter } from 'next/navigation';
 
 const LINKS = [
-  { id: 'markets', label: 'B2B · B2G · B2C' },
   { id: 'compare', label: 'Compare' },
-  { id: 'why-join', label: 'Why join' },
+  { id: 'roi', label: 'ROI' },
   { id: 'modules', label: 'Modules' },
   { id: 'pricing', label: 'Pricing' },
+  { id: 'industries', label: 'Industries', href: '/industries' as const },
+  { id: 'demo', label: 'Demo', href: '/demo' as const },
   { id: 'network', label: 'Companies' },
   /** SEO directory — full page, not just in-page hash */
   { id: 'directory', label: 'Directory', href: '/directory' as const },

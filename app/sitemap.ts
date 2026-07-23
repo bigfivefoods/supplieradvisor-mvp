@@ -58,6 +58,54 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: 'monthly',
       priority: 0.6,
     },
+    {
+      url: `${BASE}/demo`,
+      lastModified: now,
+      changeFrequency: 'weekly',
+      priority: 0.85,
+    },
+    {
+      url: `${BASE}/industries`,
+      lastModified: now,
+      changeFrequency: 'weekly',
+      priority: 0.85,
+    },
+    {
+      url: `${BASE}/industries/food-beverage`,
+      lastModified: now,
+      changeFrequency: 'monthly',
+      priority: 0.75,
+    },
+    {
+      url: `${BASE}/industries/agriculture`,
+      lastModified: now,
+      changeFrequency: 'monthly',
+      priority: 0.75,
+    },
+    {
+      url: `${BASE}/industries/manufacturing`,
+      lastModified: now,
+      changeFrequency: 'monthly',
+      priority: 0.75,
+    },
+    {
+      url: `${BASE}/industries/distribution`,
+      lastModified: now,
+      changeFrequency: 'monthly',
+      priority: 0.75,
+    },
+    {
+      url: `${BASE}/industries/public-sector`,
+      lastModified: now,
+      changeFrequency: 'monthly',
+      priority: 0.75,
+    },
+    {
+      url: `${BASE}/industries/multi-entity`,
+      lastModified: now,
+      changeFrequency: 'monthly',
+      priority: 0.75,
+    },
   ];
 
   try {

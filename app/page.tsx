@@ -42,6 +42,13 @@ import HomePricing from '@/components/marketing/HomePricing';
 import FoundingCounterStrip from '@/components/marketing/FoundingCounterStrip';
 import CompanyNetworkSection from '@/components/marketing/CompanyNetworkSection';
 import ComparePlatforms from '@/components/marketing/ComparePlatforms';
+import SocialProofStrip from '@/components/marketing/SocialProofStrip';
+import ProductVideo from '@/components/marketing/ProductVideo';
+import ReplaceStackDiagram from '@/components/marketing/ReplaceStackDiagram';
+import RoiCalculator from '@/components/marketing/RoiCalculator';
+import SecurityStrip from '@/components/marketing/SecurityStrip';
+import SuperCubeStory from '@/components/marketing/SuperCubeStory';
+import IndustriesStrip from '@/components/marketing/IndustriesStrip';
 import {
   OpsMock,
   SrmMock,
@@ -540,6 +547,10 @@ export default function LandingPage() {
         </div>
       </section>
 
+      <SocialProofStrip />
+
+      <ProductVideo />
+
       {/* ═══════════ B2B · B2G · B2C ═══════════ */}
       <section
         id="markets"
@@ -745,6 +756,10 @@ export default function LandingPage() {
 
       {/* ═══════════ COMPARE vs Excel / Xero / ERP ═══════════ */}
       <ComparePlatforms />
+
+      <ReplaceStackDiagram />
+
+      <RoiCalculator />
 
       {/* ═══════════ SYSTEMS GRID ═══════════ */}
       <section id="systems" className="relative border-t border-slate-200 bg-[#f8fafc] py-20 sm:py-28">
@@ -1024,6 +1039,12 @@ export default function LandingPage() {
         </div>
       </section>
 
+      <SecurityStrip />
+
+      <IndustriesStrip />
+
+      <SuperCubeStory />
+
       {/* ═══════════ PRICING + REFERRAL (same site) ═══════════ */}
       <HomePricing />
 
@@ -1196,14 +1217,23 @@ export default function LandingPage() {
                 <a href="#compare" className="block text-slate-600 hover:text-slate-900">
                   Compare
                 </a>
-                <a href="#systems" className="block text-slate-600 hover:text-slate-900">
-                  Systems
+                <a href="#roi" className="block text-slate-600 hover:text-slate-900">
+                  ROI calculator
                 </a>
                 <a href="#modules" className="block text-slate-600 hover:text-slate-900">
                   Modules
                 </a>
+                <Link href="/industries" className="block text-slate-600 hover:text-slate-900">
+                  Industries
+                </Link>
+                <Link href="/demo" className="block text-slate-600 hover:text-slate-900">
+                  Demo
+                </Link>
                 <a href="#pricing" className="block text-slate-600 hover:text-slate-900">
                   Pricing
+                </a>
+                <a href="#security" className="block text-slate-600 hover:text-slate-900">
+                  Security
                 </a>
                 <Link href="/login" className="block text-slate-600 hover:text-slate-900">
                   Log in
