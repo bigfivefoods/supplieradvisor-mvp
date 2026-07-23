@@ -17,6 +17,10 @@ import {
   MIGRATION_HINT,
   PROFILE_PEER_SELECT,
 } from '@/lib/business/company-groups';
+import {
+  buildGroupStructureTrees,
+  edgesFromGroupLinks,
+} from '@/lib/business/group-structure';
 
 /**
  * GET ?companyId=&status=&linkType=&role=all|parent|child&mode=search&q=
@@ -229,18 +233,24 @@ export async function GET(request: NextRequest) {
         .map((l) => ({ ...l, copy: inviteCopy(l) }));
     }
 
-    // Current holding parent from profiles.parent_profile_id (legacy tree)
+    // Current company + holding parent (legacy tree)
     let parent_profile_id: number | null = null;
     let parent_profile: GroupPeerProfile | null = null;
+    let company_name = `Company #${companyId}`;
     try {
       const { data: me } = await supabase
         .from('profiles')
-        .select('parent_profile_id')
+        .select(
+          'parent_profile_id, trading_name, legal_name, business_type, industry, city, country, verification_status, logo_url'
+        )
         .eq('id', companyId)
         .maybeSingle();
-      parent_profile_id = me?.parent_profile_id
-        ? Number(me.parent_profile_id)
-        : null;
+      if (me) {
+        company_name = displayCompanyName(me as GroupPeerProfile, companyId);
+        parent_profile_id = me.parent_profile_id
+          ? Number(me.parent_profile_id)
+          : null;
+      }
       if (parent_profile_id) {
         parent_profile =
           peerMap.get(parent_profile_id) ||
@@ -251,29 +261,71 @@ export async function GET(request: NextRequest) {
       /* soft */
     }
 
+    // Structure diagram always uses active links (ignore status filter)
+    let structureLinks = links.filter((l) => l.status === 'active');
+    if (statusFilter && statusFilter !== 'all' && statusFilter !== 'active') {
+      const { data: activeRows } = await supabase
+        .from('company_group_links')
+        .select('*')
+        .eq('status', 'active')
+        .or(
+          `parent_profile_id.eq.${companyId},child_profile_id.eq.${companyId}`
+        )
+        .limit(200);
+      const aPeerIds = new Set<number>();
+      for (const r of activeRows || []) {
+        const p = Number(r.parent_profile_id);
+        const c = Number(r.child_profile_id);
+        if (p && p !== companyId) aPeerIds.add(p);
+        if (c && c !== companyId) aPeerIds.add(c);
+      }
+      const aPeers = await loadPeers(supabase, Array.from(aPeerIds));
+      structureLinks = (activeRows || []).map((r) => {
+        const parentId = Number(r.parent_profile_id);
+        const childId = Number(r.child_profile_id);
+        const isParent = parentId === companyId;
+        const peerId = isParent ? childId : parentId;
+        const peer = aPeers.get(peerId) || null;
+        return {
+          ...r,
+          parent_profile_id: parentId,
+          child_profile_id: childId,
+          role: isParent ? 'parent' : 'child',
+          peer,
+          peer_display_name: displayCompanyName(peer, peerId),
+        } as CompanyGroupLink;
+      });
+    }
+
+    const structure = buildGroupStructureTrees(
+      companyId,
+      company_name,
+      edgesFromGroupLinks(companyId, company_name, structureLinks)
+    );
+
     const summary = {
       total: links.length,
       pending: links.filter((l) => l.status === 'pending').length,
       actionable: actionable.length,
       awaiting: awaiting.length,
-      active: links.filter((l) => l.status === 'active').length,
+      active: structureLinks.length,
       as_parent: links.filter((l) => l.role === 'parent').length,
       as_child: links.filter((l) => l.role === 'child').length,
-      holdings: links.filter(
-        (l) => l.link_type === 'holding' && l.status === 'active'
-      ).length,
-      associations: links.filter(
-        (l) => l.link_type === 'association' && l.status === 'active'
-      ).length,
+      holdings: structureLinks.filter((l) => l.link_type === 'holding').length,
+      associations: structureLinks.filter((l) => l.link_type === 'association')
+        .length,
     };
 
     return NextResponse.json({
       success: true,
+      company_name,
       links,
       /** Pending that YOU must Accept or Decline (simple inbox) */
       actionable,
       /** Pending you sent — waiting on the other company */
       awaiting,
+      /** Hierarchical diagram trees (active links only) */
+      structure,
       summary,
       parent_profile_id,
       parent_profile,

@@ -18,12 +18,14 @@ import { getSelectedCompanyId } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
 import { statusClass, type AccountingEntity } from '@/lib/accounting/types';
 import type { GroupCompanyForEntities } from '@/lib/accounting/entities-group';
+import type { StructureTree } from '@/lib/business/group-structure';
 import {
   AccountingHeader,
   AccountingPage,
   CompanyRequired,
 } from '@/components/accounting/AccountingShell';
 import { Panel, SectionLabel } from '@/components/relationship/RelationshipChrome';
+import GroupStructureDiagram from '@/components/business/GroupStructureDiagram';
 import GeoSelectFields, { type GeoValue } from '@/components/geo/GeoSelectFields';
 
 export default function EntitiesPage() {
@@ -42,6 +44,7 @@ function Inner() {
   const [groupCompanies, setGroupCompanies] = useState<
     GroupCompanyForEntities[]
   >([]);
+  const [structure, setStructure] = useState<StructureTree[]>([]);
   const [unsyncedCount, setUnsyncedCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -68,11 +71,13 @@ function Inner() {
       const data = await res.json();
       setEntities(data.entities || []);
       setGroupCompanies(data.groupCompanies || []);
+      setStructure(Array.isArray(data.structure) ? data.structure : []);
       setUnsyncedCount(Number(data.unsyncedCount || 0));
       if (data.warning) toast.message(data.warning, { description: data.hint });
     } catch {
       setEntities([]);
       setGroupCompanies([]);
+      setStructure([]);
     } finally {
       setLoading(false);
     }
@@ -220,6 +225,21 @@ function Inner() {
           )}
         </div>
       </Panel>
+
+      {/* Structure diagram — same as Company → Group */}
+      {!loading && (
+        <div className="mb-6">
+          <SectionLabel>Group structure</SectionLabel>
+          <p className="mb-2 -mt-1 text-xs text-neutral-500">
+            Holding companies with ownership % and associations with members underneath.
+            Managed on Company → Group; sync into legal entities below.
+          </p>
+          <GroupStructureDiagram
+            trees={structure}
+            emptyHint="No active group structure. Link companies under Company → Group, then return here and Sync from group."
+          />
+        </div>
+      )}
 
       {/* Group companies (source of truth from Group page) */}
       {!loading && peers.length > 0 && (

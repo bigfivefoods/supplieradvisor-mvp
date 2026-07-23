@@ -6,7 +6,11 @@ import {
   loadGroupCompaniesForProfile,
   syncGroupCompaniesToEntities,
 } from '@/lib/accounting/entities-group';
-import { linkTypeMeta } from '@/lib/business/company-groups';
+import { displayCompanyName, linkTypeMeta } from '@/lib/business/company-groups';
+import {
+  buildGroupStructureTrees,
+  edgesFromGroupCompanies,
+} from '@/lib/business/group-structure';
 
 const HINT =
   'Run supabase/migrations/20260710_accounting_module.sql and 20260723_accounting_entities_group.sql';
@@ -92,10 +96,29 @@ export async function GET(request: NextRequest) {
 
     const unsyncedGroup = groupCompanies.filter((g) => !g.entity_id);
 
+    const self = groupCompanies.find((g) => g.link_type === 'self');
+    const company_name =
+      self?.display_name ||
+      displayCompanyName(
+        {
+          trading_name: self?.trading_name || null,
+          legal_name: self?.legal_name || null,
+        },
+        companyId
+      );
+
+    const structure = buildGroupStructureTrees(
+      companyId,
+      company_name,
+      edgesFromGroupCompanies(companyId, company_name, groupCompanies)
+    );
+
     return NextResponse.json({
       success: true,
+      company_name,
       entities,
       groupCompanies,
+      structure,
       unsyncedCount: unsyncedGroup.length,
       summary: {
         entityCount: entities.length,

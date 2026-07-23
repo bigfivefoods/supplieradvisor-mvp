@@ -41,6 +41,8 @@ import {
   statusBadgeClass,
   MIGRATION_HINT,
 } from '@/lib/business/company-groups';
+import type { StructureTree } from '@/lib/business/group-structure';
+import GroupStructureDiagram from '@/components/business/GroupStructureDiagram';
 
 type Summary = {
   total: number;
@@ -77,6 +79,7 @@ function GroupInner() {
   const [links, setLinks] = useState<CompanyGroupLink[]>([]);
   const [actionable, setActionable] = useState<ActionableLink[]>([]);
   const [awaiting, setAwaiting] = useState<ActionableLink[]>([]);
+  const [structure, setStructure] = useState<StructureTree[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [parentDisplay, setParentDisplay] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -128,6 +131,7 @@ function GroupInner() {
       );
       setSummary(data.summary || null);
       setParentDisplay(data.parent_display_name || null);
+      setStructure(Array.isArray(data.structure) ? data.structure : []);
       setWarning(data.warning || null);
       setHint(data.hint || null);
     } catch (e: unknown) {
@@ -135,6 +139,7 @@ function GroupInner() {
       setLinks([]);
       setActionable([]);
       setAwaiting([]);
+      setStructure([]);
     } finally {
       setLoading(false);
     }
@@ -318,6 +323,25 @@ function GroupInner() {
         </div>
       )}
 
+      {/* Group structure diagram */}
+      {!loading && (
+        <div className="mb-6">
+          <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <SectionLabel>Group structure</SectionLabel>
+              <p className="text-xs text-neutral-500 -mt-1 mb-2">
+                Holding trees show shareholding % when set. Associations list members under
+                the body.
+              </p>
+            </div>
+          </div>
+          <GroupStructureDiagram
+            trees={structure}
+            emptyHint="No active structure yet. After invitations are accepted, the holding / association diagram appears here with ownership % where captured."
+          />
+        </div>
+      )}
+
       {/* How to accept — always visible, simple */}
       <Panel className="mb-6 overflow-hidden border-sky-100 bg-gradient-to-br from-sky-50/80 to-white">
         <div className="flex gap-3 p-4 sm:p-5">
@@ -329,7 +353,7 @@ function GroupInner() {
             <ol className="list-decimal space-y-1.5 pl-4 text-[13px] leading-relaxed text-slate-600">
               <li>
                 <strong>Invite or join</strong> — search for the other company and send
-                an invitation (or request to join them).
+                an invitation (or request to join them). Set ownership % for holdings.
               </li>
               <li>
                 <strong>Switch company</strong> — the person who accepts must open this
