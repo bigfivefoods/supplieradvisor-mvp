@@ -8,7 +8,7 @@ const SITE_NAME = 'SupplierAdvisor®';
 const DEFAULT_TITLE =
   'SupplierAdvisor® — The world’s most trusted supplier advice — and OS';
 const DEFAULT_DESCRIPTION =
-  'SupplierAdvisor® unites B2B, B2G, and B2C on one verified network. Fourteen operating systems — SRM, CRM, inventory, manufacturing, distribution, SHEQ, quality, finance, containers, projects, ESG, and intelligence — with a 30-day free trial. From R299/mo.';
+  'SupplierAdvisor® is the supply-chain OS — not Excel, not accounting-only, not a multi-year ERP. B2B, B2G & B2C on one verified network: SRM, CRM, inventory, manufacturing, finance, SHEQ, people, containers. 30-day free trial. From R299/mo.';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

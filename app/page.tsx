@@ -41,6 +41,7 @@ import LandingNav from '@/components/marketing/LandingNav';
 import HomePricing from '@/components/marketing/HomePricing';
 import FoundingCounterStrip from '@/components/marketing/FoundingCounterStrip';
 import CompanyNetworkSection from '@/components/marketing/CompanyNetworkSection';
+import ComparePlatforms from '@/components/marketing/ComparePlatforms';
 import {
   OpsMock,
   SrmMock,
@@ -415,6 +416,17 @@ export default function LandingPage() {
                   Browse company directory
                 </Link>
               </div>
+
+              <p className="mt-5 text-xs leading-relaxed text-slate-500 sm:text-sm">
+                Not Excel. Not accounting-only. Not a multi-year ERP project.{' '}
+                <a
+                  href="#compare"
+                  className="font-semibold text-[#0077b6] underline decoration-sky-200 underline-offset-4 hover:text-[#00b4d8]"
+                >
+                  See how we compare
+                </a>
+                .
+              </p>
             </div>
 
             {/* ── Images (2/3) — three equal-height views + live product frame ── */}
@@ -502,6 +514,28 @@ export default function LandingPage() {
               </a>
             </p>
             <FoundingCounterStrip />
+          </div>
+
+          {/* Proof bar */}
+          <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:mt-10">
+            {[
+              { k: '14+', l: 'operating systems' },
+              { k: 'B2B·G·C', l: 'one verified fabric' },
+              { k: `${COMPANY_TRIAL_DAYS}d`, l: 'free full trial' },
+              { k: 'R' + COMPANY_SUBSCRIPTION_MONTHLY_ZAR, l: 'per company / mo' },
+            ].map((s) => (
+              <div
+                key={s.l}
+                className="rounded-2xl border border-slate-200/90 bg-white/80 px-3 py-3 text-center shadow-sm backdrop-blur-sm sm:px-4"
+              >
+                <div className="text-lg font-black tracking-tight text-slate-900 sm:text-xl">
+                  {s.k}
+                </div>
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 sm:text-[11px]">
+                  {s.l}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -709,8 +743,11 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ═══════════ COMPARE vs Excel / Xero / ERP ═══════════ */}
+      <ComparePlatforms />
+
       {/* ═══════════ SYSTEMS GRID ═══════════ */}
-      <section id="systems" className="relative border-t border-slate-200 bg-white py-20 sm:py-28">
+      <section id="systems" className="relative border-t border-slate-200 bg-[#f8fafc] py-20 sm:py-28">
         <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10">
           <div className="mx-auto mb-14 max-w-3xl text-center">
             <SectionLabel>Full stack</SectionLabel>
@@ -1156,6 +1193,9 @@ export default function LandingPage() {
                 <div className="mb-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                   Product
                 </div>
+                <a href="#compare" className="block text-slate-600 hover:text-slate-900">
+                  Compare
+                </a>
                 <a href="#systems" className="block text-slate-600 hover:text-slate-900">
                   Systems
                 </a>

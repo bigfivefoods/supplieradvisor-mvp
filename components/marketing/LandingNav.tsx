@@ -9,9 +9,9 @@ import { useRouter } from 'next/navigation';
 
 const LINKS = [
   { id: 'markets', label: 'B2B · B2G · B2C' },
+  { id: 'compare', label: 'Compare' },
   { id: 'why-join', label: 'Why join' },
   { id: 'modules', label: 'Modules' },
-  { id: 'trust', label: 'Trust' },
   { id: 'pricing', label: 'Pricing' },
   { id: 'network', label: 'Companies' },
   /** SEO directory — full page, not just in-page hash */
