@@ -1778,11 +1778,15 @@ function BudgetVsActualReport({ data }: { data: Record<string, unknown> }) {
         {period?.year ? ` · FY ${period.year}` : ''}
         {period?.from ? ` · ${period.from} → ${period.to}` : ''}
       </div>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <SumCard
-          label="Revenue actual / budget"
-          value={`${formatMoney(summary?.actualRevenue || 0)} / ${formatMoney(summary?.budgetRevenue || 0)}`}
+          label="Revenue actual"
+          value={formatMoney(summary?.actualRevenue || 0)}
           tone="emerald"
+        />
+        <SumCard
+          label="Revenue budget"
+          value={formatMoney(summary?.budgetRevenue || 0)}
         />
         <SumCard
           label="Revenue variance"
@@ -1790,20 +1794,23 @@ function BudgetVsActualReport({ data }: { data: Record<string, unknown> }) {
           tone={revVar >= 0 ? 'emerald' : 'amber'}
         />
         <SumCard
-          label="Expenses actual / budget"
-          value={`${formatMoney(summary?.actualExpenses || 0)} / ${formatMoney(summary?.budgetExpenses || 0)}`}
-        />
-        <SumCard
           label="Net variance"
           value={formatMoney(netVar)}
           tone={netVar >= 0 ? 'emerald' : 'amber'}
         />
       </div>
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
-        <SumCard label="Budget net" value={formatMoney(summary?.budgetNet || 0)} />
-        <SumCard label="Actual net" value={formatMoney(summary?.actualNet || 0)} />
+      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <SumCard
-          label="Expense variance (act−bud)"
+          label="Expenses actual"
+          value={formatMoney(summary?.actualExpenses || 0)}
+        />
+        <SumCard
+          label="Expenses budget"
+          value={formatMoney(summary?.budgetExpenses || 0)}
+        />
+        <SumCard label="Budget net" value={formatMoney(summary?.budgetNet || 0)} />
+        <SumCard
+          label="Expense variance"
           value={formatMoney(expVar)}
           tone={expVar <= 0 ? 'emerald' : 'amber'}
         />
@@ -1991,16 +1998,20 @@ function SumCard({
 }) {
   const cls =
     tone === 'emerald'
-      ? 'border-emerald-100 bg-emerald-50/40'
+      ? 'border-emerald-100 bg-emerald-50/50'
       : tone === 'amber'
-        ? 'border-amber-100 bg-amber-50/40'
+        ? 'border-amber-100 bg-amber-50/50'
         : 'border-neutral-200 bg-white';
   return (
-    <div className={`rounded-3xl border p-4 ${cls}`}>
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400 mb-1">
+    <div
+      className={`min-w-0 overflow-hidden rounded-2xl border px-3.5 py-3 sm:px-4 sm:py-3.5 ${cls}`}
+    >
+      <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500 leading-snug break-words">
         {label}
       </div>
-      <div className="text-lg font-black tabular-nums text-slate-900">{value}</div>
+      <div className="text-base font-black tabular-nums leading-tight text-slate-900 sm:text-lg break-all">
+        {value}
+      </div>
     </div>
   );
 }
@@ -2013,7 +2024,7 @@ function SimpleTable({
   rows: string[][];
 }) {
   return (
-    <Panel>
+    <Panel className="overflow-hidden">
       {rows.length === 0 ? (
         <div className="px-6 py-12 text-center text-sm text-neutral-500">
           No rows for this period. Post journals or create invoices to populate reports.

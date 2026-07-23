@@ -325,23 +325,32 @@ function Inner() {
 
           {/* Budget (plan) vs actual */}
           {budgetVsActual?.summary?.hasBudget ? (
-            <Panel className="mb-8">
-              <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-                <SectionLabel>Budget (plan) vs actual</SectionLabel>
+            <Panel className="mb-8 overflow-hidden">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-100 bg-slate-50/70 px-4 py-3 sm:px-5">
+                <div className="min-w-0">
+                  <h2 className="text-sm font-bold text-slate-900">
+                    Budget (plan) vs actual
+                  </h2>
+                  <p className="mt-0.5 text-[11px] leading-snug text-neutral-500">
+                    Period plan from Accounting → Budget
+                  </p>
+                </div>
                 <Link
                   href="/dashboard/accounting/reports?report=budget_vs_actual"
-                  className="text-xs font-bold text-[#00b4d8] underline"
+                  className="shrink-0 rounded-full border border-sky-100 bg-white px-3 py-1.5 text-xs font-bold text-[#00b4d8] hover:bg-sky-50"
                 >
                   Full report →
                 </Link>
               </div>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+
+              <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 sm:p-5 lg:grid-cols-4">
                 <Kpi
                   label="Budget revenue"
                   value={formatMoney(budgetVsActual.summary.budgetRevenue ?? 0)}
                 />
                 <Kpi
-                  label="Rev variance (act−bud)"
+                  label="Revenue variance"
+                  sub="Actual − budget"
                   value={formatMoney(
                     Number(budgetVsActual.summary.actualRevenue || 0) -
                       Number(budgetVsActual.summary.budgetRevenue || 0)
@@ -358,7 +367,8 @@ function Inner() {
                   value={formatMoney(budgetVsActual.summary.budgetExpenses ?? 0)}
                 />
                 <Kpi
-                  label="Net plan vs actual"
+                  label="Net variance"
+                  sub="Actual net − plan net"
                   value={formatMoney(
                     Number(budgetVsActual.summary.actualNet || 0) -
                       Number(budgetVsActual.summary.budgetNet || 0)
@@ -371,51 +381,59 @@ function Inner() {
                   }
                 />
               </div>
+
               {(budgetVsActual.rows || []).length > 0 && (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-left text-[10px] uppercase tracking-wider text-neutral-400 border-b">
-                        <th className="py-2 pr-2">Code</th>
-                        <th className="py-2 pr-2">Name</th>
-                        <th className="py-2 pr-2 text-right">Budget</th>
-                        <th className="py-2 pr-2 text-right">Actual</th>
-                        <th className="py-2 text-right">Variance</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {(budgetVsActual.rows || []).slice(0, 25).map((r) => (
-                        <tr key={r.code + r.name}>
-                          <td className="py-2 pr-2 font-mono text-xs text-neutral-500">
-                            {r.code}
-                          </td>
-                          <td className="py-2 pr-2 font-medium">{r.name}</td>
-                          <td className="py-2 pr-2 text-right tabular-nums">
-                            {formatMoney(r.budget)}
-                          </td>
-                          <td className="py-2 pr-2 text-right tabular-nums">
-                            {formatMoney(r.actual)}
-                          </td>
-                          <td
-                            className={`py-2 text-right tabular-nums font-semibold ${
-                              r.favourable === false
-                                ? 'text-amber-700'
-                                : r.favourable
-                                  ? 'text-emerald-700'
-                                  : ''
-                            }`}
-                          >
-                            {formatMoney(r.variance)}
-                          </td>
+                <div className="border-t border-neutral-100">
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[520px] text-sm">
+                      <thead>
+                        <tr className="border-b border-neutral-100 bg-white text-left text-[10px] uppercase tracking-wider text-neutral-400">
+                          <th className="px-4 py-2.5 font-semibold sm:px-5">Code</th>
+                          <th className="px-3 py-2.5 font-semibold">Name</th>
+                          <th className="px-3 py-2.5 text-right font-semibold">Budget</th>
+                          <th className="px-3 py-2.5 text-right font-semibold">Actual</th>
+                          <th className="px-4 py-2.5 text-right font-semibold sm:px-5">
+                            Variance
+                          </th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {(budgetVsActual.rows || []).slice(0, 25).map((r) => (
+                          <tr key={r.code + r.name} className="hover:bg-slate-50/80">
+                            <td className="px-4 py-2.5 font-mono text-xs text-neutral-500 sm:px-5">
+                              {r.code}
+                            </td>
+                            <td className="max-w-[12rem] truncate px-3 py-2.5 font-medium text-slate-800 sm:max-w-none">
+                              {r.name}
+                            </td>
+                            <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">
+                              {formatMoney(r.budget)}
+                            </td>
+                            <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">
+                              {formatMoney(r.actual)}
+                            </td>
+                            <td
+                              className={`px-4 py-2.5 text-right tabular-nums font-semibold sm:px-5 ${
+                                r.favourable === false
+                                  ? 'text-amber-700'
+                                  : r.favourable
+                                    ? 'text-emerald-700'
+                                    : 'text-slate-800'
+                              }`}
+                            >
+                              {formatMoney(r.variance)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
-              <p className="mt-3 text-[11px] text-neutral-500">
-                Plan amounts come from Finance → Budget (12 months by COA). Revenue over
-                plan is favourable; expenses over plan is unfavourable.
+
+              <p className="border-t border-neutral-100 px-4 py-3 text-[11px] leading-relaxed text-neutral-500 sm:px-5">
+                Plan amounts come from Accounting → Budget (12 months by COA).
+                Revenue over plan is favourable; expenses over plan is unfavourable.
               </p>
             </Panel>
           ) : (
@@ -713,17 +731,25 @@ function Kpi({
 }) {
   const cls =
     tone === 'emerald'
-      ? 'border-emerald-100 bg-emerald-50/40'
+      ? 'border-emerald-100 bg-emerald-50/50'
       : tone === 'amber'
-        ? 'border-amber-100 bg-amber-50/40'
+        ? 'border-amber-100 bg-amber-50/50'
         : 'border-neutral-200 bg-white';
   return (
-    <div className={`rounded-3xl border p-4 ${cls}`}>
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400 mb-1">
+    <div
+      className={`min-w-0 overflow-hidden rounded-2xl border px-3.5 py-3 sm:px-4 sm:py-3.5 ${cls}`}
+    >
+      <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500 leading-snug break-words">
         {label}
       </div>
-      <div className="text-xl font-black tabular-nums text-slate-900">{value}</div>
-      {sub && <div className="text-[11px] text-neutral-500 mt-0.5">{sub}</div>}
+      <div className="text-base font-black tabular-nums leading-tight text-slate-900 sm:text-lg break-all">
+        {value}
+      </div>
+      {sub && (
+        <div className="mt-1 text-[11px] leading-snug text-neutral-500 break-words">
+          {sub}
+        </div>
+      )}
     </div>
   );
 }
