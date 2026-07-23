@@ -191,7 +191,7 @@ function HubInner() {
     {
       href: '/dashboard/accounting/tax',
       icon: Receipt,
-      code: '09',
+      code: '10',
       title: 'VAT & tax',
       desc: 'VAT return box, output/input, rates, and SARS-ready summary.',
       accent: 'from-slate-50 to-white border-slate-200',
@@ -204,7 +204,7 @@ function HubInner() {
     {
       href: '/dashboard/accounting/fixed-assets',
       icon: Building2,
-      code: '10',
+      code: '11',
       title: 'Fixed assets',
       desc: 'Asset register, straight-line depreciation, disposals.',
       accent: 'from-emerald-50 to-white border-emerald-100',
