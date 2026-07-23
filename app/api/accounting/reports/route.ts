@@ -494,10 +494,31 @@ export async function GET(request: NextRequest) {
 
     // ── Budget (plan) vs actual report ─────────────────────────────────────
     if (report === 'budget_vs_actual') {
-      const year = Number(
-        request.nextUrl.searchParams.get('year') ||
-          (from ? from.slice(0, 4) : new Date().getFullYear())
+      const { getOrCreateSettings } = await import('@/lib/accounting/server');
+      const {
+        normalizeFyStartMonth,
+        fiscalYearStartYear,
+      } = await import('@/lib/accounting/budget');
+      const {
+        fiscalYearStart,
+        fiscalYearEnd,
+        toIsoDate,
+      } = await import('@/lib/accounting/fiscal');
+
+      const settings = await getOrCreateSettings(companyId);
+      const fyStartMonth = normalizeFyStartMonth(
+        settings.fiscal_year_start_month
       );
+      const defaultFyYear = fiscalYearStartYear(new Date(), fyStartMonth);
+      const year = Number(
+        request.nextUrl.searchParams.get('year') || defaultFyYear
+      );
+      const fyRef = new Date(
+        Number.isFinite(year) ? year : defaultFyYear,
+        fyStartMonth - 1,
+        15
+      );
+
       const { data: accounts, error: accErr } = await supabase
         .from('chart_of_accounts')
         .select('*')
@@ -512,9 +533,9 @@ export async function GET(request: NextRequest) {
         });
       }
 
-      // Actuals from posted journals in range (default full year)
-      const rangeFrom = from || `${year}-01-01`;
-      const rangeTo = to || `${year}-12-31`;
+      // Actuals from posted journals in range (default = full financial year)
+      const rangeFrom = from || toIsoDate(fiscalYearStart(fyRef, fyStartMonth));
+      const rangeTo = to || toIsoDate(fiscalYearEnd(fyRef, fyStartMonth));
       let jeQ = supabase
         .from('journal_entries')
         .select('id')
@@ -549,15 +570,22 @@ export async function GET(request: NextRequest) {
         companyId,
         from: rangeFrom,
         to: rangeTo,
-        year,
+        year: Number.isFinite(year) ? year : defaultFyYear,
         accounts: (accounts || []) as Array<Record<string, unknown>>,
         actualByAccount: totals,
+        fyStartMonth,
       });
 
       return NextResponse.json({
         success: true,
         report,
-        period: { from: rangeFrom, to: rangeTo, year },
+        period: {
+          from: rangeFrom,
+          to: rangeTo,
+          year: result.year,
+          fyStartMonth: result.fyStartMonth,
+          fyLabel: result.fyLabel,
+        },
         ...result,
       });
     }

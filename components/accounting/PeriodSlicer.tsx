@@ -3,9 +3,11 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { CalendarRange, ChevronDown, SlidersHorizontal } from 'lucide-react';
 import {
+  DEFAULT_FY_START_MONTH,
   fiscalYearLabel,
   fiscalYearMonths,
   fiscalYearQuarters,
+  normalizeFyStartMonth,
   resolvePeriodPreset,
   type PeriodPreset,
 } from '@/lib/accounting/fiscal';
@@ -28,11 +30,13 @@ export type PeriodSlicerValue = {
 const HISTORY_OPTIONS = [3, 6, 12, 18, 24, 36] as const;
 
 export function initialPeriodSlicerValue(
-  preset: Exclude<PeriodPreset, 'custom'> = 'this_month'
+  preset: Exclude<PeriodPreset, 'custom'> = 'this_month',
+  fyStartMonth: number = DEFAULT_FY_START_MONTH
 ): PeriodSlicerValue {
-  const range = resolvePeriodPreset(preset);
-  const months = fiscalYearMonths(new Date());
-  const quarters = fiscalYearQuarters(new Date());
+  const sm = normalizeFyStartMonth(fyStartMonth);
+  const range = resolvePeriodPreset(preset, new Date(), sm);
+  const months = fiscalYearMonths(new Date(), sm);
+  const quarters = fiscalYearQuarters(new Date(), sm);
   const match = months.find((m) => m.from === range.from && m.to === range.to);
   const qMatch = quarters.find((q) => q.from === range.from && q.to === range.to);
   const monthFroms = match
@@ -111,6 +115,11 @@ type Props = {
   className?: string;
   /** Start expanded (default collapsed to free vertical space) */
   defaultOpen?: boolean;
+  /**
+   * Financial year start month (1–12). Defaults to March (SA).
+   * Load from accounting_settings.fiscal_year_start_month.
+   */
+  fyStartMonth?: number;
 };
 
 /**
@@ -125,14 +134,16 @@ export default function PeriodSlicer({
   footer,
   className = 'mb-6',
   defaultOpen = false,
+  fyStartMonth = DEFAULT_FY_START_MONTH,
 }: Props) {
   const [open, setOpen] = useState(defaultOpen);
-  const fyLabel = useMemo(() => fiscalYearLabel(new Date()), []);
-  const fyMonths = useMemo(() => fiscalYearMonths(new Date()), []);
-  const fyQuarters = useMemo(() => fiscalYearQuarters(new Date()), []);
+  const sm = normalizeFyStartMonth(fyStartMonth);
+  const fyLabel = useMemo(() => fiscalYearLabel(new Date(), sm), [sm]);
+  const fyMonths = useMemo(() => fiscalYearMonths(new Date(), sm), [sm]);
+  const fyQuarters = useMemo(() => fiscalYearQuarters(new Date(), sm), [sm]);
 
   const applyPreset = (p: Exclude<PeriodPreset, 'custom'>) => {
-    const range = resolvePeriodPreset(p);
+    const range = resolvePeriodPreset(p, new Date(), sm);
     const match = fyMonths.find((m) => m.from === range.from && m.to === range.to);
     const qMatch = fyQuarters.find((q) => q.from === range.from && q.to === range.to);
     onChange({

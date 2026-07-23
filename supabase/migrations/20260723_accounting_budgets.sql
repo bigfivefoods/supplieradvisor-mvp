@@ -4,9 +4,9 @@
 CREATE TABLE IF NOT EXISTS public.accounting_budgets (
   id bigserial PRIMARY KEY,
   profile_id bigint NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  fiscal_year int NOT NULL,
+  fiscal_year int NOT NULL, -- calendar year when the FY starts
   account_id bigint NOT NULL,
-  -- Monthly amounts (calendar months 1–12 of fiscal_year)
+  -- Monthly amounts: FY periods 1–12 (m01 = first month of FY per accounting_settings.fiscal_year_start_month)
   m01 numeric(18,2) NOT NULL DEFAULT 0,
   m02 numeric(18,2) NOT NULL DEFAULT 0,
   m03 numeric(18,2) NOT NULL DEFAULT 0,
@@ -32,7 +32,7 @@ CREATE INDEX IF NOT EXISTS idx_acct_budget_account
   ON public.accounting_budgets (account_id);
 
 COMMENT ON TABLE public.accounting_budgets IS
-  'Annual 12-month budget per COA account for plan vs actual reporting.';
+  'Annual 12-month budget per COA account. fiscal_year = year FY starts; m01–m12 = FY periods (not always Jan–Dec). FY start month lives on accounting_settings.fiscal_year_start_month.';
 
 -- Optional: soft FK when chart_of_accounts exists
 DO $$

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Loader2, Save, Copy, RefreshCw } from 'lucide-react';
+import { Loader2, Save, Copy, RefreshCw, CalendarRange } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -16,10 +16,13 @@ import {
 import { Panel } from '@/components/relationship/RelationshipChrome';
 import {
   MONTH_KEYS,
-  MONTH_LABELS,
-  sumBudgetMonths,
+  type FyMonthColumn,
   type MonthKey,
+  sumBudgetMonths,
+  fiscalYearStartYear,
+  normalizeFyStartMonth,
 } from '@/lib/accounting/budget';
+import { MONTH_LONG } from '@/lib/accounting/fiscal';
 
 type BudgetRow = {
   account_id: number;
@@ -74,15 +77,49 @@ function Inner() {
   const companyId = getSelectedCompanyId()!;
   const { user } = usePrivy();
   const privyUserId = getCanonicalUserId(user?.id);
-  const [year, setYear] = useState(new Date().getFullYear());
+
+  const [year, setYear] = useState(() => fiscalYearStartYear(new Date(), 3));
+  const [fyStartMonth, setFyStartMonth] = useState(3);
+  const [fyLabel, setFyLabel] = useState('');
+  const [fyRangeLabel, setFyRangeLabel] = useState('');
+  const [monthColumns, setMonthColumns] = useState<FyMonthColumn[]>([]);
   const [typeFilter, setTypeFilter] = useState('all');
   const [rows, setRows] = useState<BudgetRow[]>([]);
   const [dirty, setDirty] = useState<Record<number, Partial<BudgetRow>>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingFy, setSavingFy] = useState(false);
   const [warning, setWarning] = useState<string | null>(null);
+  const [yearReady, setYearReady] = useState(false);
+
+  // Bootstrap current FY year from company settings once
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const params = new URLSearchParams({ companyId: String(companyId) });
+        if (privyUserId) params.set('privyUserId', privyUserId);
+        const res = await fetch(`/api/accounting/settings?${params}`);
+        const data = await res.json();
+        const sm = normalizeFyStartMonth(
+          data.settings?.fiscal_year_start_month
+        );
+        if (!cancelled) {
+          setFyStartMonth(sm);
+          setYear(fiscalYearStartYear(new Date(), sm));
+          setYearReady(true);
+        }
+      } catch {
+        if (!cancelled) setYearReady(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId, privyUserId]);
 
   const load = useCallback(async () => {
+    if (!yearReady) return;
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -99,6 +136,14 @@ function Inner() {
       setRows(list);
       setDirty({});
       setWarning(data.warning || null);
+      if (data.fiscalYearStartMonth) {
+        setFyStartMonth(Number(data.fiscalYearStartMonth));
+      }
+      setFyLabel(data.fyLabel || String(year));
+      setFyRangeLabel(data.fyRangeLabel || '');
+      setMonthColumns(
+        Array.isArray(data.monthColumns) ? data.monthColumns : []
+      );
       if (data.hint && data.warning) {
         toast.message(data.warning, { description: data.hint });
       }
@@ -108,7 +153,7 @@ function Inner() {
     } finally {
       setLoading(false);
     }
-  }, [companyId, year, privyUserId]);
+  }, [companyId, year, privyUserId, yearReady]);
 
   useEffect(() => {
     void load();
@@ -132,6 +177,18 @@ function Inner() {
         return t === 'expense' || t === 'expenses' || t === 'opex';
       });
   }, [rows, dirty, typeFilter]);
+
+  const headers: FyMonthColumn[] =
+    monthColumns.length === 12
+      ? monthColumns
+      : MONTH_KEYS.map((key, i) => ({
+          key,
+          shortLabel: String(i + 1),
+          label: `P${i + 1}`,
+          period: i + 1,
+          calendarMonth: i + 1,
+          calendarYear: year,
+        }));
 
   function setCell(accountId: number, key: MonthKey, value: string) {
     const n = value === '' || value === '-' ? 0 : Number(value);
@@ -223,12 +280,42 @@ function Inner() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Copy failed');
-      toast.success(`Copied ${data.copied || 0} lines from ${year - 1}`);
+      toast.success(`Copied ${data.copied || 0} lines from FY ${year - 1}`);
       void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Copy failed');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function saveFyStart(month: number) {
+    const m = normalizeFyStartMonth(month);
+    setSavingFy(true);
+    try {
+      const res = await fetch('/api/accounting/budgets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          year,
+          action: 'set_fy_start',
+          fiscalYearStartMonth: m,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to set financial year');
+      setFyStartMonth(m);
+      toast.success(
+        `Financial year starts in ${MONTH_LONG[m - 1]}. Columns updated.`
+      );
+      // Keep same FY start year; reload columns
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setSavingFy(false);
     }
   }
 
@@ -243,7 +330,7 @@ function Inner() {
       <AccountingHeader
         title="Annual"
         titleAccent="budget"
-        description="12-month plan by chart of accounts. Used for budget vs actual in management accounts and reports."
+        description="12-month plan aligned to your financial year. Drives budget vs actual in management accounts and reports."
         action={
           <div className="flex flex-wrap gap-2">
             <Link
@@ -258,7 +345,7 @@ function Inner() {
               onClick={() => void copyPriorYear()}
               className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-1.5"
             >
-              <Copy className="w-4 h-4" /> Copy {year - 1}
+              <Copy className="w-4 h-4" /> Copy prior FY
             </button>
             <button
               type="button"
@@ -282,49 +369,98 @@ function Inner() {
         </div>
       )}
 
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <label className="text-xs font-semibold text-neutral-600">
-          Fiscal year
-          <input
-            type="number"
-            className="ml-2 w-24 rounded-xl border border-neutral-200 px-3 py-2 text-sm font-bold"
-            value={year}
-            onChange={(e) => setYear(Number(e.target.value))}
-          />
-        </label>
-        <div className="flex flex-wrap gap-1">
-          {TYPE_FILTERS.map((t) => (
-            <button
-              key={t.value}
-              type="button"
-              onClick={() => setTypeFilter(t.value)}
-              className={`rounded-full border px-3 py-1.5 text-xs font-bold ${
-                typeFilter === t.value
-                  ? 'border-[#00b4d8] bg-[#00b4d8] text-white'
-                  : 'border-slate-200 bg-white text-slate-600'
-              }`}
+      {/* Financial year controls */}
+      <Panel className="mb-4 p-4 sm:p-5">
+        <div className="flex flex-wrap items-start gap-4 sm:gap-6">
+          <div className="flex items-start gap-3 min-w-0">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-violet-100 bg-violet-50 text-violet-700">
+              <CalendarRange className="h-4 w-4" />
+            </span>
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-violet-700">
+                Financial year
+              </p>
+              <p className="text-lg font-bold text-slate-900">
+                FY {fyLabel || year}
+              </p>
+              {fyRangeLabel && (
+                <p className="text-xs text-neutral-500 mt-0.5">{fyRangeLabel}</p>
+              )}
+            </div>
+          </div>
+
+          <label className="text-xs font-semibold text-neutral-600">
+            FY starts in
+            <select
+              className="ml-0 mt-1 block w-full min-w-[10rem] rounded-xl border border-neutral-200 px-3 py-2 text-sm font-bold text-slate-900"
+              value={fyStartMonth}
+              disabled={savingFy}
+              onChange={(e) => void saveFyStart(Number(e.target.value))}
             >
-              {t.label}
+              {MONTH_LONG.map((name, i) => (
+                <option key={name} value={i + 1}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="text-xs font-semibold text-neutral-600">
+            Budget for FY starting
+            <input
+              type="number"
+              className="ml-0 mt-1 block w-28 rounded-xl border border-neutral-200 px-3 py-2 text-sm font-bold"
+              value={year}
+              min={2000}
+              max={2100}
+              onChange={(e) => setYear(Number(e.target.value))}
+            />
+            <span className="mt-1 block text-[10px] font-normal text-neutral-400">
+              Calendar year the FY begins (e.g. 2026 for Mar 2026–Feb 2027)
+            </span>
+          </label>
+
+          <div className="flex flex-wrap gap-1 items-end pb-1">
+            {TYPE_FILTERS.map((t) => (
+              <button
+                key={t.value}
+                type="button"
+                onClick={() => setTypeFilter(t.value)}
+                className={`rounded-full border px-3 py-1.5 text-xs font-bold ${
+                  typeFilter === t.value
+                    ? 'border-[#00b4d8] bg-[#00b4d8] text-white'
+                    : 'border-slate-200 bg-white text-slate-600'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => void load()}
+              className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
+            >
+              <RefreshCw className="w-3.5 h-3.5" /> Refresh
             </button>
-          ))}
+          </div>
+
+          <div className="ml-auto text-sm font-semibold text-slate-600 self-center">
+            FY total{' '}
+            <span className="font-black text-slate-900 tabular-nums">
+              {formatMoney(yearTotal)}
+            </span>
+          </div>
         </div>
-        <button
-          type="button"
-          onClick={() => void load()}
-          className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
-        >
-          <RefreshCw className="w-3.5 h-3.5" /> Refresh
-        </button>
-        <div className="ml-auto text-sm font-semibold text-slate-600">
-          Visible annual total{' '}
-          <span className="font-black text-slate-900 tabular-nums">
-            {formatMoney(yearTotal)}
-          </span>
-        </div>
-      </div>
+        <p className="mt-3 text-[11px] text-neutral-500">
+          Columns are ordered by your financial year ({MONTH_LONG[fyStartMonth - 1]}{' '}
+          → {MONTH_LONG[(fyStartMonth + 10) % 12]}). Change the start month any
+          time under Accounting → Settings as well. Existing month amounts stay
+          on the same period slots (m01 = first month of FY).
+        </p>
+      </Panel>
 
       <Panel className="!p-0 overflow-hidden">
-        {loading ? (
+        {loading || !yearReady ? (
           <div className="flex justify-center py-20">
             <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
           </div>
@@ -349,12 +485,19 @@ function Inner() {
                     Account
                   </th>
                   <th className="px-2 py-3 font-semibold text-right">Type</th>
-                  {MONTH_LABELS.map((m) => (
-                    <th key={m} className="px-1 py-3 font-semibold text-right">
-                      {m}
+                  {headers.map((col) => (
+                    <th
+                      key={col.key}
+                      className="px-1 py-3 font-semibold text-right"
+                      title={col.label}
+                    >
+                      <div>{col.shortLabel}</div>
+                      <div className="font-normal normal-case tracking-normal text-[9px] text-neutral-400">
+                        {String(col.calendarYear).slice(2)}
+                      </div>
                     </th>
                   ))}
-                  <th className="px-2 py-3 font-semibold text-right">Annual</th>
+                  <th className="px-2 py-3 font-semibold text-right">FY total</th>
                   <th className="px-2 py-3 font-semibold text-right">
                     Spread
                   </th>
@@ -402,7 +545,7 @@ function Inner() {
                           type="number"
                           step="1"
                           placeholder="Annual"
-                          title="Enter annual total to spread evenly across 12 months"
+                          title="Enter FY total to spread evenly across 12 periods"
                           className="w-[4.5rem] rounded-lg border border-dashed border-slate-300 bg-slate-50 px-1 py-1 text-right text-[11px]"
                           onBlur={(e) => {
                             if (e.target.value) {
@@ -421,15 +564,15 @@ function Inner() {
         )}
       </Panel>
       <p className="mt-3 text-[11px] text-neutral-500">
-        Tip: use the <strong>Spread</strong> column to enter an annual amount
-        and auto-fill months. Yellow rows are unsaved. Budget drives{' '}
+        Tip: use <strong>Spread</strong> for an even FY total. Yellow rows are
+        unsaved. Plan vs actual uses the same financial year start (
         <Link
-          href="/dashboard/accounting/management"
+          href="/dashboard/accounting/settings"
           className="text-[#00b4d8] underline"
         >
-          management accounts
-        </Link>{' '}
-        and the budget vs actual report.
+          Accounting settings
+        </Link>
+        ).
       </p>
     </AccountingPage>
   );

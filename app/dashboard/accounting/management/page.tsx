@@ -86,11 +86,40 @@ function Inner() {
   const { user } = usePrivy();
   const privyUserId = getCanonicalUserId(user?.id);
 
-  // Default to YTD (Mar–today FY) so bank-allocated journals from earlier months show.
-  // "This month" is often empty mid-cycle after month-end allocations.
+  // Default to YTD so bank-allocated journals from earlier months show.
+  // FY start month comes from accounting_settings (default March).
+  const [fyStartMonth, setFyStartMonth] = useState(3);
   const [period, setPeriod] = useState<PeriodSlicerValue>(() =>
-    initialPeriodSlicerValue('ytd')
+    initialPeriodSlicerValue('ytd', 3)
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const params = new URLSearchParams({ companyId: String(companyId) });
+        if (privyUserId) params.set('privyUserId', privyUserId);
+        const res = await fetch(`/api/accounting/settings?${params}`);
+        const data = await res.json();
+        const sm = Number(data.settings?.fiscal_year_start_month || 3);
+        if (!cancelled && sm >= 1 && sm <= 12) {
+          setFyStartMonth(sm);
+          setPeriod((prev) => {
+            // Re-seed YTD when settings load if still on default ytd preset
+            if (prev.preset === 'ytd') {
+              return initialPeriodSlicerValue('ytd', sm);
+            }
+            return prev;
+          });
+        }
+      } catch {
+        /* soft */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId, privyUserId]);
 
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState<MgmtSummary | null>(null);
@@ -239,7 +268,11 @@ function Inner() {
         }
       />
 
-      <PeriodSlicer value={period} onChange={setPeriod} />
+      <PeriodSlicer
+        value={period}
+        onChange={setPeriod}
+        fyStartMonth={fyStartMonth}
+      />
 
       {loading ? (
         <div className="flex justify-center py-20">

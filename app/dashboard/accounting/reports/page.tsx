@@ -79,7 +79,42 @@ function Inner() {
   const { user } = usePrivy();
   const privyUserId = getCanonicalUserId(user?.id);
   const [report, setReport] = useState<string>('forecast');
-  const [period, setPeriod] = useState<PeriodSlicerValue>(() => initialPeriodSlicerValue('this_month'));
+  const [fyStartMonth, setFyStartMonth] = useState(3);
+  const [period, setPeriod] = useState<PeriodSlicerValue>(() =>
+    initialPeriodSlicerValue('this_month', 3)
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const params = new URLSearchParams({ companyId: String(companyId) });
+        if (privyUserId) params.set('privyUserId', privyUserId);
+        const res = await fetch(`/api/accounting/settings?${params}`);
+        const data = await res.json();
+        const sm = Number(data.settings?.fiscal_year_start_month || 3);
+        if (!cancelled && sm >= 1 && sm <= 12) {
+          setFyStartMonth(sm);
+          setPeriod((prev) => {
+            if (
+              prev.preset === 'this_month' ||
+              prev.preset === 'ytd' ||
+              prev.preset === 'full_fy'
+            ) {
+              return initialPeriodSlicerValue(prev.preset, sm);
+            }
+            return prev;
+          });
+        }
+      } catch {
+        /* soft */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId, privyUserId]);
+
   const [horizonMonths, setHorizonMonths] = useState(12);
   const [selectedHorizons, setSelectedHorizons] = useState<number[]>([1, 3, 6, 9, 12]);
   const [includePipeline, setIncludePipeline] = useState(true);
@@ -264,6 +299,7 @@ function Inner() {
       <PeriodSlicer
         value={period}
         onChange={setPeriod}
+        fyStartMonth={fyStartMonth}
         showTrailing
         footer={
           <div className="pt-3 border-t border-neutral-100 space-y-3">

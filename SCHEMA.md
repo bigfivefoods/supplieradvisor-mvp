@@ -152,9 +152,10 @@ Feature flag: `CUSTOMER_INVITES_ENABLED` (default true when unset).
 ### Core
 | Table | Purpose |
 |-------|---------|
-| `profiles` | Companies / workspaces (onboarding, currency, timezone, buyer flag, metadata) |
+| `profiles` | Companies / workspaces (onboarding, currency, timezone, buyer flag, metadata; `parent_profile_id` for holding tree) |
 | `business_users` | Team memberships, permissions, invite expiry |
 | `business_connections` | Partner network links (status, type, notes, metadata incl. `suspended` for customer edges) |
+| `company_group_links` | Holding/subsidiary, association membership, franchise, JV, affiliates (`parent_profile_id` ↔ `child_profile_id`, status pending\|active\|…). Migration: `20260723_company_group_links.sql`. API: `/api/business/group-links`. UI: `/dashboard/my-business/group`. |
 | `invitations` | Team / supplier invites |
 
 ### Procurement

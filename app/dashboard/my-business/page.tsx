@@ -16,6 +16,7 @@ import {
   Globe,
   RefreshCw,
   CreditCard,
+  Network,
 } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -118,9 +119,17 @@ function HubInner() {
       metricLabel: 'complete',
     },
     {
+      href: '/dashboard/my-business/group',
+      icon: Network,
+      code: '02',
+      title: 'Group',
+      desc: 'Link to a holding company, invite subsidiaries, join associations.',
+      accent: 'from-indigo-50 to-white border-indigo-100',
+    },
+    {
       href: '/dashboard/my-business/team',
       icon: Users,
-      code: '02',
+      code: '03',
       title: 'Team',
       desc: 'Invite members, assign roles, manage access rights.',
       accent: 'from-sky-50 to-white border-sky-100',
@@ -130,7 +139,7 @@ function HubInner() {
     {
       href: '/dashboard/my-business/billing',
       icon: CreditCard,
-      code: '03',
+      code: '04',
       title: 'Billing',
       desc: '30-day free trial, then R299/mo via Paystack (save up to 30% prepaid).',
       accent: 'from-amber-50 to-white border-amber-100',
@@ -159,7 +168,7 @@ function HubInner() {
     {
       href: '/dashboard/my-business/settings',
       icon: Settings,
-      code: '04',
+      code: '05',
       title: 'Settings',
       desc: 'Timezone, currency, notifications, discoverability.',
       accent: 'from-cyan-50 to-white border-cyan-100',
@@ -167,7 +176,7 @@ function HubInner() {
     {
       href: '/dashboard/my-business/legal',
       icon: ShieldCheck,
-      code: '05',
+      code: '06',
       title: 'Legal',
       desc: 'Registration, B-BBEE, tax, regulatory posture.',
       accent: 'from-emerald-50 to-white border-emerald-100',
@@ -175,7 +184,7 @@ function HubInner() {
     {
       href: '/dashboard/my-business/documents',
       icon: FileText,
-      code: '06',
+      code: '07',
       title: 'Documents',
       desc: 'Company files, policies, and contracts vault.',
       accent: 'from-amber-50 to-white border-amber-100',
@@ -185,7 +194,7 @@ function HubInner() {
     {
       href: '/dashboard/my-business/projects',
       icon: FolderOpen,
-      code: '07',
+      code: '08',
       title: 'Projects',
       desc: 'Strategic initiatives and internal workstreams.',
       accent: 'from-rose-50 to-white border-rose-100',
@@ -193,7 +202,7 @@ function HubInner() {
     {
       href: '/dashboard/my-business/riad-log',
       icon: Scale,
-      code: '08',
+      code: '09',
       title: 'RIAD',
       desc: 'Internal risks, issues, actions, and decisions.',
       accent: 'from-slate-50 to-white border-slate-200',
@@ -203,7 +212,7 @@ function HubInner() {
     {
       href: '/dashboard/my-business/trust',
       icon: CheckCircle2,
-      code: '09',
+      code: '10',
       title: 'Trust',
       desc: 'OTIFEF, peer stars, and how the trust score is built.',
       accent: 'from-emerald-50 to-white border-emerald-100',
@@ -211,7 +220,7 @@ function HubInner() {
     {
       href: '/dashboard/my-business/founding-waitlist',
       icon: UserPlus,
-      code: '10',
+      code: '11',
       title: 'Founding waitlist',
       desc: 'Platform ops: manage homepage waitlist when founding slots are full.',
       accent: 'from-violet-50 to-white border-violet-100',

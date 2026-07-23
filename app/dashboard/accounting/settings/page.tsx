@@ -289,11 +289,8 @@ function Inner() {
                 className="field"
               />
             </Field>
-            <Field label="Fiscal year start month (1–12)">
-              <input
-                type="number"
-                min={1}
-                max={12}
+            <Field label="Financial year starts">
+              <select
                 value={settings?.fiscal_year_start_month ?? 3}
                 onChange={(e) =>
                   setSettings((s) => ({
@@ -302,7 +299,30 @@ function Inner() {
                   }))
                 }
                 className="field"
-              />
+              >
+                {[
+                  'January',
+                  'February',
+                  'March',
+                  'April',
+                  'May',
+                  'June',
+                  'July',
+                  'August',
+                  'September',
+                  'October',
+                  'November',
+                  'December',
+                ].map((name, i) => (
+                  <option key={name} value={i + 1}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-[11px] text-neutral-500">
+                Budgets, YTD, Full FY, and plan vs actual follow this start month
+                (default March for South Africa).
+              </p>
             </Field>
             <Field label="Default tax rate %">
               <input

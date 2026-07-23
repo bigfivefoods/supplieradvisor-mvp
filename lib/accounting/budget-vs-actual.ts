@@ -1,14 +1,24 @@
 /**
  * Build plan vs actual by COA for a period, using accounting_budgets.
+ * Budget months are fiscal periods aligned to the company's FY start month.
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { round2 } from '@/lib/accounting/server';
+import { getOrCreateSettings, round2 } from '@/lib/accounting/server';
 import {
-  monthsInPeriod,
-  sumBudgetRange,
+  budgetFyMeta,
+  dateToBudgetPeriod,
+  fiscalYearsInDateRange,
+  fyMonthColumns,
+  sumBudgetForDateRange,
   variance,
-  MONTH_KEYS,
+  normalizeFyStartMonth,
+  fiscalYearStartYear,
 } from '@/lib/accounting/budget';
+import {
+  fiscalYearEnd,
+  fiscalYearStart,
+  toIsoDate,
+} from '@/lib/accounting/fiscal';
 
 export type BudgetVsActualRow = {
   account_id: number;
@@ -27,13 +37,19 @@ export async function buildBudgetVsActual(opts: {
   companyId: number;
   from?: string | null;
   to?: string | null;
+  /** FY start year (calendar year FY begins). Prefer from/to. */
   year?: number;
   accounts: Array<Record<string, unknown>>;
   actualByAccount: Record<number, { debit: number; credit: number }>;
+  /** Override settings lookup */
+  fyStartMonth?: number | null;
 }): Promise<{
   year: number;
-  fromMonth: number;
-  toMonth: number;
+  fyStartMonth: number;
+  fyLabel: string;
+  fyRangeLabel: string;
+  from: string;
+  to: string;
   rows: BudgetVsActualRow[];
   summary: {
     budgetRevenue: number;
@@ -48,32 +64,53 @@ export async function buildBudgetVsActual(opts: {
   };
   monthly?: Array<{
     month: number;
+    period: number;
     label: string;
     budgetRevenue: number;
     budgetExpenses: number;
   }>;
   warning?: string;
 }> {
-  const from = opts.from || null;
-  const to = opts.to || null;
-  const year =
-    opts.year ||
-    (from ? Number(from.slice(0, 4)) : new Date().getFullYear());
+  const settings = opts.fyStartMonth
+    ? { fiscal_year_start_month: opts.fyStartMonth }
+    : await getOrCreateSettings(opts.companyId);
+  const fyStartMonth = normalizeFyStartMonth(
+    settings.fiscal_year_start_month ?? opts.fyStartMonth
+  );
 
-  const { fromMonth, toMonth } = monthsInPeriod(year, from, to);
+  const defaultYear =
+    opts.year && Number.isFinite(opts.year)
+      ? Number(opts.year)
+      : fiscalYearStartYear(new Date(), fyStartMonth);
+
+  const from =
+    opts.from ||
+    toIsoDate(fiscalYearStart(new Date(defaultYear, fyStartMonth - 1, 15), fyStartMonth));
+  const to =
+    opts.to ||
+    toIsoDate(fiscalYearEnd(new Date(defaultYear, fyStartMonth - 1, 15), fyStartMonth));
+
+  // Primary FY for labelling (first month of range)
+  const primaryFy = dateToBudgetPeriod(from, fyStartMonth).fiscalYear;
+  const meta = budgetFyMeta(primaryFy, fyStartMonth);
+
+  const years = fiscalYearsInDateRange(from, to, fyStartMonth);
   const supabase = getSupabaseServer();
 
   const { data: budgets, error } = await supabase
     .from('accounting_budgets')
     .select('*')
     .eq('profile_id', opts.companyId)
-    .eq('fiscal_year', year);
+    .in('fiscal_year', years.length ? years : [primaryFy]);
 
   if (error) {
     return {
-      year,
-      fromMonth,
-      toMonth,
+      year: primaryFy,
+      fyStartMonth,
+      fyLabel: meta.fyLabel,
+      fyRangeLabel: meta.fyRangeLabel,
+      from,
+      to,
       rows: [],
       summary: {
         budgetRevenue: 0,
@@ -90,9 +127,16 @@ export async function buildBudgetVsActual(opts: {
     };
   }
 
-  const budgetByAcct = new Map<number, Record<string, unknown>>();
+  // account_id → Map(fiscal_year → row)
+  const byAccount = new Map<
+    number,
+    Map<number, Record<string, unknown>>
+  >();
   for (const b of budgets || []) {
-    budgetByAcct.set(Number(b.account_id), b as Record<string, unknown>);
+    const aid = Number(b.account_id);
+    const fy = Number(b.fiscal_year);
+    if (!byAccount.has(aid)) byAccount.set(aid, new Map());
+    byAccount.get(aid)!.set(fy, b as Record<string, unknown>);
   }
 
   const rows: BudgetVsActualRow[] = [];
@@ -121,16 +165,12 @@ export async function buildBudgetVsActual(opts: {
       ? round2(t.credit - t.debit)
       : round2(t.debit - t.credit);
 
-    const b = budgetByAcct.get(aid);
-    const budget =
-      toMonth >= fromMonth
-        ? sumBudgetRange(b, fromMonth, toMonth)
-        : 0;
+    const fyMap = byAccount.get(aid) || new Map();
+    const budget = sumBudgetForDateRange(fyMap, from, to, fyStartMonth);
 
     if (actual === 0 && budget === 0) continue;
 
     const v = variance(actual, budget);
-    // For P&L: revenue over budget is favourable; expense over is unfavourable
     let favourable: boolean | null = null;
     if (v.status !== 'n/a' && v.status !== 'on') {
       if (isRevenue) favourable = actual >= budget;
@@ -175,31 +215,17 @@ export async function buildBudgetVsActual(opts: {
   const budgetNet = round2(budgetRevenue - budgetCogs - budgetExpenses);
   const actualNet = round2(actualRevenue - actualCogs - actualExpenses);
 
-  // Monthly budget profile for charts
-  const monthly = [];
-  const labels = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ];
-  for (let m = 1; m <= 12; m++) {
+  // Monthly budget profile in FY order for the primary FY
+  const columns = fyMonthColumns(primaryFy, fyStartMonth);
+  const monthly = columns.map((col) => {
     let br = 0;
     let be = 0;
     for (const a of opts.accounts) {
       if (a.is_header) continue;
       const type = String(a.account_type || '').toLowerCase();
-      const b = budgetByAcct.get(Number(a.id));
-      if (!b) continue;
-      const amt = Number(b[MONTH_KEYS[m - 1]] || 0);
+      const row = byAccount.get(Number(a.id))?.get(primaryFy);
+      if (!row) continue;
+      const amt = Number(row[col.key] || 0);
       if (type === 'revenue' || type === 'income' || type === 'sales') br += amt;
       else if (
         type === 'expense' ||
@@ -211,18 +237,22 @@ export async function buildBudgetVsActual(opts: {
         be += amt;
       }
     }
-    monthly.push({
-      month: m,
-      label: labels[m - 1],
+    return {
+      month: col.calendarMonth,
+      period: col.period,
+      label: col.shortLabel,
       budgetRevenue: round2(br),
       budgetExpenses: round2(be),
-    });
-  }
+    };
+  });
 
   return {
-    year,
-    fromMonth,
-    toMonth,
+    year: primaryFy,
+    fyStartMonth,
+    fyLabel: meta.fyLabel,
+    fyRangeLabel: meta.fyRangeLabel,
+    from,
+    to,
     rows,
     summary: {
       budgetRevenue,

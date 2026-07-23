@@ -101,11 +101,38 @@ function Inner() {
   const [bulkCode, setBulkCode] = useState('VAT15');
   const [taxInclusive, setTaxInclusive] = useState(true);
 
+  const [fyStartMonth, setFyStartMonth] = useState(3);
   const [period, setPeriod] = useState<PeriodSlicerValue>(() =>
-    initialPeriodSlicerValue('this_quarter')
+    initialPeriodSlicerValue('this_quarter', 3)
   );
   const from = period.from;
   const to = period.to;
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const params = new URLSearchParams({ companyId: String(companyId) });
+        if (privyUserId) params.set('privyUserId', privyUserId);
+        const res = await fetch(`/api/accounting/settings?${params}`);
+        const data = await res.json();
+        const sm = Number(data.settings?.fiscal_year_start_month || 3);
+        if (!cancelled && sm >= 1 && sm <= 12) {
+          setFyStartMonth(sm);
+          setPeriod((prev) =>
+            prev.preset === 'this_quarter'
+              ? initialPeriodSlicerValue('this_quarter', sm)
+              : prev
+          );
+        }
+      } catch {
+        /* soft */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId, privyUserId]);
 
   const [form, setForm] = useState({
     code: '',
@@ -313,7 +340,11 @@ function Inner() {
         }
       />
 
-      <PeriodSlicer value={period} onChange={setPeriod} />
+      <PeriodSlicer
+        value={period}
+        onChange={setPeriod}
+        fyStartMonth={fyStartMonth}
+      />
 
       {loading ? (
         <div className="flex justify-center py-20">

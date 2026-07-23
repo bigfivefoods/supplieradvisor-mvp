@@ -1,36 +1,50 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { parseCompanyId, round2 } from '@/lib/accounting/server';
+import {
+  getOrCreateSettings,
+  parseCompanyId,
+  round2,
+} from '@/lib/accounting/server';
 import { requireCompanyAccess, legacyPrivyFrom } from '@/lib/auth/api-auth';
 import {
   MONTH_KEYS,
+  budgetFyMeta,
   emptyMonths,
+  fiscalYearStartYear,
+  normalizeFyStartMonth,
   sumBudgetMonths,
-  type MonthKey,
 } from '@/lib/accounting/budget';
 
 const HINT = 'Run supabase/migrations/20260723_accounting_budgets.sql';
 
 /**
  * GET ?companyId=&year=2026
- * Returns leaf COA accounts with 12-month budget rows for the year.
+ * year = calendar year when the financial year **starts**.
+ * m01…m12 are FY periods (period 1 = FY start month).
  */
 export async function GET(request: NextRequest) {
   try {
     const sp = request.nextUrl.searchParams;
     const companyId = parseCompanyId(sp.get('companyId'));
-    const year = Number(sp.get('year') || new Date().getFullYear());
     if (!Number.isFinite(companyId)) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
-    }
-    if (!Number.isFinite(year) || year < 2000 || year > 2100) {
-      return NextResponse.json({ error: 'Invalid year' }, { status: 400 });
     }
     const gate = await requireCompanyAccess(request, companyId, {
       legacyPrivyUserId: legacyPrivyFrom(request),
     });
     if (!gate.ok) return gate.response;
 
+    const settings = await getOrCreateSettings(companyId);
+    const fyStartMonth = normalizeFyStartMonth(
+      settings.fiscal_year_start_month
+    );
+    const defaultYear = fiscalYearStartYear(new Date(), fyStartMonth);
+    const year = Number(sp.get('year') || defaultYear);
+    if (!Number.isFinite(year) || year < 2000 || year > 2100) {
+      return NextResponse.json({ error: 'Invalid year' }, { status: 400 });
+    }
+
+    const fy = budgetFyMeta(year, fyStartMonth);
     const supabase = getSupabaseServer();
     const { data: accounts, error: aErr } = await supabase
       .from('chart_of_accounts')
@@ -42,6 +56,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         success: true,
         year,
+        ...fy,
         rows: [],
         warning: aErr.message,
         hint: 'Seed Chart of Accounts first',
@@ -58,6 +73,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         success: true,
         year,
+        ...fy,
         rows: [],
         warning: bErr.message,
         hint: HINT,
@@ -69,7 +85,9 @@ export async function GET(request: NextRequest) {
       byAcct.set(Number(b.account_id), b as Record<string, unknown>);
     }
 
-    const leaf = (accounts || []).filter((a) => !a.is_header && a.is_active !== false);
+    const leaf = (accounts || []).filter(
+      (a) => !a.is_header && a.is_active !== false
+    );
     const rows = leaf.map((a) => {
       const b = byAcct.get(Number(a.id));
       const months = emptyMonths();
@@ -100,6 +118,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       year,
+      ...fy,
+      monthLabels: fy.columns.map((c) => c.shortLabel),
+      monthColumns: fy.columns,
       rows,
       totalsByType,
       accountCount: rows.length,
@@ -124,20 +145,78 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const companyId = parseCompanyId(body.companyId);
-    const year = Number(body.year || new Date().getFullYear());
     if (!Number.isFinite(companyId)) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
-    }
-    if (!Number.isFinite(year) || year < 2000 || year > 2100) {
-      return NextResponse.json({ error: 'Invalid year' }, { status: 400 });
     }
     const gate = await requireCompanyAccess(request, companyId, {
       legacyPrivyUserId: legacyPrivyFrom(request, body),
     });
     if (!gate.ok) return gate.response;
 
+    const settings = await getOrCreateSettings(companyId);
+    const fyStartMonth = normalizeFyStartMonth(
+      settings.fiscal_year_start_month
+    );
+    const defaultYear = fiscalYearStartYear(new Date(), fyStartMonth);
+    const year = Number(body.year || defaultYear);
+    if (!Number.isFinite(year) || year < 2000 || year > 2100) {
+      return NextResponse.json({ error: 'Invalid year' }, { status: 400 });
+    }
+
     const supabase = getSupabaseServer();
     const action = String(body.action || 'upsert').toLowerCase();
+
+    // Set company financial year start month (1–12)
+    if (action === 'set_fy_start') {
+      const month = normalizeFyStartMonth(body.fiscalYearStartMonth ?? body.month);
+      if (
+        body.fiscalYearStartMonth != null &&
+        (Number(body.fiscalYearStartMonth) < 1 ||
+          Number(body.fiscalYearStartMonth) > 12)
+      ) {
+        return NextResponse.json(
+          { error: 'fiscalYearStartMonth must be 1–12' },
+          { status: 400 }
+        );
+      }
+      const { data, error } = await supabase
+        .from('accounting_settings')
+        .update({
+          fiscal_year_start_month: month,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('profile_id', companyId)
+        .select('*')
+        .single();
+      if (error) {
+        // ensure row exists
+        await getOrCreateSettings(companyId);
+        const retry = await supabase
+          .from('accounting_settings')
+          .update({
+            fiscal_year_start_month: month,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('profile_id', companyId)
+          .select('*')
+          .single();
+        if (retry.error) {
+          return NextResponse.json({ error: retry.error.message }, { status: 400 });
+        }
+        return NextResponse.json({
+          success: true,
+          fiscalYearStartMonth: month,
+          settings: retry.data,
+          fy: budgetFyMeta(year, month),
+        });
+      }
+      return NextResponse.json({
+        success: true,
+        fiscalYearStartMonth: month,
+        settings: data,
+        fy: budgetFyMeta(year, month),
+      });
+    }
 
     if (action === 'copy_year') {
       const fromYear = Number(body.fromYear);

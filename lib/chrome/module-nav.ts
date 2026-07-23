@@ -92,6 +92,11 @@ export const MODULE_NAV: readonly ModuleNav[] = [
     steps: [
       { name: 'Overview', href: '/dashboard/my-business', exact: true },
       { name: 'Profile', href: '/dashboard/my-business/profile' },
+      {
+        name: 'Group',
+        href: '/dashboard/my-business/group',
+        desc: 'Holding company, subsidiaries, associations',
+      },
       { name: 'Team', href: '/dashboard/my-business/team' },
       { name: 'Sales program', href: '/dashboard/my-business/sales-program' },
       { name: 'Billing', href: '/dashboard/my-business/billing' },
