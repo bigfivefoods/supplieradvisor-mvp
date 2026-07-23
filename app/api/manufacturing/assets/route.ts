@@ -151,7 +151,33 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    return NextResponse.json({ success: true, asset });
+    // Mirror into accounting fixed_assets + link PPE / depr / expense COA accounts
+    let fixedAsset: { ok: boolean; fixedAssetId?: number; error?: string } | null =
+      null;
+    try {
+      const { syncManufacturingAssetToFixedAssets } = await import(
+        '@/lib/manufacturing/post-cost-to-gl'
+      );
+      fixedAsset = await syncManufacturingAssetToFixedAssets({
+        companyId,
+        assetId: Number(asset.id),
+      });
+    } catch (e: unknown) {
+      fixedAsset = {
+        ok: false,
+        error: e instanceof Error ? e.message : 'fixed_assets sync failed',
+      };
+    }
+
+    return NextResponse.json({
+      success: true,
+      asset,
+      fixedAsset: fixedAsset?.ok
+        ? { id: fixedAsset.fixedAssetId }
+        : null,
+      fixedAssetWarning:
+        fixedAsset && !fixedAsset.ok ? fixedAsset.error : undefined,
+    });
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },

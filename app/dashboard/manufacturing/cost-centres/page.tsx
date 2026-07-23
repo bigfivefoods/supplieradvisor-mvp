@@ -89,6 +89,9 @@ type Entry = {
   work_center_id?: number | null;
   work_station_id?: number | null;
   asset_id?: number | null;
+  journal_entry_id?: number | null;
+  gl_account_id?: number | null;
+  metadata?: { journal_entry_number?: string } | null;
 };
 type Rollup = {
   from: string;
@@ -382,7 +385,17 @@ function Inner() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || data.hint || 'Failed');
-      toast.success('Expense allocated');
+      if (data.journal?.entryNumber || data.journal?.id) {
+        toast.success(
+          `Expense allocated · GL ${data.journal.entryNumber || data.journal.id}`
+        );
+      } else if (data.journalWarning) {
+        toast.message('Expense saved — GL not posted', {
+          description: data.journalWarning,
+        });
+      } else {
+        toast.success('Expense allocated');
+      }
       setExpForm((f) => ({ ...f, amount: '', description: '' }));
       void load();
     } catch (e: unknown) {
@@ -1161,18 +1174,34 @@ function Inner() {
                               ? `ST#${e.work_station_id}`
                               : null,
                             e.asset_id ? `Asset#${e.asset_id}` : null,
+                            e.journal_entry_id
+                              ? `JE ${
+                                  (e.metadata as { journal_entry_number?: string })
+                                    ?.journal_entry_number || e.journal_entry_id
+                                }`
+                              : 'No GL yet',
                           ]
                             .filter(Boolean)
                             .join(' · ')}
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => void remove('cost-entries', e.id)}
-                        className="p-1.5 rounded-lg text-neutral-400 hover:text-rose-600"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      <span className="flex items-center gap-1">
+                        {e.journal_entry_id ? (
+                          <a
+                            href={`/dashboard/accounting/journals?id=${e.journal_entry_id}`}
+                            className="text-[10px] font-bold text-[#0077b6] underline"
+                          >
+                            COA
+                          </a>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={() => void remove('cost-entries', e.id)}
+                          className="p-1.5 rounded-lg text-neutral-400 hover:text-rose-600"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </span>
                     </li>
                   ))}
                   {!entries.length ? (

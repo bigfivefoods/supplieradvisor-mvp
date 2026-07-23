@@ -120,7 +120,53 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    return NextResponse.json({ success: true, entry: data });
+
+    // Post double-entry to Chart of Accounts (soft if COA not seeded)
+    let gl: {
+      ok: boolean;
+      journalId?: number;
+      entryNumber?: string;
+      error?: string;
+    } | null = null;
+    try {
+      const { postManufacturingCostEntryToGl } = await import(
+        '@/lib/manufacturing/post-cost-to-gl'
+      );
+      gl = await postManufacturingCostEntryToGl({
+        companyId,
+        costEntryId: Number(data.id),
+        createdBy: gate.userId || null,
+      });
+      if (gl.ok && gl.journalId) {
+        const { data: refreshed } = await supabase
+          .from('manufacturing_cost_entries')
+          .select('*')
+          .eq('id', data.id)
+          .maybeSingle();
+        return NextResponse.json({
+          success: true,
+          entry: refreshed || data,
+          journal: {
+            id: gl.journalId,
+            entryNumber: gl.entryNumber,
+          },
+        });
+      }
+    } catch (e: unknown) {
+      gl = {
+        ok: false,
+        error: e instanceof Error ? e.message : 'GL post failed',
+      };
+    }
+
+    return NextResponse.json({
+      success: true,
+      entry: data,
+      journal: gl?.ok
+        ? { id: gl.journalId, entryNumber: gl.entryNumber }
+        : null,
+      journalWarning: gl && !gl.ok ? gl.error : undefined,
+    });
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },

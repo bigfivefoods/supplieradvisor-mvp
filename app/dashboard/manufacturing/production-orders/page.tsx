@@ -289,7 +289,7 @@ function OrdersInner() {
       <ManufacturingHeader
         title="Work"
         titleAccent="orders"
-        description="Shop-floor execution — plan, release, run, hold, complete. Priority-ranked with live completion telemetry."
+        description="Shop-floor execution — plan, release, run, hold, complete. Log hours to post labor to cost centres (hours × cell rate)."
         action={
           <button
             type="button"
@@ -378,6 +378,22 @@ function OrdersInner() {
                         {o.work_center_code && (
                           <span className="font-mono">CELL {o.work_center_code}</span>
                         )}
+                        {Number(o.labor_cost) > 0 ? (
+                          <span className="text-emerald-800 font-bold">
+                            Labor R{Number(o.labor_cost).toLocaleString()}
+                            {Number(o.labor_hours) > 0
+                              ? ` (${o.labor_hours}h)`
+                              : ''}
+                            {(o as { labor_journal_entry_id?: number })
+                              .labor_journal_entry_id
+                              ? ' · GL'
+                              : ''}
+                          </span>
+                        ) : Number(o.labor_hours) > 0 ? (
+                          <span className="text-amber-800">
+                            {o.labor_hours}h logged
+                          </span>
+                        ) : null}
                         {o.scheduled_start && (
                           <span>
                             Start {new Date(o.scheduled_start).toLocaleDateString()}
@@ -437,6 +453,13 @@ function OrdersInner() {
                         </button>
                         <button
                           type="button"
+                          onClick={() => void logHours(o)}
+                          className="inline-flex items-center gap-1 rounded-xl border border-violet-200 bg-violet-50 px-3 py-1.5 text-[11px] font-bold text-violet-900 hover:bg-violet-100"
+                        >
+                          Log hours
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => void act(o.id, 'hold')}
                           className="inline-flex items-center gap-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-[11px] font-bold text-amber-900 hover:bg-amber-100"
                         >
@@ -444,12 +467,21 @@ function OrdersInner() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => void act(o.id, 'complete')}
+                          onClick={() => void completeWithLabor(o)}
                           className="inline-flex items-center gap-1 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[11px] font-bold text-emerald-800 hover:bg-emerald-100"
                         >
                           <CheckCircle2 className="w-3.5 h-3.5" /> Complete
                         </button>
                       </>
+                    )}
+                    {o.status === 'complete' && Number(o.labor_cost || 0) <= 0 && (
+                      <button
+                        type="button"
+                        onClick={() => void logHours(o)}
+                        className="inline-flex items-center gap-1 rounded-xl border border-violet-200 bg-violet-50 px-3 py-1.5 text-[11px] font-bold text-violet-900 hover:bg-violet-100"
+                      >
+                        Capture labor
+                      </button>
                     )}
                   </div>
                 </div>

@@ -243,6 +243,29 @@ export async function captureProductionOrderLabor(opts: {
   };
   if (workStationId) orderUpdates.work_station_id = workStationId;
 
+  // Post to Chart of Accounts / journal (Dr labour COGS, Cr accruals)
+  let glNote = '';
+  try {
+    const { postManufacturingCostEntryToGl } = await import(
+      '@/lib/manufacturing/post-cost-to-gl'
+    );
+    const gl = await postManufacturingCostEntryToGl({
+      companyId,
+      costEntryId: costEntryId!,
+      force: opts.replace !== false,
+    });
+    if (gl.ok && gl.journalId) {
+      orderUpdates.labor_journal_entry_id = gl.journalId;
+      glNote = gl.skipped
+        ? ` · GL JE #${gl.journalId} (existing)`
+        : ` · GL ${gl.entryNumber || gl.journalId}`;
+    } else if (!gl.ok && gl.error) {
+      glNote = ` · GL soft-skip: ${gl.error}`;
+    }
+  } catch (e: unknown) {
+    glNote = ` · GL soft-skip: ${e instanceof Error ? e.message : 'post failed'}`;
+  }
+
   const { error: ordErr } = await supabase
     .from('manufacturing_production_orders')
     .update(orderUpdates)
@@ -258,7 +281,7 @@ export async function captureProductionOrderLabor(opts: {
       laborCost: cost,
       costEntryId,
       currency,
-      message: `Labor posted (${cost} ${currency}) but order fields need migration: ${ordErr.message}`,
+      message: `Labor posted (${cost} ${currency}) but order fields need migration: ${ordErr.message}${glNote}`,
     };
   }
 
@@ -269,6 +292,6 @@ export async function captureProductionOrderLabor(opts: {
     laborCost: cost,
     costEntryId,
     currency,
-    message: `Labor ${hours}h × ${rate} = ${cost} ${currency} posted to cost centre`,
+    message: `Labor ${hours}h × ${rate} = ${cost} ${currency} → cost centre + COA${glNote}`,
   };
 }
