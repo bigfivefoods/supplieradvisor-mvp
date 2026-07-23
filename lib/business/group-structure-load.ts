@@ -49,7 +49,13 @@ export async function loadFullGroupStructure(
       .eq('id', companyId)
       .maybeSingle();
     if (me) {
-      company_name = displayCompanyName(me as GroupPeerProfile, companyId);
+      company_name = displayCompanyName(
+        {
+          trading_name: me.trading_name ?? null,
+          legal_name: me.legal_name ?? null,
+        },
+        companyId
+      );
     }
   } catch {
     /* soft */
@@ -110,7 +116,13 @@ export async function loadFullGroupStructure(
       const id = Number(p.id);
       nameById.set(
         id,
-        displayCompanyName(p as GroupPeerProfile, id)
+        displayCompanyName(
+          {
+            trading_name: p.trading_name ?? null,
+            legal_name: p.legal_name ?? null,
+          },
+          id
+        )
       );
     }
   }

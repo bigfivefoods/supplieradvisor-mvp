@@ -243,7 +243,13 @@ export async function GET(request: NextRequest) {
         .eq('id', companyId)
         .maybeSingle();
       if (me) {
-        company_name = displayCompanyName(me as GroupPeerProfile, companyId);
+        company_name = displayCompanyName(
+          {
+            trading_name: me.trading_name ?? null,
+            legal_name: me.legal_name ?? null,
+          },
+          companyId
+        );
         parent_profile_id = me.parent_profile_id
           ? Number(me.parent_profile_id)
           : null;
