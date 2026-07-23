@@ -18,8 +18,8 @@ import { stageProbability } from '@/lib/customers/types';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /**
- * GET ?companyId=&report=trial_balance|pnl|balance_sheet|ar_aging|ap_aging|cashflow|management_accounts|trends|forecast
- * Optional: from=&to= (YYYY-MM-DD), months=12 (history), horizons=1,3,6,9,12 | horizonMonths=12,
+ * GET ?companyId=&report=trial_balance|pnl|balance_sheet|ar_aging|ap_aging|cashflow|management_accounts|budget_vs_actual|trends|forecast
+ * Optional: from=&to= (YYYY-MM-DD), year= (budget), months=12 (history), horizons=1,3,6,9,12 | horizonMonths=12,
  * includePipeline=1
  */
 export async function GET(request: NextRequest) {
@@ -431,6 +431,23 @@ export async function GET(request: NextRequest) {
           ? `No posted journals between ${from || '…'} and ${to || '…'}. Try YTD, Full FY, or multi-select months that cover your bank allocations.`
           : undefined;
 
+      // Soft: budget (plan) vs actual for the period's fiscal year(s)
+      let budgetVsActual: Record<string, unknown> | null = null;
+      try {
+        const { buildBudgetVsActual } = await import(
+          '@/lib/accounting/budget-vs-actual'
+        );
+        budgetVsActual = await buildBudgetVsActual({
+          companyId,
+          from: from || null,
+          to: to || null,
+          accounts: accounts as Array<Record<string, unknown>>,
+          actualByAccount: totals,
+        });
+      } catch {
+        budgetVsActual = null;
+      }
+
       return NextResponse.json({
         success: true,
         report,
@@ -452,6 +469,13 @@ export async function GET(request: NextRequest) {
           unallocatedIn: round2(unallocatedIn),
           unallocatedOut: round2(unallocatedOut),
           allocatedCount,
+          budgetRevenue: budgetVsActual?.summary
+            ? (budgetVsActual.summary as { budgetRevenue?: number }).budgetRevenue
+            : undefined,
+          budgetExpenses: budgetVsActual?.summary
+            ? (budgetVsActual.summary as { budgetExpenses?: number })
+                .budgetExpenses
+            : undefined,
         },
         income,
         cogs: cogsRows,
@@ -464,6 +488,77 @@ export async function GET(request: NextRequest) {
           allocatedCount,
           recentAllocated,
         },
+        budgetVsActual,
+      });
+    }
+
+    // ── Budget (plan) vs actual report ─────────────────────────────────────
+    if (report === 'budget_vs_actual') {
+      const year = Number(
+        request.nextUrl.searchParams.get('year') ||
+          (from ? from.slice(0, 4) : new Date().getFullYear())
+      );
+      const { data: accounts, error: accErr } = await supabase
+        .from('chart_of_accounts')
+        .select('*')
+        .eq('profile_id', companyId)
+        .order('code');
+      if (accErr) {
+        return NextResponse.json({
+          success: true,
+          report,
+          rows: [],
+          warning: accErr.message,
+        });
+      }
+
+      // Actuals from posted journals in range (default full year)
+      const rangeFrom = from || `${year}-01-01`;
+      const rangeTo = to || `${year}-12-31`;
+      let jeQ = supabase
+        .from('journal_entries')
+        .select('id')
+        .eq('profile_id', companyId)
+        .eq('status', 'posted')
+        .gte('entry_date', rangeFrom)
+        .lte('entry_date', rangeTo);
+      const { data: entries } = await jeQ;
+      const entryIds = (entries || []).map((e) => Number(e.id));
+      const totals: Record<number, { debit: number; credit: number }> = {};
+      if (entryIds.length) {
+        const chunkSize = 150;
+        for (let i = 0; i < entryIds.length; i += chunkSize) {
+          const chunk = entryIds.slice(i, i + chunkSize);
+          const { data: lineRows } = await supabase
+            .from('journal_lines')
+            .select('account_id, debit, credit')
+            .in('journal_entry_id', chunk);
+          for (const l of lineRows || []) {
+            const aid = Number(l.account_id);
+            if (!totals[aid]) totals[aid] = { debit: 0, credit: 0 };
+            totals[aid].debit += Number(l.debit || 0);
+            totals[aid].credit += Number(l.credit || 0);
+          }
+        }
+      }
+
+      const { buildBudgetVsActual } = await import(
+        '@/lib/accounting/budget-vs-actual'
+      );
+      const result = await buildBudgetVsActual({
+        companyId,
+        from: rangeFrom,
+        to: rangeTo,
+        year,
+        accounts: (accounts || []) as Array<Record<string, unknown>>,
+        actualByAccount: totals,
+      });
+
+      return NextResponse.json({
+        success: true,
+        report,
+        period: { from: rangeFrom, to: rangeTo, year },
+        ...result,
       });
     }
 

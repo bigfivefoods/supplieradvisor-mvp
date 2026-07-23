@@ -109,6 +109,28 @@ function Inner() {
     bankOut: number[];
     cashNet: number[];
   } | null>(null);
+  const [budgetVsActual, setBudgetVsActual] = useState<{
+    summary?: {
+      hasBudget?: boolean;
+      budgetRevenue?: number;
+      actualRevenue?: number;
+      budgetExpenses?: number;
+      actualExpenses?: number;
+      budgetNet?: number;
+      actualNet?: number;
+      budgetCogs?: number;
+      actualCogs?: number;
+    };
+    rows?: Array<{
+      code: string;
+      name: string;
+      account_type: string;
+      budget: number;
+      actual: number;
+      variance: number;
+      favourable?: boolean | null;
+    }>;
+  } | null>(null);
 
   const from = period.from;
   const to = period.to;
@@ -143,6 +165,11 @@ function Inner() {
       setCogs(data.cogs || []);
       setExpenses(data.expenses || []);
       setJournals(Array.isArray(data.journals) ? data.journals : []);
+      setBudgetVsActual(
+        data.budgetVsActual && typeof data.budgetVsActual === 'object'
+          ? data.budgetVsActual
+          : null
+      );
       if (data.warning) {
         // Empty period is informational; query failures are errors
         if (/failed|error|column/i.test(String(data.warning))) {
@@ -174,9 +201,15 @@ function Inner() {
       <AccountingHeader
         title="Management"
         titleAccent="accounts"
-        description="Period P&L from posted journals (including bank allocations). Multi-select months or quarters · FY Mar–Feb. Journals for this period are listed below."
+        description="Period P&L from posted journals (including bank allocations), with budget (plan) vs actual when a 12-month COA budget exists."
         action={
           <>
+            <Link
+              href="/dashboard/accounting/budget"
+              className="btn-secondary !py-2.5 !px-5 text-sm"
+            >
+              12-month budget
+            </Link>
             <Link
               href="/dashboard/accounting/journal-entries"
               className="btn-primary !py-2.5 !px-5 text-sm inline-flex items-center gap-2"
@@ -256,6 +289,120 @@ function Inner() {
               />
             </Link>
           </div>
+
+          {/* Budget (plan) vs actual */}
+          {budgetVsActual?.summary?.hasBudget ? (
+            <Panel className="mb-8">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+                <SectionLabel>Budget (plan) vs actual</SectionLabel>
+                <Link
+                  href="/dashboard/accounting/reports?report=budget_vs_actual"
+                  className="text-xs font-bold text-[#00b4d8] underline"
+                >
+                  Full report →
+                </Link>
+              </div>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+                <Kpi
+                  label="Budget revenue"
+                  value={formatMoney(budgetVsActual.summary.budgetRevenue ?? 0)}
+                />
+                <Kpi
+                  label="Rev variance (act−bud)"
+                  value={formatMoney(
+                    Number(budgetVsActual.summary.actualRevenue || 0) -
+                      Number(budgetVsActual.summary.budgetRevenue || 0)
+                  )}
+                  tone={
+                    Number(budgetVsActual.summary.actualRevenue || 0) >=
+                    Number(budgetVsActual.summary.budgetRevenue || 0)
+                      ? 'emerald'
+                      : 'amber'
+                  }
+                />
+                <Kpi
+                  label="Budget expenses"
+                  value={formatMoney(budgetVsActual.summary.budgetExpenses ?? 0)}
+                />
+                <Kpi
+                  label="Net plan vs actual"
+                  value={formatMoney(
+                    Number(budgetVsActual.summary.actualNet || 0) -
+                      Number(budgetVsActual.summary.budgetNet || 0)
+                  )}
+                  tone={
+                    Number(budgetVsActual.summary.actualNet || 0) >=
+                    Number(budgetVsActual.summary.budgetNet || 0)
+                      ? 'emerald'
+                      : 'amber'
+                  }
+                />
+              </div>
+              {(budgetVsActual.rows || []).length > 0 && (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-[10px] uppercase tracking-wider text-neutral-400 border-b">
+                        <th className="py-2 pr-2">Code</th>
+                        <th className="py-2 pr-2">Name</th>
+                        <th className="py-2 pr-2 text-right">Budget</th>
+                        <th className="py-2 pr-2 text-right">Actual</th>
+                        <th className="py-2 text-right">Variance</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {(budgetVsActual.rows || []).slice(0, 25).map((r) => (
+                        <tr key={r.code + r.name}>
+                          <td className="py-2 pr-2 font-mono text-xs text-neutral-500">
+                            {r.code}
+                          </td>
+                          <td className="py-2 pr-2 font-medium">{r.name}</td>
+                          <td className="py-2 pr-2 text-right tabular-nums">
+                            {formatMoney(r.budget)}
+                          </td>
+                          <td className="py-2 pr-2 text-right tabular-nums">
+                            {formatMoney(r.actual)}
+                          </td>
+                          <td
+                            className={`py-2 text-right tabular-nums font-semibold ${
+                              r.favourable === false
+                                ? 'text-amber-700'
+                                : r.favourable
+                                  ? 'text-emerald-700'
+                                  : ''
+                            }`}
+                          >
+                            {formatMoney(r.variance)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <p className="mt-3 text-[11px] text-neutral-500">
+                Plan amounts come from Finance → Budget (12 months by COA). Revenue over
+                plan is favourable; expenses over plan is unfavourable.
+              </p>
+            </Panel>
+          ) : (
+            <Link
+              href="/dashboard/accounting/budget"
+              className="mb-8 flex items-center justify-between gap-3 rounded-3xl border border-sky-100 bg-sky-50/60 px-5 py-4 text-sm hover:bg-sky-50"
+            >
+              <div>
+                <div className="font-bold text-slate-900">
+                  No budget for this period yet
+                </div>
+                <div className="text-xs text-slate-600 mt-0.5">
+                  Enter a 12-month plan by chart of accounts to unlock plan vs actual here.
+                </div>
+              </div>
+              <span className="text-xs font-bold text-[#00b4d8] shrink-0">
+                Open budget →
+              </span>
+            </Link>
+          )}
 
           {/* Period journals — expandable list (source of management P&L) */}
           <Panel className="mb-8 overflow-hidden">

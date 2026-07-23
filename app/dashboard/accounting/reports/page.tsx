@@ -55,6 +55,7 @@ const REPORTS = [
   { id: 'ratios', label: 'Ratios', accent: true },
   { id: 'trends', label: 'Trends' },
   { id: 'pnl', label: 'Profit & loss' },
+  { id: 'budget_vs_actual', label: 'Budget vs actual', accent: true },
   { id: 'balance_sheet', label: 'Balance sheet' },
   { id: 'trial_balance', label: 'Trial balance' },
   { id: 'ar_aging', label: 'AR aging' },
@@ -409,6 +410,10 @@ function ReportBody({
 
   if (report === 'management_accounts') {
     return <MgmtSnapshot data={data} />;
+  }
+
+  if (report === 'budget_vs_actual') {
+    return <BudgetVsActualReport data={data} />;
   }
 
   if (report === 'trial_balance') {
@@ -1692,10 +1697,137 @@ function ForecastReport({
   );
 }
 
+function BudgetVsActualReport({ data }: { data: Record<string, unknown> }) {
+  const summary = data.summary as {
+    budgetRevenue?: number;
+    actualRevenue?: number;
+    budgetCogs?: number;
+    actualCogs?: number;
+    budgetExpenses?: number;
+    actualExpenses?: number;
+    budgetNet?: number;
+    actualNet?: number;
+    hasBudget?: boolean;
+  } | null;
+  const rows = (data.rows as Array<Record<string, unknown>>) || [];
+  const period = data.period as { year?: number; from?: string; to?: string } | undefined;
+
+  if (!summary?.hasBudget && rows.length === 0) {
+    return (
+      <Panel>
+        <div className="px-6 py-12 text-center text-sm text-neutral-500 space-y-3">
+          <p>No budget loaded for this period.</p>
+          <Link
+            href="/dashboard/accounting/budget"
+            className="inline-flex font-bold text-[#00b4d8] underline"
+          >
+            Enter 12-month budget by COA →
+          </Link>
+        </div>
+      </Panel>
+    );
+  }
+
+  const revVar =
+    Number(summary?.actualRevenue || 0) - Number(summary?.budgetRevenue || 0);
+  const expVar =
+    Number(summary?.actualExpenses || 0) - Number(summary?.budgetExpenses || 0);
+  const netVar =
+    Number(summary?.actualNet || 0) - Number(summary?.budgetNet || 0);
+
+  return (
+    <>
+      <div className="mb-3 text-xs text-neutral-500">
+        Plan vs actual
+        {period?.year ? ` · FY ${period.year}` : ''}
+        {period?.from ? ` · ${period.from} → ${period.to}` : ''}
+      </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+        <SumCard
+          label="Revenue actual / budget"
+          value={`${formatMoney(summary?.actualRevenue || 0)} / ${formatMoney(summary?.budgetRevenue || 0)}`}
+          tone="emerald"
+        />
+        <SumCard
+          label="Revenue variance"
+          value={formatMoney(revVar)}
+          tone={revVar >= 0 ? 'emerald' : 'amber'}
+        />
+        <SumCard
+          label="Expenses actual / budget"
+          value={`${formatMoney(summary?.actualExpenses || 0)} / ${formatMoney(summary?.budgetExpenses || 0)}`}
+        />
+        <SumCard
+          label="Net variance"
+          value={formatMoney(netVar)}
+          tone={netVar >= 0 ? 'emerald' : 'amber'}
+        />
+      </div>
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
+        <SumCard label="Budget net" value={formatMoney(summary?.budgetNet || 0)} />
+        <SumCard label="Actual net" value={formatMoney(summary?.actualNet || 0)} />
+        <SumCard
+          label="Expense variance (act−bud)"
+          value={formatMoney(expVar)}
+          tone={expVar <= 0 ? 'emerald' : 'amber'}
+        />
+      </div>
+      <SectionLabel>By account</SectionLabel>
+      <SimpleTable
+        headers={[
+          'Code',
+          'Name',
+          'Type',
+          'Budget',
+          'Actual',
+          'Variance',
+          'Var %',
+          'Fav?',
+        ]}
+        rows={rows.map((r) => [
+          String(r.code),
+          String(r.name),
+          String(r.account_type),
+          formatMoney(Number(r.budget || 0)),
+          formatMoney(Number(r.actual || 0)),
+          formatMoney(Number(r.variance || 0)),
+          r.variancePct != null ? `${r.variancePct}%` : '—',
+          r.favourable === true
+            ? 'Yes'
+            : r.favourable === false
+              ? 'No'
+              : '—',
+        ])}
+      />
+      <p className="mt-4 text-[11px] text-neutral-500">
+        Revenue over budget is favourable; expenses over budget is unfavourable.{' '}
+        <Link href="/dashboard/accounting/budget" className="text-[#00b4d8] underline">
+          Edit budget
+        </Link>
+      </p>
+    </>
+  );
+}
+
 function MgmtSnapshot({ data }: { data: Record<string, unknown> }) {
   const summary = data.summary as Record<string, number> | undefined;
   const income = (data.income as Array<Record<string, unknown>>) || [];
   const expenses = (data.expenses as Array<Record<string, unknown>>) || [];
+  const bva = data.budgetVsActual as
+    | {
+        summary?: {
+          hasBudget?: boolean;
+          budgetRevenue?: number;
+          actualRevenue?: number;
+          budgetExpenses?: number;
+          actualExpenses?: number;
+          budgetNet?: number;
+          actualNet?: number;
+        };
+        rows?: Array<Record<string, unknown>>;
+      }
+    | null
+    | undefined;
   if (!summary) {
     return (
       <Panel>
@@ -1715,6 +1847,67 @@ function MgmtSnapshot({ data }: { data: Record<string, unknown> }) {
           tone={summary.operatingProfit >= 0 ? 'emerald' : 'amber'}
         />
       </div>
+      {bva?.summary?.hasBudget && (
+        <>
+          <SectionLabel>Budget (plan) vs actual</SectionLabel>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+            <SumCard
+              label="Budget revenue"
+              value={formatMoney(bva.summary.budgetRevenue || 0)}
+            />
+            <SumCard
+              label="Rev variance"
+              value={formatMoney(
+                Number(bva.summary.actualRevenue || 0) -
+                  Number(bva.summary.budgetRevenue || 0)
+              )}
+              tone={
+                Number(bva.summary.actualRevenue || 0) >=
+                Number(bva.summary.budgetRevenue || 0)
+                  ? 'emerald'
+                  : 'amber'
+              }
+            />
+            <SumCard
+              label="Budget expenses"
+              value={formatMoney(bva.summary.budgetExpenses || 0)}
+            />
+            <SumCard
+              label="Net plan vs actual"
+              value={formatMoney(
+                Number(bva.summary.actualNet || 0) -
+                  Number(bva.summary.budgetNet || 0)
+              )}
+              tone={
+                Number(bva.summary.actualNet || 0) >=
+                Number(bva.summary.budgetNet || 0)
+                  ? 'emerald'
+                  : 'amber'
+              }
+            />
+          </div>
+          {(bva.rows || []).length > 0 && (
+            <SimpleTable
+              headers={['Code', 'Name', 'Budget', 'Actual', 'Variance']}
+              rows={(bva.rows || []).slice(0, 40).map((r) => [
+                String(r.code),
+                String(r.name),
+                formatMoney(Number(r.budget || 0)),
+                formatMoney(Number(r.actual || 0)),
+                formatMoney(Number(r.variance || 0)),
+              ])}
+            />
+          )}
+          <p className="mb-6 mt-2 text-[11px] text-neutral-500">
+            <Link
+              href="/dashboard/accounting/reports?report=budget_vs_actual"
+              className="text-[#00b4d8] underline"
+            >
+              Full budget vs actual report
+            </Link>
+          </p>
+        </>
+      )}
       <div className="grid lg:grid-cols-2 gap-4 mb-6">
         <ChartCard title="Period bridge" height={280}>
           <PeriodWaterfall

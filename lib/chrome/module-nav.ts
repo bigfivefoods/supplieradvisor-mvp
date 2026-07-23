@@ -266,6 +266,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Collect', href: '/dashboard/accounting/accounts-receivable' },
       { name: 'Pay', href: '/dashboard/accounting/accounts-payable' },
       { name: 'Bank', href: '/dashboard/accounting/bank-reconciliation' },
+      { name: 'Budget', href: '/dashboard/accounting/budget', desc: '12-month plan by COA' },
       { name: 'Manage', href: '/dashboard/accounting/management' },
       { name: 'VAT', href: '/dashboard/accounting/tax' },
       { name: 'Report', href: '/dashboard/accounting/reports' },
