@@ -55,6 +55,7 @@ type Summary = {
   subscriptionStatus?: string | null;
   subscriptionDaysRemaining?: number | null;
   subscriptionHasAccess?: boolean;
+  groupInvitesPending?: number;
 };
 
 export default function MyBusinessHub() {
@@ -123,8 +124,16 @@ function HubInner() {
       icon: Network,
       code: '02',
       title: 'Group',
-      desc: 'Link to a holding company, invite subsidiaries, join associations.',
+      desc: 'Accept invitations, join a holding company, or invite association members.',
       accent: 'from-indigo-50 to-white border-indigo-100',
+      metric:
+        (s?.groupInvitesPending || 0) > 0
+          ? s?.groupInvitesPending
+          : loading
+            ? '—'
+            : '0',
+      metricLabel:
+        (s?.groupInvitesPending || 0) > 0 ? 'to accept' : 'pending',
     },
     {
       href: '/dashboard/my-business/team',
@@ -267,6 +276,28 @@ function HubInner() {
             isDiscoverable={s?.is_discoverable}
           />
         </div>
+      ) : null}
+
+      {!loading && (s?.groupInvitesPending || 0) > 0 ? (
+        <Link
+          href="/dashboard/my-business/group"
+          className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border-2 border-amber-200 bg-amber-50 px-4 py-3.5 text-sm shadow-sm hover:bg-amber-100/70"
+        >
+          <div className="min-w-0">
+            <p className="font-bold text-amber-950">
+              {s!.groupInvitesPending === 1
+                ? '1 group / association invitation to accept'
+                : `${s!.groupInvitesPending} group / association invitations to accept`}
+            </p>
+            <p className="mt-0.5 text-xs text-amber-900/80">
+              Open Company → Group and tap Accept or Decline. Use the company switcher
+              if the invite was sent to a different company you manage.
+            </p>
+          </div>
+          <span className="shrink-0 rounded-full bg-amber-600 px-4 py-2 text-xs font-bold text-white">
+            Review invitations →
+          </span>
+        </Link>
       ) : null}
 
       <HubHero

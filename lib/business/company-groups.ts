@@ -145,6 +145,120 @@ export function statusBadgeClass(status: string): string {
   }
 }
 
+/**
+ * Does this company need to Accept/Decline this pending link?
+ * - invite: parent invited us → we are child
+ * - request: they asked to join us → we are parent
+ */
+export function isActionablePending(
+  link: Pick<
+    CompanyGroupLink,
+    'status' | 'direction' | 'role' | 'parent_profile_id' | 'child_profile_id'
+  >,
+  companyId?: number
+): boolean {
+  if (String(link.status) !== 'pending') return false;
+  let role = link.role;
+  if (!role && companyId != null) {
+    role =
+      Number(link.parent_profile_id) === companyId ? 'parent' : 'child';
+  }
+  const direction = String(link.direction || 'request');
+  if (direction === 'invite') return role === 'child';
+  return role === 'parent';
+}
+
+/** Pending we sent that is waiting on the other company. */
+export function isAwaitingPeer(
+  link: Pick<
+    CompanyGroupLink,
+    'status' | 'direction' | 'role' | 'parent_profile_id' | 'child_profile_id'
+  >,
+  companyId?: number
+): boolean {
+  if (String(link.status) !== 'pending') return false;
+  return !isActionablePending(link, companyId);
+}
+
+/** Plain-language copy for inbox cards. */
+export function inviteCopy(
+  link: Pick<
+    CompanyGroupLink,
+    | 'link_type'
+    | 'direction'
+    | 'role'
+    | 'peer_display_name'
+    | 'notes'
+    | 'ownership_pct'
+    | 'role_label'
+  >
+): { title: string; body: string; ctaAccept: string; ctaDecline: string } {
+  const meta = linkTypeMeta(String(link.link_type));
+  const peer = link.peer_display_name || 'Another company';
+  const direction = String(link.direction || 'request');
+  const extra = [
+    link.role_label,
+    link.ownership_pct != null ? `${link.ownership_pct}% ownership` : null,
+    link.notes,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  // We are the invited member / subsidiary
+  if (direction === 'invite') {
+    if (link.link_type === 'association') {
+      return {
+        title: `${peer} invited you to join their association`,
+        body:
+          extra ||
+          'Accept to become a member. You can leave later from Company → Group.',
+        ctaAccept: 'Accept invitation',
+        ctaDecline: 'Decline',
+      };
+    }
+    if (link.link_type === 'holding') {
+      return {
+        title: `${peer} invited you as a subsidiary`,
+        body:
+          extra ||
+          `They would be your ${meta.parentLabel.toLowerCase()}. Accept to link under their holding structure.`,
+        ctaAccept: 'Accept & link',
+        ctaDecline: 'Decline',
+      };
+    }
+    return {
+      title: `${peer} invited you to their ${meta.label.toLowerCase()}`,
+      body: extra || `They would be the ${meta.parentLabel.toLowerCase()}.`,
+      ctaAccept: 'Accept invitation',
+      ctaDecline: 'Decline',
+    };
+  }
+
+  // We are the parent (they requested to join us)
+  if (link.link_type === 'association') {
+    return {
+      title: `${peer} wants to join your association`,
+      body: extra || 'Accept to add them as a member company.',
+      ctaAccept: 'Accept member',
+      ctaDecline: 'Decline',
+    };
+  }
+  if (link.link_type === 'holding') {
+    return {
+      title: `${peer} asked to join under your holding company`,
+      body: extra || 'Accept to list them as a subsidiary.',
+      ctaAccept: 'Accept subsidiary',
+      ctaDecline: 'Decline',
+    };
+  }
+  return {
+    title: `${peer} requested a ${meta.label.toLowerCase()} link`,
+    body: extra || `They would join as ${meta.childLabel.toLowerCase()}.`,
+    ctaAccept: 'Accept',
+    ctaDecline: 'Decline',
+  };
+}
+
 export const MIGRATION_HINT =
   'Run supabase/migrations/20260723_company_group_links.sql';
 

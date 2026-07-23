@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Building2,
-  GitBranch,
   Landmark,
   Loader2,
   Network,
@@ -15,6 +14,9 @@ import {
   LogOut,
   Ban,
   Users,
+  Inbox,
+  Clock,
+  HelpCircle,
 } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
@@ -32,6 +34,9 @@ import {
   type GroupLinkType,
   type GroupPeerProfile,
   displayCompanyName,
+  inviteCopy,
+  isActionablePending,
+  isAwaitingPeer,
   linkTypeMeta,
   statusBadgeClass,
   MIGRATION_HINT,
@@ -40,6 +45,8 @@ import {
 type Summary = {
   total: number;
   pending: number;
+  actionable?: number;
+  awaiting?: number;
   active: number;
   as_parent: number;
   as_child: number;
@@ -48,6 +55,11 @@ type Summary = {
 };
 
 type SearchHit = GroupPeerProfile & { display_name?: string };
+
+type ActionableLink = CompanyGroupLink & {
+  copy?: ReturnType<typeof inviteCopy>;
+  can_accept?: boolean;
+};
 
 export default function CompanyGroupPage() {
   return (
@@ -63,6 +75,8 @@ function GroupInner() {
   const privyUserId = getCanonicalUserId(user?.id);
 
   const [links, setLinks] = useState<CompanyGroupLink[]>([]);
+  const [actionable, setActionable] = useState<ActionableLink[]>([]);
+  const [awaiting, setAwaiting] = useState<ActionableLink[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [parentDisplay, setParentDisplay] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -73,7 +87,7 @@ function GroupInner() {
 
   // Composer
   const [showForm, setShowForm] = useState(false);
-  const [linkType, setLinkType] = useState<GroupLinkType>('holding');
+  const [linkType, setLinkType] = useState<GroupLinkType>('association');
   const [asRole, setAsRole] = useState<'child' | 'parent'>('child');
   const [ownershipPct, setOwnershipPct] = useState('');
   const [roleLabel, setRoleLabel] = useState('');
@@ -98,7 +112,20 @@ function GroupInner() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to load');
-      setLinks(data.links || []);
+      const list = (data.links || []) as CompanyGroupLink[];
+      setLinks(list);
+      setActionable(
+        (data.actionable as ActionableLink[]) ||
+          list
+            .filter((l) => isActionablePending(l, companyId))
+            .map((l) => ({ ...l, copy: inviteCopy(l) }))
+      );
+      setAwaiting(
+        (data.awaiting as ActionableLink[]) ||
+          list
+            .filter((l) => isAwaitingPeer(l, companyId))
+            .map((l) => ({ ...l, copy: inviteCopy(l) }))
+      );
       setSummary(data.summary || null);
       setParentDisplay(data.parent_display_name || null);
       setWarning(data.warning || null);
@@ -106,6 +133,8 @@ function GroupInner() {
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed to load group links');
       setLinks([]);
+      setActionable([]);
+      setAwaiting([]);
     } finally {
       setLoading(false);
     }
@@ -115,7 +144,6 @@ function GroupInner() {
     void load();
   }, [load]);
 
-  // Debounced company search
   useEffect(() => {
     if (!showForm || searchQ.trim().length < 2) {
       setSearchHits([]);
@@ -155,13 +183,13 @@ function GroupInner() {
     const other = links.filter(
       (l) => l.link_type !== 'holding' && l.link_type !== 'association'
     );
-    const pendingIn = links.filter((l) => {
-      if (l.status !== 'pending') return false;
-      // Awaiting our action as counterparty
-      if (l.direction === 'invite') return l.role === 'child';
-      return l.role === 'parent';
-    });
-    return { holdings, associations, other, pendingIn };
+    // Hide pure pending from lists — they live in inbox sections
+    const notPending = (l: CompanyGroupLink) => l.status !== 'pending';
+    return {
+      holdings: holdings.filter(notPending),
+      associations: associations.filter(notPending),
+      other: other.filter(notPending),
+    };
   }, [links]);
 
   const act = async (id: number, action: string) => {
@@ -181,12 +209,14 @@ function GroupInner() {
       if (!res.ok) throw new Error(data.error || 'Action failed');
       toast.success(
         action === 'accept'
-          ? 'Link activated'
+          ? 'Accepted — link is now active'
           : action === 'reject'
-            ? 'Request rejected'
-            : action === 'leave'
-              ? 'Left group'
-              : 'Link revoked'
+            ? 'Declined'
+            : action === 'cancel'
+              ? 'Cancelled'
+              : action === 'leave'
+                ? 'Left group'
+                : 'Revoked'
       );
       await load();
     } catch (e: unknown) {
@@ -197,7 +227,7 @@ function GroupInner() {
   };
 
   const submitLink = async () => {
-    let peerProfileId = selectedPeer?.id
+    const peerProfileId = selectedPeer?.id
       ? Number(selectedPeer.id)
       : Number(peerIdManual);
     if (!Number.isFinite(peerProfileId) || peerProfileId <= 0) {
@@ -223,14 +253,14 @@ function GroupInner() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || data.hint || 'Failed');
       if (data.autoActivated) {
-        toast.success('Link created and activated (you manage both companies)');
+        toast.success('Linked and activated (you manage both companies)');
       } else if (data.alreadyExists) {
         toast.message(data.message || 'Link already exists');
       } else {
         toast.success(
           asRole === 'parent'
-            ? 'Invitation sent — the other company must accept'
-            : 'Request sent — the holding/association must accept'
+            ? 'Invitation sent. They accept under Company → Group while logged into their company.'
+            : 'Request sent. They accept under Company → Group.'
         );
       }
       setShowForm(false);
@@ -253,7 +283,7 @@ function GroupInner() {
       <BusinessHeader
         title="Company group"
         titleAccent="Holding & associations"
-        description="Link this company to a holding company, invite subsidiaries, or join an industry association."
+        description="Invite members, join a holding or association, and accept invitations in one place."
         action={
           <div className="flex items-center gap-2">
             <button
@@ -270,7 +300,7 @@ function GroupInner() {
               className="inline-flex items-center gap-1.5 rounded-xl bg-[#0a2540] px-3 py-2 text-xs font-semibold text-white hover:bg-[#0d3356]"
             >
               <Plus className="h-3.5 w-3.5" />
-              {showForm ? 'Close' : 'New link'}
+              {showForm ? 'Close' : 'Invite or join'}
             </button>
           </div>
         }
@@ -288,8 +318,179 @@ function GroupInner() {
         </div>
       )}
 
+      {/* How to accept — always visible, simple */}
+      <Panel className="mb-6 overflow-hidden border-sky-100 bg-gradient-to-br from-sky-50/80 to-white">
+        <div className="flex gap-3 p-4 sm:p-5">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-sky-100 bg-white text-[#0077b6]">
+            <HelpCircle className="h-5 w-5" />
+          </span>
+          <div className="min-w-0 space-y-2 text-sm text-slate-700">
+            <p className="font-bold text-slate-900">How invitations work</p>
+            <ol className="list-decimal space-y-1.5 pl-4 text-[13px] leading-relaxed text-slate-600">
+              <li>
+                <strong>Invite or join</strong> — search for the other company and send
+                an invitation (or request to join them).
+              </li>
+              <li>
+                <strong>Switch company</strong> — the person who accepts must open this
+                app as the <em>invited</em> company (top company switcher if they have more
+                than one).
+              </li>
+              <li>
+                <strong>Accept here</strong> — open{' '}
+                <strong>Company → Group</strong>. Pending invitations appear at the top
+                with <strong>Accept</strong> / <strong>Decline</strong>.
+              </li>
+            </ol>
+            <p className="text-[12px] text-slate-500">
+              If you manage both companies, the link activates immediately when you send
+              it — no second accept needed.
+            </p>
+          </div>
+        </div>
+      </Panel>
+
+      {/* ═══ SIMPLE ACCEPT INBOX ═══ */}
+      {loading ? (
+        <div className="mb-6 flex justify-center py-10">
+          <Loader2 className="h-7 w-7 animate-spin text-[#00b4d8]" />
+        </div>
+      ) : actionable.length > 0 ? (
+        <section className="mb-6 space-y-3">
+          <div className="flex items-center gap-2">
+            <Inbox className="h-4 w-4 text-amber-600" />
+            <h2 className="text-sm font-black text-slate-900">
+              Invitations to review
+            </h2>
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-900">
+              {actionable.length}
+            </span>
+          </div>
+          {actionable.map((link) => {
+            const copy = link.copy || inviteCopy(link);
+            const busy = busyId === link.id;
+            return (
+              <div
+                key={link.id}
+                className="overflow-hidden rounded-2xl border-2 border-amber-200 bg-white shadow-sm ring-1 ring-amber-100"
+              >
+                <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1 flex flex-wrap items-center gap-2">
+                      <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-900">
+                        Action needed
+                      </span>
+                      <span className="rounded-full border border-neutral-200 bg-neutral-50 px-2 py-0.5 text-[10px] font-medium text-neutral-600">
+                        {linkTypeMeta(String(link.link_type)).label}
+                      </span>
+                    </div>
+                    <p className="text-base font-bold leading-snug text-slate-900">
+                      {copy.title}
+                    </p>
+                    <p className="mt-1 text-sm leading-relaxed text-slate-600">
+                      {copy.body}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 flex-wrap gap-2 sm:flex-col sm:items-stretch">
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void act(link.id, 'accept')}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50"
+                    >
+                      {busy ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Check className="h-4 w-4" />
+                      )}
+                      {copy.ctaAccept}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void act(link.id, 'reject')}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-neutral-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-neutral-50 disabled:opacity-50"
+                    >
+                      <X className="h-4 w-4" />
+                      {copy.ctaDecline}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </section>
+      ) : (
+        <div className="mb-6 rounded-2xl border border-dashed border-neutral-200 bg-neutral-50/50 px-4 py-4 text-center text-sm text-neutral-500">
+          No invitations waiting for this company. When someone invites you,{' '}
+          <strong className="text-slate-700">Accept</strong> and{' '}
+          <strong className="text-slate-700">Decline</strong> show here.
+        </div>
+      )}
+
+      {/* Waiting on them */}
+      {awaiting.length > 0 && (
+        <section className="mb-6">
+          <div className="mb-2 flex items-center gap-2">
+            <Clock className="h-4 w-4 text-neutral-400" />
+            <h2 className="text-sm font-bold text-slate-800">
+              Waiting for the other company
+            </h2>
+          </div>
+          <ul className="space-y-2">
+            {awaiting.map((link) => {
+              const copy = link.copy || inviteCopy(link);
+              const busy = busyId === link.id;
+              return (
+                <li
+                  key={link.id}
+                  className="flex flex-col gap-3 rounded-2xl border border-neutral-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-900">
+                      {link.peer_display_name || 'Company'}
+                    </p>
+                    <p className="text-xs text-neutral-500">
+                      {linkTypeMeta(String(link.link_type)).label}
+                      {link.direction === 'invite'
+                        ? ' · invitation sent'
+                        : ' · join request sent'}
+                      {' · '}
+                      they accept under Company → Group on their side
+                    </p>
+                    {link.notes && (
+                      <p className="mt-0.5 text-xs text-neutral-400">{link.notes}</p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void act(link.id, 'cancel')}
+                    className="inline-flex items-center gap-1.5 self-start rounded-lg border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 hover:bg-neutral-50 disabled:opacity-50"
+                  >
+                    {busy ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Ban className="h-3 w-3" />
+                    )}
+                    Cancel
+                  </button>
+                  {/* silence unused copy in this list */}
+                  <span className="sr-only">{copy.title}</span>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
       {/* Telemetry */}
       <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          icon={Inbox}
+          label="To review"
+          value={actionable.length}
+        />
         <StatCard
           icon={Network}
           label="Active links"
@@ -305,11 +506,6 @@ function GroupInner() {
           label="Associations"
           value={summary?.associations ?? '—'}
         />
-        <StatCard
-          icon={GitBranch}
-          label="Awaiting action"
-          value={byBucket.pendingIn.length}
-        />
       </div>
 
       {parentDisplay && (
@@ -317,7 +513,7 @@ function GroupInner() {
           <Landmark className="h-4 w-4 shrink-0 text-violet-600" />
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wider text-violet-600">
-              Holding parent (profile tree)
+              Holding parent
             </p>
             <p className="font-medium text-neutral-900">{parentDisplay}</p>
           </div>
@@ -327,10 +523,10 @@ function GroupInner() {
       {/* Composer */}
       {showForm && (
         <Panel className="mb-6 p-5">
-          <SectionLabel>Create relationship</SectionLabel>
+          <SectionLabel>Invite or join</SectionLabel>
           <p className="mb-4 text-sm text-neutral-600">
-            Search for a company on SupplierAdvisor, choose the relationship type,
-            and whether you are the parent organisation or the joining member.
+            Search for a company already on SupplierAdvisor. They will see a simple
+            Accept / Decline on their Group page.
           </p>
 
           <div className="grid gap-4 md:grid-cols-2">
@@ -356,7 +552,7 @@ function GroupInner() {
 
             <label className="block text-sm">
               <span className="mb-1 block text-xs font-medium text-neutral-500">
-                Our role
+                What are you doing?
               </span>
               <select
                 value={asRole}
@@ -366,10 +562,10 @@ function GroupInner() {
                 className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm"
               >
                 <option value="child">
-                  We join them ({meta.childLabel} → their {meta.parentLabel})
+                  Join them (we become their {meta.childLabel.toLowerCase()})
                 </option>
                 <option value="parent">
-                  They join us (we are {meta.parentLabel})
+                  Invite them (we are the {meta.parentLabel.toLowerCase()})
                 </option>
               </select>
             </label>
@@ -394,7 +590,7 @@ function GroupInner() {
 
             <label className="block text-sm">
               <span className="mb-1 block text-xs font-medium text-neutral-500">
-                Role label (optional)
+                Note for them (optional)
               </span>
               <input
                 value={roleLabel}
@@ -450,9 +646,6 @@ function GroupInner() {
                           {[c.industry, c.city, c.country]
                             .filter(Boolean)
                             .join(' · ')}
-                          {c.verification_status === 'verified'
-                            ? ' · Verified'
-                            : ''}
                           {' · '}#{c.id}
                         </span>
                       </span>
@@ -489,14 +682,14 @@ function GroupInner() {
 
           <label className="mt-4 block text-sm">
             <span className="mb-1 block text-xs font-medium text-neutral-500">
-              Notes (optional)
+              Message (optional)
             </span>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={2}
               className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm"
-              placeholder="Context for the other party…"
+              placeholder="Shown to the other company when they accept…"
             />
           </label>
 
@@ -515,15 +708,18 @@ function GroupInner() {
               className="inline-flex items-center gap-2 rounded-xl bg-[#0a2540] px-4 py-2 text-sm font-semibold text-white hover:bg-[#0d3356] disabled:opacity-60"
             >
               {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-              {asRole === 'parent' ? 'Send invitation' : 'Send request'}
+              {asRole === 'parent' ? 'Send invitation' : 'Send join request'}
             </button>
           </div>
         </Panel>
       )}
 
-      {/* Filters */}
+      {/* Filters for history */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        {(['all', 'pending', 'active', 'left', 'revoked'] as const).map((s) => (
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
+          History
+        </span>
+        {(['all', 'active', 'left', 'revoked', 'rejected'] as const).map((s) => (
           <button
             key={s}
             type="button"
@@ -539,11 +735,12 @@ function GroupInner() {
         ))}
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center py-16 text-neutral-400">
-          <Loader2 className="h-6 w-6 animate-spin" />
-        </div>
-      ) : links.length === 0 ? (
+      {!loading &&
+      byBucket.holdings.length === 0 &&
+      byBucket.associations.length === 0 &&
+      byBucket.other.length === 0 &&
+      actionable.length === 0 &&
+      awaiting.length === 0 ? (
         <Panel className="p-5">
           <div className="py-10 text-center">
             <Network className="mx-auto h-10 w-10 text-neutral-300" />
@@ -551,9 +748,8 @@ function GroupInner() {
               No group relationships yet
             </p>
             <p className="mx-auto mt-1 max-w-md text-sm text-neutral-500">
-              Link this company under a holding company, invite a subsidiary, or
-              join an association so multi-entity reporting and governance stay
-              connected.
+              Invite a subsidiary, join a holding company, or join an association.
+              The other company accepts with one click on their Group page.
             </p>
             <button
               type="button"
@@ -561,54 +757,42 @@ function GroupInner() {
               className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-[#0a2540] px-4 py-2 text-sm font-semibold text-white"
             >
               <Plus className="h-4 w-4" />
-              Create first link
+              Invite or join
             </button>
           </div>
         </Panel>
       ) : (
-        <div className="space-y-6">
-          {byBucket.pendingIn.length > 0 && (
-            <LinkSection
-              title="Needs your response"
-              icon={GitBranch}
-              links={byBucket.pendingIn}
-              companyId={companyId}
-              busyId={busyId}
-              onAct={act}
-              highlight
-            />
-          )}
-          {byBucket.holdings.length > 0 && (
-            <LinkSection
-              title="Holding structure"
-              icon={Landmark}
-              links={byBucket.holdings}
-              companyId={companyId}
-              busyId={busyId}
-              onAct={act}
-            />
-          )}
-          {byBucket.associations.length > 0 && (
-            <LinkSection
-              title="Associations"
-              icon={Users}
-              links={byBucket.associations}
-              companyId={companyId}
-              busyId={busyId}
-              onAct={act}
-            />
-          )}
-          {byBucket.other.length > 0 && (
-            <LinkSection
-              title="Other group links"
-              icon={Network}
-              links={byBucket.other}
-              companyId={companyId}
-              busyId={busyId}
-              onAct={act}
-            />
-          )}
-        </div>
+        !loading && (
+          <div className="space-y-6">
+            {byBucket.holdings.length > 0 && (
+              <LinkSection
+                title="Holding structure"
+                icon={Landmark}
+                links={byBucket.holdings}
+                busyId={busyId}
+                onAct={act}
+              />
+            )}
+            {byBucket.associations.length > 0 && (
+              <LinkSection
+                title="Associations"
+                icon={Users}
+                links={byBucket.associations}
+                busyId={busyId}
+                onAct={act}
+              />
+            )}
+            {byBucket.other.length > 0 && (
+              <LinkSection
+                title="Other group links"
+                icon={Network}
+                links={byBucket.other}
+                busyId={busyId}
+                onAct={act}
+              />
+            )}
+          </div>
+        )
       )}
     </BusinessPage>
   );
@@ -624,9 +808,9 @@ function StatCard({
   value: string | number;
 }) {
   return (
-    <div className="rounded-2xl border border-neutral-200 bg-white px-4 py-3 shadow-sm">
+    <div className="min-w-0 overflow-hidden rounded-2xl border border-neutral-200 bg-white px-4 py-3 shadow-sm">
       <div className="flex items-center gap-2 text-neutral-500">
-        <Icon className="h-3.5 w-3.5" />
+        <Icon className="h-3.5 w-3.5 shrink-0" />
         <span className="text-[11px] font-semibold uppercase tracking-wider">
           {label}
         </span>
@@ -642,25 +826,17 @@ function LinkSection({
   title,
   icon: Icon,
   links,
-  companyId,
   busyId,
   onAct,
-  highlight,
 }: {
   title: string;
   icon: React.ComponentType<{ className?: string }>;
   links: CompanyGroupLink[];
-  companyId: number;
   busyId: number | null;
   onAct: (id: number, action: string) => void;
-  highlight?: boolean;
 }) {
   return (
-    <Panel
-      className={`p-5 ${
-        highlight ? 'border-amber-200 bg-amber-50/30 ring-1 ring-amber-100' : ''
-      }`}
-    >
+    <Panel className="p-5">
       <div className="mb-3 flex items-center gap-2">
         <Icon className="h-4 w-4 text-neutral-500" />
         <SectionLabel>{title}</SectionLabel>
@@ -673,7 +849,6 @@ function LinkSection({
           <LinkRow
             key={link.id}
             link={link}
-            companyId={companyId}
             busy={busyId === link.id}
             onAct={onAct}
           />
@@ -685,24 +860,17 @@ function LinkSection({
 
 function LinkRow({
   link,
-  companyId,
   busy,
   onAct,
 }: {
   link: CompanyGroupLink;
-  companyId: number;
   busy: boolean;
   onAct: (id: number, action: string) => void;
 }) {
   const meta = linkTypeMeta(String(link.link_type));
   const isParent = link.role === 'parent';
-  const canAccept =
-    link.status === 'pending' &&
-    ((link.direction === 'invite' && !isParent) ||
-      (link.direction !== 'invite' && isParent));
   const canLeave = link.status === 'active' && !isParent;
-  const canRevoke =
-    (link.status === 'active' || link.status === 'pending') && isParent;
+  const canRevoke = link.status === 'active' && isParent;
 
   return (
     <li className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -710,7 +878,10 @@ function LinkRow({
         <div className="flex flex-wrap items-center gap-2">
           <p className="truncate font-medium text-neutral-900">
             {link.peer_display_name ||
-              displayCompanyName(link.peer, isParent ? link.child_profile_id : link.parent_profile_id)}
+              displayCompanyName(
+                link.peer,
+                isParent ? link.child_profile_id : link.parent_profile_id
+              )}
           </p>
           <span
             className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize ${statusBadgeClass(String(link.status))}`}
@@ -738,37 +909,9 @@ function LinkRow({
             </>
           )}
           {link.role_label ? ` · ${link.role_label}` : ''}
-          {link.direction === 'invite' ? ' · invitation' : ' · request'}
-          {link.notes ? ` · ${link.notes}` : ''}
         </p>
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-        {canAccept && (
-          <>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => onAct(link.id, 'accept')}
-              className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
-            >
-              {busy ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <Check className="h-3 w-3" />
-              )}
-              Accept
-            </button>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => onAct(link.id, 'reject')}
-              className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50"
-            >
-              <X className="h-3 w-3" />
-              Reject
-            </button>
-          </>
-        )}
         {canLeave && (
           <button
             type="button"
@@ -791,9 +934,6 @@ function LinkRow({
             Revoke
           </button>
         )}
-        <span className="hidden text-[10px] text-neutral-400 sm:inline">
-          #{link.id} · co {companyId}
-        </span>
       </div>
     </li>
   );

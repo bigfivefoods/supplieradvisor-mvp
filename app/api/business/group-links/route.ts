@@ -10,6 +10,9 @@ import {
   type GroupLinkType,
   type GroupPeerProfile,
   displayCompanyName,
+  inviteCopy,
+  isActionablePending,
+  isAwaitingPeer,
   isGroupLinkType,
   MIGRATION_HINT,
   PROFILE_PEER_SELECT,
@@ -158,6 +161,74 @@ export async function GET(request: NextRequest) {
       } as CompanyGroupLink;
     });
 
+    // Always surface pending that need this company to act (even if status filter is set)
+    let actionable: Array<
+      CompanyGroupLink & {
+        copy: ReturnType<typeof inviteCopy>;
+        can_accept: true;
+      }
+    > = [];
+    let awaiting: Array<
+      CompanyGroupLink & { copy: ReturnType<typeof inviteCopy> }
+    > = [];
+
+    if (statusFilter && statusFilter !== 'all' && statusFilter !== 'pending') {
+      // Load pending separately so Accept inbox never disappears behind a filter
+      const { data: pendingRows } = await supabase
+        .from('company_group_links')
+        .select('*')
+        .or(
+          `parent_profile_id.eq.${companyId},child_profile_id.eq.${companyId}`
+        )
+        .eq('status', 'pending')
+        .order('updated_at', { ascending: false })
+        .limit(50);
+      const extraPeerIds = new Set<number>();
+      for (const r of pendingRows || []) {
+        const p = Number(r.parent_profile_id);
+        const c = Number(r.child_profile_id);
+        if (p && p !== companyId) extraPeerIds.add(p);
+        if (c && c !== companyId) extraPeerIds.add(c);
+      }
+      const extraPeers = await loadPeers(supabase, Array.from(extraPeerIds));
+      const pendingLinks: CompanyGroupLink[] = (pendingRows || []).map((r) => {
+        const parentId = Number(r.parent_profile_id);
+        const childId = Number(r.child_profile_id);
+        const isParent = parentId === companyId;
+        const peerId = isParent ? childId : parentId;
+        const peer = extraPeers.get(peerId) || peerMap.get(peerId) || null;
+        return {
+          ...r,
+          parent_profile_id: parentId,
+          child_profile_id: childId,
+          role: isParent ? 'parent' : 'child',
+          peer,
+          peer_display_name: displayCompanyName(peer, peerId),
+        } as CompanyGroupLink;
+      });
+      actionable = pendingLinks
+        .filter((l) => isActionablePending(l, companyId))
+        .map((l) => ({
+          ...l,
+          copy: inviteCopy(l),
+          can_accept: true as const,
+        }));
+      awaiting = pendingLinks
+        .filter((l) => isAwaitingPeer(l, companyId))
+        .map((l) => ({ ...l, copy: inviteCopy(l) }));
+    } else {
+      actionable = links
+        .filter((l) => isActionablePending(l, companyId))
+        .map((l) => ({
+          ...l,
+          copy: inviteCopy(l),
+          can_accept: true as const,
+        }));
+      awaiting = links
+        .filter((l) => isAwaitingPeer(l, companyId))
+        .map((l) => ({ ...l, copy: inviteCopy(l) }));
+    }
+
     // Current holding parent from profiles.parent_profile_id (legacy tree)
     let parent_profile_id: number | null = null;
     let parent_profile: GroupPeerProfile | null = null;
@@ -183,6 +254,8 @@ export async function GET(request: NextRequest) {
     const summary = {
       total: links.length,
       pending: links.filter((l) => l.status === 'pending').length,
+      actionable: actionable.length,
+      awaiting: awaiting.length,
       active: links.filter((l) => l.status === 'active').length,
       as_parent: links.filter((l) => l.role === 'parent').length,
       as_child: links.filter((l) => l.role === 'child').length,
@@ -197,6 +270,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       links,
+      /** Pending that YOU must Accept or Decline (simple inbox) */
+      actionable,
+      /** Pending you sent — waiting on the other company */
+      awaiting,
       summary,
       parent_profile_id,
       parent_profile,
@@ -487,6 +564,32 @@ export async function PATCH(request: NextRequest) {
         );
       }
       updates.status = action === 'accept' ? 'active' : 'rejected';
+      updates.responded_by_user_id = gate.userId;
+      updates.responded_at = new Date().toISOString();
+    } else if (action === 'cancel') {
+      // Requester cancels their own pending invite/request
+      if (link.status !== 'pending') {
+        return NextResponse.json(
+          { error: 'Only pending links can be cancelled' },
+          { status: 400 }
+        );
+      }
+      const requestedBy = Number(link.requested_by_profile_id);
+      const direction = String(link.direction || 'request');
+      const isRequester =
+        (Number.isFinite(requestedBy) && requestedBy === companyId) ||
+        (direction === 'invite' && companyId === parentId) ||
+        (direction === 'request' && companyId === childId);
+      if (!isRequester) {
+        return NextResponse.json(
+          {
+            error:
+              'Only the company that sent this invite/request can cancel it. Use Decline if you received it.',
+          },
+          { status: 403 }
+        );
+      }
+      updates.status = 'revoked';
       updates.responded_by_user_id = gate.userId;
       updates.responded_at = new Date().toISOString();
     } else if (action === 'leave') {

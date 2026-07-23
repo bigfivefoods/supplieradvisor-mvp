@@ -68,6 +68,32 @@ export async function GET(request: NextRequest) {
       subscription_plan: raw.subscription_plan as string | null,
     });
 
+    // Soft: pending group/association invites this company must accept
+    let groupInvitesPending = 0;
+    try {
+      const { data: pendingLinks } = await supabase
+        .from('company_group_links')
+        .select('id, parent_profile_id, child_profile_id, direction, status')
+        .eq('status', 'pending')
+        .or(
+          `parent_profile_id.eq.${companyId},child_profile_id.eq.${companyId}`
+        )
+        .limit(50);
+      for (const row of pendingLinks || []) {
+        const parentId = Number(row.parent_profile_id);
+        const childId = Number(row.child_profile_id);
+        const direction = String(row.direction || 'request');
+        // invite → child must accept; request → parent must accept
+        const needsUs =
+          direction === 'invite'
+            ? childId === companyId
+            : parentId === companyId;
+        if (needsUs) groupInvitesPending++;
+      }
+    } catch {
+      /* table may not exist yet */
+    }
+
     return NextResponse.json({
       success: true,
       summary: {
@@ -91,6 +117,7 @@ export async function GET(request: NextRequest) {
         subscriptionStatus: sub.status,
         subscriptionDaysRemaining: sub.daysRemaining,
         subscriptionHasAccess: sub.hasAccess,
+        groupInvitesPending,
       },
     });
   } catch (e: unknown) {
@@ -117,5 +144,6 @@ function emptySummary() {
     subscriptionStatus: 'none',
     subscriptionDaysRemaining: null,
     subscriptionHasAccess: false,
+    groupInvitesPending: 0,
   };
 }
