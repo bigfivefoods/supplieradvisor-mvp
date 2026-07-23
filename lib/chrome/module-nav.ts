@@ -24,6 +24,7 @@ import {
   Leaf,
   Brain,
   BookOpen,
+  IdCard,
 } from 'lucide-react';
 import type { ProcessStep } from '@/components/relationship/RelationshipChrome';
 import type { PermissionResource } from '@/lib/business/permissions';
@@ -55,6 +56,7 @@ export type ModuleNav = {
  * inventory Warehouse · operations Workflow · manufacturing Factory
  * distribution Ship · accounting Landmark · quality ClipboardCheck
  * projects FolderKanban · sustainability Leaf · intelligence Brain · guide BookOpen
+ * people IdCard
  */
 export const MODULE_NAV: readonly ModuleNav[] = [
   {
@@ -268,6 +270,24 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'VAT', href: '/dashboard/accounting/tax' },
       { name: 'Report', href: '/dashboard/accounting/reports' },
       { name: 'Close', href: '/dashboard/accounting/settings' },
+    ],
+  },
+  {
+    id: 'people',
+    name: 'People',
+    icon: IdCard,
+    href: '/dashboard/people',
+    resource: 'people',
+    steps: [
+      { name: 'Overview', href: '/dashboard/people', exact: true },
+      { name: 'Directory', href: '/dashboard/people/directory' },
+      { name: 'Org', href: '/dashboard/people/org-chart', desc: 'BU organogram + reporting lines' },
+      { name: 'Rate', href: '/dashboard/people/performance' },
+      { name: 'Discipline', href: '/dashboard/people/disciplinary' },
+      { name: 'Payroll', href: '/dashboard/people/payroll' },
+      { name: 'Leave', href: '/dashboard/people/leave' },
+      { name: 'Train', href: '/dashboard/people/training' },
+      { name: 'Onboard', href: '/dashboard/people/onboarding' },
     ],
   },
   {

@@ -224,27 +224,16 @@ export async function POST(request: NextRequest) {
 
     // Soft retry without cost dimensions if migration not applied
     if (lineErr && /column|schema cache|does not exist/i.test(lineErr.message)) {
-      const bare = lineRows.map(
-        ({
-          journal_entry_id,
-          profile_id,
-          account_id,
-          debit,
-          credit,
-          memo,
-          counterparty,
-          tax_code,
-        }) => ({
-          journal_entry_id,
-          profile_id,
-          account_id,
-          debit,
-          credit,
-          memo,
-          counterparty,
-          tax_code,
-        })
-      );
+      const bare = lineRows.map((row) => ({
+        journal_entry_id: row.journal_entry_id,
+        profile_id: row.profile_id,
+        account_id: row.account_id,
+        debit: row.debit,
+        credit: row.credit,
+        memo: row.memo,
+        counterparty: row.counterparty,
+        tax_code: row.tax_code,
+      }));
       const retry = await supabase.from('journal_lines').insert(bare).select('*');
       insertedLines = retry.data;
       lineErr = retry.error;

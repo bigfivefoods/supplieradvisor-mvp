@@ -38,6 +38,7 @@ const MODULE_DESCRIPTIONS: Record<string, string> = {
   manufacturing: 'MPS, MRP, BOM, production orders & work centres',
   distribution: 'Inbound/outbound logistics, tracking & carriers',
   accounting: 'Books, bank recon, journals, tax & reports',
+  people: 'HR directory, payroll, leave, org chart & training',
   sheq: 'OH&S, NCR/CAPA, safety incidents',
   quality: 'Inspections, holds, quality assurance',
   projects: 'Portfolio, kanban, milestones & timesheets',
@@ -161,6 +162,7 @@ export function moduleIdForPath(pathname: string | null | undefined): string | n
   if (pathname.startsWith('/dashboard/accounting') || pathname.startsWith('/dashboard/finance')) {
     return 'accounting';
   }
+  if (pathname.startsWith('/dashboard/people')) return 'people';
   if (pathname.startsWith('/dashboard/sheq')) return 'sheq';
   if (pathname.startsWith('/dashboard/quality')) return 'quality';
   if (pathname.startsWith('/dashboard/projects')) return 'projects';

@@ -221,25 +221,15 @@ export async function postBalancedJournal(opts: {
     });
     lineErr = (await supabase.from('journal_lines').insert(stripHeavy)).error;
     if (lineErr && /column|schema cache|does not exist/i.test(lineErr.message)) {
-      const bare = withDims.map(
-        ({
-          journal_entry_id,
-          profile_id,
-          account_id,
-          debit,
-          credit,
-          memo,
-          counterparty,
-        }) => ({
-          journal_entry_id,
-          profile_id,
-          account_id,
-          debit,
-          credit,
-          memo,
-          counterparty,
-        })
-      );
+      const bare = withDims.map((row) => ({
+        journal_entry_id: row.journal_entry_id,
+        profile_id: row.profile_id,
+        account_id: row.account_id,
+        debit: row.debit,
+        credit: row.credit,
+        memo: row.memo,
+        counterparty: row.counterparty,
+      }));
       lineErr = (await supabase.from('journal_lines').insert(bare)).error;
     }
   }
