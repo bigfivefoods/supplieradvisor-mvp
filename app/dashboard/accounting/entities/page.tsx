@@ -231,12 +231,12 @@ function Inner() {
         <div className="mb-6">
           <SectionLabel>Group structure</SectionLabel>
           <p className="mb-2 -mt-1 text-xs text-neutral-500">
-            Holding companies with ownership % and associations with members underneath.
-            Managed on Company → Group; sync into legal entities below.
+            Full group chain (Holding → Sub → OpCo) with ownership % where set, plus
+            associations and members. Managed on Company → Group; sync into books below.
           </p>
           <GroupStructureDiagram
             trees={structure}
-            emptyHint="No active group structure. Link companies under Company → Group, then return here and Sync from group."
+            emptyHint="No active group structure. Link multi-level companies under Company → Group, then Sync from group."
           />
         </div>
       )}
@@ -272,6 +272,11 @@ function Inner() {
                         .filter(Boolean)
                         .join(' · ')}
                       {g.ownership_pct != null ? ` · ${g.ownership_pct}%` : ''}
+                      {g.depth != null && g.depth > 1
+                        ? ` · ${g.depth} levels from you`
+                        : g.depth === 1
+                          ? ' · direct link'
+                          : ''}
                       {' · '}#{g.profile_id}
                     </p>
                   </div>

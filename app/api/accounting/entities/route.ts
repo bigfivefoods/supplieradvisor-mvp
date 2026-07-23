@@ -6,11 +6,8 @@ import {
   loadGroupCompaniesForProfile,
   syncGroupCompaniesToEntities,
 } from '@/lib/accounting/entities-group';
-import { displayCompanyName, linkTypeMeta } from '@/lib/business/company-groups';
-import {
-  buildGroupStructureTrees,
-  edgesFromGroupCompanies,
-} from '@/lib/business/group-structure';
+import { linkTypeMeta } from '@/lib/business/company-groups';
+import { loadFullGroupStructure } from '@/lib/business/group-structure-load';
 
 const HINT =
   'Run supabase/migrations/20260710_accounting_module.sql and 20260723_accounting_entities_group.sql';
@@ -96,37 +93,29 @@ export async function GET(request: NextRequest) {
 
     const unsyncedGroup = groupCompanies.filter((g) => !g.entity_id);
 
-    const self = groupCompanies.find((g) => g.link_type === 'self');
-    const company_name =
-      self?.display_name ||
-      displayCompanyName(
-        {
-          trading_name: self?.trading_name || null,
-          legal_name: self?.legal_name || null,
-        },
-        companyId
-      );
-
-    const structure = buildGroupStructureTrees(
-      companyId,
-      company_name,
-      edgesFromGroupCompanies(companyId, company_name, groupCompanies)
-    );
+    // Full multi-level ownership chain for diagram (same as Company → Group)
+    const fullStructure = await loadFullGroupStructure(companyId);
 
     return NextResponse.json({
       success: true,
-      company_name,
+      company_name: fullStructure.company_name,
       entities,
       groupCompanies,
-      structure,
+      structure: fullStructure.trees,
+      structure_edges: fullStructure.edges,
       unsyncedCount: unsyncedGroup.length,
       summary: {
         entityCount: entities.length,
         groupCount: groupCompanies.filter((g) => g.link_type !== 'self').length,
+        structureCompanies: fullStructure.node_ids.length,
+        structureLinks: fullStructure.link_count,
         unsyncedCount: unsyncedGroup.length,
       },
-      warning: groupWarning,
-      hint: groupWarning ? 'Run supabase/migrations/20260723_company_group_links.sql' : undefined,
+      warning: groupWarning || fullStructure.warning,
+      hint:
+        groupWarning || fullStructure.warning
+          ? 'Run supabase/migrations/20260723_company_group_links.sql'
+          : undefined,
     });
   } catch (e: unknown) {
     return NextResponse.json(

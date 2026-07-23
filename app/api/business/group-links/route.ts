@@ -17,10 +17,7 @@ import {
   MIGRATION_HINT,
   PROFILE_PEER_SELECT,
 } from '@/lib/business/company-groups';
-import {
-  buildGroupStructureTrees,
-  edgesFromGroupLinks,
-} from '@/lib/business/group-structure';
+import { loadFullGroupStructure } from '@/lib/business/group-structure-load';
 
 /**
  * GET ?companyId=&status=&linkType=&role=all|parent|child&mode=search&q=
@@ -261,77 +258,46 @@ export async function GET(request: NextRequest) {
       /* soft */
     }
 
-    // Structure diagram always uses active links (ignore status filter)
-    let structureLinks = links.filter((l) => l.status === 'active');
-    if (statusFilter && statusFilter !== 'all' && statusFilter !== 'active') {
-      const { data: activeRows } = await supabase
-        .from('company_group_links')
-        .select('*')
-        .eq('status', 'active')
-        .or(
-          `parent_profile_id.eq.${companyId},child_profile_id.eq.${companyId}`
-        )
-        .limit(200);
-      const aPeerIds = new Set<number>();
-      for (const r of activeRows || []) {
-        const p = Number(r.parent_profile_id);
-        const c = Number(r.child_profile_id);
-        if (p && p !== companyId) aPeerIds.add(p);
-        if (c && c !== companyId) aPeerIds.add(c);
-      }
-      const aPeers = await loadPeers(supabase, Array.from(aPeerIds));
-      structureLinks = (activeRows || []).map((r) => {
-        const parentId = Number(r.parent_profile_id);
-        const childId = Number(r.child_profile_id);
-        const isParent = parentId === companyId;
-        const peerId = isParent ? childId : parentId;
-        const peer = aPeers.get(peerId) || null;
-        return {
-          ...r,
-          parent_profile_id: parentId,
-          child_profile_id: childId,
-          role: isParent ? 'parent' : 'child',
-          peer,
-          peer_display_name: displayCompanyName(peer, peerId),
-        } as CompanyGroupLink;
-      });
-    }
-
-    const structure = buildGroupStructureTrees(
-      companyId,
-      company_name,
-      edgesFromGroupLinks(companyId, company_name, structureLinks)
-    );
+    // Multi-level structure: Holding → Sub → OpCo (walk full connected graph)
+    const fullStructure = await loadFullGroupStructure(companyId);
 
     const summary = {
       total: links.length,
       pending: links.filter((l) => l.status === 'pending').length,
       actionable: actionable.length,
       awaiting: awaiting.length,
-      active: structureLinks.length,
+      active: links.filter((l) => l.status === 'active').length,
+      structure_links: fullStructure.link_count,
+      structure_companies: fullStructure.node_ids.length,
       as_parent: links.filter((l) => l.role === 'parent').length,
       as_child: links.filter((l) => l.role === 'child').length,
-      holdings: structureLinks.filter((l) => l.link_type === 'holding').length,
-      associations: structureLinks.filter((l) => l.link_type === 'association')
+      holdings: fullStructure.edges.filter((e) => e.link_type === 'holding')
         .length,
+      associations: fullStructure.edges.filter(
+        (e) => e.link_type === 'association'
+      ).length,
     };
 
     return NextResponse.json({
       success: true,
-      company_name,
+      company_name: fullStructure.company_name || company_name,
       links,
       /** Pending that YOU must Accept or Decline (simple inbox) */
       actionable,
       /** Pending you sent — waiting on the other company */
       awaiting,
-      /** Hierarchical diagram trees (active links only) */
-      structure,
+      /** Hierarchical multi-level diagram trees (full ownership chain) */
+      structure: fullStructure.trees,
+      structure_edges: fullStructure.edges,
       summary,
       parent_profile_id,
       parent_profile,
       parent_display_name: parent_profile
         ? displayCompanyName(parent_profile, parent_profile_id || undefined)
         : null,
+      ...(fullStructure.warning
+        ? { structure_warning: fullStructure.warning }
+        : {}),
     });
   } catch (e: unknown) {
     return NextResponse.json(

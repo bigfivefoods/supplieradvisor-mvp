@@ -1,5 +1,6 @@
 /**
  * Build hierarchical group structure trees for diagram rendering.
+ * Supports multi-level chains: Holding → Sub → Grand-sub with ownership %.
  */
 import {
   displayCompanyName,
@@ -38,14 +39,21 @@ export type StructureEdge = {
   ownership_pct?: number | null;
   role_label?: string | null;
   status?: string;
+  link_id?: number;
 };
 
 const OWNERSHIP_TYPES = new Set(['holding', 'joint_venture', 'affiliate']);
 
+/** Max hops when expanding the connected group graph */
+export const STRUCTURE_MAX_DEPTH = 8;
+/** Safety cap on companies in one diagram */
+export const STRUCTURE_MAX_NODES = 80;
+
 export function edgesFromGroupLinks(
   companyId: number,
   companyName: string,
-  links: CompanyGroupLink[]
+  links: CompanyGroupLink[],
+  nameById?: Map<number, string>
 ): StructureEdge[] {
   const edges: StructureEdge[] = [];
   for (const l of links) {
@@ -53,25 +61,47 @@ export function edgesFromGroupLinks(
     const parentId = Number(l.parent_profile_id);
     const childId = Number(l.child_profile_id);
     if (!parentId || !childId) continue;
-    const isParent = parentId === companyId;
-    const peerName =
-      l.peer_display_name ||
-      displayCompanyName(l.peer as GroupPeerProfile | null | undefined, isParent ? childId : parentId);
+
+    let parentName = nameById?.get(parentId);
+    let childName = nameById?.get(childId);
+
+    // Legacy single-hop: only peer name relative to viewer
+    if (!parentName || !childName) {
+      const isParent = parentId === companyId;
+      const peerName =
+        l.peer_display_name ||
+        displayCompanyName(
+          l.peer as GroupPeerProfile | null | undefined,
+          isParent ? childId : parentId
+        );
+      if (isParent) {
+        parentName = parentName || companyName;
+        childName = childName || peerName;
+      } else if (childId === companyId) {
+        parentName = parentName || peerName;
+        childName = childName || companyName;
+      } else {
+        parentName = parentName || `Company #${parentId}`;
+        childName = childName || `Company #${childId}`;
+      }
+    }
+
     edges.push({
       parent_id: parentId,
-      parent_name: isParent ? companyName : peerName,
+      parent_name: parentName,
       child_id: childId,
-      child_name: isParent ? peerName : companyName,
+      child_name: childName,
       link_type: String(l.link_type || 'other'),
       ownership_pct: l.ownership_pct != null ? Number(l.ownership_pct) : null,
       role_label: l.role_label || null,
       status: String(l.status),
+      link_id: l.id != null ? Number(l.id) : undefined,
     });
   }
   return edges;
 }
 
-/** From entities-group peer list (role relative to viewer). */
+/** From entities-group peer list (role relative to viewer) — direct peers only. */
 export function edgesFromGroupCompanies(
   companyId: number,
   companyName: string,
@@ -90,7 +120,6 @@ export function edgesFromGroupCompanies(
     const peerId = Number(g.profile_id);
     if (!peerId) continue;
     if (g.role === 'parent') {
-      // We are group head — peer is child
       edges.push({
         parent_id: companyId,
         parent_name: companyName,
@@ -102,7 +131,6 @@ export function edgesFromGroupCompanies(
         status: 'active',
       });
     } else {
-      // We are member — peer is parent
       edges.push({
         parent_id: peerId,
         parent_name: g.display_name,
@@ -119,9 +147,8 @@ export function edgesFromGroupCompanies(
 }
 
 /**
- * Build one tree per link type for the viewing company.
- * Holding: parent at top, subsidiaries below with % ownership.
- * Association: association at top, members below.
+ * Build multi-level trees from a full edge list (may include edges between
+ * companies neither of which is the viewer — e.g. B→C when viewing A→B→C).
  */
 export function buildGroupStructureTrees(
   companyId: number,
@@ -152,69 +179,56 @@ export function buildGroupStructureTrees(
   ];
 
   for (const linkType of types) {
-    const list = byType.get(linkType) || [];
+    const list = dedupeEdges(byType.get(linkType) || []);
     if (!list.length) continue;
     const meta = linkTypeMeta(linkType);
     const showOwnership = OWNERSHIP_TYPES.has(linkType);
 
-    const asParent = list.filter((e) => e.parent_id === companyId);
-    const asChild = list.filter((e) => e.child_id === companyId);
-
-    const selfChildren: StructureNode[] = asParent.map((e) => ({
-      id: e.child_id,
-      name: e.child_name,
-      ownership_pct: e.ownership_pct,
-      role_label: e.role_label,
-      subtitle: e.role_label || meta.childLabel,
-      children: [],
-    }));
-
-    const selfNode: StructureNode = {
-      id: companyId,
-      name: companyName,
-      isSelf: true,
-      subtitle: asParent.length
-        ? meta.parentLabel
-        : asChild.length
-          ? meta.childLabel
-          : undefined,
-      children: selfChildren,
-    };
-
-    if (asChild.length === 0) {
-      // We are the root (holding / association head)
-      trees.push({
-        link_type: linkType,
-        label: meta.label,
-        parentLabel: meta.parentLabel,
-        childLabel: meta.childLabel,
-        showOwnership,
-        root: selfNode,
-      });
-      continue;
+    const nameById = new Map<number, string>();
+    nameById.set(companyId, companyName);
+    for (const e of list) {
+      nameById.set(e.parent_id, e.parent_name);
+      nameById.set(e.child_id, e.child_name);
     }
 
-    // We sit under one or more parents — one tree per parent, with our children nested
-    for (const p of asChild) {
+    // Component = all nodes reachable from viewer via edges of this type
+    const component = connectedComponent(companyId, list);
+    if (!component.has(companyId) && list.length) {
+      component.add(companyId);
+    }
+    const componentEdges = list.filter(
+      (e) => component.has(e.parent_id) && component.has(e.child_id)
+    );
+    if (!componentEdges.length) continue;
+
+    const roots = findRoots(companyId, componentEdges);
+
+    for (const rootId of roots) {
+      const visited = new Set<number>();
+      const root = buildNode(
+        rootId,
+        componentEdges,
+        companyId,
+        nameById,
+        meta.childLabel,
+        visited
+      );
+      // Ensure root name is solid
+      root.name = nameById.get(rootId) || root.name;
+      root.subtitle =
+        rootId === companyId
+          ? componentEdges.some((e) => e.parent_id === companyId)
+            ? meta.parentLabel
+            : meta.childLabel
+          : meta.parentLabel;
+
       trees.push({
         link_type: linkType,
         label: meta.label,
         parentLabel: meta.parentLabel,
         childLabel: meta.childLabel,
         showOwnership,
-        root: {
-          id: p.parent_id,
-          name: p.parent_name,
-          subtitle: meta.parentLabel,
-          children: [
-            {
-              ...selfNode,
-              ownership_pct: p.ownership_pct,
-              role_label: p.role_label,
-              subtitle: p.role_label || meta.childLabel,
-            },
-          ],
-        },
+        root,
       });
     }
   }
@@ -222,9 +236,143 @@ export function buildGroupStructureTrees(
   return trees;
 }
 
+function dedupeEdges(list: StructureEdge[]): StructureEdge[] {
+  const seen = new Set<string>();
+  const out: StructureEdge[] = [];
+  for (const e of list) {
+    const key =
+      e.link_id != null
+        ? `id:${e.link_id}`
+        : `${e.parent_id}>${e.child_id}:${e.link_type}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(e);
+  }
+  return out;
+}
+
+/** Nodes reachable walking parent↔child edges (undirected BFS). */
+function connectedComponent(
+  startId: number,
+  edges: StructureEdge[]
+): Set<number> {
+  const adj = new Map<number, number[]>();
+  for (const e of edges) {
+    if (!adj.has(e.parent_id)) adj.set(e.parent_id, []);
+    if (!adj.has(e.child_id)) adj.set(e.child_id, []);
+    adj.get(e.parent_id)!.push(e.child_id);
+    adj.get(e.child_id)!.push(e.parent_id);
+  }
+  const seen = new Set<number>();
+  const q = [startId];
+  seen.add(startId);
+  while (q.length) {
+    const id = q.shift()!;
+    for (const n of adj.get(id) || []) {
+      if (seen.has(n)) continue;
+      seen.add(n);
+      q.push(n);
+    }
+  }
+  return seen;
+}
+
+/**
+ * Ultimate parents of the viewer within this edge set.
+ * Walks up ownership/membership chains so A→B→C shows root A when viewing C.
+ */
+function findRoots(companyId: number, edges: StructureEdge[]): number[] {
+  const parentsOf = new Map<number, number[]>();
+  for (const e of edges) {
+    if (!parentsOf.has(e.child_id)) parentsOf.set(e.child_id, []);
+    parentsOf.get(e.child_id)!.push(e.parent_id);
+  }
+
+  const roots = new Set<number>();
+
+  function walkUp(id: number, path: Set<number>) {
+    const parents = parentsOf.get(id) || [];
+    if (parents.length === 0) {
+      roots.add(id);
+      return;
+    }
+    for (const p of parents) {
+      if (path.has(p)) {
+        // Cycle — treat current as root of remaining chain
+        roots.add(id);
+        continue;
+      }
+      const next = new Set(path);
+      next.add(p);
+      walkUp(p, next);
+    }
+  }
+
+  walkUp(companyId, new Set([companyId]));
+
+  // If viewer only appears as parent (true group head), ensure they're a root
+  if (roots.size === 0) roots.add(companyId);
+
+  return Array.from(roots);
+}
+
+function buildNode(
+  id: number,
+  edges: StructureEdge[],
+  companyId: number,
+  nameById: Map<number, string>,
+  childLabel: string,
+  visited: Set<number>
+): StructureNode {
+  if (visited.has(id)) {
+    return {
+      id,
+      name: nameById.get(id) || `Company #${id}`,
+      isSelf: id === companyId,
+      children: [],
+      subtitle: '…',
+    };
+  }
+  visited.add(id);
+
+  const childEdges = edges.filter((e) => e.parent_id === id);
+  const children: StructureNode[] = childEdges.map((e) => {
+    const childVisited = new Set(visited);
+    const node = buildNode(
+      e.child_id,
+      edges,
+      companyId,
+      nameById,
+      childLabel,
+      childVisited
+    );
+    node.ownership_pct = e.ownership_pct;
+    node.role_label = e.role_label;
+    if (!node.subtitle) {
+      node.subtitle = e.role_label || childLabel;
+    }
+    return node;
+  });
+
+  return {
+    id,
+    name: nameById.get(id) || `Company #${id}`,
+    isSelf: id === companyId,
+    children,
+  };
+}
+
 export function formatOwnership(pct: number | null | undefined): string | null {
   if (pct == null || !Number.isFinite(Number(pct))) return null;
   const n = Number(pct);
   if (Math.abs(n - Math.round(n)) < 0.05) return `${Math.round(n)}%`;
   return `${Math.round(n * 10) / 10}%`;
+}
+
+/**
+ * Count depth of a tree (for empty checks / telemetry).
+ */
+export function structureDepth(node: StructureNode): number {
+  if (!node.children.length) return 1;
+  return 1 + Math.max(...node.children.map(structureDepth));
 }

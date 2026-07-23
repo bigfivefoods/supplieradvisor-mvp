@@ -330,14 +330,14 @@ function GroupInner() {
             <div>
               <SectionLabel>Group structure</SectionLabel>
               <p className="text-xs text-neutral-500 -mt-1 mb-2">
-                Holding trees show shareholding % when set. Associations list members under
-                the body.
+                Full chain visibility: Holding → subsidiary → sub-sub, with ownership %
+                on each link when set. Associations list members under the body.
               </p>
             </div>
           </div>
           <GroupStructureDiagram
             trees={structure}
-            emptyHint="No active structure yet. After invitations are accepted, the holding / association diagram appears here with ownership % where captured."
+            emptyHint="No active structure yet. After invitations are accepted, multi-level holding and association trees appear here (including companies owned by your subsidiaries)."
           />
         </div>
       )}
