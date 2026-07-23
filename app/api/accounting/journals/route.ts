@@ -174,7 +174,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const lineRows = lines.map(
+    type JournalLineRow = {
+      journal_entry_id: number | string;
+      profile_id: number;
+      account_id: number;
+      debit: number;
+      credit: number;
+      memo: string | null;
+      counterparty: string | null;
+      tax_code: string | null;
+      business_unit_id: number | null;
+      work_center_id: number | null;
+      work_station_id: number | null;
+      asset_id: number | null;
+      purchase_order_id: number | null;
+    };
+
+    const lineRows: JournalLineRow[] = lines.map(
       (l: {
         account_id: number;
         debit?: number;
@@ -187,7 +203,7 @@ export async function POST(request: NextRequest) {
         work_station_id?: number | null;
         asset_id?: number | null;
         purchase_order_id?: number | null;
-      }) => ({
+      }): JournalLineRow => ({
         journal_entry_id: entry.id,
         profile_id: companyId,
         account_id: Number(l.account_id),
@@ -224,7 +240,7 @@ export async function POST(request: NextRequest) {
 
     // Soft retry without cost dimensions if migration not applied
     if (lineErr && /column|schema cache|does not exist/i.test(lineErr.message)) {
-      const bare = lineRows.map((row) => ({
+      const bare = lineRows.map((row: JournalLineRow) => ({
         journal_entry_id: row.journal_entry_id,
         profile_id: row.profile_id,
         account_id: row.account_id,

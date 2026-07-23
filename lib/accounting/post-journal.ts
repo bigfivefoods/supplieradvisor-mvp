@@ -190,7 +190,24 @@ export async function postBalancedJournal(opts: {
     };
   }
 
-  const withDims = lines.map((l) => ({
+  type JournalLineRow = {
+    journal_entry_id: number | string;
+    profile_id: number;
+    account_id: number;
+    debit: number;
+    credit: number;
+    memo: string | null;
+    counterparty: string | null;
+    business_unit_id: number | null;
+    work_center_id: number | null;
+    work_station_id: number | null;
+    asset_id: number | null;
+    purchase_order_id: number | null;
+    fixed_asset_id: number | null;
+    liability_id: number | null;
+  };
+
+  const withDims: JournalLineRow[] = lines.map((l) => ({
     journal_entry_id: entry.id,
     profile_id: opts.profileId,
     account_id: l.account_id,
@@ -211,17 +228,23 @@ export async function postBalancedJournal(opts: {
   // Soft retry without cost dims if migration not applied yet
   if (lineErr && /column|schema cache|does not exist/i.test(lineErr.message)) {
     // Progressive soft retries: drop newer dim columns first, then all dims
-    const stripHeavy = withDims.map((l) => {
-      const {
-        fixed_asset_id: _f,
-        liability_id: _li,
-        ...rest
-      } = l;
-      return rest;
-    });
+    const stripHeavy = withDims.map((l: JournalLineRow) => ({
+      journal_entry_id: l.journal_entry_id,
+      profile_id: l.profile_id,
+      account_id: l.account_id,
+      debit: l.debit,
+      credit: l.credit,
+      memo: l.memo,
+      counterparty: l.counterparty,
+      business_unit_id: l.business_unit_id,
+      work_center_id: l.work_center_id,
+      work_station_id: l.work_station_id,
+      asset_id: l.asset_id,
+      purchase_order_id: l.purchase_order_id,
+    }));
     lineErr = (await supabase.from('journal_lines').insert(stripHeavy)).error;
     if (lineErr && /column|schema cache|does not exist/i.test(lineErr.message)) {
-      const bare = withDims.map((row) => ({
+      const bare = withDims.map((row: JournalLineRow) => ({
         journal_entry_id: row.journal_entry_id,
         profile_id: row.profile_id,
         account_id: row.account_id,
