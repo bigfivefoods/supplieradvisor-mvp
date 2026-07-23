@@ -10,6 +10,14 @@ export type JournalLineInput = {
   credit?: number;
   memo?: string | null;
   counterparty?: string | null;
+  /** Cost centre / manufacturing dimensions (posted to journal_lines when columns exist) */
+  businessUnitId?: number | null;
+  workCenterId?: number | null;
+  workStationId?: number | null;
+  assetId?: number | null;
+  purchaseOrderId?: number | null;
+  fixedAssetId?: number | null;
+  liabilityId?: number | null;
 };
 
 export type PostJournalResult =
@@ -107,6 +115,32 @@ export async function postBalancedJournal(opts: {
       credit: round2(Number(l.credit || 0)),
       memo: l.memo || null,
       counterparty: l.counterparty || null,
+      business_unit_id:
+        l.businessUnitId != null && Number(l.businessUnitId) > 0
+          ? Number(l.businessUnitId)
+          : null,
+      work_center_id:
+        l.workCenterId != null && Number(l.workCenterId) > 0
+          ? Number(l.workCenterId)
+          : null,
+      work_station_id:
+        l.workStationId != null && Number(l.workStationId) > 0
+          ? Number(l.workStationId)
+          : null,
+      asset_id:
+        l.assetId != null && Number(l.assetId) > 0 ? Number(l.assetId) : null,
+      purchase_order_id:
+        l.purchaseOrderId != null && Number(l.purchaseOrderId) > 0
+          ? Number(l.purchaseOrderId)
+          : null,
+      fixed_asset_id:
+        l.fixedAssetId != null && Number(l.fixedAssetId) > 0
+          ? Number(l.fixedAssetId)
+          : null,
+      liability_id:
+        l.liabilityId != null && Number(l.liabilityId) > 0
+          ? Number(l.liabilityId)
+          : null,
     }))
     .filter((l) => Number.isFinite(l.account_id) && (l.debit > 0 || l.credit > 0));
 
@@ -156,7 +190,7 @@ export async function postBalancedJournal(opts: {
     };
   }
 
-  const lineRows = lines.map((l) => ({
+  const withDims = lines.map((l) => ({
     journal_entry_id: entry.id,
     profile_id: opts.profileId,
     account_id: l.account_id,
@@ -164,9 +198,51 @@ export async function postBalancedJournal(opts: {
     credit: l.credit,
     memo: l.memo,
     counterparty: l.counterparty,
+    business_unit_id: l.business_unit_id,
+    work_center_id: l.work_center_id,
+    work_station_id: l.work_station_id,
+    asset_id: l.asset_id,
+    purchase_order_id: l.purchase_order_id,
+    fixed_asset_id: l.fixed_asset_id,
+    liability_id: l.liability_id,
   }));
 
-  const { error: lineErr } = await supabase.from('journal_lines').insert(lineRows);
+  let lineErr = (await supabase.from('journal_lines').insert(withDims)).error;
+  // Soft retry without cost dims if migration not applied yet
+  if (lineErr && /column|schema cache|does not exist/i.test(lineErr.message)) {
+    // Progressive soft retries: drop newer dim columns first, then all dims
+    const stripHeavy = withDims.map((l) => {
+      const {
+        fixed_asset_id: _f,
+        liability_id: _li,
+        ...rest
+      } = l;
+      return rest;
+    });
+    lineErr = (await supabase.from('journal_lines').insert(stripHeavy)).error;
+    if (lineErr && /column|schema cache|does not exist/i.test(lineErr.message)) {
+      const bare = withDims.map(
+        ({
+          journal_entry_id,
+          profile_id,
+          account_id,
+          debit,
+          credit,
+          memo,
+          counterparty,
+        }) => ({
+          journal_entry_id,
+          profile_id,
+          account_id,
+          debit,
+          credit,
+          memo,
+          counterparty,
+        })
+      );
+      lineErr = (await supabase.from('journal_lines').insert(bare)).error;
+    }
+  }
   if (lineErr) {
     await supabase.from('journal_entries').delete().eq('id', entry.id);
     return { ok: false, error: lineErr.message };

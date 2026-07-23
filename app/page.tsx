@@ -56,7 +56,8 @@ import {
   NetworkMock,
   ProjectsMock,
   SustainabilityMock,
-  PRODUCT_MOCK_HEIGHT,
+  ModuleGallery,
+  ProductMockShell,
 } from '@/components/marketing/ProductMocks';
 import {
   COMPANY_SUBSCRIPTION_MONTHLY_ZAR,
@@ -380,35 +381,18 @@ export default function LandingPage() {
         />
 
         <div className="relative z-[1] mx-auto w-full max-w-screen-2xl px-4 py-12 sm:px-6 sm:py-16 lg:px-10 lg:py-20">
-          <div className="grid items-center gap-10 lg:grid-cols-12 lg:gap-12 xl:gap-16">
-            {/* Copy */}
-            <div className="text-center lg:col-span-5 lg:text-left">
-              <div className="mb-6 flex flex-wrap items-center justify-center gap-2 lg:justify-start">
-                {['B2B', 'B2G', 'B2C'].map((tag) => (
-                  <span
-                    key={tag}
-                    className="inline-flex items-center rounded-full border border-slate-200/90 bg-white px-3.5 py-1.5 text-[11px] font-black tracking-[0.18em] text-slate-800 shadow-sm"
-                  >
-                    {tag}
-                  </span>
-                ))}
-                <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-800">
-                  <span className="relative flex h-1.5 w-1.5">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                  </span>
-                  Live
-                </span>
-              </div>
-
-              <h1 className="text-[2.2rem] font-black leading-[1.02] tracking-[-0.045em] text-slate-900 sm:text-5xl md:text-6xl lg:text-[3.4rem] xl:text-[3.75rem] lg:tracking-[-0.05em]">
+          {/* Hero: 1/3 text · 2/3 images */}
+          <div className="grid items-center gap-10 lg:grid-cols-12 lg:gap-12 xl:gap-14">
+            {/* ── Text (1/3) ── */}
+            <div className="flex flex-col justify-center text-center lg:col-span-4 lg:text-left">
+              <h1 className="text-[2.1rem] font-black leading-[1.06] tracking-[-0.04em] text-slate-900 sm:text-5xl lg:text-[2.45rem] xl:text-[2.85rem] lg:tracking-[-0.045em]">
                 The world&apos;s most trusted
                 <span className="mt-1.5 block bg-gradient-to-r from-[#00b4d8] via-[#0096c7] to-[#0077b6] bg-clip-text text-transparent">
                   supplier advice — and OS.
                 </span>
               </h1>
 
-              <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-slate-600 sm:mt-6 sm:text-lg lg:mx-0">
+              <p className="mx-auto mt-5 max-w-md text-base leading-relaxed text-slate-600 sm:mt-6 sm:text-lg lg:mx-0">
                 SupplierAdvisor® unites{' '}
                 <strong className="font-semibold text-slate-900">B2B</strong>,{' '}
                 <strong className="font-semibold text-slate-900">B2G</strong>, and{' '}
@@ -416,7 +400,7 @@ export default function LandingPage() {
                 verified network — watch the key modules rotate live.
               </p>
 
-              <div className="mt-8 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center lg:justify-start">
+              <div className="mt-8 flex flex-col items-stretch gap-3 sm:mx-auto sm:max-w-md sm:flex-row sm:items-center lg:mx-0 lg:max-w-none lg:flex-col xl:flex-row">
                 <Link
                   href="/onboarding?type=business"
                   className="group inline-flex items-center justify-center gap-2 rounded-full bg-[#00b4d8] px-7 py-3.5 text-base font-semibold text-white shadow-lg shadow-cyan-500/25 transition-all hover:bg-[#0099b8] active:scale-[0.99]"
@@ -431,78 +415,53 @@ export default function LandingPage() {
                   Browse company directory
                 </Link>
               </div>
-
-              <p className="mt-5 text-sm text-slate-500">
-                From {formatZar(COMPANY_SUBSCRIPTION_MONTHLY_ZAR)}/mo · first{' '}
-                {FOUNDING_FREE_COMPANY_LIMIT} free for life ·{' '}
-                <a
-                  href="#pricing"
-                  className="font-semibold text-[#0077b6] underline decoration-sky-200 underline-offset-4 hover:text-[#00b4d8]"
-                >
-                  Pricing
-                </a>
-              </p>
-
-              <FoundingCounterStrip />
-
-              {/* Active module caption (mobile-friendly under copy) */}
-              <div className="mt-8 hidden rounded-2xl border border-slate-200 bg-white/90 p-4 text-left shadow-sm lg:block">
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-[10px] font-bold tracking-widest text-slate-400">
-                    {featured.code}
-                  </span>
-                  <span className="h-px flex-1 bg-slate-100" />
-                  <featured.icon className="h-4 w-4 text-[#00b4d8]" />
-                </div>
-                <div className="mt-2 text-lg font-black text-slate-900">{featured.title}</div>
-                <p className="mt-0.5 text-sm font-semibold text-[#00b4d8]">{featured.tagline}</p>
-                <p className="mt-2 text-sm leading-relaxed text-slate-600 line-clamp-2">
-                  {featured.body}
-                </p>
-              </div>
             </div>
 
-            {/* Rotating module showcase */}
-            <div className="min-w-0 lg:col-span-7">
+            {/* ── Images (2/3) — three equal-height views + live product frame ── */}
+            <div className="min-w-0 lg:col-span-8">
               <div className="relative">
                 <div
-                  className="pointer-events-none absolute -inset-3 rounded-[2rem] bg-gradient-to-tr from-cyan-200/40 via-transparent to-violet-200/30 blur-2xl sm:-inset-5"
+                  className="pointer-events-none absolute -inset-3 rounded-[2rem] bg-gradient-to-tr from-cyan-200/45 via-transparent to-violet-200/35 blur-2xl sm:-inset-5"
                   aria-hidden
                 />
-                <div className="relative overflow-hidden rounded-[1.5rem] border border-slate-200/90 bg-white shadow-xl shadow-slate-200/80 sm:rounded-[1.75rem]">
-                  {/* Header bar */}
-                  <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-slate-50/80 px-4 py-3 sm:px-5">
+
+                {/* Module chrome */}
+                <div className="relative mb-3 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200/90 bg-white/95 px-4 py-3 shadow-sm sm:px-5">
+                  <div className="min-w-0 flex items-center gap-2.5">
+                    <featured.icon className="h-5 w-5 shrink-0 text-[#00b4d8]" />
                     <div className="min-w-0">
                       <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
-                        Platform overview · rotating
+                        Live module · {featured.code} /{' '}
+                        {String(MODULES.length).padStart(2, '0')}
                       </div>
-                      <div className="mt-0.5 truncate text-sm font-black text-slate-900 sm:text-base">
+                      <div className="truncate text-sm font-black text-slate-900 sm:text-base">
                         {featured.title}
                         <span className="ml-2 font-semibold text-[#00b4d8]">
                           {featured.tagline}
                         </span>
                       </div>
                     </div>
-                    <div className="shrink-0 rounded-full bg-sky-100 px-2.5 py-1 font-mono text-[10px] font-bold text-[#0077b6]">
-                      {featured.code} / {String(MODULES.length).padStart(2, '0')}
-                    </div>
                   </div>
-
-                  <div className={`relative w-full ${PRODUCT_MOCK_HEIGHT}`}>
-                    <div className="absolute inset-0">
-                      <FeaturedMock />
-                    </div>
-                  </div>
-
-                  {/* Mobile caption under mock */}
-                  <div className="border-t border-slate-100 px-4 py-3 lg:hidden">
-                    <p className="text-sm leading-relaxed text-slate-600 line-clamp-2">
-                      {featured.body}
-                    </p>
-                  </div>
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-800">
+                    <span className="relative flex h-1.5 w-1.5">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                      <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    </span>
+                    Live
+                  </span>
                 </div>
 
-                {/* Module picker pills — rotate on click or auto */}
+                {/* Three equal-height scene images */}
+                <ModuleGallery moduleId={featured.id} />
+
+                {/* Full product frame (same fixed height family) */}
+                <div className="relative mt-3 overflow-hidden rounded-[1.5rem] border border-slate-200/90 bg-white shadow-xl shadow-slate-200/80 sm:rounded-[1.75rem]">
+                  <ProductMockShell>
+                    <FeaturedMock />
+                  </ProductMockShell>
+                </div>
+
+                {/* Module picker */}
                 <div className="mt-3 -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 scrollbar-thin sm:mt-4 sm:flex-wrap sm:justify-center lg:justify-start">
                   {MODULES.map((m, i) => (
                     <button
@@ -523,10 +482,26 @@ export default function LandingPage() {
                   ))}
                 </div>
                 <p className="mt-2 text-center text-[11px] text-slate-400 lg:text-left">
-                  Auto-rotates every few seconds · tap any module to pin it
+                  Auto-rotates every few seconds · tap a module · all images share the same height
                 </p>
               </div>
             </div>
+          </div>
+
+          {/* Accurate commercial strip under hero (not competing with headline) */}
+          <div className="mt-10 flex flex-col items-center gap-3 border-t border-slate-200/80 pt-8 sm:mt-12">
+            <p className="text-center text-sm text-slate-500">
+              From {formatZar(COMPANY_SUBSCRIPTION_MONTHLY_ZAR)}/mo after your{' '}
+              {COMPANY_TRIAL_DAYS}-day free trial · first{' '}
+              {FOUNDING_FREE_COMPANY_LIMIT} companies free for life ·{' '}
+              <a
+                href="#pricing"
+                className="font-semibold text-[#0077b6] underline decoration-sky-200 underline-offset-4 hover:text-[#00b4d8]"
+              >
+                Pricing
+              </a>
+            </p>
+            <FoundingCounterStrip />
           </div>
         </div>
       </section>
@@ -769,10 +744,10 @@ export default function LandingPage() {
       {/* ═══════════ FEATURED MODULE ROTATOR ═══════════ */}
       <section className="relative border-t border-slate-200 bg-[#f8fafc] py-16 sm:py-24">
         <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10">
-          <div className="grid items-center gap-10 lg:grid-cols-12 lg:gap-14">
-            <div className="lg:col-span-5">
+          <div className="grid items-center gap-10 lg:grid-cols-12 lg:gap-12">
+            <div className="lg:col-span-4">
               <SectionLabel>Mission control</SectionLabel>
-              <h2 className="text-3xl font-black tracking-tight text-slate-900 sm:text-4xl md:text-5xl">
+              <h2 className="text-3xl font-black tracking-tight text-slate-900 sm:text-4xl md:text-[2.75rem]">
                 Built like a mission.
                 <span className="mt-1 block text-[#00b4d8]">Run like a business.</span>
               </h2>
@@ -805,12 +780,12 @@ export default function LandingPage() {
                 <p className="mt-2 text-sm leading-relaxed text-slate-600">{featured.body}</p>
               </div>
             </div>
-            <div className="relative min-w-0 lg:col-span-7">
+            <div className="relative min-w-0 lg:col-span-8">
               <div className="pointer-events-none absolute -inset-4 rounded-[2rem] bg-[#00b4d8]/10 blur-3xl" />
-              <div className={`relative w-full ${PRODUCT_MOCK_HEIGHT}`}>
-                <div className="absolute inset-0 overflow-hidden rounded-2xl border border-slate-200 shadow-xl shadow-slate-200/80">
+              <div className="relative overflow-hidden rounded-2xl border border-slate-200 shadow-xl shadow-slate-200/80">
+                <ProductMockShell>
                   <FeaturedMock />
-                </div>
+                </ProductMockShell>
               </div>
             </div>
           </div>
@@ -820,62 +795,86 @@ export default function LandingPage() {
       {/* ═══════════ MODULES ═══════════ */}
       <section id="modules" className="border-t border-slate-200 bg-white py-20 sm:py-28">
         <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10">
-          <div className="mx-auto mb-16 max-w-3xl text-center">
+          <div className="mx-auto mb-14 max-w-3xl text-center sm:mb-16">
             <SectionLabel>Modules</SectionLabel>
             <h2 className="text-3xl font-black tracking-[-0.04em] text-slate-900 sm:text-5xl">
               Fourteen systems. Zero silos.
             </h2>
-            <p className="mt-4 text-slate-600">
+            <p className="mt-4 text-base text-slate-600 sm:text-lg">
               Deep capability where operators work — not marketing slides.
             </p>
           </div>
 
-          <div className="space-y-20 sm:space-y-28">
-            {MODULES.map((mod, index) => {
-              const Mock = mod.Mock;
-              const reverse = index % 2 === 1;
-              return (
-                <div
-                  key={mod.id}
-                  id={`module-${mod.id}`}
-                  className="grid items-center gap-8 lg:grid-cols-2 lg:gap-16"
-                >
-                  <div className={reverse ? 'lg:order-2' : ''}>
-                    <div className="mb-4 flex items-center gap-3">
-                      <span className="font-mono text-[11px] font-bold tracking-[0.2em] text-slate-400">
-                        {mod.code}
-                      </span>
-                      <span className="h-px w-10 bg-slate-200" />
-                      <mod.icon className="h-4 w-4 text-[#00b4d8]" />
-                    </div>
-                    <h3 className="text-2xl font-black tracking-tight text-slate-900 sm:text-4xl">
-                      {mod.title}
-                    </h3>
-                    <p className="mt-2 text-base font-semibold text-[#00b4d8] sm:text-lg">
-                      {mod.tagline}
-                    </p>
-                    <p className="mt-4 max-w-lg text-sm leading-relaxed text-slate-600 sm:text-base">
-                      {mod.body}
-                    </p>
-                    <ul className="mt-6 space-y-2.5">
-                      {mod.bullets.map((b) => (
-                        <li key={b} className="flex items-start gap-2.5 text-sm text-slate-700">
-                          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-                          {b}
-                        </li>
-                      ))}
-                    </ul>
+          <div className="space-y-16 sm:space-y-20 lg:space-y-24">
+            {MODULES.map((mod) => (
+              <div
+                key={mod.id}
+                id={`module-${mod.id}`}
+                className="grid items-start gap-8 lg:grid-cols-12 lg:gap-10 xl:gap-12"
+              >
+                {/* Copy — 1/3 */}
+                <div className="lg:col-span-4 lg:sticky lg:top-28">
+                  <div className="mb-4 flex items-center gap-3">
+                    <span className="font-mono text-[11px] font-bold tracking-[0.2em] text-slate-400">
+                      {mod.code}
+                    </span>
+                    <span className="h-px w-10 bg-slate-200" />
+                    <mod.icon className="h-4 w-4 text-[#00b4d8]" />
                   </div>
-                  <div className={`min-w-0 ${reverse ? 'lg:order-1' : ''}`}>
-                    <div className={`relative w-full ${PRODUCT_MOCK_HEIGHT}`}>
-                      <div className="absolute inset-0 overflow-hidden rounded-2xl border border-slate-200">
-                        <Mock />
-                      </div>
-                    </div>
-                  </div>
+                  <h3 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl xl:text-4xl">
+                    {mod.title}
+                  </h3>
+                  <p className="mt-2 text-base font-semibold text-[#00b4d8] sm:text-lg">
+                    {mod.tagline}
+                  </p>
+                  <p className="mt-4 max-w-md text-sm leading-relaxed text-slate-600 sm:text-base">
+                    {mod.body}
+                  </p>
+                  <ul className="mt-6 space-y-2.5">
+                    {mod.bullets.map((b) => (
+                      <li
+                        key={b}
+                        className="flex items-start gap-2.5 text-sm text-slate-700"
+                      >
+                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                        {b}
+                      </li>
+                    ))}
+                  </ul>
+                  <Link
+                    href="/onboarding?type=business"
+                    className="mt-6 inline-flex items-center gap-1.5 text-sm font-bold text-[#0077b6] transition-colors hover:text-[#00b4d8]"
+                  >
+                    Join to use {mod.short}
+                    <ChevronRight className="h-4 w-4" />
+                  </Link>
                 </div>
-              );
-            })}
+
+                {/* Three equal-height images — 2/3 */}
+                <div className="min-w-0 lg:col-span-8">
+                  <ModuleGallery moduleId={mod.id} />
+                  <p className="mt-3 text-center text-[11px] text-slate-400 sm:text-left">
+                    Three live views · same height · product-real, not stock photos
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-16 flex flex-wrap items-center justify-center gap-3 sm:mt-20">
+            <Link
+              href="/onboarding?type=business"
+              className="inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-7 py-3.5 text-sm font-bold text-white shadow-md shadow-cyan-200/50 hover:bg-[#0099b8]"
+            >
+              Start free trial — unlock all modules
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+            <a
+              href="#pricing"
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-7 py-3.5 text-sm font-bold text-slate-800 hover:border-[#00b4d8]"
+            >
+              See pricing
+            </a>
           </div>
         </div>
       </section>

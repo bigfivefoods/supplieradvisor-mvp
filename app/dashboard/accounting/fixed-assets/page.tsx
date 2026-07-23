@@ -14,7 +14,11 @@ import {
 } from '@/components/accounting/AccountingShell';
 import { Panel } from '@/components/relationship/RelationshipChrome';
 
-type AssetRow = FixedAsset & { monthly_depreciation?: number };
+type AssetRow = FixedAsset & {
+  monthly_depreciation?: number;
+  capitalization_journal_id?: number | null;
+  capitalized_at?: string | null;
+};
 
 export default function FixedAssetsPage() {
   return (
@@ -82,7 +86,12 @@ function Inner() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
-      toast.success('Asset registered');
+      toast.success(
+        data.journal?.entryNumber
+          ? `Asset registered · on BS ${data.journal.entryNumber}`
+          : 'Asset registered'
+      );
+      if (data.journalWarning) toast.message(data.journalWarning);
       setShowModal(false);
       void load();
     } catch (err) {
@@ -107,7 +116,66 @@ function Inner() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
-      toast.success(`Depreciated ${formatMoney(data.depreciation_amount)}`);
+      toast.success(
+        data.journal?.entryNumber
+          ? `Depreciated ${formatMoney(data.depreciation_amount)} · ${data.journal.entryNumber}`
+          : `Depreciated ${formatMoney(data.depreciation_amount)}`
+      );
+      if (data.journalWarning) toast.message(data.journalWarning);
+      void load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed');
+    }
+  }
+
+  async function capitalizeToBs(id: number) {
+    try {
+      const res = await fetch('/api/accounting/fixed-assets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          action: 'capitalize',
+          id,
+          creditSide: 'ap',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      if (data.skipped) {
+        toast.message('Already on balance sheet');
+      } else {
+        toast.success(
+          data.journal?.entryNumber
+            ? `On BS · ${data.journal.entryNumber} (Dr PPE · Cr AP)`
+            : 'Capitalised to balance sheet'
+        );
+      }
+      void load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed');
+    }
+  }
+
+  async function capitalizeAll() {
+    try {
+      const res = await fetch('/api/accounting/fixed-assets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          action: 'capitalize_all',
+          creditSide: 'ap',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      toast.success(
+        `Capitalised ${data.capitalised || 0} · skipped ${data.skipped || 0}`
+      );
+      if (data.errors?.length) toast.message(String(data.errors[0]));
       void load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed');
@@ -129,11 +197,21 @@ function Inner() {
       <AccountingHeader
         title="Fixed"
         titleAccent="assets"
-        description="Asset register with straight-line depreciation, book value tracking, and disposals."
+        description="Register assets, capitalise onto the balance sheet (Dr PPE · Cr AP), and post depreciation to GL."
         action={
-          <button type="button" onClick={() => setShowModal(true)} className="btn-primary !py-2.5 !px-5 text-sm">
-            <Plus className="w-4 h-4" /> Register asset
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void capitalizeAll()}
+              className="btn-secondary !py-2.5 !px-4 text-sm"
+              title="Post all uncapitalised assets to GL balance sheet"
+            >
+              Post all to BS
+            </button>
+            <button type="button" onClick={() => setShowModal(true)} className="btn-primary !py-2.5 !px-5 text-sm">
+              <Plus className="w-4 h-4" /> Register asset
+            </button>
+          </div>
         }
       />
 
@@ -172,6 +250,7 @@ function Inner() {
                   <th className="px-4 py-3 font-semibold text-right">Cost</th>
                   <th className="px-4 py-3 font-semibold text-right">Book value</th>
                   <th className="px-4 py-3 font-semibold text-right">Monthly</th>
+                  <th className="px-4 py-3 font-semibold">BS</th>
                   <th className="px-4 py-3 font-semibold">Status</th>
                   <th className="px-4 py-3 font-semibold text-right">Action</th>
                 </tr>
@@ -200,6 +279,17 @@ function Inner() {
                       {formatMoney(a.monthly_depreciation)}
                     </td>
                     <td className="px-4 py-3">
+                      {a.capitalization_journal_id ? (
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-800">
+                          On BS
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border border-amber-200 bg-amber-50 text-amber-900">
+                          Off books
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
                       <span
                         className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${statusClass(String(a.status || 'active'))}`}
                       >
@@ -207,16 +297,30 @@ function Inner() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      {a.status === 'active' && (
-                        <button
-                          type="button"
-                          title="Run 1 month depreciation"
-                          onClick={() => void depreciate(a.id)}
-                          className="p-1.5 rounded-lg border border-neutral-200 hover:border-[#00b4d8] text-neutral-500 hover:text-[#0077b6]"
-                        >
-                          <TrendingDown className="w-4 h-4" />
-                        </button>
-                      )}
+                      <div className="inline-flex gap-1">
+                        {!a.capitalization_journal_id &&
+                          a.status !== 'disposed' &&
+                          Number(a.purchase_cost || 0) > 0 && (
+                            <button
+                              type="button"
+                              title="Capitalise to balance sheet (Dr PPE · Cr AP)"
+                              onClick={() => void capitalizeToBs(a.id)}
+                              className="text-[10px] font-bold uppercase px-2 py-1 rounded-lg border border-violet-200 text-violet-900 hover:bg-violet-50"
+                            >
+                              To BS
+                            </button>
+                          )}
+                        {a.status === 'active' && (
+                          <button
+                            type="button"
+                            title="Run 1 month depreciation → GL"
+                            onClick={() => void depreciate(a.id)}
+                            className="p-1.5 rounded-lg border border-neutral-200 hover:border-[#00b4d8] text-neutral-500 hover:text-[#0077b6]"
+                          >
+                            <TrendingDown className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

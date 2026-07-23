@@ -204,6 +204,20 @@ export async function postManufacturingCostEntryToGl(opts: {
     entry.description ||
     `Mfg cost ${entry.category || 'expense'} ${entry.reference || ''}`.trim();
 
+  const costDims = {
+    businessUnitId: entry.business_unit_id
+      ? Number(entry.business_unit_id)
+      : null,
+    workCenterId: entry.work_center_id ? Number(entry.work_center_id) : null,
+    workStationId: entry.work_station_id
+      ? Number(entry.work_station_id)
+      : null,
+    assetId: entry.asset_id ? Number(entry.asset_id) : null,
+    purchaseOrderId: entry.purchase_order_id
+      ? Number(entry.purchase_order_id)
+      : null,
+  };
+
   const posted = await postBalancedJournal({
     profileId: opts.companyId,
     entryDate: String(entry.entry_date || new Date().toISOString()).slice(0, 10),
@@ -220,6 +234,7 @@ export async function postManufacturingCostEntryToGl(opts: {
       work_station_id: entry.work_station_id,
       asset_id: entry.asset_id,
       production_order_id: entry.production_order_id,
+      purchase_order_id: entry.purchase_order_id ?? null,
     },
     lines: [
       {
@@ -227,12 +242,14 @@ export async function postManufacturingCostEntryToGl(opts: {
         debit: amount,
         credit: 0,
         memo,
+        ...costDims,
       },
       {
         accountId: creditId,
         debit: 0,
         credit: amount,
         memo: 'Manufacturing cost accrual',
+        purchaseOrderId: costDims.purchaseOrderId,
       },
     ],
   });
@@ -357,6 +374,23 @@ export async function syncManufacturingAssetToFixedAssets(opts: {
       })
       .eq('id', asset.id)
       .eq('profile_id', opts.companyId);
+
+    // Capitalise onto balance sheet when purchase cost present
+    if (Number(asset.purchase_cost || 0) > 0.005) {
+      try {
+        const { capitalizeFixedAsset } = await import(
+          '@/lib/accounting/balance-sheet-allocate'
+        );
+        await capitalizeFixedAsset({
+          companyId: opts.companyId,
+          fixedAssetId: Number(created.id),
+          creditSide: 'ap',
+        });
+      } catch {
+        /* soft — register still linked */
+      }
+    }
+
     return { ok: true, fixedAssetId: Number(created.id) };
   } catch (e: unknown) {
     return {

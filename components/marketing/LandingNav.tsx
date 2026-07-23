@@ -10,7 +10,7 @@ import { useRouter } from 'next/navigation';
 const LINKS = [
   { id: 'markets', label: 'B2B · B2G · B2C' },
   { id: 'why-join', label: 'Why join' },
-  { id: 'systems', label: 'Systems' },
+  { id: 'modules', label: 'Modules' },
   { id: 'trust', label: 'Trust' },
   { id: 'pricing', label: 'Pricing' },
   { id: 'network', label: 'Companies' },
@@ -141,7 +141,7 @@ export default function LandingNav() {
               href="/onboarding?type=business"
               className="inline-flex items-center gap-1.5 rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#0099b8] lg:px-5 lg:py-2.5"
             >
-              Start free <ArrowRight className="h-4 w-4" />
+              Start free trial <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
 
@@ -209,7 +209,7 @@ export default function LandingNav() {
                   onClick={() => setOpen(false)}
                   className="rounded-2xl bg-[#00b4d8] py-3.5 text-center font-semibold text-white touch-manipulation"
                 >
-                  Start free
+                  Start free trial
                 </Link>
               </div>
             </div>

@@ -56,6 +56,7 @@ import {
 } from '@/components/suppliers/SuppliersShell';
 import FxRateStrip from '@/components/fx/FxRateStrip';
 import { COMMON_CURRENCIES } from '@/lib/inventory/types';
+import { COST_CATEGORIES } from '@/lib/manufacturing/cost-structure';
 
 const PRODUCT_TYPE_LABELS: Record<string, string> = {
   finished_good: 'Finished goods',
@@ -147,7 +148,19 @@ type PurchaseOrder = {
   created_at?: string;
   metadata?: Record<string, unknown> | null;
   fulfilment_status?: string | null;
+  /** Cost allocation (manufacturing cost objects) */
+  business_unit_id?: number | null;
+  work_center_id?: number | null;
+  work_station_id?: number | null;
+  asset_id?: number | null;
+  cost_category?: string | null;
+  cost_allocations?: Array<Record<string, unknown>> | null;
+  cost_entry_id?: number | null;
+  cost_journal_entry_id?: number | null;
+  cost_allocated_at?: string | null;
 };
+
+type CostOption = { id: number; code?: string | null; name: string };
 
 export default function SupplierPurchaseOrdersPage() {
   return (
@@ -237,6 +250,17 @@ function PoInner() {
   const [lineItems, setLineItems] = useState<PoLineItem[]>([
     { product_id: null, item_name: '', quantity: 1, unit_price: 0, uom: 'ea' },
   ]);
+  /** Cost centre allocation — BU / work centre / station / asset */
+  const [costBuId, setCostBuId] = useState<number | null>(null);
+  const [costWcId, setCostWcId] = useState<number | null>(null);
+  const [costWsId, setCostWsId] = useState<number | null>(null);
+  const [costAssetId, setCostAssetId] = useState<number | null>(null);
+  const [costCategory, setCostCategory] = useState('materials');
+  const [costBus, setCostBus] = useState<CostOption[]>([]);
+  const [costWcs, setCostWcs] = useState<CostOption[]>([]);
+  const [costWss, setCostWss] = useState<CostOption[]>([]);
+  const [costAssets, setCostAssets] = useState<CostOption[]>([]);
+  const [costStructureLoaded, setCostStructureLoaded] = useState(false);
   /** Selected supplier’s sellable catalogue (agreements + their inventory) */
   const [supplierCatalogue, setSupplierCatalogue] = useState<
     SupplierCatalogueItem[]
@@ -524,6 +548,50 @@ function PoInner() {
         : `Added ${item.product_name} from supplier catalogue`
     );
   };
+
+  // Load manufacturing cost objects for PO allocation pickers
+  useEffect(() => {
+    if (!companyId) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const qs = `companyId=${companyId}`;
+        const [buR, wcR, wsR, asR] = await Promise.all([
+          fetch(`/api/manufacturing/business-units?${qs}`),
+          fetch(`/api/manufacturing/work-centers?${qs}`),
+          fetch(`/api/manufacturing/work-stations?${qs}`),
+          fetch(`/api/manufacturing/assets?${qs}`),
+        ]);
+        const [buJ, wcJ, wsJ, asJ] = await Promise.all([
+          buR.json().catch(() => ({})),
+          wcR.json().catch(() => ({})),
+          wsR.json().catch(() => ({})),
+          asR.json().catch(() => ({})),
+        ]);
+        if (cancelled) return;
+        const mapOpts = (
+          rows: Array<Record<string, unknown>> | undefined
+        ): CostOption[] =>
+          (rows || [])
+            .map((r) => ({
+              id: Number(r.id),
+              code: r.code != null ? String(r.code) : null,
+              name: String(r.name || r.code || `#${r.id}`),
+            }))
+            .filter((o) => Number.isFinite(o.id) && o.id > 0);
+        setCostBus(mapOpts(buJ.businessUnits));
+        setCostWcs(mapOpts(wcJ.workCenters));
+        setCostWss(mapOpts(wsJ.workStations));
+        setCostAssets(mapOpts(asJ.assets));
+        setCostStructureLoaded(true);
+      } catch {
+        if (!cancelled) setCostStructureLoaded(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId]);
 
   const load = useCallback(async () => {
     if (!privyUserId) {
@@ -953,18 +1021,27 @@ function PoInner() {
           useEscrow: wantEscrow,
           supplier_wallet: supplierWallet || null,
           status: asDraft ? 'draft' : 'sent',
+          business_unit_id: costBuId,
+          work_center_id: costWcId,
+          work_station_id: costWsId,
+          asset_id: costAssetId,
+          cost_category: costCategory || 'materials',
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to create PO');
 
       const po = data.purchaseOrder as PurchaseOrder;
+      const costLabel =
+        costBuId || costWcId || costWsId || costAssetId
+          ? ' · cost centre set'
+          : '';
       toast.success(
         asDraft
-          ? `Draft PO #${po.id} saved`
+          ? `Draft PO #${po.id} saved${costLabel}`
           : wantEscrow
             ? `PO #${po.id} created — confirm escrow in wallet…`
-            : `Standard PO #${po.id} sent`
+            : `Standard PO #${po.id} sent${costLabel}`
       );
       const { toastGoldenPathFromResponse } = await import(
         '@/lib/onboarding/toast-client'
@@ -980,6 +1057,11 @@ function PoInner() {
       setLineItems([{ product_id: null, item_name: '', quantity: 1, unit_price: 0, uom: 'ea' }]);
       setLineCatalogueKeys([null]);
       setUseEscrow(false);
+      setCostBuId(null);
+      setCostWcId(null);
+      setCostWsId(null);
+      setCostAssetId(null);
+      setCostCategory('materials');
       setTab('pipeline');
       await load();
     } catch (e: unknown) {
@@ -1696,6 +1778,150 @@ function PoInner() {
               />
             </div>
 
+            {/* Cost allocation — charge PO to BU / cell / station / asset */}
+            <div className="rounded-2xl border border-violet-100 bg-violet-50/40 p-4 space-y-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <h3 className="text-sm font-bold text-violet-950">
+                    Cost allocation
+                  </h3>
+                  <p className="text-[11px] text-violet-900/70 mt-0.5 leading-relaxed">
+                    Charge this PO to a business unit, work centre, station, or
+                    asset. On complete / receive, cost entries and GL journals
+                    post with these dimensions.
+                  </p>
+                </div>
+                <Link
+                  href="/dashboard/manufacturing/cost-centres"
+                  className="text-[11px] font-semibold text-violet-700 underline shrink-0"
+                >
+                  Cost centres
+                </Link>
+              </div>
+              {costStructureLoaded &&
+                !costBus.length &&
+                !costWcs.length &&
+                !costWss.length &&
+                !costAssets.length && (
+                  <p className="text-[11px] text-amber-900 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+                    No cost objects yet.{' '}
+                    <Link
+                      href="/dashboard/manufacturing/cost-centres"
+                      className="font-bold underline"
+                    >
+                      Create business units, cells, or assets
+                    </Link>{' '}
+                    so every PO can be allocated correctly.
+                  </p>
+                )}
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-medium text-violet-950">
+                    Business unit / plant
+                  </label>
+                  <select
+                    className="input mt-1 w-full !p-2.5 !text-sm bg-white"
+                    value={costBuId ?? ''}
+                    onChange={(e) =>
+                      setCostBuId(e.target.value ? Number(e.target.value) : null)
+                    }
+                  >
+                    <option value="">— None —</option>
+                    {costBus.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.code ? `${o.code} · ` : ''}
+                        {o.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] font-medium text-violet-950">
+                    Work centre / cell
+                  </label>
+                  <select
+                    className="input mt-1 w-full !p-2.5 !text-sm bg-white"
+                    value={costWcId ?? ''}
+                    onChange={(e) =>
+                      setCostWcId(e.target.value ? Number(e.target.value) : null)
+                    }
+                  >
+                    <option value="">— None —</option>
+                    {costWcs.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.code ? `${o.code} · ` : ''}
+                        {o.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] font-medium text-violet-950">
+                    Work station
+                  </label>
+                  <select
+                    className="input mt-1 w-full !p-2.5 !text-sm bg-white"
+                    value={costWsId ?? ''}
+                    onChange={(e) =>
+                      setCostWsId(e.target.value ? Number(e.target.value) : null)
+                    }
+                  >
+                    <option value="">— None —</option>
+                    {costWss.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.code ? `${o.code} · ` : ''}
+                        {o.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] font-medium text-violet-950">
+                    Asset (machine / tool)
+                  </label>
+                  <select
+                    className="input mt-1 w-full !p-2.5 !text-sm bg-white"
+                    value={costAssetId ?? ''}
+                    onChange={(e) =>
+                      setCostAssetId(
+                        e.target.value ? Number(e.target.value) : null
+                      )
+                    }
+                  >
+                    <option value="">— None —</option>
+                    {costAssets.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.code ? `${o.code} · ` : ''}
+                        {o.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="text-[11px] font-medium text-violet-950">
+                    Cost category (GL mapping)
+                  </label>
+                  <select
+                    className="input mt-1 w-full !p-2.5 !text-sm bg-white max-w-xs"
+                    value={costCategory}
+                    onChange={(e) => setCostCategory(e.target.value)}
+                  >
+                    {COST_CATEGORIES.map((c) => (
+                      <option key={c.value} value={c.value}>
+                        {c.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              {(costBuId || costWcId || costWsId || costAssetId) && (
+                <p className="text-[10px] text-violet-800 font-medium">
+                  Allocation will post on complete, receive-to-stock, or paid —
+                  Dr expense · Cr AP, rolled into cost centres.
+                </p>
+              )}
+            </div>
+
             <div>
               <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                 <div>
@@ -2271,6 +2497,50 @@ function PoInner() {
                             </div>
                           )}
                           {(() => {
+                            const bits: string[] = [];
+                            const bu = costBus.find(
+                              (o) => o.id === Number(po.business_unit_id)
+                            );
+                            const wc = costWcs.find(
+                              (o) => o.id === Number(po.work_center_id)
+                            );
+                            const ws = costWss.find(
+                              (o) => o.id === Number(po.work_station_id)
+                            );
+                            const as = costAssets.find(
+                              (o) => o.id === Number(po.asset_id)
+                            );
+                            if (bu) bits.push(`BU ${bu.code || bu.name}`);
+                            if (wc) bits.push(`Cell ${wc.code || wc.name}`);
+                            if (ws) bits.push(`Station ${ws.code || ws.name}`);
+                            if (as) bits.push(`Asset ${as.code || as.name}`);
+                            if (po.cost_category && bits.length) {
+                              bits.push(String(po.cost_category));
+                            }
+                            if (!bits.length && !po.cost_allocated_at) return null;
+                            return (
+                              <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
+                                {bits.length > 0 && (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 text-violet-900 px-2 py-0.5 font-semibold">
+                                    Cost · {bits.join(' · ')}
+                                  </span>
+                                )}
+                                {po.cost_allocated_at ? (
+                                  <span className="inline-flex items-center rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 font-semibold">
+                                    Posted to GL
+                                    {po.cost_journal_entry_id
+                                      ? ` · JE #${po.cost_journal_entry_id}`
+                                      : ''}
+                                  </span>
+                                ) : bits.length > 0 ? (
+                                  <span className="inline-flex items-center rounded-full bg-amber-50 text-amber-900 border border-amber-100 px-2 py-0.5 font-medium">
+                                    Awaits complete / allocate
+                                  </span>
+                                ) : null}
+                              </div>
+                            );
+                          })()}
+                          {(() => {
                             const step = buyerNextStep(po);
                             if (!step) return null;
                             const tone =
@@ -2300,6 +2570,74 @@ function PoInner() {
                             label="WhatsApp"
                             title="Share this PO on WhatsApp with your supplier"
                           />
+                          {!po.cost_allocated_at &&
+                            (po.business_unit_id ||
+                              po.work_center_id ||
+                              po.work_station_id ||
+                              po.asset_id ||
+                              (Array.isArray(po.cost_allocations) &&
+                                po.cost_allocations.length > 0)) && (
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={async () => {
+                                  setBusyId(po.id);
+                                  try {
+                                    const res = await fetch(
+                                      '/api/suppliers/purchase-orders',
+                                      {
+                                        method: 'PATCH',
+                                        headers: {
+                                          'Content-Type': 'application/json',
+                                        },
+                                        body: JSON.stringify({
+                                          companyId,
+                                          privyUserId,
+                                          id: po.id,
+                                          action: 'allocate_cost',
+                                        }),
+                                      }
+                                    );
+                                    const data = await res.json();
+                                    if (!res.ok) {
+                                      throw new Error(
+                                        data.error || 'Allocate failed'
+                                      );
+                                    }
+                                    const ca = data.costAllocation as {
+                                      skipped?: boolean;
+                                      warning?: string;
+                                      entryNumbers?: string[];
+                                      journalIds?: number[];
+                                    } | null;
+                                    if (ca?.skipped && ca?.warning) {
+                                      toast.message(ca.warning);
+                                    } else if (ca?.entryNumbers?.length) {
+                                      toast.success(
+                                        `Cost posted · ${ca.entryNumbers.join(', ')}`
+                                      );
+                                    } else {
+                                      toast.success(
+                                        'Cost allocated to cost centre / GL'
+                                      );
+                                    }
+                                    await load();
+                                  } catch (e: unknown) {
+                                    toast.error(
+                                      e instanceof Error
+                                        ? e.message
+                                        : 'Allocate failed'
+                                    );
+                                  } finally {
+                                    setBusyId(null);
+                                  }
+                                }}
+                                className="btn-secondary !py-1.5 !px-3 text-xs border-violet-200 text-violet-900"
+                                title="Post manufacturing cost entry + journal with cost dimensions"
+                              >
+                                Allocate cost
+                              </button>
+                            )}
                           {po.status === 'draft' && (
                             <button
                               type="button"
@@ -2701,11 +3039,19 @@ function ProcessGuide({ escrowEnabled }: { escrowEnabled: boolean }) {
         <ol className="text-sm text-neutral-600 space-y-2 list-decimal list-inside">
           <li>Select a connected supplier from your book</li>
           <li>Add line items, promised date, payment terms</li>
+          <li>
+            Allocate cost — business unit, work centre, station, and/or asset
+            (posts to cost centres + GL on complete)
+          </li>
           <li>Send (or save draft) — status machine enforced server-side</li>
           <li>Mark accepted when supplier confirms</li>
           <li>Record delivery quantities → feeds OTIFEF scorecards</li>
           <li>Rate supplier quality / delivery / communication / value</li>
         </ol>
+        <p className="text-xs text-neutral-500 mt-4">
+          Cost objects live under Manufacturing → Cost centres. Journals carry
+          the same dimensions for P&amp;L rollups.
+        </p>
       </div>
       <div className="bg-white border rounded-3xl p-6">
         <div className="inline-flex p-2 rounded-xl bg-[#00b4d8]/15 text-[#0077b6] mb-3">

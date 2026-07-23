@@ -917,6 +917,12 @@ export async function GET(request: NextRequest) {
     }
 
     if (report === 'balance_sheet') {
+      const {
+        classifyBsSection,
+        BS_SECTION_LABELS,
+        buildBalanceSheetExtras,
+      } = await import('@/lib/accounting/balance-sheet-allocate');
+
       const bsTypes = new Set(['asset', 'liability', 'equity']);
       const rows = (accounts || [])
         .filter((a) => bsTypes.has(String(a.account_type)) && !a.is_header)
@@ -926,15 +932,24 @@ export async function GET(request: NextRequest) {
             a.account_type === 'asset'
               ? round2(t.debit - t.credit)
               : round2(t.credit - t.debit);
+          const section = classifyBsSection(
+            String(a.account_type),
+            a.subtype,
+            a.code
+          );
           return {
             id: a.id,
             code: a.code,
             name: a.name,
             account_type: a.account_type,
+            subtype: a.subtype ?? null,
+            section,
+            section_label: BS_SECTION_LABELS[section] || section,
             amount,
           };
         })
-        .filter((r) => r.amount !== 0);
+        .filter((r) => r.amount !== 0)
+        .sort((a, b) => String(a.code).localeCompare(String(b.code)));
 
       // Roll net income into equity for BS equation
       const plTypes = new Set(['revenue', 'expense', 'cogs']);
@@ -953,20 +968,109 @@ export async function GET(request: NextRequest) {
       const liabilities = round2(
         rows.filter((r) => r.account_type === 'liability').reduce((s, r) => s + r.amount, 0)
       );
-      const equity = round2(
-        rows.filter((r) => r.account_type === 'equity').reduce((s, r) => s + r.amount, 0) +
-          netIncome
+      const equityBase = round2(
+        rows.filter((r) => r.account_type === 'equity').reduce((s, r) => s + r.amount, 0)
       );
+      const equity = round2(equityBase + netIncome);
+
+      // Section totals
+      const sections: Record<string, number> = {};
+      for (const r of rows) {
+        sections[r.section] = round2((sections[r.section] || 0) + r.amount);
+      }
+      sections.equity = round2((sections.equity || 0) + netIncome);
+
+      // Dimension allocation breakdown from journal lines (when dims present)
+      let allocationByBu: Array<{
+        business_unit_id: number | null;
+        assets: number;
+        liabilities: number;
+      }> = [];
+      try {
+        if (entryIds.length) {
+          const { data: dimLines } = await supabase
+            .from('journal_lines')
+            .select(
+              'account_id, debit, credit, business_unit_id, work_center_id, asset_id, fixed_asset_id, liability_id'
+            )
+            .in('journal_entry_id', entryIds);
+          const acctType = new Map(
+            (accounts || []).map((a) => [Number(a.id), String(a.account_type)])
+          );
+          const byBu = new Map<
+            string,
+            { business_unit_id: number | null; assets: number; liabilities: number }
+          >();
+          for (const l of dimLines || []) {
+            const type = acctType.get(Number(l.account_id));
+            if (type !== 'asset' && type !== 'liability') continue;
+            const key =
+              l.business_unit_id != null
+                ? String(l.business_unit_id)
+                : 'unallocated';
+            const cur = byBu.get(key) || {
+              business_unit_id:
+                l.business_unit_id != null ? Number(l.business_unit_id) : null,
+              assets: 0,
+              liabilities: 0,
+            };
+            const d = Number(l.debit || 0);
+            const c = Number(l.credit || 0);
+            if (type === 'asset') cur.assets += d - c;
+            else cur.liabilities += c - d;
+            byBu.set(key, cur);
+          }
+          allocationByBu = [...byBu.values()].map((r) => ({
+            business_unit_id: r.business_unit_id,
+            assets: round2(r.assets),
+            liabilities: round2(r.liabilities),
+          }));
+        }
+      } catch {
+        /* soft — dim columns may be missing */
+      }
+
+      const extras = await buildBalanceSheetExtras({
+        companyId,
+        glAssets: assets,
+        glLiabilities: liabilities,
+        glEquity: equity,
+      });
 
       return NextResponse.json({
         success: true,
         report,
         rows,
+        sections,
+        sectionLabels: BS_SECTION_LABELS,
+        allocationByBu,
+        netIncomeLine: {
+          code: 'NI',
+          name: 'Net income (period)',
+          account_type: 'equity',
+          section: 'equity',
+          amount: netIncome,
+        },
+        registers: {
+          fixedAssets: extras.fixedAssetSchedule,
+          fixedAssetRegisterTotal: extras.fixedAssetRegisterTotal,
+          fixedAssetCapitalisedCount: extras.fixedAssetCapitalisedCount,
+          fixedAssetUncapitalisedCount: extras.fixedAssetUncapitalisedCount,
+          liabilities: extras.liabilitySchedule,
+          liabilityRegisterTotal: extras.liabilityRegisterTotal,
+          bankRegisterTotal: extras.bankRegisterTotal,
+        },
+        completeness: extras.completeness,
         summary: {
           assets,
           liabilities,
           equity,
+          equityBase,
           netIncome,
+          currentAssets: sections.current_assets || 0,
+          nonCurrentAssets: sections.non_current_assets || 0,
+          currentLiabilities: sections.current_liabilities || 0,
+          nonCurrentLiabilities: sections.non_current_liabilities || 0,
           balanced: Math.abs(assets - (liabilities + equity)) < 0.05,
         },
         period: { from, to },

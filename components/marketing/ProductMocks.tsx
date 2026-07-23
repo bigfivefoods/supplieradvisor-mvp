@@ -1,12 +1,20 @@
 'use client';
 
+import { useId } from 'react';
 import type { LucideIcon } from 'lucide-react';
 
 /** Browser-frame product mockups for landing — light Tesla-style product UI. */
 
-/** Fixed chrome height so hero module rotation never reflows the page. */
+/**
+ * Fixed heights — every module frame / gallery card shares the same height
+ * so rotation and grids never reflow the page.
+ */
 export const PRODUCT_MOCK_HEIGHT =
-  'h-[300px] sm:h-[340px] lg:h-[360px]';
+  'h-[280px] sm:h-[340px] lg:h-[400px] xl:h-[420px]';
+
+/** Equal height for 2–3 scene cards in the Modules section. */
+export const MODULE_GALLERY_HEIGHT =
+  'h-[200px] sm:h-[220px] lg:h-[236px]';
 
 function Frame({
   title,
@@ -19,7 +27,7 @@ function Frame({
 }) {
   return (
     <div
-      className={`flex w-full min-w-0 max-w-full flex-col overflow-hidden rounded-[1.25rem] border border-slate-200/90 bg-white shadow-[0_25px_60px_-20px_rgba(15,23,42,0.18)] sm:rounded-[1.75rem] ${PRODUCT_MOCK_HEIGHT} ${className}`}
+      className={`flex h-full w-full min-w-0 max-w-full flex-col overflow-hidden rounded-[1.25rem] border border-slate-200/90 bg-white shadow-[0_25px_60px_-20px_rgba(15,23,42,0.18)] sm:rounded-[1.75rem] ${className}`}
     >
       <div className="flex shrink-0 items-center gap-2 border-b border-slate-100 bg-slate-50/90 px-2.5 py-2 sm:px-4 sm:py-3">
         <div className="flex shrink-0 gap-1.5">
@@ -635,3 +643,714 @@ export type ModuleDef = {
   icon: LucideIcon;
   accent: string;
 };
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Module galleries — 3 equal-height scene cards per module (Modules section)
+ * Beautiful, product-real previews that make operators want to join.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+type GalleryScene = {
+  eyebrow: string;
+  title: string;
+  caption?: string;
+  /** Background gradient accent */
+  wash?: 'cyan' | 'emerald' | 'violet' | 'amber' | 'rose' | 'sky';
+  metrics?: Array<{ label: string; value: string }>;
+  kind: 'bars' | 'list' | 'map' | 'pipeline' | 'ring' | 'tiles' | 'wave' | 'board';
+  bars?: number[];
+  list?: Array<{ left: string; right: string; tone?: string }>;
+  tiles?: string[];
+  stages?: string[];
+};
+
+const WASH: Record<NonNullable<GalleryScene['wash']>, string> = {
+  cyan: 'from-cyan-50 via-white to-sky-100/80',
+  emerald: 'from-emerald-50 via-white to-teal-50/90',
+  violet: 'from-violet-50 via-white to-fuchsia-50/70',
+  amber: 'from-amber-50 via-white to-orange-50/80',
+  rose: 'from-rose-50 via-white to-pink-50/70',
+  sky: 'from-sky-50 via-white to-cyan-50/90',
+};
+
+const MODULE_GALLERIES: Record<string, GalleryScene[]> = {
+  ops: [
+    {
+      eyebrow: 'Control tower',
+      title: 'Exceptions first',
+      wash: 'cyan',
+      kind: 'tiles',
+      tiles: ['Procure', 'Receive', 'Make', 'Ship'],
+      metrics: [
+        { label: 'Open POs', value: '12' },
+        { label: 'Exceptions', value: '3' },
+      ],
+    },
+    {
+      eyebrow: 'Throughput',
+      title: 'Live flow by stage',
+      wash: 'sky',
+      kind: 'bars',
+      bars: [42, 68, 55, 80, 72, 90, 88],
+      caption: 'Inbound · WIP · Outbound MTD',
+    },
+    {
+      eyebrow: 'Workboard',
+      title: 'What moves next',
+      wash: 'violet',
+      kind: 'list',
+      list: [
+        { left: 'PO-1842 receive', right: 'Dock 2', tone: 'amber' },
+        { left: 'WO-991 release', right: 'Cell A', tone: 'cyan' },
+        { left: 'SO-441 pick', right: 'Ready', tone: 'emerald' },
+      ],
+    },
+  ],
+  srm: [
+    {
+      eyebrow: 'OTIFEF',
+      title: 'Trust you can measure',
+      wash: 'emerald',
+      kind: 'ring',
+      metrics: [
+        { label: 'OTIFEF', value: '96%' },
+        { label: 'On time', value: '98%' },
+      ],
+      caption: 'After every delivery',
+    },
+    {
+      eyebrow: 'Supplier book',
+      title: 'Verified partners',
+      wash: 'cyan',
+      kind: 'list',
+      list: [
+        { left: 'Cape Harvest Co-op', right: '99.2%', tone: 'emerald' },
+        { left: 'Atlas Logistics SA', right: '97.1%', tone: 'cyan' },
+        { left: 'Kalahari Inputs', right: '95.8%', tone: 'violet' },
+      ],
+    },
+    {
+      eyebrow: 'Raise PO',
+      title: 'Escrow or standard',
+      wash: 'violet',
+      kind: 'pipeline',
+      stages: ['Draft', 'Sent', 'Accept', 'Deliver', 'Rate'],
+      caption: 'Optional on-chain escrow',
+    },
+  ],
+  crm: [
+    {
+      eyebrow: 'Pipeline',
+      title: 'R 2.4M weighted',
+      wash: 'emerald',
+      kind: 'bars',
+      bars: [30, 48, 55, 70, 62, 85, 92],
+      caption: 'Lead → opportunity → won',
+    },
+    {
+      eyebrow: 'Stages',
+      title: 'Deal velocity',
+      wash: 'cyan',
+      kind: 'pipeline',
+      stages: ['Lead', 'Qualify', 'Quote', 'Negotiate', 'Won'],
+    },
+    {
+      eyebrow: 'Revenue desk',
+      title: 'Quotes · orders · AR',
+      wash: 'violet',
+      kind: 'list',
+      list: [
+        { left: 'Q-2041 · Metro Fresh', right: 'R 180k', tone: 'cyan' },
+        { left: 'SO-991 · AfriRetail', right: 'Invoiced', tone: 'emerald' },
+        { left: 'INV-552 overdue', right: '7d', tone: 'amber' },
+      ],
+    },
+  ],
+  ctr: [
+    {
+      eyebrow: 'Outlet network',
+      title: 'Jobs & meals live',
+      wash: 'emerald',
+      kind: 'map',
+      metrics: [
+        { label: 'Outlets', value: '24' },
+        { label: 'Fed /mo', value: '12k' },
+      ],
+    },
+    {
+      eyebrow: 'Last mile',
+      title: 'Stock that feeds people',
+      wash: 'amber',
+      kind: 'list',
+      list: [
+        { left: 'CPT-07 Woodstock', right: 'OK', tone: 'emerald' },
+        { left: 'JHB-12 Alexandra', right: 'Reorder', tone: 'amber' },
+        { left: 'DBN-03 Umlazi', right: 'Impact ↑', tone: 'cyan' },
+      ],
+    },
+    {
+      eyebrow: 'Deploy model',
+      title: 'Feasibility before steel',
+      wash: 'sky',
+      kind: 'tiles',
+      tiles: ['Site', 'Demand', 'Capex', 'Impact'],
+      caption: 'Contractors · resellers · inventory',
+    },
+  ],
+  inv: [
+    {
+      eyebrow: 'Stock truth',
+      title: 'Every unit has a home',
+      wash: 'cyan',
+      kind: 'wave',
+      metrics: [
+        { label: 'On hand', value: '48.2k' },
+        { label: 'SKUs', value: '312' },
+        { label: 'Sites', value: '6' },
+      ],
+    },
+    {
+      eyebrow: 'Transfers',
+      title: 'GPS en route',
+      wash: 'sky',
+      kind: 'map',
+      caption: 'QR receive · multi-site',
+    },
+    {
+      eyebrow: 'Pedigree',
+      title: 'Lots · serials · passports',
+      wash: 'violet',
+      kind: 'pipeline',
+      stages: ['SKU', 'Lot', 'WH', 'Ship', 'QA'],
+    },
+  ],
+  mfg: [
+    {
+      eyebrow: 'OEE',
+      title: 'Factory physics',
+      wash: 'emerald',
+      kind: 'ring',
+      metrics: [
+        { label: 'OEE', value: '87%' },
+        { label: 'Yield', value: '99%' },
+      ],
+    },
+    {
+      eyebrow: 'Cells',
+      title: 'Availability · Performance · Quality',
+      wash: 'cyan',
+      kind: 'bars',
+      bars: [92, 88, 97, 85, 90, 94, 91],
+    },
+    {
+      eyebrow: 'Execution',
+      title: 'Work orders live',
+      wash: 'violet',
+      kind: 'list',
+      list: [
+        { left: 'WO-441 · Line 2', right: 'Running', tone: 'emerald' },
+        { left: 'WO-442 · Pack', right: 'Queued', tone: 'amber' },
+        { left: 'MPS week 28', right: 'Locked', tone: 'cyan' },
+      ],
+    },
+  ],
+  dst: [
+    {
+      eyebrow: 'In motion',
+      title: 'Every mile tracked',
+      wash: 'cyan',
+      kind: 'map',
+      metrics: [
+        { label: 'Shipments', value: '18' },
+        { label: 'OTIF', value: '97%' },
+      ],
+    },
+    {
+      eyebrow: 'Modes',
+      title: 'Road · ocean · air',
+      wash: 'sky',
+      kind: 'list',
+      list: [
+        { left: 'SHP-1042 Ocean', right: 'In transit', tone: 'emerald' },
+        { left: 'SHP-1048 Road', right: 'At dock', tone: 'cyan' },
+        { left: 'SHP-1051 Air', right: 'Planned', tone: 'violet' },
+      ],
+    },
+    {
+      eyebrow: 'Fleet',
+      title: 'Carriers & drivers',
+      wash: 'amber',
+      kind: 'tiles',
+      tiles: ['Fleet', 'Driver', 'Incoterms', 'Events'],
+    },
+  ],
+  net: [
+    {
+      eyebrow: 'Graph',
+      title: 'Verified trading edges',
+      wash: 'violet',
+      kind: 'map',
+      metrics: [
+        { label: 'Connected', value: '42' },
+        { label: 'Trust', value: '78' },
+      ],
+    },
+    {
+      eyebrow: 'Marketplace',
+      title: 'Reach beyond the book',
+      wash: 'cyan',
+      kind: 'bars',
+      bars: [20, 35, 48, 60, 72, 80, 95],
+      caption: 'Listings · views · RFQs',
+    },
+    {
+      eyebrow: 'Invites',
+      title: 'Grow the network',
+      wash: 'emerald',
+      kind: 'pipeline',
+      stages: ['Invite', 'Accept', 'Connect', 'Price', 'Trade'],
+    },
+  ],
+  sheq: [
+    {
+      eyebrow: 'ISO 45001',
+      title: 'Safety on the tower',
+      wash: 'amber',
+      kind: 'ring',
+      metrics: [
+        { label: 'Open', value: '2' },
+        { label: 'CAPAs', value: '3' },
+      ],
+    },
+    {
+      eyebrow: 'HIRARC',
+      title: 'Hazards scored live',
+      wash: 'rose',
+      kind: 'list',
+      list: [
+        { left: 'Cold store near-miss', right: 'Open', tone: 'amber' },
+        { left: 'Lot L-2041 NCR', right: 'CAPA', tone: 'violet' },
+        { left: 'Forklift zone', right: '12', tone: 'rose' },
+      ],
+    },
+    {
+      eyebrow: 'Loop',
+      title: 'Incident → CAPA → close',
+      wash: 'violet',
+      kind: 'pipeline',
+      stages: ['Report', 'Investigate', 'NCR', 'CAPA', 'Close'],
+    },
+  ],
+  qa: [
+    {
+      eyebrow: 'Release gates',
+      title: 'Hold blocks ship',
+      wash: 'emerald',
+      kind: 'ring',
+      metrics: [
+        { label: 'Passed', value: '128' },
+        { label: 'Holds', value: '1' },
+      ],
+    },
+    {
+      eyebrow: 'HACCP',
+      title: 'CCPs monitored',
+      wash: 'cyan',
+      kind: 'bars',
+      bars: [88, 92, 90, 95, 93, 97, 96],
+      caption: '12 critical control points',
+    },
+    {
+      eyebrow: 'Trace',
+      title: 'SKU → lot → ship → recall',
+      wash: 'sky',
+      kind: 'pipeline',
+      stages: ['SKU', 'Lot', 'WH', 'QA', 'Ship'],
+    },
+  ],
+  fin: [
+    {
+      eyebrow: 'Ledger',
+      title: 'One truth for money',
+      wash: 'cyan',
+      kind: 'bars',
+      bars: [40, 55, 48, 70, 62, 78, 85],
+      caption: 'P&L snapshot · 7 periods',
+    },
+    {
+      eyebrow: 'Working capital',
+      title: 'AR · AP · bank',
+      wash: 'emerald',
+      kind: 'tiles',
+      tiles: ['AR R1.2M', 'AP R640k', 'Bank R3.1M', 'JE 148'],
+    },
+    {
+      eyebrow: 'Balance sheet',
+      title: 'Assets & liabilities allocated',
+      wash: 'violet',
+      kind: 'list',
+      list: [
+        { left: 'PPE capitalised', right: 'On BS', tone: 'emerald' },
+        { left: 'Inventory 1140', right: 'Live', tone: 'cyan' },
+        { left: 'AP 2110', right: 'Matched', tone: 'violet' },
+      ],
+    },
+  ],
+  prj: [
+    {
+      eyebrow: 'Portfolio',
+      title: 'Work that ships',
+      wash: 'cyan',
+      kind: 'ring',
+      metrics: [
+        { label: 'Active', value: '9' },
+        { label: 'On time', value: '87%' },
+      ],
+    },
+    {
+      eyebrow: 'Board',
+      title: 'Kanban discipline',
+      wash: 'violet',
+      kind: 'board',
+      tiles: ['To do', 'Doing', 'Done'],
+      list: [
+        { left: 'Spec freeze', right: 'To do' },
+        { left: 'BOM rev B', right: 'Doing' },
+        { left: 'Kickoff', right: 'Done' },
+      ],
+    },
+    {
+      eyebrow: 'Gates',
+      title: 'Milestones & risk',
+      wash: 'amber',
+      kind: 'pipeline',
+      stages: ['Init', 'Plan', 'Build', 'Gate', 'Close'],
+    },
+  ],
+  esg: [
+    {
+      eyebrow: 'Carbon',
+      title: 'tCO₂e you can act on',
+      wash: 'emerald',
+      kind: 'ring',
+      metrics: [
+        { label: 'MTD', value: '42.6' },
+        { label: 'vs plan', value: '-8%' },
+      ],
+    },
+    {
+      eyebrow: 'Scopes',
+      title: '1 · 2 · 3 mix',
+      wash: 'sky',
+      kind: 'bars',
+      bars: [38, 27, 35, 40, 32, 30, 28],
+      caption: 'Tied to inventory & logistics',
+    },
+    {
+      eyebrow: 'Packs',
+      title: 'ESG reports ready',
+      wash: 'violet',
+      kind: 'tiles',
+      tiles: ['Scope 1', 'Scope 2', 'Scope 3', 'Export'],
+    },
+  ],
+  bi: [
+    {
+      eyebrow: 'Pulse',
+      title: 'Enterprise health 86',
+      wash: 'cyan',
+      kind: 'bars',
+      bars: [86, 91, 88, 79, 84, 90, 87],
+      caption: 'Net · supply · demand · ops',
+    },
+    {
+      eyebrow: 'Signals',
+      title: 'What needs you now',
+      wash: 'amber',
+      kind: 'list',
+      list: [
+        { left: 'AP overdue rising', right: 'Crit', tone: 'rose' },
+        { left: 'Supplier concentration', right: 'Warn', tone: 'amber' },
+        { left: 'OTIFEF +3.1 pts', right: 'Good', tone: 'emerald' },
+      ],
+    },
+    {
+      eyebrow: 'SAM + Super-Cube®',
+      title: 'Leaders who learn in-app',
+      wash: 'violet',
+      kind: 'tiles',
+      tiles: ['Ask SAM', 'Forecast', 'Cube', 'Guide'],
+    },
+  ],
+};
+
+function GalleryCard({ scene }: { scene: GalleryScene }) {
+  const wash = WASH[scene.wash || 'cyan'];
+  const waveId = useId().replace(/:/g, '');
+  return (
+    <div
+      className={`group relative flex ${MODULE_GALLERY_HEIGHT} w-full flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-gradient-to-br ${wash} shadow-[0_18px_40px_-18px_rgba(15,23,42,0.22)] transition-all duration-300 hover:-translate-y-0.5 hover:border-[#00b4d8]/45 hover:shadow-[0_24px_50px_-16px_rgba(0,180,216,0.28)]`}
+    >
+      {/* Decorative orbs */}
+      <div
+        className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-[#00b4d8]/10 blur-2xl transition-opacity group-hover:opacity-100"
+        aria-hidden
+      />
+      <div
+        className="pointer-events-none absolute -bottom-10 -left-6 h-24 w-24 rounded-full bg-violet-300/15 blur-2xl"
+        aria-hidden
+      />
+
+      <div className="relative flex min-h-0 flex-1 flex-col p-3.5 sm:p-4">
+        <div className="mb-1 text-[9px] font-black uppercase tracking-[0.18em] text-[#00b4d8]">
+          {scene.eyebrow}
+        </div>
+        <div className="text-[13px] font-black leading-snug tracking-tight text-slate-900 sm:text-sm">
+          {scene.title}
+        </div>
+
+        {scene.metrics && scene.metrics.length > 0 && (
+          <div className="mt-2.5 flex flex-wrap gap-1.5">
+            {scene.metrics.map((m) => (
+              <div
+                key={m.label}
+                className="rounded-xl border border-white/80 bg-white/80 px-2 py-1 shadow-sm backdrop-blur-sm"
+              >
+                <div className="text-[8px] font-bold uppercase tracking-wider text-slate-400">
+                  {m.label}
+                </div>
+                <div className="text-sm font-black tabular-nums tracking-tight text-slate-900">
+                  {m.value}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-auto min-h-0 pt-2">
+          {scene.kind === 'bars' && scene.bars && (
+            <div className="flex h-14 items-end gap-1 sm:h-16">
+              {scene.bars.map((h, i) => (
+                <div
+                  key={i}
+                  className="flex-1 rounded-t-md bg-gradient-to-t from-[#0077b6] to-[#00b4d8] opacity-85 transition-opacity group-hover:opacity-100"
+                  style={{ height: `${h}%` }}
+                />
+              ))}
+            </div>
+          )}
+
+          {scene.kind === 'wave' && (
+            <div className="relative h-14 overflow-hidden rounded-xl border border-cyan-100/80 bg-white/60 sm:h-16">
+              <div className="absolute inset-0 opacity-40 bg-[radial-gradient(#00b4d8_1px,transparent_1px)] bg-[length:8px_8px]" />
+              <svg
+                className="absolute inset-x-0 bottom-0 h-10 w-full"
+                viewBox="0 0 200 40"
+                preserveAspectRatio="none"
+                aria-hidden
+              >
+                <path
+                  d="M0 28 Q 25 8 50 22 T 100 18 T 150 24 T 200 12 V40 H0Z"
+                  fill={`url(#${waveId})`}
+                  opacity="0.55"
+                />
+                <defs>
+                  <linearGradient id={waveId} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#00b4d8" />
+                    <stop offset="100%" stopColor="#00b4d8" stopOpacity="0" />
+                  </linearGradient>
+                </defs>
+              </svg>
+            </div>
+          )}
+
+          {scene.kind === 'list' && scene.list && (
+            <div className="space-y-1">
+              {scene.list.slice(0, 3).map((row) => (
+                <div
+                  key={row.left}
+                  className="flex items-center justify-between gap-2 rounded-lg border border-white/70 bg-white/75 px-2 py-1 text-[10px] shadow-sm backdrop-blur-sm"
+                >
+                  <span className="truncate font-semibold text-slate-800">
+                    {row.left}
+                  </span>
+                  <span
+                    className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-black ${
+                      row.tone === 'emerald'
+                        ? 'bg-emerald-50 text-emerald-700'
+                        : row.tone === 'amber'
+                          ? 'bg-amber-50 text-amber-800'
+                          : row.tone === 'violet'
+                            ? 'bg-violet-50 text-violet-700'
+                            : row.tone === 'rose'
+                              ? 'bg-rose-50 text-rose-700'
+                              : 'bg-sky-50 text-sky-700'
+                    }`}
+                  >
+                    {row.right}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {scene.kind === 'map' && (
+            <div className="relative h-14 overflow-hidden rounded-xl border border-slate-100/80 bg-white/70 sm:h-16">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_40%,rgba(0,180,216,0.16),transparent_55%)]" />
+              <svg
+                viewBox="0 0 200 64"
+                className="absolute inset-0 h-full w-full"
+                aria-hidden
+              >
+                <line x1="30" y1="32" x2="90" y2="18" stroke="#bae6fd" strokeWidth="2" />
+                <line x1="30" y1="32" x2="100" y2="48" stroke="#c4b5fd" strokeWidth="2" />
+                <line x1="90" y1="18" x2="160" y2="28" stroke="#a7f3d0" strokeWidth="2" />
+                <circle cx="30" cy="32" r="7" fill="#e0f2fe" stroke="#00b4d8" strokeWidth="2" />
+                <circle cx="90" cy="18" r="6" fill="#f5f3ff" stroke="#8b5cf6" strokeWidth="2" />
+                <circle cx="100" cy="48" r="6" fill="#ecfdf5" stroke="#10b981" strokeWidth="2" />
+                <circle
+                  cx="160"
+                  cy="28"
+                  r="7"
+                  fill="#fff7ed"
+                  stroke="#f59e0b"
+                  strokeWidth="2"
+                  className="animate-pulse"
+                />
+              </svg>
+            </div>
+          )}
+
+          {scene.kind === 'pipeline' && scene.stages && (
+            <div className="flex flex-wrap items-center gap-1">
+              {scene.stages.map((s, i) => (
+                <span key={s} className="inline-flex items-center gap-1">
+                  <span className="rounded-lg border border-cyan-100/90 bg-white/85 px-1.5 py-0.5 text-[9px] font-bold text-slate-800 shadow-sm">
+                    {s}
+                  </span>
+                  {i < scene.stages!.length - 1 && (
+                    <span className="text-[9px] text-slate-300">→</span>
+                  )}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {scene.kind === 'ring' && (
+            <div className="flex items-center gap-3">
+              <div className="relative h-14 w-14 shrink-0">
+                <svg viewBox="0 0 36 36" className="h-full w-full -rotate-90">
+                  <circle
+                    cx="18"
+                    cy="18"
+                    r="14"
+                    fill="none"
+                    stroke="#e2e8f0"
+                    strokeWidth="3.5"
+                  />
+                  <circle
+                    cx="18"
+                    cy="18"
+                    r="14"
+                    fill="none"
+                    stroke="#00b4d8"
+                    strokeWidth="3.5"
+                    strokeDasharray="70 88"
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center text-[10px] font-black text-slate-900">
+                  {scene.metrics?.[0]?.value || '—'}
+                </div>
+              </div>
+              {scene.caption && (
+                <p className="text-[10px] font-medium leading-snug text-slate-500">
+                  {scene.caption}
+                </p>
+              )}
+            </div>
+          )}
+
+          {scene.kind === 'tiles' && scene.tiles && (
+            <div className="grid grid-cols-2 gap-1">
+              {scene.tiles.slice(0, 4).map((t) => (
+                <div
+                  key={t}
+                  className="rounded-lg border border-white/80 bg-white/80 px-2 py-1.5 text-center text-[10px] font-bold text-slate-800 shadow-sm backdrop-blur-sm"
+                >
+                  {t}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {scene.kind === 'board' && (
+            <div className="grid grid-cols-3 gap-1">
+              {(scene.tiles || ['To do', 'Doing', 'Done']).map((col) => (
+                <div
+                  key={col}
+                  className="rounded-lg border border-white/80 bg-white/75 p-1.5 shadow-sm"
+                >
+                  <div className="mb-1 text-[8px] font-black uppercase tracking-wider text-slate-400">
+                    {col}
+                  </div>
+                  <div className="h-6 rounded bg-slate-100/90" />
+                  <div className="mt-1 h-6 rounded bg-slate-50" />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {scene.caption &&
+            scene.kind !== 'ring' &&
+            scene.kind !== 'bars' && (
+              <p className="mt-1.5 text-[9px] font-medium text-slate-500">
+                {scene.caption}
+              </p>
+            )}
+          {scene.caption && scene.kind === 'bars' && (
+            <p className="mt-1 text-[9px] font-medium text-slate-500">
+              {scene.caption}
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Three equal-height preview images for a module — used in Modules section.
+ */
+export function ModuleGallery({
+  moduleId,
+  className = '',
+}: {
+  moduleId: string;
+  className?: string;
+}) {
+  const scenes = MODULE_GALLERIES[moduleId] || MODULE_GALLERIES.ops;
+  return (
+    <div
+      className={`grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-3.5 ${className}`}
+    >
+      {scenes.slice(0, 3).map((scene) => (
+        <GalleryCard key={`${moduleId}-${scene.eyebrow}-${scene.title}`} scene={scene} />
+      ))}
+    </div>
+  );
+}
+
+/** Hero / featured shell — fixed height wrapper for rotating mocks */
+export function ProductMockShell({
+  children,
+  className = '',
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={`relative w-full ${PRODUCT_MOCK_HEIGHT} ${className}`}>
+      <div className="absolute inset-0">{children}</div>
+    </div>
+  );
+}

@@ -585,6 +585,36 @@ function ReportBody({
   if (report === 'balance_sheet') {
     const summary = data.summary as Record<string, number | boolean> | undefined;
     const rows = (data.rows as Array<Record<string, unknown>>) || [];
+    const completeness =
+      (data.completeness as Array<{
+        key: string;
+        label: string;
+        ok: boolean;
+        detail: string;
+      }>) || [];
+    const registers = data.registers as
+      | {
+          fixedAssets?: Array<Record<string, unknown>>;
+          fixedAssetRegisterTotal?: number;
+          fixedAssetUncapitalisedCount?: number;
+          liabilities?: Array<Record<string, unknown>>;
+          liabilityRegisterTotal?: number;
+          bankRegisterTotal?: number;
+        }
+      | undefined;
+    const allocationByBu =
+      (data.allocationByBu as Array<{
+        business_unit_id: number | null;
+        assets: number;
+        liabilities: number;
+      }>) || [];
+    const sectionOrder = [
+      'current_assets',
+      'non_current_assets',
+      'current_liabilities',
+      'non_current_liabilities',
+      'equity',
+    ];
     return (
       <>
         {summary && (
@@ -597,6 +627,74 @@ function ReportBody({
               value={summary.balanced ? 'Balanced' : 'Off'}
               tone={summary.balanced ? 'emerald' : 'amber'}
             />
+          </div>
+        )}
+        {summary && (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+            <SumCard
+              label="Current assets"
+              value={formatMoney(Number(summary.currentAssets || 0))}
+              tone="emerald"
+            />
+            <SumCard
+              label="Non-current assets"
+              value={formatMoney(Number(summary.nonCurrentAssets || 0))}
+            />
+            <SumCard
+              label="Current liabilities"
+              value={formatMoney(Number(summary.currentLiabilities || 0))}
+            />
+            <SumCard
+              label="Non-current liabilities"
+              value={formatMoney(Number(summary.nonCurrentLiabilities || 0))}
+            />
+          </div>
+        )}
+        {completeness.length > 0 && (
+          <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4">
+            <div className="text-sm font-bold text-slate-900 mb-1">
+              Allocation completeness
+            </div>
+            <p className="text-[11px] text-neutral-500 mb-3">
+              Assets and liabilities should sit on the GL balance sheet (PPE,
+              inventory, bank, AP, loans). Capitalise fixed assets and post
+              liability register items so nothing sits off-books.
+            </p>
+            <ul className="space-y-2">
+              {completeness.map((c) => (
+                <li
+                  key={c.key}
+                  className={`flex flex-wrap items-start gap-2 text-[12px] rounded-xl border px-3 py-2 ${
+                    c.ok
+                      ? 'border-emerald-100 bg-emerald-50/60 text-emerald-950'
+                      : 'border-amber-100 bg-amber-50/70 text-amber-950'
+                  }`}
+                >
+                  <span className="font-bold shrink-0">
+                    {c.ok ? '✓' : '!'} {c.label}
+                  </span>
+                  <span className="text-[11px] opacity-90">{c.detail}</span>
+                </li>
+              ))}
+            </ul>
+            {(Number(registers?.fixedAssetUncapitalisedCount) > 0 ||
+              Number(registers?.liabilityRegisterTotal) >= 0) && (
+              <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+                <Link
+                  href="/dashboard/accounting/fixed-assets"
+                  className="font-semibold text-[#00b4d8] underline"
+                >
+                  Fixed assets → capitalise to BS
+                </Link>
+                <span className="text-neutral-400">·</span>
+                <Link
+                  href="/dashboard/accounting/chart-of-accounts"
+                  className="font-semibold text-slate-600 underline"
+                >
+                  Chart of accounts
+                </Link>
+              </div>
+            )}
           </div>
         )}
         {summary && (
@@ -646,15 +744,109 @@ function ReportBody({
             </div>
           </>
         )}
-        <SimpleTable
-          headers={['Code', 'Name', 'Type', 'Amount']}
-          rows={rows.map((r) => [
-            String(r.code),
-            String(r.name),
-            String(r.account_type),
-            formatMoney(Number(r.amount)),
-          ])}
-        />
+        {sectionOrder.map((sec) => {
+          const secRows = rows.filter((r) => r.section === sec);
+          if (!secRows.length && sec !== 'equity') return null;
+          const label =
+            String(secRows[0]?.section_label || sec).replace(/_/g, ' ') || sec;
+          const total = secRows.reduce((s, r) => s + Number(r.amount || 0), 0);
+          const ni =
+            sec === 'equity' ? Number(summary?.netIncome || 0) : 0;
+          return (
+            <div key={sec} className="mb-4">
+              <div className="flex items-center justify-between mb-1 px-1">
+                <SectionLabel>{label}</SectionLabel>
+                <span className="text-xs font-bold text-slate-700">
+                  {formatMoney(total + ni)}
+                </span>
+              </div>
+              <SimpleTable
+                headers={['Code', 'Name', 'Amount']}
+                rows={[
+                  ...secRows.map((r) => [
+                    String(r.code),
+                    String(r.name),
+                    formatMoney(Number(r.amount)),
+                  ]),
+                  ...(sec === 'equity' && ni !== 0
+                    ? [
+                        [
+                          'NI',
+                          'Net income (period)',
+                          formatMoney(ni),
+                        ],
+                      ]
+                    : []),
+                ]}
+              />
+            </div>
+          );
+        })}
+        {allocationByBu.length > 0 && (
+          <div className="mb-6">
+            <SectionLabel>Allocated by business unit</SectionLabel>
+            <p className="text-[11px] text-neutral-500 mb-2">
+              From journal lines with cost dimensions (BU / cell / asset).
+              Unallocated = no dimension on the line.
+            </p>
+            <SimpleTable
+              headers={['Business unit', 'Assets', 'Liabilities']}
+              rows={allocationByBu.map((r) => [
+                r.business_unit_id != null
+                  ? `BU #${r.business_unit_id}`
+                  : 'Unallocated',
+                formatMoney(r.assets),
+                formatMoney(r.liabilities),
+              ])}
+            />
+          </div>
+        )}
+        {registers && (
+          <div className="grid lg:grid-cols-2 gap-4 mb-4">
+            <div>
+              <SectionLabel>Fixed asset register</SectionLabel>
+              <p className="text-[11px] text-neutral-500 mb-2">
+                Book value {formatMoney(Number(registers.fixedAssetRegisterTotal || 0))}
+                {Number(registers.fixedAssetUncapitalisedCount) > 0
+                  ? ` · ${registers.fixedAssetUncapitalisedCount} not on GL BS`
+                  : ' · all capitalised'}
+              </p>
+              <SimpleTable
+                headers={['Code', 'Name', 'Book', 'On BS']}
+                rows={(registers.fixedAssets || []).slice(0, 20).map((a) => [
+                  String(a.code || '—'),
+                  String(a.name || ''),
+                  formatMoney(Number(a.book_value || 0)),
+                  a.on_balance_sheet ? 'Yes' : 'No',
+                ])}
+              />
+            </div>
+            <div>
+              <SectionLabel>Liability register</SectionLabel>
+              <p className="text-[11px] text-neutral-500 mb-2">
+                Outstanding {formatMoney(Number(registers.liabilityRegisterTotal || 0))}
+                {registers.bankRegisterTotal != null
+                  ? ` · bank books ${formatMoney(Number(registers.bankRegisterTotal))}`
+                  : ''}
+              </p>
+              <SimpleTable
+                headers={['Name', 'Type', 'Outstanding', 'On BS']}
+                rows={(registers.liabilities || []).slice(0, 20).map((l) => [
+                  String(l.name || ''),
+                  String(l.liability_type || ''),
+                  formatMoney(Number(l.outstanding || 0)),
+                  l.on_balance_sheet ? 'Yes' : 'No',
+                ])}
+              />
+              {!(registers.liabilities || []).length && (
+                <p className="text-[11px] text-neutral-500 mt-2">
+                  No loans/deposits register yet. AP still posts via PO / journals
+                  (Cr 2110). Create liabilities under Accounting when needed.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
       </>
     );
   }

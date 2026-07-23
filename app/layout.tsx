@@ -5,9 +5,10 @@ import JsonLd from '@/components/seo/JsonLd';
 
 const SITE_URL = 'https://www.supplieradvisor.com';
 const SITE_NAME = 'SupplierAdvisor®';
-const DEFAULT_TITLE = 'SupplierAdvisor® — The world’s most trusted supply-chain OS';
+const DEFAULT_TITLE =
+  'SupplierAdvisor® — The world’s most trusted supplier advice — and OS';
 const DEFAULT_DESCRIPTION =
-  'B2B, B2G & B2C on one verified network. SupplierAdvisor® is the supply-chain operating system for trusted trade — SRM, CRM, inventory, manufacturing, distribution, SHEQ, quality, finance, containers, and on-chain pedigree. From R299/mo.';
+  'SupplierAdvisor® unites B2B, B2G, and B2C on one verified network. Fourteen operating systems — SRM, CRM, inventory, manufacturing, distribution, SHEQ, quality, finance, containers, projects, ESG, and intelligence — with a 30-day free trial. From R299/mo.';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -72,7 +73,7 @@ export const metadata: Metadata = {
     siteName: SITE_NAME,
     title: DEFAULT_TITLE,
     description:
-      'Verified trade, inventory, manufacturing, distribution, banking, and intelligence in one company workspace.',
+      'The world’s most trusted supplier advice — and OS. B2B, B2G & B2C on one verified network. 30-day free trial.',
     images: [
       {
         url: '/og-image.png',
@@ -87,7 +88,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: DEFAULT_TITLE,
     description:
-      'Verified B2B · B2G · B2C supply-chain OS — network, inventory, manufacturing, distribution & AI.',
+      'SupplierAdvisor® unites B2B, B2G & B2C on one verified network. 30-day free trial · from R299/mo.',
     images: ['/og-image.png'],
     creator: '@supplieradvisa',
   },

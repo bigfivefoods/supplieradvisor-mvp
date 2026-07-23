@@ -182,6 +182,11 @@ export async function POST(request: NextRequest) {
         memo?: string;
         counterparty?: string;
         tax_code?: string;
+        business_unit_id?: number | null;
+        work_center_id?: number | null;
+        work_station_id?: number | null;
+        asset_id?: number | null;
+        purchase_order_id?: number | null;
       }) => ({
         journal_entry_id: entry.id,
         profile_id: companyId,
@@ -191,13 +196,59 @@ export async function POST(request: NextRequest) {
         memo: l.memo || null,
         counterparty: l.counterparty || null,
         tax_code: l.tax_code || null,
+        business_unit_id:
+          l.business_unit_id != null && Number(l.business_unit_id) > 0
+            ? Number(l.business_unit_id)
+            : null,
+        work_center_id:
+          l.work_center_id != null && Number(l.work_center_id) > 0
+            ? Number(l.work_center_id)
+            : null,
+        work_station_id:
+          l.work_station_id != null && Number(l.work_station_id) > 0
+            ? Number(l.work_station_id)
+            : null,
+        asset_id:
+          l.asset_id != null && Number(l.asset_id) > 0 ? Number(l.asset_id) : null,
+        purchase_order_id:
+          l.purchase_order_id != null && Number(l.purchase_order_id) > 0
+            ? Number(l.purchase_order_id)
+            : null,
       })
     );
 
-    const { data: insertedLines, error: lineErr } = await supabase
+    let { data: insertedLines, error: lineErr } = await supabase
       .from('journal_lines')
       .insert(lineRows)
       .select('*');
+
+    // Soft retry without cost dimensions if migration not applied
+    if (lineErr && /column|schema cache|does not exist/i.test(lineErr.message)) {
+      const bare = lineRows.map(
+        ({
+          journal_entry_id,
+          profile_id,
+          account_id,
+          debit,
+          credit,
+          memo,
+          counterparty,
+          tax_code,
+        }) => ({
+          journal_entry_id,
+          profile_id,
+          account_id,
+          debit,
+          credit,
+          memo,
+          counterparty,
+          tax_code,
+        })
+      );
+      const retry = await supabase.from('journal_lines').insert(bare).select('*');
+      insertedLines = retry.data;
+      lineErr = retry.error;
+    }
 
     if (lineErr) {
       await supabase.from('journal_entries').delete().eq('id', entry.id);

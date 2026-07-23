@@ -15,16 +15,18 @@ export type CostCategory =
   | 'maintenance'
   | 'depreciation'
   | 'materials'
+  | 'capital'
   | 'overhead'
   | 'other';
 
 export const COST_CATEGORIES: { value: CostCategory; label: string }[] = [
+  { value: 'materials', label: 'Materials (inventory · BS)' },
+  { value: 'capital', label: 'Capital / PPE (BS)' },
   { value: 'operating', label: 'Operating' },
   { value: 'labour', label: 'Labour' },
   { value: 'energy', label: 'Energy' },
   { value: 'maintenance', label: 'Maintenance' },
   { value: 'depreciation', label: 'Depreciation' },
-  { value: 'materials', label: 'Materials' },
   { value: 'overhead', label: 'Overhead' },
   { value: 'other', label: 'Other' },
 ];

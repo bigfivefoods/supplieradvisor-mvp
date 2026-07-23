@@ -8,6 +8,11 @@ import {
 } from '@/lib/procurement/types';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 import { promptAfterPoDelivered } from '@/lib/ratings/create-prompt';
+import {
+  allocatePurchaseOrderCost,
+  hasCostObject,
+  normalizePoCostFields,
+} from '@/lib/procurement/allocate-po-cost';
 
 /**
  * GET ?companyId=&privyUserId=&status=
@@ -193,7 +198,9 @@ export async function GET(request: NextRequest) {
 /**
  * POST — raise PO against a supplier (book link or platform profile).
  * Body: companyId, privyUserId, supplierProfileId | srmSupplierId, items[], description?,
- *       promised_date?, useEscrow?, supplier_wallet?, currency?, payment_terms?, status?
+ *       promised_date?, useEscrow?, supplier_wallet?, currency?, payment_terms?, status?,
+ *       business_unit_id?, work_center_id?, work_station_id?, asset_id?, cost_category?,
+ *       cost_allocations? (optional multi-split [{…, pct}])
  */
 export async function POST(request: NextRequest) {
   try {
@@ -290,6 +297,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const costNorm = normalizePoCostFields(body as Record<string, unknown>);
+    if (costNorm.error) {
+      return NextResponse.json({ error: costNorm.error }, { status: 400 });
+    }
+    const costFields = costNorm.fields;
+    const hasAlloc =
+      hasCostObject(costFields as Parameters<typeof hasCostObject>[0]) ||
+      (Array.isArray(costFields.cost_allocations) &&
+        (costFields.cost_allocations as unknown[]).length > 0);
+
     const payload: Record<string, unknown> = {
       buyer_profile_id: companyId,
       supplier_profile_id: supplierProfileId,
@@ -306,11 +323,22 @@ export async function POST(request: NextRequest) {
       order_quantity: orderQty,
       supplier_wallet: supplierWallet,
       source: 'srm',
+      ...costFields,
       metadata: {
         srm: true,
         srm_supplier_id: srmId,
         connection_id: conn?.id ?? null,
         use_escrow: body.useEscrow === true,
+        cost_object: hasAlloc
+          ? {
+              business_unit_id: costFields.business_unit_id,
+              work_center_id: costFields.work_center_id,
+              work_station_id: costFields.work_station_id,
+              asset_id: costFields.asset_id,
+              cost_category: costFields.cost_category,
+              cost_allocations: costFields.cost_allocations,
+            }
+          : null,
       },
       created_at: now,
       updated_at: now,
@@ -414,10 +442,12 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * PATCH — status transitions + OTIFEF delivery capture + receive stock.
+ * PATCH — status transitions + OTIFEF delivery capture + receive stock + cost allocation.
  * Body: companyId, privyUserId, id, status?, promised_date?, actual_delivery_date?,
  *       delivered_quantity?, damaged_quantity?, order_quantity?, supplier_wallet?,
- *       action?: 'receive_inventory', warehouseId?
+ *       business_unit_id?, work_center_id?, work_station_id?, asset_id?, cost_category?,
+ *       cost_allocations?,
+ *       action?: 'receive_inventory' | 'allocate_cost', warehouseId?
  */
 export async function PATCH(request: NextRequest) {
   try {
@@ -480,6 +510,18 @@ export async function PATCH(request: NextRequest) {
         summary: `Received ${result.receivedLines} PO lines into stock (qty ${result.qtyTotal})`,
         metadata: result,
       });
+      // Soft: allocate cost objects → cost entries + GL when dims present
+      let costAlloc: Awaited<ReturnType<typeof allocatePurchaseOrderCost>> | null =
+        null;
+      try {
+        costAlloc = await allocatePurchaseOrderCost({
+          companyId,
+          poId: id,
+          createdBy: member.userId || null,
+        });
+      } catch {
+        /* soft */
+      }
       const { data: refreshed } = await supabase
         .from('purchase_orders')
         .select('*')
@@ -489,11 +531,100 @@ export async function PATCH(request: NextRequest) {
         success: true,
         receive: result,
         purchaseOrder: refreshed || po,
+        costAllocation: costAlloc,
+      });
+    }
+
+    // Explicit cost allocation (or re-post with force)
+    if (action === 'allocate_cost' || action === 'post_cost') {
+      // Allow updating cost dims first if provided
+      if (
+        body.business_unit_id !== undefined ||
+        body.work_center_id !== undefined ||
+        body.work_station_id !== undefined ||
+        body.asset_id !== undefined ||
+        body.cost_category !== undefined ||
+        body.cost_allocations !== undefined
+      ) {
+        const costNorm = normalizePoCostFields(body as Record<string, unknown>);
+        if (costNorm.error) {
+          return NextResponse.json({ error: costNorm.error }, { status: 400 });
+        }
+        await supabase
+          .from('purchase_orders')
+          .update({
+            ...costNorm.fields,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', id)
+          .eq('buyer_profile_id', companyId);
+      }
+      const costAlloc = await allocatePurchaseOrderCost({
+        companyId,
+        poId: id,
+        createdBy: member.userId || null,
+        force: body.force === true,
+      });
+      if (!costAlloc.ok) {
+        return NextResponse.json(
+          { error: costAlloc.error || 'Cost allocation failed' },
+          { status: 400 }
+        );
+      }
+      await logActivity({
+        profile_id: companyId,
+        actor_user_id: member.userId,
+        action: 'po.allocate_cost',
+        entity_type: 'purchase_order',
+        entity_id: String(id),
+        summary: `Allocated PO #${id} cost to manufacturing cost objects / GL`,
+        metadata: costAlloc,
+      });
+      const { data: refreshed } = await supabase
+        .from('purchase_orders')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+      return NextResponse.json({
+        success: true,
+        purchaseOrder: refreshed || po,
+        costAllocation: costAlloc,
       });
     }
 
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
     const nextStatus = body.status != null ? String(body.status).toLowerCase() : null;
+
+    // Cost object updates on any PATCH
+    if (
+      body.business_unit_id !== undefined ||
+      body.work_center_id !== undefined ||
+      body.work_station_id !== undefined ||
+      body.asset_id !== undefined ||
+      body.cost_category !== undefined ||
+      body.cost_allocations !== undefined
+    ) {
+      const costNorm = normalizePoCostFields(body as Record<string, unknown>);
+      if (costNorm.error) {
+        return NextResponse.json({ error: costNorm.error }, { status: 400 });
+      }
+      Object.assign(updates, costNorm.fields);
+      const prevMeta =
+        po.metadata && typeof po.metadata === 'object' && !Array.isArray(po.metadata)
+          ? (po.metadata as Record<string, unknown>)
+          : {};
+      updates.metadata = {
+        ...prevMeta,
+        cost_object: {
+          business_unit_id: costNorm.fields.business_unit_id,
+          work_center_id: costNorm.fields.work_center_id,
+          work_station_id: costNorm.fields.work_station_id,
+          asset_id: costNorm.fields.asset_id,
+          cost_category: costNorm.fields.cost_category,
+          cost_allocations: costNorm.fields.cost_allocations,
+        },
+      };
+    }
 
     if (nextStatus) {
       const from = String(po.status || 'draft').toLowerCase();
@@ -673,7 +804,45 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ success: true, purchaseOrder: data });
+    // Auto-allocate to cost objects + GL when PO completes / paid
+    let costAllocation: Awaited<
+      ReturnType<typeof allocatePurchaseOrderCost>
+    > | null = null;
+    const shouldAllocate =
+      nextStatus === 'completed' ||
+      nextStatus === 'paid' ||
+      nextStatus === 'delivered';
+    if (shouldAllocate) {
+      try {
+        costAllocation = await allocatePurchaseOrderCost({
+          companyId,
+          poId: id,
+          createdBy: member.userId || null,
+        });
+        if (costAllocation.ok && !costAllocation.skipped && costAllocation.costEntryIds?.length) {
+          const { data: afterCost } = await supabase
+            .from('purchase_orders')
+            .select('*')
+            .eq('id', id)
+            .maybeSingle();
+          if (afterCost) {
+            return NextResponse.json({
+              success: true,
+              purchaseOrder: afterCost,
+              costAllocation,
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('PO cost allocate soft-fail', e);
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      purchaseOrder: data,
+      costAllocation: costAllocation || undefined,
+    });
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },

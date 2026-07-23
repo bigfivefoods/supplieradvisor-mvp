@@ -35,11 +35,11 @@ import {
 
 const INCLUDED = [
   'Unlimited team users per company',
-  'Procurement, CRM, finance & inventory',
-  'Quality, manufacturing & distribution',
-  'On-chain verification & trade network',
-  'Quotes, invoices & bank tools',
-  'Secure Paystack billing in ZAR',
+  'All 14 modules: ops, SRM, CRM, inventory, manufacturing, distribution',
+  'SHEQ, quality & HACCP, finance (GL, AR/AP, bank), containers',
+  'Projects, ESG/impact, intelligence & Super-Cube®',
+  'Verified network, quotes, invoices & cost allocation to the balance sheet',
+  'Secure Paystack billing in ZAR · 30-day free trial',
 ];
 
 const HIGHLIGHTS = [
