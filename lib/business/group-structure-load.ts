@@ -3,10 +3,7 @@
  * Walks ancestors and descendants so Holding → Sub → OpCo is fully visible.
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import {
-  displayCompanyName,
-  type GroupPeerProfile,
-} from '@/lib/business/company-groups';
+import { displayCompanyName } from '@/lib/business/company-groups';
 import {
   STRUCTURE_MAX_DEPTH,
   STRUCTURE_MAX_NODES,
