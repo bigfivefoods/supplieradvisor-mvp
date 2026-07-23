@@ -19,14 +19,40 @@ import { sidebarModulesFromNav } from '@/lib/chrome/module-nav';
 /** Critical-process nav only — icons unique per module (see lib/chrome/module-nav.ts). */
 const modules = sidebarModulesFromNav();
 
+const EXPANDED_KEY = 'sa-sidebar-expanded-v1';
+
+function loadExpanded(): Record<string, boolean> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = sessionStorage.getItem(EXPANDED_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, boolean>;
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveExpanded(state: Record<string, boolean>) {
+  try {
+    sessionStorage.setItem(EXPANDED_KEY, JSON.stringify(state));
+  } catch {
+    /* soft */
+  }
+}
+
 export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boolean }) {
   const pathname = usePathname();
   const { collapsed, toggle, setCollapsed } = useSidebarChrome();
   const isCollapsed = forceExpanded ? false : collapsed;
-  const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({});
+  const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>(() =>
+    loadExpanded()
+  );
   const { role, canViewModule, homePath, roleLabel, rights, loading } = useCompanyRole();
 
   const visibleModules = useMemo(() => {
+    // sales_contractor must only see Sales (enforced in /sales SalesShell;
+    // if they ever land here, still lock nav to sales-portal only).
     if (role === 'sales_contractor') {
       return modules.filter((mod) => mod.id === 'sales-portal');
     }
@@ -39,9 +65,14 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
   }, [role, canViewModule]);
 
   const toggleModule = (id: string) => {
-    setExpandedModules((prev) => ({ ...prev, [id]: !prev[id] }));
+    setExpandedModules((prev) => {
+      const next = { ...prev, [id]: !prev[id] };
+      saveExpanded(next);
+      return next;
+    });
   };
 
+  // Keep the module open for the current section (especially Sales on /sales/*)
   useEffect(() => {
     if (!pathname) return;
     const active = visibleModules.find((mod) => {
@@ -72,7 +103,9 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
     if (!active || active.sub.length === 0) return;
     setExpandedModules((prev) => {
       if (prev[active.id]) return prev;
-      return { ...prev, [active.id]: true };
+      const next = { ...prev, [active.id]: true };
+      saveExpanded(next);
+      return next;
     });
   }, [pathname, visibleModules]);
 
@@ -104,8 +137,11 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
     return pathname === href || pathname.startsWith(`${href}/`);
   };
 
-  const isSubActive = (href: string) => {
+  const isSubActive = (href: string, exact?: boolean) => {
     if (!pathname) return false;
+    if (exact || href === '/sales' || href === '/dashboard') {
+      return pathname === href;
+    }
     if (pathname === href) return true;
     // Prefer longest match among siblings later; simple prefix for nested
     const parts = href.split('/').filter(Boolean);
@@ -236,7 +272,20 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
                   isActive ? 'bg-[#00b4d8] text-white' : 'hover:bg-neutral-100 text-slate-800'
                 }`}
               >
-                <Link href={mod.href} className="flex items-center gap-3 flex-1 min-w-0">
+                <Link
+                  href={mod.href}
+                  className="flex items-center gap-3 flex-1 min-w-0"
+                  onClick={() => {
+                    // Keep submenu open when selecting a module with children
+                    if (mod.sub.length > 0) {
+                      setExpandedModules((prev) => {
+                        const next = { ...prev, [mod.id]: true };
+                        saveExpanded(next);
+                        return next;
+                      });
+                    }
+                  }}
+                >
                   <Icon className="w-5 h-5 flex-shrink-0" />
                   <span className="font-semibold truncate text-sm">{mod.name}</span>
                 </Link>
@@ -266,7 +315,10 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
                       key={sub.href}
                       href={sub.href}
                       className={`block px-3 py-2 rounded-xl text-xs transition-all ${
-                        isSubActive(sub.href)
+                        isSubActive(
+                          sub.href,
+                          Boolean((sub as { exact?: boolean }).exact)
+                        )
                           ? 'text-[#00b4d8] bg-sky-50 font-semibold'
                           : 'text-slate-600 hover:text-slate-900 hover:bg-neutral-50'
                       }`}

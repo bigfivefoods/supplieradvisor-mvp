@@ -371,7 +371,11 @@ export function sidebarModulesFromNav() {
     name: m.name,
     icon: m.icon,
     href: m.href,
-    sub: m.steps.map((s) => ({ name: s.name, href: s.href })),
+    sub: m.steps.map((s) => ({
+      name: s.name,
+      href: s.href,
+      exact: Boolean(s.exact),
+    })),
   }));
 }
 
