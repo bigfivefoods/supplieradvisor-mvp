@@ -5,10 +5,8 @@ import Link from 'next/link';
 import {
   Loader2,
   RefreshCw,
-  Upload,
   AlertTriangle,
   Plus,
-  BookOpen,
   ExternalLink,
   ChevronDown,
   ChevronRight,
@@ -232,39 +230,13 @@ function Inner() {
         titleAccent="accounts"
         description="Period P&L from posted journals (including bank allocations), with budget (plan) vs actual when a 12-month COA budget exists."
         action={
-          <>
-            <Link
-              href="/dashboard/accounting/budget"
-              className="btn-secondary !py-2.5 !px-5 text-sm"
-            >
-              12-month budget
-            </Link>
-            <Link
-              href="/dashboard/accounting/journal-entries"
-              className="btn-primary !py-2.5 !px-5 text-sm inline-flex items-center gap-2"
-            >
-              <Plus className="w-4 h-4" /> New journal
-            </Link>
-            <Link
-              href="/dashboard/accounting/journal-entries"
-              className="btn-secondary !py-2.5 !px-5 text-sm inline-flex items-center gap-2"
-            >
-              <BookOpen className="w-4 h-4" /> All journals
-            </Link>
-            <Link
-              href="/dashboard/accounting/bank-reconciliation"
-              className="btn-secondary !py-2.5 !px-5 text-sm"
-            >
-              <Upload className="w-4 h-4" /> Bank import
-            </Link>
-            <button
-              type="button"
-              onClick={() => void load()}
-              className="btn-secondary !py-2.5 !px-5 text-sm"
-            >
-              <RefreshCw className="w-4 h-4" /> Refresh
-            </button>
-          </>
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="btn-secondary !py-2.5 !px-5 text-sm inline-flex items-center gap-2"
+          >
+            <RefreshCw className="w-4 h-4" /> Refresh
+          </button>
         }
       />
 

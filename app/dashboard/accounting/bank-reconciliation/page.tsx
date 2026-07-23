@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import {
   Loader2,
   Plus,
@@ -11,7 +10,6 @@ import {
   Landmark,
   Upload,
   Tags,
-  FileSpreadsheet,
   Ban,
   Link2,
   Download,
@@ -1180,12 +1178,6 @@ function Inner() {
         description="Connect FNB via BankLink (or sandbox), import PDF/CSV statements, allocate to the GL, and match AR/AP — one middleware for every source."
         action={
           <>
-            <Link
-              href="/dashboard/accounting/management"
-              className="btn-secondary !py-2.5 !px-5 text-sm"
-            >
-              <FileSpreadsheet className="w-4 h-4" /> Management accounts
-            </Link>
             <button
               type="button"
               onClick={() => setShowAccount(true)}

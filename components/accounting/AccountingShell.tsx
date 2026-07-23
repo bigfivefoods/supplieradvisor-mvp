@@ -39,13 +39,16 @@ export function AccountingHeader({
   description,
   action,
   titleAccent,
-  showNav = true,
+  /**
+   * In-page Finance pill strip. Default **false** — module steps already live in the
+   * top ModuleProcessBar (Finance). Only set true if a page truly needs a local strip.
+   */
+  showNav = false,
 }: {
   title: string;
   description?: string;
   action?: React.ReactNode;
   titleAccent?: string;
-  /** Finance strip (CoA, Journals, Mgmt, …) — restored for management accounts + journals */
   showNav?: boolean;
 }) {
   return (
