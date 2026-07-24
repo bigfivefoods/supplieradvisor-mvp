@@ -102,21 +102,20 @@ function AppShellInner({
             onClick={() => setIsMobileMenuOpen(false)}
           />
           <div className="absolute left-0 top-0 bottom-0 w-72 max-w-[85vw] bg-white shadow-2xl flex flex-col z-10 pointer-events-auto">
-            <div className="flex items-center justify-between p-6 border-b">
-              <div className="font-black text-xl tracking-[-1px] text-[#00b4d8]">
-                SupplierAdvisor®
-              </div>
+            {/* Brand lives in the top process bar once — drawer is modules only */}
+            <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
+              <span className="text-sm font-bold text-slate-700">Menu</span>
               <button
                 type="button"
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="p-3 cursor-pointer"
+                className="p-2 rounded-xl hover:bg-neutral-100 cursor-pointer"
                 aria-label="Close menu"
               >
-                <X size={26} />
+                <X size={22} />
               </button>
             </div>
             <div
-              className="flex-1 overflow-y-auto"
+              className="flex-1 overflow-y-auto min-h-0"
               onClick={() => setIsMobileMenuOpen(false)}
             >
               <Sidebar forceExpanded />

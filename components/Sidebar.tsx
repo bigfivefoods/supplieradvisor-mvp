@@ -227,22 +227,27 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
 
   return (
     <div className="flex flex-col h-full bg-white">
-      <div className="p-5 border-b border-neutral-100">
-        <div className="flex items-start justify-between gap-2">
-          <Link href={homePath || '/dashboard'} className="flex items-center gap-3 min-w-0">
-            <Image
-              src="/sa-logo.png"
-              alt="SupplierAdvisor"
-              width={40}
-              height={40}
-              className="rounded-xl shrink-0"
-              priority
-            />
-            <div className="font-black text-lg tracking-[-1px] leading-none text-slate-900 truncate">
-              SupplierAdvisor®
-            </div>
-          </Link>
-          {!forceExpanded && (
+      {/* Brand + role: desktop only. Mobile drawer uses top bar brand; role line causes layout jump. */}
+      <div
+        className={`border-b border-neutral-100 ${
+          forceExpanded ? 'p-4' : 'p-5'
+        }`}
+      >
+        {!forceExpanded && (
+          <div className="flex items-start justify-between gap-2">
+            <Link href={homePath || '/dashboard'} className="flex items-center gap-3 min-w-0">
+              <Image
+                src="/sa-logo.png"
+                alt="SupplierAdvisor"
+                width={40}
+                height={40}
+                className="rounded-xl shrink-0"
+                priority
+              />
+              <div className="font-black text-lg tracking-[-1px] leading-none text-slate-900 truncate">
+                SupplierAdvisor®
+              </div>
+            </Link>
             <button
               type="button"
               onClick={toggle}
@@ -252,17 +257,20 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
             >
               <PanelLeftClose className="w-4 h-4" />
             </button>
-          )}
-        </div>
+          </div>
+        )}
         <Link
           href="/dashboard/select-company"
-          className="mt-4 flex items-center gap-2 text-sm text-neutral-500 hover:text-[#00b4d8] transition-colors"
+          className={`flex items-center gap-2 text-sm text-neutral-500 hover:text-[#00b4d8] transition-colors ${
+            forceExpanded ? '' : 'mt-4'
+          }`}
         >
           <ArrowLeftRight className="w-4 h-4" />
           Switch company
         </Link>
-        {!loading && role && (
-          <p className="mt-3 text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
+        {/* Desktop only — hides on mobile drawer to avoid bounce when role/rights load */}
+        {!forceExpanded && !loading && role && (
+          <p className="mt-3 text-[10px] font-semibold uppercase tracking-wide text-neutral-400 hidden md:block">
             {roleLabel || role}
             {rights ? ` · ${rights}` : ''}
           </p>

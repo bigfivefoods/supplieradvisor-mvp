@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { ChevronRight, Menu } from 'lucide-react';
 import {
@@ -16,6 +17,7 @@ type Props = {
 
 /**
  * Single sticky top rail: process steps + Action centre on one horizontal level.
+ * Mobile: brand (logo + name) shown once here — not again in the drawer.
  */
 export default function ModuleProcessBar({ onOpenMobileMenu }: Props) {
   const pathname = usePathname() || '';
@@ -49,6 +51,25 @@ export default function ModuleProcessBar({ onOpenMobileMenu }: Props) {
               <Menu size={20} />
             </button>
           )}
+
+          {/* Mobile brand — single instance for the app chrome */}
+          <Link
+            href="/dashboard"
+            className="md:hidden flex items-center gap-2 shrink-0 min-w-0 max-w-[52%]"
+            aria-label="SupplierAdvisor home"
+          >
+            <Image
+              src="/sa-logo.png"
+              alt=""
+              width={28}
+              height={28}
+              className="rounded-lg shrink-0"
+              priority
+            />
+            <span className="font-black text-sm tracking-[-0.5px] text-slate-900 truncate">
+              SupplierAdvisor®
+            </span>
+          </Link>
 
           {/* Process lifecycle — same row as Action centre */}
           <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -98,14 +119,8 @@ export default function ModuleProcessBar({ onOpenMobileMenu }: Props) {
                 </div>
               </>
             ) : (
-              <div className="flex items-center gap-2 min-w-0">
-                <Link
-                  href="/dashboard"
-                  className="md:hidden font-black text-base tracking-[-0.5px] text-[#00b4d8] shrink-0"
-                >
-                  SA
-                </Link>
-                <span className="hidden sm:inline text-[10px] font-black uppercase tracking-[0.14em] text-neutral-400">
+              <div className="hidden md:flex items-center gap-2 min-w-0">
+                <span className="text-[10px] font-black uppercase tracking-[0.14em] text-neutral-400">
                   Workspace
                 </span>
                 <span className="text-xs font-semibold text-slate-600 truncate">
