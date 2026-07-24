@@ -27,7 +27,7 @@ test.describe('Major bets smoke (unauth)', () => {
     expect([401, 403]).toContain(res.status());
   });
 
-  test('first-trade requires auth', async ({ request }) => {
+  test('first-trade GET requires auth', async ({ request }) => {
     const res = await request.get(
       `${base}/api/business/first-trade?companyId=1`
     );
@@ -88,7 +88,7 @@ test.describe('Major bets smoke (unauth)', () => {
     expect(html.toLowerCase()).toContain('cipc');
   });
 
-  test('first-trade requires auth', async ({ request }) => {
+  test('first-trade POST requires auth', async ({ request }) => {
     const res = await request.post(`${base}/api/business/first-trade`, {
       data: { companyId: 1, action: 'send' },
     });
