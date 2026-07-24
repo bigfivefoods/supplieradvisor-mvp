@@ -14,7 +14,12 @@ import {
   Wallet,
   Loader2,
   RefreshCw,
+  Gavel,
+  Scale,
+  Clock,
+  MessageSquare,
 } from 'lucide-react';
+import EscrowDisputeButton from '@/components/onchain/EscrowDisputeButton';
 import {
   isUsdcEscrowConfigured,
   getUsdcEscrowAddress,
@@ -226,6 +231,78 @@ function EscrowInner() {
           </div>
         </section>
 
+        {/* Dispute playbook — Sprint B */}
+        <section className="rounded-2xl border border-rose-100 bg-gradient-to-br from-rose-50/50 to-white p-4 sm:p-5">
+          <div className="flex items-start gap-3 mb-3">
+            <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center shrink-0">
+              <Gavel className="w-5 h-5 text-rose-700" />
+            </div>
+            <div>
+              <p className="text-sm font-black text-slate-900">
+                Dispute resolution playbook
+              </p>
+              <p className="text-xs text-neutral-500 leading-relaxed mt-0.5">
+                When quality, quantity, or timing is contested after fund or ship —
+                raise on-chain dispute, document evidence, and agree release or refund
+                off-platform if needed.
+              </p>
+            </div>
+          </div>
+          <ol className="space-y-2.5 text-xs text-slate-700">
+            <li className="flex gap-2.5">
+              <span className="w-6 h-6 rounded-lg bg-white border border-rose-100 flex items-center justify-center font-black text-rose-700 shrink-0">
+                1
+              </span>
+              <span>
+                <strong className="text-slate-900">Pause release</strong> — do not
+                confirm delivery if goods are incomplete. Message the counterparty
+                with photos / lot IDs.
+              </span>
+            </li>
+            <li className="flex gap-2.5">
+              <span className="w-6 h-6 rounded-lg bg-white border border-rose-100 flex items-center justify-center font-black text-rose-700 shrink-0">
+                2
+              </span>
+              <span>
+                <strong className="text-slate-900">Raise dispute on-chain</strong> —
+                use Dispute on the PO (funded/shipped states). Reason is stored in the
+                contract event.
+              </span>
+            </li>
+            <li className="flex gap-2.5">
+              <span className="w-6 h-6 rounded-lg bg-white border border-rose-100 flex items-center justify-center font-black text-rose-700 shrink-0">
+                3
+              </span>
+              <span className="flex items-start gap-1.5">
+                <Clock className="w-3.5 h-3.5 mt-0.5 text-neutral-400 shrink-0" />
+                <span>
+                  <strong className="text-slate-900">SLA</strong> — aim to resolve
+                  within 5 business days. Open a RIAD on the project risk register for
+                  audit trail.
+                </span>
+              </span>
+            </li>
+            <li className="flex gap-2.5">
+              <span className="w-6 h-6 rounded-lg bg-white border border-rose-100 flex items-center justify-center font-black text-rose-700 shrink-0">
+                4
+              </span>
+              <span className="flex items-start gap-1.5">
+                <Scale className="w-3.5 h-3.5 mt-0.5 text-neutral-400 shrink-0" />
+                <span>
+                  <strong className="text-slate-900">Close the loop</strong> —
+                  partial release, full release, or refund path per contract; then rate
+                  the counterparty (OTIFEF).
+                </span>
+              </span>
+            </li>
+          </ol>
+          <p className="text-[11px] text-neutral-400 mt-3 flex items-center gap-1">
+            <MessageSquare className="w-3 h-3" />
+            Ops email alerts fire on fund; dispute txs appear in the PO activity once
+            submitted.
+          </p>
+        </section>
+
         {error && (
           <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
             {error}
@@ -296,12 +373,32 @@ function EscrowInner() {
                         {t.status}
                       </p>
                     </div>
-                    <Link
-                      href="/dashboard/suppliers/po"
-                      className="text-xs font-bold text-[#00b4d8] h-fit"
-                    >
-                      Act on PO →
-                    </Link>
+                    <div className="flex flex-col items-end gap-2 h-fit">
+                      <Link
+                        href="/dashboard/suppliers/po"
+                        className="text-xs font-bold text-[#00b4d8]"
+                      >
+                        Act on PO →
+                      </Link>
+                      {t.escrow.onchainPoId != null &&
+                        !t.escrow.complete &&
+                        (t.escrow.nextStep === 'ship' ||
+                          t.escrow.nextStep === 'release' ||
+                          t.escrow.currentStep === 'fund' ||
+                          t.escrow.currentStep === 'ship') && (
+                          <EscrowDisputeButton
+                            onchainPoId={t.escrow.onchainPoId}
+                            mode={
+                              t.escrow.mode === 'usdc'
+                                ? 'usdc'
+                                : t.escrow.mode === 'eth'
+                                  ? 'eth'
+                                  : 'unknown'
+                            }
+                            onDisputed={() => void load()}
+                          />
+                        )}
+                    </div>
                   </div>
                   <div className="mt-3 flex gap-1">
                     {ESCROW_STEPS.map((s) => {

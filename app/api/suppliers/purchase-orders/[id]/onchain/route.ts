@@ -302,6 +302,26 @@ export async function POST(request: NextRequest, ctx: Ctx) {
       } catch (e) {
         console.warn('escrow release auto-receive soft-fail', e);
       }
+
+      // OTIFEF after escrow release — mutual rating prompts (Sprint B)
+      try {
+        const buyerId = Number(data.buyer_profile_id || companyId);
+        const supplierId = Number(
+          data.supplier_profile_id ?? data.supplier_id
+        );
+        const { promptAfterSettle } = await import(
+          '@/lib/ratings/create-prompt'
+        );
+        void promptAfterSettle({
+          buyerProfileId: buyerId,
+          supplierProfileId: Number.isFinite(supplierId) ? supplierId : null,
+          supplierName: data.supplier_name || null,
+          poId,
+          userId: _gate.userId,
+        }).catch(() => undefined);
+      } catch (e) {
+        console.warn('escrow release rating prompt soft-fail', e);
+      }
     }
 
     return NextResponse.json({

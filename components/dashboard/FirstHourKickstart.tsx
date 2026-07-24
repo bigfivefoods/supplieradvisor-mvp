@@ -78,6 +78,15 @@ const COLD_STEPS = [
     accent: 'from-violet-500 to-indigo-600',
   },
   {
+    id: 'lead',
+    title: 'Map Super-Cube® leadership',
+    body: 'Six faces of human leadership — assess so growth sits beside trade.',
+    href: '/dashboard/intelligence/leadership-development',
+    cta: 'Start Super-Cube®',
+    icon: Sparkles,
+    accent: 'from-cyan-500 to-blue-600',
+  },
+  {
     id: 'rate',
     title: 'Rate a partner',
     body: 'Peer stars + OTIFEF build verified trust.',
@@ -131,7 +140,7 @@ export default function FirstHourKickstart(signals: FirstHourSignals) {
         title="Your first hour on SupplierAdvisor"
         body="Command center is live — seed it with profile, partners, and one trade so ratings and OTIFEF can kick in."
       >
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           {COLD_STEPS.map((step, i) => {
             const Icon = step.icon;
             return (

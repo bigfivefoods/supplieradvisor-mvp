@@ -159,6 +159,53 @@ export async function promptAfterPoDelivered(opts: {
   });
 }
 
+/**
+ * After settle / paid / escrow release — mutual OTIFEF rating prompts (Sprint B).
+ * Soft-fail always.
+ */
+export async function promptAfterSettle(opts: {
+  buyerProfileId: number;
+  supplierProfileId: number | null | undefined;
+  supplierName?: string | null;
+  poId: number;
+  userId?: string | null;
+  /** po | invoice | escrow */
+  contextType?: 'po' | 'invoice';
+}): Promise<void> {
+  const buyer = Number(opts.buyerProfileId);
+  const supplier = Number(opts.supplierProfileId);
+  if (
+    !Number.isFinite(buyer) ||
+    !Number.isFinite(supplier) ||
+    buyer <= 0 ||
+    supplier <= 0 ||
+    buyer === supplier
+  ) {
+    return;
+  }
+  const ctx = opts.contextType || 'po';
+  const ctxId = `settle-${opts.poId}`;
+  // Buyer rates supplier (OTIFEF-facing)
+  await createRatingPrompt({
+    profileId: buyer,
+    counterpartyProfileId: supplier,
+    counterpartyName: opts.supplierName,
+    rateeRole: 'supplier',
+    contextType: ctx,
+    contextId: ctxId,
+    userId: opts.userId,
+  });
+  // Supplier rates customer
+  await createRatingPrompt({
+    profileId: supplier,
+    counterpartyProfileId: buyer,
+    rateeRole: 'customer',
+    contextType: ctx,
+    contextId: ctxId,
+    userId: null,
+  });
+}
+
 /** After seller marks invoice paid — seller rates customer (and vice versa if linked) */
 export async function promptAfterInvoicePaid(opts: {
   sellerProfileId: number;

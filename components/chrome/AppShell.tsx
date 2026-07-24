@@ -15,6 +15,7 @@ import { X } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import SamMessenger from '@/components/sam/SamMessenger';
 import SubscriptionAccessBanner from '@/components/billing/SubscriptionAccessBanner';
+import CommandPalette from '@/components/chrome/CommandPalette';
 
 export default function AppShell({
   children,
@@ -26,6 +27,7 @@ export default function AppShell({
   return (
     <SidebarProvider>
       <AppShellInner hideChrome={hideChrome}>{children}</AppShellInner>
+      {!hideChrome && <CommandPalette />}
       <SamMessenger />
     </SidebarProvider>
   );
@@ -64,21 +66,21 @@ function AppShellInner({
     };
   }, [isMobileMenuOpen]);
 
-  const asideWidth = collapsed ? 'md:w-[72px]' : 'md:w-72';
+  const asideWidth = collapsed ? 'md:w-[72px] lg:w-[72px]' : 'md:w-64 lg:w-72';
 
   return (
-    <div className="flex min-h-screen bg-[#f8fafc]">
+    <div className="flex min-h-[100dvh] bg-[#f8fafc] w-full max-w-[100vw] overflow-x-clip">
       {!hideChrome && (
         <aside
-          className={`hidden md:flex flex-col flex-shrink-0 border-r border-neutral-200 bg-white sticky top-0 h-screen overflow-hidden z-20 transition-[width] duration-200 ease-out ${asideWidth}`}
+          className={`hidden md:flex flex-col flex-shrink-0 border-r border-neutral-200 bg-white sticky top-0 h-[100dvh] overflow-hidden z-20 transition-[width] duration-200 ease-out ${asideWidth}`}
         >
           <Sidebar />
         </aside>
       )}
 
-      <div className="relative z-10 flex-1 min-w-0 flex flex-col pointer-events-auto">
+      <div className="relative z-10 flex-1 min-w-0 flex flex-col pointer-events-auto max-w-full">
         {!hideChrome && (
-          <div className="sticky top-0 z-40">
+          <div className="sticky top-0 z-40 pt-safe">
             <ModuleProcessBar onOpenMobileMenu={() => setIsMobileMenuOpen(true)} />
             <SubscriptionAccessBanner />
           </div>
@@ -87,8 +89,8 @@ function AppShellInner({
         <main
           className={
             hideChrome
-              ? 'flex-1 relative z-10 pointer-events-auto'
-              : 'flex-1 relative z-10 pointer-events-auto px-3 sm:px-4 md:px-6 lg:px-8 py-5 md:py-8 max-w-screen-2xl w-full mx-auto'
+              ? 'flex-1 relative z-10 pointer-events-auto min-w-0 w-full'
+              : 'flex-1 relative z-10 pointer-events-auto min-w-0 w-full px-3 sm:px-4 md:px-6 lg:px-8 xl:px-10 py-4 sm:py-5 md:py-8 max-w-screen-2xl 2xl:max-w-[90rem] mx-auto pb-safe'
           }
         >
           <ModuleAccessGate>{children}</ModuleAccessGate>
@@ -96,14 +98,19 @@ function AppShellInner({
       </div>
 
       {isMobileMenuOpen && !hideChrome && (
-        <div className="fixed inset-0 z-[200] md:hidden" role="dialog" aria-modal="true">
+        <div
+          className="fixed inset-0 z-[200] md:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Navigation menu"
+        >
           <button
             type="button"
             className="absolute inset-0 bg-black/60 cursor-pointer border-0 p-0"
             aria-label="Close menu"
             onClick={() => setIsMobileMenuOpen(false)}
           />
-          <div className="absolute left-0 top-0 bottom-0 w-72 max-w-[85vw] bg-white shadow-2xl flex flex-col z-10 pointer-events-auto">
+          <div className="absolute left-0 top-0 bottom-0 w-[min(18rem,88vw)] bg-white shadow-2xl flex flex-col z-10 pointer-events-auto pt-safe pb-safe">
             <div className="flex items-center justify-between gap-2 px-4 py-3 border-b shrink-0">
               <Link
                 href="/dashboard"
@@ -126,14 +133,14 @@ function AppShellInner({
               <button
                 type="button"
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="p-2 rounded-xl hover:bg-neutral-100 cursor-pointer shrink-0"
+                className="p-2.5 min-h-[44px] min-w-[44px] rounded-xl hover:bg-neutral-100 cursor-pointer shrink-0 inline-flex items-center justify-center"
                 aria-label="Close menu"
               >
                 <X size={22} />
               </button>
             </div>
             <div
-              className="flex-1 overflow-y-auto min-h-0"
+              className="flex-1 overflow-y-auto min-h-0 overscroll-contain"
               onClick={() => setIsMobileMenuOpen(false)}
             >
               <Sidebar forceExpanded />

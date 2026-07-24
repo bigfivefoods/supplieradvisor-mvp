@@ -163,7 +163,13 @@ function LabInner() {
         </div>
       )}
 
-      <div className="mb-4 flex items-center gap-2 text-xs text-neutral-500">
+      <div
+        className={`mb-4 flex flex-wrap items-center gap-2 text-xs rounded-xl border px-3 py-2 ${
+          usingLive
+            ? 'border-emerald-200 bg-emerald-50/60 text-emerald-900'
+            : 'border-neutral-200 bg-slate-50 text-neutral-500'
+        }`}
+      >
         <FlaskConical className="w-3.5 h-3.5" />
         Base:{' '}
         <strong className="text-slate-700">

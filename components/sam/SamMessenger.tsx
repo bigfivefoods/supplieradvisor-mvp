@@ -359,7 +359,7 @@ export default function SamMessenger() {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="fixed bottom-5 right-5 z-[90] group flex items-center gap-2 rounded-full bg-gradient-to-r from-[#00b4d8] to-[#0077b6] pl-3 pr-4 py-3 text-white shadow-2xl shadow-sky-300/40 hover:scale-[1.03] active:scale-[0.98] transition"
+          className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-[90] group flex items-center gap-2 rounded-full bg-gradient-to-r from-[#00b4d8] to-[#0077b6] pl-3 pr-4 py-3 min-h-[48px] text-white shadow-2xl shadow-sky-300/40 hover:scale-[1.03] active:scale-[0.98] transition touch-manipulation"
           aria-label="Open SAM — Supplier Advisor Messenger"
         >
           <span className="relative flex h-9 w-9 items-center justify-center rounded-full bg-white/15">
@@ -381,7 +381,7 @@ export default function SamMessenger() {
       {/* Panel */}
       {open && (
         <div
-          className="fixed bottom-0 right-0 sm:bottom-5 sm:right-5 z-[90] flex h-[min(92dvh,640px)] w-full sm:w-[400px] flex-col overflow-hidden rounded-t-3xl sm:rounded-3xl border border-slate-200 bg-white shadow-2xl"
+          className="fixed bottom-0 right-0 left-0 sm:left-auto sm:bottom-[max(1.25rem,env(safe-area-inset-bottom))] sm:right-[max(1.25rem,env(safe-area-inset-right))] z-[90] flex h-[min(92dvh,640px)] w-full sm:w-[min(400px,calc(100vw-2rem))] flex-col overflow-hidden rounded-t-3xl sm:rounded-3xl border border-slate-200 bg-white shadow-2xl pb-safe"
           role="dialog"
           aria-label="SAM chat"
         >

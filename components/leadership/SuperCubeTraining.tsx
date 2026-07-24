@@ -1247,9 +1247,9 @@ export default function SuperCubeTraining({
       )}
 
       {step === 'assessment' && (
-        <div className="space-y-6 max-w-3xl mx-auto">
-          <div className="rounded-3xl border border-cyan-100 bg-gradient-to-br from-white to-sky-50/60 p-6 sm:p-8 text-center">
-            <h2 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight mb-2">
+        <div className="space-y-6 max-w-3xl mx-auto w-full min-w-0 px-0">
+          <div className="rounded-3xl border border-cyan-100 bg-gradient-to-br from-white to-sky-50/60 p-4 sm:p-6 md:p-8 text-center">
+            <h2 className="text-lg sm:text-xl md:text-2xl font-black text-slate-800 tracking-tight mb-2">
               Honest self-assessment
             </h2>
             <p className="text-sm text-neutral-500 max-w-lg mx-auto leading-relaxed">
@@ -1263,7 +1263,7 @@ export default function SuperCubeTraining({
             </p>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+          <div className="grid grid-cols-2 min-[480px]:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-2.5">
             {DIMENSIONS.map((d) => {
               const s = dimScore(d.key);
               const band = scoreBand(s);
@@ -1277,7 +1277,7 @@ export default function SuperCubeTraining({
                       .getElementById(`assess-${d.key}`)
                       ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                   }}
-                  className="rounded-2xl border border-neutral-200 bg-white px-2.5 py-3.5 text-center hover:border-[#00b4d8]/40 transition-colors shadow-sm"
+                  className="rounded-2xl border border-neutral-200 bg-white px-2 py-3 sm:px-2.5 sm:py-3.5 text-center hover:border-[#00b4d8]/40 transition-colors shadow-sm touch-manipulation min-w-0"
                 >
                   <DimIcon
                     icon={d.icon}
@@ -1486,7 +1486,7 @@ export default function SuperCubeTraining({
           </div>
 
           {/* Face scoreboard with large icons */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 min-[480px]:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
             {DIMENSIONS.map((d) => {
               const s = dimScore(d.key);
               const band = scoreBand(s);
@@ -1494,7 +1494,7 @@ export default function SuperCubeTraining({
               return (
                 <div
                   key={d.key}
-                  className="rounded-3xl border bg-white p-4 text-center shadow-sm"
+                  className="rounded-2xl sm:rounded-3xl border bg-white p-3 sm:p-4 text-center shadow-sm min-w-0"
                   style={{
                     borderColor: isPriority ? `${d.color}55` : undefined,
                     boxShadow: isPriority ? `0 0 0 1px ${d.color}22` : undefined,

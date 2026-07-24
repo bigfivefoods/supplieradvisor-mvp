@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   Loader2,
@@ -13,6 +13,7 @@ import {
   Filter,
   ListTodo,
   ShieldAlert,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -23,6 +24,10 @@ import {
 import { Panel, SectionLabel } from '@/components/relationship/RelationshipChrome';
 import { useIntelligence } from '@/lib/intelligence/useIntelligence';
 import type { Insight, InsightSeverity } from '@/lib/intelligence/engine';
+import {
+  dismissInsightId,
+  loadDismissedInsightIds,
+} from '@/lib/intelligence/insight-lifecycle';
 
 const DOMAINS = [
   'all',
@@ -34,6 +39,7 @@ const DOMAINS = [
   'quality',
   'esg',
   'projects',
+  'people',
 ] as const;
 
 const SEVERITIES: Array<InsightSeverity | 'all'> = [
@@ -54,13 +60,32 @@ export default function InsightsPage() {
 
 function InsightsInner() {
   const { data, loading, error, reload, companyId, privyUserId } = useIntelligence();
-  const insights = data?.insights || [];
+  const rawInsights = data?.insights || [];
   const conc = data?.concentration;
   const [domain, setDomain] = useState<string>('all');
   const [severity, setSeverity] = useState<string>('all');
   const [actingId, setActingId] = useState<string | null>(null);
   const [ownerName, setOwnerName] = useState('');
   const [dueDate, setDueDate] = useState('');
+  const [dismissed, setDismissed] = useState<string[]>([]);
+
+  useEffect(() => {
+    setDismissed(loadDismissedInsightIds(companyId));
+  }, [companyId]);
+
+  const insights = useMemo(
+    () => rawInsights.filter((i) => !dismissed.includes(i.id)),
+    [rawInsights, dismissed]
+  );
+
+  const dismiss = (id: string) => {
+    if (!companyId) return;
+    const next = dismissInsightId(companyId, id);
+    setDismissed(next);
+    toast.message('Insight dismissed', {
+      description: 'Hidden until you clear dismissals or the signal re-fires under a new id.',
+    });
+  };
 
   const runAction = async (ins: Insight, action: 'riad' | 'task' | 'collection') => {
     if (!companyId) {
@@ -143,7 +168,7 @@ function InsightsInner() {
       <IntelligenceHeader
         title="Business"
         titleAccent="insights"
-        description="Live rule-based intelligence from network, SRM, CRM, inventory, finance, quality, ESG, and projects — transparent thresholds with a clear action for each signal."
+        description="Live rule-based intelligence from network, SRM, CRM, inventory, finance, quality, ESG, projects, and Super-Cube® leadership — healed metrics auto-close; dismiss hides noise."
         action={
           <button
             type="button"
@@ -292,6 +317,7 @@ function InsightsInner() {
                     ins={ins}
                     actingId={actingId}
                     onAction={runAction}
+                    onDismiss={dismiss}
                   />
                 ))}
               </div>
@@ -307,6 +333,7 @@ function InsightsInner() {
                     ins={ins}
                     actingId={actingId}
                     onAction={runAction}
+                    onDismiss={dismiss}
                   />
                 ))}
               </div>
@@ -322,6 +349,7 @@ function InsightsInner() {
                     ins={ins}
                     actingId={actingId}
                     onAction={runAction}
+                    onDismiss={dismiss}
                   />
                 ))}
               </div>
@@ -331,9 +359,9 @@ function InsightsInner() {
       )}
 
       <p className="mt-8 text-xs text-neutral-500">
-        Engine: transparent business rules on live Supabase data. Set{' '}
-        <strong>Owner</strong> and <strong>Due date</strong> above, then Log RIAD or
-        Create task. Finance insights can open the Money hub for collections.
+        Engine: transparent business rules on live Supabase data. Healed metrics
+        auto-drop on refresh. Set <strong>Owner</strong> and <strong>Due date</strong>,
+        then Log RIAD or Create task. Dismiss hides noise on this device.
       </p>
     </IntelligencePage>
   );
@@ -343,10 +371,12 @@ function InsightCard({
   ins,
   actingId,
   onAction,
+  onDismiss,
 }: {
   ins: Insight;
   actingId: string | null;
   onAction: (ins: Insight, action: 'riad' | 'task' | 'collection') => void;
+  onDismiss?: (id: string) => void;
 }) {
   const border =
     ins.severity === 'critical'
@@ -389,6 +419,17 @@ function InsightCard({
               <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-white border border-neutral-200 text-slate-700 tabular-nums">
                 {ins.metric}
               </span>
+            )}
+            {onDismiss && (
+              <button
+                type="button"
+                onClick={() => onDismiss(ins.id)}
+                className="ml-auto text-neutral-400 hover:text-neutral-700 p-1 rounded-lg hover:bg-white/80"
+                title="Dismiss insight"
+                aria-label="Dismiss insight"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
             )}
           </div>
           <p className="text-sm text-neutral-600 mt-1 leading-relaxed">{ins.detail}</p>

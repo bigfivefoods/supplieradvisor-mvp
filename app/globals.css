@@ -27,7 +27,8 @@
 }
 
 /* ============================================
-   BASE STYLES
+   BASE STYLES — responsive-first shell
+   Phones · tablets · laptops · ultra-wide
    ============================================ */
 @layer base {
   html, body, #__next {
@@ -38,11 +39,60 @@
   html {
     /* Prevent horizontal rubber-band scroll without clipping fixed nav */
     overflow-x: clip;
+    /* Fluid root — scales type slightly on large screens without media queries */
+    font-size: 100%;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  @media (min-width: 1920px) {
+    html {
+      font-size: 106.25%; /* ~17px — comfortable on 4K / large monitors */
+    }
   }
 
   html, body {
     pointer-events: auto !important;
     max-width: 100vw;
+  }
+
+  body {
+    min-height: 100dvh;
+    /* Safe area for notched phones */
+    padding-left: env(safe-area-inset-left, 0);
+    padding-right: env(safe-area-inset-right, 0);
+  }
+
+  /* Media never force page width */
+  img, video, canvas, svg:not([class*='w-']):not([width]) {
+    max-width: 100%;
+    height: auto;
+  }
+
+  iframe {
+    max-width: 100%;
+  }
+
+  /* Dashboard / module pages — contain overflow, allow nested scroll */
+  main,
+  .sa-page {
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: clip;
+  }
+
+  /*
+   * Wide data tables: auto horizontal pan on any direct parent of a table.
+   * Covers min-w-[720px] report tables without wrapping every page.
+   */
+  .sa-page *:has(> table),
+  main *:has(> table),
+  .sa-panel:has(> table),
+  [class*='rounded']:has(> table) {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+    overscroll-behavior-x: contain;
   }
 
   /* Metric / KPI values — fit long currency on mobile & tablet cards */
@@ -85,12 +135,6 @@
     overflow-wrap: anywhere;
   }
 
-  /* Safe area for notched phones */
-  body {
-    padding-left: env(safe-area-inset-left, 0);
-    padding-right: env(safe-area-inset-right, 0);
-  }
-
   /* Prefer touch-friendly controls on coarse pointers */
   @media (pointer: coarse) {
     button:not([disabled]),
@@ -104,10 +148,13 @@
   /* Headings default to slate; brand cyan applied deliberately in chrome */
   h1, h2, h3 {
     color: #0f172a;
+    overflow-wrap: anywhere;
+    text-wrap: balance;
   }
 
   h4, h5, h6 {
     color: #0f172a;
+    overflow-wrap: anywhere;
   }
 
   /*
@@ -130,6 +177,18 @@
   [role='button'] {
     cursor: pointer;
   }
+
+  /*
+   * iOS Safari zooms focused inputs if font-size < 16px.
+   * Force readable form controls on small screens; scale up on tablet+.
+   */
+  @media (max-width: 639px) {
+    input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']),
+    textarea,
+    select {
+      font-size: 16px !important;
+    }
+  }
 }
 
 /* Bottom tab bars / sticky footers on phones with home indicator */
@@ -143,6 +202,12 @@
   .mb-safe {
     margin-bottom: env(safe-area-inset-bottom, 0);
   }
+  .pl-safe {
+    padding-left: env(safe-area-inset-left, 0);
+  }
+  .pr-safe {
+    padding-right: env(safe-area-inset-right, 0);
+  }
   /* Space for fixed mobile bottom nav (~64px + safe area) */
   .pb-mobile-nav {
     padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
@@ -151,6 +216,75 @@
     .pb-mobile-nav {
       padding-bottom: 0;
     }
+  }
+
+  /* Horizontal rail scroll (process steps, chips, tabs) */
+  .sa-scroll-x {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+  }
+  .sa-scroll-x::-webkit-scrollbar {
+    height: 4px;
+  }
+  .sa-scroll-x::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 999px;
+  }
+
+  /* Full-bleed scroll on phones (breaks out of page padding) */
+  .sa-scroll-x-bleed {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    margin-left: -0.75rem;
+    margin-right: -0.75rem;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+  @media (min-width: 640px) {
+    .sa-scroll-x-bleed {
+      margin-left: 0;
+      margin-right: 0;
+      padding-left: 0;
+      padding-right: 0;
+    }
+  }
+
+  /* Hide scrollbar but keep scroll (process rails) */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Stack action rows on narrow screens */
+  .sa-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+  }
+  @media (max-width: 639px) {
+    .sa-actions > .btn-primary,
+    .sa-actions > .btn-secondary {
+      flex: 1 1 auto;
+      min-width: min(100%, 9rem);
+      justify-content: center;
+    }
+  }
+
+  /* Ultra-wide content column (marketing / guide) */
+  .sa-content-wide {
+    width: 100%;
+    max-width: 90rem; /* 1440 */
+    margin-left: auto;
+    margin-right: auto;
   }
 }
 
@@ -168,20 +302,20 @@
   }
 
   .btn-primary {
-    @apply bg-[#00b4d8] hover:bg-[#0099b8] active:scale-95 text-white font-semibold py-4 px-10 rounded-3xl transition-all duration-200 inline-flex items-center justify-center gap-2 cursor-pointer;
+    @apply bg-[#00b4d8] hover:bg-[#0099b8] active:scale-95 text-white font-semibold py-2.5 px-5 sm:py-3 sm:px-8 md:py-4 md:px-10 rounded-2xl sm:rounded-3xl text-sm sm:text-base transition-all duration-200 inline-flex items-center justify-center gap-2 cursor-pointer min-h-[44px];
   }
 
   .btn-secondary {
-    @apply bg-white hover:bg-sky-50/80 active:scale-95 text-slate-900 font-semibold py-4 px-10 rounded-3xl border border-neutral-200 transition-all duration-200 inline-flex items-center justify-center gap-2 cursor-pointer;
+    @apply bg-white hover:bg-sky-50/80 active:scale-95 text-slate-900 font-semibold py-2.5 px-5 sm:py-3 sm:px-8 md:py-4 md:px-10 rounded-2xl sm:rounded-3xl border border-neutral-200 text-sm sm:text-base transition-all duration-200 inline-flex items-center justify-center gap-2 cursor-pointer min-h-[44px];
   }
 
   .input {
-    @apply w-full p-4 sm:p-5 rounded-2xl sm:rounded-3xl border border-slate-200 bg-white focus:border-[#00b4d8] focus:outline-none focus:ring-2 focus:ring-[#00b4d8]/15 text-base sm:text-lg transition-all;
+    @apply w-full p-3.5 sm:p-4 md:p-5 rounded-2xl sm:rounded-3xl border border-slate-200 bg-white focus:border-[#00b4d8] focus:outline-none focus:ring-2 focus:ring-[#00b4d8]/15 text-base sm:text-lg transition-all max-w-full min-w-0;
   }
 
   /* Shared panel / surface utilities */
   .sa-page {
-    @apply relative z-10 pb-16 pointer-events-auto;
+    @apply relative z-10 pb-16 sm:pb-20 pointer-events-auto min-w-0 w-full;
     background-image:
       radial-gradient(circle at 15% 0%, rgba(0, 180, 216, 0.06), transparent 42%),
       radial-gradient(circle at 90% 10%, rgba(0, 119, 182, 0.03), transparent 38%);
@@ -204,7 +338,19 @@
   }
 
   .sa-hero {
-    @apply relative overflow-hidden rounded-[2rem] border border-cyan-100 bg-gradient-to-br from-white via-sky-50/90 to-cyan-50 p-6 sm:p-8 shadow-sm;
+    @apply relative overflow-hidden rounded-[1.5rem] sm:rounded-[2rem] border border-cyan-100 bg-gradient-to-br from-white via-sky-50/90 to-cyan-50 p-4 sm:p-6 md:p-8 shadow-sm;
+  }
+
+  /* Dialogs / drawers — max height with safe area */
+  .sa-sheet {
+    max-height: min(92dvh, 40rem);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  /* Prevent long unbroken strings from blowing layout */
+  .sa-break {
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
 
   /* Breadcrumbs */

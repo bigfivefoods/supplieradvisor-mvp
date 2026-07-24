@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { assertCompanyMember } from '@/lib/customers/access';
+import {
+  requireCompanyAccess,
+  legacyPrivyFrom,
+} from '@/lib/auth/api-auth';
 import { MIGRATION_HINT as PM_HINT } from '@/lib/projects/types';
 
 /**
@@ -15,10 +18,11 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const companyId = Number(body.companyId);
-    const mem = await assertCompanyMember(body.privyUserId, companyId);
-    if (!mem.ok) {
-      return NextResponse.json({ error: mem.error }, { status: mem.status });
-    }
+    const gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: body.privyUserId || legacyPrivyFrom(request, body),
+    });
+    if (!gate.ok) return gate.response;
+    const mem = { ok: true as const, userId: gate.userId };
 
     const action = String(body.action || 'riad').toLowerCase();
     const insight = body.insight || {};

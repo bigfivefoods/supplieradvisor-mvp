@@ -128,4 +128,53 @@ test.describe('Golden path smoke (public)', () => {
     // HTML shell always 200; client AuthGate handles login
     expect([200, 307, 308]).toContain(res.status());
   });
+
+  // ── Sprint A–D auth gates ──────────────────────────────────────────────
+  test('stuck-stage alerts without cron secret → 401/403/503', async ({
+    request,
+  }) => {
+    const res = await request.post(`${base}/api/system/stuck-stage-alerts`, {
+      data: { limit: 1 },
+    });
+    expect([401, 403, 503]).toContain(res.status());
+  });
+
+  test('intelligence actions without auth → 401', async ({ request }) => {
+    const res = await request.post(`${base}/api/intelligence/actions`, {
+      data: {
+        companyId: 1,
+        action: 'activity',
+        insight: { id: 'test', title: 't', detail: 'd', domain: 'ops' },
+      },
+    });
+    expect(res.status()).toBe(401);
+  });
+
+  test('leadership progress without auth → 401', async ({ request }) => {
+    const res = await request.get(
+      `${base}/api/intelligence/leadership?companyId=1`
+    );
+    expect(res.status()).toBe(401);
+  });
+
+  test('board-pack POST without auth → 401', async ({ request }) => {
+    const res = await request.post(`${base}/api/business/board-pack`, {
+      data: { companyId: 1, email: false },
+    });
+    expect(res.status()).toBe(401);
+  });
+
+  test('escrow hub page open (client auth gate)', async ({ request }) => {
+    const res = await request.get(`${base}/dashboard/escrow`);
+    expect([200, 307, 308]).toContain(res.status());
+  });
+
+  test('leadership development page open (client auth gate)', async ({
+    request,
+  }) => {
+    const res = await request.get(
+      `${base}/dashboard/intelligence/leadership-development`
+    );
+    expect([200, 307, 308]).toContain(res.status());
+  });
 });

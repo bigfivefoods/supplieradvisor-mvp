@@ -54,6 +54,8 @@ import PeerTradeKickstart from '@/components/dashboard/PeerTradeKickstart';
 import InevitableNextBanner from '@/components/dashboard/InevitableNextBanner';
 import NotificationCenter from '@/components/dashboard/NotificationCenter';
 import SettleFunnelStrip from '@/components/dashboard/SettleFunnelStrip';
+import GoldenPathStrip from '@/components/dashboard/GoldenPathStrip';
+import RoleHomeStrip from '@/components/dashboard/RoleHomeStrip';
 import CatalogueEmptyBanner from '@/components/business/CatalogueEmptyBanner';
 import TradeNextBanner from '@/components/journey/TradeNextBanner';
 import { computeHubNextAction } from '@/lib/connections/next-action';
@@ -707,6 +709,8 @@ export default function DashboardCommandCenter() {
       <FxRateStrip currency={baseCcy} className="mb-6" />
       <FeatureHealthBanner className="mb-4" />
 
+      <RoleHomeStrip />
+
       <FirstHourKickstart
         loading={loading && !kpis}
         networkAccepted={network?.accepted ?? kpis?.networkAccepted ?? 0}
@@ -723,8 +727,9 @@ export default function DashboardCommandCenter() {
       />
       {!loading ? (
         <div className="flex flex-wrap items-start justify-between gap-2">
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1 space-y-0">
             <InevitableNextBanner />
+            <GoldenPathStrip />
             <SettleFunnelStrip />
           </div>
           <NotificationCenter compact />

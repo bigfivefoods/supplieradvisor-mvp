@@ -89,7 +89,7 @@ export function RelationshipPage({
   // Soft wash is a background on this element only (never a covering child).
   return (
     <div className={`sa-page ${className}`}>
-      <div className="px-0 sm:px-1 max-w-screen-2xl mx-auto pt-1 relative z-10 pointer-events-auto">
+      <div className="px-0 sm:px-1 max-w-screen-2xl 2xl:max-w-[90rem] mx-auto pt-1 relative z-10 pointer-events-auto min-w-0 w-full">
         {children}
       </div>
     </div>
@@ -150,25 +150,25 @@ export function RelationshipHeader({
   nav?: React.ReactNode;
 }) {
   return (
-    <div className="mb-6 sm:mb-8">
+    <div className="mb-5 sm:mb-6 md:mb-8 min-w-0">
       {nav}
       {backHref && (
         <Link
           href={backHref}
-          className="group mb-3 inline-flex items-center gap-2 text-sm text-neutral-500 transition-colors hover:text-[#0077b6]"
+          className="group mb-3 inline-flex items-center gap-2 text-sm text-neutral-500 transition-colors hover:text-[#0077b6] min-h-[40px] touch-manipulation"
         >
-          <ArrowLeft className="h-4 w-4 text-[#00b4d8] transition-transform group-hover:-translate-x-0.5" />
+          <ArrowLeft className="h-4 w-4 text-[#00b4d8] transition-transform group-hover:-translate-x-0.5 shrink-0" />
           {backLabel || 'Command'}
         </Link>
       )}
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div className="max-w-3xl">
+      <div className="flex flex-col gap-3 sm:gap-4 lg:flex-row lg:items-end lg:justify-between min-w-0">
+        <div className="max-w-3xl min-w-0">
           {eyebrow && (
             <p className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-neutral-400 sm:text-xs">
               {eyebrow}
             </p>
           )}
-          <h1 className="text-3xl font-black leading-[1.1] tracking-tight text-slate-900 sm:text-4xl sm:tracking-[-1.5px]">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black leading-[1.12] tracking-tight text-slate-900 sm:tracking-[-1.5px] break-words">
             {titleAccent ? (
               <>
                 <span className="text-slate-800">{title}</span>{' '}
@@ -184,7 +184,11 @@ export function RelationshipHeader({
             </p>
           )}
         </div>
-        {action && <div className="flex shrink-0 flex-wrap gap-2">{action}</div>}
+        {action && (
+          <div className="flex shrink-0 flex-wrap gap-2 w-full sm:w-auto sa-actions">
+            {action}
+          </div>
+        )}
       </div>
     </div>
   );

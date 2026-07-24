@@ -76,6 +76,17 @@ export type PulseInput = {
   dmaicStuck?: number;
   mfOpenOrders?: number;
   shipmentsOpen?: number;
+  // Golden path stuck stages
+  stuckReceive?: number;
+  stuckSettle?: number;
+  escrowAwaitingRelease?: number;
+  // Super-Cube® leadership (optional, 1–10 face scores)
+  leadershipWeakScore?: number;
+  leadershipWeakFace?: string;
+  leadershipPhysical?: number;
+  leadershipEmotional?: number;
+  leadershipChoices?: number;
+  leadershipAssessed?: boolean;
 };
 
 export type HealthScores = {
@@ -572,6 +583,122 @@ export function buildInsights(p: PulseInput): Insight[] {
       title: 'No active PMO projects',
       detail: 'Charter process improvement or SDG work to institutionalise gains.',
       href: '/dashboard/projects',
+    });
+  }
+
+  // ── Golden path stuck stages ───────────────────────────────────────────
+  if ((p.stuckReceive || 0) > 0) {
+    insights.push({
+      id: 'stuck-receive',
+      severity: p.stuckReceive! > 2 ? 'critical' : 'warning',
+      domain: 'ops',
+      title: `${p.stuckReceive} PO${p.stuckReceive === 1 ? '' : 's'} stuck before receive`,
+      detail: 'Goods accepted on paper but not stocked — complete receive to close the path.',
+      href: '/dashboard/suppliers/po',
+      metric: String(p.stuckReceive),
+      action: 'Receive stock',
+    });
+  }
+  if ((p.stuckSettle || 0) > 0) {
+    insights.push({
+      id: 'stuck-settle',
+      severity: p.stuckSettle! > 2 ? 'critical' : 'warning',
+      domain: 'finance',
+      title: `${p.stuckSettle} trade${p.stuckSettle === 1 ? '' : 's'} stuck at settle`,
+      detail: 'Invoiced or delivered work awaiting claim confirm / payment / escrow release.',
+      href: '/dashboard/settle',
+      metric: String(p.stuckSettle),
+      action: 'Open settle',
+    });
+  }
+  if ((p.escrowAwaitingRelease || 0) > 0) {
+    insights.push({
+      id: 'escrow-release',
+      severity: 'warning',
+      domain: 'finance',
+      title: `${p.escrowAwaitingRelease} escrow${p.escrowAwaitingRelease === 1 ? '' : 's'} awaiting release`,
+      detail: 'Buyer should confirm delivery on-chain so funds release to the seller.',
+      href: '/dashboard/escrow',
+      metric: String(p.escrowAwaitingRelease),
+      action: 'Release escrow',
+    });
+  }
+
+  // ── Super-Cube® leadership × ops ───────────────────────────────────────
+  if (p.leadershipAssessed && typeof p.leadershipWeakScore === 'number') {
+    if (p.leadershipWeakScore < 6) {
+      insights.push({
+        id: 'leadership-weak-edge',
+        severity: p.leadershipWeakScore < 4 ? 'warning' : 'info',
+        domain: 'people',
+        title: `Super-Cube® growth edge: ${p.leadershipWeakFace || 'face'} (${p.leadershipWeakScore}/10)`,
+        detail:
+          'Lowest leadership face needs deliberate practice — open the 30-day growth plan.',
+        href: '/dashboard/intelligence/leadership-development',
+        metric: String(p.leadershipWeakScore),
+        action: 'Open Super-Cube®',
+      });
+    }
+    if (
+      typeof p.leadershipPhysical === 'number' &&
+      p.leadershipPhysical < 6 &&
+      ((p.sheqOpen || 0) > 0 || p.lowStock > 3)
+    ) {
+      insights.push({
+        id: 'leadership-physical-burnout',
+        severity: 'warning',
+        domain: 'people',
+        title: 'Physical leadership face low while ops pressure is high',
+        detail:
+          'Energy is strategy: protect recovery while low stock / SHEQ items stay open — burnout multiplies errors.',
+        href: '/dashboard/intelligence/leadership-development',
+        metric: String(p.leadershipPhysical),
+        action: 'Practise Physical face',
+      });
+    }
+    if (
+      typeof p.leadershipEmotional === 'number' &&
+      p.leadershipEmotional < 6 &&
+      (p.sheqOpen || 0) > 2
+    ) {
+      insights.push({
+        id: 'leadership-emotional-safety',
+        severity: 'warning',
+        domain: 'people',
+        title: 'Emotional face lagging with open SHEQ load',
+        detail:
+          'Psychological safety and incident load often travel together — coach empathy + repair under Super-Cube® Emotional.',
+        href: '/dashboard/intelligence/leadership-development',
+        metric: String(p.leadershipEmotional),
+        action: 'Practise Emotional face',
+      });
+    }
+    if (
+      typeof p.leadershipChoices === 'number' &&
+      p.leadershipChoices < 6 &&
+      (p.stuckSettle || 0) + (p.escrowAwaitingRelease || 0) > 0
+    ) {
+      insights.push({
+        id: 'leadership-choices-settle',
+        severity: 'info',
+        domain: 'people',
+        title: 'Choices face weak while money is stuck',
+        detail:
+          'Integrity under pressure shows in settle decisions — use Super-Cube® Choices practices when releasing funds or disputes.',
+        href: '/dashboard/intelligence/leadership-development',
+        action: 'Practise Choices',
+      });
+    }
+  } else if (p.networkAccepted > 0 || p.openPos > 0) {
+    insights.push({
+      id: 'leadership-not-assessed',
+      severity: 'info',
+      domain: 'people',
+      title: 'Super-Cube® assessment not completed',
+      detail:
+        'Map the six faces (choices, principles, mental, emotional, physical, spiritual) to grow the humans who run the network.',
+      href: '/dashboard/intelligence/leadership-development',
+      action: 'Start assessment',
     });
   }
 

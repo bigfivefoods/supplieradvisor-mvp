@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { assertCompanyMember } from '@/lib/customers/access';
-import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import {
+  requireCompanyAccess,
+  legacyPrivyFrom,
+} from '@/lib/auth/api-auth';
 
 /**
  * GET ?companyId=&privyUserId= — load leadership_progress from profiles
@@ -10,12 +12,13 @@ import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/li
 export async function GET(request: NextRequest) {
   try {
     const companyId = Number(request.nextUrl.searchParams.get('companyId'));
-    const privyUserId = request.nextUrl.searchParams.get('privyUserId');
     if (!Number.isFinite(companyId)) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
 
-    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    const _gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request),
+    });
     if (!_gate.ok) return _gate.response;
     const supabase = getSupabaseServer();
     const { data, error } = await supabase
@@ -46,10 +49,10 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const companyId = Number(body.companyId);
-    const mem = await assertCompanyMember(body.privyUserId, companyId);
-    if (!mem.ok) {
-      return NextResponse.json({ error: mem.error }, { status: mem.status });
-    }
+    const gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: body.privyUserId || legacyPrivyFrom(request, body),
+    });
+    if (!gate.ok) return gate.response;
     const progress = body.progress ?? null;
     const supabase = getSupabaseServer();
     const { data, error } = await supabase

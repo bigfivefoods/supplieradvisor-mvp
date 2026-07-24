@@ -10,6 +10,8 @@ import {
   computeHealth,
   type PulseInput,
 } from '@/lib/intelligence/engine';
+import { filterHealedInsights } from '@/lib/intelligence/insight-lifecycle';
+import { loadGoldenPath } from '@/lib/business/golden-path';
 import { daysUntil } from '@/lib/sustainability/types';
 
 /**
@@ -411,6 +413,59 @@ async function buildSummary(request: NextRequest, companyId: number, legacyPrivy
       )
   ).length;
 
+  // Golden path stuck counts (soft — never fail summary)
+  let stuckReceive = 0;
+  let stuckSettle = 0;
+  let escrowAwaitingRelease = 0;
+  try {
+    const gp = await loadGoldenPath(companyId, 30);
+    stuckReceive = gp.summary.stuck_receive;
+    stuckSettle = gp.summary.stuck_settle;
+    escrowAwaitingRelease = gp.summary.escrow_awaiting_release;
+  } catch {
+    /* soft */
+  }
+
+  // Super-Cube® leadership faces from saved progress
+  let leadershipWeakScore: number | undefined;
+  let leadershipWeakFace: string | undefined;
+  let leadershipPhysical: number | undefined;
+  let leadershipEmotional: number | undefined;
+  let leadershipChoices: number | undefined;
+  let leadershipAssessed = false;
+  try {
+    const lp = company.leadership_progress as {
+      dimensions?: Record<string, number>;
+      scores?: Record<string, number[]>;
+      step?: string;
+    } | null;
+    if (lp && (lp.dimensions || lp.scores)) {
+      leadershipAssessed = true;
+      const dims =
+        lp.dimensions ||
+        Object.fromEntries(
+          Object.entries(lp.scores || {}).map(([k, arr]) => {
+            const a = Array.isArray(arr) ? arr : [];
+            const avg = a.length
+              ? Math.round(a.reduce((x, y) => x + y, 0) / a.length)
+              : 5;
+            return [k, avg];
+          })
+        );
+      const entries = Object.entries(dims).filter(([, v]) => typeof v === 'number');
+      if (entries.length) {
+        entries.sort((a, b) => Number(a[1]) - Number(b[1]));
+        leadershipWeakFace = entries[0][0];
+        leadershipWeakScore = Number(entries[0][1]);
+        leadershipPhysical = Number(dims.physical);
+        leadershipEmotional = Number(dims.emotional);
+        leadershipChoices = Number(dims.choices);
+      }
+    }
+  } catch {
+    /* soft */
+  }
+
   const pulse: PulseInput = {
     networkAccepted: netAccepted,
     networkPendingIn: netPendingIn,
@@ -461,10 +516,21 @@ async function buildSummary(request: NextRequest, companyId: number, legacyPrivy
     dmaicStuck,
     mfOpenOrders,
     shipmentsOpen,
+    stuckReceive,
+    stuckSettle,
+    escrowAwaitingRelease,
+    leadershipWeakScore,
+    leadershipWeakFace,
+    leadershipPhysical,
+    leadershipEmotional,
+    leadershipChoices,
+    leadershipAssessed,
   };
 
   const health = computeHealth(pulse);
-  const insights = buildInsights(pulse);
+  const rawInsights = buildInsights(pulse);
+  // Server-side auto-close: drop issues whose metrics have healed
+  const insights = filterHealedInsights(rawInsights, pulse);
   const scorecards = buildScorecards(health, pulse);
 
   const forecastPoNext30 =

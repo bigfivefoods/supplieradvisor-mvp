@@ -143,20 +143,24 @@ export function HubHero({
         </div>
         {stats && stats.length > 0 && (
           <div
-            className={`grid gap-3 min-w-[260px] ${
-              stats.length >= 3 ? 'grid-cols-3' : stats.length === 2 ? 'grid-cols-2' : 'grid-cols-1'
+            className={`grid gap-2 sm:gap-3 w-full min-w-0 lg:min-w-[240px] lg:max-w-md ${
+              stats.length >= 3
+                ? 'grid-cols-2 sm:grid-cols-3'
+                : stats.length === 2
+                  ? 'grid-cols-2'
+                  : 'grid-cols-1'
             }`}
           >
             {stats.map((s) => (
               <div
                 key={s.label}
-                className="rounded-2xl bg-white border border-cyan-100 px-3 py-3 text-center shadow-sm"
+                className="sa-metric-card rounded-2xl bg-white border border-cyan-100 px-2.5 sm:px-3 py-2.5 sm:py-3 text-center shadow-sm min-w-0"
               >
-                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-neutral-400 line-clamp-2">
                   {s.label}
                 </div>
                 <div
-                  className={`text-2xl font-black tabular-nums ${
+                  className={`sa-metric-value text-lg sm:text-2xl font-black tabular-nums ${
                     s.valueClass || 'text-[#00b4d8]'
                   }`}
                 >
