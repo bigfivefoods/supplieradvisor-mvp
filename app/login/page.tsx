@@ -201,9 +201,10 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] px-4 sm:px-6 py-10">
       <Suspense
         fallback={
-          <div className="flex items-center gap-2 text-neutral-500">
-            <Loader2 className="w-5 h-5 animate-spin" />
-            Loading…
+          <div className="w-full max-w-md text-center text-neutral-500">
+            <Loader2 className="w-5 h-5 animate-spin mx-auto mb-3 text-[#00b4d8]" />
+            <p className="font-medium text-slate-700">SupplierAdvisor®</p>
+            <p className="text-sm mt-1">Loading secure login…</p>
           </div>
         }
       >
