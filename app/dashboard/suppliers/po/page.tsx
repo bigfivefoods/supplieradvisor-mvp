@@ -48,6 +48,7 @@ import {
 } from '@/lib/contracts/escrow';
 import WalletConnectBar from '@/components/onchain/WalletConnectBar';
 import UsdcEscrowActions from '@/components/onchain/UsdcEscrowActions';
+import EscrowStepper from '@/components/onchain/EscrowStepper';
 import { isUsdcEscrowEnabled } from '@/lib/contracts/usdcEscrow';
 import {
   CompanyRequired,
@@ -1081,9 +1082,23 @@ function PoInner() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Update failed');
-      toast.success(body.status ? `PO → ${body.status}` : 'PO updated');
+      if (body.status && body.status !== 'completed') {
+        toast.success(`PO → ${body.status}`);
+      } else if (!body.status) {
+        toast.success('PO updated');
+      }
       await load();
-      return data.purchaseOrder as PurchaseOrder;
+      return data as {
+        purchaseOrder: PurchaseOrder;
+        inventoryReceive?: {
+          ok?: boolean;
+          alreadyReceived?: boolean;
+          receivedLines?: number;
+          qtyTotal?: number;
+          createdProducts?: number;
+          warnings?: string[];
+        };
+      };
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed');
       return null;
@@ -1103,10 +1118,16 @@ function PoInner() {
           privyUserId,
           id: po.id,
           action: 'receive_inventory',
+          createMissingProducts: true,
         }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        if ((data as { error?: string }).error === 'ALREADY_RECEIVED') {
+          toast.message('Stock already received for this PO');
+          await load();
+          return;
+        }
         const warns = Array.isArray(data.warnings)
           ? data.warnings.slice(0, 2).join(' · ')
           : '';
@@ -1123,14 +1144,16 @@ function PoInner() {
         receivedLines?: number;
         qtyTotal?: number;
         skippedLines?: number;
+        createdProducts?: number;
         warnings?: string[];
       };
       toast.success(
         `Received ${r?.receivedLines || 0} lines (qty ${r?.qtyTotal || 0}) into stock`,
         {
-          description:
-            r?.skippedLines
-              ? `${r.skippedLines} line(s) skipped — match SKU or import products`
+          description: r?.createdProducts
+            ? `Created ${r.createdProducts} inventory SKU(s)`
+            : r?.skippedLines
+              ? `${r.skippedLines} line(s) skipped`
               : 'Open Inventory → Stock to verify',
         }
       );
@@ -1213,18 +1236,29 @@ function PoInner() {
           bits.push(deliveryOtifPreview.errorFree ? 'Error-free' : 'Damaged');
         }
       }
+      const inv = updated.inventoryReceive;
+      if (inv?.ok && !inv.alreadyReceived) {
+        bits.push(
+          `Stock +${inv.qtyTotal ?? 0} (${inv.receivedLines ?? 0} lines${
+            inv.createdProducts ? `, ${inv.createdProducts} new SKUs` : ''
+          })`
+        );
+      } else if (inv?.alreadyReceived) {
+        bits.push('Stock already received');
+      } else if (inv && !inv.ok) {
+        bits.push('Stock receive skipped');
+      }
       const otifLabel = bits.length ? bits.join(' · ') : 'OTIFEF recorded';
       const rateHref = rateeId
         ? `/dashboard/suppliers/ratings?ratee=${rateeId}&fromPo=${poId}`
         : '/dashboard/suppliers/ratings';
-      // rateAfter true → navigate; false → toast only; default toast with Rate CTA
       if (opts?.rateAfter && rateeId) {
         toast.success(`${otifLabel} — rate this supplier to close the trust loop`);
         window.location.href = rateHref;
       } else {
         toast.message(otifLabel, {
           description: rateeId
-            ? 'Next: rate this supplier to close the trust loop'
+            ? 'Next: rate this supplier · stock posted on complete'
             : 'View Performance for OTIFEF scorecards',
           action: rateeId
             ? {
@@ -1316,8 +1350,8 @@ function PoInner() {
     }
     if (st === 'funded') {
       return {
-        title: 'Next: Escrow funded — confirm ship/delivery',
-        body: 'Complete on-chain ship/confirm or record off-chain delivery for OTIFEF.',
+        title: 'Next: Escrow funded — ship then confirm',
+        body: 'Supplier marks shipped on-chain; you confirm delivery to release. Also capture OTIFEF when goods arrive (auto-receives stock).',
         tone: 'sky',
       };
     }
@@ -1338,6 +1372,17 @@ function PoInner() {
       };
     }
     if (st === 'completed' || st === 'paid') {
+      const meta =
+        po.metadata && typeof po.metadata === 'object'
+          ? (po.metadata as { inventory_received_at?: string })
+          : null;
+      if (!meta?.inventory_received_at) {
+        return {
+          title: 'Next: Receive into stock',
+          body: 'Delivery recorded — post lines to inventory if auto-receive did not run.',
+          tone: 'amber',
+        };
+      }
       return {
         title: 'Next: Rate supplier',
         body: 'Peer stars + OTIFEF build network trust for this trade.',
@@ -1345,6 +1390,14 @@ function PoInner() {
       };
     }
     return null;
+  }
+
+  function inventoryReceived(po: PurchaseOrder): boolean {
+    const meta =
+      po.metadata && typeof po.metadata === 'object'
+        ? (po.metadata as { inventory_received_at?: string })
+        : null;
+    return Boolean(meta?.inventory_received_at);
   }
 
   function resolveInvoiceId(po: PurchaseOrder): number | null {
@@ -2475,6 +2528,11 @@ function PoInner() {
                               {po.description}
                             </p>
                           )}
+                          {(onchain ||
+                            (po.metadata as { use_escrow?: boolean } | null)
+                              ?.use_escrow) && (
+                            <EscrowStepper po={po} compact />
+                          )}
                           {po.onchain_tx && (
                             <a
                               href={sepoliaTx(String(po.onchain_tx))}
@@ -2494,6 +2552,13 @@ function PoInner() {
                               {po.damaged_quantity
                                 ? ` · damaged ${po.damaged_quantity}`
                                 : ''}
+                              {inventoryReceived(po) ? (
+                                <span className="ml-1 font-semibold">· stock received</span>
+                              ) : (
+                                <span className="ml-1 text-amber-700 font-semibold">
+                                  · stock pending
+                                </span>
+                              )}
                             </div>
                           )}
                           {(() => {
@@ -2710,6 +2775,20 @@ function PoInner() {
                               <Package className="w-3 h-3" /> Receive + OTIFEF
                             </button>
                           )}
+                          {['completed', 'paid', 'invoiced', 'accepted', 'funded'].includes(
+                            String(po.status)
+                          ) &&
+                            !inventoryReceived(po) && (
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => void receiveToStock(po)}
+                                className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1 border-emerald-200 text-emerald-900"
+                                title="Post PO lines into warehouse stock"
+                              >
+                                <Package className="w-3 h-3" /> Into stock
+                              </button>
+                            )}
                           {/* One-click path: seller invoice from this PO when we sell */}
                           {['accepted', 'funded', 'sent'].includes(
                             String(po.status)

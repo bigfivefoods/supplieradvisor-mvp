@@ -1,5 +1,6 @@
 /**
  * Receive PO lines into buyer warehouse stock (soft match by source/sku/name).
+ * Creates product stubs for unmatched lines so the golden path "stocked" stage can complete.
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import type { PoLineItem } from '@/lib/procurement/types';
@@ -9,8 +10,10 @@ export type ReceiveFromPoResult = {
   receivedLines: number;
   skippedLines: number;
   qtyTotal: number;
+  createdProducts: number;
   warnings: string[];
   error?: string;
+  alreadyReceived?: boolean;
 };
 
 function asLines(items: unknown): PoLineItem[] {
@@ -23,27 +26,46 @@ export async function receivePurchaseOrderToInventory(opts: {
   poId: number;
   warehouseId?: number | null;
   lotPrefix?: string | null;
+  /** Create inventory products when no match (default true) */
+  createMissingProducts?: boolean;
+  /** Scale line qty by delivered_quantity / order_quantity when set */
+  deliveredQuantity?: number | null;
 }): Promise<ReceiveFromPoResult> {
   const supabase = getSupabaseServer();
   const warnings: string[] = [];
   let receivedLines = 0;
   let skippedLines = 0;
   let qtyTotal = 0;
+  let createdProducts = 0;
+  const createMissing = opts.createMissingProducts !== false;
 
   const { data: po, error } = await supabase
     .from('purchase_orders')
-    .select('id, buyer_profile_id, supplier_profile_id, items, status, metadata')
+    .select(
+      'id, buyer_profile_id, supplier_profile_id, items, status, metadata, delivered_quantity, order_quantity'
+    )
     .eq('id', opts.poId)
     .eq('buyer_profile_id', opts.companyId)
     .maybeSingle();
 
-  if (error) return { ok: false, receivedLines: 0, skippedLines: 0, qtyTotal: 0, warnings, error: error.message };
+  if (error) {
+    return {
+      ok: false,
+      receivedLines: 0,
+      skippedLines: 0,
+      qtyTotal: 0,
+      createdProducts: 0,
+      warnings,
+      error: error.message,
+    };
+  }
   if (!po) {
     return {
       ok: false,
       receivedLines: 0,
       skippedLines: 0,
       qtyTotal: 0,
+      createdProducts: 0,
       warnings,
       error: 'PO not found',
     };
@@ -55,10 +77,12 @@ export async function receivePurchaseOrderToInventory(opts: {
       : {};
   if (meta.inventory_received_at) {
     return {
-      ok: false,
-      receivedLines: 0,
+      ok: true,
+      alreadyReceived: true,
+      receivedLines: Number(meta.inventory_received_lines || 0),
       skippedLines: 0,
-      qtyTotal: 0,
+      qtyTotal: Number(meta.inventory_received_qty || 0),
+      createdProducts: 0,
       warnings: ['Stock already received from this PO'],
       error: 'ALREADY_RECEIVED',
     };
@@ -71,9 +95,31 @@ export async function receivePurchaseOrderToInventory(opts: {
       receivedLines: 0,
       skippedLines: 0,
       qtyTotal: 0,
+      createdProducts: 0,
       warnings,
       error: 'PO has no line items',
     };
+  }
+
+  // Scale lines if header delivered qty differs from ordered sum
+  const orderedSum = lines.reduce((s, l) => s + (Number(l.quantity) || 0), 0);
+  const deliveredHdr =
+    opts.deliveredQuantity != null
+      ? Number(opts.deliveredQuantity)
+      : po.delivered_quantity != null
+        ? Number(po.delivered_quantity)
+        : null;
+  const scale =
+    deliveredHdr != null &&
+    Number.isFinite(deliveredHdr) &&
+    orderedSum > 0 &&
+    Math.abs(deliveredHdr - orderedSum) > 0.0001
+      ? Math.max(0, deliveredHdr / orderedSum)
+      : 1;
+  if (scale !== 1) {
+    warnings.push(
+      `Scaled line quantities by ${(scale * 100).toFixed(0)}% to match delivered qty ${deliveredHdr}`
+    );
   }
 
   const warehouseId =
@@ -98,7 +144,8 @@ export async function receivePurchaseOrderToInventory(opts: {
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    const qty = Number(line.quantity || 0);
+    let qty = Number(line.quantity || 0) * scale;
+    qty = Math.round(qty * 1000) / 1000;
     if (!Number.isFinite(qty) || qty <= 0) {
       skippedLines += 1;
       continue;
@@ -110,6 +157,10 @@ export async function receivePurchaseOrderToInventory(opts: {
     const sku = (line as { sku?: string }).sku
       ? String((line as { sku?: string }).sku)
       : null;
+    const uom = (line as { uom?: string }).uom
+      ? String((line as { uom?: string }).uom)
+      : null;
+    const unitCost = Number(line.unit_price || 0) || null;
 
     let productId: number | null = null;
 
@@ -160,10 +211,44 @@ export async function receivePurchaseOrderToInventory(opts: {
       if (byName?.id) productId = Number(byName.id);
     }
 
+    // 5) Create stub product so receive never silently drops lines
+    if (!productId && createMissing && name) {
+      const stubSku = (sku || `PO${opts.poId}-L${i + 1}`).slice(0, 40);
+      const insertRow: Record<string, unknown> = {
+        profile_id: opts.companyId,
+        name: name.slice(0, 200),
+        sku: stubSku,
+        status: 'active',
+        product_type: 'raw_material',
+        uom: uom || 'ea',
+        updated_at: now,
+      };
+      if (sellerProductId) insertRow.source_product_id = sellerProductId;
+      if (unitCost != null) {
+        insertRow.cost_price = unitCost;
+        insertRow.sell_price = unitCost;
+      }
+      const { data: created, error: createErr } = await supabase
+        .from('products')
+        .insert(insertRow)
+        .select('id')
+        .single();
+      if (createErr || !created?.id) {
+        skippedLines += 1;
+        warnings.push(
+          `Skipped “${name}” — could not create inventory product (${createErr?.message || 'unknown'})`
+        );
+        continue;
+      }
+      productId = Number(created.id);
+      createdProducts += 1;
+      warnings.push(`Created inventory product “${name}” (${stubSku})`);
+    }
+
     if (!productId) {
       skippedLines += 1;
       warnings.push(
-        `Skipped “${name || 'line'}” — no matching product in your inventory (import from network or create SKU)`
+        `Skipped “${name || 'line'}” — no matching product and create disabled`
       );
       continue;
     }
@@ -199,22 +284,21 @@ export async function receivePurchaseOrderToInventory(opts: {
       });
     }
 
-    // Soft stock movement log if table exists
-    try {
-      await supabase.from('stock_movements').insert({
-        profile_id: opts.companyId,
-        product_id: productId,
-        warehouse_id: wh,
-        quantity: qty,
-        movement_type: 'receive',
-        notes: `PO #${opts.poId} receive`,
-        lot_number: lotNumber,
-        reference_type: 'purchase_order',
-        reference_id: String(opts.poId),
-        created_at: now,
-      });
-    } catch {
-      /* optional */
+    // Stock movement with PO reference (golden path "stocked" signal)
+    const { error: movErr } = await supabase.from('stock_movements').insert({
+      profile_id: opts.companyId,
+      product_id: productId,
+      warehouse_id: wh,
+      quantity: qty,
+      movement_type: 'receive',
+      notes: `PO #${opts.poId} receive`,
+      lot_number: lotNumber,
+      reference_type: 'purchase_order',
+      reference_id: String(opts.poId),
+      created_at: now,
+    });
+    if (movErr) {
+      warnings.push(`Movement log soft-fail for product ${productId}: ${movErr.message}`);
     }
 
     receivedLines += 1;
@@ -225,6 +309,7 @@ export async function receivePurchaseOrderToInventory(opts: {
     meta.inventory_received_at = now;
     meta.inventory_received_lines = receivedLines;
     meta.inventory_received_qty = qtyTotal;
+    meta.inventory_created_products = createdProducts;
     if (wh) meta.inventory_warehouse_id = wh;
     await supabase
       .from('purchase_orders')
@@ -238,10 +323,11 @@ export async function receivePurchaseOrderToInventory(opts: {
     receivedLines,
     skippedLines,
     qtyTotal,
+    createdProducts,
     warnings,
     error:
       receivedLines === 0
-        ? 'No lines matched your inventory products'
+        ? 'No lines could be received into inventory'
         : undefined,
   };
 }

@@ -489,16 +489,35 @@ export async function PATCH(request: NextRequest) {
         companyId,
         poId: id,
         warehouseId: body.warehouseId != null ? Number(body.warehouseId) : null,
+        createMissingProducts: body.createMissingProducts !== false,
+        deliveredQuantity:
+          body.delivered_quantity != null
+            ? Number(body.delivered_quantity)
+            : po.delivered_quantity != null
+              ? Number(po.delivered_quantity)
+              : null,
       });
-      if (!result.ok) {
+      if (!result.ok && !result.alreadyReceived) {
         return NextResponse.json(
           {
             error: result.error || 'Receive failed',
             warnings: result.warnings,
             receivedLines: result.receivedLines,
             skippedLines: result.skippedLines,
+            createdProducts: result.createdProducts,
           },
-          { status: result.error === 'ALREADY_RECEIVED' ? 409 : 400 }
+          { status: 400 }
+        );
+      }
+      if (result.alreadyReceived) {
+        return NextResponse.json(
+          {
+            error: 'ALREADY_RECEIVED',
+            warnings: result.warnings,
+            receive: result,
+            purchaseOrder: po,
+          },
+          { status: 409 }
         );
       }
       await logActivity({
@@ -804,6 +823,56 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
+    // Golden loop: auto receive into stock when completing (unless skipped)
+    let inventoryReceive: Awaited<
+      ReturnType<
+        typeof import('@/lib/procurement/receive-from-po').receivePurchaseOrderToInventory
+      >
+    > | null = null;
+    const completingNow =
+      nextStatus === 'completed' ||
+      nextStatus === 'delivered' ||
+      (Boolean(updates.actual_delivery_date) &&
+        Number(
+          updates.delivered_quantity ?? po.delivered_quantity ?? -1
+        ) >= 0);
+    const skipReceive =
+      body.skip_receive_inventory === true ||
+      body.skipReceiveInventory === true;
+    if (completingNow && !skipReceive) {
+      try {
+        const { receivePurchaseOrderToInventory } = await import(
+          '@/lib/procurement/receive-from-po'
+        );
+        inventoryReceive = await receivePurchaseOrderToInventory({
+          companyId,
+          poId: id,
+          warehouseId:
+            body.warehouseId != null ? Number(body.warehouseId) : null,
+          deliveredQuantity:
+            updates.delivered_quantity != null
+              ? Number(updates.delivered_quantity)
+              : po.delivered_quantity != null
+                ? Number(po.delivered_quantity)
+                : null,
+          createMissingProducts: body.createMissingProducts !== false,
+        });
+        if (inventoryReceive.ok && !inventoryReceive.alreadyReceived) {
+          await logActivity({
+            profile_id: companyId,
+            actor_user_id: member.userId,
+            action: 'po.receive_inventory.auto',
+            entity_type: 'purchase_order',
+            entity_id: String(id),
+            summary: `Auto-received ${inventoryReceive.receivedLines} lines into stock (qty ${inventoryReceive.qtyTotal})`,
+            metadata: inventoryReceive,
+          });
+        }
+      } catch (e) {
+        console.warn('PO auto-receive soft-fail', e);
+      }
+    }
+
     // Auto-allocate to cost objects + GL when PO completes / paid
     let costAllocation: Awaited<
       ReturnType<typeof allocatePurchaseOrderCost>
@@ -819,28 +888,22 @@ export async function PATCH(request: NextRequest) {
           poId: id,
           createdBy: member.userId || null,
         });
-        if (costAllocation.ok && !costAllocation.skipped && costAllocation.costEntryIds?.length) {
-          const { data: afterCost } = await supabase
-            .from('purchase_orders')
-            .select('*')
-            .eq('id', id)
-            .maybeSingle();
-          if (afterCost) {
-            return NextResponse.json({
-              success: true,
-              purchaseOrder: afterCost,
-              costAllocation,
-            });
-          }
-        }
       } catch (e) {
         console.warn('PO cost allocate soft-fail', e);
       }
     }
 
+    // Refresh PO after stock/cost side effects
+    const { data: finalPo } = await supabase
+      .from('purchase_orders')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+
     return NextResponse.json({
       success: true,
-      purchaseOrder: data,
+      purchaseOrder: finalPo || data,
+      inventoryReceive: inventoryReceive || undefined,
       costAllocation: costAllocation || undefined,
     });
   } catch (e: unknown) {

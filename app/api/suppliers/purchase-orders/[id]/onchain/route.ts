@@ -271,9 +271,43 @@ export async function POST(request: NextRequest, ctx: Ctx) {
       );
     }
 
+    // Golden loop: release → completed often means goods delivered — auto stock receive
+    let inventoryReceive = null as unknown;
+    if (kind === 'release' && String(data.status || '').toLowerCase() === 'completed') {
+      try {
+        const { receivePurchaseOrderToInventory } = await import(
+          '@/lib/procurement/receive-from-po'
+        );
+        inventoryReceive = await receivePurchaseOrderToInventory({
+          companyId,
+          poId,
+          createMissingProducts: true,
+          deliveredQuantity:
+            data.delivered_quantity != null
+              ? Number(data.delivered_quantity)
+              : null,
+        });
+        if (
+          inventoryReceive &&
+          typeof inventoryReceive === 'object' &&
+          (inventoryReceive as { ok?: boolean }).ok
+        ) {
+          const { data: refreshed } = await supabase
+            .from('purchase_orders')
+            .select('*')
+            .eq('id', poId)
+            .maybeSingle();
+          if (refreshed) data = refreshed;
+        }
+      } catch (e) {
+        console.warn('escrow release auto-receive soft-fail', e);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       purchaseOrder: data,
+      inventoryReceive: inventoryReceive || undefined,
       verification: verify.mode,
       warning: verify.mode === 'unverified' ? verify.warning : undefined,
     });
