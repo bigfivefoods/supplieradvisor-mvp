@@ -280,6 +280,15 @@ const SECTIONS: Section[] = [
         sa: 'strong',
       },
       {
+        capability: 'Supply-chain referral earnings',
+        hint:
+          'Onboard partners into the OS — earn back up to 10% of their subscription (L1 6% · L2 3% · L3 1%)',
+        excel: 'no',
+        xero: 'no',
+        erp: 'no',
+        sa: 'strong',
+      },
+      {
         capability: 'One OS instead of a tool pile',
         hint: 'Network + ops + finance + people in one membership',
         excel: 'no',
@@ -375,8 +384,8 @@ export default function ComparePlatforms() {
             Spreadsheets fragment truth. Accounting clouds stop at the books.
             Major ERPs take years and seven figures. SupplierAdvisor® is the
             supply-chain OS — network, ops, finance (including budgets &amp; group
-            hierarchy), quality, people, and trust — live in days at SaaS
-            economics.
+            hierarchy), quality, people, and trust — plus an incentive to onboard
+            your chain and earn up to 10% of subscription fees back (L1 · L2 · L3).
           </p>
         </div>
 
@@ -404,7 +413,7 @@ export default function ComparePlatforms() {
             {
               name: 'SupplierAdvisor®',
               who: 'The supply-chain OS',
-              body: `Network + ops + finance (budgets, plan vs actual, holding structures) + people. ${COMPANY_TRIAL_DAYS}-day trial. From R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo.`,
+              body: `Network + ops + finance (budgets, plan vs actual, holding structures) + people. Onboard your supply chain and earn up to 10% back (L1 6% · L2 3% · L3 1%) on their subscriptions. ${COMPANY_TRIAL_DAYS}-day trial. From R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo.`,
               icon: Sparkles,
               highlight: true,
             },
