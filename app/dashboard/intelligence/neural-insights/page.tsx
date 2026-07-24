@@ -206,12 +206,6 @@ function InsightsInner() {
               >
                 Discover partners
               </Link>
-              <Link
-                href="/dashboard/intelligence/simulation-lab"
-                className="btn-secondary !py-2 !px-4 text-sm"
-              >
-                Try simulation lab
-              </Link>
             </div>
           </div>
         </Panel>

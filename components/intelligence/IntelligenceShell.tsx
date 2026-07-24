@@ -8,7 +8,11 @@ import {
   type NavItem,
 } from '@/components/relationship/RelationshipChrome';
 
-/** Intelligence nav — command + live BI + leadership */
+/**
+ * Intelligence process steps — used by ModuleProcessBar via lib/chrome/module-nav.
+ * Kept here for reference / any consumer that needs the same list.
+ * Do not re-render this nav on page bodies (would duplicate the top navbar).
+ */
 export const INTELLIGENCE_NAV: readonly NavItem[] = [
   { href: '/dashboard/intelligence', label: 'Command', exact: true },
   { href: '/dashboard/intelligence/pulse-dashboard', label: 'Pulse' },
@@ -19,6 +23,7 @@ export const INTELLIGENCE_NAV: readonly NavItem[] = [
   { href: '/dashboard/intelligence/leadership-development', label: 'Lead' },
 ] as const;
 
+/** @deprecated Prefer ModuleProcessBar — left for rare external use */
 export function IntelligenceNav() {
   return <RelationshipNav items={INTELLIGENCE_NAV} />;
 }
@@ -55,13 +60,7 @@ export function IntelligenceHeader({
   );
 }
 
+/** Page chrome only — key functions stay in the top process navbar. */
 export function IntelligencePage({ children }: { children: React.ReactNode }) {
-  return (
-    <RelationshipPage>
-      <div className="mb-4">
-        <IntelligenceNav />
-      </div>
-      {children}
-    </RelationshipPage>
-  );
+  return <RelationshipPage>{children}</RelationshipPage>;
 }

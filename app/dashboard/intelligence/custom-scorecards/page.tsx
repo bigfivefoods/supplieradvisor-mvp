@@ -148,13 +148,6 @@ function ScorecardsInner() {
             reduction targets, certificate expiry risk.
           </li>
         </ul>
-        <p className="px-5 pb-5 text-xs text-neutral-500">
-          Try what-if scenarios in the{' '}
-          <Link href="/dashboard/intelligence/simulation-lab" className="text-[#00b4d8] font-semibold">
-            simulation lab
-          </Link>
-          .
-        </p>
       </Panel>
     </IntelligencePage>
   );

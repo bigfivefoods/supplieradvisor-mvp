@@ -2,11 +2,6 @@
 
 import Link from 'next/link';
 import {
-  Activity,
-  Brain,
-  TrendingUp,
-  Target,
-  Users,
   Loader2,
   RefreshCw,
   Network,
@@ -16,6 +11,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Sparkles,
+  Users,
 } from 'lucide-react';
 import {
   CompanyRequired,
@@ -30,65 +26,12 @@ import {
 } from '@/lib/intelligence/useIntelligence';
 import {
   HubHero,
-  HubModuleGrid,
   HubPanel,
   HubPrinciples,
   HubTelemetryGrid,
   TelemetryCard,
-  type HubModule,
   type TelemetryAccent,
 } from '@/components/chrome/CommandHubChrome';
-
-const MODULES: HubModule[] = [
-  {
-    href: '/dashboard/intelligence/pulse-dashboard',
-    icon: Activity,
-    code: '01',
-    title: 'Pulse',
-    desc: 'Live operational, network, and financial vitals from Supabase.',
-    accent: 'from-violet-50 to-white border-violet-100',
-  },
-  {
-    href: '/dashboard/intelligence/neural-insights',
-    icon: Brain,
-    code: '02',
-    title: 'Insights',
-    desc: 'Rule-based intelligence: risks, opportunities, concentration.',
-    accent: 'from-sky-50 to-white border-sky-100',
-  },
-  {
-    href: '/dashboard/intelligence/predictive-forecasts',
-    icon: TrendingUp,
-    code: '03',
-    title: 'Forecasts',
-    desc: '30-day demand, procurement, and collection projections.',
-    accent: 'from-cyan-50 to-white border-cyan-100',
-  },
-  {
-    href: '/dashboard/intelligence/custom-scorecards',
-    icon: Target,
-    code: '04',
-    title: 'Scorecards',
-    desc: 'Network, supply, demand, finance, and ops composite scores.',
-    accent: 'from-emerald-50 to-white border-emerald-100',
-  },
-  {
-    href: '/dashboard/intelligence/simulation-lab',
-    icon: Sparkles,
-    code: '05',
-    title: 'Simulation lab',
-    desc: 'What-if levers on OTIFEF, stock, AR, network — live score impact.',
-    accent: 'from-fuchsia-50 to-white border-fuchsia-100',
-  },
-  {
-    href: '/dashboard/intelligence/leadership-development',
-    icon: Users,
-    code: '06',
-    title: 'Leadership',
-    desc: 'Super-Cube® assessment, growth plan, and development journey.',
-    accent: 'from-amber-50 to-white border-amber-100',
-  },
-];
 
 function mapTone(t: string): TelemetryAccent {
   if (t === 'emerald' || t === 'green') return 'emerald';
@@ -183,7 +126,6 @@ function HubInner() {
           sub="/100 composite"
           accent="cyan"
           icon={Sparkles}
-          href="/dashboard/intelligence/custom-scorecards"
         />
         <TelemetryCard
           label="Network"
@@ -244,17 +186,7 @@ function HubInner() {
       </HubTelemetryGrid>
 
       <div className="grid lg:grid-cols-2 gap-4 mb-8">
-        <HubPanel
-          title="Priority insights"
-          action={
-            <Link
-              href="/dashboard/intelligence/neural-insights"
-              className="text-[10px] font-semibold text-[#00b4d8]"
-            >
-              All insights →
-            </Link>
-          }
-        >
+        <HubPanel title="Priority insights">
           {!data?.insights?.length ? (
             <p className="text-sm text-neutral-400 py-6 text-center">
               No critical signals — keep trading and connecting.
@@ -310,8 +242,6 @@ function HubInner() {
           </div>
         </HubPanel>
       </div>
-
-      <HubModuleGrid modules={MODULES} />
 
       <HubPrinciples
         items={[
