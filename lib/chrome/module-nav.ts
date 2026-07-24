@@ -355,8 +355,13 @@ export const MODULE_NAV: readonly ModuleNav[] = [
     resource: 'operations',
     steps: [
       { name: 'Overview', href: '/dashboard/sustainability', exact: true },
-      { name: 'Measure', href: '/dashboard/sustainability/carbon-tracking' },
-      { name: 'Report', href: '/dashboard/sustainability/reports' },
+      { name: 'GHG', href: '/dashboard/sustainability/carbon-tracking' },
+      { name: 'Resources', href: '/dashboard/sustainability/water-waste' },
+      { name: 'Targets', href: '/dashboard/sustainability/regenerative-dashboard' },
+      { name: 'Certs', href: '/dashboard/sustainability/green-certificates' },
+      { name: 'Actions', href: '/dashboard/sustainability/initiatives' },
+      { name: 'Material', href: '/dashboard/sustainability/materiality' },
+      { name: 'Pack', href: '/dashboard/sustainability/reports' },
     ],
   },
   {

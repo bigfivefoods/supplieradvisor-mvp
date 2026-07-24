@@ -290,11 +290,22 @@ Migrations:
 - `supabase/migrations/20260711_haccp_esg_pm_suite.sql`
 - `supabase/migrations/20260723_pm_epm_pmo.sql`
 
-### Sustainability
+### Sustainability / ESG suite
+Apply `supabase/migrations/20260724_sustainability_esg_suite.sql` (builds on legacy `carbon_entries` / `sustainability_certificates` / `esg_report_snapshots`).
+
 | Table | Purpose |
 |-------|---------|
-| `carbon_entries` | kgCO2e records |
-| `sustainability_certificates` | Green certs |
+| `esg_emissions` | GHG Protocol inventory lines (Scopes 1–3, activity × factor, data quality) |
+| `esg_targets` | Reduction targets (baseline/horizon, SBTi-style pathways) |
+| `esg_resources` | Water / waste / energy operational metrics |
+| `sustainability_certificates` | Green & social certificates with expiry tracking |
+| `esg_initiatives` | E·S·G action plans (optional SDG / project links) |
+| `esg_materiality` | Double-materiality lite topic scores |
+| `esg_report_snapshots` | Cached ESG operating packs (JSON) |
+| `carbon_entries` | Legacy simple carbon rows (optional) |
+
+Dashboard: `/dashboard/sustainability` (hub, GHG inventory, resources, targets, certs, ethical, initiatives, materiality, ESG packs).  
+APIs: `/api/sustainability/summary`, `inventory`, `targets`, `resources`, `certificates`, `initiatives`, `materiality`, `carbon`, `esg-pack`.
 
 ### Audit
 | Table | Purpose |

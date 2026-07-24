@@ -38,6 +38,12 @@ export async function GET(request: NextRequest) {
       haccpRes,
       connectionsRes,
       productsRes,
+      emissionsRes,
+      targetsRes,
+      resourcesRes,
+      certsRes,
+      initiativesRes,
+      materialityRes,
     ] = await Promise.all([
       supabase
         .from('profiles')
@@ -79,6 +85,36 @@ export async function GET(request: NextRequest) {
         .select('id, onchain_status')
         .eq('profile_id', companyId)
         .limit(500),
+      supabase
+        .from('esg_emissions')
+        .select('scope, category, amount_kgco2e')
+        .eq('profile_id', companyId)
+        .limit(500),
+      supabase
+        .from('esg_targets')
+        .select('id, name, metric, status, baseline_value, target_value, target_year, reduction_pct')
+        .eq('profile_id', companyId)
+        .limit(50),
+      supabase
+        .from('esg_resources')
+        .select('resource_type, category, amount, unit')
+        .eq('profile_id', companyId)
+        .limit(300),
+      supabase
+        .from('sustainability_certificates')
+        .select('id, name, standard, status, expires_at, certificate_type')
+        .eq('profile_id', companyId)
+        .limit(100),
+      supabase
+        .from('esg_initiatives')
+        .select('id, title, pillar, status, progress, sdg_goal')
+        .eq('profile_id', companyId)
+        .limit(100),
+      supabase
+        .from('esg_materiality')
+        .select('topic, pillar, impact_score, financial_score, priority')
+        .eq('profile_id', companyId)
+        .limit(50),
     ]);
 
     const profile = profileRes.data;
@@ -121,8 +157,44 @@ export async function GET(request: NextRequest) {
     const products = productsRes.data || [];
     const minted = products.filter((p) => p.onchain_status === 'minted').length;
 
+    // Structured inventory (GHG Protocol)
+    const invByScope = { '1': 0, '2': 0, '3': 0 };
+    for (const e of emissionsRes.data || []) {
+      const sc = String(e.scope || '3') as '1' | '2' | '3';
+      if (sc in invByScope) invByScope[sc] += Number(e.amount_kgco2e) || 0;
+    }
+    const invTotal = invByScope['1'] + invByScope['2'] + invByScope['3'];
+
+    let waterWithdraw = 0,
+      landfill = 0,
+      recycledWaste = 0,
+      energyKwh = 0,
+      renewableKwh = 0;
+    for (const r of resourcesRes.data || []) {
+      const amt = Number(r.amount) || 0;
+      if (r.resource_type === 'water' && r.category === 'withdrawal') waterWithdraw += amt;
+      if (r.resource_type === 'waste' && r.category === 'landfill') landfill += amt;
+      if (r.resource_type === 'waste' && r.category === 'recycled_waste') recycledWaste += amt;
+      if (r.resource_type === 'energy') {
+        if (r.category === 'renewable') renewableKwh += amt;
+        else energyKwh += amt;
+      }
+    }
+    const wasteSum = landfill + recycledWaste;
+    const diversionPct =
+      wasteSum > 0 ? Math.round((recycledWaste / wasteSum) * 1000) / 10 : null;
+    const renewablePct =
+      energyKwh + renewableKwh > 0
+        ? Math.round((renewableKwh / (energyKwh + renewableKwh)) * 1000) / 10
+        : null;
+
+    const targets = targetsRes.data || [];
+    const certs = certsRes.data || [];
+    const initiatives = initiativesRes.data || [];
+    const materiality = materialityRes.data || [];
+
     const pack = {
-      schema_version: '1.0',
+      schema_version: '2.0',
       generated_at: now.toISOString(),
       period: { start: periodStart, end: periodEnd, days: 90 },
       company: {
@@ -135,14 +207,49 @@ export async function GET(request: NextRequest) {
         trust_score: profile?.trust_score,
       },
       environment: {
-        method: 'mode_factor_x_distance_x_weight',
+        method: 'mode_factor_x_distance_x_weight + structured_inventory',
         disclaimer:
-          'Estimates only — not a certified GHG inventory. Factors are order-of-magnitude operational defaults.',
+          'Estimates and operational inventory — not a certified GHG inventory or audit opinion. Factors are order-of-magnitude defaults unless overridden.',
         factors_kg_per_tkm: MODE_FACTORS_KG_PER_TKM,
-        total_kg_co2e: Math.round(totalCo2 * 100) / 100,
-        total_label: formatCo2e(totalCo2),
+        logistics_kg_co2e: Math.round(totalCo2 * 100) / 100,
+        logistics_label: formatCo2e(totalCo2),
         by_mode: byMode,
         shipment_count: ships.length,
+        inventory: {
+          by_scope_kg: invByScope,
+          total_kg: Math.round(invTotal * 100) / 100,
+          total_label: formatCo2e(invTotal),
+          combined_with_logistics_kg: Math.round((invTotal + totalCo2) * 100) / 100,
+          combined_label: formatCo2e(invTotal + totalCo2),
+          entry_count: (emissionsRes.data || []).length,
+        },
+        // Back-compat for UI expecting total_label
+        total_kg_co2e: Math.round((invTotal + totalCo2) * 100) / 100,
+        total_label: formatCo2e(invTotal + totalCo2),
+        resources: {
+          water_withdrawal_m3: waterWithdraw,
+          waste_landfill_t: landfill,
+          waste_recycled_t: recycledWaste,
+          diversion_pct: diversionPct,
+          energy_kwh: energyKwh + renewableKwh,
+          renewable_pct: renewablePct,
+        },
+        targets: targets.map((t) => ({
+          name: t.name,
+          metric: t.metric,
+          status: t.status,
+          reduction_pct: t.reduction_pct,
+          target_year: t.target_year,
+        })),
+        certificates: {
+          total: certs.length,
+          active: certs.filter((c) => c.status === 'active').length,
+          items: certs.slice(0, 20).map((c) => ({
+            name: c.name,
+            standard: c.standard,
+            expires_at: c.expires_at,
+          })),
+        },
       },
       social: {
         network_connections: connectionsRes.data?.length ?? 0,
@@ -159,24 +266,47 @@ export async function GET(request: NextRequest) {
               ? Math.round((inspPassed / inspections.length) * 1000) / 10
               : null,
         },
+        initiatives: initiatives.filter((i) => i.pillar === 'social').length,
       },
       governance: {
         haccp_plans: (haccpRes.data || []).length,
         haccp_approved: (haccpRes.data || []).filter((p) => p.status === 'approved').length,
         products_onchain_minted: minted,
         products_total: products.length,
+        materiality_topics: materiality.length,
+        materiality_critical: materiality.filter((t) => t.priority === 'critical').length,
+        initiatives_total: initiatives.length,
+        initiatives_in_progress: initiatives.filter((i) => i.status === 'in_progress').length,
       },
+      materiality: materiality.map((t) => ({
+        topic: t.topic,
+        pillar: t.pillar,
+        impact: t.impact_score,
+        financial: t.financial_score,
+        priority: t.priority,
+      })),
+      initiatives: initiatives.slice(0, 30).map((i) => ({
+        title: i.title,
+        pillar: i.pillar,
+        status: i.status,
+        progress: i.progress,
+        sdg_goal: i.sdg_goal,
+      })),
       narrative: {
-        headline: `${profile?.trading_name || 'Company'} — 90-day ESG operating pack`,
+        headline: `${profile?.trading_name || 'Company'} — ESG operating pack`,
         bullets: [
-          `Estimated logistics CO₂e: ${formatCo2e(totalCo2)} across ${ships.length} shipments`,
+          `GHG inventory: ${formatCo2e(invTotal)} recorded · logistics estimate ${formatCo2e(totalCo2)} (${ships.length} shipments)`,
+          `Resources: water withdrawal ${waterWithdraw} m³ · landfill ${landfill} t · diversion ${diversionPct ?? '—'}% · renewable ${renewablePct ?? '—'}%`,
+          `Targets: ${targets.length} · Certificates: ${certs.length} · Initiatives: ${initiatives.length}`,
           `Supplier book: ${suppliers.length} (${verifiedSuppliers} verified)${
             avgOtifef != null ? `, avg OTIFEF ${avgOtifef.toFixed(1)}%` : ''
           }`,
-          `Quality: ${inspPassed} passed / ${inspFailed} failed / ${inspOpen} open inspections`,
-          `HACCP plans on file: ${(haccpRes.data || []).length}`,
+          `Quality: ${inspPassed} passed / ${inspFailed} failed · HACCP plans: ${(haccpRes.data || []).length}`,
+          `Materiality topics scored: ${materiality.length} (${materiality.filter((t) => t.priority === 'critical').length} critical)`,
         ],
       },
+      frameworks_note:
+        'Aligned conceptually with GHG Protocol scopes, double-materiality lite, and operational ESG disclosure. Not a formal GRI/ISSB/CSRD filing.',
     };
 
     return NextResponse.json({

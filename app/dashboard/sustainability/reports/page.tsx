@@ -118,7 +118,7 @@ export default function EsgReportsPage() {
         eyebrow="ESG pack"
         title="Reports"
         titleAccent="live"
-        description="90-day operating pack from carbon, suppliers, quality, HACCP, and network — export JSON or print."
+        description="Board-ready ESG pack v2: GHG inventory, logistics estimates, water/waste/energy, targets, certificates, materiality, initiatives, suppliers, QA, HACCP — export JSON or print."
         action={
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={() => void load()} className="btn-secondary !py-2 !px-3 text-sm">
@@ -174,28 +174,74 @@ export default function EsgReportsPage() {
               <div className="text-[11px] font-bold uppercase text-neutral-400">Environment</div>
               <div className="text-xl font-black mt-1">{pack.environment?.total_label}</div>
               <div className="text-xs text-neutral-500 mt-1">
-                {pack.environment?.shipment_count} shipments scored
+                Inventory + logistics · {pack.environment?.shipment_count ?? 0} shipments
               </div>
+              {pack.environment?.inventory && (
+                <div className="text-[11px] text-neutral-500 mt-2 space-y-0.5">
+                  <div>S1 {pack.environment.inventory.by_scope_kg?.['1']?.toFixed?.(1) ?? pack.environment.inventory.by_scope_kg?.[1] ?? 0} kg</div>
+                  <div>S2 {pack.environment.inventory.by_scope_kg?.['2']?.toFixed?.(1) ?? pack.environment.inventory.by_scope_kg?.[2] ?? 0} kg</div>
+                  <div>S3 {pack.environment.inventory.by_scope_kg?.['3']?.toFixed?.(1) ?? pack.environment.inventory.by_scope_kg?.[3] ?? 0} kg</div>
+                </div>
+              )}
+              {pack.environment?.resources && (
+                <div className="text-[11px] text-neutral-500 mt-2">
+                  Diversion {pack.environment.resources.diversion_pct ?? '—'}% · Renewable{' '}
+                  {pack.environment.resources.renewable_pct ?? '—'}%
+                </div>
+              )}
             </div>
             <div className="bg-white border rounded-3xl p-5">
               <div className="text-[11px] font-bold uppercase text-neutral-400">Social</div>
               <div className="text-xl font-black mt-1">
                 {pack.social?.quality_inspections?.pass_rate ?? '—'}%
               </div>
-              <div className="text-xs text-neutral-500 mt-1">QA pass rate · OTIFEF{' '}
-                {pack.social?.avg_otifef_pct ?? '—'}%</div>
+              <div className="text-xs text-neutral-500 mt-1">
+                QA pass · OTIFEF {pack.social?.avg_otifef_pct ?? '—'}%
+              </div>
+              <div className="text-xs text-neutral-500 mt-2">
+                Suppliers {pack.social?.suppliers_total ?? 0} ({pack.social?.suppliers_verified ?? 0}{' '}
+                verified)
+              </div>
             </div>
             <div className="bg-white border rounded-3xl p-5">
               <div className="text-[11px] font-bold uppercase text-neutral-400">Governance</div>
               <div className="text-xl font-black mt-1">{pack.governance?.haccp_plans ?? 0}</div>
               <div className="text-xs text-neutral-500 mt-1">
-                HACCP plans · {pack.governance?.products_onchain_minted ?? 0} passports minted
+                HACCP · {pack.governance?.products_onchain_minted ?? 0} passports
+              </div>
+              <div className="text-xs text-neutral-500 mt-2">
+                Materiality {pack.governance?.materiality_topics ?? 0} topics · Initiatives{' '}
+                {pack.governance?.initiatives_total ?? 0}
               </div>
             </div>
           </div>
 
+          {Array.isArray(pack.initiatives) && pack.initiatives.length > 0 && (
+            <div className="bg-white border rounded-3xl p-5">
+              <div className="text-[11px] font-bold uppercase text-neutral-400 mb-2">
+                Initiatives (sample)
+              </div>
+              <ul className="space-y-1 text-sm">
+                {pack.initiatives.slice(0, 8).map(
+                  (
+                    i: { title?: string; status?: string; progress?: number },
+                    idx: number
+                  ) => (
+                    <li key={idx} className="flex justify-between gap-2">
+                      <span className="truncate">{i.title}</span>
+                      <span className="text-xs text-neutral-500 shrink-0">
+                        {i.status} · {i.progress ?? 0}%
+                      </span>
+                    </li>
+                  )
+                )}
+              </ul>
+            </div>
+          )}
+
           <p className="text-xs text-neutral-500 px-1">
             {pack.environment?.disclaimer}
+            {pack.frameworks_note ? ` ${pack.frameworks_note}` : ''}
           </p>
         </div>
       )}
