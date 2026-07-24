@@ -1479,91 +1479,94 @@ function Inner() {
           </div>
         </Panel>
       ) : (
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <p className="text-sm font-bold text-slate-900">
-              Bank accounts · {formatMoney(totalBalance, 'ZAR')} total
-            </p>
-            <p className="text-xs text-neutral-500">
-              Click a card to filter transactions. Use Update balance to set the
-              statement balance (e.g. after a bank statement).
-            </p>
+        <>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-bold text-slate-900">
+                Bank accounts · {formatMoney(totalBalance, 'ZAR')} total
+              </p>
+              <p className="text-xs text-neutral-500">
+                Click a card to filter transactions. Use Update balance to set the
+                statement balance (e.g. after a bank statement).
+              </p>
+            </div>
           </div>
-        </div>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-8">
-          {accounts.map((a) => (
-            <div
-              key={a.id}
-              className={`rounded-3xl border p-5 transition-all min-w-0 ${
-                selectedAccount === a.id
-                  ? 'border-[#00b4d8] shadow-md bg-white ring-1 ring-[#00b4d8]/20'
-                  : 'border-neutral-200 bg-white'
-              }`}
-            >
-              <button
-                type="button"
-                onClick={() =>
-                  setSelectedAccount(selectedAccount === a.id ? null : a.id)
-                }
-                className="w-full text-left min-w-0"
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-8">
+            {accounts.map((a) => (
+              <div
+                key={a.id}
+                className={`rounded-3xl border p-5 transition-all min-w-0 ${
+                  selectedAccount === a.id
+                    ? 'border-[#00b4d8] shadow-md bg-white ring-1 ring-[#00b4d8]/20'
+                    : 'border-neutral-200 bg-white'
+                }`}
               >
-                <div className="flex items-start justify-between mb-3 gap-2">
-                  <div className="w-9 h-9 shrink-0 rounded-2xl bg-[#00b4d8]/10 flex items-center justify-center">
-                    <Landmark className="w-5 h-5 text-[#00b4d8]" />
-                  </div>
-                  {(a.unreconciled_count || 0) > 0 && (
-                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-50 text-amber-900 border border-amber-100">
-                      {a.unreconciled_count} open
-                    </span>
-                  )}
-                </div>
-                <div className="font-bold text-slate-900 truncate">{a.name}</div>
-                <div className="text-xs text-neutral-500 mt-0.5 truncate">
-                  {a.bank_name || a.provider || a.account_type}
-                  {a.account_number
-                    ? ` · ··${String(a.account_number).slice(-4)}`
-                    : ''}
-                </div>
-                <div
-                  className="sa-metric-value text-slate-900 mt-3"
-                  title={formatMoney(a.current_balance, a.currency || 'ZAR')}
-                >
-                  {formatMoney(a.current_balance, a.currency || 'ZAR')}
-                </div>
-                {a.metadata &&
-                  typeof a.metadata === 'object' &&
-                  (a.metadata as { balance_as_of?: string }).balance_as_of && (
-                    <p className="text-[10px] text-neutral-400 mt-1">
-                      As of{' '}
-                      {
-                        (a.metadata as { balance_as_of?: string }).balance_as_of
-                      }
-                    </p>
-                  )}
-              </button>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={(e) => openBalanceModal(a, e)}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-sky-50 hover:border-[#00b4d8]/40"
-                >
-                  <Wallet className="w-3.5 h-3.5 text-[#00b4d8]" />
-                  Update balance
-                </button>
                 <button
                   type="button"
                   onClick={() =>
                     setSelectedAccount(selectedAccount === a.id ? null : a.id)
                   }
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 hover:bg-neutral-50"
+                  className="w-full text-left min-w-0"
                 >
-                  <Pencil className="w-3.5 h-3.5" />
-                  {selectedAccount === a.id ? 'Clear filter' : 'Filter txns'}
+                  <div className="flex items-start justify-between mb-3 gap-2">
+                    <div className="w-9 h-9 shrink-0 rounded-2xl bg-[#00b4d8]/10 flex items-center justify-center">
+                      <Landmark className="w-5 h-5 text-[#00b4d8]" />
+                    </div>
+                    {(a.unreconciled_count || 0) > 0 && (
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-50 text-amber-900 border border-amber-100">
+                        {a.unreconciled_count} open
+                      </span>
+                    )}
+                  </div>
+                  <div className="font-bold text-slate-900 truncate">{a.name}</div>
+                  <div className="text-xs text-neutral-500 mt-0.5 truncate">
+                    {a.bank_name || a.provider || a.account_type}
+                    {a.account_number
+                      ? ` · ··${String(a.account_number).slice(-4)}`
+                      : ''}
+                  </div>
+                  <div
+                    className="sa-metric-value text-slate-900 mt-3"
+                    title={formatMoney(a.current_balance, a.currency || 'ZAR')}
+                  >
+                    {formatMoney(a.current_balance, a.currency || 'ZAR')}
+                  </div>
+                  {a.metadata &&
+                    typeof a.metadata === 'object' &&
+                    (a.metadata as { balance_as_of?: string }).balance_as_of && (
+                      <p className="text-[10px] text-neutral-400 mt-1">
+                        As of{' '}
+                        {
+                          (a.metadata as { balance_as_of?: string })
+                            .balance_as_of
+                        }
+                      </p>
+                    )}
                 </button>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={(e) => openBalanceModal(a, e)}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-sky-50 hover:border-[#00b4d8]/40"
+                  >
+                    <Wallet className="w-3.5 h-3.5 text-[#00b4d8]" />
+                    Update balance
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSelectedAccount(selectedAccount === a.id ? null : a.id)
+                    }
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 hover:bg-neutral-50"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                    {selectedAccount === a.id ? 'Clear filter' : 'Filter txns'}
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        </>
       )}
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
