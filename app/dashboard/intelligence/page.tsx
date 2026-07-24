@@ -227,8 +227,8 @@ function HubInner() {
               { href: '/dashboard/connections', label: 'Network graph' },
               { href: '/dashboard/suppliers', label: 'Suppliers SRM' },
               { href: '/dashboard/customers', label: 'Customers CRM' },
+              { href: '/dashboard/settle', label: 'Settle command' },
               { href: '/dashboard/accounting', label: 'Accounting' },
-              { href: '/dashboard/operations', label: 'Operations tower' },
               { href: '/dashboard/inventory', label: 'Inventory OS' },
             ].map((l) => (
               <Link

@@ -11,7 +11,10 @@ import {
   Info,
   Brain,
   Filter,
+  ListTodo,
+  ShieldAlert,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import {
   CompanyRequired,
   IntelligenceHeader,
@@ -50,11 +53,56 @@ export default function InsightsPage() {
 }
 
 function InsightsInner() {
-  const { data, loading, error, reload } = useIntelligence();
+  const { data, loading, error, reload, companyId, privyUserId } = useIntelligence();
   const insights = data?.insights || [];
   const conc = data?.concentration;
   const [domain, setDomain] = useState<string>('all');
   const [severity, setSeverity] = useState<string>('all');
+  const [actingId, setActingId] = useState<string | null>(null);
+
+  const runAction = async (ins: Insight, action: 'riad' | 'task' | 'collection') => {
+    if (!companyId) {
+      toast.error('Select a company');
+      return;
+    }
+    setActingId(`${ins.id}-${action}`);
+    try {
+      const res = await fetch('/api/intelligence/actions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          action,
+          insight: {
+            id: ins.id,
+            title: ins.title,
+            detail: ins.detail,
+            domain: ins.domain,
+            severity: ins.severity,
+            href: ins.href,
+          },
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Action failed');
+      toast.success(json.message || 'Action created', {
+        action: json.href
+          ? {
+              label: 'Open',
+              onClick: () => {
+                window.location.href = json.href;
+              },
+            }
+          : undefined,
+      });
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setActingId(null);
+    }
+  };
 
   const filtered = useMemo(() => {
     return insights.filter((i) => {
@@ -222,7 +270,12 @@ function InsightsInner() {
               <SectionLabel>Needs attention</SectionLabel>
               <div className="space-y-3">
                 {critical.map((ins) => (
-                  <InsightCard key={ins.id} ins={ins} />
+                  <InsightCard
+                    key={ins.id}
+                    ins={ins}
+                    actingId={actingId}
+                    onAction={runAction}
+                  />
                 ))}
               </div>
             </section>
@@ -232,7 +285,12 @@ function InsightsInner() {
               <SectionLabel>Strengths</SectionLabel>
               <div className="space-y-3">
                 {positive.map((ins) => (
-                  <InsightCard key={ins.id} ins={ins} />
+                  <InsightCard
+                    key={ins.id}
+                    ins={ins}
+                    actingId={actingId}
+                    onAction={runAction}
+                  />
                 ))}
               </div>
             </section>
@@ -242,7 +300,12 @@ function InsightsInner() {
               <SectionLabel>Opportunities</SectionLabel>
               <div className="space-y-3">
                 {info.map((ins) => (
-                  <InsightCard key={ins.id} ins={ins} />
+                  <InsightCard
+                    key={ins.id}
+                    ins={ins}
+                    actingId={actingId}
+                    onAction={runAction}
+                  />
                 ))}
               </div>
             </section>
@@ -251,15 +314,23 @@ function InsightsInner() {
       )}
 
       <p className="mt-8 text-xs text-neutral-500">
-        Engine: transparent business rules on live Supabase data. Not a neural
-        network — every threshold is inspectable in code (
-        <code className="font-mono">lib/intelligence/engine.ts</code>).
+        Engine: transparent business rules on live Supabase data. Use{' '}
+        <strong>Log RIAD</strong> or <strong>Create task</strong> to turn a signal
+        into durable work. Finance insights can open the Money hub for collections.
       </p>
     </IntelligencePage>
   );
 }
 
-function InsightCard({ ins }: { ins: Insight }) {
+function InsightCard({
+  ins,
+  actingId,
+  onAction,
+}: {
+  ins: Insight;
+  actingId: string | null;
+  onAction: (ins: Insight, action: 'riad' | 'task' | 'collection') => void;
+}) {
   const border =
     ins.severity === 'critical'
       ? 'border-red-200 bg-red-50/50'
@@ -283,34 +354,78 @@ function InsightCard({ ins }: { ins: Insight }) {
           ? 'text-red-600'
           : 'text-amber-600';
 
+  const busy = actingId?.startsWith(ins.id);
+
   return (
-    <Link
-      href={ins.href}
-      className={`flex gap-4 rounded-3xl border px-5 py-4 hover:shadow-md transition-all group ${border}`}
-    >
-      <div className={`mt-0.5 ${iconCls}`}>
-        <Icon className="w-5 h-5" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-            {ins.domain}
-          </span>
-          <h3 className="font-semibold text-slate-900">{ins.title}</h3>
-          {ins.metric && (
-            <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-white border border-neutral-200 text-slate-700 tabular-nums">
-              {ins.metric}
-            </span>
-          )}
+    <div className={`rounded-3xl border px-5 py-4 ${border}`}>
+      <div className="flex gap-4">
+        <div className={`mt-0.5 ${iconCls}`}>
+          <Icon className="w-5 h-5" />
         </div>
-        <p className="text-sm text-neutral-600 mt-1 leading-relaxed">{ins.detail}</p>
-        {ins.action && (
-          <span className="inline-flex mt-2 text-xs font-bold text-[#00b4d8]">
-            {ins.action} →
-          </span>
-        )}
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+              {ins.domain}
+            </span>
+            <h3 className="font-semibold text-slate-900">{ins.title}</h3>
+            {ins.metric && (
+              <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-white border border-neutral-200 text-slate-700 tabular-nums">
+                {ins.metric}
+              </span>
+            )}
+          </div>
+          <p className="text-sm text-neutral-600 mt-1 leading-relaxed">{ins.detail}</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Link
+              href={ins.href}
+              className="inline-flex items-center gap-1 text-xs font-bold text-[#00b4d8]"
+            >
+              {ins.action || 'Open module'}
+              <ArrowRight className="w-3 h-3" />
+            </Link>
+            {ins.severity !== 'positive' && (
+              <>
+                <button
+                  type="button"
+                  disabled={Boolean(busy)}
+                  onClick={() => onAction(ins, 'riad')}
+                  className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full border border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+                >
+                  {actingId === `${ins.id}-riad` ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <ShieldAlert className="w-3 h-3" />
+                  )}
+                  Log RIAD
+                </button>
+                <button
+                  type="button"
+                  disabled={Boolean(busy)}
+                  onClick={() => onAction(ins, 'task')}
+                  className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full border border-violet-200 bg-violet-50 text-violet-900 hover:bg-violet-100 disabled:opacity-50"
+                >
+                  {actingId === `${ins.id}-task` ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <ListTodo className="w-3 h-3" />
+                  )}
+                  Create task
+                </button>
+                {ins.domain === 'finance' && (
+                  <button
+                    type="button"
+                    disabled={Boolean(busy)}
+                    onClick={() => onAction(ins, 'collection')}
+                    className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-900 hover:bg-emerald-100 disabled:opacity-50"
+                  >
+                    Collections
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        </div>
       </div>
-      <ArrowRight className="w-4 h-4 text-neutral-300 group-hover:text-[#00b4d8] shrink-0 mt-1" />
-    </Link>
+    </div>
   );
 }

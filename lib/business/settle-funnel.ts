@@ -13,6 +13,8 @@ export type SettleFunnelSnapshot = {
   ratingsAfterSettle30d: number;
   openAr: number;
   overdueInvoices: number;
+  openEscrows: number;
+  fundedEscrows: number;
   stages: Array<{ id: string; label: string; count: number }>;
   at: string;
 };
@@ -84,6 +86,25 @@ export async function loadSettleFunnel(
     /* soft */
   }
 
+  let openEscrows = 0;
+  let fundedEscrows = 0;
+  try {
+    const { data: pos } = await supabase
+      .from('purchase_orders')
+      .select('id, status, onchain_po_id, metadata')
+      .or(
+        `buyer_profile_id.eq.${companyId},supplier_profile_id.eq.${companyId}`
+      )
+      .not('onchain_po_id', 'is', null)
+      .limit(200);
+    for (const p of pos || []) {
+      openEscrows += 1;
+      if (String(p.status || '').toLowerCase() === 'funded') fundedEscrows += 1;
+    }
+  } catch {
+    /* soft */
+  }
+
   const stages = [
     { id: 'sent', label: 'Invoices sent (30d)', count: invoicesSent30d },
     { id: 'claims_pending', label: 'Claims pending', count: claimsPending },
@@ -96,6 +117,16 @@ export async function loadSettleFunnel(
       id: 'ledger',
       label: 'Ledger payments (30d)',
       count: ledgerPayments30d,
+    },
+    {
+      id: 'escrow_open',
+      label: 'Open on-chain escrows',
+      count: openEscrows,
+    },
+    {
+      id: 'escrow_funded',
+      label: 'Funded escrows',
+      count: fundedEscrows,
     },
     {
       id: 'rated',
@@ -114,6 +145,8 @@ export async function loadSettleFunnel(
     ratingsAfterSettle30d,
     openAr,
     overdueInvoices,
+    openEscrows,
+    fundedEscrows,
     stages,
     at: new Date().toISOString(),
   };
