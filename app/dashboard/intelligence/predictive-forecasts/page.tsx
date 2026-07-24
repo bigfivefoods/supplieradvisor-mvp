@@ -65,7 +65,7 @@ export default function ForecastsPage() {
 }
 
 function ForecastsInner() {
-  const { user } = usePrivy();
+  const { user, authenticated, getAccessToken } = usePrivy();
   const privyUserId = getCanonicalUserId(user?.id);
   const companyId = getSelectedCompanyId();
   const [loading, setLoading] = useState(true);
@@ -93,7 +93,19 @@ function ForecastsInner() {
         horizon: String(horizon),
       });
       if (privyUserId) params.set('privyUserId', privyUserId);
-      const res = await fetch(`/api/intelligence/forecasts?${params}`);
+      const headers: Record<string, string> = {};
+      try {
+        if (authenticated && typeof getAccessToken === 'function') {
+          const token = await getAccessToken();
+          if (token) headers.Authorization = `Bearer ${token}`;
+        }
+      } catch {
+        /* cookie fallback */
+      }
+      const res = await fetch(`/api/intelligence/forecasts?${params}`, {
+        headers,
+        credentials: 'include',
+      });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Forecast failed');
       setSeries(json.series || null);
@@ -104,7 +116,7 @@ function ForecastsInner() {
     } finally {
       setLoading(false);
     }
-  }, [companyId, privyUserId, horizon]);
+  }, [companyId, privyUserId, horizon, authenticated, getAccessToken]);
 
   useEffect(() => {
     void load();

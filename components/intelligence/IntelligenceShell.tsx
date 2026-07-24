@@ -15,10 +15,9 @@ export const INTELLIGENCE_NAV: readonly NavItem[] = [
   { href: '/dashboard/intelligence/neural-insights', label: 'Insights' },
   { href: '/dashboard/intelligence/predictive-forecasts', label: 'Forecast' },
   { href: '/dashboard/intelligence/custom-scorecards', label: 'Scorecards' },
-  { href: '/dashboard/intelligence/leadership-development', label: 'Leadership' },
   { href: '/dashboard/intelligence/simulation-lab', label: 'Lab' },
+  { href: '/dashboard/intelligence/leadership-development', label: 'Lead' },
 ] as const;
-
 
 export function IntelligenceNav() {
   return <RelationshipNav items={INTELLIGENCE_NAV} />;
@@ -28,22 +27,25 @@ export function CompanyRequired({ children }: { children: React.ReactNode }) {
   return <CompanyGate noun="Intelligence">{children}</CompanyGate>;
 }
 
-
 export function IntelligenceHeader({
   title,
   description,
   action,
   titleAccent,
+  backHref = '/dashboard/intelligence',
+  backLabel = 'Intelligence',
 }: {
   title: string;
   description?: React.ReactNode;
   action?: React.ReactNode;
   titleAccent?: string;
+  backHref?: string;
+  backLabel?: string;
 }) {
   return (
     <RelationshipHeader
-      backHref="/dashboard/intelligence"
-      backLabel="Intelligence"
+      backHref={backHref}
+      backLabel={backLabel}
       eyebrow="Business intelligence"
       title={title}
       titleAccent={titleAccent}
@@ -54,5 +56,12 @@ export function IntelligenceHeader({
 }
 
 export function IntelligencePage({ children }: { children: React.ReactNode }) {
-  return <RelationshipPage>{children}</RelationshipPage>;
+  return (
+    <RelationshipPage>
+      <div className="mb-4">
+        <IntelligenceNav />
+      </div>
+      {children}
+    </RelationshipPage>
+  );
 }

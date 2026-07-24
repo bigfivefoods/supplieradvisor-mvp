@@ -73,9 +73,17 @@ const MODULES: HubModule[] = [
     accent: 'from-emerald-50 to-white border-emerald-100',
   },
   {
+    href: '/dashboard/intelligence/simulation-lab',
+    icon: Sparkles,
+    code: '05',
+    title: 'Simulation lab',
+    desc: 'What-if levers on OTIFEF, stock, AR, network — live score impact.',
+    accent: 'from-fuchsia-50 to-white border-fuchsia-100',
+  },
+  {
     href: '/dashboard/intelligence/leadership-development',
     icon: Users,
-    code: '05',
+    code: '06',
     title: 'Leadership',
     desc: 'Super-Cube® assessment, growth plan, and development journey.',
     accent: 'from-amber-50 to-white border-amber-100',
@@ -122,7 +130,9 @@ function HubInner() {
       <IntelligenceHeader
         title="Intelligence"
         titleAccent="Command"
-        description="Best-in-class business intelligence from live Supabase data — network, SRM, CRM, multi-currency trade, inventory, and finance — plus Super-Cube® leadership development."
+        backHref="/dashboard"
+        backLabel="Dashboard"
+        description="Live business intelligence from Supabase — network, SRM, CRM, multi-currency trade, inventory, finance, quality, ESG, and projects — plus Super-Cube® leadership."
         action={
           <button
             type="button"

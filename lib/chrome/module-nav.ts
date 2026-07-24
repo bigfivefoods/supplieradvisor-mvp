@@ -373,8 +373,10 @@ export const MODULE_NAV: readonly ModuleNav[] = [
     steps: [
       { name: 'Overview', href: '/dashboard/intelligence', exact: true },
       { name: 'Pulse', href: '/dashboard/intelligence/pulse-dashboard' },
+      { name: 'Insights', href: '/dashboard/intelligence/neural-insights' },
       { name: 'Forecast', href: '/dashboard/intelligence/predictive-forecasts' },
       { name: 'Score', href: '/dashboard/intelligence/custom-scorecards' },
+      { name: 'Lab', href: '/dashboard/intelligence/simulation-lab' },
       { name: 'Lead', href: '/dashboard/intelligence/leadership-development' },
     ],
   },
