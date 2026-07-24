@@ -155,21 +155,31 @@ function HubInner() {
       title: 'Payments',
       desc: 'Inbound receipts and outbound supplier payments.',
       accent: 'from-amber-50 to-white border-amber-100',
+      metric: s?.paymentsThisMonth ?? '—',
+      metricLabel: 'this month',
     },
     {
       href: '/dashboard/accounting/bank-reconciliation',
       icon: Landmark,
       code: '06',
-      title: 'Bank import & allocation',
-      desc: 'CSV from FNB/RMB → allocate income/expense → journals.',
+      title: 'Bank & cash',
+      desc: 'Accounts, set statement balances, import PDF/CSV, allocate & match.',
       accent: 'from-rose-50 to-white border-rose-100',
+      metric:
+        s?.bankBalance != null
+          ? formatMoney(s.bankBalance, cur)
+          : s?.bankAccounts ?? '—',
+      metricLabel:
+        s?.bankBalance != null
+          ? `${s.bankAccounts ?? 0} acct · balance`
+          : 'accounts',
     },
     {
       href: '/dashboard/accounting/budget',
       icon: BarChart3,
       code: '07',
       title: '12-month budget',
-      desc: 'Plan by COA account — monthly amounts for plan vs actual.',
+      desc: 'FY plan by COA — plan vs actual in management & reports.',
       accent: 'from-cyan-50 to-white border-cyan-100',
     },
     {
@@ -177,7 +187,7 @@ function HubInner() {
       icon: BarChart3,
       code: '08',
       title: 'Management accounts',
-      desc: 'Period P&L + budget vs actual from allocated books.',
+      desc: 'Period P&L, cash, budget vs actual, 12-month trends.',
       accent: 'from-violet-50 to-white border-violet-100',
     },
     {
@@ -185,7 +195,7 @@ function HubInner() {
       icon: BarChart3,
       code: '09',
       title: 'Reports & analytics',
-      desc: 'Trial balance, P&L, balance sheet, budget vs actual, aging.',
+      desc: 'Trial balance, P&L, BS, budget vs actual, aging, forecast.',
       accent: 'from-sky-50 to-white border-sky-100',
     },
     {
@@ -193,7 +203,7 @@ function HubInner() {
       icon: Receipt,
       code: '10',
       title: 'VAT & tax',
-      desc: 'VAT return box, output/input, rates, and SARS-ready summary.',
+      desc: 'VAT return box, output/input, rates, SARS-ready summary.',
       accent: 'from-slate-50 to-white border-slate-200',
       metric:
         vatNet != null
@@ -206,23 +216,27 @@ function HubInner() {
       icon: Building2,
       code: '11',
       title: 'Fixed assets',
-      desc: 'Asset register, straight-line depreciation, disposals.',
+      desc: 'Asset register, depreciation, disposals, BS allocation.',
       accent: 'from-emerald-50 to-white border-emerald-100',
+      metric: s?.assets ?? '—',
+      metricLabel: 'assets',
     },
     {
       href: '/dashboard/accounting/entities',
       icon: Globe,
-      code: '11',
-      title: 'Legal entities',
-      desc: 'Companies, branches, multi-currency entities.',
+      code: '12',
+      title: 'Legal entities & group',
+      desc: 'Multi-entity books tied to holding / association structure.',
       accent: 'from-amber-50 to-white border-amber-100',
+      metric: s?.entities ?? '—',
+      metricLabel: 'entities',
     },
     {
       href: '/dashboard/accounting/settings',
       icon: Settings,
-      code: '12',
+      code: '13',
       title: 'Settings',
-      desc: 'Periods, currencies, document prefixes, lock date.',
+      desc: 'FY start, periods, lock date, document prefixes.',
       accent: 'from-cyan-50 to-white border-cyan-100',
     },
   ];
@@ -233,7 +247,7 @@ function HubInner() {
         eyebrow="Financial control"
         title="Accounting"
         titleAccent="Command"
-        description="Full double-entry books: chart of accounts, journals, AR/AP, payments, bank reconciliation, tax, fixed assets, and live financial statements."
+        description="Full finance OS: CoA, journals, AR/AP, payments, bank balances & allocation, budgets, management accounts, VAT, assets, multi-entity group, and reports."
         action={
           <div className="flex flex-wrap gap-2">
             <button
@@ -244,6 +258,12 @@ function HubInner() {
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               Refresh
             </button>
+            <Link
+              href="/dashboard/accounting/bank-reconciliation"
+              className="btn-secondary !py-2.5 !px-4 text-sm"
+            >
+              <Landmark className="w-4 h-4" /> Bank
+            </Link>
             <Link
               href="/dashboard/accounting/journal-entries"
               className="btn-primary !py-2.5 !px-5 text-sm"
@@ -274,7 +294,7 @@ function HubInner() {
       <HubHero
         pill="Live ledger · CoA → reports"
         title="One ledger of truth."
-        description="Double-entry always. AR and AP close the loop from sales and purchasing. Bank, tax, assets, and reports read the same books."
+        description="Double-entry always. AR and AP close the loop from sales and purchasing. Set bank statement balances, allocate, budget, manage multi-entity groups — tax, assets, and reports read the same books."
         stats={[
           {
             label: 'AR open',
@@ -285,6 +305,11 @@ function HubInner() {
             label: 'AP open',
             value: loading ? '—' : formatMoney(s?.apOpenAmount ?? 0, cur),
             valueClass: 'text-emerald-600',
+          },
+          {
+            label: 'Bank',
+            value: loading ? '—' : formatMoney(s?.bankBalance ?? 0, cur),
+            valueClass: 'text-sky-700',
           },
           {
             label: 'Net VAT',

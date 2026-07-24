@@ -22,6 +22,8 @@ import {
   ListFilter,
   Trash2,
   Undo2,
+  Pencil,
+  Wallet,
 } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
@@ -97,6 +99,13 @@ function Inner() {
   const [allocFilter, setAllocFilter] = useState('unallocated');
 
   const [showAccount, setShowAccount] = useState(false);
+  const [showBalance, setShowBalance] = useState<BankAccount | null>(null);
+  const [balanceForm, setBalanceForm] = useState({
+    current_balance: '',
+    as_of: new Date().toISOString().slice(0, 10),
+    note: '',
+    record_adjustment: true,
+  });
   const [showImport, setShowImport] = useState(false);
   const [showMassAlloc, setShowMassAlloc] = useState(false);
   const [showAllocate, setShowAllocate] = useState<BankTransaction | null>(null);
@@ -547,6 +556,7 @@ function Inner() {
     e.preventDefault();
     setSaving(true);
     try {
+      const opening = Number(accForm.opening_balance || 0);
       const res = await fetch('/api/accounting/bank', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -555,14 +565,71 @@ function Inner() {
           privyUserId,
           action: 'account',
           ...accForm,
-          opening_balance: Number(accForm.opening_balance || 0),
-          gl_account_id: accForm.gl_account_id ? Number(accForm.gl_account_id) : null,
+          opening_balance: opening,
+          current_balance: opening,
+          gl_account_id: accForm.gl_account_id
+            ? Number(accForm.gl_account_id)
+            : null,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
       toast.success('Bank account created');
       setShowAccount(false);
+      void load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function openBalanceModal(a: BankAccount, e?: React.MouseEvent) {
+    e?.stopPropagation();
+    setShowBalance(a);
+    setBalanceForm({
+      current_balance: String(Number(a.current_balance || 0)),
+      as_of: new Date().toISOString().slice(0, 10),
+      note: '',
+      record_adjustment: true,
+    });
+  }
+
+  async function saveBalance(e: React.FormEvent) {
+    e.preventDefault();
+    if (!showBalance) return;
+    const bal = Number(balanceForm.current_balance);
+    if (!Number.isFinite(bal)) {
+      toast.error('Enter a valid balance');
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch('/api/accounting/bank', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          action: 'set_balance',
+          bank_account_id: showBalance.id,
+          current_balance: bal,
+          as_of: balanceForm.as_of || null,
+          note: balanceForm.note || null,
+          record_adjustment: balanceForm.record_adjustment,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update balance');
+      const delta = Number(data.delta || 0);
+      toast.success(
+        delta === 0
+          ? 'Balance unchanged'
+          : `Balance updated to ${formatMoney(bal, showBalance.currency || 'ZAR')}${
+              data.adjustment ? ' (adjustment recorded)' : ''
+            }`
+      );
+      setShowBalance(null);
       void load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed');
@@ -1175,7 +1242,7 @@ function Inner() {
       <AccountingHeader
         title="Bank &"
         titleAccent="allocation"
-        description="Connect FNB via BankLink (or sandbox), import PDF/CSV statements, allocate to the GL, and match AR/AP — one middleware for every source."
+        description="Bank accounts with statement balances you can set anytime, BankLink or PDF/CSV import, allocate to GL, and match AR/AP."
         action={
           <>
             <button
@@ -1412,39 +1479,89 @@ function Inner() {
           </div>
         </Panel>
       ) : (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-sm font-bold text-slate-900">
+              Bank accounts · {formatMoney(totalBalance, 'ZAR')} total
+            </p>
+            <p className="text-xs text-neutral-500">
+              Click a card to filter transactions. Use Update balance to set the
+              statement balance (e.g. after a bank statement).
+            </p>
+          </div>
+        </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-8">
           {accounts.map((a) => (
-            <button
+            <div
               key={a.id}
-              type="button"
-              onClick={() =>
-                setSelectedAccount(selectedAccount === a.id ? null : a.id)
-              }
-              className={`text-left rounded-3xl border p-5 transition-all ${
+              className={`rounded-3xl border p-5 transition-all min-w-0 ${
                 selectedAccount === a.id
-                  ? 'border-[#00b4d8] shadow-md bg-white'
-                  : 'border-neutral-200 bg-white hover:border-[#00b4d8]/50'
+                  ? 'border-[#00b4d8] shadow-md bg-white ring-1 ring-[#00b4d8]/20'
+                  : 'border-neutral-200 bg-white'
               }`}
             >
-              <div className="flex items-start justify-between mb-3">
-                <div className="w-9 h-9 rounded-2xl bg-[#00b4d8]/10 flex items-center justify-center">
-                  <Landmark className="w-5 h-5 text-[#00b4d8]" />
+              <button
+                type="button"
+                onClick={() =>
+                  setSelectedAccount(selectedAccount === a.id ? null : a.id)
+                }
+                className="w-full text-left min-w-0"
+              >
+                <div className="flex items-start justify-between mb-3 gap-2">
+                  <div className="w-9 h-9 shrink-0 rounded-2xl bg-[#00b4d8]/10 flex items-center justify-center">
+                    <Landmark className="w-5 h-5 text-[#00b4d8]" />
+                  </div>
+                  {(a.unreconciled_count || 0) > 0 && (
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-50 text-amber-900 border border-amber-100">
+                      {a.unreconciled_count} open
+                    </span>
+                  )}
                 </div>
-                {(a.unreconciled_count || 0) > 0 && (
-                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-50 text-amber-900 border border-amber-100">
-                    {a.unreconciled_count} open
-                  </span>
-                )}
+                <div className="font-bold text-slate-900 truncate">{a.name}</div>
+                <div className="text-xs text-neutral-500 mt-0.5 truncate">
+                  {a.bank_name || a.provider || a.account_type}
+                  {a.account_number
+                    ? ` · ··${String(a.account_number).slice(-4)}`
+                    : ''}
+                </div>
+                <div
+                  className="sa-metric-value text-slate-900 mt-3"
+                  title={formatMoney(a.current_balance, a.currency || 'ZAR')}
+                >
+                  {formatMoney(a.current_balance, a.currency || 'ZAR')}
+                </div>
+                {a.metadata &&
+                  typeof a.metadata === 'object' &&
+                  (a.metadata as { balance_as_of?: string }).balance_as_of && (
+                    <p className="text-[10px] text-neutral-400 mt-1">
+                      As of{' '}
+                      {
+                        (a.metadata as { balance_as_of?: string }).balance_as_of
+                      }
+                    </p>
+                  )}
+              </button>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={(e) => openBalanceModal(a, e)}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-sky-50 hover:border-[#00b4d8]/40"
+                >
+                  <Wallet className="w-3.5 h-3.5 text-[#00b4d8]" />
+                  Update balance
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSelectedAccount(selectedAccount === a.id ? null : a.id)
+                  }
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 hover:bg-neutral-50"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  {selectedAccount === a.id ? 'Clear filter' : 'Filter txns'}
+                </button>
               </div>
-              <div className="font-bold text-slate-900">{a.name}</div>
-              <div className="text-xs text-neutral-500 mt-0.5">
-                {a.bank_name || a.provider || a.account_type}
-                {a.account_number ? ` · ··${String(a.account_number).slice(-4)}` : ''}
-              </div>
-              <div className="text-xl font-black tabular-nums mt-3 text-slate-900">
-                {formatMoney(a.current_balance, a.currency || 'ZAR')}
-              </div>
-            </button>
+            </div>
           ))}
         </div>
       )}
@@ -1743,7 +1860,7 @@ function Inner() {
                 />
               </Field>
             </div>
-            <Field label="Opening balance">
+            <Field label="Opening / current balance">
               <input
                 type="number"
                 step="0.01"
@@ -1751,6 +1868,10 @@ function Inner() {
                 onChange={(e) => setAccForm({ ...accForm, opening_balance: e.target.value })}
                 className="input"
               />
+              <p className="mt-1 text-[11px] text-neutral-500">
+                Sets both opening and current balance. You can update the
+                statement balance anytime from the account card.
+              </p>
             </Field>
             <Field label="Linked GL cash account">
               <select
@@ -1774,6 +1895,121 @@ function Inner() {
               </button>
               <button type="submit" disabled={saving} className="btn-primary !py-2 !px-4 text-sm">
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Create'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Update bank balance */}
+      {showBalance && (
+        <Modal
+          title={`Update balance · ${showBalance.name}`}
+          onClose={() => setShowBalance(null)}
+        >
+          <form onSubmit={saveBalance} className="space-y-3">
+            <div className="rounded-2xl border border-sky-100 bg-sky-50/60 px-4 py-3 text-sm">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-[#0077b6]">
+                Current balance
+              </p>
+              <p className="sa-metric-value text-slate-900 mt-0.5">
+                {formatMoney(
+                  showBalance.current_balance,
+                  showBalance.currency || 'ZAR'
+                )}
+              </p>
+            </div>
+            <Field label="New statement balance" required>
+              <input
+                required
+                type="number"
+                step="0.01"
+                value={balanceForm.current_balance}
+                onChange={(e) =>
+                  setBalanceForm({
+                    ...balanceForm,
+                    current_balance: e.target.value,
+                  })
+                }
+                className="input"
+                autoFocus
+              />
+            </Field>
+            <Field label="As of date">
+              <input
+                type="date"
+                value={balanceForm.as_of}
+                onChange={(e) =>
+                  setBalanceForm({ ...balanceForm, as_of: e.target.value })
+                }
+                className="input"
+              />
+            </Field>
+            <Field label="Note (optional)">
+              <input
+                value={balanceForm.note}
+                onChange={(e) =>
+                  setBalanceForm({ ...balanceForm, note: e.target.value })
+                }
+                className="input"
+                placeholder="e.g. Statement balance 31 Mar 2026"
+              />
+            </Field>
+            <label className="flex items-start gap-2 text-xs text-neutral-600">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={balanceForm.record_adjustment}
+                onChange={(e) =>
+                  setBalanceForm({
+                    ...balanceForm,
+                    record_adjustment: e.target.checked,
+                  })
+                }
+              />
+              <span>
+                Record the difference as a reconciled bank adjustment line
+                (recommended when correcting to a statement balance).
+              </span>
+            </label>
+            {(() => {
+              const prev = Number(showBalance.current_balance || 0);
+              const next = Number(balanceForm.current_balance);
+              const delta = Number.isFinite(next) ? next - prev : 0;
+              if (!Number.isFinite(next) || Math.abs(delta) < 0.005) return null;
+              return (
+                <p className="text-xs text-neutral-500">
+                  Adjustment:{' '}
+                  <strong
+                    className={
+                      delta >= 0 ? 'text-emerald-700' : 'text-rose-700'
+                    }
+                  >
+                    {delta >= 0 ? '+' : ''}
+                    {formatMoney(delta, showBalance.currency || 'ZAR')}
+                  </strong>
+                </p>
+              );
+            })()}
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                className="btn-secondary !py-2 !px-4 text-sm"
+                onClick={() => setShowBalance(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={saving}
+                className="btn-primary !py-2 !px-4 text-sm inline-flex items-center gap-1.5"
+              >
+                {saving ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Wallet className="w-4 h-4" />
+                )}
+                Save balance
               </button>
             </div>
           </form>

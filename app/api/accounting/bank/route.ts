@@ -217,6 +217,150 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, transaction: data });
     }
 
+    /**
+     * Set or adjust the statement/book balance on a bank account.
+     * body: { bank_account_id | id, current_balance, as_of?, note?, record_adjustment? }
+     * - Sets current_balance absolutely
+     * - Optionally inserts a signed adjustment transaction for the delta
+     * - Stores audit trail in metadata.balance_updates
+     */
+    if (action === 'set_balance' || action === 'update_balance') {
+      const bankId = Number(body.bank_account_id ?? body.id);
+      if (!Number.isFinite(bankId) || bankId <= 0) {
+        return NextResponse.json(
+          { error: 'bank_account_id required' },
+          { status: 400 }
+        );
+      }
+      if (body.current_balance == null || body.current_balance === '') {
+        return NextResponse.json(
+          { error: 'current_balance required' },
+          { status: 400 }
+        );
+      }
+      const newBal = round2(Number(body.current_balance));
+      if (!Number.isFinite(newBal)) {
+        return NextResponse.json(
+          { error: 'current_balance must be a number' },
+          { status: 400 }
+        );
+      }
+
+      const { data: bank, error: loadErr } = await supabase
+        .from('bank_accounts')
+        .select('*')
+        .eq('id', bankId)
+        .eq('profile_id', companyId)
+        .maybeSingle();
+      if (loadErr) {
+        return NextResponse.json({ error: loadErr.message }, { status: 400 });
+      }
+      if (!bank) {
+        return NextResponse.json(
+          { error: 'Bank account not found' },
+          { status: 404 }
+        );
+      }
+
+      const prev = round2(Number(bank.current_balance || 0));
+      const delta = round2(newBal - prev);
+      const asOf =
+        body.as_of && String(body.as_of).slice(0, 10)
+          ? String(body.as_of).slice(0, 10)
+          : new Date().toISOString().slice(0, 10);
+      const note = body.note ? String(body.note).trim() : null;
+      const recordAdjustment = body.record_adjustment !== false && delta !== 0;
+
+      let adjustmentTxn: Record<string, unknown> | null = null;
+      if (recordAdjustment && delta !== 0) {
+        const txnPayload: Record<string, unknown> = {
+          profile_id: companyId,
+          bank_account_id: bankId,
+          txn_date: asOf,
+          description:
+            note || `Balance adjustment to ${newBal} (was ${prev})`,
+          reference: 'BALANCE_ADJ',
+          amount: delta,
+          currency: bank.currency || 'ZAR',
+          status: 'reconciled',
+          allocation_status: 'excluded',
+          metadata: {
+            kind: 'balance_adjustment',
+            previous_balance: prev,
+            new_balance: newBal,
+            as_of: asOf,
+            note,
+          },
+        };
+        let { data: txn, error: txnErr } = await supabase
+          .from('bank_transactions')
+          .insert(txnPayload)
+          .select('*')
+          .single();
+        if (txnErr && /allocation_status|column|schema cache/i.test(txnErr.message)) {
+          delete txnPayload.allocation_status;
+          const retry = await supabase
+            .from('bank_transactions')
+            .insert(txnPayload)
+            .select('*')
+            .single();
+          txn = retry.data;
+          txnErr = retry.error;
+        }
+        if (txnErr) {
+          // Soft: still set balance if txn insert fails (legacy schema)
+          console.warn('balance adjustment txn:', txnErr.message);
+        } else {
+          adjustmentTxn = txn as Record<string, unknown>;
+        }
+      }
+
+      const meta =
+        bank.metadata && typeof bank.metadata === 'object'
+          ? { ...(bank.metadata as Record<string, unknown>) }
+          : {};
+      const history = Array.isArray(meta.balance_updates)
+        ? [...(meta.balance_updates as unknown[])]
+        : [];
+      history.unshift({
+        at: new Date().toISOString(),
+        as_of: asOf,
+        previous: prev,
+        current: newBal,
+        delta,
+        note,
+        by: _gate.userId,
+      });
+      meta.balance_updates = history.slice(0, 50);
+      meta.balance_as_of = asOf;
+      meta.last_balance_set_at = new Date().toISOString();
+
+      const { data: updated, error: upErr } = await supabase
+        .from('bank_accounts')
+        .update({
+          current_balance: newBal,
+          metadata: meta,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', bankId)
+        .eq('profile_id', companyId)
+        .select('*')
+        .single();
+
+      if (upErr) {
+        return NextResponse.json({ error: upErr.message }, { status: 400 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        account: updated,
+        previous_balance: prev,
+        new_balance: newBal,
+        delta,
+        adjustment: adjustmentTxn,
+      });
+    }
+
     if (action === 'reconcile' || action === 'unreconcile') {
       const rawId = body.id ?? body.transaction_id;
       const id =
@@ -282,6 +426,7 @@ export async function PATCH(request: NextRequest) {
       'account_number',
       'account_type',
       'currency',
+      'opening_balance',
       'current_balance',
       'is_default',
       'status',
@@ -292,10 +437,62 @@ export async function PATCH(request: NextRequest) {
     ];
     const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
     for (const k of allowed) {
-      if (body[k] !== undefined) patch[k] = body[k];
+      if (body[k] !== undefined) {
+        if (
+          k === 'current_balance' ||
+          k === 'opening_balance' ||
+          k === 'gl_account_id' ||
+          k === 'entity_id'
+        ) {
+          const n = body[k] === '' || body[k] == null ? null : Number(body[k]);
+          patch[k] =
+            n != null && Number.isFinite(n)
+              ? k === 'gl_account_id' || k === 'entity_id'
+                ? n
+                : round2(n)
+              : null;
+        } else if (k === 'is_default') {
+          patch[k] = Boolean(body[k]);
+        } else {
+          patch[k] = body[k];
+        }
+      }
     }
 
+    // Audit when current_balance is set via PATCH
     const supabase = getSupabaseServer();
+    if (body.current_balance !== undefined) {
+      const { data: existing } = await supabase
+        .from('bank_accounts')
+        .select('current_balance, metadata')
+        .eq('id', id)
+        .eq('profile_id', companyId)
+        .maybeSingle();
+      if (existing) {
+        const prev = round2(Number(existing.current_balance || 0));
+        const next = round2(Number(body.current_balance));
+        const meta =
+          existing.metadata && typeof existing.metadata === 'object'
+            ? { ...(existing.metadata as Record<string, unknown>) }
+            : {};
+        const history = Array.isArray(meta.balance_updates)
+          ? [...(meta.balance_updates as unknown[])]
+          : [];
+        history.unshift({
+          at: new Date().toISOString(),
+          previous: prev,
+          current: next,
+          delta: round2(next - prev),
+          note: body.note ? String(body.note) : 'Updated via account edit',
+          by: _gate.userId,
+        });
+        meta.balance_updates = history.slice(0, 50);
+        meta.balance_as_of =
+          body.as_of || new Date().toISOString().slice(0, 10);
+        patch.metadata = meta;
+      }
+    }
+
     const { data, error } = await supabase
       .from('bank_accounts')
       .update(patch)
