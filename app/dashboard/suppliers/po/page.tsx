@@ -50,7 +50,9 @@ import WalletConnectBar from '@/components/onchain/WalletConnectBar';
 import UsdcEscrowActions from '@/components/onchain/UsdcEscrowActions';
 import EscrowStepper from '@/components/onchain/EscrowStepper';
 import EscrowDisputeButton from '@/components/onchain/EscrowDisputeButton';
+import SettleModeChip from '@/components/procurement/SettleModeChip';
 import { isUsdcEscrowEnabled } from '@/lib/contracts/usdcEscrow';
+import { useApiAuth } from '@/lib/client/use-api-auth';
 import {
   CompanyRequired,
   SuppliersHeader,
@@ -185,6 +187,7 @@ function PoInner() {
   const searchParams = useSearchParams();
   const companyId = getSelectedCompanyId()!;
   const privyUserId = getCanonicalUserId(user?.id);
+  const { withAuth, withAuthJson } = useApiAuth();
   const preselectSupplierId = Number(searchParams.get('supplierId') || 0) || null;
   const peerProfileId =
     Number(searchParams.get('peer') || searchParams.get('sellerProfileId') || 0) ||
@@ -769,20 +772,19 @@ function PoInner() {
           );
         }
 
-        const res = await fetch(`/api/suppliers/purchase-orders/${link.supabasePoId}/onchain`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            companyId,
-            privyUserId,
-            onchain_tx: link.txHash,
-            onchain_po_id: poIdOnChain,
-            supplier_wallet: link.supplierWallet || undefined,
-            kind: link.kind,
-          }),
-        });
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.error || 'Failed to save on-chain refs');
+        const json = await withAuthJson<{ error?: string }>(
+          `/api/suppliers/purchase-orders/${link.supabasePoId}/onchain`,
+          {
+            method: 'POST',
+            jsonBody: {
+              onchain_tx: link.txHash,
+              onchain_po_id: poIdOnChain,
+              supplier_wallet: link.supplierWallet || undefined,
+              kind: link.kind,
+            },
+          }
+        );
+        if (json.error) throw new Error(json.error || 'Failed to save on-chain refs');
 
         toast.success(
           link.kind === 'create'
@@ -1007,12 +1009,9 @@ function PoInner() {
 
     setSaving(true);
     try {
-      const res = await fetch('/api/suppliers/purchase-orders', {
+      const res = await withAuth('/api/suppliers/purchase-orders', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          companyId,
-          privyUserId,
+        jsonBody: {
           srmSupplierId: selectedSrmId,
           supplierProfileId: selectedSupplier.linked_profile_id,
           items: validItems,
@@ -1028,7 +1027,7 @@ function PoInner() {
           work_station_id: costWsId,
           asset_id: costAssetId,
           cost_category: costCategory || 'materials',
-        }),
+        },
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to create PO');
@@ -1076,10 +1075,9 @@ function PoInner() {
   const patchPo = async (id: number, body: Record<string, unknown>) => {
     setBusyId(id);
     try {
-      const res = await fetch('/api/suppliers/purchase-orders', {
+      const res = await withAuth('/api/suppliers/purchase-orders', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ companyId, privyUserId, id, ...body }),
+        jsonBody: { id, ...body },
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Update failed');
@@ -1111,16 +1109,13 @@ function PoInner() {
   const receiveToStock = async (po: PurchaseOrder) => {
     setBusyId(po.id);
     try {
-      const res = await fetch('/api/suppliers/purchase-orders', {
+      const res = await withAuth('/api/suppliers/purchase-orders', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          companyId,
-          privyUserId,
+        jsonBody: {
           id: po.id,
           action: 'receive_inventory',
           createMissingProducts: true,
-        }),
+        },
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -2506,13 +2501,10 @@ function PoInner() {
                             >
                               {po.status}
                             </span>
-                            {onchain ? (
+                            <SettleModeChip po={po} />
+                            {onchain && (
                               <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-[#00b4d8]/15 text-[#0077b6]">
                                 Escrow #{po.onchain_po_id}
-                              </span>
-                            ) : (
-                              <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-600">
-                                Standard
                               </span>
                             )}
                           </div>

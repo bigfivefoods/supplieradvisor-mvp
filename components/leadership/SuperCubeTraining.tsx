@@ -4,9 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ArrowRight,
   BookOpen,
+  Calendar,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
+  ClipboardList,
   Compass,
   Heart,
   Loader2,
@@ -62,48 +64,62 @@ type Dimension = {
   improvesYou: string;
   improvesOthers: string;
   practices: string[];
+  /** Leadership constructs under this face (Super-Cube model language) */
+  constructs: string[];
+  /** Coaching prompt when mentoring someone on this face */
+  coachPrompt: string;
 };
 
-/** Super-Cube face icon — keeps artwork small inside a fixed placeholder. */
+/** Super-Cube face icon — large, legible artwork for each cube face. */
 function DimIcon({
   icon,
   alt = '',
   size = 'md',
   className = '',
+  ringColor,
 }: {
   icon: string;
   alt?: string;
-  size?: 'xs' | 'sm' | 'md' | 'lg';
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl';
   className?: string;
+  ringColor?: string;
 }) {
-  const box =
-    size === 'xs'
-      ? 'h-7 w-7'
-      : size === 'sm'
-        ? 'h-8 w-8'
-        : size === 'lg'
-          ? 'h-12 w-12'
-          : 'h-9 w-9';
-  const img =
-    size === 'xs'
-      ? 'h-4 w-4'
-      : size === 'sm'
-        ? 'h-5 w-5'
-        : size === 'lg'
-          ? 'h-8 w-8'
-          : 'h-6 w-6';
+  const map = {
+    xs: { box: 'h-11 w-11', img: 'h-8 w-8', px: 32, rounded: 'rounded-xl' },
+    sm: { box: 'h-14 w-14', img: 'h-11 w-11', px: 44, rounded: 'rounded-2xl' },
+    md: { box: 'h-16 w-16', img: 'h-12 w-12', px: 48, rounded: 'rounded-2xl' },
+    lg: { box: 'h-20 w-20 sm:h-24 sm:w-24', img: 'h-16 w-16 sm:h-20 sm:w-20', px: 80, rounded: 'rounded-2xl' },
+    xl: {
+      box: 'h-24 w-24 sm:h-28 sm:w-28',
+      img: 'h-20 w-20 sm:h-24 sm:w-24',
+      px: 96,
+      rounded: 'rounded-3xl',
+    },
+    '2xl': {
+      box: 'h-28 w-28 sm:h-32 sm:w-32',
+      img: 'h-24 w-24 sm:h-28 sm:w-28',
+      px: 112,
+      rounded: 'rounded-3xl',
+    },
+  } as const;
+  const s = map[size];
   return (
     <span
-      className={`inline-flex ${box} shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white/90 ${className}`}
+      className={`inline-flex ${s.box} ${s.rounded} shrink-0 items-center justify-center overflow-hidden bg-white shadow-sm ring-1 ring-black/5 ${className}`}
+      style={
+        ringColor
+          ? { boxShadow: `0 0 0 2px ${ringColor}33, 0 1px 2px rgb(0 0 0 / 0.05)` }
+          : undefined
+      }
       aria-hidden={alt ? undefined : true}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={`/images/${icon}`}
         alt={alt}
-        width={32}
-        height={32}
-        className={`${img} object-contain`}
+        width={s.px}
+        height={s.px}
+        className={`${s.img} object-contain`}
         loading="lazy"
         decoding="async"
       />
@@ -131,6 +147,9 @@ const DIMENSIONS: Dimension[] = [
       'Run a 5-minute pre-mortem: list three ethical risks before you commit.',
       'Own outcomes publicly — success and failure — so ownership becomes culture.',
     ],
+    constructs: ['Moral clarity', 'Judgement under pressure', 'Calculated risk', 'Ownership', 'Integrity'],
+    coachPrompt:
+      'Ask: “What decision are you avoiding, and what would integrity look like if you chose today?”',
   },
   {
     key: 'principles',
@@ -151,6 +170,9 @@ const DIMENSIONS: Dimension[] = [
       'Map how your principles flex by context without breaking core values.',
       'Name one accountability partner who can call you out with love.',
     ],
+    constructs: ['Ethical foundation', 'Contextual awareness', 'Situational judgement', 'Accountability', 'Standards'],
+    coachPrompt:
+      'Ask: “Which principle is non-negotiable here — and which are you tempted to bend for short-term gain?”',
   },
   {
     key: 'mental',
@@ -171,6 +193,9 @@ const DIMENSIONS: Dimension[] = [
       'After every hard problem, capture one reusable insight in a shared note.',
       'Practise the 30-second vision: can your team retell your direction back to you?',
     ],
+    constructs: ['Strategic thinking', 'Creative problem-solving', 'Continuous learning', 'Objectivity', 'Vision'],
+    coachPrompt:
+      'Ask: “If we zoom out 12 months, what does winning look like — and what are we over-optimising today?”',
   },
   {
     key: 'emotional',
@@ -191,6 +216,9 @@ const DIMENSIONS: Dimension[] = [
       'Name your own emotion in hard moments — model regulation, not performance.',
       'Repair quickly: a short apology after friction is high-ROI leadership.',
     ],
+    constructs: ['Self-awareness', 'Empathy', 'Trust-building', 'Pressure regulation', 'Motivation'],
+    coachPrompt:
+      'Ask: “What is the emotion under this conflict — and what would make the other person feel safe enough to tell the truth?”',
   },
   {
     key: 'physical',
@@ -211,6 +239,9 @@ const DIMENSIONS: Dimension[] = [
       'Stack movement into the day: walk-and-talks, stretch between deep work blocks.',
       'Share one wellbeing ritual with your team — permission is contagious.',
     ],
+    constructs: ['Energy management', 'Sleep & recovery', 'Nutrition & fitness', 'Stress recovery', 'Sustainable pace'],
+    coachPrompt:
+      'Ask: “Where is your energy leaking this week — and what one boundary would restore surplus?”',
   },
   {
     key: 'spiritual',
@@ -231,6 +262,9 @@ const DIMENSIONS: Dimension[] = [
       'Book 10 minutes of reflection at week-end — no devices, only questions.',
       'Help one person name their purpose this month; leadership multiplies when you do.',
     ],
+    constructs: ['Purpose', 'Meaning', 'Authenticity', 'Mindfulness', 'Transcendence'],
+    coachPrompt:
+      'Ask: “Who do you serve beyond the metric — and how does this week’s work move that future closer?”',
   },
 ];
 
@@ -333,6 +367,49 @@ const QUOTES = [
   },
 ] as const;
 
+const THIRTY_DAY_WEEKS = [
+  {
+    week: 1,
+    title: 'Awareness & baseline',
+    focus: 'Name the gap. Make it visible.',
+    actions: (face: Dimension) => [
+      `Re-read your ${face.name} scores and constructs: ${face.constructs.slice(0, 3).join(', ')}.`,
+      `Journal once: when did ${face.name.toLowerCase()} show up well this week — and when did it fail?`,
+      'Share one honest insight with an accountability partner.',
+    ],
+  },
+  {
+    week: 2,
+    title: 'Deliberate practice',
+    focus: 'One micro-habit, every day.',
+    actions: (face: Dimension) => [
+      face.practices[0],
+      `Block 15 minutes daily tied to ${face.name.toLowerCase()} only — no multitasking.`,
+      'Log a 1-line win each evening so progress is undeniable.',
+    ],
+  },
+  {
+    week: 3,
+    title: 'Lead in public',
+    focus: 'Practice under real pressure.',
+    actions: (face: Dimension) => [
+      face.practices[1] || face.practices[0],
+      `Use the coach prompt in one real conversation: ${face.coachPrompt}`,
+      'Invite feedback from someone who saw you lead this week.',
+    ],
+  },
+  {
+    week: 4,
+    title: 'Multiply & reassess',
+    focus: 'Teach one person. Measure lift.',
+    actions: (face: Dimension) => [
+      face.practices[2] || face.practices[0],
+      `Mentor one person on ${face.name} for 20 minutes using Super-Cube language.`,
+      'Re-score this face and compare to baseline — celebrate the delta.',
+    ],
+  },
+] as const;
+
 const defaultScores = (): Record<string, number[]> => ({
   choices: [5, 5, 5, 5, 5],
   principles: [5, 5, 5, 5, 5],
@@ -341,6 +418,10 @@ const defaultScores = (): Record<string, number[]> => ({
   physical: [5, 5, 5, 5, 5],
   spiritual: [5, 5, 5, 5, 5],
 });
+
+function practiceKey(dimKey: string, practice: string) {
+  return `${dimKey}::${practice.slice(0, 48)}`;
+}
 
 function scoreBand(score: number): { label: string; tone: string } {
   if (score >= 9) return { label: 'World-class', tone: 'text-emerald-600 bg-emerald-50 border-emerald-100' };
@@ -387,7 +468,7 @@ export default function SuperCubeTraining({
       ? companyIdProp
       : audience === 'dashboard'
         ? selectedCompanyId
-        : selectedCompanyId; // sales portal still has company
+        : selectedCompanyId;
   const { user } = usePrivy();
   const privyUserId = getCanonicalUserId(user?.id);
   const copy = AUDIENCE_COPY[audience];
@@ -398,6 +479,9 @@ export default function SuperCubeTraining({
   });
   const [activeDim, setActiveDim] = useState<string>('choices');
   const [scores, setScores] = useState<Record<string, number[]>>(defaultScores);
+  const [checkedPractices, setCheckedPractices] = useState<Record<string, boolean>>({});
+  const [commitments, setCommitments] = useState<[string, string, string]>(['', '', '']);
+  const [planWeek, setPlanWeek] = useState(1);
   const [saving, setSaving] = useState(false);
   const [loadingSaved, setLoadingSaved] = useState(true);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
@@ -412,20 +496,40 @@ export default function SuperCubeTraining({
     .filter(Boolean)
     .join('-');
 
+  const applyProgress = useCallback(
+    (prog: {
+      scores?: Record<string, number[]>;
+      step?: Step;
+      savedAt?: string;
+      checkedPractices?: Record<string, boolean>;
+      commitments?: string[];
+      planWeek?: number;
+    }) => {
+      if (prog.scores) setScores(prog.scores);
+      if (prog.step) setStep(prog.step);
+      if (prog.savedAt) setLastSavedAt(prog.savedAt);
+      if (prog.checkedPractices) setCheckedPractices(prog.checkedPractices);
+      if (prog.commitments && Array.isArray(prog.commitments)) {
+        setCommitments([
+          prog.commitments[0] || '',
+          prog.commitments[1] || '',
+          prog.commitments[2] || '',
+        ]);
+      }
+      if (typeof prog.planWeek === 'number' && prog.planWeek >= 1 && prog.planWeek <= 4) {
+        setPlanWeek(prog.planWeek);
+      }
+    },
+    []
+  );
+
   const loadSaved = useCallback(async () => {
     setLoadingSaved(true);
     try {
       try {
         const raw = localStorage.getItem(storageKey);
         if (raw) {
-          const parsed = JSON.parse(raw) as {
-            scores?: Record<string, number[]>;
-            step?: Step;
-            savedAt?: string;
-          };
-          if (parsed.scores) setScores(parsed.scores);
-          if (parsed.step) setStep(parsed.step);
-          if (parsed.savedAt) setLastSavedAt(parsed.savedAt);
+          applyProgress(JSON.parse(raw));
         }
       } catch {
         /* ignore */
@@ -437,20 +541,13 @@ export default function SuperCubeTraining({
         );
         const data = await res.json();
         if (res.ok && data.progress && typeof data.progress === 'object') {
-          const prog = data.progress as {
-            scores?: Record<string, number[]>;
-            step?: Step;
-            savedAt?: string;
-          };
-          if (prog.scores) setScores(prog.scores);
-          if (prog.step) setStep(prog.step);
-          if (prog.savedAt) setLastSavedAt(prog.savedAt);
+          applyProgress(data.progress);
         }
       }
     } finally {
       setLoadingSaved(false);
     }
-  }, [companyId, privyUserId, storageKey]);
+  }, [applyProgress, companyId, privyUserId, storageKey]);
 
   useEffect(() => {
     void loadSaved();
@@ -470,7 +567,6 @@ export default function SuperCubeTraining({
   );
 
   const answeredCount = useMemo(() => {
-    // Counts dimensions that user has opened and adjusted from pure midpoint — always show progress by questions rated
     return DIMENSIONS.reduce((n, d) => n + (scores[d.key]?.length || 0), 0);
   }, [scores]);
 
@@ -488,6 +584,26 @@ export default function SuperCubeTraining({
       .slice(0, 2);
   }, [dimScore]);
 
+  const primaryFocus = weakest[0] || DIMENSIONS[0];
+
+  const practiceStats = useMemo(() => {
+    let total = 0;
+    let done = 0;
+    for (const d of DIMENSIONS) {
+      for (const p of d.practices) {
+        total += 1;
+        if (checkedPractices[practiceKey(d.key, p)]) done += 1;
+      }
+    }
+    // Focus practices from priority faces get extra weight in display
+    const focusKeys = weakest.flatMap((d) =>
+      d.practices.map((p) => practiceKey(d.key, p))
+    );
+    const focusTotal = focusKeys.length;
+    const focusDone = focusKeys.filter((k) => checkedPractices[k]).length;
+    return { total, done, focusTotal, focusDone };
+  }, [checkedPractices, weakest]);
+
   const activeDimension = DIMENSIONS.find((d) => d.key === activeDim) || DIMENSIONS[0];
 
   const updateQuestionScore = (dimension: string, index: number, value: number) => {
@@ -496,6 +612,11 @@ export default function SuperCubeTraining({
       next[index] = value;
       return { ...prev, [dimension]: next };
     });
+  };
+
+  const togglePractice = (dimKey: string, practice: string) => {
+    const key = practiceKey(dimKey, practice);
+    setCheckedPractices((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
   const buildProgressPayload = (nextStep?: Step) => {
@@ -510,7 +631,13 @@ export default function SuperCubeTraining({
         name: d.name,
         score: dimScore(d.key),
         practices: d.practices,
+        constructs: d.constructs,
       })),
+      checkedPractices,
+      commitments: [...commitments],
+      planWeek,
+      practiceDone: practiceStats.done,
+      practiceTotal: practiceStats.total,
       model: 'Super-Cube®',
       companyId,
       savedAt,
@@ -529,23 +656,29 @@ export default function SuperCubeTraining({
     a.click();
     URL.revokeObjectURL(url);
 
-    // Printable summary window
     const w = window.open('', '_blank');
     if (w) {
       const rows = DIMENSIONS.map(
         (d) =>
-          `<tr><td style="padding:8px;border-bottom:1px solid #eee">${d.name}</td><td style="padding:8px;border-bottom:1px solid #eee;font-weight:700">${dimScore(d.key).toFixed(1)}</td></tr>`
+          `<tr><td style="padding:10px;border-bottom:1px solid #eee"><strong style="color:${d.color}">${d.name}</strong><br/><span style="color:#64748b;font-size:12px">${d.tagline}</span></td><td style="padding:10px;border-bottom:1px solid #eee;font-weight:700;font-size:18px">${dimScore(d.key)}</td><td style="padding:10px;border-bottom:1px solid #eee;font-size:12px;color:#64748b">${d.constructs.join(' · ')}</td></tr>`
       ).join('');
-      w.document.write(`<!DOCTYPE html><html><head><title>Super-Cube® Report</title>
-        <style>body{font-family:system-ui,sans-serif;max-width:640px;margin:40px auto;color:#0f172a}
-        h1{color:#00b4d8} table{width:100%;border-collapse:collapse} .muted{color:#64748b;font-size:13px}</style></head>
+      const commitRows = commitments
+        .filter(Boolean)
+        .map((c, i) => `<li><strong>Commitment ${i + 1}:</strong> ${c}</li>`)
+        .join('');
+      w.document.write(`<!DOCTYPE html><html><head><title>Super-Cube® Leadership Report</title>
+        <style>body{font-family:system-ui,sans-serif;max-width:720px;margin:40px auto;color:#0f172a;padding:0 16px}
+        h1{color:#00b4d8} table{width:100%;border-collapse:collapse} .muted{color:#64748b;font-size:13px}
+        .band{display:inline-block;padding:4px 10px;border-radius:999px;background:#ecfeff;color:#0e7490;font-size:12px;font-weight:700}</style></head>
         <body>
         <h1>Leadership Super-Cube®</h1>
-        <p class="muted">Exported ${progress.savedAt} · Company #${companyId || '—'}</p>
-        <p><strong>Overall:</strong> ${totalScore.toFixed(1)} / 10</p>
-        <table><thead><tr><th align="left">Dimension</th><th align="left">Score</th></tr></thead>
+        <p class="muted">Exported ${progress.savedAt} · Company #${companyId || '—'} · Model: Super-Cube® (Dr. Craig R. Muller · UKZN)</p>
+        <p><strong>Combined index:</strong> ${totalScore} / 60 · Practices completed: ${practiceStats.done}/${practiceStats.total}</p>
+        <p class="band">Primary growth edge: ${primaryFocus.name} (${dimScore(primaryFocus.key)})</p>
+        <table><thead><tr><th align="left">Face</th><th align="left">Score</th><th align="left">Constructs</th></tr></thead>
         <tbody>${rows}</tbody></table>
-        <p class="muted" style="margin-top:24px">SupplierAdvisor® — self-assessment for development, not a certification.</p>
+        ${commitRows ? `<h2 style="margin-top:28px;font-size:16px">30-day commitments</h2><ul>${commitRows}</ul>` : ''}
+        <p class="muted" style="margin-top:24px">SupplierAdvisor® — self-assessment for development, not a certification. Whole &gt; sum of parts.</p>
         <script>window.onload=()=>window.print()</script>
         </body></html>`);
       w.document.close();
@@ -562,7 +695,6 @@ export default function SuperCubeTraining({
       /* ignore */
     }
 
-    // Operators / resellers: device save only. Sales + dashboard: try company cloud.
     const canCloud =
       Boolean(companyId && privyUserId) &&
       (audience === 'dashboard' || audience === 'sales');
@@ -755,8 +887,8 @@ export default function SuperCubeTraining({
                 </p>
                 <p className="text-sm text-slate-500 leading-relaxed max-w-xl mb-8">
                   Research shows leadership is largely developable. This journey turns that science
-                  into a practical roadmap: assess honestly, practise deliberately, then multiply
-                  growth through your team and trading network.
+                  into a practical operating system: assess honestly, practise deliberately for 30
+                  days, then multiply growth through your team and trading network.
                 </p>
                 <div className="flex flex-wrap items-center gap-3">
                   <button
@@ -788,9 +920,9 @@ export default function SuperCubeTraining({
                 <img
                   src="/images/supercube-logo-for-home-page.png"
                   alt="Super-Cube® Leadership Model"
-                  className="h-24 sm:h-28 w-auto max-w-[min(100%,280px)] object-contain drop-shadow-xl"
+                  className="h-28 sm:h-36 w-auto max-w-[min(100%,320px)] object-contain drop-shadow-xl"
                 />
-                <div className="mt-6 grid grid-cols-3 gap-2 w-full max-w-sm">
+                <div className="mt-6 grid grid-cols-3 gap-3 w-full max-w-md">
                   {DIMENSIONS.map((d) => (
                     <button
                       key={d.key}
@@ -801,11 +933,20 @@ export default function SuperCubeTraining({
                           .getElementById('six-faces')
                           ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                       }}
-                      className="rounded-2xl border border-white bg-white/90 p-2.5 text-center shadow-sm hover:border-[#00b4d8]/40 hover:shadow-md transition-all"
+                      className="rounded-2xl border border-white bg-white/95 p-3 text-center shadow-sm hover:border-[#00b4d8]/40 hover:shadow-md transition-all"
                     >
-                      <DimIcon icon={d.icon} size="sm" className="mx-auto mb-1" />
-                      <div className="text-[10px] font-bold" style={{ color: d.color }}>
+                      <DimIcon
+                        icon={d.icon}
+                        alt={d.name}
+                        size="md"
+                        ringColor={d.color}
+                        className="mx-auto mb-2"
+                      />
+                      <div className="text-[11px] font-bold" style={{ color: d.color }}>
                         {d.name}
+                      </div>
+                      <div className="text-[9px] text-neutral-400 mt-0.5 line-clamp-1">
+                        {d.short}
                       </div>
                     </button>
                   ))}
@@ -820,7 +961,7 @@ export default function SuperCubeTraining({
               { k: '6', v: 'Human dimensions', s: 'One integrated cube' },
               { k: '70%+', v: 'Developable', s: 'Leadership can be grown' },
               { k: '30', v: 'Reflection prompts', s: 'Across all six faces' },
-              { k: '∞', v: 'Ripple effect', s: 'You → team → network' },
+              { k: '30d', v: 'Growth cycle', s: 'Practice → coach → reassess' },
             ].map((item) => (
               <div
                 key={item.v}
@@ -888,8 +1029,9 @@ export default function SuperCubeTraining({
                 <ul className="space-y-2 pt-1">
                   {[
                     'Self-assessment with thirty reflection prompts',
-                    'Visual spider profile + growth plan',
-                    'Weekly practices for yourself and your team',
+                    'Visual spider profile + 30-day growth plan',
+                    'Practice tracker, commitments, and coach prompts',
+                    'Exportable report for 1:1s and development conversations',
                   ].map((t) => (
                     <li key={t} className="flex items-start gap-2">
                       <CheckCircle2 className="w-4 h-4 text-[#00b4d8] shrink-0 mt-0.5" />
@@ -931,11 +1073,11 @@ export default function SuperCubeTraining({
           <div id="six-faces">
             <SectionLabel>Six faces of Super-Cube®</SectionLabel>
             <p className="text-sm text-neutral-500 mb-4 max-w-2xl">
-              Click a dimension to explore how it improves you — and how it lifts the people who
-              depend on your leadership.
+              Click a dimension to explore constructs, how it improves you, and how it lifts the
+              people who depend on your leadership.
             </p>
-            <div className="grid lg:grid-cols-[280px_1fr] gap-4">
-              <div className="space-y-2">
+            <div className="grid lg:grid-cols-[300px_1fr] gap-4">
+              <div className="space-y-2.5">
                 {DIMENSIONS.map((d) => {
                   const selected = activeDim === d.key;
                   return (
@@ -943,7 +1085,7 @@ export default function SuperCubeTraining({
                       key={d.key}
                       type="button"
                       onClick={() => setActiveDim(d.key)}
-                      className={`w-full flex items-center gap-3 rounded-2xl border px-3.5 py-3 text-left transition-all ${
+                      className={`w-full flex items-center gap-3.5 rounded-2xl border px-3.5 py-3.5 text-left transition-all ${
                         selected
                           ? 'shadow-md'
                           : 'border-neutral-200 bg-white hover:border-neutral-300'
@@ -958,7 +1100,7 @@ export default function SuperCubeTraining({
                           : undefined
                       }
                     >
-                      <DimIcon icon={d.icon} size="sm" />
+                      <DimIcon icon={d.icon} alt={d.name} size="md" ringColor={d.color} />
                       <div className="min-w-0">
                         <div className="font-bold text-sm" style={{ color: d.color }}>
                           {d.name}
@@ -974,11 +1116,16 @@ export default function SuperCubeTraining({
                 className="rounded-3xl border bg-white p-6 sm:p-8 shadow-sm"
                 style={{ borderColor: `${activeDimension.color}33` }}
               >
-                <div className="flex flex-wrap items-start gap-4 mb-5">
-                  <DimIcon icon={activeDimension.icon} size="lg" />
+                <div className="flex flex-wrap items-start gap-5 mb-5">
+                  <DimIcon
+                    icon={activeDimension.icon}
+                    alt={activeDimension.name}
+                    size="xl"
+                    ringColor={activeDimension.color}
+                  />
                   <div>
                     <h3
-                      className="text-2xl font-black tracking-tight"
+                      className="text-2xl sm:text-3xl font-black tracking-tight"
                       style={{ color: activeDimension.color }}
                     >
                       {activeDimension.name}
@@ -988,9 +1135,24 @@ export default function SuperCubeTraining({
                     </p>
                   </div>
                 </div>
-                <p className="text-sm text-neutral-600 leading-relaxed mb-6">
+                <p className="text-sm text-neutral-600 leading-relaxed mb-5">
                   {activeDimension.description}
                 </p>
+                <div className="flex flex-wrap gap-2 mb-6">
+                  {activeDimension.constructs.map((c) => (
+                    <span
+                      key={c}
+                      className="text-[11px] font-semibold px-2.5 py-1 rounded-full border"
+                      style={{
+                        color: activeDimension.color,
+                        borderColor: `${activeDimension.color}40`,
+                        backgroundColor: activeDimension.soft,
+                      }}
+                    >
+                      {c}
+                    </span>
+                  ))}
+                </div>
                 <div className="grid sm:grid-cols-2 gap-4 mb-6">
                   <div
                     className="rounded-2xl p-4 border"
@@ -1014,6 +1176,14 @@ export default function SuperCubeTraining({
                       {activeDimension.improvesOthers}
                     </p>
                   </div>
+                </div>
+                <div className="rounded-2xl border border-dashed border-neutral-200 bg-neutral-50/60 p-4 mb-6">
+                  <div className="text-[11px] font-black uppercase tracking-wider text-neutral-400 mb-1.5">
+                    Coach prompt · multiply this face
+                  </div>
+                  <p className="text-sm text-slate-700 leading-relaxed italic">
+                    {activeDimension.coachPrompt}
+                  </p>
                 </div>
                 <div>
                   <div className="text-[11px] font-black uppercase tracking-wider text-neutral-400 mb-2">
@@ -1062,8 +1232,8 @@ export default function SuperCubeTraining({
               Ready to map your leadership profile?
             </h3>
             <p className="text-white/85 max-w-xl mx-auto text-sm sm:text-base mb-6">
-              Thirty prompts. Six faces. A clear picture of where you already lead — and where
-              deliberate practice will lift you and everyone who follows.
+              Thirty prompts. Six faces. A clear picture of where you already lead — and a 30-day
+              plan so deliberate practice lifts you and everyone who follows.
             </p>
             <button
               type="button"
@@ -1093,7 +1263,7 @@ export default function SuperCubeTraining({
             </p>
           </div>
 
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
             {DIMENSIONS.map((d) => {
               const s = dimScore(d.key);
               const band = scoreBand(s);
@@ -1107,17 +1277,23 @@ export default function SuperCubeTraining({
                       .getElementById(`assess-${d.key}`)
                       ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                   }}
-                  className="rounded-2xl border border-neutral-200 bg-white px-2 py-3 text-center hover:border-[#00b4d8]/40 transition-colors"
+                  className="rounded-2xl border border-neutral-200 bg-white px-2.5 py-3.5 text-center hover:border-[#00b4d8]/40 transition-colors shadow-sm"
                 >
-                  <DimIcon icon={d.icon} size="xs" className="mx-auto mb-1" />
+                  <DimIcon
+                    icon={d.icon}
+                    alt={d.name}
+                    size="sm"
+                    ringColor={d.color}
+                    className="mx-auto mb-1.5"
+                  />
                   <div className="text-xl font-black tabular-nums" style={{ color: d.color }}>
                     {s}
                   </div>
-                  <div className="text-[9px] font-bold uppercase text-neutral-400 mt-0.5">
+                  <div className="text-[10px] font-bold uppercase text-neutral-500 mt-0.5">
                     {d.name}
                   </div>
                   <div
-                    className={`mt-1.5 text-[8px] font-bold uppercase tracking-wide px-1 py-0.5 rounded-full border inline-block ${band.tone}`}
+                    className={`mt-1.5 text-[8px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full border inline-block ${band.tone}`}
                   >
                     {band.label}
                   </div>
@@ -1144,10 +1320,10 @@ export default function SuperCubeTraining({
                     }
                     className="w-full px-5 py-4 flex items-center justify-between gap-3 hover:bg-neutral-50/80 text-left"
                   >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <DimIcon icon={dim.icon} size="md" />
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <DimIcon icon={dim.icon} alt={dim.name} size="md" ringColor={dim.color} />
                       <div className="min-w-0">
-                        <div className="font-bold text-slate-800">{dim.name}</div>
+                        <div className="font-bold text-slate-800 text-base">{dim.name}</div>
                         <div className="text-xs text-neutral-500 line-clamp-1">
                           {dim.tagline} · {dim.short}
                         </div>
@@ -1169,9 +1345,22 @@ export default function SuperCubeTraining({
                   </button>
                   {isOpen && (
                     <div className="px-5 pb-5 space-y-5 border-t border-neutral-100 pt-4">
-                      <p className="text-xs text-neutral-500 leading-relaxed">
-                        {dim.description}
-                      </p>
+                      <p className="text-xs text-neutral-500 leading-relaxed">{dim.description}</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {dim.constructs.map((c) => (
+                          <span
+                            key={c}
+                            className="text-[10px] font-semibold px-2 py-0.5 rounded-full border"
+                            style={{
+                              color: dim.color,
+                              borderColor: `${dim.color}33`,
+                              backgroundColor: dim.soft,
+                            }}
+                          >
+                            {c}
+                          </span>
+                        ))}
+                      </div>
                       {QUESTIONS[dim.key].map((q, i) => (
                         <div key={i} className="flex flex-col gap-2">
                           <div className="flex items-start gap-2">
@@ -1251,7 +1440,7 @@ export default function SuperCubeTraining({
                 </h2>
                 <p className="text-sm text-neutral-500 mt-1 max-w-lg">
                   Total score is a compass, not a verdict. Focus practice on the lowest faces —
-                  then reassess as you lead.
+                  track practices for 30 days — then reassess as you lead.
                 </p>
               </div>
               <div className="text-right">
@@ -1265,7 +1454,7 @@ export default function SuperCubeTraining({
               </div>
             </div>
 
-            <div className="grid sm:grid-cols-3 gap-3">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <KpiCard
                 icon={Target}
                 label="Total score"
@@ -1286,7 +1475,57 @@ export default function SuperCubeTraining({
                 sub={`Score ${weakest[0]?.score ?? '—'} · practise first`}
                 tone="amber"
               />
+              <KpiCard
+                icon={ClipboardList}
+                label="Practices done"
+                value={`${practiceStats.focusDone}/${practiceStats.focusTotal}`}
+                sub="On your priority faces"
+                tone="violet"
+              />
             </div>
+          </div>
+
+          {/* Face scoreboard with large icons */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            {DIMENSIONS.map((d) => {
+              const s = dimScore(d.key);
+              const band = scoreBand(s);
+              const isPriority = weakest.some((w) => w.key === d.key);
+              return (
+                <div
+                  key={d.key}
+                  className="rounded-3xl border bg-white p-4 text-center shadow-sm"
+                  style={{
+                    borderColor: isPriority ? `${d.color}55` : undefined,
+                    boxShadow: isPriority ? `0 0 0 1px ${d.color}22` : undefined,
+                  }}
+                >
+                  <DimIcon
+                    icon={d.icon}
+                    alt={d.name}
+                    size="lg"
+                    ringColor={d.color}
+                    className="mx-auto mb-2"
+                  />
+                  <div className="text-2xl font-black tabular-nums" style={{ color: d.color }}>
+                    {s}
+                  </div>
+                  <div className="text-xs font-bold mt-0.5" style={{ color: d.color }}>
+                    {d.name}
+                  </div>
+                  <div
+                    className={`mt-2 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full border inline-block ${band.tone}`}
+                  >
+                    {band.label}
+                  </div>
+                  {isPriority && (
+                    <div className="mt-1.5 text-[9px] font-bold uppercase tracking-wider text-amber-600">
+                      Focus
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           <div className="grid lg:grid-cols-2 gap-4">
@@ -1300,7 +1539,6 @@ export default function SuperCubeTraining({
                   role="img"
                   aria-label="Super-Cube spider profile"
                 >
-                  {/* grid rings */}
                   {[0.33, 0.66, 1].map((scale) => (
                     <polygon
                       key={scale}
@@ -1366,7 +1604,14 @@ export default function SuperCubeTraining({
                     const ly = 300 + 235 * Math.sin(angle);
                     return (
                       <g key={dim.key}>
-                        <circle cx={px} cy={py} r="7" fill={dim.color} stroke="#fff" strokeWidth="2" />
+                        <circle
+                          cx={px}
+                          cy={py}
+                          r="8"
+                          fill={dim.color}
+                          stroke="#fff"
+                          strokeWidth="2"
+                        />
                         <text
                           x={lx}
                           y={ly}
@@ -1397,21 +1642,24 @@ export default function SuperCubeTraining({
 
             <div className="space-y-4">
               <Panel title="All six faces">
-                <div className="p-4 space-y-3">
+                <div className="p-4 space-y-3.5">
                   {DIMENSIONS.map((d) => {
                     const s = dimScore(d.key);
                     const band = scoreBand(s);
                     return (
-                      <div key={d.key} className="flex items-center gap-3">
-                        <DimIcon icon={d.icon} size="sm" />
+                      <div key={d.key} className="flex items-center gap-3.5">
+                        <DimIcon icon={d.icon} alt={d.name} size="sm" ringColor={d.color} />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2 mb-1">
                             <span className="text-sm font-bold text-slate-800">{d.name}</span>
-                            <span className="text-sm font-black tabular-nums" style={{ color: d.color }}>
+                            <span
+                              className="text-sm font-black tabular-nums"
+                              style={{ color: d.color }}
+                            >
                               {s}
                             </span>
                           </div>
-                          <div className="h-2 rounded-full bg-neutral-100 overflow-hidden">
+                          <div className="h-2.5 rounded-full bg-neutral-100 overflow-hidden">
                             <div
                               className="h-full rounded-full transition-all"
                               style={{
@@ -1419,6 +1667,9 @@ export default function SuperCubeTraining({
                                 backgroundColor: d.color,
                               }}
                             />
+                          </div>
+                          <div className="text-[10px] text-neutral-400 mt-1 truncate">
+                            {d.constructs.slice(0, 3).join(' · ')}
                           </div>
                         </div>
                         <span
@@ -1434,17 +1685,96 @@ export default function SuperCubeTraining({
             </div>
           </div>
 
+          {/* 30-day growth plan */}
           <div>
-            <SectionLabel>Focus plan — lowest three faces</SectionLabel>
+            <SectionLabel>30-day Super-Cube® growth plan</SectionLabel>
             <p className="text-sm text-neutral-500 mb-4 max-w-2xl">
-              Deliberate practice here creates the largest leadership lift. Improve yourself first;
-              then coach one person on the same face this month.
+              Built around your primary growth edge —{' '}
+              <strong style={{ color: primaryFocus.color }}>{primaryFocus.name}</strong> — with
+              secondary attention on your other priority faces. One week at a time.
+            </p>
+            <div className="rounded-3xl border border-neutral-200 bg-white overflow-hidden shadow-sm">
+              <div className="flex flex-wrap items-center gap-2 p-4 border-b border-neutral-100 bg-gradient-to-r from-slate-50 to-white">
+                <DimIcon
+                  icon={primaryFocus.icon}
+                  alt={primaryFocus.name}
+                  size="lg"
+                  ringColor={primaryFocus.color}
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="text-[11px] font-black uppercase tracking-widest text-neutral-400">
+                    Primary face · week {planWeek} of 4
+                  </div>
+                  <div className="font-black text-lg" style={{ color: primaryFocus.color }}>
+                    {primaryFocus.name} · score {primaryFocus.score}
+                  </div>
+                  <div className="text-xs text-neutral-500">{primaryFocus.tagline}</div>
+                </div>
+                <div className="flex gap-1.5">
+                  {[1, 2, 3, 4].map((w) => (
+                    <button
+                      key={w}
+                      type="button"
+                      onClick={() => setPlanWeek(w)}
+                      className={`w-9 h-9 rounded-xl text-xs font-black border transition-all ${
+                        planWeek === w
+                          ? 'bg-[#00b4d8] text-white border-[#00b4d8] shadow-md'
+                          : 'bg-white text-neutral-500 border-neutral-200 hover:border-[#00b4d8]/50'
+                      }`}
+                    >
+                      W{w}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {THIRTY_DAY_WEEKS.filter((w) => w.week === planWeek).map((week) => (
+                <div key={week.week} className="p-5 sm:p-6 space-y-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Calendar className="w-4 h-4 text-[#00b4d8]" />
+                    <h4 className="font-bold text-slate-800">
+                      Week {week.week}: {week.title}
+                    </h4>
+                    <span className="text-xs text-neutral-400">· {week.focus}</span>
+                  </div>
+                  <ul className="space-y-3">
+                    {week.actions(primaryFocus).map((action) => (
+                      <li
+                        key={action}
+                        className="flex gap-3 text-sm text-slate-700 leading-relaxed"
+                      >
+                        <span
+                          className="mt-1.5 w-2 h-2 rounded-full shrink-0"
+                          style={{ backgroundColor: primaryFocus.color }}
+                        />
+                        {action}
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="rounded-2xl border border-dashed p-4 bg-slate-50/80">
+                    <div className="text-[10px] font-black uppercase tracking-wider text-neutral-400 mb-1">
+                      This week’s coach prompt
+                    </div>
+                    <p className="text-sm text-slate-700 italic leading-relaxed">
+                      {primaryFocus.coachPrompt}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Practice tracker */}
+          <div>
+            <SectionLabel>Practice tracker — priority faces</SectionLabel>
+            <p className="text-sm text-neutral-500 mb-4 max-w-2xl">
+              Check practices as you complete them. Progress saves with your Super-Cube® profile
+              ({practiceStats.focusDone} of {practiceStats.focusTotal} priority practices done).
             </p>
             <div className="grid md:grid-cols-3 gap-4">
               {weakest.map((rec, idx) => (
                 <div
                   key={rec.key}
-                  className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm flex flex-col"
+                  className="rounded-3xl border border-neutral-200 bg-white p-5 sm:p-6 shadow-sm flex flex-col"
                   style={{ borderTopWidth: 4, borderTopColor: rec.color }}
                 >
                   <div className="flex items-center justify-between mb-3">
@@ -1458,29 +1788,60 @@ export default function SuperCubeTraining({
                       {rec.score}
                     </span>
                   </div>
-                  <DimIcon icon={rec.icon} size="lg" className="mb-3" />
+                  <DimIcon
+                    icon={rec.icon}
+                    alt={rec.name}
+                    size="xl"
+                    ringColor={rec.color}
+                    className="mb-3"
+                  />
                   <h4 className="font-bold text-lg" style={{ color: rec.color }}>
                     {rec.name}
                   </h4>
-                  <p className="text-xs text-neutral-500 mt-1 mb-4 leading-relaxed">
+                  <p className="text-xs text-neutral-500 mt-1 mb-3 leading-relaxed">
                     {rec.short}. {rec.improvesYou}
                   </p>
-                  <div className="mt-auto space-y-2">
-                    <div className="text-[10px] font-black uppercase tracking-wider text-neutral-400">
-                      Start this week
-                    </div>
-                    {rec.practices.slice(0, 2).map((p) => (
-                      <p
-                        key={p}
-                        className="text-xs text-slate-600 leading-relaxed flex gap-2"
+                  <div className="flex flex-wrap gap-1 mb-4">
+                    {rec.constructs.slice(0, 3).map((c) => (
+                      <span
+                        key={c}
+                        className="text-[9px] font-semibold px-2 py-0.5 rounded-full border"
+                        style={{
+                          color: rec.color,
+                          borderColor: `${rec.color}33`,
+                          backgroundColor: rec.soft,
+                        }}
                       >
-                        <CheckCircle2
-                          className="w-3.5 h-3.5 shrink-0 mt-0.5"
-                          style={{ color: rec.color }}
-                        />
-                        {p}
-                      </p>
+                        {c}
+                      </span>
                     ))}
+                  </div>
+                  <div className="mt-auto space-y-2.5">
+                    <div className="text-[10px] font-black uppercase tracking-wider text-neutral-400">
+                      Practices
+                    </div>
+                    {rec.practices.map((p) => {
+                      const key = practiceKey(rec.key, p);
+                      const done = Boolean(checkedPractices[key]);
+                      return (
+                        <label
+                          key={p}
+                          className={`flex gap-2.5 text-xs leading-relaxed cursor-pointer rounded-xl border p-2.5 transition-colors ${
+                            done
+                              ? 'border-emerald-200 bg-emerald-50/60 text-slate-600'
+                              : 'border-neutral-100 bg-neutral-50/50 text-slate-700 hover:border-neutral-200'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={done}
+                            onChange={() => togglePractice(rec.key, p)}
+                            className="mt-0.5 accent-[#00b4d8] shrink-0"
+                          />
+                          <span className={done ? 'line-through opacity-80' : ''}>{p}</span>
+                        </label>
+                      );
+                    })}
                     <p className="text-xs text-neutral-500 pt-2 border-t border-neutral-100 leading-relaxed">
                       <Users className="w-3 h-3 inline mr-1 text-neutral-400" />
                       {rec.improvesOthers}
@@ -1491,10 +1852,67 @@ export default function SuperCubeTraining({
             </div>
           </div>
 
+          {/* Commitments */}
+          <div className="rounded-3xl border border-neutral-200 bg-white p-6 sm:p-8 shadow-sm">
+            <div className="flex flex-wrap items-start gap-3 mb-4">
+              <div className="w-11 h-11 rounded-2xl bg-[#00b4d8]/10 flex items-center justify-center">
+                <Target className="w-5 h-5 text-[#00b4d8]" />
+              </div>
+              <div>
+                <h3 className="font-black text-lg text-slate-800">Three leadership commitments</h3>
+                <p className="text-sm text-neutral-500 mt-0.5 max-w-xl">
+                  Write one commitment per priority face. Review them in your next 1:1 or weekly
+                  leadership review.
+                </p>
+              </div>
+            </div>
+            <div className="grid md:grid-cols-3 gap-4">
+              {weakest.map((rec, i) => (
+                <div key={rec.key}>
+                  <label
+                    className="text-[11px] font-bold uppercase tracking-wider mb-1.5 block"
+                    style={{ color: rec.color }}
+                  >
+                    {rec.name}
+                  </label>
+                  <textarea
+                    value={commitments[i] || ''}
+                    onChange={(e) => {
+                      const next: [string, string, string] = [...commitments];
+                      next[i] = e.target.value;
+                      setCommitments(next);
+                    }}
+                    rows={3}
+                    placeholder={`In the next 30 days, for ${rec.name.toLowerCase()} I will…`}
+                    className="w-full rounded-2xl border border-neutral-200 bg-neutral-50/50 px-3.5 py-3 text-sm text-slate-700 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-[#00b4d8]/30 focus:border-[#00b4d8] resize-none"
+                  />
+                </div>
+              ))}
+            </div>
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => void persist('results')}
+              className="mt-4 btn-primary !py-2.5 !px-5 text-sm inline-flex items-center gap-2"
+            >
+              {saving ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Save className="w-4 h-4" />
+              )}
+              Save commitments & practices
+            </button>
+          </div>
+
           {strongest[0] && (
             <div className="rounded-3xl border border-emerald-100 bg-gradient-to-br from-emerald-50/80 to-white p-6 sm:p-8">
-              <div className="flex flex-wrap items-start gap-4">
-                <DimIcon icon={strongest[0].icon} size="lg" />
+              <div className="flex flex-wrap items-start gap-5">
+                <DimIcon
+                  icon={strongest[0].icon}
+                  alt={strongest[0].name}
+                  size="xl"
+                  ringColor={strongest[0].color}
+                />
                 <div className="flex-1 min-w-0">
                   <p className="text-[11px] font-black uppercase tracking-widest text-emerald-600 mb-1">
                     Multiply your strength
@@ -1502,10 +1920,13 @@ export default function SuperCubeTraining({
                   <h3 className="text-xl font-black text-slate-800 mb-2">
                     {strongest[0].name} is already working for you
                   </h3>
-                  <p className="text-sm text-neutral-600 leading-relaxed max-w-2xl">
-                    Do not ignore strengths while you grow weak faces. Use {strongest[0].name.toLowerCase()}{' '}
-                    to mentor someone this month — teaching embeds mastery and raises the standard
-                    for your whole network.
+                  <p className="text-sm text-neutral-600 leading-relaxed max-w-2xl mb-3">
+                    Do not ignore strengths while you grow weak faces. Use{' '}
+                    {strongest[0].name.toLowerCase()} to mentor someone this month — teaching embeds
+                    mastery and raises the standard for your whole network.
+                  </p>
+                  <p className="text-sm text-slate-700 italic leading-relaxed max-w-2xl border-l-2 border-emerald-300 pl-3">
+                    {strongest[0].coachPrompt}
                   </p>
                 </div>
               </div>
@@ -1519,7 +1940,8 @@ export default function SuperCubeTraining({
             <p className="text-sm text-neutral-500 leading-relaxed max-w-3xl mb-4">
               Super-Cube® sits with your day-to-day work so development is never detached from real
               trade, outlets, and customer relationships. Stronger leaders build fairer networks,
-              safer outlets, and decisions that serve people — not only the next transaction.
+              safer outlets, and decisions that serve people — not only the next transaction. The
+              whole is greater than the sum of its parts.
             </p>
             <div className="flex flex-wrap gap-3">
               <button
@@ -1541,6 +1963,13 @@ export default function SuperCubeTraining({
                   <Save className="w-4 h-4" />
                 )}
                 {copy.saveLabel}
+              </button>
+              <button
+                type="button"
+                onClick={() => exportReport()}
+                className="btn-secondary !py-2.5 !px-6 text-sm"
+              >
+                Export report
               </button>
               <button
                 type="button"

@@ -308,21 +308,24 @@ function StockInner() {
     }
     setSaving(true);
     try {
-      const res = await fetch('/api/inventory/stock', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const { apiJson } = await import('@/lib/client/api-fetch');
+      const data = await apiJson<{ qty_on_hand?: number; error?: string }>(
+        '/api/inventory/stock',
+        {
+          method: 'POST',
           companyId,
-          productId: Number(productId),
-          warehouseId: warehouseId ? Number(warehouseId) : undefined,
-          quantity: Number(qty),
-          movement_type: action,
-          absolute: action === 'count',
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed');
-      toast.success(`Stock updated · ${fmt(data.qty_on_hand)} on hand`);
+          jsonBody: {
+            productId: Number(productId),
+            warehouseId: warehouseId ? Number(warehouseId) : undefined,
+            quantity: Number(qty),
+            movement_type: action,
+            absolute: action === 'count',
+          },
+        }
+      );
+      toast.success(
+        `Stock updated · ${fmt(Number(data.qty_on_hand ?? 0))} on hand`
+      );
       setQty('1');
       void load({ silent: true });
     } catch (e: unknown) {

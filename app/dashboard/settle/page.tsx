@@ -176,6 +176,27 @@ function SettleInner() {
 
       <div className="max-w-5xl space-y-6">
         <FeatureHealthBanner />
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-700 leading-relaxed">
+          <p className="font-bold text-slate-900 text-sm mb-1">Money story</p>
+          <ul className="space-y-0.5 list-disc pl-4">
+            <li>
+              <strong>Day-to-day cash</strong> —{' '}
+              <Link href="/dashboard/customers/money" className="text-[#00b4d8] font-semibold">
+                Money hub
+              </Link>{' '}
+              (claims, POP, AR ledger)
+            </li>
+            <li>
+              <strong>Trade status</strong> — this Settle command (golden path + escrow)
+            </li>
+            <li>
+              <strong>Books / GL</strong> —{' '}
+              <Link href="/dashboard/accounting" className="text-[#00b4d8] font-semibold">
+                Accounting
+              </Link>
+            </li>
+          </ul>
+        </div>
         {error && (
           <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
             {error}

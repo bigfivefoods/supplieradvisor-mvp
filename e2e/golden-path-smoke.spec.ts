@@ -89,4 +89,43 @@ test.describe('Golden path smoke (public)', () => {
     const res = await request.get(`${base}/api/customers/docs/overdue-cron`);
     expect([401, 403, 503]).toContain(res.status());
   });
+
+  test('golden-loop health probe present', async ({ request }) => {
+    const res = await request.get(`${base}/api/system/health`);
+    expect([200, 503]).toContain(res.status());
+    const j = await res.json();
+    // When service role available, golden_loop block is included
+    if (j.golden_loop) {
+      expect(j.golden_loop).toHaveProperty('ok');
+      expect(Array.isArray(j.golden_loop.missing) || j.golden_loop.ok).toBeTruthy();
+    }
+    expect(j.checks?.purchase_orders || j.ok !== undefined).toBeTruthy();
+  });
+
+  test('golden-path without auth → 401', async ({ request }) => {
+    const res = await request.get(
+      `${base}/api/business/golden-path?companyId=1`
+    );
+    expect(res.status()).toBe(401);
+  });
+
+  test('board-pack without auth → 401', async ({ request }) => {
+    const res = await request.get(
+      `${base}/api/business/board-pack?companyId=1`
+    );
+    expect(res.status()).toBe(401);
+  });
+
+  test('intelligence summary without auth → 401', async ({ request }) => {
+    const res = await request.get(
+      `${base}/api/intelligence/summary?companyId=1`
+    );
+    expect(res.status()).toBe(401);
+  });
+
+  test('settle page open (auth gate client-side)', async ({ request }) => {
+    const res = await request.get(`${base}/dashboard/settle`);
+    // HTML shell always 200; client AuthGate handles login
+    expect([200, 307, 308]).toContain(res.status());
+  });
 });

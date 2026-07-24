@@ -25,6 +25,7 @@ import FirstTradeOrchestrator from '@/components/dashboard/FirstTradeOrchestrato
 import ClaimDecisionDrawer, {
   type ClaimRow,
 } from '@/components/customers/ClaimDecisionDrawer';
+import { useApiAuth } from '@/lib/client/use-api-auth';
 
 type Hub = {
   openAr: number;
@@ -112,6 +113,7 @@ export default function SellerMoneyHubPage() {
 
 function Inner() {
   const companyId = getSelectedCompanyId()!;
+  const { withAuthJson, privyUserId } = useApiAuth();
   const [hub, setHub] = useState<Hub | null>(null);
   const [loading, setLoading] = useState(true);
   const [claimBusy, setClaimBusy] = useState<number | null>(null);
@@ -210,18 +212,18 @@ function Inner() {
     setClaimBusy(claim.id);
     toast.loading('Confirming claim → ledger…', { id: 'qclaim' });
     try {
-      const res = await fetch('/api/customers/payment-claims', {
+      const data = await withAuthJson<{
+        bankAutoApplied?: { ok?: boolean };
+        bankMatchHint?: string;
+      }>('/api/customers/payment-claims', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          companyId,
+        jsonBody: {
           claimId: claim.id,
           action: 'confirm',
           autoBankMatch: true,
-        }),
+          privyUserId: privyUserId || undefined,
+        },
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'Failed');
       toast.success(
         data.bankAutoApplied?.ok
           ? 'Ledger + bank match applied'
@@ -404,7 +406,7 @@ function Inner() {
         title="Money"
         titleAccent="Settle"
         showNav
-        description="Open AR, buyer payment claims, installments, dunning, and ledger — settle by default."
+        description="Day-to-day cash: open AR, buyer claims + POP, installments, dunning, ledger. Trade status → Settle command · books → Accounting."
         action={
           <div className="flex flex-wrap gap-2">
             <a

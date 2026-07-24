@@ -59,6 +59,8 @@ function InsightsInner() {
   const [domain, setDomain] = useState<string>('all');
   const [severity, setSeverity] = useState<string>('all');
   const [actingId, setActingId] = useState<string | null>(null);
+  const [ownerName, setOwnerName] = useState('');
+  const [dueDate, setDueDate] = useState('');
 
   const runAction = async (ins: Insight, action: 'riad' | 'task' | 'collection') => {
     if (!companyId) {
@@ -67,32 +69,34 @@ function InsightsInner() {
     }
     setActingId(`${ins.id}-${action}`);
     try {
-      const res = await fetch('/api/intelligence/actions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
+      const { apiJson } = await import('@/lib/client/api-fetch');
+      const json = await apiJson<{ message?: string; href?: string }>(
+        '/api/intelligence/actions',
+        {
+          method: 'POST',
           companyId,
           privyUserId,
-          action,
-          insight: {
-            id: ins.id,
-            title: ins.title,
-            detail: ins.detail,
-            domain: ins.domain,
-            severity: ins.severity,
-            href: ins.href,
+          jsonBody: {
+            action,
+            owner_name: ownerName || null,
+            due_date: dueDate || null,
+            insight: {
+              id: ins.id,
+              title: ins.title,
+              detail: ins.detail,
+              domain: ins.domain,
+              severity: ins.severity,
+              href: ins.href,
+            },
           },
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Action failed');
+        }
+      );
       toast.success(json.message || 'Action created', {
         action: json.href
           ? {
               label: 'Open',
               onClick: () => {
-                window.location.href = json.href;
+                window.location.href = json.href!;
               },
             }
           : undefined,
@@ -231,6 +235,19 @@ function InsightsInner() {
             </option>
           ))}
         </select>
+        <input
+          className="input !py-1.5 !text-xs w-auto min-w-[120px]"
+          placeholder="Owner (actions)"
+          value={ownerName}
+          onChange={(e) => setOwnerName(e.target.value)}
+        />
+        <input
+          className="input !py-1.5 !text-xs w-auto"
+          type="date"
+          value={dueDate}
+          onChange={(e) => setDueDate(e.target.value)}
+          title="Due date for RIAD / task"
+        />
         <span className="text-xs text-neutral-500">
           Showing {filtered.length} of {insights.length}
         </span>
@@ -314,9 +331,9 @@ function InsightsInner() {
       )}
 
       <p className="mt-8 text-xs text-neutral-500">
-        Engine: transparent business rules on live Supabase data. Use{' '}
-        <strong>Log RIAD</strong> or <strong>Create task</strong> to turn a signal
-        into durable work. Finance insights can open the Money hub for collections.
+        Engine: transparent business rules on live Supabase data. Set{' '}
+        <strong>Owner</strong> and <strong>Due date</strong> above, then Log RIAD or
+        Create task. Finance insights can open the Money hub for collections.
       </p>
     </IntelligencePage>
   );
