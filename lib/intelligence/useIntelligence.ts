@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
+import { apiJson } from '@/lib/client/api-fetch';
 import type { Insight, HealthScores, PulseInput } from '@/lib/intelligence/engine';
 
 export type IntelligenceSummary = {
@@ -70,43 +71,39 @@ export function useIntelligence() {
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams({ companyId: String(companyId) });
-      if (privyUserId) params.set('privyUserId', privyUserId);
-
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
+      let accessToken: string | null = null;
       try {
         if (authenticated && typeof getAccessToken === 'function') {
-          const token = await getAccessToken();
-          if (token) headers.Authorization = `Bearer ${token}`;
+          accessToken = await getAccessToken();
         }
       } catch {
-        /* cookie auth may still work */
+        /* cookie fallback */
       }
 
-      // Prefer GET (cache-friendly); fall back to POST with body for legacy
-      let res = await fetch(`/api/intelligence/summary?${params}`, {
-        method: 'GET',
-        headers,
-        credentials: 'include',
-      });
-      if (res.status === 405 || res.status === 404) {
-        res = await fetch('/api/intelligence/summary', {
-          method: 'POST',
-          headers,
-          credentials: 'include',
-          body: JSON.stringify({
-            companyId: Number(companyId),
-            privyUserId: privyUserId || undefined,
-          }),
-        });
+      try {
+        const json = await apiJson<IntelligenceSummary>(
+          '/api/intelligence/summary',
+          {
+            method: 'GET',
+            companyId,
+            privyUserId,
+            accessToken,
+          }
+        );
+        setData(json);
+      } catch {
+        const json = await apiJson<IntelligenceSummary>(
+          '/api/intelligence/summary',
+          {
+            method: 'POST',
+            companyId,
+            privyUserId,
+            accessToken,
+            jsonBody: {},
+          }
+        );
+        setData(json);
       }
-      const json = await res.json();
-      if (!res.ok) {
-        throw new Error(json.error || `Failed to load intelligence (${res.status})`);
-      }
-      setData(json);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed');
       setData(null);

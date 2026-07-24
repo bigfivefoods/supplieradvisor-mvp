@@ -1,15 +1,19 @@
 'use client';
 
-import ComingSoon from '@/components/ComingSoon';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { Loader2 } from 'lucide-react';
 
-export default function Page() {
+/** Resource allocation → timesheets / portfolio until full allocator ships. */
+export default function ResourceAllocationRedirect() {
+  const router = useRouter();
+  useEffect(() => {
+    router.replace('/dashboard/projects/timesheets');
+  }, [router]);
   return (
-    <ComingSoon
-      title="Resource Allocation"
-      description="Project delivery tooling is expanding. Use My Business projects and Operations for live work today."
-      backHref="/dashboard/projects"
-      primaryHref="/dashboard/my-business/projects"
-      primaryLabel="Open business projects"
-    />
+    <div className="py-24 flex flex-col items-center text-sm text-neutral-500">
+      <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8] mb-3" />
+      Opening timesheets…
+    </div>
   );
 }

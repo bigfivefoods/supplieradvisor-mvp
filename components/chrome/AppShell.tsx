@@ -5,6 +5,8 @@
  * sales_contractor uses SalesShell instead — not this chrome.
  */
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
+import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
 import ModuleAccessGate from '@/components/ModuleAccessGate';
 import ModuleProcessBar from '@/components/chrome/ModuleProcessBar';
@@ -102,13 +104,29 @@ function AppShellInner({
             onClick={() => setIsMobileMenuOpen(false)}
           />
           <div className="absolute left-0 top-0 bottom-0 w-72 max-w-[85vw] bg-white shadow-2xl flex flex-col z-10 pointer-events-auto">
-            {/* Brand lives in the top process bar once — drawer is modules only */}
-            <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
-              <span className="text-sm font-bold text-slate-700">Menu</span>
+            <div className="flex items-center justify-between gap-2 px-4 py-3 border-b shrink-0">
+              <Link
+                href="/dashboard"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="flex items-center gap-2.5 min-w-0"
+                aria-label="SupplierAdvisor home"
+              >
+                <Image
+                  src="/sa-logo.png"
+                  alt=""
+                  width={32}
+                  height={32}
+                  className="rounded-lg shrink-0"
+                  priority
+                />
+                <span className="font-black text-base tracking-[-0.5px] text-slate-900 truncate">
+                  SupplierAdvisor®
+                </span>
+              </Link>
               <button
                 type="button"
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="p-2 rounded-xl hover:bg-neutral-100 cursor-pointer"
+                className="p-2 rounded-xl hover:bg-neutral-100 cursor-pointer shrink-0"
                 aria-label="Close menu"
               >
                 <X size={22} />

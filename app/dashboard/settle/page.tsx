@@ -16,6 +16,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Route,
+  Download,
 } from 'lucide-react';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
@@ -30,6 +31,8 @@ import {
   type EscrowStatusView,
 } from '@/lib/procurement/escrow-status';
 import { money } from '@/lib/intelligence/useIntelligence';
+import { apiJson } from '@/lib/client/api-fetch';
+import FeatureHealthBanner from '@/components/chrome/FeatureHealthBanner';
 
 type Snapshot = {
   summary: {
@@ -80,23 +83,20 @@ function SettleInner() {
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams({ companyId: String(companyId) });
-      if (privyUserId) params.set('privyUserId', privyUserId);
-      const headers: Record<string, string> = {};
+      let accessToken: string | null = null;
       try {
         if (authenticated && typeof getAccessToken === 'function') {
-          const token = await getAccessToken();
-          if (token) headers.Authorization = `Bearer ${token}`;
+          accessToken = await getAccessToken();
         }
       } catch {
         /* cookie */
       }
-      const res = await fetch(`/api/business/golden-path?${params}`, {
-        headers,
-        credentials: 'include',
+      const json = await apiJson<Snapshot>('/api/business/golden-path', {
+        method: 'GET',
+        companyId,
+        privyUserId,
+        accessToken,
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Failed');
       setData(json);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed');
@@ -104,6 +104,41 @@ function SettleInner() {
       setLoading(false);
     }
   }, [companyId, privyUserId, authenticated, getAccessToken]);
+
+  const downloadBoardPack = async () => {
+    if (!companyId) return;
+    try {
+      let accessToken: string | null = null;
+      try {
+        if (authenticated && typeof getAccessToken === 'function') {
+          accessToken = await getAccessToken();
+        }
+      } catch {
+        /* */
+      }
+      const json = await apiJson<{
+        pack: unknown;
+        download_name?: string;
+      }>('/api/business/board-pack', {
+        method: 'GET',
+        companyId,
+        privyUserId,
+        accessToken,
+      });
+      const blob = new Blob([JSON.stringify(json.pack, null, 2)], {
+        type: 'application/json',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download =
+        json.download_name || `board-pack-${companyId}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Board pack failed');
+    }
+  };
 
   useEffect(() => {
     void load();
@@ -119,18 +154,28 @@ function SettleInner() {
         showNav
         description="Golden path cockpit: PO → accept → receive → invoice → settle (fiat claim or on-chain escrow) → rate. Live status from your books."
         action={
-          <button
-            type="button"
-            onClick={() => void load()}
-            className="btn-secondary !py-2 !px-3 text-sm"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />{' '}
-            Refresh
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void downloadBoardPack()}
+              className="btn-secondary !py-2 !px-3 text-sm inline-flex items-center gap-1"
+            >
+              <Download className="w-4 h-4" /> Board pack
+            </button>
+            <button
+              type="button"
+              onClick={() => void load()}
+              className="btn-secondary !py-2 !px-3 text-sm"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />{' '}
+              Refresh
+            </button>
+          </div>
         }
       />
 
       <div className="max-w-5xl space-y-6">
+        <FeatureHealthBanner />
         {error && (
           <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
             {error}

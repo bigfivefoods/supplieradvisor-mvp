@@ -2,10 +2,9 @@
 
 /**
  * USDC (Base) escrow actions for POEscrowUSDC.
- * Flow: approve USDC → fundPO (transferFrom) after createPO.
- * Requires NEXT_PUBLIC_USDC_ESCROW_ADDRESS deployed on Base Sepolia/Base.
+ * Flow: approve USDC → createPO → auto-parse PO_Created → fundPO.
  */
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   useAccount,
   useWriteContract,
@@ -13,6 +12,7 @@ import {
   useReadContract,
   useSwitchChain,
   useChainId,
+  usePublicClient,
 } from 'wagmi';
 import { parseEventLogs } from 'viem';
 import { toast } from 'sonner';
@@ -35,7 +35,11 @@ type Props = {
   /** ZAR per 1 USD for demo conversion when PO is in ZAR */
   fiatPerUsd?: number;
   metadataURI: string;
-  onCreated?: (args: { onchainPoId: string; txHash: string; amountUnits: string }) => void;
+  onCreated?: (args: {
+    onchainPoId: string;
+    txHash: string;
+    amountUnits: string;
+  }) => void;
   onFunded?: (args: { onchainPoId: string; txHash: string }) => void;
 };
 
@@ -50,6 +54,7 @@ export default function UsdcEscrowActions({
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
+  const publicClient = usePublicClient();
   const requiredId = getUsdcEscrowChainId();
   const chain = getUsdcEscrowChain();
   const escrow = getUsdcEscrowAddress();
@@ -58,9 +63,13 @@ export default function UsdcEscrowActions({
 
   const [onchainPoId, setOnchainPoId] = useState<string | null>(null);
   const [step, setStep] = useState<'idle' | 'approve' | 'create' | 'fund'>('idle');
+  const parsedCreate = useRef<string | null>(null);
+  const fundedTx = useRef<string | null>(null);
 
   const { writeContract, data: txHash, isPending, reset } = useWriteContract();
-  const { isLoading: confirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+  const { isLoading: confirming, isSuccess } = useWaitForTransactionReceipt({
+    hash: txHash,
+  });
 
   const { data: allowance, refetch: refetchAllowance } = useReadContract({
     address: token,
@@ -70,17 +79,93 @@ export default function UsdcEscrowActions({
     query: { enabled: Boolean(address && escrow) },
   });
 
+  // Auto-parse create receipt → set poId + callback
+  useEffect(() => {
+    if (!isSuccess || !txHash || step !== 'create' || onchainPoId) return;
+    if (parsedCreate.current === txHash) return;
+    parsedCreate.current = txHash;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        let client = publicClient;
+        if (!client) {
+          const { createPublicClient, http } = await import('viem');
+          client = createPublicClient({
+            chain,
+            transport: http(
+              process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC ||
+                process.env.NEXT_PUBLIC_BASE_RPC ||
+                'https://sepolia.base.org'
+            ),
+          });
+        }
+        const receipt = await client.getTransactionReceipt({ hash: txHash });
+        const logs = parseEventLogs({
+          abi: PO_ESCROW_USDC_ABI,
+          eventName: 'PO_Created',
+          logs: receipt.logs,
+        });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const poId = String((logs[0] as any)?.args?.poId ?? '');
+        if (!poId || cancelled) {
+          if (!poId) toast.error('Could not parse PO_Created — try again');
+          return;
+        }
+        setOnchainPoId(poId);
+        onCreated?.({
+          onchainPoId: poId,
+          txHash,
+          amountUnits: amountUnits.toString(),
+        });
+        toast.success(`USDC escrow created · chain PO #${poId}`);
+        void refetchAllowance();
+        reset();
+        setStep('idle');
+      } catch (e: unknown) {
+        toast.error(e instanceof Error ? e.message : 'Parse create failed');
+        setStep('idle');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    isSuccess,
+    txHash,
+    step,
+    onchainPoId,
+    publicClient,
+    chain,
+    amountUnits,
+    onCreated,
+    refetchAllowance,
+    reset,
+  ]);
+
+  // Auto-confirm fund
+  useEffect(() => {
+    if (!isSuccess || !txHash || step !== 'fund' || !onchainPoId) return;
+    if (fundedTx.current === txHash) return;
+    fundedTx.current = txHash;
+    onFunded?.({ onchainPoId, txHash });
+    toast.success('USDC fund confirmed');
+    reset();
+    setStep('idle');
+  }, [isSuccess, txHash, step, onchainPoId, onFunded, reset]);
+
   if (!isUsdcEscrowConfigured() || !escrow) {
     return (
       <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-        USDC escrow not configured. Deploy <code>POEscrowUSDC.sol</code> on Base Sepolia and set{' '}
-        <code>NEXT_PUBLIC_USDC_ESCROW_ADDRESS</code>.
+        USDC escrow not configured. Deploy <code>POEscrowUSDC.sol</code> on Base
+        Sepolia and set <code>NEXT_PUBLIC_USDC_ESCROW_ADDRESS</code>.
       </div>
     );
   }
 
   const wrongChain = isConnected && chainId !== requiredId;
-  const needsApprove = allowance == null || (allowance as bigint) < amountUnits;
+  const needsApprove =
+    allowance == null || (allowance as bigint) < amountUnits;
 
   const ensureChain = () => {
     if (wrongChain && switchChain) {
@@ -117,6 +202,7 @@ export default function UsdcEscrowActions({
       return;
     }
     setStep('create');
+    parsedCreate.current = null;
     writeContract(
       {
         address: escrow,
@@ -145,6 +231,7 @@ export default function UsdcEscrowActions({
       return;
     }
     setStep('fund');
+    fundedTx.current = null;
     writeContract(
       {
         address: escrow,
@@ -162,14 +249,6 @@ export default function UsdcEscrowActions({
     );
   };
 
-  // Parse create receipt when success
-  if (isSuccess && txHash && step === 'create' && !onchainPoId) {
-    // handled via effect-like pattern below using wait — simple prompt
-  }
-
-  // Use effect via onSuccess of wait — we do lightweight client parse in button handlers after confirm
-  // When confirming finishes for create, parent can re-link via existing persist path.
-
   return (
     <div className="rounded-2xl border border-violet-200 bg-violet-50/50 p-4 space-y-3">
       <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
@@ -178,8 +257,9 @@ export default function UsdcEscrowActions({
       </div>
       <p className="text-xs text-neutral-600">
         Amount ≈ {usdcUnitsToDisplay(amountUnits)} USDC (
-        {amountUnits.toString()} base units) from PO total @ R{fiatPerUsd}/USD demo FX. Approve once,
-        then create + fund. Contract {escrow.slice(0, 8)}…
+        {amountUnits.toString()} base units) from PO total @ R{fiatPerUsd}/USD demo
+        FX. Approve → create (auto-parses chain id) → fund.
+        {onchainPoId ? ` Chain PO #${onchainPoId}.` : ''}
       </p>
       {wrongChain && (
         <button
@@ -227,61 +307,6 @@ export default function UsdcEscrowActions({
             '3. fundPO'
           )}
         </button>
-        {isSuccess && txHash && step === 'create' && (
-          <button
-            type="button"
-            className="text-xs text-violet-700 underline"
-            onClick={async () => {
-              try {
-                const { createPublicClient, http } = await import('viem');
-                const client = createPublicClient({
-                  chain,
-                  transport: http(
-                    process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC || 'https://sepolia.base.org'
-                  ),
-                });
-                const receipt = await client.getTransactionReceipt({ hash: txHash });
-                const logs = parseEventLogs({
-                  abi: PO_ESCROW_USDC_ABI,
-                  eventName: 'PO_Created',
-                  logs: receipt.logs,
-                });
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const poId = String((logs[0] as any)?.args?.poId ?? '');
-                if (poId) {
-                  setOnchainPoId(poId);
-                  onCreated?.({
-                    onchainPoId: poId,
-                    txHash,
-                    amountUnits: amountUnits.toString(),
-                  });
-                  toast.success(`USDC escrow created · chain PO #${poId}`);
-                  void refetchAllowance();
-                  reset();
-                  setStep('idle');
-                }
-              } catch (e: unknown) {
-                toast.error(e instanceof Error ? e.message : 'Parse failed');
-              }
-            }}
-          >
-            Parse create receipt
-          </button>
-        )}
-        {isSuccess && txHash && step === 'fund' && onchainPoId && (
-          <button
-            type="button"
-            className="text-xs text-emerald-700 underline"
-            onClick={() => {
-              onFunded?.({ onchainPoId, txHash });
-              toast.success('USDC fund recorded — link via onchain API');
-              reset();
-              setStep('idle');
-            }}
-          >
-            Confirm fund linked
-          </button>
-        )}
       </div>
     </div>
   );

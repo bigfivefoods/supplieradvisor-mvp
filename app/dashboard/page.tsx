@@ -29,6 +29,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { getSelectedCompanyId } from '@/lib/containers/company';
+import FeatureHealthBanner from '@/components/chrome/FeatureHealthBanner';
 import {
   AlertBanner,
   RelationshipHeader,
@@ -704,6 +705,7 @@ export default function DashboardCommandCenter() {
       </div>
 
       <FxRateStrip currency={baseCcy} className="mb-6" />
+      <FeatureHealthBanner className="mb-4" />
 
       <FirstHourKickstart
         loading={loading && !kpis}

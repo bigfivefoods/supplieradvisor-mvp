@@ -49,6 +49,7 @@ import {
 import WalletConnectBar from '@/components/onchain/WalletConnectBar';
 import UsdcEscrowActions from '@/components/onchain/UsdcEscrowActions';
 import EscrowStepper from '@/components/onchain/EscrowStepper';
+import EscrowDisputeButton from '@/components/onchain/EscrowDisputeButton';
 import { isUsdcEscrowEnabled } from '@/lib/contracts/usdcEscrow';
 import {
   CompanyRequired,
@@ -2788,6 +2789,24 @@ function PoInner() {
                               >
                                 <Package className="w-3 h-3" /> Into stock
                               </button>
+                            )}
+                          {onchain &&
+                            po.onchain_po_id != null &&
+                            !['completed', 'cancelled'].includes(
+                              String(po.status).toLowerCase()
+                            ) && (
+                              <EscrowDisputeButton
+                                onchainPoId={po.onchain_po_id}
+                                mode={
+                                  String(
+                                    (po.metadata as { escrow_asset?: string } | null)
+                                      ?.escrow_asset || ''
+                                  ).toLowerCase() === 'usdc'
+                                    ? 'usdc'
+                                    : 'eth'
+                                }
+                                onDisputed={() => void load()}
+                              />
                             )}
                           {/* One-click path: seller invoice from this PO when we sell */}
                           {['accepted', 'funded', 'sent'].includes(

@@ -321,12 +321,46 @@ export async function GET() {
       );
     }
 
+    // Golden-loop / EPM / ESG table probe (30-day readiness)
+    let goldenLoop: Awaited<
+      ReturnType<typeof import('@/lib/system/golden-loop-probe').probeGoldenLoopTables>
+    > | null = null;
+    try {
+      const { probeGoldenLoopTables } = await import(
+        '@/lib/system/golden-loop-probe'
+      );
+      goldenLoop = await probeGoldenLoopTables(supabase);
+      if (goldenLoop.missing.length) {
+        p0Warnings.push(
+          `Golden-loop tables missing: ${goldenLoop.missing.slice(0, 6).join(', ')}`
+        );
+        for (const m of goldenLoop.migrationsToApply) {
+          if (!settleMissing.includes(m)) settleMissing.push(m);
+        }
+      }
+      for (const t of goldenLoop.tables) {
+        if (!checks[t.key]) {
+          checks[t.key] = {
+            ok: t.ok,
+            error: t.error,
+            detail: {
+              migration: t.migration,
+              requiredFor: t.requiredFor,
+            },
+          };
+        }
+      }
+    } catch {
+      goldenLoop = null;
+    }
+
     const p0Readiness = {
       ok: p0Blockers.length === 0,
       blockers: p0Blockers,
       warnings: p0Warnings,
       settleTablesOk: settleMissing.length === 0,
       settleMissing,
+      goldenLoopOk: goldenLoop?.ok ?? null,
       paystackOk: checks.paystack.ok,
       cronOk: checks.cron_secret.ok,
       opsAlertOk: checks.ops_alert.ok,
@@ -343,12 +377,21 @@ export async function GET() {
       settleSmoke: '/api/system/settle-smoke',
       settleUi: '/dashboard/settle',
       moneyHub: '/dashboard/customers/money',
+      boardPack: '/api/business/board-pack',
     };
 
     return NextResponse.json({
       ok: coreOk,
-      degraded,
+      degraded: degraded || Boolean(goldenLoop && !goldenLoop.ok),
       p0Readiness,
+      golden_loop: goldenLoop
+        ? {
+            ok: goldenLoop.ok,
+            missing: goldenLoop.missing,
+            migrationsToApply: goldenLoop.migrationsToApply,
+            tables: goldenLoop.tables,
+          }
+        : undefined,
       serviceRole: hasServiceRole(),
       latencyMs: Date.now() - started,
       schemaReady: softOk,
@@ -368,9 +411,11 @@ export async function GET() {
             ? colProbe.hint
             : softOk < softTotal
               ? 'Some module tables missing — run latest supabase/migrations/*.sql on production'
-              : optionalMissing.length
-                ? colProbe.hint
-                : undefined,
+              : goldenLoop && !goldenLoop.ok
+                ? `Apply migrations: ${goldenLoop.migrationsToApply.join(', ')}`
+                : optionalMissing.length
+                  ? colProbe.hint
+                  : undefined,
     });
   } catch (e: unknown) {
     return NextResponse.json(
