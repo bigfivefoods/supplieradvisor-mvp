@@ -289,6 +289,14 @@ const SECTIONS: Section[] = [
         sa: 'strong',
       },
       {
+        capability: 'Fully responsive · phone · tablet · desktop',
+        hint: 'Command centre, finance cards, and ops built for mobile and tablet — not desktop-only ERP',
+        excel: 'partial',
+        xero: 'yes',
+        erp: 'partial',
+        sa: 'strong',
+      },
+      {
         capability: 'One OS instead of a tool pile',
         hint: 'Network + ops + finance + people in one membership',
         excel: 'no',
