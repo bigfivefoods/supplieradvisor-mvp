@@ -269,12 +269,26 @@ Bank: `POST /api/accounting/bank/import`, `POST /api/accounting/bank/allocate`.
 | `employees` | Staff master |
 | `training_records` | Training assignments |
 
-### Projects
+### Projects / EPM · PMO
+Live tables (apply `20260711_haccp_esg_pm_suite.sql` then `20260723_pm_epm_pmo.sql`):
+
 | Table | Purpose |
 |-------|---------|
-| `projects` | Project headers (budget, priority) |
-| `project_tasks` | Tasks |
-| `timesheets` | Time entries |
+| `pm_projects` | Project headers: status, health, budget, methodology (`standard` \| `dmaic` \| `sdg` \| `hybrid`), DMAIC gate, programme, SDG goal/targets, charter fields |
+| `pm_programmes` | Strategic programmes that aggregate projects (owner, sponsor, budget, health, theme) |
+| `pm_gate_transitions` | DMAIC / stage-gate audit (from→to, checklist, approver) |
+| `pm_project_riads` | Project RIAD log (risk \| issue \| action \| decision) |
+| `pm_tasks` | Kanban tasks |
+| `pm_milestones` | Milestone / stage completion |
+| `pm_risks` | Legacy simple risk scores (likelihood × impact) |
+| `pm_timesheets` | Hours against projects/tasks |
+
+Dashboard: `/dashboard/projects` (hub, portfolio, programmes, DMAIC board, SDG, RIAD, kanban, timesheets, reporting).  
+APIs: `/api/projects`, `/api/projects/programmes`, `/api/projects/riads`, tasks, risks, milestones, timesheets.
+
+Migrations:
+- `supabase/migrations/20260711_haccp_esg_pm_suite.sql`
+- `supabase/migrations/20260723_pm_epm_pmo.sql`
 
 ### Sustainability
 | Table | Purpose |

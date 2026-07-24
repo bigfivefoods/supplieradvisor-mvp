@@ -338,11 +338,13 @@ export const MODULE_NAV: readonly ModuleNav[] = [
     resource: 'projects',
     steps: [
       { name: 'Overview', href: '/dashboard/projects', exact: true },
-      { name: 'Plan', href: '/dashboard/projects/portfolio' },
-      { name: 'Board', href: '/dashboard/projects/kanban-boards' },
-      { name: 'Gate', href: '/dashboard/projects/milestones' },
-      { name: 'Log', href: '/dashboard/projects/timesheets' },
-      { name: 'Risk', href: '/dashboard/projects/risk-register' },
+      { name: 'Portfolio', href: '/dashboard/projects/portfolio' },
+      { name: 'Programmes', href: '/dashboard/projects/programmes' },
+      { name: 'DMAIC', href: '/dashboard/projects/dmaic' },
+      { name: 'SDG', href: '/dashboard/projects/sdg' },
+      { name: 'Kanban', href: '/dashboard/projects/kanban-boards' },
+      { name: 'RIAD', href: '/dashboard/projects/risk-register' },
+      { name: 'Time', href: '/dashboard/projects/timesheets' },
     ],
   },
   {
