@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Fragment } from 'react';
 import {
   ArrowRight,
   Check,
@@ -27,119 +28,266 @@ type Row = {
   sa: Cell;
 };
 
-const ROWS: Row[] = [
+type Section = {
+  title: string;
+  rows: Row[];
+};
+
+/**
+ * Capability matrix — ordered like a real operating system:
+ * network → trade → ops → finance → people/quality → trust → economics.
+ */
+const SECTIONS: Section[] = [
   {
-    capability: 'Live verified trading network',
-    hint: 'Invite, connect, score counterparties',
-    excel: 'no',
-    xero: 'no',
-    erp: 'partial',
-    sa: 'strong',
+    title: 'Network & marketplace',
+    rows: [
+      {
+        capability: 'Live verified trading network',
+        hint: 'Invite, connect, discover, and score counterparties',
+        excel: 'no',
+        xero: 'no',
+        erp: 'partial',
+        sa: 'strong',
+      },
+      {
+        capability: 'B2B + B2G + B2C on one fabric',
+        hint: 'Buyers, suppliers, schools, associations, last-mile',
+        excel: 'no',
+        xero: 'no',
+        erp: 'partial',
+        sa: 'strong',
+      },
+      {
+        capability: 'Peer ratings, trust score & OTIFEF',
+        hint: 'Bilateral stars after trade — not vanity reviews',
+        excel: 'no',
+        xero: 'no',
+        erp: 'partial',
+        sa: 'strong',
+      },
+    ],
   },
   {
-    capability: 'B2B + B2G + B2C on one fabric',
-    excel: 'no',
-    xero: 'no',
-    erp: 'partial',
-    sa: 'strong',
+    title: 'Commercial · CRM & SRM',
+    rows: [
+      {
+        capability: 'CRM: leads → quotes → orders → AR',
+        hint: 'Customer book, pipeline, invoices, collections',
+        excel: 'partial',
+        xero: 'partial',
+        erp: 'yes',
+        sa: 'strong',
+      },
+      {
+        capability: 'SRM: suppliers, POs, contracts, OTIFEF',
+        hint: 'Supplier master, purchase orders, performance',
+        excel: 'partial',
+        xero: 'no',
+        erp: 'yes',
+        sa: 'strong',
+      },
+      {
+        capability: 'Pricing agreements across the network',
+        hint: 'Trade-edge list prices with connected companies',
+        excel: 'partial',
+        xero: 'no',
+        erp: 'yes',
+        sa: 'strong',
+      },
+    ],
   },
   {
-    capability: 'Supplier POs, OTIFEF & peer ratings',
-    excel: 'partial',
-    xero: 'no',
-    erp: 'yes',
-    sa: 'strong',
+    title: 'Operations · inventory to delivery',
+    rows: [
+      {
+        capability: 'Inventory, lots, warehouses & transfers',
+        hint: 'Stock, multi-warehouse, live transfer tracking',
+        excel: 'partial',
+        xero: 'no',
+        erp: 'yes',
+        sa: 'strong',
+      },
+      {
+        capability: 'Manufacturing: BOM · MPS · MRP · cells',
+        hint: 'Business units, work centres, production cost',
+        excel: 'partial',
+        xero: 'no',
+        erp: 'yes',
+        sa: 'strong',
+      },
+      {
+        capability: 'Distribution & live shipment tracking',
+        hint: 'Carriers, fleet, inbound/outbound, GPS',
+        excel: 'no',
+        xero: 'no',
+        erp: 'yes',
+        sa: 'strong',
+      },
+      {
+        capability: 'QA holds that stop ship',
+        hint: 'Quality gates wired into inventory & fulfilment',
+        excel: 'no',
+        xero: 'no',
+        erp: 'yes',
+        sa: 'strong',
+      },
+    ],
   },
   {
-    capability: 'CRM: quotes → orders → AR',
-    excel: 'partial',
-    xero: 'partial',
-    erp: 'yes',
-    sa: 'strong',
+    title: 'Finance · books, budget & multi-entity',
+    rows: [
+      {
+        capability: 'Full GL · journals · bank · VAT',
+        hint: 'Double-entry, bank allocate, tax periods',
+        excel: 'partial',
+        xero: 'strong',
+        erp: 'strong',
+        sa: 'yes',
+      },
+      {
+        capability: 'Management accounts & live P&L',
+        hint: 'Period slicer, cash, journals, 12-month trends',
+        excel: 'partial',
+        xero: 'yes',
+        erp: 'strong',
+        sa: 'strong',
+      },
+      {
+        capability: '12-month budgets · plan vs actual',
+        hint: 'COA plan by FY month; variance by account',
+        excel: 'partial',
+        xero: 'partial',
+        erp: 'yes',
+        sa: 'strong',
+      },
+      {
+        capability: 'Configurable financial year',
+        hint: 'FY start month drives budget, YTD, Full FY',
+        excel: 'partial',
+        xero: 'yes',
+        erp: 'yes',
+        sa: 'strong',
+      },
+      {
+        capability: 'Group hierarchy · holding & subsidiaries',
+        hint: 'Multi-level ownership trees with shareholding %',
+        excel: 'no',
+        xero: 'no',
+        erp: 'yes',
+        sa: 'strong',
+      },
+      {
+        capability: 'Associations & member companies',
+        hint: 'Industry bodies with members under the org',
+        excel: 'no',
+        xero: 'no',
+        erp: 'partial',
+        sa: 'strong',
+      },
+      {
+        capability: 'Legal entities tied to the group',
+        hint: 'Finance entities sync from Company → Group',
+        excel: 'no',
+        xero: 'partial',
+        erp: 'yes',
+        sa: 'strong',
+      },
+      {
+        capability: 'Cost allocation to BU · cell · asset · BS',
+        hint: 'PO, journals, fixed assets by cost object',
+        excel: 'partial',
+        xero: 'partial',
+        erp: 'yes',
+        sa: 'strong',
+      },
+    ],
   },
   {
-    capability: 'Inventory, lots & QA holds that stop ship',
-    excel: 'partial',
-    xero: 'no',
-    erp: 'yes',
-    sa: 'strong',
+    title: 'People · SHEQ · quality',
+    rows: [
+      {
+        capability: 'People / HR · payroll · organogram',
+        hint: 'Directory, leave, performance, disciplinary, BU',
+        excel: 'partial',
+        xero: 'no',
+        erp: 'yes',
+        sa: 'strong',
+      },
+      {
+        capability: 'SHEQ · incidents · hazards · NCR/CAPA',
+        hint: 'Safety & quality actions as live controls',
+        excel: 'no',
+        xero: 'no',
+        erp: 'partial',
+        sa: 'strong',
+      },
+      {
+        capability: 'HACCP · inspections · traceability',
+        hint: 'Food & regulated quality workflows',
+        excel: 'no',
+        xero: 'no',
+        erp: 'partial',
+        sa: 'strong',
+      },
+    ],
   },
   {
-    capability: 'Manufacturing: BOM / MPS / MRP / cells',
-    excel: 'partial',
-    xero: 'no',
-    erp: 'yes',
-    sa: 'strong',
+    title: 'Trust fabric & last-mile',
+    rows: [
+      {
+        capability: 'Container last-mile & impact metrics',
+        hint: 'Outlets, contractors, jobs / meals impact',
+        excel: 'no',
+        xero: 'no',
+        erp: 'no',
+        sa: 'strong',
+      },
+      {
+        capability: 'On-chain passports & optional PO escrow',
+        hint: 'Product pedigree + wallet-signed escrow',
+        excel: 'no',
+        xero: 'no',
+        erp: 'partial',
+        sa: 'strong',
+      },
+      {
+        capability: 'Africa-ready verification & Paystack',
+        hint: 'CIPC, VerifyNow, ZAR billing, multi-country',
+        excel: 'partial',
+        xero: 'partial',
+        erp: 'partial',
+        sa: 'strong',
+      },
+    ],
   },
   {
-    capability: 'Distribution & live shipment tracking',
-    excel: 'no',
-    xero: 'no',
-    erp: 'yes',
-    sa: 'strong',
-  },
-  {
-    capability: 'Full GL / bank / VAT / management accounts',
-    excel: 'partial',
-    xero: 'strong',
-    erp: 'strong',
-    sa: 'yes',
-  },
-  {
-    capability: 'Cost allocation to BU · cell · asset · BS',
-    excel: 'partial',
-    xero: 'partial',
-    erp: 'yes',
-    sa: 'strong',
-  },
-  {
-    capability: 'People / HR · payroll · organogram',
-    excel: 'partial',
-    xero: 'no',
-    erp: 'yes',
-    sa: 'strong',
-  },
-  {
-    capability: 'SHEQ · HACCP · NCR/CAPA as live controls',
-    excel: 'no',
-    xero: 'no',
-    erp: 'partial',
-    sa: 'strong',
-  },
-  {
-    capability: 'Container last-mile & impact (jobs / meals)',
-    excel: 'no',
-    xero: 'no',
-    erp: 'no',
-    sa: 'strong',
-  },
-  {
-    capability: 'On-chain passports & optional PO escrow',
-    excel: 'no',
-    xero: 'no',
-    erp: 'partial',
-    sa: 'strong',
-  },
-  {
-    capability: 'Go-live in days (not 12–24 months)',
-    excel: 'yes',
-    xero: 'yes',
-    erp: 'no',
-    sa: 'strong',
-  },
-  {
-    capability: 'Transparent ZAR SaaS (no 7-figure licence)',
-    excel: 'yes',
-    xero: 'yes',
-    erp: 'no',
-    sa: 'strong',
-  },
-  {
-    capability: 'Africa-ready verification & Paystack billing',
-    excel: 'partial',
-    xero: 'partial',
-    erp: 'partial',
-    sa: 'strong',
+    title: 'Time to value & economics',
+    rows: [
+      {
+        capability: 'Go-live in days (not 12–24 months)',
+        hint: 'SaaS onboarding vs multi-year ERP programme',
+        excel: 'yes',
+        xero: 'yes',
+        erp: 'no',
+        sa: 'strong',
+      },
+      {
+        capability: 'Transparent ZAR SaaS pricing',
+        hint: `No 7-figure licence — from R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo after trial`,
+        excel: 'yes',
+        xero: 'yes',
+        erp: 'no',
+        sa: 'strong',
+      },
+      {
+        capability: 'One OS instead of a tool pile',
+        hint: 'Network + ops + finance + people in one membership',
+        excel: 'no',
+        xero: 'no',
+        erp: 'partial',
+        sa: 'strong',
+      },
+    ],
   },
 ];
 
@@ -205,6 +353,8 @@ function CellMark({ value }: { value: Cell }) {
 }
 
 export default function ComparePlatforms() {
+  let rowIndex = 0;
+
   return (
     <section
       id="compare"
@@ -224,8 +374,9 @@ export default function ComparePlatforms() {
           <p className="mt-5 text-base leading-relaxed text-slate-600 sm:text-lg">
             Spreadsheets fragment truth. Accounting clouds stop at the books.
             Major ERPs take years and seven figures. SupplierAdvisor® is the
-            supply-chain OS — network, ops, finance, quality, people, and trust —
-            live in days at SaaS economics.
+            supply-chain OS — network, ops, finance (including budgets &amp; group
+            hierarchy), quality, people, and trust — live in days at SaaS
+            economics.
           </p>
         </div>
 
@@ -235,25 +386,25 @@ export default function ComparePlatforms() {
             {
               name: 'Excel / Sheets',
               who: 'Flexible but fragile',
-              body: 'Everyone can edit. Nobody owns a single source of truth. No network, no holds, no OTIFEF.',
+              body: 'Everyone can edit. Nobody owns a single source of truth. No network, no holds, no OTIFEF, no group tree.',
               icon: FileSpreadsheet,
             },
             {
               name: 'Xero-class accounting',
               who: 'Brilliant for books',
-              body: 'World-class ledgers and bank feeds — but not a full supply-chain, SHEQ, or trading graph.',
+              body: 'World-class ledgers and bank feeds — but not a full supply-chain, multi-entity group OS, or trading graph.',
               icon: BookOpen,
             },
             {
               name: 'Major ERP',
               who: 'Power at a price',
-              body: 'SAP, Oracle, Dynamics — deep modules, 12–24 month projects, enterprise licence gravity.',
+              body: 'SAP, Oracle, Dynamics — deep modules and hierarchy, 12–24 month projects, enterprise licence gravity.',
               icon: Building2,
             },
             {
               name: 'SupplierAdvisor®',
               who: 'The supply-chain OS',
-              body: `Fourteen systems + verified network. ${COMPANY_TRIAL_DAYS}-day trial. From R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo. Built for African trade with global discipline.`,
+              body: `Network + ops + finance (budgets, plan vs actual, holding structures) + people. ${COMPANY_TRIAL_DAYS}-day trial. From R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo.`,
               icon: Sparkles,
               highlight: true,
             },
@@ -312,36 +463,53 @@ export default function ComparePlatforms() {
                 </tr>
               </thead>
               <tbody>
-                {ROWS.map((row, i) => (
-                  <tr
-                    key={row.capability}
-                    className={`border-b border-slate-100 ${
-                      i % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'
-                    }`}
-                  >
-                    <td className="sticky left-0 z-10 bg-inherit px-4 py-3.5 sm:px-5">
-                      <div className="font-semibold text-slate-900">
-                        {row.capability}
-                      </div>
-                      {row.hint && (
-                        <div className="mt-0.5 text-[11px] text-slate-400">
-                          {row.hint}
-                        </div>
-                      )}
-                    </td>
-                    {COLS.map((col) => (
+                {SECTIONS.map((section) => (
+                  <Fragment key={section.title}>
+                    <tr className="border-b border-slate-200">
                       <td
-                        key={col.key}
-                        className={`px-3 py-3.5 text-center sm:px-4 ${
-                          col.highlight ? 'bg-sky-50/50' : ''
-                        }`}
+                        colSpan={5}
+                        className="sticky left-0 z-10 bg-slate-100/95 px-4 py-2.5 sm:px-5"
                       >
-                        <div className="flex justify-center">
-                          <CellMark value={row[col.key]} />
-                        </div>
+                        <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#0077b6]">
+                          {section.title}
+                        </span>
                       </td>
-                    ))}
-                  </tr>
+                    </tr>
+                    {section.rows.map((row) => {
+                      const i = rowIndex++;
+                      return (
+                        <tr
+                          key={row.capability}
+                          className={`border-b border-slate-100 ${
+                            i % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'
+                          }`}
+                        >
+                          <td className="sticky left-0 z-10 bg-inherit px-4 py-3.5 sm:px-5">
+                            <div className="font-semibold text-slate-900">
+                              {row.capability}
+                            </div>
+                            {row.hint && (
+                              <div className="mt-0.5 text-[11px] leading-snug text-slate-400">
+                                {row.hint}
+                              </div>
+                            )}
+                          </td>
+                          {COLS.map((col) => (
+                            <td
+                              key={col.key}
+                              className={`px-3 py-3.5 text-center sm:px-4 ${
+                                col.highlight ? 'bg-sky-50/50' : ''
+                              }`}
+                            >
+                              <div className="flex justify-center">
+                                <CellMark value={row[col.key]} />
+                              </div>
+                            </td>
+                          ))}
+                        </tr>
+                      );
+                    })}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
