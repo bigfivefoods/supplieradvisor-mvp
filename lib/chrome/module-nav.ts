@@ -401,11 +401,12 @@ export const MODULE_NAV: readonly ModuleNav[] = [
     href: '/dashboard/schools',
     resource: 'schools',
     steps: [
+      // Process order: daily first, then setup, supply, fund, govern
       {
-        name: 'Overview',
+        name: 'Command',
         href: '/dashboard/schools',
         exact: true,
-        desc: 'NSNP command tower',
+        desc: 'Golden path & readiness',
       },
       {
         name: 'Serve day',
@@ -413,9 +414,14 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         desc: 'Daily kitchen feed mode',
       },
       {
-        name: 'School',
-        href: '/dashboard/schools/profile',
-        desc: 'Photo, EMIS, map, kitchen',
+        name: 'Kitchen',
+        href: '/dashboard/schools/kitchen',
+        desc: 'GRN, issue, waste',
+      },
+      {
+        name: 'Orders',
+        href: '/dashboard/schools/orders',
+        desc: 'POs — approved brands only',
       },
       {
         name: 'Surveys',
@@ -423,99 +429,59 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         desc: 'Learner & parent food feedback',
       },
       {
-        name: 'RIAD',
-        href: '/dashboard/schools/riad',
-        desc: 'Risks, issues, actions, decisions',
+        name: 'Claims',
+        href: '/dashboard/schools/claims',
+        desc: 'Tariff × meals funding pack',
       },
       {
-        name: 'Maintain',
-        href: '/dashboard/schools/maintenance',
-        desc: 'Facilities & kitchen fixes',
+        name: 'School',
+        href: '/dashboard/schools/profile',
+        desc: 'Photo, EMIS, contacts',
       },
       {
         name: 'Learners',
         href: '/dashboard/schools/learners',
-        desc: 'Import & verify learners',
+        desc: 'Import & verify register',
       },
       {
         name: 'EMIS',
         href: '/dashboard/schools/emis',
-        desc: 'EMIS snapshot & attest',
-      },
-      {
-        name: 'Staff',
-        href: '/dashboard/schools/staff',
-        desc: 'Teachers & kitchen staff',
-      },
-      {
-        name: 'Approved',
-        href: '/dashboard/schools/approved-list',
-        desc: 'DBE approved foods list',
+        desc: 'Headcount snapshot & attest',
       },
       {
         name: 'Menu',
         href: '/dashboard/schools/menu',
-        desc: 'Weekly NSNP menu cycle',
+        desc: 'Weekly cycle + products',
       },
       {
-        name: 'DBE',
-        href: '/dashboard/schools/agency',
-        desc: 'Join / approve associations',
-      },
-      {
-        name: 'Agency pack',
-        href: '/dashboard/schools/agency-report',
-        desc: 'Multi-school programme reports',
-      },
-      {
-        name: 'Visits',
-        href: '/dashboard/schools/visits',
-        desc: 'PEU monitor field visits',
+        name: 'Approved',
+        href: '/dashboard/schools/approved-list',
+        desc: 'DBE-owned foods list',
       },
       {
         name: 'ISPs',
         href: '/dashboard/schools/isps',
-        desc: 'Compliant service providers',
+        desc: 'Link vetted providers',
+      },
+      {
+        name: 'Join DBE',
+        href: '/dashboard/schools/agency',
+        desc: 'Request agency approval',
+      },
+      {
+        name: 'Agency pack',
+        href: '/dashboard/schools/agency-report',
+        desc: 'Multi-school DBE reports',
+      },
+      {
+        name: 'Visits',
+        href: '/dashboard/schools/visits',
+        desc: 'PEU field checklists',
       },
       {
         name: 'ISP SLA',
         href: '/dashboard/schools/isp-sla',
-        desc: 'Delivery & brand compliance',
-      },
-      {
-        name: 'Order',
-        href: '/dashboard/schools/orders',
-        desc: 'POs to ISPs (approved only)',
-      },
-      {
-        name: 'Kitchen',
-        href: '/dashboard/schools/kitchen',
-        desc: 'Stock, GRN, waste',
-      },
-      {
-        name: 'Feed',
-        href: '/dashboard/schools/feeding',
-        desc: 'Daily meals served',
-      },
-      {
-        name: 'Attendance',
-        href: '/dashboard/schools/attendance',
-        desc: 'Learners present',
-      },
-      {
-        name: 'Claims',
-        href: '/dashboard/schools/claims',
-        desc: 'Cost/meal & funding pack',
-      },
-      {
-        name: 'Compliance',
-        href: '/dashboard/schools/compliance',
-        desc: 'Hygiene, incidents, docs',
-      },
-      {
-        name: 'Prizes',
-        href: '/dashboard/schools/prizes',
-        desc: 'Fair quarterly prizes',
+        desc: 'Delivery compliance',
       },
       {
         name: 'Audit',
@@ -523,9 +489,24 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         desc: 'Hashed evidence packs',
       },
       {
+        name: 'Prizes',
+        href: '/dashboard/schools/prizes',
+        desc: 'Honest quarterly scores',
+      },
+      {
+        name: 'RIAD',
+        href: '/dashboard/schools/riad',
+        desc: 'Risks & decisions',
+      },
+      {
+        name: 'Maintain',
+        href: '/dashboard/schools/maintenance',
+        desc: 'Facilities & kitchen fixes',
+      },
+      {
         name: 'Report',
         href: '/dashboard/schools/report',
-        desc: 'Slice & dice NSNP analytics',
+        desc: 'NSNP analytics',
       },
       {
         name: 'Map',

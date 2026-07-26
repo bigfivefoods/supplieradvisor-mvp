@@ -155,30 +155,21 @@ export async function POST(request: NextRequest) {
         })
         .eq('id', school.id);
 
-      // Optionally create draft learner placeholders per grade (no PII)
+      // Placeholders pollute the real learner register — disabled by default.
+      // Prefer Learners CSV import with real (or de-identified) records.
       if (body.create_placeholders) {
-        const inserts: Array<Record<string, unknown>> = [];
-        for (const g of grades) {
-          for (let n = 1; n <= Math.min(g.enrolled, 200); n += 1) {
-            inserts.push({
-              school_profile_id: school.id,
-              profile_id: companyId,
-              external_id: `EMIS-${g.grade}-${n}`,
-              first_name: `Learner`,
-              last_name: `${g.grade}-${n}`,
-              grade: g.grade,
-              nsnp_eligible: g.nsnp_eligible > 0,
-              verification_status: 'draft',
-              status: 'active',
-            });
-          }
-        }
-        for (let i = 0; i < inserts.length; i += 100) {
-          await supabase
-            .from('school_learners')
-            .insert(inserts.slice(i, i + 100));
-        }
-        await refreshSchoolCounts(supabase, Number(school.id), companyId);
+        return NextResponse.json(
+          {
+            success: true,
+            snapshot,
+            grades: grades.length,
+            enrolled: total,
+            warning:
+              'EMIS headcount saved. Placeholder learners are disabled — import real learners under Learners (CSV). Fake rows break claims & prizes.',
+            placeholders_created: 0,
+          },
+          { status: 200 }
+        );
       }
 
       return NextResponse.json({
@@ -186,6 +177,8 @@ export async function POST(request: NextRequest) {
         snapshot,
         grades: grades.length,
         enrolled: total,
+        message:
+          'EMIS headcount snapshot saved. Import named learners under Learners for verification & claims.',
       });
     }
 

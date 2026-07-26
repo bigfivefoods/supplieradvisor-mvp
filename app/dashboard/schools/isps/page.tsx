@@ -55,7 +55,8 @@ function Inner() {
         body: JSON.stringify({
           companyId,
           action: 'register_as_isp',
-          compliance_status: 'compliant',
+          // Agency must vet — never self-badge compliant
+          compliance_status: 'pending',
           food_handling_cert: true,
         }),
       });

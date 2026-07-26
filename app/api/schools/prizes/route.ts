@@ -9,6 +9,10 @@ import {
   computePrizeScore,
   currentQuarterPeriod,
 } from '@/lib/schools/prize';
+import {
+  computeFeedingCompletenessPct,
+  computeMenuAdherencePct,
+} from '@/lib/schools/process';
 
 async function ensurePeriod(
   supabase: ReturnType<typeof getSupabaseServer>
@@ -83,7 +87,7 @@ export async function GET(request: NextRequest) {
         .limit(500),
       supabase
         .from('school_feeding_days')
-        .select('feed_date, served_meals, planned_meals')
+        .select('feed_date, served_meals, planned_meals, menu_name')
         .eq('school_profile_id', school.id)
         .gte('feed_date', from)
         .lte('feed_date', to)
@@ -112,14 +116,13 @@ export async function GET(request: NextRequest) {
       totalLines > 0 ? (approvedLines / totalLines) * 100 : 100;
 
     const feeding = feedingRes.data || [];
-    const daysWithServe = feeding.filter(
-      (f) => Number(f.served_meals || 0) > 0
-    ).length;
-    // approximate school days in period as feeding rows or calendar weekdays
-    const feedingCompletenessPct =
-      feeding.length > 0
-        ? (daysWithServe / feeding.length) * 100
-        : 50;
+    // Honest denominators: weekdays in period + menu_name logging rate
+    const feedingCompletenessPct = computeFeedingCompletenessPct(
+      feeding,
+      from,
+      to
+    );
+    const menuAdherencePct = computeMenuAdherencePct(feeding);
 
     const learners = learnersRes.data || [];
     const verified = learners.filter((l) =>
@@ -131,7 +134,7 @@ export async function GET(request: NextRequest) {
     const breakdown = computePrizeScore({
       approvedBrandPct,
       nonApprovedEvents,
-      menuAdherencePct: 100,
+      menuAdherencePct,
       feedingCompletenessPct,
       stockDisciplinePct: nonApprovedEvents === 0 ? 100 : 70,
       dataQualityPct,

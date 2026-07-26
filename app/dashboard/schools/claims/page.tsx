@@ -160,6 +160,17 @@ function Inner() {
                   label: 'Claim amount',
                   value: formatMoney(Number(pack.claim_amount || 0)),
                 },
+                {
+                  label: 'Tariff / meal',
+                  value: formatMoney(Number(pack.claim_tariff_zar || 0)),
+                },
+                {
+                  label: 'Feed complete %',
+                  value:
+                    pack.feeding_completeness_pct != null
+                      ? `${pack.feeding_completeness_pct}%`
+                      : '—',
+                },
               ] satisfies Array<{ label: string; value: string }>
             ).map((tile) => (
               <div
@@ -175,12 +186,30 @@ function Inner() {
               </div>
             ))}
           </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 mb-4">
+            <p className="font-bold text-slate-900">How claim amount works</p>
+            <p className="text-xs mt-1">
+              Funding = meals served × NSNP meal tariff (
+              {formatMoney(Number(pack.claim_tariff_zar || 0))}). Food spend is
+              cost evidence for auditors — not the claim total. Method:{' '}
+              <code className="text-[10px]">
+                {String(pack.claim_method || 'tariff_x_meals')}
+              </code>
+              .
+              {pack.agency_linked
+                ? ' DBE/PEU link: active.'
+                : ' Join & get DBE/PEU approval before submit.'}
+            </p>
+          </div>
+
           <button
             type="button"
             onClick={() => void submit()}
-            className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center gap-2 mb-8"
+            disabled={pack.submit_ready === false}
+            className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center gap-2 mb-8 disabled:opacity-40"
           >
-            <FileText className="w-4 h-4" /> Submit claim pack
+            <FileText className="w-4 h-4" /> Submit claim pack to agency
           </button>
 
           {history.length > 0 ? (

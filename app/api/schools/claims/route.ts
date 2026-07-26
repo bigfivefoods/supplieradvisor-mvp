@@ -6,6 +6,10 @@ import {
 } from '@/lib/auth/api-auth';
 import { getOrCreateSchoolProfile } from '@/lib/schools/school-context';
 import { resolveCatalogueContext } from '@/lib/schools/approved-catalogue';
+import {
+  computeClaimAmount,
+  countWeekdays,
+} from '@/lib/schools/process';
 
 /**
  * W2 claim / funding pack: cost per meal, days fed, claim CSV payload.
@@ -120,8 +124,36 @@ export async function GET(request: NextRequest) {
         ? Math.round((nutritionPassDays / feeding.length) * 1000) / 10
         : null;
 
-    // School days estimate = unique weekdays in range (approx) or daysFed
-    const schoolDays = Math.max(daysFed, countWeekdays(from, to));
+    // School days = weekdays in range (honest claim completeness)
+    const schoolDays = countWeekdays(from, to);
+    const feedingCompletenessPct =
+      schoolDays > 0
+        ? Math.min(100, Math.round((daysFed / schoolDays) * 1000) / 10)
+        : 0;
+
+    // Funding model: tariff × meals served (not raw PO spend)
+    const schoolMeta =
+      school.metadata && typeof school.metadata === 'object'
+        ? (school.metadata as Record<string, unknown>)
+        : {};
+    const tariff =
+      Number(schoolMeta.nsnp_meal_tariff_zar) > 0
+        ? Number(schoolMeta.nsnp_meal_tariff_zar)
+        : null;
+    const claim = computeClaimAmount({
+      mealsServed,
+      foodSpend: spend,
+      tariffZar: tariff,
+    });
+
+    // Require agency link for full claim eligibility
+    const { data: agencyLink } = await supabase
+      .from('school_agency_links')
+      .select('id, status')
+      .eq('school_profile_id', schoolId)
+      .eq('status', 'active')
+      .limit(1)
+      .maybeSingle();
 
     const pack = {
       school_name: school.school_name,
@@ -137,8 +169,14 @@ export async function GET(request: NextRequest) {
       cost_per_meal: costPerMeal,
       approved_brand_pct: approvedBrandPct,
       nutrition_pass_pct: nutritionPassPct,
+      feeding_completeness_pct: feedingCompletenessPct,
       agency: catalogue.agencyName,
-      claim_amount: Math.round(spend * 100) / 100,
+      agency_linked: Boolean(agencyLink),
+      claim_amount: claim.claimAmount,
+      claim_tariff_zar: claim.tariff,
+      claim_method: claim.method,
+      cost_evidence: claim.costEvidence,
+      submit_ready: Boolean(agencyLink) && mealsServed > 0 && daysFed > 0,
     };
 
     return NextResponse.json({
@@ -192,7 +230,18 @@ export async function POST(request: NextRequest) {
     if (!getRes.ok) {
       return NextResponse.json(json, { status: getRes.status });
     }
-    const pack = json.pack;
+    const pack = json.pack as Record<string, unknown>;
+
+    if (pack.submit_ready === false) {
+      return NextResponse.json(
+        {
+          error:
+            'Claim not ready — need active DBE/PEU association and at least one feeding day with meals served',
+          pack,
+        },
+        { status: 400 }
+      );
+    }
 
     const catalogue = await resolveCatalogueContext(supabase, companyId, {
       schoolProfileId: Number(school.id),
@@ -204,8 +253,8 @@ export async function POST(request: NextRequest) {
         school_profile_id: school.id,
         profile_id: companyId,
         agency_profile_id: catalogue.agencyProfileId,
-        period_from: pack.period.from,
-        period_to: pack.period.to,
+        period_from: (pack.period as { from: string }).from,
+        period_to: (pack.period as { to: string }).to,
         school_days: pack.school_days,
         days_fed: pack.days_fed,
         meals_served: pack.meals_served,
@@ -232,18 +281,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
-
-function countWeekdays(from: string, to: string): number {
-  const a = new Date(from + 'T12:00:00');
-  const b = new Date(to + 'T12:00:00');
-  if (!(a.getTime() <= b.getTime())) return 0;
-  let n = 0;
-  const d = new Date(a);
-  while (d <= b) {
-    const day = d.getDay();
-    if (day !== 0 && day !== 6) n += 1;
-    d.setDate(d.getDate() + 1);
-  }
-  return n;
 }

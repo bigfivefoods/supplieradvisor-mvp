@@ -93,12 +93,47 @@ function Inner() {
     }
   };
 
+  const adjust = async (
+    stockId: number,
+    action: 'issue' | 'waste',
+    defaultQty = 1
+  ) => {
+    const raw = window.prompt(
+      action === 'waste'
+        ? 'Waste quantity to write off'
+        : 'Issue quantity to kitchen/serve',
+      String(defaultQty)
+    );
+    if (raw == null) return;
+    const q = Number(raw);
+    if (!(q > 0)) return toast.error('Enter a positive quantity');
+    try {
+      const res = await fetch('/api/schools/kitchen', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          action,
+          stock_id: stockId,
+          qty: q,
+          reason: action === 'waste' ? 'kitchen_waste' : 'serve_day',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      toast.success(action === 'waste' ? 'Waste logged' : 'Stock issued');
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    }
+  };
+
   return (
     <SchoolsPage>
       <SchoolsHeader
         title="Kitchen stock"
         titleAccent="GRN gate"
-        description="Receive only NSNP-approved brands. Non-approved deliveries are rejected."
+        description="Receive only NSNP-approved brands. Issue to serve day and log waste so stock matches the plate."
         action={
           <button
             type="button"
@@ -182,8 +217,30 @@ function Inner() {
                           {String(s.brand_name)}
                         </div>
                       </td>
-                      <td className="px-4 py-2 text-right font-black tabular-nums">
-                        {Number(s.qty_on_hand)} {String(s.uom || '')}
+                      <td className="px-4 py-2 text-right">
+                        <div className="font-black tabular-nums">
+                          {Number(s.qty_on_hand)} {String(s.uom || '')}
+                        </div>
+                        <div className="flex justify-end gap-1 mt-1">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void adjust(Number(s.id), 'issue', 1)
+                            }
+                            className="text-[10px] font-bold px-2 py-0.5 rounded-md border border-sky-200 text-sky-800 bg-sky-50"
+                          >
+                            Issue
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void adjust(Number(s.id), 'waste', 1)
+                            }
+                            className="text-[10px] font-bold px-2 py-0.5 rounded-md border border-amber-200 text-amber-900 bg-amber-50"
+                          >
+                            Waste
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))

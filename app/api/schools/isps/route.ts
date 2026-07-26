@@ -99,8 +99,18 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseServer();
 
-    // Register current company as ISP
+    // Register current company as ISP — always pending until DBE/agency vets
     if (body.action === 'register_as_isp') {
+      const { data: existing } = await supabase
+        .from('nsnp_isp_profiles')
+        .select('compliance_status')
+        .eq('profile_id', companyId)
+        .maybeSingle();
+      // Never allow self-promotion to compliant; preserve if already agency-set
+      const keepCompliant =
+        existing && String(existing.compliance_status) === 'compliant'
+          ? 'compliant'
+          : 'pending';
       const { data, error } = await supabase
         .from('nsnp_isp_profiles')
         .upsert(
@@ -109,7 +119,7 @@ export async function POST(request: NextRequest) {
             trading_name: body.trading_name || null,
             provinces: body.provinces || [],
             food_handling_cert: Boolean(body.food_handling_cert),
-            compliance_status: body.compliance_status || 'pending',
+            compliance_status: keepCompliant,
             notes: body.notes || null,
             updated_at: new Date().toISOString(),
           },
@@ -128,7 +138,14 @@ export async function POST(request: NextRequest) {
       } catch {
         /* soft */
       }
-      return NextResponse.json({ success: true, isp: data });
+      return NextResponse.json({
+        success: true,
+        isp: data,
+        message:
+          keepCompliant === 'pending'
+            ? 'ISP registered as pending — DBE/agency must mark compliant before schools should order.'
+            : 'ISP profile updated',
+      });
     }
 
     // School links to ISP

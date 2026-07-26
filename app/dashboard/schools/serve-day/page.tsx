@@ -162,9 +162,31 @@ function Inner() {
               </strong>
             </p>
             {completeFlag ? (
-              <p className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-emerald-700">
-                <CheckCircle2 className="w-4 h-4" /> Serve day already logged
-              </p>
+              <div className="mt-3 space-y-2">
+                <p className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700">
+                  <CheckCircle2 className="w-4 h-4" /> Serve day already logged
+                </p>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <Link
+                    href="/dashboard/schools/surveys"
+                    className="text-xs font-bold px-3 py-1.5 rounded-full bg-violet-50 text-violet-800 border border-violet-200"
+                  >
+                    Share food survey →
+                  </Link>
+                  <Link
+                    href="/dashboard/schools/kitchen"
+                    className="text-xs font-bold px-3 py-1.5 rounded-full bg-rose-50 text-rose-800 border border-rose-200"
+                  >
+                    Log kitchen waste →
+                  </Link>
+                  <Link
+                    href="/dashboard/schools/claims"
+                    className="text-xs font-bold px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200"
+                  >
+                    Claims pack →
+                  </Link>
+                </div>
+              </div>
             ) : null}
           </div>
 

@@ -333,8 +333,8 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Schools request association; DBE/agency must approve (status → active)
-      const joinStatus = body.status === 'active' ? 'active' : 'pending';
+      // Schools may only REQUEST association — DBE/agency must approve.
+      // Never honour client-supplied status=active (governance lock).
       const { data, error: lErr } = await supabase
         .from('school_agency_links')
         .upsert(
@@ -342,9 +342,9 @@ export async function POST(request: NextRequest) {
             school_profile_id: school.id,
             school_company_id: companyId,
             agency_profile_id: agencyProfileId,
-            status: joinStatus,
+            status: 'pending',
             requested_by: gate.userId || null,
-            accepted_at: joinStatus === 'active' ? new Date().toISOString() : null,
+            accepted_at: null,
             notes: body.notes || null,
             updated_at: new Date().toISOString(),
           },
@@ -357,24 +357,14 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: lErr.message }, { status: 400 });
       }
 
-      // Set primary agency if first link
-      try {
-        await supabase
-          .from('school_profiles')
-          .update({
-            primary_agency_profile_id: agencyProfileId,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', school.id)
-          .is('primary_agency_profile_id', null);
-      } catch {
-        /* soft */
-      }
+      // primary_agency_profile_id is set only when agency approves (see approve)
 
       return NextResponse.json({
         success: true,
         link: data,
         agency_name: agency.agency_name,
+        message:
+          'Join request submitted. Your DBE/PEU must approve before catalogue & claims unlock.',
       });
     }
 
@@ -432,11 +422,95 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
-      const { error } = await q;
+      const { data: updated, error } = await q.select('*');
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 400 });
       }
-      return NextResponse.json({ success: true, status });
+
+      // On approve: set primary agency on the school (catalogue authority)
+      if (status === 'active' && updated?.[0]) {
+        const schoolProfileId = Number(updated[0].school_profile_id);
+        try {
+          await supabase
+            .from('school_profiles')
+            .update({
+              primary_agency_profile_id: companyId,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', schoolProfileId);
+        } catch {
+          /* soft */
+        }
+      }
+
+      return NextResponse.json({ success: true, status, link: updated?.[0] });
+    }
+
+    // Agency vets ISP → compliant | suspended | pending
+    if (action === 'set_isp_status' || action === 'approve_isp') {
+      const ispProfileId = Number(body.isp_profile_id);
+      if (!Number.isFinite(ispProfileId)) {
+        return NextResponse.json(
+          { error: 'isp_profile_id required' },
+          { status: 400 }
+        );
+      }
+      const compliance =
+        action === 'approve_isp'
+          ? 'compliant'
+          : String(body.compliance_status || 'pending');
+      const { data, error } = await supabase
+        .from('nsnp_isp_profiles')
+        .update({
+          compliance_status: compliance,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('profile_id', ispProfileId)
+        .select('*')
+        .single();
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+      return NextResponse.json({ success: true, isp: data });
+    }
+
+    // Agency reviews claim packs
+    if (action === 'set_claim_status' || action === 'review_claim') {
+      const claimId = Number(body.claim_id);
+      const claimStatus = String(body.status || 'approved');
+      if (!Number.isFinite(claimId)) {
+        return NextResponse.json({ error: 'claim_id required' }, { status: 400 });
+      }
+      if (!['approved', 'rejected', 'paid', 'submitted', 'draft'].includes(claimStatus)) {
+        return NextResponse.json({ error: 'Invalid claim status' }, { status: 400 });
+      }
+      const { data, error } = await supabase
+        .from('nsnp_claim_packs')
+        .update({
+          status: claimStatus,
+          reviewed_at: new Date().toISOString(),
+          review_notes: body.notes || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', claimId)
+        .eq('agency_profile_id', companyId)
+        .select('*')
+        .single();
+      if (error) {
+        // soft if columns missing
+        const retry = await supabase
+          .from('nsnp_claim_packs')
+          .update({ status: claimStatus })
+          .eq('id', claimId)
+          .eq('agency_profile_id', companyId)
+          .select('*')
+          .single();
+        if (retry.error) {
+          return NextResponse.json({ error: retry.error.message }, { status: 400 });
+        }
+        return NextResponse.json({ success: true, claim: retry.data });
+      }
+      return NextResponse.json({ success: true, claim: data });
     }
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
