@@ -579,6 +579,13 @@ function Inner() {
               : 'Need DBE + feeding',
             accent: 'from-emerald-500 to-teal-400',
           },
+          {
+            href: '/dashboard/schools/nutrition',
+            icon: BarChart3,
+            label: 'Nutrition',
+            desc: 'vs DBE average',
+            accent: 'from-lime-500 to-emerald-400',
+          },
         ].map((a) => (
           <Link
             key={a.href}

@@ -433,6 +433,12 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         group: 'DBE',
       },
       {
+        name: 'Nutrition',
+        href: '/dashboard/schools/nutrition-agency',
+        desc: 'Programme nutrition roll-up',
+        group: 'DBE',
+      },
+      {
         name: 'Visits',
         href: '/dashboard/schools/visits',
         desc: 'PEU field monitor checklists',
@@ -511,6 +517,12 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         name: 'Claim',
         href: '/dashboard/schools/claims',
         desc: 'Tariff × meals funding pack',
+        group: 'School',
+      },
+      {
+        name: 'Nutrition',
+        href: '/dashboard/schools/nutrition',
+        desc: 'School + learner report vs DBE average',
         group: 'School',
       },
       {
