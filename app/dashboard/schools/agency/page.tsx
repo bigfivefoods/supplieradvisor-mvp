@@ -125,7 +125,9 @@ function Inner() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
-      toast.success(`Joined ${data.agency_name || 'agency'}`);
+      toast.success(
+        `Join request sent to ${data.agency_name || 'agency'} — awaits approval`
+      );
       void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed');
