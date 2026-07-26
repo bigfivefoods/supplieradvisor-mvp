@@ -31,8 +31,7 @@ import {
   SchoolsHeader,
   SchoolsPage,
 } from '@/components/schools/SchoolsShell';
-import NsnpProcessRail from '@/components/schools/NsnpProcessRail';
-import type { ReadinessCheck, SchoolReadiness } from '@/lib/schools/process';
+import type { SchoolReadiness } from '@/lib/schools/process';
 
 export default function SchoolsHubPage() {
   return (
@@ -135,35 +134,32 @@ function Inner() {
           }
         />
 
-        <div className="grid lg:grid-cols-3 gap-4 mb-6">
-          <div className="lg:col-span-2 rounded-3xl border border-slate-200 bg-gradient-to-br from-sky-50 via-white to-emerald-50 p-6">
-            <div className="flex items-start gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-[#0077b6] text-white flex items-center justify-center">
-                <Landmark className="w-6 h-6" />
-              </div>
-              <div className="flex-1">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-[#0077b6]">
-                  Agency operating loop
-                </p>
-                <h2 className="text-xl font-black text-slate-900 mt-0.5">
-                  {agencyNext?.label || 'Programme command'}
-                </h2>
-                <p className="text-sm text-slate-600 mt-1">
-                  {agencyNext?.desc ||
-                    'Approve associations, publish approved brands, monitor serve-day compliance.'}
-                </p>
-                {agencyNext ? (
-                  <Link
-                    href={agencyNext.href}
-                    className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center gap-2 mt-4"
-                  >
-                    Continue <ArrowRight className="w-4 h-4" />
-                  </Link>
-                ) : null}
-              </div>
+        <div className="rounded-3xl border border-slate-200 bg-gradient-to-br from-sky-50 via-white to-emerald-50 p-6 mb-6">
+          <div className="flex items-start gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-[#0077b6] text-white flex items-center justify-center">
+              <Landmark className="w-6 h-6" />
+            </div>
+            <div className="flex-1">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-[#0077b6]">
+                Agency command
+              </p>
+              <h2 className="text-xl font-black text-slate-900 mt-0.5">
+                {agencyNext?.label || 'Programme command'}
+              </h2>
+              <p className="text-sm text-slate-600 mt-1">
+                {agencyNext?.desc ||
+                  'Approve associations, publish approved brands, monitor serve-day compliance. Use the module navbar to move between functions.'}
+              </p>
+              {agencyNext ? (
+                <Link
+                  href={agencyNext.href}
+                  className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center gap-2 mt-4"
+                >
+                  Continue <ArrowRight className="w-4 h-4" />
+                </Link>
+              ) : null}
             </div>
           </div>
-          <NsnpProcessRail role="agency" compact />
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
@@ -259,7 +255,6 @@ function Inner() {
   // ——— School principal hub ———
   const r = readiness;
   const k = r?.kpis;
-  const checks: ReadinessCheck[] = r?.checks || [];
   const next = r?.nextAction;
 
   return (

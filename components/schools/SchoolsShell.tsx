@@ -97,7 +97,8 @@ export function SchoolsHeader({
   description,
   action,
   titleAccent,
-  showNav = true,
+  /** In-page process pills — off by default; module chrome navbar is the nav. */
+  showNav = false,
   mode = 'school',
 }: {
   title: string;
