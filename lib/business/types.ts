@@ -137,6 +137,23 @@ export type ExportLicenseEntry = {
   file_url?: string | null;
 };
 
+/** Default catalogue of payment terms for PO / quote dropdowns */
+export const DEFAULT_PAYMENT_TERMS_OPTIONS = [
+  'Net 7',
+  'Net 14',
+  'Net 30',
+  'Net 45',
+  'Net 60',
+  'Net 90',
+  'COD (Cash on delivery)',
+  'CIA (Cash in advance)',
+  'EOM (End of month)',
+  '15th of following month',
+  'Letter of credit',
+  'On receipt',
+  'Custom / other',
+] as const;
+
 export type CompanySettings = {
   timezone: string;
   primary_currency: string;
@@ -154,6 +171,11 @@ export type CompanySettings = {
   /** After Invoice now (create_from_po), auto-email PDF when contact email exists */
   autoEmailOnFromPo: boolean;
   defaultPaymentTerms: string;
+  /**
+   * Configurable payment-terms dropdown options (PO raise, quotes).
+   * Empty / missing falls back to DEFAULT_PAYMENT_TERMS_OPTIONS.
+   */
+  paymentTermsOptions: string[];
   fiscalYearStartMonth: number;
 };
 
@@ -186,8 +208,24 @@ export const DEFAULT_SETTINGS: CompanySettings = {
   open_to_trade: true,
   autoEmailOnFromPo: false,
   defaultPaymentTerms: 'Net 30',
+  paymentTermsOptions: [...DEFAULT_PAYMENT_TERMS_OPTIONS],
   fiscalYearStartMonth: 3,
 };
+
+/** Resolve dropdown options + default for PO/quote forms */
+export function resolvePaymentTermsConfig(settings?: Partial<CompanySettings> | null): {
+  options: string[];
+  defaultTerms: string;
+} {
+  const raw = Array.isArray(settings?.paymentTermsOptions)
+    ? settings!.paymentTermsOptions!.map((s) => String(s).trim()).filter(Boolean)
+    : [];
+  const options =
+    raw.length > 0 ? [...new Set(raw)] : [...DEFAULT_PAYMENT_TERMS_OPTIONS];
+  const def = String(settings?.defaultPaymentTerms || 'Net 30').trim() || 'Net 30';
+  if (def && !options.includes(def)) options.unshift(def);
+  return { options, defaultTerms: def };
+}
 
 /**
  * All columns we allow PATCH to write.

@@ -242,6 +242,16 @@ function PoInner() {
   const [description, setDescription] = useState('');
   const [promisedDate, setPromisedDate] = useState('');
   const [paymentTerms, setPaymentTerms] = useState('Net 30');
+  const [paymentTermsOptions, setPaymentTermsOptions] = useState<string[]>([
+    'Net 7',
+    'Net 14',
+    'Net 30',
+    'Net 45',
+    'Net 60',
+    'COD (Cash on delivery)',
+    'CIA (Cash in advance)',
+    'On receipt',
+  ]);
   const [poCurrency, setPoCurrency] = useState('ZAR');
   const [useEscrow, setUseEscrow] = useState(false);
   const [supplierWallet, setSupplierWallet] = useState('');
@@ -255,6 +265,18 @@ function PoInner() {
   const [lineItems, setLineItems] = useState<PoLineItem[]>([
     { product_id: null, item_name: '', quantity: 1, unit_price: 0, uom: 'ea' },
   ]);
+  /** Cost centre allocation — collapsed until needed (start of process) */
+  const [costAllocOpen, setCostAllocOpen] = useState(false);
+  /** Inline add & invite supplier panel */
+  const [showAddSupplier, setShowAddSupplier] = useState(false);
+  const [addingSupplier, setAddingSupplier] = useState(false);
+  const [newSupplier, setNewSupplier] = useState({
+    trading_name: '',
+    contact_email: '',
+    contact_name: '',
+    contact_phone: '',
+    sendInvite: true,
+  });
   /** Cost centre allocation — BU / work centre / station / asset */
   const [costBuId, setCostBuId] = useState<number | null>(null);
   const [costWcId, setCostWcId] = useState<number | null>(null);
@@ -606,23 +628,35 @@ function PoInner() {
     }
     setLoading(true);
     try {
-      const [bookRes, poRes] = await Promise.all([
+      const [bookRes, poRes, settingsRes] = await Promise.all([
         fetch(`/api/suppliers?companyId=${companyId}`),
         fetch(
           `/api/suppliers/purchase-orders?companyId=${companyId}&privyUserId=${encodeURIComponent(privyUserId)}`
         ),
+        fetch(
+          `/api/business/settings?companyId=${companyId}&privyUserId=${encodeURIComponent(privyUserId)}`
+        ).catch(() => null),
       ]);
       const book = await bookRes.json();
       const pos = await poRes.json();
+      if (settingsRes && settingsRes.ok) {
+        try {
+          const sj = await settingsRes.json();
+          const { resolvePaymentTermsConfig } = await import(
+            '@/lib/business/types'
+          );
+          const cfg = resolvePaymentTermsConfig(sj.settings || {});
+          setPaymentTermsOptions(cfg.options);
+          setPaymentTerms((prev) =>
+            cfg.options.includes(prev) ? prev : cfg.defaultTerms
+          );
+        } catch {
+          /* soft */
+        }
+      }
       const list = (book.suppliers || []) as BookSupplier[];
-      // Prefer suppliers that can receive POs (linked platform profile)
-      const filtered = list.filter(
-        (s) =>
-          s.linked_profile_id ||
-          s.invite_status === 'accepted' ||
-          s.status === 'active' ||
-          s.status === 'preferred'
-      );
+      // Full book (except blocked) — unlinked still get free-text POs + invite-from-PO
+      const filtered = list.filter((s) => String(s.status || '') !== 'blocked');
       setSuppliers(filtered);
       // Preselect from ?supplierId= (network Raise PO) or ?peer= platform profile
       if (preselectSupplierId && filtered.some((s) => s.id === preselectSupplierId)) {
@@ -973,6 +1007,74 @@ function PoInner() {
    * Raise PO. Pass `mode: 'standard' | 'escrow'` to force path (avoids React state race).
    * Drafts are always standard off-chain records (no createPO tx).
    */
+  const handleAddAndInviteSupplier = async () => {
+    const name = newSupplier.trading_name.trim();
+    const email = newSupplier.contact_email.trim().toLowerCase();
+    if (!name) {
+      toast.error('Supplier trading name is required');
+      return;
+    }
+    if (newSupplier.sendInvite && !email) {
+      toast.error('Email is required to send an invite');
+      return;
+    }
+    if (!privyUserId) {
+      toast.error('Sign in required');
+      return;
+    }
+    setAddingSupplier(true);
+    try {
+      let supplierId: number | null = null;
+      if (newSupplier.sendInvite && email) {
+        const res = await withAuth('/api/suppliers/invites', {
+          method: 'POST',
+          jsonBody: {
+            trading_name: name,
+            contact_email: email,
+            contact_name: newSupplier.contact_name || null,
+            contact_phone: newSupplier.contact_phone || null,
+          },
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Invite failed');
+        supplierId = Number(
+          data.supplierId ?? data.supplier_id ?? data.supplier?.id ?? data.srm_supplier_id
+        );
+        toast.success(`Invited ${name} — they can claim and connect`);
+      } else {
+        const res = await withAuth('/api/suppliers', {
+          method: 'POST',
+          jsonBody: {
+            trading_name: name,
+            email: email || null,
+            contact_name: newSupplier.contact_name || null,
+            phone: newSupplier.contact_phone || null,
+          },
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Could not add supplier');
+        supplierId = Number(data.supplier?.id ?? data.id ?? data.supplierId);
+        toast.success(`Added ${name} to your supplier book`);
+      }
+      await load();
+      if (supplierId && Number.isFinite(supplierId)) {
+        setSelectedSrmId(supplierId);
+      }
+      setShowAddSupplier(false);
+      setNewSupplier({
+        trading_name: '',
+        contact_email: '',
+        contact_name: '',
+        contact_phone: '',
+        sendInvite: true,
+      });
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed to add supplier');
+    } finally {
+      setAddingSupplier(false);
+    }
+  };
+
   const handleRaisePO = async (
     asDraft = false,
     opts?: { mode?: 'standard' | 'escrow' }
@@ -982,11 +1084,15 @@ function PoInner() {
       return;
     }
     if (!selectedSrmId || !selectedSupplier) {
-      toast.error('Select a supplier from your network');
+      toast.error('Select a supplier — or add & invite a new one below');
       return;
     }
-    if (!selectedSupplier.linked_profile_id) {
-      toast.error('Supplier must be connected on-platform. Invite them first.');
+    const mode = opts?.mode ?? (useEscrow ? 'escrow' : 'standard');
+    const wantEscrow = escrowEnabled && mode === 'escrow' && !asDraft;
+    if (!selectedSupplier.linked_profile_id && wantEscrow) {
+      toast.error(
+        'Escrow needs a platform-linked supplier. Invite them first, or raise a standard PO.'
+      );
       return;
     }
     const validItems = lineItems.filter((i) => i.item_name.trim());
@@ -994,8 +1100,6 @@ function PoInner() {
       toast.error('Add at least one line item');
       return;
     }
-    const mode = opts?.mode ?? (useEscrow ? 'escrow' : 'standard');
-    const wantEscrow = escrowEnabled && mode === 'escrow' && !asDraft;
     if (wantEscrow) {
       if (!connectedWallet) {
         toast.error('Connect wallet for on-chain escrow');
@@ -1013,7 +1117,8 @@ function PoInner() {
         method: 'POST',
         jsonBody: {
           srmSupplierId: selectedSrmId,
-          supplierProfileId: selectedSupplier.linked_profile_id,
+          supplierProfileId: selectedSupplier.linked_profile_id || null,
+          supplier_name: selectedSupplier.trading_name || null,
           items: validItems,
           description,
           promised_date: promisedDate || null,
@@ -1533,7 +1638,17 @@ function PoInner() {
             </h2>
 
             <div>
-              <label className="text-xs font-medium">Supplier (from your network) *</label>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label className="text-xs font-medium">Supplier (from your book) *</label>
+                <button
+                  type="button"
+                  onClick={() => setShowAddSupplier((v) => !v)}
+                  className="text-[11px] font-bold text-[#00b4d8] underline inline-flex items-center gap-1"
+                >
+                  <Plus className="w-3 h-3" />
+                  {showAddSupplier ? 'Hide add form' : 'Supplier not listed? Add & invite'}
+                </button>
+              </div>
               <select
                 className="input mt-1 w-full !p-3 !text-sm"
                 value={selectedSrmId ?? ''}
@@ -1543,29 +1658,146 @@ function PoInner() {
               >
                 <option value="">Select supplier…</option>
                 {suppliers.map((s) => (
-                  <option key={s.id} value={s.id} disabled={!s.linked_profile_id}>
+                  <option key={s.id} value={s.id}>
                     {s.trading_name}
                     {!s.linked_profile_id
-                      ? ' (invite pending — not linked yet)'
+                      ? ' (book only — invite to unlock catalogue/escrow)'
                       : s.verified
                         ? ' ✓'
-                        : ''}
+                        : ' · linked'}
                   </option>
                 ))}
               </select>
-              {suppliers.length === 0 && (
+              {suppliers.length === 0 && !showAddSupplier && (
                 <p className="text-xs text-neutral-500 mt-1">
-                  No linked suppliers yet.{' '}
+                  No suppliers in your book yet. Use <strong>Add & invite</strong> above, or{' '}
                   <Link href="/dashboard/suppliers/discover" className="text-[#00b4d8] underline">
-                    Discover
+                    discover
                   </Link>{' '}
-                  or{' '}
-                  <Link href="/dashboard/suppliers/add" className="text-[#00b4d8] underline">
-                    invite
-                  </Link>
-                  .
+                  network partners.
                 </p>
               )}
+
+              {showAddSupplier && (
+                <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 space-y-3">
+                  <div>
+                    <p className="text-sm font-bold text-emerald-950">
+                      Add & invite supplier
+                    </p>
+                    <p className="text-[11px] text-emerald-900/70 mt-0.5 leading-relaxed">
+                      Creates a row in your supplier book. Optionally email an invite so they
+                      claim the profile and unlock catalogue + escrow.
+                    </p>
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-2">
+                    <div className="sm:col-span-2">
+                      <label className="text-[11px] font-medium">Trading name *</label>
+                      <input
+                        className="input mt-0.5 w-full !p-2.5 !text-sm bg-white"
+                        value={newSupplier.trading_name}
+                        onChange={(e) =>
+                          setNewSupplier((s) => ({
+                            ...s,
+                            trading_name: e.target.value,
+                          }))
+                        }
+                        placeholder="Acme Ingredients (Pty) Ltd"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-medium">
+                        Contact email {newSupplier.sendInvite ? '*' : ''}
+                      </label>
+                      <input
+                        type="email"
+                        className="input mt-0.5 w-full !p-2.5 !text-sm bg-white"
+                        value={newSupplier.contact_email}
+                        onChange={(e) =>
+                          setNewSupplier((s) => ({
+                            ...s,
+                            contact_email: e.target.value,
+                          }))
+                        }
+                        placeholder="buyer@supplier.com"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-medium">Contact name</label>
+                      <input
+                        className="input mt-0.5 w-full !p-2.5 !text-sm bg-white"
+                        value={newSupplier.contact_name}
+                        onChange={(e) =>
+                          setNewSupplier((s) => ({
+                            ...s,
+                            contact_name: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-medium">Phone</label>
+                      <input
+                        className="input mt-0.5 w-full !p-2.5 !text-sm bg-white"
+                        value={newSupplier.contact_phone}
+                        onChange={(e) =>
+                          setNewSupplier((s) => ({
+                            ...s,
+                            contact_phone: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center gap-2 sm:col-span-2">
+                      <input
+                        id="po-send-invite"
+                        type="checkbox"
+                        checked={newSupplier.sendInvite}
+                        onChange={(e) =>
+                          setNewSupplier((s) => ({
+                            ...s,
+                            sendInvite: e.target.checked,
+                          }))
+                        }
+                        className="accent-[#00b4d8]"
+                      />
+                      <label htmlFor="po-send-invite" className="text-xs text-slate-700">
+                        Send platform invite email (recommended)
+                      </label>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={addingSupplier}
+                      onClick={() => void handleAddAndInviteSupplier()}
+                      className="btn-primary !py-2 !px-4 text-xs"
+                    >
+                      {addingSupplier ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Plus className="w-3.5 h-3.5" />
+                      )}
+                      {newSupplier.sendInvite
+                        ? 'Add & send invite'
+                        : 'Add to book only'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddSupplier(false)}
+                      className="btn-secondary !py-2 !px-3 text-xs"
+                    >
+                      Cancel
+                    </button>
+                    <Link
+                      href="/dashboard/suppliers/discover"
+                      className="text-[11px] font-semibold text-slate-500 underline self-center"
+                    >
+                      Or discover on network
+                    </Link>
+                  </div>
+                </div>
+              )}
+
               {selectedSupplier && (
                 <div className="mt-3 p-3 rounded-2xl border border-[#00b4d8]/20 bg-[#00b4d8]/5">
                   <div className="text-[11px] font-bold uppercase tracking-wider text-[#0077b6] mb-1">
@@ -1793,11 +2025,30 @@ function PoInner() {
               </div>
               <div>
                 <label className="text-xs font-medium">Payment terms</label>
-                <input
+                <select
                   className="input mt-1 w-full !p-3 !text-sm"
-                  value={paymentTerms}
+                  value={
+                    paymentTermsOptions.includes(paymentTerms)
+                      ? paymentTerms
+                      : paymentTermsOptions[0] || 'Net 30'
+                  }
                   onChange={(e) => setPaymentTerms(e.target.value)}
-                />
+                >
+                  {paymentTermsOptions.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-neutral-500 mt-0.5">
+                  Options from{' '}
+                  <Link
+                    href="/dashboard/my-business/settings"
+                    className="text-[#00b4d8] underline"
+                  >
+                    Company settings
+                  </Link>
+                </p>
               </div>
               <div>
                 <label className="text-xs font-medium">PO currency *</label>
@@ -1827,19 +2078,38 @@ function PoInner() {
               />
             </div>
 
-            {/* Cost allocation — charge PO to BU / cell / station / asset */}
-            <div className="rounded-2xl border border-violet-100 bg-violet-50/40 p-4 space-y-3">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <h3 className="text-sm font-bold text-violet-950">
+            {/* Cost allocation — collapsed at start of PO process */}
+            <div className="rounded-2xl border border-violet-100 bg-violet-50/40 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setCostAllocOpen((v) => !v)}
+                className="w-full flex flex-wrap items-center justify-between gap-2 p-4 text-left hover:bg-violet-50/80 transition-colors"
+                aria-expanded={costAllocOpen}
+              >
+                <div className="min-w-0">
+                  <h3 className="text-sm font-bold text-violet-950 flex items-center gap-2">
                     Cost allocation
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-violet-700/70 normal-case">
+                      {costAllocOpen ? '· open' : '· optional · expand later'}
+                    </span>
                   </h3>
                   <p className="text-[11px] text-violet-900/70 mt-0.5 leading-relaxed">
-                    Charge this PO to a business unit, work centre, station, or
-                    asset. On complete / receive, cost entries and GL journals
-                    post with these dimensions.
+                    {costBuId || costWcId || costWsId || costAssetId
+                      ? 'Dimensions selected — expand to edit.'
+                      : 'Optional: charge this PO to a BU, cell, station, or asset after lines are set.'}
                   </p>
                 </div>
+                <span className="text-xs font-bold text-violet-800 shrink-0 px-2.5 py-1 rounded-full border border-violet-200 bg-white">
+                  {costAllocOpen ? 'Collapse' : 'Expand'}
+                </span>
+              </button>
+              {costAllocOpen && (
+              <div className="px-4 pb-4 space-y-3 border-t border-violet-100/80">
+              <div className="flex flex-wrap items-start justify-between gap-2 pt-3">
+                <p className="text-[11px] text-violet-900/70 leading-relaxed max-w-md">
+                  On complete / receive, cost entries and GL journals post with these
+                  dimensions.
+                </p>
                 <Link
                   href="/dashboard/manufacturing/cost-centres"
                   className="text-[11px] font-semibold text-violet-700 underline shrink-0"
@@ -1968,6 +2238,8 @@ function PoInner() {
                   Allocation will post on complete, receive-to-stock, or paid —
                   Dr expense · Cr AP, rolled into cost centres.
                 </p>
+              )}
+              </div>
               )}
             </div>
 

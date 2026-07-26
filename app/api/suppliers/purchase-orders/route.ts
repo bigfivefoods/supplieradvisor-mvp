@@ -247,36 +247,61 @@ export async function POST(request: NextRequest) {
       if (!supplierWallet && srm.wallet_address) supplierWallet = srm.wallet_address;
     }
 
+    // Book-only (not yet linked) allowed for draft/standard PO; escrow still needs a linked profile
+    let bookOnlyName: string | null = null;
     if (!supplierProfileId || !Number.isFinite(supplierProfileId)) {
-      return NextResponse.json(
-        {
-          error:
-            'supplierProfileId or a linked srmSupplierId is required (connect/invite the supplier first)',
-        },
-        { status: 400 }
-      );
+      if (!srmId) {
+        return NextResponse.json(
+          {
+            error:
+              'supplierProfileId or a srmSupplierId is required (add the supplier to your book first)',
+          },
+          { status: 400 }
+        );
+      }
+      if (body.useEscrow === true) {
+        return NextResponse.json(
+          {
+            error:
+              'On-chain escrow requires a platform-linked supplier. Invite them to connect first.',
+          },
+          { status: 400 }
+        );
+      }
+      // Load trading name for off-platform book PO
+      const { data: srmRow } = await supabase
+        .from('srm_suppliers')
+        .select('trading_name, email, phone, contact_name')
+        .eq('id', srmId)
+        .eq('profile_id', companyId)
+        .maybeSingle();
+      bookOnlyName = srmRow?.trading_name || null;
+      supplierProfileId = null;
     }
 
     // Prefer accepted connection in either direction; allow book-only with linked profile
-    const { data: connRows } = await supabase
-      .from('business_connections')
-      .select('id, status, metadata, connection_type')
-      .or(
-        `and(requester_profile_id.eq.${companyId},requestee_profile_id.eq.${supplierProfileId}),and(requester_profile_id.eq.${supplierProfileId},requestee_profile_id.eq.${companyId})`
-      )
-      .eq('status', 'accepted')
-      .limit(1);
-    const conn = connRows?.[0] || null;
+    let conn: { id?: number; status?: string; metadata?: unknown } | null = null;
+    if (supplierProfileId) {
+      const { data: connRows } = await supabase
+        .from('business_connections')
+        .select('id, status, metadata, connection_type')
+        .or(
+          `and(requester_profile_id.eq.${companyId},requestee_profile_id.eq.${supplierProfileId}),and(requester_profile_id.eq.${supplierProfileId},requestee_profile_id.eq.${companyId})`
+        )
+        .eq('status', 'accepted')
+        .limit(1);
+      conn = connRows?.[0] || null;
 
-    const meta =
-      conn?.metadata && typeof conn.metadata === 'object' && !Array.isArray(conn.metadata)
-        ? (conn.metadata as Record<string, unknown>)
-        : {};
-    if (meta.suspended === true || meta.suspended === 'true') {
-      return NextResponse.json(
-        { error: 'Connection is suspended — cannot raise new POs' },
-        { status: 403 }
-      );
+      const meta =
+        conn?.metadata && typeof conn.metadata === 'object' && !Array.isArray(conn.metadata)
+          ? (conn.metadata as Record<string, unknown>)
+          : {};
+      if (meta.suspended === true || meta.suspended === 'true') {
+        return NextResponse.json(
+          { error: 'Connection is suspended — cannot raise new POs' },
+          { status: 403 }
+        );
+      }
     }
 
     const normalized = normalizePoItems(body.items);
@@ -311,6 +336,7 @@ export async function POST(request: NextRequest) {
       buyer_profile_id: companyId,
       supplier_profile_id: supplierProfileId,
       supplier_id: supplierProfileId,
+      supplier_name: bookOnlyName || body.supplier_name || null,
       total_amount: normalized.total,
       subtotal: normalized.total,
       currency: body.currency ? String(body.currency) : 'ZAR',
@@ -327,6 +353,7 @@ export async function POST(request: NextRequest) {
       metadata: {
         srm: true,
         srm_supplier_id: srmId,
+        book_only: !supplierProfileId,
         connection_id: conn?.id ?? null,
         use_escrow: body.useEscrow === true,
         cost_object: hasAlloc

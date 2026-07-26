@@ -229,13 +229,47 @@ function SettingsInner() {
               <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-400">
                 Default payment terms
               </label>
-              <input
+              <select
                 className="input mt-1 w-full !p-3 !text-sm"
                 value={settings.defaultPaymentTerms}
                 onChange={(e) =>
                   setSettings({ ...settings, defaultPaymentTerms: e.target.value })
                 }
+              >
+                {(settings.paymentTermsOptions?.length
+                  ? settings.paymentTermsOptions
+                  : ['Net 30']
+                ).map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[10px] text-neutral-500 mt-1">
+                Used as the starting value when raising a PO or quote.
+              </p>
+            </div>
+            <div>
+              <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-400">
+                Payment terms options (PO dropdown)
+              </label>
+              <textarea
+                className="input mt-1 w-full !p-3 !text-sm min-h-[100px] font-mono text-xs"
+                value={(settings.paymentTermsOptions || []).join('\n')}
+                onChange={(e) =>
+                  setSettings({
+                    ...settings,
+                    paymentTermsOptions: e.target.value
+                      .split('\n')
+                      .map((l) => l.trim())
+                      .filter(Boolean),
+                  })
+                }
+                placeholder={'Net 30\nNet 60\nCOD (Cash on delivery)'}
               />
+              <p className="text-[10px] text-neutral-500 mt-1">
+                One option per line. Appears on Suppliers → Order (PO raise).
+              </p>
             </div>
             <div>
               <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-400">

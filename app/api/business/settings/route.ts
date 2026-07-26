@@ -186,6 +186,11 @@ function mergeSettings(row: {
     defaultPaymentTerms: String(
       s.defaultPaymentTerms || DEFAULT_SETTINGS.defaultPaymentTerms
     ),
+    paymentTermsOptions: Array.isArray(s.paymentTermsOptions)
+      ? (s.paymentTermsOptions as unknown[])
+          .map((x) => String(x).trim())
+          .filter(Boolean)
+      : [...DEFAULT_SETTINGS.paymentTermsOptions],
     fiscalYearStartMonth: Number(
       s.fiscalYearStartMonth ?? DEFAULT_SETTINGS.fiscalYearStartMonth
     ),
