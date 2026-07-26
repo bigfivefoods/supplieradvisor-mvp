@@ -69,21 +69,38 @@ function Inner() {
   const [hits, setHits] = useState<Array<Record<string, unknown>>>([]);
   const [addAs, setAddAs] = useState<'school' | 'sp'>('school');
   const [approveNow, setApproveNow] = useState(true);
+  const [schoolsOnSystem, setSchoolsOnSystem] = useState<
+    Array<Record<string, unknown>>
+  >([]);
+  const [spsOnSystem, setSpsOnSystem] = useState<
+    Array<Record<string, unknown>>
+  >([]);
+  const [dirFilter, setDirFilter] = useState('');
+  const [addingId, setAddingId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       if (programme.role === 'department') {
-        const [agencyRes, ispRes] = await Promise.all([
+        const [agencyRes, ispRes, candRes] = await Promise.all([
           fetch(`/api/schools/agency?companyId=${companyId}&mode=agency`, {
             cache: 'no-store',
           }),
           fetch(`/api/schools/isps?companyId=${companyId}&mode=agency`, {
             cache: 'no-store',
           }),
+          fetch('/api/schools/agency', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              companyId,
+              action: 'list_candidates',
+            }),
+          }),
         ]);
         const agencyData = await agencyRes.json();
         const ispData = await ispRes.json().catch(() => ({}));
+        const candData = await candRes.json().catch(() => ({}));
         if (!agencyRes.ok) throw new Error(agencyData.error || 'Failed');
         const schools = (agencyData.schools || []) as Array<
           Record<string, unknown>
@@ -96,6 +113,10 @@ function Inner() {
         );
         setPendingSps(ispData.pending || []);
         setActiveSps(ispData.compliant || []);
+        if (candRes.ok) {
+          setSchoolsOnSystem(candData.schools_on_system || []);
+          setSpsOnSystem(candData.sps_on_system || []);
+        }
       } else if (programme.role === 'sp') {
         const res = await fetch(
           `/api/schools/isps?companyId=${companyId}&mode=isp`,
@@ -306,18 +327,23 @@ function Inner() {
     }
   };
 
-  const addCompany = async (targetId: number) => {
+  const addCompany = async (
+    targetId: number,
+    as: 'school' | 'sp' = addAs,
+    approve: boolean = approveNow
+  ) => {
+    setAddingId(targetId);
     try {
       const res = await fetch('/api/schools/agency', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           companyId,
-          action: addAs === 'school' ? 'add_school' : 'add_sp',
-          school_company_id: addAs === 'school' ? targetId : undefined,
-          isp_profile_id: addAs === 'sp' ? targetId : undefined,
+          action: as === 'school' ? 'add_school' : 'add_sp',
+          school_company_id: as === 'school' ? targetId : undefined,
+          isp_profile_id: as === 'sp' ? targetId : undefined,
           target_company_id: targetId,
-          approve: approveNow,
+          approve,
         }),
       });
       const data = await res.json();
@@ -328,6 +354,8 @@ function Inner() {
       void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setAddingId(null);
     }
   };
 
@@ -387,6 +415,10 @@ function Inner() {
           activeSchools={activeSchools}
           pendingSps={pendingSps}
           activeSps={activeSps}
+          schoolsOnSystem={schoolsOnSystem}
+          spsOnSystem={spsOnSystem}
+          dirFilter={dirFilter}
+          setDirFilter={setDirFilter}
           searchQ={searchQ}
           setSearchQ={setSearchQ}
           searching={searching}
@@ -395,8 +427,9 @@ function Inner() {
           setAddAs={setAddAs}
           approveNow={approveNow}
           setApproveNow={setApproveNow}
+          addingId={addingId}
           onSearch={() => void runSearch()}
-          onAdd={(id) => void addCompany(id)}
+          onAdd={(id, as, approve) => void addCompany(id, as, approve)}
           onApproveSchool={approveSchool}
           onApproveSp={approveSp}
         />
@@ -418,6 +451,112 @@ function Inner() {
         />
       )}
     </SchoolsPage>
+  );
+}
+
+function CandidateList({
+  title,
+  empty,
+  rows,
+  kind,
+  addingId,
+  approveNow,
+  onAdd,
+  linkedRows,
+}: {
+  title: string;
+  empty: string;
+  rows: Array<Record<string, unknown>>;
+  kind: 'school' | 'sp';
+  addingId: number | null;
+  approveNow: boolean;
+  onAdd: (id: number, as?: 'school' | 'sp', approve?: boolean) => void;
+  linkedRows: Array<Record<string, unknown>>;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200 overflow-hidden">
+      <div
+        className={`px-4 py-2.5 text-xs font-bold uppercase flex items-center gap-1.5 ${
+          kind === 'school'
+            ? 'bg-sky-50 text-sky-900 border-b border-sky-100'
+            : 'bg-amber-50 text-amber-900 border-b border-amber-100'
+        }`}
+      >
+        {kind === 'school' ? (
+          <School className="w-3.5 h-3.5" />
+        ) : (
+          <Truck className="w-3.5 h-3.5" />
+        )}
+        {title}
+      </div>
+      <ul className="divide-y max-h-72 overflow-y-auto">
+        {rows.length === 0 ? (
+          <li className="px-4 py-6 text-sm text-slate-500">{empty}</li>
+        ) : (
+          rows.map((r) => {
+            const cid = Number(r.company_id);
+            return (
+              <li
+                key={`${kind}-${cid}`}
+                className="px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-sm"
+              >
+                <div className="min-w-0">
+                  <p className="font-semibold truncate">{String(r.name)}</p>
+                  <p className="text-[10px] text-slate-500">
+                    id {cid}
+                    {r.emis ? ` · EMIS ${String(r.emis)}` : ''}
+                    {r.province ? ` · ${String(r.province)}` : ''}
+                    {r.district ? ` · ${String(r.district)}` : ''}
+                    {r.learners != null
+                      ? ` · ${Number(r.learners)} learners`
+                      : ''}
+                    {r.compliance_status
+                      ? ` · ${String(r.compliance_status)}`
+                      : ''}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={addingId === cid}
+                  onClick={() => onAdd(cid, kind, approveNow)}
+                  className={`rounded-lg px-2.5 py-1.5 text-[11px] font-bold border ${
+                    kind === 'school'
+                      ? 'border-sky-200 bg-sky-50 text-sky-900'
+                      : 'border-amber-200 bg-amber-50 text-amber-900'
+                  }`}
+                >
+                  {addingId === cid ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : approveNow ? (
+                    'Add + approve'
+                  ) : (
+                    'Add pending'
+                  )}
+                </button>
+              </li>
+            );
+          })
+        )}
+      </ul>
+      {linkedRows.length > 0 ? (
+        <div className="border-t border-slate-100 bg-slate-50/80 px-4 py-2">
+          <p className="text-[10px] font-bold uppercase text-slate-400 mb-1">
+            Already under you ({linkedRows.length})
+          </p>
+          <ul className="text-[11px] text-slate-600 space-y-0.5 max-h-24 overflow-y-auto">
+            {linkedRows.slice(0, 40).map((r) => (
+              <li key={`lnk-${kind}-${String(r.company_id)}`}>
+                <CheckCircle2 className="w-3 h-3 inline text-emerald-600 mr-1" />
+                {String(r.name)}{' '}
+                <span className="text-slate-400">
+                  · {String(r.link_status)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -567,6 +706,10 @@ function DepartmentDesk({
   activeSchools,
   pendingSps,
   activeSps,
+  schoolsOnSystem,
+  spsOnSystem,
+  dirFilter,
+  setDirFilter,
   searchQ,
   setSearchQ,
   searching,
@@ -575,6 +718,7 @@ function DepartmentDesk({
   setAddAs,
   approveNow,
   setApproveNow,
+  addingId,
   onSearch,
   onAdd,
   onApproveSchool,
@@ -584,6 +728,10 @@ function DepartmentDesk({
   activeSchools: Array<Record<string, unknown>>;
   pendingSps: Array<Record<string, unknown>>;
   activeSps: Array<Record<string, unknown>>;
+  schoolsOnSystem: Array<Record<string, unknown>>;
+  spsOnSystem: Array<Record<string, unknown>>;
+  dirFilter: string;
+  setDirFilter: (v: string) => void;
   searchQ: string;
   setSearchQ: (v: string) => void;
   searching: boolean;
@@ -592,8 +740,9 @@ function DepartmentDesk({
   setAddAs: (v: 'school' | 'sp') => void;
   approveNow: boolean;
   setApproveNow: (v: boolean) => void;
+  addingId: number | null;
   onSearch: () => void;
-  onAdd: (id: number) => void;
+  onAdd: (id: number, as?: 'school' | 'sp', approve?: boolean) => void;
   onApproveSchool: (
     schoolProfileId: number,
     action: 'approve' | 'reject' | 'suspend'
@@ -603,17 +752,94 @@ function DepartmentDesk({
     action: 'approve_isp' | 'reject_isp' | 'suspend_isp'
   ) => void;
 }) {
+  const fq = dirFilter.trim().toLowerCase();
+  const filterRow = (name: unknown, extra = '') => {
+    if (!fq) return true;
+    return `${String(name || '')} ${extra}`.toLowerCase().includes(fq);
+  };
+  const schoolAvail = schoolsOnSystem.filter(
+    (s) => !s.already_linked && filterRow(s.name, `${s.province || ''} ${s.district || ''} ${s.emis || ''}`)
+  );
+  const schoolLinked = schoolsOnSystem.filter(
+    (s) => s.already_linked && filterRow(s.name, `${s.province || ''}`)
+  );
+  const spAvail = spsOnSystem.filter(
+    (s) => !s.already_linked && filterRow(s.name, `${s.province || ''} ${s.city || ''}`)
+  );
+  const spLinked = spsOnSystem.filter(
+    (s) => s.already_linked && filterRow(s.name, `${s.province || ''}`)
+  );
+
   return (
     <div className="space-y-4">
+      {/* Quick pick: schools & SPs already on the platform */}
+      <div className="rounded-3xl border-2 border-sky-100 bg-white p-5 space-y-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-black flex items-center gap-2">
+              <School className="w-4 h-4 text-sky-600" />
+              Schools &amp; SPs already on the system
+            </h3>
+            <p className="text-[11px] text-slate-600 mt-0.5">
+              One-click add under your department. Toggle approve immediately
+              below, or leave pending for later.
+            </p>
+          </div>
+          <label className="text-xs min-w-[12rem]">
+            <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+              Filter list
+            </span>
+            <input
+              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+              value={dirFilter}
+              onChange={(e) => setDirFilter(e.target.value)}
+              placeholder="Name, province, EMIS…"
+            />
+          </label>
+        </div>
+
+        <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+          <input
+            type="checkbox"
+            checked={approveNow}
+            onChange={(e) => setApproveNow(e.target.checked)}
+          />
+          Approve immediately when adding
+        </label>
+
+        <div className="grid lg:grid-cols-2 gap-4">
+          <CandidateList
+            title={`Schools on platform · ${schoolAvail.length} available`}
+            empty="No school companies found yet."
+            rows={schoolAvail}
+            kind="school"
+            addingId={addingId}
+            approveNow={approveNow}
+            onAdd={onAdd}
+            linkedRows={schoolLinked}
+          />
+          <CandidateList
+            title={`SPs on platform · ${spAvail.length} available`}
+            empty="No SP companies found yet."
+            rows={spAvail}
+            kind="sp"
+            addingId={addingId}
+            approveNow={approveNow}
+            onAdd={onAdd}
+            linkedRows={spLinked}
+          />
+        </div>
+      </div>
+
       {/* Add by search */}
       <div className="rounded-3xl border-2 border-violet-100 bg-gradient-to-br from-violet-50 to-white p-5">
         <h3 className="text-sm font-black flex items-center gap-2 mb-1">
           <Plus className="w-4 h-4 text-violet-700" />
-          Add a school or SP
+          Search any company
         </h3>
         <p className="text-[11px] text-slate-600 mb-3">
-          Search any company on SupplierAdvisor by name or company id, then add
-          them under your department.
+          Or find a company by name / id if they are not listed above (e.g.
+          not yet tagged as school or SP).
         </p>
         <div className="flex flex-wrap gap-2 items-end mb-3">
           <label className="text-xs flex-1 min-w-[12rem]">
@@ -707,11 +933,18 @@ function DepartmentDesk({
                   ) : (
                     <button
                       type="button"
-                      onClick={() => onAdd(Number(c.id))}
+                      disabled={addingId === Number(c.id)}
+                      onClick={() => onAdd(Number(c.id), addAs, approveNow)}
                       className="btn-primary !py-1.5 !px-3 text-xs"
                     >
-                      Add as {addAs === 'school' ? 'school' : 'SP'}
-                      {approveNow ? ' · approve' : ' · pending'}
+                      {addingId === Number(c.id) ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin inline" />
+                      ) : (
+                        <>
+                          Add as {addAs === 'school' ? 'school' : 'SP'}
+                          {approveNow ? ' · approve' : ' · pending'}
+                        </>
+                      )}
                     </button>
                   )}
                 </li>

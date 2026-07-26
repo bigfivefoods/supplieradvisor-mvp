@@ -717,6 +717,253 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Directory of all schools & SPs already on the platform (fast add)
+    if (action === 'list_candidates') {
+      const { data: agencyGate } = await supabase
+        .from('nsnp_agency_profiles')
+        .select('profile_id, agency_name')
+        .eq('profile_id', companyId)
+        .maybeSingle();
+      if (!agencyGate) {
+        return NextResponse.json(
+          { error: 'Only a registered department can list candidates' },
+          { status: 403 }
+        );
+      }
+
+      // Schools on system
+      const { data: schoolRows } = await supabase
+        .from('school_profiles')
+        .select(
+          'id, profile_id, school_name, emis_number, province, district, member_type, status, learner_count_enrolled'
+        )
+        .order('school_name')
+        .limit(500);
+
+      const schoolCompanyIds = [
+        ...new Set(
+          (schoolRows || [])
+            .map((s) => Number(s.profile_id))
+            .filter((n) => Number.isFinite(n) && n > 0 && n !== companyId)
+        ),
+      ];
+
+      // Also profiles typed as school/hospital without school_profiles yet
+      const { data: schoolishProfiles } = await supabase
+        .from('profiles')
+        .select('id, trading_name, legal_name, org_type, business_type, city, province')
+        .or(
+          'org_type.eq.school,org_type.eq.hospital,business_type.eq.school,business_type.ilike.%school%,business_type.ilike.%hospital%,business_type.ilike.%clinic%'
+        )
+        .limit(300);
+
+      // SPs on system
+      const { data: ispRows } = await supabase
+        .from('nsnp_isp_profiles')
+        .select(
+          'profile_id, trading_name, compliance_status, provinces, food_handling_cert'
+        )
+        .order('trading_name')
+        .limit(500);
+
+      const ispIds = [
+        ...new Set(
+          (ispRows || [])
+            .map((i) => Number(i.profile_id))
+            .filter((n) => Number.isFinite(n) && n > 0 && n !== companyId)
+        ),
+      ];
+
+      const { data: spishProfiles } = await supabase
+        .from('profiles')
+        .select('id, trading_name, legal_name, org_type, business_type, city, province')
+        .or(
+          'org_type.eq.nsnp_isp,business_type.eq.nsnp_isp,business_type.ilike.%service provider%,business_type.ilike.%isp%'
+        )
+        .limit(300);
+
+      // Names for school companies
+      const allCompanyIds = [
+        ...new Set([
+          ...schoolCompanyIds,
+          ...ispIds,
+          ...(schoolishProfiles || []).map((p) => Number(p.id)),
+          ...(spishProfiles || []).map((p) => Number(p.id)),
+        ]),
+      ].filter((n) => n !== companyId);
+
+      const nameById: Record<
+        number,
+        { trading_name?: string; legal_name?: string; city?: string; province?: string; org_type?: string; business_type?: string }
+      > = {};
+      for (let i = 0; i < allCompanyIds.length; i += 100) {
+        const chunk = allCompanyIds.slice(i, i + 100);
+        const { data: profs } = await supabase
+          .from('profiles')
+          .select(
+            'id, trading_name, legal_name, city, province, org_type, business_type'
+          )
+          .in('id', chunk);
+        for (const p of profs || []) {
+          nameById[Number(p.id)] = p as (typeof nameById)[number];
+        }
+      }
+
+      // Existing links to this agency
+      const schoolProfileIds = (schoolRows || []).map((s) => Number(s.id));
+      const schoolLinkBySid = new Map<
+        number,
+        { status: string; link_id: number }
+      >();
+      if (schoolProfileIds.length) {
+        const { data: sl } = await supabase
+          .from('school_agency_links')
+          .select('id, school_profile_id, status')
+          .eq('agency_profile_id', companyId)
+          .in('school_profile_id', schoolProfileIds)
+          .in('status', ['pending', 'active', 'suspended']);
+        for (const l of sl || []) {
+          schoolLinkBySid.set(Number(l.school_profile_id), {
+            status: String(l.status),
+            link_id: Number(l.id),
+          });
+        }
+      }
+
+      const ispLinkById = new Map<
+        number,
+        { status: string; link_id: number }
+      >();
+      if (ispIds.length) {
+        const { data: il } = await supabase
+          .from('nsnp_isp_agency_links')
+          .select('id, isp_profile_id, status')
+          .eq('agency_profile_id', companyId)
+          .in('isp_profile_id', ispIds)
+          .in('status', ['pending', 'active', 'suspended', 'rejected']);
+        for (const l of il || []) {
+          ispLinkById.set(Number(l.isp_profile_id), {
+            status: String(l.status),
+            link_id: Number(l.id),
+          });
+        }
+      }
+
+      const schoolsOnSystem = (schoolRows || [])
+        .filter((s) => Number(s.profile_id) !== companyId)
+        .map((s) => {
+          const cid = Number(s.profile_id);
+          const prof = nameById[cid] || {};
+          const link = schoolLinkBySid.get(Number(s.id));
+          return {
+            company_id: cid,
+            school_profile_id: Number(s.id),
+            name:
+              String(s.school_name || '') ||
+              prof.trading_name ||
+              prof.legal_name ||
+              `School ${s.id}`,
+            emis: s.emis_number,
+            province: s.province || prof.province || null,
+            district: s.district || null,
+            city: prof.city || null,
+            member_type: s.member_type || 'school',
+            learners: s.learner_count_enrolled,
+            link_status: link?.status || null,
+            link_id: link?.link_id || null,
+            already_linked: Boolean(
+              link && ['pending', 'active'].includes(link.status)
+            ),
+          };
+        });
+
+      // Profiles typed school without school_profiles row
+      const schoolProfileSet = new Set(schoolCompanyIds);
+      for (const p of schoolishProfiles || []) {
+        const cid = Number(p.id);
+        if (cid === companyId || schoolProfileSet.has(cid)) continue;
+        schoolProfileSet.add(cid);
+        schoolsOnSystem.push({
+          company_id: cid,
+          school_profile_id: 0,
+          name: p.trading_name || p.legal_name || `Company ${cid}`,
+          emis: null,
+          province: p.province || null,
+          district: null,
+          city: p.city || null,
+          member_type: 'school',
+          learners: null,
+          link_status: null,
+          link_id: null,
+          already_linked: false,
+        });
+      }
+
+      const spsOnSystem = (ispRows || [])
+        .filter((i) => Number(i.profile_id) !== companyId)
+        .map((i) => {
+          const cid = Number(i.profile_id);
+          const prof = nameById[cid] || {};
+          const link = ispLinkById.get(cid);
+          return {
+            company_id: cid,
+            name:
+              i.trading_name ||
+              prof.trading_name ||
+              prof.legal_name ||
+              `SP ${cid}`,
+            province:
+              Array.isArray(i.provinces) && i.provinces.length
+                ? (i.provinces as string[]).join(', ')
+                : prof.province || null,
+            city: prof.city || null,
+            compliance_status: i.compliance_status,
+            food_handling_cert: i.food_handling_cert,
+            link_status: link?.status || null,
+            link_id: link?.link_id || null,
+            already_linked: Boolean(
+              link && ['pending', 'active'].includes(link.status)
+            ),
+          };
+        });
+
+      const ispSet = new Set(ispIds);
+      for (const p of spishProfiles || []) {
+        const cid = Number(p.id);
+        if (cid === companyId || ispSet.has(cid)) continue;
+        ispSet.add(cid);
+        spsOnSystem.push({
+          company_id: cid,
+          name: p.trading_name || p.legal_name || `Company ${cid}`,
+          province: p.province || null,
+          city: p.city || null,
+          compliance_status: null,
+          food_handling_cert: null,
+          link_status: null,
+          link_id: null,
+          already_linked: false,
+        });
+      }
+
+      schoolsOnSystem.sort((a, b) =>
+        String(a.name).localeCompare(String(b.name))
+      );
+      spsOnSystem.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+
+      return NextResponse.json({
+        success: true,
+        schools_on_system: schoolsOnSystem,
+        sps_on_system: spsOnSystem,
+        summary: {
+          schools_total: schoolsOnSystem.length,
+          schools_available: schoolsOnSystem.filter((s) => !s.already_linked)
+            .length,
+          sps_total: spsOnSystem.length,
+          sps_available: spsOnSystem.filter((s) => !s.already_linked).length,
+        },
+      });
+    }
+
     // Agency searches companies to add as school or SP
     if (action === 'search_companies') {
       const q = String(body.q || body.query || '')
