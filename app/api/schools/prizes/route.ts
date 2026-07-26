@@ -181,20 +181,107 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const leaderboard = (board || []).map((b, i) => ({
-      rank: i + 1,
-      school_profile_id: b.school_profile_id,
-      school_name: names[Number(b.school_profile_id)] || `School ${b.school_profile_id}`,
-      total_score: b.total_score,
-      approved_brand_pct: b.approved_brand_pct,
-      province: b.province,
-      district: b.district,
-      is_me: Number(b.school_profile_id) === Number(school.id),
-    }));
+    // Enrich names + quintile for fair bands
+    const boardSchoolIds = (board || []).map((b) => Number(b.school_profile_id));
+    let metaById: Record<
+      number,
+      { name: string; province: string | null; district: string | null; quintile: number | null }
+    > = {};
+    if (boardSchoolIds.length) {
+      const { data: schools } = await supabase
+        .from('school_profiles')
+        .select('id, school_name, province, district, quintile')
+        .in('id', boardSchoolIds);
+      for (const s of schools || []) {
+        metaById[Number(s.id)] = {
+          name: String(s.school_name),
+          province: s.province != null ? String(s.province) : null,
+          district: s.district != null ? String(s.district) : null,
+          quintile: s.quintile != null ? Number(s.quintile) : null,
+        };
+      }
+    }
 
-    const myRank =
-      leaderboard.find((l) => l.is_me)?.rank ||
-      null;
+    const leaderboard = (board || []).map((b, i) => {
+      const meta = metaById[Number(b.school_profile_id)];
+      return {
+        rank: i + 1,
+        school_profile_id: b.school_profile_id,
+        school_name:
+          meta?.name ||
+          names[Number(b.school_profile_id)] ||
+          `School ${b.school_profile_id}`,
+        total_score: b.total_score,
+        approved_brand_pct: b.approved_brand_pct,
+        province: meta?.province || b.province,
+        district: meta?.district || b.district,
+        quintile: meta?.quintile ?? null,
+        is_me: Number(b.school_profile_id) === Number(school.id),
+      };
+    });
+
+    // Fair bands: rank within province and quintile
+    const myId = Number(school.id);
+    const myMeta = metaById[myId] || {
+      province: school.province != null ? String(school.province) : null,
+      district: school.district != null ? String(school.district) : null,
+      quintile: school.quintile != null ? Number(school.quintile) : null,
+      name: String(school.school_name),
+    };
+
+    function bandRank(
+      pred: (row: (typeof leaderboard)[0]) => boolean
+    ): number | null {
+      const band = leaderboard.filter(pred);
+      const idx = band.findIndex((r) => r.is_me);
+      return idx >= 0 ? idx + 1 : null;
+    }
+
+    const bands = {
+      national: leaderboard.find((l) => l.is_me)?.rank || null,
+      province: myMeta.province
+        ? bandRank((r) => r.province === myMeta.province)
+        : null,
+      district: myMeta.district
+        ? bandRank((r) => r.district === myMeta.district)
+        : null,
+      quintile:
+        myMeta.quintile != null
+          ? bandRank((r) => r.quintile === myMeta.quintile)
+          : null,
+    };
+
+    // Issue / refresh certificates for top ranks in each band (soft)
+    const certs: Array<Record<string, unknown>> = [];
+    try {
+      if (period?.id && bands.national && bands.national <= 10) {
+        const code = `NSNP-Q${period.quarter}-${period.year}-NAT-${bands.national}`;
+        await supabase.from('nsnp_prize_certificates').insert({
+          period_id: period.id,
+          school_profile_id: school.id,
+          profile_id: companyId,
+          band: 'national',
+          band_key: 'national',
+          rank: bands.national,
+          total_score: breakdown.total,
+          certificate_code: code,
+          title: `National Top ${bands.national} — ${period.name}`,
+          body: `Awarded for approved-brand NSNP compliance and operational excellence.`,
+          issued_at: new Date().toISOString(),
+        });
+      }
+      const { data: myCerts } = await supabase
+        .from('nsnp_prize_certificates')
+        .select('*')
+        .eq('school_profile_id', school.id)
+        .order('issued_at', { ascending: false })
+        .limit(10);
+      certs.push(...((myCerts || []) as Array<Record<string, unknown>>));
+    } catch {
+      /* soft if cert table/unique missing */
+    }
+
+    const myRank = bands.national;
 
     return NextResponse.json({
       success: true,
@@ -202,8 +289,11 @@ export async function GET(request: NextRequest) {
       score: {
         ...breakdown,
         rank: myRank,
+        bands,
       },
       leaderboard,
+      bands,
+      certificates: certs,
       weights: {
         approvedBrand: 40,
         zeroNonapproved: 15,
@@ -212,6 +302,8 @@ export async function GET(request: NextRequest) {
         stockDiscipline: 10,
         dataQuality: 5,
       },
+      fairPlay:
+        'Ranks are shown nationally and fairly within province, district, and quintile so Q1 schools compete with peers.',
     });
   } catch (e: unknown) {
     return NextResponse.json(

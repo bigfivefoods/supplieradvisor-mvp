@@ -34,6 +34,9 @@ function Inner() {
     }>
   >([]);
   const [weights, setWeights] = useState<Record<string, number>>({});
+  const [bands, setBands] = useState<Record<string, number | null>>({});
+  const [certs, setCerts] = useState<Array<Record<string, unknown>>>([]);
+  const [fairPlay, setFairPlay] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -48,6 +51,9 @@ function Inner() {
       setScore(data.score || null);
       setBoard(data.leaderboard || []);
       setWeights(data.weights || {});
+      setBands(data.bands || data.score?.bands || {});
+      setCerts(data.certificates || []);
+      setFairPlay(String(data.fairPlay || ''));
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Load failed');
     } finally {
@@ -108,12 +114,20 @@ function Inner() {
               </p>
               <p className="text-sm text-slate-600">
                 {score?.rank
-                  ? `National rank #${score.rank}`
+                  ? `National #${score.rank}`
                   : 'Score out of 100'}
+                {bands.province != null ? ` · Province #${bands.province}` : ''}
+                {bands.quintile != null ? ` · Quintile #${bands.quintile}` : ''}
+                {bands.district != null ? ` · District #${bands.district}` : ''}
                 {' · '}
                 {String(period?.starts_on || '')} →{' '}
                 {String(period?.ends_on || '')}
               </p>
+              {fairPlay ? (
+                <p className="text-[11px] text-amber-900/80 mt-1 max-w-md">
+                  {fairPlay}
+                </p>
+              ) : null}
             </div>
             <div className="ml-auto grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
               {(

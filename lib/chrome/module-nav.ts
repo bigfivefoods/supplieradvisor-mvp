@@ -408,6 +408,11 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         desc: 'NSNP command tower',
       },
       {
+        name: 'Serve day',
+        href: '/dashboard/schools/serve-day',
+        desc: 'Daily kitchen feed mode',
+      },
+      {
         name: 'School',
         href: '/dashboard/schools/profile',
         desc: 'EMIS, map, kitchen',
@@ -418,6 +423,11 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         desc: 'Import & verify learners',
       },
       {
+        name: 'EMIS',
+        href: '/dashboard/schools/emis',
+        desc: 'EMIS snapshot & attest',
+      },
+      {
         name: 'Staff',
         href: '/dashboard/schools/staff',
         desc: 'Teachers & kitchen staff',
@@ -425,7 +435,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       {
         name: 'Approved',
         href: '/dashboard/schools/approved-list',
-        desc: 'Edit strict NSNP brand list',
+        desc: 'DBE approved foods list',
       },
       {
         name: 'Menu',
@@ -435,17 +445,27 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       {
         name: 'DBE',
         href: '/dashboard/schools/agency',
-        desc: 'Join / approve DBE associations',
+        desc: 'Join / approve associations',
       },
       {
         name: 'Agency pack',
         href: '/dashboard/schools/agency-report',
-        desc: 'DBE multi-school programme reports',
+        desc: 'Multi-school programme reports',
+      },
+      {
+        name: 'Visits',
+        href: '/dashboard/schools/visits',
+        desc: 'PEU monitor field visits',
       },
       {
         name: 'ISPs',
         href: '/dashboard/schools/isps',
         desc: 'Compliant service providers',
+      },
+      {
+        name: 'ISP SLA',
+        href: '/dashboard/schools/isp-sla',
+        desc: 'Delivery & brand compliance',
       },
       {
         name: 'Order',
@@ -468,6 +488,11 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         desc: 'Learners present',
       },
       {
+        name: 'Claims',
+        href: '/dashboard/schools/claims',
+        desc: 'Cost/meal & funding pack',
+      },
+      {
         name: 'Compliance',
         href: '/dashboard/schools/compliance',
         desc: 'Hygiene, incidents, docs',
@@ -475,7 +500,12 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       {
         name: 'Prizes',
         href: '/dashboard/schools/prizes',
-        desc: 'Headmaster prize scorecard',
+        desc: 'Fair quarterly prizes',
+      },
+      {
+        name: 'Audit',
+        href: '/dashboard/schools/audit',
+        desc: 'Hashed evidence packs',
       },
       {
         name: 'Report',

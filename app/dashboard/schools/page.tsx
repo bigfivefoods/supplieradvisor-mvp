@@ -112,11 +112,11 @@ function Inner() {
       sub: `${kpis?.verifyPct ?? 0}% verified`,
     },
     {
-      href: '/dashboard/schools/feeding',
+      href: '/dashboard/schools/serve-day',
       icon: UtensilsCrossed,
-      label: 'Meals served',
-      value: kpis?.mealsServed ?? '—',
-      sub: 'Period to date',
+      label: 'Serve day',
+      value: 'Today',
+      sub: 'Kitchen feed mode',
     },
     {
       href: '/dashboard/schools/kitchen',
@@ -219,34 +219,49 @@ function Inner() {
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {[
               {
-                href: '/dashboard/schools/profile',
-                label: 'School profile & map pin',
-                desc: 'EMIS, GPS, principal, kitchen flags',
+                href: '/dashboard/schools/serve-day',
+                label: 'Serve day (W1)',
+                desc: 'Menu → present → meals → waste in one tap flow',
               },
               {
-                href: '/dashboard/schools/learners',
-                label: 'Import & verify learners',
-                desc: 'Excel-compatible CSV template',
+                href: '/dashboard/schools/visits',
+                label: 'PEU visits (W1)',
+                desc: 'Field monitor checklist for approved schools',
               },
               {
-                href: '/dashboard/schools/approved-list',
-                label: 'Edit approved brands',
-                desc: 'Add / edit / deactivate catalogue',
+                href: '/dashboard/schools/claims',
+                label: 'Claims & cost (W2)',
+                desc: 'Cost per meal + funding pack CSV',
               },
               {
-                href: '/dashboard/schools/menu',
-                label: 'School menu cycle',
-                desc: 'Weekly dishes linked to approved products',
+                href: '/dashboard/schools/isp-sla',
+                label: 'ISP SLA (W3)',
+                desc: 'Delivery quality & brand compliance',
+              },
+              {
+                href: '/dashboard/schools/emis',
+                label: 'EMIS attest (W4)',
+                desc: 'Grade headcounts + term attestation',
+              },
+              {
+                href: '/dashboard/schools/audit',
+                label: 'Audit pack (W5)',
+                desc: 'Hashed evidence + public transparency',
               },
               {
                 href: '/dashboard/schools/agency',
                 label: 'Join DBE / PEU',
-                desc: 'Associate with government agency',
+                desc: 'Approve associations',
               },
               {
-                href: '/dashboard/schools/report',
-                label: 'Slice & dice reports',
-                desc: 'Meals, stock, compliance, district',
+                href: '/dashboard/schools/agency-report',
+                label: 'Agency pack',
+                desc: 'Multi-school heatmaps & risks',
+              },
+              {
+                href: '/dashboard/schools/prizes',
+                label: 'Fair prizes',
+                desc: 'National / province / quintile ranks',
               },
             ].map((x) => (
               <Link
