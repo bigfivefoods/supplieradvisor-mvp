@@ -83,15 +83,16 @@ export async function POST(request: NextRequest) {
 
     const items = Array.isArray(body.items) ? body.items : [];
     // Validate approved_product_ids if present
-    const productIds = [
+    const productIds: number[] = [
       ...new Set(
-        items.flatMap((it: { approved_product_ids?: number[] }) =>
-          Array.isArray(it.approved_product_ids)
-            ? it.approved_product_ids.map(Number)
-            : []
-        )
+        items.flatMap((it: { approved_product_ids?: unknown }) => {
+          if (!Array.isArray(it?.approved_product_ids)) return [] as number[];
+          return it.approved_product_ids
+            .map((x) => Number(x))
+            .filter((n): n is number => Number.isFinite(n) && n > 0);
+        })
       ),
-    ].filter((n) => Number.isFinite(n) && n > 0);
+    ];
 
     if (productIds.length) {
       const { data: approved } = await supabase
