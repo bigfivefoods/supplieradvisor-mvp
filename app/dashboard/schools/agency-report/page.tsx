@@ -29,6 +29,7 @@ import {
 
 const REPORTS = [
   { id: 'overview', label: 'Overview' },
+  { id: 'claims', label: 'Claims inbox' },
   { id: 'members', label: 'Organisations' },
   { id: 'province', label: 'By province' },
   { id: 'district', label: 'By district' },
@@ -137,9 +138,37 @@ function Inner() {
     waste: number;
   }>;
   const risks = (data?.risks || {}) as Record<string, Member[]>;
+  const claims = (data?.claims || []) as Array<Record<string, unknown>>;
+  const claimsInbox = (data?.claimsInbox || []) as Array<
+    Record<string, unknown>
+  >;
   const facets = (data?.facets || { provinces: [], districts: [] }) as {
     provinces: string[];
     districts: string[];
+  };
+
+  const reviewClaim = async (
+    claimId: number,
+    status: 'approved' | 'rejected' | 'paid'
+  ) => {
+    try {
+      const res = await fetch('/api/schools/agency', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          action: 'review_claim',
+          claim_id: claimId,
+          status,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Review failed');
+      toast.success(`Claim ${status}`);
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    }
   };
 
   const filteredMembers = useMemo(() => {
@@ -341,6 +370,13 @@ function Inner() {
             />
             <Kpi
               icon={Wallet}
+              label="Claims inbox"
+              value={String(k.submittedClaims ?? claimsInbox.length ?? 0)}
+              sub={`${k.totalClaims ?? claims.length} total packs`}
+              tone="amber"
+            />
+            <Kpi
+              icon={Wallet}
               label="PO spend"
               value={formatMoney(Number(k.poSpend || 0))}
               sub={`${k.poCount ?? 0} orders`}
@@ -365,6 +401,122 @@ function Inner() {
               sub={`${k.totalStaff ?? 0} staff on books`}
             />
           </div>
+
+          {(report === 'claims' ||
+            (report === 'overview' && claimsInbox.length > 0)) && (
+            <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden mb-6">
+              <div className="px-5 py-3 border-b text-xs font-bold uppercase text-slate-500 flex items-center justify-between gap-2">
+                <span className="inline-flex items-center gap-2">
+                  <Wallet className="w-4 h-4 text-emerald-600" />
+                  {report === 'claims'
+                    ? 'All claim packs'
+                    : `Claims awaiting review (${claimsInbox.length})`}
+                </span>
+                {report !== 'claims' ? (
+                  <button
+                    type="button"
+                    onClick={() => setReport('claims')}
+                    className="text-[11px] font-bold text-[#0077b6]"
+                  >
+                    Full inbox →
+                  </button>
+                ) : null}
+              </div>
+              <table className="w-full text-sm min-w-[720px]">
+                <thead>
+                  <tr className="border-b text-left text-[10px] font-bold uppercase text-slate-400">
+                    <th className="px-4 py-3">School</th>
+                    <th className="px-3 py-3">Period</th>
+                    <th className="px-3 py-3 text-right">Meals</th>
+                    <th className="px-3 py-3 text-right">Claim</th>
+                    <th className="px-3 py-3">Status</th>
+                    <th className="px-3 py-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(report === 'claims' ? claims : claimsInbox).length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={6}
+                        className="px-4 py-10 text-center text-slate-500"
+                      >
+                        No claim packs yet. Schools submit under Claims after
+                        serve-day logging.
+                      </td>
+                    </tr>
+                  ) : (
+                    (report === 'claims' ? claims : claimsInbox).map((c) => (
+                      <tr
+                        key={String(c.id)}
+                        className="border-b border-slate-50"
+                      >
+                        <td className="px-4 py-3 font-semibold">
+                          {String(c.school_name || 'School')}
+                        </td>
+                        <td className="px-3 py-3 text-xs text-slate-600">
+                          {String(c.period_from)} → {String(c.period_to)}
+                        </td>
+                        <td className="px-3 py-3 text-right tabular-nums font-bold">
+                          {String(c.meals_served ?? '—')}
+                        </td>
+                        <td className="px-3 py-3 text-right tabular-nums font-bold">
+                          {formatMoney(Number(c.claim_amount || 0))}
+                        </td>
+                        <td className="px-3 py-3 capitalize text-xs font-bold">
+                          {String(c.status)}
+                        </td>
+                        <td className="px-3 py-3 text-right">
+                          {c.status === 'submitted' ? (
+                            <div className="inline-flex gap-1">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void reviewClaim(Number(c.id), 'approved')
+                                }
+                                className="text-[10px] font-bold px-2 py-1 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void reviewClaim(Number(c.id), 'paid')
+                                }
+                                className="text-[10px] font-bold px-2 py-1 rounded-md bg-sky-50 text-sky-800 border border-sky-200"
+                              >
+                                Paid
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void reviewClaim(Number(c.id), 'rejected')
+                                }
+                                className="text-[10px] font-bold px-2 py-1 rounded-md bg-rose-50 text-rose-800 border border-rose-200"
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          ) : c.status === 'approved' ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void reviewClaim(Number(c.id), 'paid')
+                              }
+                              className="text-[10px] font-bold px-2 py-1 rounded-md bg-sky-50 text-sky-800 border border-sky-200"
+                            >
+                              Mark paid
+                            </button>
+                          ) : (
+                            <span className="text-[10px] text-slate-400">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           {(report === 'overview' || report === 'members') && (
             <MemberTable members={filteredMembers} />

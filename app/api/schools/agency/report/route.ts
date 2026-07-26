@@ -514,6 +514,41 @@ export async function GET(request: NextRequest) {
       ),
     ].sort();
 
+    // Claims inbox for agency review (submitted → approve/reject/paid)
+    const { data: claimRows } = await supabase
+      .from('nsnp_claim_packs')
+      .select(
+        'id, school_profile_id, period_from, period_to, meals_served, days_fed, claim_amount, food_spend, cost_per_meal, approved_brand_pct, status, created_at, pack_json'
+      )
+      .eq('agency_profile_id', companyId)
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    const claimSchoolIds = [
+      ...new Set(
+        (claimRows || []).map((c) => Number(c.school_profile_id)).filter(Boolean)
+      ),
+    ];
+    const claimSchoolNames: Record<number, string> = {};
+    if (claimSchoolIds.length) {
+      const { data: sch } = await supabase
+        .from('school_profiles')
+        .select('id, school_name, emis_number, province, district')
+        .in('id', claimSchoolIds);
+      for (const s of sch || []) {
+        claimSchoolNames[Number(s.id)] = String(s.school_name || `School ${s.id}`);
+      }
+    }
+    const claims = (claimRows || []).map((c) => ({
+      ...c,
+      school_name:
+        claimSchoolNames[Number(c.school_profile_id)] ||
+        `School ${c.school_profile_id}`,
+    }));
+    const claimsInbox = claims.filter((c) => c.status === 'submitted');
+    (kpis as Record<string, number>).submittedClaims = claimsInbox.length;
+    (kpis as Record<string, number>).totalClaims = claims.length;
+
     return NextResponse.json({
       success: true,
       period: { from, to },
@@ -532,6 +567,8 @@ export async function GET(request: NextRequest) {
       prizeLeaderboard,
       feedingTrend,
       risks,
+      claims,
+      claimsInbox,
       facets: { provinces, districts },
       // Future: hospitals / other orgs join same association pattern
       memberTypesSupported: ['school', 'hospital', 'organisation'],

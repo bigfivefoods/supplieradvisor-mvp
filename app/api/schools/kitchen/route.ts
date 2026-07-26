@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error || 'No school' }, { status: 503 });
     }
 
-    const [stockRes, receiptsRes] = await Promise.all([
+    const [stockRes, receiptsRes, ordersRes] = await Promise.all([
       supabase
         .from('school_kitchen_stock')
         .select('*')
@@ -41,6 +41,21 @@ export async function GET(request: NextRequest) {
         .eq('school_profile_id', school.id)
         .order('created_at', { ascending: false })
         .limit(100),
+      supabase
+        .from('school_purchase_orders')
+        .select(
+          'id, po_number, status, order_date, expected_date, total_amount, lines, isp_profile_id, compliance_ok'
+        )
+        .eq('school_profile_id', school.id)
+        .in('status', [
+          'draft',
+          'submitted',
+          'confirmed',
+          'open',
+          'partially_received',
+        ])
+        .order('created_at', { ascending: false })
+        .limit(50),
     ]);
 
     return NextResponse.json({
@@ -48,7 +63,11 @@ export async function GET(request: NextRequest) {
       school,
       stock: stockRes.data || [],
       receipts: receiptsRes.data || [],
-      warning: stockRes.error?.message || receiptsRes.error?.message,
+      openOrders: ordersRes.data || [],
+      warning:
+        stockRes.error?.message ||
+        receiptsRes.error?.message ||
+        ordersRes.error?.message,
     });
   } catch (e: unknown) {
     return NextResponse.json(
@@ -152,27 +171,64 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const { data: receipt, error: rErr } = await supabase
+      const poId = body.po_id != null ? Number(body.po_id) : null;
+      let poIsp: number | null = body.isp_profile_id
+        ? Number(body.isp_profile_id)
+        : null;
+
+      // Load PO for ISP + status update
+      let po: Record<string, unknown> | null = null;
+      if (poId && Number.isFinite(poId)) {
+        const { data: poRow } = await supabase
+          .from('school_purchase_orders')
+          .select('*')
+          .eq('id', poId)
+          .eq('school_profile_id', schoolId)
+          .maybeSingle();
+        po = poRow;
+        if (po?.isp_profile_id && !poIsp) {
+          poIsp = Number(po.isp_profile_id);
+        }
+      }
+
+      const receiptPayload: Record<string, unknown> = {
+        school_profile_id: schoolId,
+        profile_id: companyId,
+        isp_profile_id: poIsp,
+        receipt_number:
+          body.receipt_number ||
+          `GRN-${Date.now().toString(36).toUpperCase()}`,
+        received_at:
+          body.received_at || new Date().toISOString().slice(0, 10),
+        status: 'posted',
+        compliance_ok: allApproved,
+        lines: approvedLines,
+        notes: body.notes || null,
+        created_by: gate.userId || null,
+      };
+      if (poId && Number.isFinite(poId)) {
+        receiptPayload.po_id = poId;
+        receiptPayload.purchase_order_id = poId;
+      }
+
+      let { data: receipt, error: rErr } = await supabase
         .from('school_kitchen_receipts')
-        .insert({
-          school_profile_id: schoolId,
-          profile_id: companyId,
-          isp_profile_id: body.isp_profile_id
-            ? Number(body.isp_profile_id)
-            : null,
-          receipt_number:
-            body.receipt_number ||
-            `GRN-${Date.now().toString(36).toUpperCase()}`,
-          received_at:
-            body.received_at || new Date().toISOString().slice(0, 10),
-          status: 'posted',
-          compliance_ok: allApproved,
-          lines: approvedLines,
-          notes: body.notes || null,
-          created_by: gate.userId || null,
-        })
+        .insert(receiptPayload)
         .select('*')
         .single();
+
+      // Soft if po_id column missing
+      if (rErr && /po_id|purchase_order|column/i.test(rErr.message)) {
+        delete receiptPayload.po_id;
+        delete receiptPayload.purchase_order_id;
+        const retry = await supabase
+          .from('school_kitchen_receipts')
+          .insert(receiptPayload)
+          .select('*')
+          .single();
+        receipt = retry.data;
+        rErr = retry.error;
+      }
 
       if (rErr) {
         return NextResponse.json({ error: rErr.message }, { status: 400 });
@@ -215,10 +271,68 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      // Mark PO received / partially received
+      let poStatus: string | null = null;
+      if (po && poId) {
+        const poLines = Array.isArray(po.lines) ? po.lines : [];
+        const orderedQty = poLines.reduce(
+          (n: number, l: { qty?: number }) => n + Number(l.qty || 0),
+          0
+        );
+        const receivedQty = approvedLines.reduce(
+          (n, l) => n + Number(l.qty || 0),
+          0
+        );
+        // Sum prior GRNs for this PO
+        let priorQty = 0;
+        try {
+          const { data: prior } = await supabase
+            .from('school_kitchen_receipts')
+            .select('lines')
+            .eq('school_profile_id', schoolId)
+            .eq('po_id', poId)
+            .neq('id', Number(receipt?.id || 0))
+            .limit(50);
+          for (const r of prior || []) {
+            for (const l of (Array.isArray(r.lines) ? r.lines : []) as Array<{
+              qty?: number;
+            }>) {
+              priorQty += Number(l.qty || 0);
+            }
+          }
+        } catch {
+          /* soft */
+        }
+        const totalReceived = priorQty + receivedQty;
+        const pct =
+          orderedQty > 0
+            ? Math.min(100, Math.round((totalReceived / orderedQty) * 1000) / 10)
+            : 100;
+        poStatus =
+          pct >= 99.5
+            ? 'received'
+            : totalReceived > 0
+              ? 'partially_received'
+              : String(po.status || 'submitted');
+
+        await supabase
+          .from('school_purchase_orders')
+          .update({
+            status: poStatus,
+            received_at: new Date().toISOString(),
+            received_pct: pct,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', poId)
+          .eq('school_profile_id', schoolId);
+      }
+
       return NextResponse.json({
         success: true,
         receipt,
         compliance_ok: allApproved,
+        po_id: poId,
+        po_status: poStatus,
       });
     }
 

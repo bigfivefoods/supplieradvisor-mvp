@@ -34,6 +34,7 @@ function Inner() {
   const [served, setServed] = useState('');
   const [waste, setWaste] = useState('0');
   const [cost, setCost] = useState('');
+  const [autoIssue, setAutoIssue] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -66,6 +67,10 @@ function Inner() {
         | { pass?: boolean; energy_kcal?: number; protein_g?: number }
         | undefined;
       const menu = data?.menu as { dish?: { dish?: string } } | null;
+      const dish = menu?.dish as
+        | { dish?: string; approved_product_ids?: number[] }
+        | null
+        | undefined;
       const res = await fetch('/api/schools/serve-day', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -81,15 +86,24 @@ function Inner() {
           served_meals: Number(served || 0),
           waste_meals: Number(waste || 0),
           cost_amount: cost ? Number(cost) : null,
-          menu_name: menu?.dish?.dish || null,
+          menu_name: dish?.dish || menu?.dish?.dish || null,
           nutrition_pass: nutrition?.pass ?? null,
           nutrition_energy_kcal: nutrition?.energy_kcal ?? null,
           nutrition_protein_g: nutrition?.protein_g ?? null,
+          auto_issue: autoIssue,
+          issue_product_ids: dish?.approved_product_ids || [],
         }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed');
-      toast.success('Serve day complete');
+      const issued = (json.stock_issues || []).filter(
+        (x: { status?: string }) => x.status === 'issued'
+      ).length;
+      toast.success(
+        issued > 0
+          ? `Serve day complete · ${issued} stock line(s) issued`
+          : 'Serve day complete'
+      );
       void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed');
@@ -101,7 +115,11 @@ function Inner() {
   const school = (data?.school || {}) as Record<string, unknown>;
   const menu = (data?.menu || null) as {
     name?: string;
-    dish?: { dish?: string; meal_type?: string } | null;
+    dish?: {
+      dish?: string;
+      meal_type?: string;
+      approved_product_ids?: number[];
+    } | null;
   } | null;
   const nutrition = (data?.nutrition || null) as {
     pass?: boolean;
@@ -275,6 +293,24 @@ function Inner() {
                 Kitchen →
               </Link>
             </p>
+
+            <label className="flex items-start gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={autoIssue}
+                onChange={(e) => setAutoIssue(e.target.checked)}
+              />
+              <span>
+                <span className="font-bold text-slate-800">
+                  Auto-issue menu stock
+                </span>
+                <span className="block text-xs text-slate-500">
+                  Deduct today&apos;s menu products from kitchen when you
+                  complete serve day (closes PO → GRN → plate).
+                </span>
+              </span>
+            </label>
 
             <button
               type="button"

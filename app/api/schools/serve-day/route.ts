@@ -274,6 +274,7 @@ export async function POST(request: NextRequest) {
       .select('*')
       .single();
 
+    let feedingOut = feeding;
     if (fErr) {
       // soft columns missing — retry without extras
       const { data: feeding2, error: f2 } = await supabase
@@ -300,19 +301,133 @@ export async function POST(request: NextRequest) {
       if (f2) {
         return NextResponse.json({ error: f2.message }, { status: 400 });
       }
-      await refreshSchoolAlerts(supabase, schoolId, companyId);
-      return NextResponse.json({
-        success: true,
-        feeding: feeding2,
-        complete: true,
-      });
+      feedingOut = feeding2;
+    }
+
+    // Auto-issue stock from today's menu products (closes kitchen → plate loop)
+    const stockIssues: Array<Record<string, unknown>> = [];
+    const autoIssue = body.auto_issue !== false && served > 0;
+    if (autoIssue) {
+      let productIds: number[] = Array.isArray(body.issue_product_ids)
+        ? body.issue_product_ids.map(Number).filter((n: number) => n > 0)
+        : [];
+      if (!productIds.length) {
+        // Resolve from active menu dish
+        const { data: menus } = await supabase
+          .from('school_menu_cycles')
+          .select('items')
+          .eq('school_profile_id', schoolId)
+          .eq('active', true)
+          .limit(1);
+        const menu = menus?.[0];
+        const items = Array.isArray(menu?.items) ? menu!.items : [];
+        const dayOfWeek = new Date(date + 'T12:00:00').getDay();
+        const menuDay = dayOfWeek === 0 ? 7 : dayOfWeek;
+        const dish = items.find(
+          (it: { day?: number; meal_type?: string }) =>
+            Number(it.day) === menuDay &&
+            String(it.meal_type || 'lunch') === mealType
+        ) as { approved_product_ids?: number[] } | undefined;
+        productIds = (dish?.approved_product_ids || [])
+          .map(Number)
+          .filter((n) => n > 0);
+      }
+
+      // Issue a small operational unit per product (configurable)
+      const perProduct =
+        body.issue_qty_per_product != null
+          ? Number(body.issue_qty_per_product)
+          : 1;
+
+      for (const pid of productIds) {
+        const { data: row } = await supabase
+          .from('school_kitchen_stock')
+          .select('*')
+          .eq('school_profile_id', schoolId)
+          .eq('approved_product_id', pid)
+          .maybeSingle();
+        if (!row) {
+          stockIssues.push({
+            approved_product_id: pid,
+            status: 'no_stock_line',
+          });
+          continue;
+        }
+        const onHand = Number(row.qty_on_hand || 0);
+        const qty = Math.min(onHand, perProduct);
+        if (!(qty > 0)) {
+          stockIssues.push({
+            approved_product_id: pid,
+            product_name: row.product_name,
+            status: 'zero_stock',
+            qty_on_hand: onHand,
+          });
+          continue;
+        }
+        const next = Math.max(0, onHand - qty);
+        await supabase
+          .from('school_kitchen_stock')
+          .update({
+            qty_on_hand: next,
+            updated_at: new Date().toISOString(),
+            metadata: {
+              ...(typeof row.metadata === 'object' && row.metadata
+                ? (row.metadata as object)
+                : {}),
+              last_issue: {
+                action: 'issue',
+                qty,
+                at: new Date().toISOString(),
+                reason: 'serve_day',
+                feed_date: date,
+                meal_type: mealType,
+              },
+            },
+          })
+          .eq('id', row.id);
+        stockIssues.push({
+          approved_product_id: pid,
+          product_name: row.product_name,
+          brand_name: row.brand_name,
+          status: 'issued',
+          qty,
+          qty_remaining: next,
+        });
+      }
+
+      // Optional waste write-off on first menu product (fractional if waste meals)
+      if (waste > 0 && productIds[0]) {
+        const { data: row } = await supabase
+          .from('school_kitchen_stock')
+          .select('*')
+          .eq('school_profile_id', schoolId)
+          .eq('approved_product_id', productIds[0])
+          .maybeSingle();
+        if (row && Number(row.qty_on_hand) > 0) {
+          const wQty = Math.min(Number(row.qty_on_hand), 1);
+          await supabase
+            .from('school_kitchen_stock')
+            .update({
+              qty_on_hand: Math.max(0, Number(row.qty_on_hand) - wQty),
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', row.id);
+          stockIssues.push({
+            approved_product_id: productIds[0],
+            status: 'waste',
+            qty: wQty,
+            waste_meals: waste,
+          });
+        }
+      }
     }
 
     await refreshSchoolAlerts(supabase, schoolId, companyId);
     return NextResponse.json({
       success: true,
-      feeding,
+      feeding: feedingOut,
       complete: true,
+      stock_issues: stockIssues,
       cost_per_meal:
         cost != null && served > 0
           ? Math.round((cost / served) * 10000) / 10000
