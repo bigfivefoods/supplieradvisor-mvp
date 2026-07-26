@@ -1176,6 +1176,7 @@ function groupSum(
     province?: string | null;
     district?: string | null;
     circuit?: string | null;
+    member_type?: string | null;
     quintile?: number | null;
     learners_enrolled: number;
     learners_verified: number;
