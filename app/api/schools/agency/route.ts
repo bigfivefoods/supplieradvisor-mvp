@@ -480,12 +480,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, status, link: updated?.[0] });
     }
 
-    // Agency (DBE/PEU/DoH) vets ISP — only path to compliant
+    // Agency approves ISP association request (preferred) or sets global status
     if (
       action === 'set_isp_status' ||
       action === 'approve_isp' ||
       action === 'suspend_isp' ||
-      action === 'reject_isp'
+      action === 'reject_isp' ||
+      action === 'set_isp_link_status' ||
+      action === 'approve_isp_link'
     ) {
       const { data: agencyGate } = await supabase
         .from('nsnp_agency_profiles')
@@ -502,100 +504,153 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const ispProfileId = Number(body.isp_profile_id);
+      const now = new Date().toISOString();
+      const linkId = body.link_id != null ? Number(body.link_id) : null;
+      let ispProfileId = Number(body.isp_profile_id);
+
+      // Resolve from association link when provided
+      let linkRow: Record<string, unknown> | null = null;
+      if (linkId && Number.isFinite(linkId)) {
+        const { data: lr } = await supabase
+          .from('nsnp_isp_agency_links')
+          .select('*')
+          .eq('id', linkId)
+          .eq('agency_profile_id', companyId)
+          .maybeSingle();
+        linkRow = lr;
+        if (lr) ispProfileId = Number(lr.isp_profile_id);
+      }
+
       if (!Number.isFinite(ispProfileId)) {
         return NextResponse.json(
-          { error: 'isp_profile_id required' },
+          { error: 'isp_profile_id or link_id required' },
           { status: 400 }
         );
       }
 
-      let compliance = String(body.compliance_status || 'pending');
-      if (action === 'approve_isp') compliance = 'compliant';
-      if (action === 'suspend_isp') compliance = 'suspended';
-      if (action === 'reject_isp') compliance = 'revoked';
-
+      let linkStatus = String(body.status || 'active');
       if (
-        !['pending', 'compliant', 'suspended', 'revoked'].includes(compliance)
+        action === 'approve_isp' ||
+        action === 'approve_isp_link'
       ) {
-        return NextResponse.json(
-          { error: 'Invalid compliance_status' },
-          { status: 400 }
-        );
+        linkStatus = 'active';
+      }
+      if (action === 'suspend_isp') linkStatus = 'suspended';
+      if (action === 'reject_isp') linkStatus = 'rejected';
+
+      // Update association link (create if only isp_profile_id given)
+      const linkPatch: Record<string, unknown> = {
+        status: linkStatus,
+        updated_at: now,
+        reviewed_by: gate.userId || null,
+      };
+      if (linkStatus === 'active') {
+        linkPatch.accepted_at = now;
+        linkPatch.rejection_reason = null;
+      }
+      if (linkStatus === 'rejected' || linkStatus === 'suspended') {
+        linkPatch.rejection_reason =
+          body.reason || body.notes || body.rejection_reason || null;
       }
 
-      const now = new Date().toISOString();
-      const patch: Record<string, unknown> = {
+      let linkOut: Record<string, unknown> | null = linkRow;
+      if (linkRow) {
+        const { data: updatedLink, error: uErr } = await supabase
+          .from('nsnp_isp_agency_links')
+          .update(linkPatch)
+          .eq('id', linkRow.id)
+          .eq('agency_profile_id', companyId)
+          .select('*')
+          .single();
+        if (uErr) {
+          return NextResponse.json({ error: uErr.message }, { status: 400 });
+        }
+        linkOut = updatedLink;
+      } else {
+        const { data: upserted, error: upErr } = await supabase
+          .from('nsnp_isp_agency_links')
+          .upsert(
+            {
+              isp_profile_id: ispProfileId,
+              agency_profile_id: companyId,
+              ...linkPatch,
+              requested_at: now,
+            },
+            { onConflict: 'isp_profile_id,agency_profile_id' }
+          )
+          .select('*')
+          .single();
+        if (upErr) {
+          return NextResponse.json({ error: upErr.message }, { status: 400 });
+        }
+        linkOut = upserted;
+      }
+
+      // Mirror global compliance for programme gates
+      const compliance =
+        linkStatus === 'active'
+          ? 'compliant'
+          : linkStatus === 'suspended'
+            ? 'suspended'
+            : linkStatus === 'rejected'
+              ? 'revoked'
+              : 'pending';
+
+      const ispPatch: Record<string, unknown> = {
         compliance_status: compliance,
         updated_at: now,
       };
       if (compliance === 'compliant') {
-        patch.approved_by_agency_profile_id = companyId;
-        patch.approved_at = now;
-        patch.approved_by_user_id = gate.userId || null;
-        patch.rejection_reason = null;
-        patch.suspended_at = null;
-        patch.suspension_reason = null;
+        ispPatch.approved_by_agency_profile_id = companyId;
+        ispPatch.approved_at = now;
+        ispPatch.approved_by_user_id = gate.userId || null;
+        ispPatch.rejection_reason = null;
+        ispPatch.suspended_at = null;
       } else if (compliance === 'suspended' || compliance === 'revoked') {
-        patch.suspended_at = now;
-        patch.suspension_reason =
+        ispPatch.suspended_at = now;
+        ispPatch.suspension_reason =
           body.reason || body.notes || body.rejection_reason || null;
-        if (compliance === 'revoked') {
-          patch.rejection_reason =
-            body.reason || body.rejection_reason || 'Rejected by agency';
-        }
-      } else if (compliance === 'pending') {
-        patch.approved_by_agency_profile_id = null;
-        patch.approved_at = null;
       }
 
-      let { data, error } = await supabase
+      let { data: ispData, error: ispErr } = await supabase
         .from('nsnp_isp_profiles')
-        .update(patch)
+        .update(ispPatch)
         .eq('profile_id', ispProfileId)
         .select('*')
         .single();
-
-      // Soft if approval columns missing
-      if (error && /column|schema cache/i.test(error.message || '')) {
+      if (ispErr && /column|schema cache/i.test(ispErr.message || '')) {
         const retry = await supabase
           .from('nsnp_isp_profiles')
-          .update({
-            compliance_status: compliance,
-            updated_at: now,
-          })
+          .update({ compliance_status: compliance, updated_at: now })
           .eq('profile_id', ispProfileId)
           .select('*')
           .single();
-        data = retry.data;
-        error = retry.error;
+        ispData = retry.data;
+        ispErr = retry.error;
+      }
+      if (ispErr) {
+        return NextResponse.json({ error: ispErr.message }, { status: 400 });
       }
 
-      if (error) {
-        return NextResponse.json({ error: error.message }, { status: 400 });
-      }
-
-      // Soft notify ISP company
       try {
         await supabase.from('nsnp_activity_events').insert({
           company_id: companyId,
           target_company_id: ispProfileId,
-          kind: `isp_${compliance}`,
+          kind: `isp_link_${linkStatus}`,
           title:
-            compliance === 'compliant'
-              ? 'Your ISP is approved for school deliveries'
-              : compliance === 'suspended'
-                ? 'Your ISP status was suspended by the department'
-                : compliance === 'revoked'
-                  ? 'Your ISP application was not approved'
-                  : 'ISP status updated',
+            linkStatus === 'active'
+              ? `Approved by ${agencyGate.agency_name || 'department'}`
+              : linkStatus === 'rejected'
+                ? 'Department rejected your join request'
+                : `ISP association ${linkStatus}`,
           body: String(
             body.reason ||
-              `${agencyGate.agency_name || 'Department'} set status to ${compliance}`
+              `Your association with ${agencyGate.agency_name} is now ${linkStatus}`
           ),
-          href: '/dashboard/schools/deliveries',
+          href: '/dashboard/schools/isps',
           metadata: {
             agency_profile_id: companyId,
+            link_status: linkStatus,
             compliance_status: compliance,
           },
         });
@@ -605,9 +660,11 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        isp: data,
+        link: linkOut,
+        isp: ispData,
         approved_by: agencyGate.agency_name,
         compliance_status: compliance,
+        link_status: linkStatus,
       });
     }
 

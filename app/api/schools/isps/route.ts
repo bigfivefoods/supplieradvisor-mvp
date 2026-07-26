@@ -5,6 +5,27 @@ import {
   legacyPrivyFrom,
 } from '@/lib/auth/api-auth';
 import { getOrCreateSchoolProfile } from '@/lib/schools/school-context';
+import {
+  ispMaySupplySchool,
+  ispsApprovedUnderAgencies,
+  schoolActiveAgencyIds,
+} from '@/lib/schools/isp-access';
+
+async function enrichIspNames(
+  supabase: ReturnType<typeof getSupabaseServer>,
+  ispIds: number[]
+) {
+  const names: Record<number, string> = {};
+  if (!ispIds.length) return names;
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, trading_name, legal_name, city, province')
+    .in('id', ispIds);
+  for (const p of profiles || []) {
+    names[Number(p.id)] = p.trading_name || p.legal_name || `ISP ${p.id}`;
+  }
+  return names;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -20,146 +41,191 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseServer();
     const mode = String(request.nextUrl.searchParams.get('mode') || 'auto');
 
-    // Agency queue: all ISPs pending approval by DBE/DoH
     const { data: myAgency } = await supabase
       .from('nsnp_agency_profiles')
       .select('profile_id, agency_name, agency_type, status')
       .eq('profile_id', companyId)
       .maybeSingle();
 
-    if (mode === 'agency' || (mode === 'auto' && myAgency)) {
-      const { data: allIsps, error } = await supabase
-        .from('nsnp_isp_profiles')
-        .select('*')
-        .order('updated_at', { ascending: false })
-        .limit(500);
-      if (error) {
-        return NextResponse.json({
-          success: true,
-          role: 'agency',
-          agency: myAgency,
-          pending: [],
-          compliant: [],
-          suspended: [],
-          directory: [],
-          warning: error.message,
-        });
-      }
-      const ispIds = (allIsps || [])
-        .map((i) => Number(i.profile_id))
-        .filter(Boolean);
-      let names: Record<number, string> = {};
-      if (ispIds.length) {
-        const { data: profiles } = await supabase
-          .from('profiles')
-          .select('id, trading_name, legal_name, city, province')
-          .in('id', ispIds);
-        for (const p of profiles || []) {
-          names[Number(p.id)] =
-            p.trading_name || p.legal_name || `ISP ${p.id}`;
-        }
-      }
-      const directory = (allIsps || []).map((i) => ({
-        ...i,
-        display_name:
-          i.trading_name ||
-          names[Number(i.profile_id)] ||
-          `ISP ${i.profile_id}`,
-      }));
-      return NextResponse.json({
-        success: true,
-        role: 'agency',
-        agency: myAgency,
-        pending: directory.filter(
-          (i) => String(i.compliance_status) === 'pending'
-        ),
-        compliant: directory.filter(
-          (i) => String(i.compliance_status) === 'compliant'
-        ),
-        suspended: directory.filter((i) =>
-          ['suspended', 'revoked'].includes(String(i.compliance_status))
-        ),
-        directory,
-      });
-    }
-
-    // School view: only DBE-approved (compliant) ISPs in directory
-    const { school, error } = await getOrCreateSchoolProfile(supabase, companyId);
-    if (error || !school) {
-      return NextResponse.json({ error: error || 'No school' }, { status: 503 });
-    }
-
-    const [linksRes, compliantRes] = await Promise.all([
-      supabase
-        .from('school_isp_links')
-        .select('*')
-        .eq('school_profile_id', school.id),
-      supabase
-        .from('nsnp_isp_profiles')
-        .select('*')
-        .eq('compliance_status', 'compliant')
-        .limit(300),
-    ]);
-
-    // Own ISP status (if this company also registered as ISP)
     const { data: myIsp } = await supabase
       .from('nsnp_isp_profiles')
       .select('*')
       .eq('profile_id', companyId)
       .maybeSingle();
 
+    // ── Agency: ISP association requests + approved ───────────────────
+    if (mode === 'agency' || (mode === 'auto' && myAgency && !myIsp)) {
+      const { data: agencyLinks, error } = await supabase
+        .from('nsnp_isp_agency_links')
+        .select('*')
+        .eq('agency_profile_id', companyId)
+        .in('status', ['pending', 'active', 'suspended', 'rejected'])
+        .order('updated_at', { ascending: false })
+        .limit(500);
+
+      if (error && /does not exist|schema cache/i.test(error.message)) {
+        return NextResponse.json({
+          success: true,
+          role: 'agency',
+          agency: myAgency,
+          pending: [],
+          compliant: [],
+          ispLinks: [],
+          warning:
+            'Run migration 20260726_isp_agency_association.sql for ISP↔agency joins',
+        });
+      }
+
+      const ispIds = [
+        ...new Set(
+          (agencyLinks || [])
+            .map((l) => Number(l.isp_profile_id))
+            .filter(Boolean)
+        ),
+      ];
+      const names = await enrichIspNames(supabase, ispIds);
+      const { data: ispRows } = ispIds.length
+        ? await supabase
+            .from('nsnp_isp_profiles')
+            .select('*')
+            .in('profile_id', ispIds)
+        : { data: [] as Array<Record<string, unknown>> };
+
+      const ispById: Record<number, Record<string, unknown>> = {};
+      for (const i of ispRows || []) {
+        ispById[Number(i.profile_id)] = i as Record<string, unknown>;
+      }
+
+      const enriched = (agencyLinks || []).map((l) => ({
+        ...l,
+        display_name:
+          names[Number(l.isp_profile_id)] ||
+          ispById[Number(l.isp_profile_id)]?.trading_name ||
+          `ISP ${l.isp_profile_id}`,
+        isp: ispById[Number(l.isp_profile_id)] || null,
+      }));
+
+      return NextResponse.json({
+        success: true,
+        role: 'agency',
+        agency: myAgency,
+        ispLinks: enriched,
+        pending: enriched.filter((l) => l.status === 'pending'),
+        compliant: enriched.filter((l) => l.status === 'active'),
+        suspended: enriched.filter((l) =>
+          ['suspended', 'rejected'].includes(String(l.status))
+        ),
+        policy:
+          'ISPs request to join your department. You must approve before schools under you can order from them.',
+      });
+    }
+
+    // ── ISP: my agency associations + directory to join ───────────────
+    if (mode === 'isp' || (mode === 'auto' && myIsp)) {
+      const { data: myLinks } = await supabase
+        .from('nsnp_isp_agency_links')
+        .select('*')
+        .eq('isp_profile_id', companyId)
+        .order('updated_at', { ascending: false })
+        .limit(50);
+
+      const { data: agencies } = await supabase
+        .from('nsnp_agency_profiles')
+        .select(
+          'profile_id, agency_name, agency_type, province, status, contact_email'
+        )
+        .eq('status', 'active')
+        .order('agency_name')
+        .limit(200);
+
+      const linkedAgencyIds = new Set(
+        (myLinks || []).map((l) => Number(l.agency_profile_id))
+      );
+      const agencyById: Record<number, Record<string, unknown>> = {};
+      for (const a of agencies || []) {
+        agencyById[Number(a.profile_id)] = a as Record<string, unknown>;
+      }
+
+      const myAgencyLinks = (myLinks || []).map((l) => ({
+        ...l,
+        agency_name:
+          agencyById[Number(l.agency_profile_id)]?.agency_name ||
+          `Agency ${l.agency_profile_id}`,
+        agency_type: agencyById[Number(l.agency_profile_id)]?.agency_type,
+        province: agencyById[Number(l.agency_profile_id)]?.province,
+      }));
+
+      return NextResponse.json({
+        success: true,
+        role: 'isp',
+        myIsp,
+        myAgencyLinks,
+        agencies: (agencies || []).map((a) => ({
+          ...a,
+          already_joined: linkedAgencyIds.has(Number(a.profile_id)),
+        })),
+        policy:
+          'Request to join DBE/PEU/DoH. They must approve your association before schools under them can buy from you.',
+      });
+    }
+
+    // ── School: ISPs approved under the school’s agencies only ────────
+    const { school, error } = await getOrCreateSchoolProfile(supabase, companyId);
+    if (error || !school) {
+      return NextResponse.json({ error: error || 'No school' }, { status: 503 });
+    }
+
+    const schoolAgencies = await schoolActiveAgencyIds(
+      supabase,
+      Number(school.id)
+    );
+    const approvedIspIds = await ispsApprovedUnderAgencies(
+      supabase,
+      schoolAgencies
+    );
+
+    const [linksRes, directoryRows] = await Promise.all([
+      supabase
+        .from('school_isp_links')
+        .select('*')
+        .eq('school_profile_id', school.id),
+      approvedIspIds.length
+        ? supabase
+            .from('nsnp_isp_profiles')
+            .select('*')
+            .in('profile_id', approvedIspIds)
+            .limit(300)
+        : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
+    ]);
+
     const ispIds = [
       ...new Set([
+        ...approvedIspIds,
         ...(linksRes.data || []).map((l) => Number(l.isp_profile_id)),
-        ...(compliantRes.data || []).map((i) => Number(i.profile_id)),
-        myIsp ? Number(myIsp.profile_id) : 0,
       ]),
     ].filter(Boolean);
+    const names = await enrichIspNames(supabase, ispIds);
 
-    let names: Record<number, string> = {};
-    if (ispIds.length) {
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, trading_name, legal_name, city, province, country')
-        .in('id', ispIds);
-      for (const p of profiles || []) {
-        names[Number(p.id)] =
-          p.trading_name || p.legal_name || `ISP ${p.id}`;
-      }
-    }
-
-    // Schools only see agency-approved ISPs
-    const directory = (compliantRes.data || []).map((i) => ({
+    const directory = (directoryRows.data || []).map((i) => ({
       ...i,
       display_name:
-        i.trading_name || names[Number(i.profile_id)] || `ISP ${i.profile_id}`,
+        (i as { trading_name?: string }).trading_name ||
+        names[Number((i as { profile_id?: number }).profile_id)] ||
+        `ISP ${(i as { profile_id?: number }).profile_id}`,
     }));
-
-    // Enrich links with compliance (block UI if linked ISP later suspended)
-    const { data: linkedIsps } = await supabase
-      .from('nsnp_isp_profiles')
-      .select('profile_id, compliance_status, trading_name')
-      .in(
-        'profile_id',
-        (linksRes.data || []).map((l) => Number(l.isp_profile_id)).filter(Boolean)
-          .length
-          ? (linksRes.data || []).map((l) => Number(l.isp_profile_id))
-          : [-1]
-      );
-
-    const complianceByIsp: Record<number, string> = {};
-    for (const i of linkedIsps || []) {
-      complianceByIsp[Number(i.profile_id)] = String(
-        i.compliance_status || 'pending'
-      );
-    }
 
     const links = (linksRes.data || []).map((l) => ({
       ...l,
       display_name: names[Number(l.isp_profile_id)] || `ISP ${l.isp_profile_id}`,
-      compliance_status:
-        complianceByIsp[Number(l.isp_profile_id)] || 'unknown',
+      agency_approved: approvedIspIds.includes(Number(l.isp_profile_id)),
     }));
+
+    // Agencies this school is under (for messaging)
+    const { data: schoolAgencyLinks } = await supabase
+      .from('school_agency_links')
+      .select('agency_profile_id, status')
+      .eq('school_profile_id', school.id)
+      .in('status', ['active', 'pending']);
 
     return NextResponse.json({
       success: true,
@@ -167,9 +233,11 @@ export async function GET(request: NextRequest) {
       links,
       directory,
       myIsp,
+      schoolAgencies: schoolAgencyLinks || [],
+      schoolAgencyActiveCount: schoolAgencies.length,
       policy:
-        'Schools may only link and order from ISPs approved by DBE/PEU/DoH (compliance_status = compliant).',
-      warning: linksRes.error?.message || compliantRes.error?.message,
+        'ISPs must join your DBE/PEU/DoH and be approved. Schools must also be approved by that department. Only then can you link and order.',
+      warning: linksRes.error?.message,
     });
   } catch (e: unknown) {
     return NextResponse.json(
@@ -273,7 +341,116 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, isp: data });
     }
 
-    // School links to ISP
+    // ISP requests association with DBE/PEU/DoH (same pattern as school join)
+    if (body.action === 'join_agency' || body.action === 'request_agency') {
+      const agencyProfileId = Number(body.agency_profile_id);
+      if (!Number.isFinite(agencyProfileId)) {
+        return NextResponse.json(
+          { error: 'agency_profile_id required' },
+          { status: 400 }
+        );
+      }
+      // Ensure ISP profile exists
+      const { data: ispRow } = await supabase
+        .from('nsnp_isp_profiles')
+        .select('profile_id')
+        .eq('profile_id', companyId)
+        .maybeSingle();
+      if (!ispRow) {
+        return NextResponse.json(
+          {
+            error:
+              'Register as ISP first (action register_as_isp), then request to join a department',
+          },
+          { status: 400 }
+        );
+      }
+      const { data: agency } = await supabase
+        .from('nsnp_agency_profiles')
+        .select('profile_id, agency_name, status')
+        .eq('profile_id', agencyProfileId)
+        .maybeSingle();
+      if (!agency || agency.status !== 'active') {
+        return NextResponse.json(
+          { error: 'Agency not found or inactive' },
+          { status: 404 }
+        );
+      }
+
+      // Do not demote an already-active association
+      const { data: existingLink } = await supabase
+        .from('nsnp_isp_agency_links')
+        .select('*')
+        .eq('isp_profile_id', companyId)
+        .eq('agency_profile_id', agencyProfileId)
+        .maybeSingle();
+
+      if (existingLink && String(existingLink.status) === 'active') {
+        return NextResponse.json({
+          success: true,
+          link: existingLink,
+          message: `Already approved with ${agency.agency_name}`,
+        });
+      }
+      if (existingLink && String(existingLink.status) === 'pending') {
+        return NextResponse.json({
+          success: true,
+          link: existingLink,
+          message: `Join request already pending with ${agency.agency_name}`,
+        });
+      }
+
+      const { data, error: jErr } = await supabase
+        .from('nsnp_isp_agency_links')
+        .upsert(
+          {
+            isp_profile_id: companyId,
+            agency_profile_id: agencyProfileId,
+            status: 'pending',
+            requested_by: gate.userId || null,
+            requested_at: new Date().toISOString(),
+            accepted_at: null,
+            notes: body.notes || null,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'isp_profile_id,agency_profile_id' }
+        )
+        .select('*')
+        .single();
+
+      if (jErr) {
+        return NextResponse.json({ error: jErr.message }, { status: 400 });
+      }
+      return NextResponse.json({
+        success: true,
+        link: data,
+        message: `Join request sent to ${agency.agency_name}. They must approve before schools under them can order from you.`,
+      });
+    }
+
+    if (body.action === 'leave_agency') {
+      const agencyProfileId = Number(body.agency_profile_id);
+      if (!Number.isFinite(agencyProfileId)) {
+        return NextResponse.json(
+          { error: 'agency_profile_id required' },
+          { status: 400 }
+        );
+      }
+      const { error } = await supabase
+        .from('nsnp_isp_agency_links')
+        .update({
+          status: 'left',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('isp_profile_id', companyId)
+        .eq('agency_profile_id', agencyProfileId);
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+      return NextResponse.json({ success: true });
+    }
+
+    // School links to ISP (ISP must be approved under school's agency)
     const { school, error } = await getOrCreateSchoolProfile(supabase, companyId);
     if (error || !school) {
       return NextResponse.json({ error: error || 'No school' }, { status: 503 });
@@ -287,29 +464,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Schools may ONLY link ISPs approved by DBE/PEU/DoH
-    const { data: isp } = await supabase
-      .from('nsnp_isp_profiles')
-      .select('compliance_status, trading_name')
-      .eq('profile_id', ispProfileId)
-      .maybeSingle();
-
-    if (!isp) {
+    const may = await ispMaySupplySchool(
+      supabase,
+      Number(school.id),
+      ispProfileId
+    );
+    if (!may.ok) {
       return NextResponse.json(
-        { error: 'ISP not registered on the programme' },
-        { status: 404 }
-      );
-    }
-    const status = String(isp.compliance_status || 'pending');
-    if (status !== 'compliant') {
-      return NextResponse.json(
-        {
-          error:
-            status === 'suspended' || status === 'revoked'
-              ? 'This ISP is suspended or revoked by the department and cannot supply schools.'
-              : 'This ISP is not yet approved by DBE/PEU/DoH. Schools can only link department-approved ISPs.',
-          compliance_status: status,
-        },
+        { error: may.reason || 'ISP not approved for your department' },
         { status: 400 }
       );
     }

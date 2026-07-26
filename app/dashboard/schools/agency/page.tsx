@@ -170,6 +170,45 @@ function Inner() {
     }
   };
 
+  /** Approve/reject/suspend an ISP↔agency association (by link_id preferred). */
+  const setIspStatus = async (
+    link: Record<string, unknown>,
+    action: 'approve_isp' | 'suspend_isp' | 'reject_isp'
+  ) => {
+    try {
+      const linkId = Number(link.id);
+      const ispProfileId = Number(
+        link.isp_profile_id ||
+          (link.isp as { profile_id?: number } | undefined)?.profile_id ||
+          link.profile_id
+      );
+      const res = await fetch('/api/schools/agency', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          action: action === 'approve_isp' ? 'approve_isp_link' : action,
+          link_id: Number.isFinite(linkId) ? linkId : undefined,
+          isp_profile_id: Number.isFinite(ispProfileId)
+            ? ispProfileId
+            : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      toast.success(
+        action === 'approve_isp'
+          ? 'ISP association approved — schools under you may order from them'
+          : action === 'suspend_isp'
+            ? 'ISP association suspended'
+            : 'ISP join request rejected'
+      );
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    }
+  };
+
   const setLinkStatus = async (
     schoolProfileId: number,
     action: 'approve' | 'suspend' | 'reject'
@@ -322,7 +361,7 @@ function Inner() {
                 </Link>
               </div>
 
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
                 {[
                   {
                     label: 'Organisations',
@@ -340,12 +379,14 @@ function Inner() {
                     icon: Users,
                   },
                   {
-                    label: 'Avg prize score',
-                    value:
-                      summary?.avgPrizeScore != null
-                        ? String(summary.avgPrizeScore)
-                        : '—',
-                    icon: Landmark,
+                    label: 'ISPs pending',
+                    value: pendingIsps.length,
+                    icon: Link2,
+                  },
+                  {
+                    label: 'ISPs approved',
+                    value: compliantIsps.length,
+                    icon: CheckCircle2,
                   },
                 ].map((c) => (
                   <div
@@ -363,9 +404,94 @@ function Inner() {
                 ))}
               </div>
 
+              {/* ISP association queue — same join+approve pattern as schools */}
+              <div className="rounded-3xl border border-amber-200 bg-white overflow-hidden">
+                <div className="px-5 py-3 border-b border-amber-100 bg-amber-50/50 text-xs font-bold uppercase text-amber-900">
+                  ISP associations · ISPs join your department, then you approve
+                </div>
+                {pendingIsps.length === 0 && compliantIsps.length === 0 ? (
+                  <p className="px-5 py-6 text-sm text-slate-500">
+                    No ISP join requests yet. Providers register as ISP, then
+                    request association with your department (DBE/PEU/DoH).
+                    Pending requests appear here until you approve — same as
+                    schools.
+                  </p>
+                ) : (
+                  <ul className="divide-y">
+                    {pendingIsps.map((link) => (
+                      <li
+                        key={`p-${String(link.id || link.isp_profile_id)}`}
+                        className="px-5 py-3 flex flex-wrap items-center justify-between gap-2"
+                      >
+                        <div>
+                          <p className="font-bold text-sm">
+                            {String(
+                              link.display_name ||
+                                (link.isp as { trading_name?: string } | null)
+                                  ?.trading_name ||
+                                `ISP ${link.isp_profile_id}`
+                            )}
+                          </p>
+                          <p className="text-[11px] text-amber-800 font-bold uppercase">
+                            Join request · pending your approval
+                          </p>
+                        </div>
+                        <div className="flex gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void setIspStatus(link, 'approve_isp')
+                            }
+                            className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[11px] font-bold text-emerald-900"
+                          >
+                            Approve association
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void setIspStatus(link, 'reject_isp')
+                            }
+                            className="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-[11px] font-bold text-rose-800"
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                    {compliantIsps.map((link) => (
+                      <li
+                        key={`ok-${String(link.id || link.isp_profile_id)}`}
+                        className="px-5 py-3 flex flex-wrap items-center justify-between gap-2 bg-emerald-50/30"
+                      >
+                        <div>
+                          <p className="font-bold text-sm">
+                            {String(
+                              link.display_name ||
+                                (link.isp as { trading_name?: string } | null)
+                                  ?.trading_name ||
+                                `ISP ${link.isp_profile_id}`
+                            )}
+                          </p>
+                          <p className="text-[11px] text-emerald-800 font-bold uppercase">
+                            Associated · schools under you may order
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void setIspStatus(link, 'suspend_isp')}
+                          className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-bold text-slate-600"
+                        >
+                          Suspend
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
               <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
                 <div className="px-5 py-3 border-b text-xs font-bold uppercase text-slate-500">
-                  Associations · {String(myAgency.agency_name)}
+                  School associations · {String(myAgency.agency_name)}
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm min-w-[900px]">

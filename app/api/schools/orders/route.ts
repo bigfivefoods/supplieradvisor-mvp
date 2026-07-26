@@ -136,22 +136,23 @@ export async function POST(request: NextRequest) {
       body.po_number ||
       `NSNP-PO-${school.id}-${Date.now().toString(36).toUpperCase()}`;
 
-    // ISP must be DBE/DoH approved (compliant) before school can order
+    // ISP must be associated + approved by the school's DBE/PEU/DoH
     const ispProfileId = body.isp_profile_id
       ? Number(body.isp_profile_id)
       : null;
     if (ispProfileId && Number.isFinite(ispProfileId)) {
-      const { data: isp } = await supabase
-        .from('nsnp_isp_profiles')
-        .select('compliance_status')
-        .eq('profile_id', ispProfileId)
-        .maybeSingle();
-      if (!isp || String(isp.compliance_status) !== 'compliant') {
+      const { ispMaySupplySchool } = await import('@/lib/schools/isp-access');
+      const may = await ispMaySupplySchool(
+        supabase,
+        Number(school.id),
+        ispProfileId
+      );
+      if (!may.ok) {
         return NextResponse.json(
           {
             error:
-              'Orders can only go to ISPs approved by the Department (DBE/PEU/DoH). This ISP is not compliant yet.',
-            compliance_status: isp?.compliance_status || 'missing',
+              may.reason ||
+              'Orders only to ISPs that joined and were approved by your department.',
           },
           { status: 400 }
         );
