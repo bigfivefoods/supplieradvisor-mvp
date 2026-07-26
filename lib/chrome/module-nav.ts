@@ -416,7 +416,13 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       {
         name: 'Desk',
         href: '/dashboard/schools/agency',
-        desc: 'Register department · approve facilities & SPs',
+        desc: 'Register department profile',
+        group: 'DBE/DoH',
+      },
+      {
+        name: 'Join & add',
+        href: '/dashboard/schools/join',
+        desc: 'Add schools & SPs · approve join requests',
         group: 'DBE/DoH',
       },
       {
@@ -451,8 +457,8 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       },
       {
         name: 'SPs',
-        href: '/dashboard/schools/isps',
-        desc: 'Approve SP associations',
+        href: '/dashboard/schools/join',
+        desc: 'Add & approve SPs (and schools)',
         group: 'DBE/DoH',
       },
       {
@@ -502,8 +508,8 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       },
       {
         name: 'Join dept',
-        href: '/dashboard/schools/agency',
-        desc: 'Request DBE/DoH association',
+        href: '/dashboard/schools/join',
+        desc: 'One-click request to join DBE/DoH',
         group: 'School',
       },
       {
@@ -618,8 +624,8 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       },
       {
         name: 'Join dept',
-        href: '/dashboard/schools/isps',
-        desc: 'Request association with DBE/DoH',
+        href: '/dashboard/schools/join',
+        desc: 'One-click request to join DBE/DoH',
         group: 'SP',
       },
       {

@@ -708,6 +708,311 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Agency searches companies to add as school or SP
+    if (action === 'search_companies') {
+      const q = String(body.q || body.query || '')
+        .trim()
+        .replace(/[%_,]/g, ' ')
+        .slice(0, 80);
+      if (q.length < 2) {
+        return NextResponse.json({
+          success: true,
+          companies: [],
+          message: 'Type at least 2 characters',
+        });
+      }
+      const { data: agencyGate } = await supabase
+        .from('nsnp_agency_profiles')
+        .select('profile_id')
+        .eq('profile_id', companyId)
+        .maybeSingle();
+      if (!agencyGate) {
+        return NextResponse.json(
+          { error: 'Only a registered department can search' },
+          { status: 403 }
+        );
+      }
+      let companies: Array<Record<string, unknown>> = [];
+      const asId = Number(q);
+      if (Number.isFinite(asId) && asId > 0 && !/\s/.test(q)) {
+        const { data } = await supabase
+          .from('profiles')
+          .select(
+            'id, trading_name, legal_name, org_type, business_type, city, province'
+          )
+          .eq('id', asId)
+          .limit(1);
+        companies = (data || []) as Array<Record<string, unknown>>;
+      } else {
+        const { data } = await supabase
+          .from('profiles')
+          .select(
+            'id, trading_name, legal_name, org_type, business_type, city, province'
+          )
+          .or(`trading_name.ilike.%${q}%,legal_name.ilike.%${q}%`)
+          .limit(25);
+        companies = (data || []) as Array<Record<string, unknown>>;
+      }
+      // Mark already linked
+      const ids = companies.map((c) => Number(c.id));
+      const schoolLinked = new Set<number>();
+      const ispLinked = new Set<number>();
+      if (ids.length) {
+        const { data: schools } = await supabase
+          .from('school_profiles')
+          .select('id, profile_id')
+          .in('profile_id', ids);
+        const schoolByCompany = new Map(
+          (schools || []).map((s) => [Number(s.profile_id), Number(s.id)])
+        );
+        const schoolProfileIds = [...schoolByCompany.values()];
+        if (schoolProfileIds.length) {
+          const { data: sl } = await supabase
+            .from('school_agency_links')
+            .select('school_profile_id, status')
+            .eq('agency_profile_id', companyId)
+            .in('school_profile_id', schoolProfileIds)
+            .in('status', ['pending', 'active']);
+          for (const l of sl || []) {
+            for (const [cid, sid] of schoolByCompany) {
+              if (sid === Number(l.school_profile_id)) schoolLinked.add(cid);
+            }
+          }
+        }
+        const { data: il } = await supabase
+          .from('nsnp_isp_agency_links')
+          .select('isp_profile_id, status')
+          .eq('agency_profile_id', companyId)
+          .in('isp_profile_id', ids)
+          .in('status', ['pending', 'active']);
+        for (const l of il || []) {
+          ispLinked.add(Number(l.isp_profile_id));
+        }
+      }
+      return NextResponse.json({
+        success: true,
+        companies: companies.map((c) => ({
+          ...c,
+          already_school: schoolLinked.has(Number(c.id)),
+          already_sp: ispLinked.has(Number(c.id)),
+        })),
+      });
+    }
+
+    // Department adds a school (by company id) — optional instant approve
+    if (action === 'add_school' || action === 'invite_school') {
+      const { data: agencyGate } = await supabase
+        .from('nsnp_agency_profiles')
+        .select('profile_id, agency_name, status')
+        .eq('profile_id', companyId)
+        .maybeSingle();
+      if (!agencyGate || agencyGate.status !== 'active') {
+        return NextResponse.json(
+          { error: 'Only a registered DBE/DoH can add schools' },
+          { status: 403 }
+        );
+      }
+      const targetCompanyId = Number(
+        body.school_company_id || body.target_company_id || body.company_id
+      );
+      if (!Number.isFinite(targetCompanyId) || targetCompanyId === companyId) {
+        return NextResponse.json(
+          { error: 'school_company_id required (another company)' },
+          { status: 400 }
+        );
+      }
+      const { school, error: sErr } = await getOrCreateSchoolProfile(
+        supabase,
+        targetCompanyId
+      );
+      if (sErr || !school) {
+        return NextResponse.json(
+          { error: sErr || 'Could not create school profile for that company' },
+          { status: 400 }
+        );
+      }
+      // Align identity as school
+      try {
+        await supabase
+          .from('profiles')
+          .update({
+            org_type: 'school',
+            business_type: 'school',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', targetCompanyId);
+        await supabase
+          .from('school_profiles')
+          .update({
+            member_type: 'school',
+            school_name:
+              body.school_name ||
+              school.school_name ||
+              `School ${targetCompanyId}`,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', school.id);
+      } catch {
+        /* soft */
+      }
+
+      const approveNow = body.approve === true || body.status === 'active';
+      const status = approveNow ? 'active' : 'pending';
+      const now = new Date().toISOString();
+      const { data: link, error: lErr } = await supabase
+        .from('school_agency_links')
+        .upsert(
+          {
+            school_profile_id: school.id,
+            school_company_id: targetCompanyId,
+            agency_profile_id: companyId,
+            status,
+            requested_by: gate.userId || null,
+            accepted_at: approveNow ? now : null,
+            notes: body.notes || 'Added by department',
+            updated_at: now,
+          },
+          { onConflict: 'school_profile_id,agency_profile_id' }
+        )
+        .select('*')
+        .single();
+      if (lErr) {
+        return NextResponse.json({ error: lErr.message }, { status: 400 });
+      }
+      if (approveNow) {
+        try {
+          await supabase
+            .from('school_profiles')
+            .update({
+              primary_agency_profile_id: companyId,
+              updated_at: now,
+            })
+            .eq('id', school.id);
+        } catch {
+          /* soft */
+        }
+      }
+      return NextResponse.json({
+        success: true,
+        link,
+        school,
+        message: approveNow
+          ? `School added and approved under ${agencyGate.agency_name}`
+          : `School added as pending — approve when ready`,
+      });
+    }
+
+    // Department adds an SP (by company id) — optional instant approve
+    if (action === 'add_isp' || action === 'add_sp' || action === 'invite_isp') {
+      const { data: agencyGate } = await supabase
+        .from('nsnp_agency_profiles')
+        .select('profile_id, agency_name, status')
+        .eq('profile_id', companyId)
+        .maybeSingle();
+      if (!agencyGate || agencyGate.status !== 'active') {
+        return NextResponse.json(
+          { error: 'Only a registered DBE/DoH can add SPs' },
+          { status: 403 }
+        );
+      }
+      const targetCompanyId = Number(
+        body.isp_profile_id ||
+          body.sp_company_id ||
+          body.target_company_id ||
+          body.company_id
+      );
+      if (!Number.isFinite(targetCompanyId) || targetCompanyId === companyId) {
+        return NextResponse.json(
+          { error: 'sp company id required (another company)' },
+          { status: 400 }
+        );
+      }
+
+      const { data: targetProf } = await supabase
+        .from('profiles')
+        .select('id, trading_name, legal_name')
+        .eq('id', targetCompanyId)
+        .maybeSingle();
+      if (!targetProf) {
+        return NextResponse.json({ error: 'Company not found' }, { status: 404 });
+      }
+
+      const tradingName =
+        body.trading_name ||
+        targetProf.trading_name ||
+        targetProf.legal_name ||
+        `SP ${targetCompanyId}`;
+
+      await supabase.from('nsnp_isp_profiles').upsert(
+        {
+          profile_id: targetCompanyId,
+          trading_name: tradingName,
+          compliance_status: 'pending',
+          food_handling_cert: Boolean(body.food_handling_cert),
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'profile_id' }
+      );
+      try {
+        await supabase
+          .from('profiles')
+          .update({
+            org_type: 'nsnp_isp',
+            business_type: 'nsnp_isp',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', targetCompanyId);
+      } catch {
+        /* soft */
+      }
+
+      const approveNow = body.approve === true || body.status === 'active';
+      const status = approveNow ? 'active' : 'pending';
+      const now = new Date().toISOString();
+      const linkPatch: Record<string, unknown> = {
+        isp_profile_id: targetCompanyId,
+        agency_profile_id: companyId,
+        status,
+        requested_by: gate.userId || null,
+        requested_at: now,
+        updated_at: now,
+        notes: body.notes || 'Added by department',
+      };
+      if (approveNow) {
+        linkPatch.accepted_at = now;
+        linkPatch.reviewed_by = gate.userId || null;
+      }
+      const { data: link, error: lErr } = await supabase
+        .from('nsnp_isp_agency_links')
+        .upsert(linkPatch, {
+          onConflict: 'isp_profile_id,agency_profile_id',
+        })
+        .select('*')
+        .single();
+      if (lErr) {
+        return NextResponse.json({ error: lErr.message }, { status: 400 });
+      }
+      if (approveNow) {
+        await supabase
+          .from('nsnp_isp_profiles')
+          .update({
+            compliance_status: 'compliant',
+            approved_by_agency_profile_id: companyId,
+            approved_at: now,
+            approved_by_user_id: gate.userId || null,
+            updated_at: now,
+          })
+          .eq('profile_id', targetCompanyId);
+      }
+      return NextResponse.json({
+        success: true,
+        link,
+        message: approveNow
+          ? `SP added and approved under ${agencyGate.agency_name}`
+          : `SP added as pending — approve when ready`,
+      });
+    }
+
     // Agency reviews claim packs (audit trail)
     if (action === 'set_claim_status' || action === 'review_claim') {
       const claimId = Number(body.claim_id);
