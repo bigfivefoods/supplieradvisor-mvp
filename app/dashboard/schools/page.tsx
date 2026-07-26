@@ -137,7 +137,7 @@ function Inner() {
     return (
       <SchoolsPage>
         <SchoolsHeader
-          title="ISP command"
+          title="SP command"
           titleAccent="Supply"
           description="Fulfil school POs, dispatch trucks, attach POD & invoices — schools confirm receipt into kitchen stock."
           mode="isp"
@@ -153,7 +153,7 @@ function Inner() {
         />
         <div className="rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-sky-50 p-6 mb-6">
           <p className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
-            Independent service provider
+            Service provider
           </p>
           <h2 className="text-xl font-black text-slate-900 mt-0.5">
             {ispNext?.label || 'Deliveries workspace'}
@@ -173,7 +173,7 @@ function Inner() {
               href="/dashboard/schools/isps"
               className="btn-secondary !py-2.5 !px-4 text-sm"
             >
-              ISP profile
+              SP profile
             </Link>
             <Link
               href="/dashboard/schools/isp-sla"
@@ -338,7 +338,7 @@ function Inner() {
             },
             {
               href: '/dashboard/schools/isp-sla',
-              label: 'ISP delivery SLA',
+              label: 'SP delivery SLA',
               desc: 'Brand compliance across the network',
             },
             {
@@ -465,7 +465,7 @@ function Inner() {
           {(k?.deliveriesAwaiting || 0) > 0 ? (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 flex gap-2">
               <Truck className="w-4 h-4 shrink-0 mt-0.5" />
-              {k!.deliveriesAwaiting} ISP delivery(ies) waiting to be received
+              {k!.deliveriesAwaiting} SP delivery(ies) waiting to be received
               into kitchen —{' '}
               <Link
                 href="/dashboard/schools/deliveries"
@@ -550,7 +550,7 @@ function Inner() {
             desc:
               (k?.deliveriesAwaiting || 0) > 0
                 ? `${k!.deliveriesAwaiting} to receive`
-                : 'ISP drops & POD',
+                : 'SP drops & POD',
             accent: 'from-amber-500 to-orange-400',
           },
           {
@@ -620,7 +620,7 @@ function Inner() {
             icon: Truck,
             label: 'Open orders',
             value: k?.openOrders ?? '—',
-            sub: `${k?.ispLinks ?? 0} ISP links`,
+            sub: `${k?.ispLinks ?? 0} SP links`,
           },
           {
             href: '/dashboard/schools/approved-list',
@@ -670,7 +670,7 @@ function Inner() {
 
       <p className="mt-2 text-xs text-slate-400 flex items-center gap-1">
         <MapPin className="w-3.5 h-3.5" />
-        End-to-end process: profile → DBE approve → learners → menu → ISP →
+        End-to-end process: profile → DBE approve → learners → menu → SP →
         order → GRN → serve day → survey → claims → audit. Run migration{' '}
         <code className="text-[10px]">
           20260726_schools_photo_survey_riad_maintenance.sql

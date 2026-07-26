@@ -1,14 +1,14 @@
 /**
- * Incentives for schools & ISPs to only buy/deliver DBE/DoH approved products.
+ * Incentives for schools & SPs to only buy/deliver DBE/DoH approved products.
  *
  * Schools: headmaster prize pillars + claim eligibility / amount.
- * ISPs: preferred-supplier score (drives school ranking & agency probation).
+ * SPs: preferred-supplier score (drives school ranking & agency probation).
  */
 
 /** Minimum approved-brand % for full claim submission */
 export const CLAIM_APPROVED_MIN_PCT = 98;
 
-/** Below this, ISP is on probation (schools should deprioritise) */
+/** Below this, SP is on probation (schools should deprioritise) */
 export const ISP_PROBATION_PCT = 80;
 
 /** Preferred supplier threshold — agency/school incentive to use these first */
@@ -129,4 +129,4 @@ export const SCHOOL_APPROVED_INCENTIVE_COPY =
   'Schools that order and receive only DBE/DoH approved foods earn higher headmaster prize scores (55% of points) and full claim funding.';
 
 export const ISP_APPROVED_INCENTIVE_COPY =
-  'ISPs that deliver only approved products become preferred suppliers, keep school orders, and avoid probation or association suspension.';
+  'SPs that deliver only approved products become preferred suppliers, keep school orders, and avoid probation or association suspension.';

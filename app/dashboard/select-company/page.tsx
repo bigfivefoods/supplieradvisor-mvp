@@ -174,7 +174,7 @@ export default function SelectCompanyPage() {
     } catch {
       /* private mode */
     }
-    // Entity home (school/DBE/ISP) wins; team role only for sales_contractor etc.
+    // Entity home (school/DBE/SP) wins; team role only for sales_contractor etc.
     const path =
       role === 'sales_contractor'
         ? defaultHomePathForRole(role)
@@ -517,7 +517,7 @@ export default function SelectCompanyPage() {
                         {isSales
                           ? 'Open sales portal'
                           : company.entity_kind === 'nsnp_isp'
-                            ? 'Open ISP deliveries'
+                            ? 'Open SP deliveries'
                             : company.entity_kind === 'school' ||
                                 company.entity_kind === 'government_education'
                               ? 'Open schools programme'

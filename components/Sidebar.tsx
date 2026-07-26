@@ -346,7 +346,7 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
                               className={`mt-2 first:mt-0 mb-0.5 px-3 py-1 text-[9px] font-black uppercase tracking-[0.14em] ${
                                 group === 'DBE'
                                   ? 'text-violet-600'
-                                  : group === 'ISP'
+                                  : group === 'SP'
                                     ? 'text-amber-700'
                                     : group === 'School'
                                       ? 'text-sky-700'

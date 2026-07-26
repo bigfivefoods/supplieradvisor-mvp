@@ -170,7 +170,7 @@ export async function POST(request: NextRequest) {
       body.po_number ||
       `NSNP-PO-${school.id}-${Date.now().toString(36).toUpperCase()}`;
 
-    // ISP must be associated + approved by the school's DBE/PEU/DoH
+    // SP must be associated + approved by the school's DBE/PEU/DoH
     const ispProfileId = body.isp_profile_id
       ? Number(body.isp_profile_id)
       : null;
@@ -186,7 +186,7 @@ export async function POST(request: NextRequest) {
           {
             error:
               may.reason ||
-              'Orders only to ISPs that joined and were approved by your department.',
+              'Orders only to SPs that joined and were approved by your department.',
           },
           { status: 400 }
         );

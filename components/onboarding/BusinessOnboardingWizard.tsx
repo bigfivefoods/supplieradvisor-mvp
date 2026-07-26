@@ -411,7 +411,7 @@ export default function BusinessOnboardingWizard() {
                 Who is registering?
               </h1>
               <p className="text-neutral-600 mb-6">
-                Separate workspaces: Department of Education (DBE), schools, ISPs,
+                Separate workspaces: Department of Education (DBE), schools, SPs,
                 health, and trade businesses each get their own login path and
                 modules.
               </p>

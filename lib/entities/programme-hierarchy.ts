@@ -1,11 +1,11 @@
 /**
  * Programme hierarchy for education & health food programmes:
  *
- *   DBE / PEU  ──►  ISPs  ──►  Schools
- *   DoH        ──►  ISPs  ──►  Clinics & hospitals
+ *   DBE / PEU  ──►  SPs  ──►  Schools
+ *   DoH        ──►  SPs  ──►  Clinics & hospitals
  *
- * Agency owns the approved catalogue and must approve both ISPs and facilities.
- * Facilities only order from ISPs associated under the same agency.
+ * Agency owns the approved catalogue and must approve both SPs and facilities.
+ * Facilities only order from SPs associated under the same agency.
  */
 
 export type ProgrammeFamily = 'education' | 'health';
@@ -162,9 +162,9 @@ export function programmeHierarchyBlurb(agencyType?: string | null): {
       agencyTitle: agencyLabel(agencyType || 'department_of_health'),
       facilityPlural: 'Clinics & hospitals',
       facilitySingular: 'Clinic / hospital',
-      chain: ['DoH', 'ISPs', 'Clinics & hospitals'],
+      chain: ['DoH', 'SPs', 'Clinics & hospitals'],
       description:
-        'Department of Health owns the approved list and must approve ISPs and health facilities. ISPs supply only clinics and hospitals under this department.',
+        'Department of Health owns the approved list and must approve SPs and health facilities. SPs supply only clinics and hospitals under this department.',
     };
   }
   return {
@@ -172,9 +172,9 @@ export function programmeHierarchyBlurb(agencyType?: string | null): {
     agencyTitle: agencyLabel(agencyType || 'dbe'),
     facilityPlural: 'Schools',
     facilitySingular: 'School',
-    chain: ['DBE / PEU', 'ISPs', 'Schools'],
+    chain: ['DBE / PEU', 'SPs', 'Schools'],
     description:
-      'DBE/PEU owns the approved foods list and must approve ISPs and schools. ISPs supply only schools under this department.',
+      'DBE/PEU owns the approved foods list and must approve SPs and schools. SPs supply only schools under this department.',
   };
 }
 

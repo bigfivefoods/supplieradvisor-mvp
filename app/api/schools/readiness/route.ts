@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseServer();
     const today = new Date().toISOString().slice(0, 10);
 
-    // Role priority: agency → ISP → school
+    // Role priority: agency → SP → school
     const { data: agencyRow } = await supabase
       .from('nsnp_agency_profiles')
       .select('*')
@@ -338,7 +338,7 @@ export async function GET(request: NextRequest) {
       },
       {
         id: 'isp',
-        label: 'At least one ISP linked',
+        label: 'At least one SP linked',
         done: ispLinks > 0,
         required: true,
         href: '/dashboard/schools/isps',
@@ -384,7 +384,7 @@ export async function GET(request: NextRequest) {
         ? {
             label: `Receive ${deliveriesAwaiting} delivery(ies)`,
             href: '/dashboard/schools/deliveries',
-            desc: 'Confirm ISP drop-offs, adjust quantities, post kitchen GRN',
+            desc: 'Confirm SP drop-offs, adjust quantities, post kitchen GRN',
           }
         : !serveComplete
           ? {

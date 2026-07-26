@@ -43,7 +43,7 @@ function Inner() {
   );
   const [schoolAgencyActiveCount, setSchoolAgencyActiveCount] = useState(0);
 
-  // ISP view
+  // SP view
   const [myIsp, setMyIsp] = useState<Record<string, unknown> | null>(null);
   const [myAgencyLinks, setMyAgencyLinks] = useState<
     Array<Record<string, unknown>>
@@ -69,7 +69,7 @@ function Inner() {
         setMyAgencyLinks(data.myAgencyLinks || []);
         setAgencies(data.agencies || []);
       } else if (r === 'agency') {
-        // Agencies manage ISP associations on the DBE page
+        // Agencies manage SP associations on the DBE page
         setLinks([]);
         setDirectory([]);
       } else {
@@ -104,7 +104,7 @@ function Inner() {
       if (!res.ok) throw new Error(data.error || 'Failed');
       toast.success(
         data.message ||
-          'Registered as ISP — now request to join a DBE/PEU/DoH department'
+          'Registered as SP — now request to join a DBE/PEU/DoH department'
       );
       void load();
     } catch (e: unknown) {
@@ -168,7 +168,7 @@ function Inner() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
-      toast.success('ISP linked to school');
+      toast.success('SP linked to school');
       void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed');
@@ -180,13 +180,13 @@ function Inner() {
     role === 'isp'
       ? 'Request association with DBE / PEU / DoH. They must approve before schools under them can order from you — same join-and-approve model as schools.'
       : role === 'agency'
-        ? 'Manage ISP join requests under Schools → DBE (agency desk).'
-        : 'ISPs must join your department and be approved. Your school must also be approved by that department. Only then can you link and order.';
+        ? 'Manage SP join requests under Schools → DBE (agency desk).'
+        : 'SPs must join your department and be approved. Your school must also be approved by that department. Only then can you link and order.';
 
   return (
     <SchoolsPage>
       <SchoolsHeader
-        title="ISPs"
+        title="SPs"
         titleAccent={
           role === 'isp' ? 'Join a department' : 'Department-associated only'
         }
@@ -204,7 +204,7 @@ function Inner() {
                 href="/dashboard/schools/agency"
                 className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1"
               >
-                <Landmark className="w-3.5 h-3.5" /> ISP queue on DBE desk
+                <Landmark className="w-3.5 h-3.5" /> SP queue on DBE desk
               </Link>
             ) : null}
             {!isIsp && role !== 'agency' ? (
@@ -213,7 +213,7 @@ function Inner() {
                 onClick={() => void registerAsIsp()}
                 className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1"
               >
-                <Building2 className="w-3.5 h-3.5" /> Register as ISP
+                <Building2 className="w-3.5 h-3.5" /> Register as SP
               </button>
             ) : null}
             {isIsp && !myIsp ? (
@@ -222,7 +222,7 @@ function Inner() {
                 onClick={() => void registerAsIsp()}
                 className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1"
               >
-                <Building2 className="w-3.5 h-3.5" /> Complete ISP profile
+                <Building2 className="w-3.5 h-3.5" /> Complete SP profile
               </button>
             ) : null}
             <button
@@ -239,7 +239,7 @@ function Inner() {
       <div className="mb-4 rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-950">
         <strong>Policy:</strong>{' '}
         {policy ||
-          'ISPs and schools both request to join a DBE/PEU/DoH. The department must approve each association. Schools only trade with ISPs approved under the same department.'}
+          'SPs and schools both request to join a DBE/PEU/DoH. The department must approve each association. Schools only trade with SPs approved under the same department.'}
       </div>
 
       {loading ? (
@@ -250,10 +250,10 @@ function Inner() {
         <div className="rounded-3xl border border-slate-200 bg-white p-8 text-center">
           <Landmark className="w-10 h-10 mx-auto text-amber-600 mb-3" />
           <p className="font-black text-slate-900">
-            Agency desk for ISP associations
+            Agency desk for SP associations
           </p>
           <p className="text-sm text-slate-600 mt-2 max-w-md mx-auto">
-            ISPs request to join your department. Approve them on the DBE /
+            SPs request to join your department. Approve them on the DBE /
             agency page — parallel to school join approvals.
           </p>
           <Link
@@ -303,7 +303,7 @@ function IspJoinView({
     return (
       <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-8 text-center">
         <Building2 className="w-10 h-10 mx-auto text-slate-400 mb-3" />
-        <p className="font-black">Register as an ISP first</p>
+        <p className="font-black">Register as an SP first</p>
         <p className="text-sm text-slate-500 mt-1 max-w-md mx-auto">
           Then request to join each department (DBE / PEU / DoH) you want to
           supply. They must approve — same as schools joining an agency.
@@ -313,7 +313,7 @@ function IspJoinView({
           onClick={() => void onRegister()}
           className="btn-primary !py-2 !px-4 text-sm mt-4"
         >
-          Register as ISP
+          Register as SP
         </button>
       </div>
     );
@@ -460,7 +460,7 @@ function SchoolIspView({
       {schoolAgencyActiveCount === 0 ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
           Your school must <strong>join and be approved</strong> by a DBE/PEU/DoH
-          before the approved-ISP directory unlocks.{' '}
+          before the approved-SP directory unlocks.{' '}
           <Link
             href="/dashboard/schools/agency"
             className="font-bold underline underline-offset-2"
@@ -475,7 +475,7 @@ function SchoolIspView({
           <h3 className="text-sm font-black mb-3">Linked to this school</h3>
           {links.length === 0 ? (
             <p className="text-sm text-slate-500">
-              No ISPs linked yet. Choose from providers approved by your
+              No SPs linked yet. Choose from providers approved by your
               department.
             </p>
           ) : (
@@ -501,15 +501,15 @@ function SchoolIspView({
         </div>
         <div className="rounded-3xl border border-slate-200 bg-white p-5">
           <h3 className="text-sm font-black mb-1">
-            Department-approved ISP directory
+            Department-approved SP directory
           </h3>
           <p className="text-[11px] text-slate-500 mb-3">
-            Only ISPs that joined your school&apos;s department and were
+            Only SPs that joined your school&apos;s department and were
             approved appear here.
           </p>
           {directory.length === 0 ? (
             <p className="text-sm text-slate-500">
-              No approved ISPs for your department yet. Providers register,
+              No approved SPs for your department yet. Providers register,
               request to join the same DBE/PEU/DoH, and await approval.
             </p>
           ) : (

@@ -194,7 +194,7 @@ export async function POST(request: NextRequest) {
         ? Number(body.isp_profile_id)
         : null;
 
-      // Load PO for ISP + status update
+      // Load PO for SP + status update
       let po: Record<string, unknown> | null = null;
       if (poId && Number.isFinite(poId)) {
         const { data: poRow } = await supabase

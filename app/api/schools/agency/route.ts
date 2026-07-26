@@ -520,7 +520,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, status, link: updated?.[0] });
     }
 
-    // Agency approves ISP association request (preferred) or sets global status
+    // Agency approves SP association request (preferred) or sets global status
     if (
       action === 'set_isp_status' ||
       action === 'approve_isp' ||
@@ -538,7 +538,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           {
             error:
-              'Only a registered DBE / PEU / DoH agency can approve or suspend ISPs',
+              'Only a registered DBE / PEU / DoH agency can approve or suspend SPs',
           },
           { status: 403 }
         );
@@ -682,7 +682,7 @@ export async function POST(request: NextRequest) {
               ? `Approved by ${agencyGate.agency_name || 'department'}`
               : linkStatus === 'rejected'
                 ? 'Department rejected your join request'
-                : `ISP association ${linkStatus}`,
+                : `SP association ${linkStatus}`,
           body: String(
             body.reason ||
               `Your association with ${agencyGate.agency_name} is now ${linkStatus}`

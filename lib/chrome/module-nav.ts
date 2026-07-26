@@ -38,7 +38,7 @@ export type ModuleNavItem = {
   desc?: string;
   /**
    * Optional process group for sidebar + process rail.
-   * Schools NSNP: "DBE" | "School" | "ISP" (render order = first appearance).
+   * Schools NSNP: "DBE" | "School" | "SP" (render order = first appearance).
    */
   group?: string;
 };
@@ -409,8 +409,8 @@ export const MODULE_NAV: readonly ModuleNav[] = [
      * NSNP operating model — three world-class processes:
      * 1) DBE  — govern programme (approve, catalogue, pack, visits)
      * 2) School — feed children daily (setup → serve → claim → improve)
-     * 3) ISP — supply approved brands (network + SLA)
-     * Group order in sidebar / process rail = first appearance (DBE → School → ISP).
+     * 3) SP — supply approved brands (network + SLA)
+     * Group order in sidebar / process rail = first appearance (DBE → School → SP).
      */
     steps: [
       // ── DBE / PEU programme ──────────────────────────────────────────
@@ -504,7 +504,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       {
         name: 'Deliver',
         href: '/dashboard/schools/deliveries',
-        desc: 'ISP supply · receive · POD & invoices',
+        desc: 'SP supply · receive · POD & invoices',
         group: 'School',
       },
       {
@@ -544,30 +544,30 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         group: 'School',
       },
 
-      // ── ISP network ──────────────────────────────────────────────────
+      // ── SP network ──────────────────────────────────────────────────
       {
         name: 'Workspace',
         href: '/dashboard/schools/isp',
-        desc: 'ISP-only entry → deliveries',
-        group: 'ISP',
+        desc: 'SP-only entry → deliveries',
+        group: 'SP',
       },
       {
         name: 'Network',
         href: '/dashboard/schools/isps',
-        desc: 'Register ISP · link to schools · vet compliance',
-        group: 'ISP',
+        desc: 'Register SP · link to schools · vet compliance',
+        group: 'SP',
       },
       {
         name: 'Deliver',
         href: '/dashboard/schools/deliveries',
         desc: 'Dispatch · POD · invoice · OTIF · school receive',
-        group: 'ISP',
+        group: 'SP',
       },
       {
         name: 'SLA',
         href: '/dashboard/schools/isp-sla',
         desc: 'Delivery & brand compliance scores',
-        group: 'ISP',
+        group: 'SP',
       },
     ],
   },

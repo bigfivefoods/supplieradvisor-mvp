@@ -38,7 +38,7 @@ const MODULE_DESCRIPTIONS: Record<string, string> = {
   sustainability: 'Carbon tracking, ESG packs & impact',
   intelligence: 'Pulse, forecasts, scorecards & Super-Cube® leadership',
   schools:
-    'NSNP schools: kitchen, learners, ISPs, approved brands, feeding, prizes',
+    'NSNP schools: kitchen, learners, SPs, approved brands, feeding, prizes',
   home: 'Command centre home',
   'my-business': 'Company profile, team, modules, billing & trust',
   guide: 'In-app training curriculum',
@@ -184,7 +184,7 @@ export const MODULE_PRESETS: Array<{
     id: 'school_nsnp',
     label: 'School / NSNP',
     description:
-      'School kitchen, learners, approved brands, ISPs, feeding & prizes.',
+      'School kitchen, learners, approved brands, SPs, feeding & prizes.',
     enable: ['schools', 'inventory', 'suppliers', 'network', 'quality', 'sheq'],
   },
   {
@@ -196,7 +196,7 @@ export const MODULE_PRESETS: Array<{
   },
   {
     id: 'nsnp_isp',
-    label: 'NSNP ISP',
+    label: 'NSNP SP',
     description:
       'Deliver to schools + buy from wholesalers (suppliers, inventory, schools).',
     enable: [

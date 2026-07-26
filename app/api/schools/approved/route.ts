@@ -12,7 +12,7 @@ import {
 
 /**
  * DBE-owned NSNP approved catalogue.
- * - GET: schools/ISPs see the list for their linked agency (or national fallback)
+ * - GET: schools/SPs see the list for their linked agency (or national fallback)
  * - POST/PATCH/DELETE: only registered DBE/PEU agencies may edit their list
  */
 export async function GET(request: NextRequest) {
@@ -136,7 +136,7 @@ export async function GET(request: NextRequest) {
         ...ctx,
         agencyProfileId,
         message: ctx.canEdit
-          ? 'You publish this list as the government agency. Schools and ISPs must buy/supply only these items.'
+          ? 'You publish this list as the government agency. Schools and SPs must buy/supply only these items.'
           : ctx.source === 'agency'
             ? `Catalogue set by ${ctx.agencyName || 'DBE'}. You may only order and receive these approved foods.`
             : 'National fallback list — join and get approved by DBE to use their official catalogue.',

@@ -30,7 +30,7 @@ const ICONS: Record<string, typeof Building2> = {
 
 /**
  * /join — choose organisation kind before Privy onboarding.
- * Creates separate workspaces: DBE, School, ISP, Health, Trade, etc.
+ * Creates separate workspaces: DBE, School, SP, Health, Trade, etc.
  */
 export default function JoinPage() {
   const groups = entityGroups();
@@ -69,7 +69,7 @@ export default function JoinPage() {
           <p className="text-slate-600 max-w-2xl leading-relaxed">
             Each organisation type is a <strong>separate workspace</strong> with
             its own login members, modules, and home screen. Education programme
-            example: DBE oversees schools · schools order from ISPs · ISPs buy
+            example: DBE oversees schools · schools order from SPs · SPs buy
             from wholesalers on the trade network.
           </p>
         </div>

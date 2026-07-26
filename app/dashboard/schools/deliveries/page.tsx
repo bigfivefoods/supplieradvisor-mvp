@@ -366,7 +366,7 @@ function Inner() {
     <SchoolsPage>
       <SchoolsHeader
         title="Deliveries"
-        titleAccent={role === 'isp' ? 'ISP supply' : 'School receive'}
+        titleAccent={role === 'isp' ? 'SP supply' : 'School receive'}
         mode={mode}
         description={
           role === 'isp'
@@ -394,7 +394,7 @@ function Inner() {
       >
         <Truck className="w-4 h-4 shrink-0" />
         <span className="font-bold">
-          {role === 'isp' ? 'ISP workspace' : 'School kitchen receive'}
+          {role === 'isp' ? 'SP workspace' : 'School kitchen receive'}
         </span>
         <span className="text-xs opacity-80">
           {role === 'isp'
@@ -712,7 +712,7 @@ function Inner() {
                         })
                           .then((data) => {
                             if (!data) return;
-                            toast.message('Disputed — ISP will be notified');
+                            toast.message('Disputed — SP will be notified');
                             void load();
                             if (data.delivery) void openDetail(data.delivery);
                           })
@@ -798,7 +798,7 @@ function Inner() {
                     <p className="text-xs text-slate-500 rounded-xl bg-slate-50 border border-slate-100 px-3 py-3">
                       {role === 'isp'
                         ? 'After delivery: photo the POD and upload the invoice so the school can receive with confidence.'
-                        : 'ISP should attach POD + invoice. You can add photos of what landed at the kitchen door.'}
+                        : 'SP should attach POD + invoice. You can add photos of what landed at the kitchen door.'}
                     </p>
                   ) : (
                     <ul className="grid sm:grid-cols-2 gap-2">

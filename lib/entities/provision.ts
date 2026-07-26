@@ -1,5 +1,5 @@
 /**
- * Provision domain rows after entity registration (school / DBE / ISP).
+ * Provision domain rows after entity registration (school / DBE / SP).
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {

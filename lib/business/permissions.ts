@@ -52,7 +52,7 @@ export type PermissionResource =
   | 'sheq'
   /** HR / People — employees, leave, payroll */
   | 'people'
-  /** Schools / NSNP kitchen, learners, ISP procurement, prizes */
+  /** Schools / NSNP kitchen, learners, SP procurement, prizes */
   | 'schools';
 
 const ALL_RESOURCES: PermissionResource[] = [

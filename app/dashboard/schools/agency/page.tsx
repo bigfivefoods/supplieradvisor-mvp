@@ -122,8 +122,8 @@ function Inner() {
       if (!res.ok) throw new Error(data.error || 'Failed');
       toast.success(
         regType.includes('health')
-          ? 'Registered as Department of Health (DoH → ISPs → clinics & hospitals)'
-          : 'Registered as education agency (DBE/PEU → ISPs → schools)'
+          ? 'Registered as Department of Health (DoH → SPs → clinics & hospitals)'
+          : 'Registered as education agency (DBE/PEU → SPs → schools)'
       );
       void load();
     } catch (e: unknown) {
@@ -174,7 +174,7 @@ function Inner() {
     }
   };
 
-  /** Approve/reject/suspend an ISP↔agency association (by link_id preferred). */
+  /** Approve/reject/suspend an SP↔agency association (by link_id preferred). */
   const setIspStatus = async (
     link: Record<string, unknown>,
     action: 'approve_isp' | 'suspend_isp' | 'reject_isp'
@@ -202,10 +202,10 @@ function Inner() {
       if (!res.ok) throw new Error(data.error || 'Failed');
       toast.success(
         action === 'approve_isp'
-          ? 'ISP association approved — schools under you may order from them'
+          ? 'SP association approved — schools under you may order from them'
           : action === 'suspend_isp'
-            ? 'ISP association suspended'
-            : 'ISP join request rejected'
+            ? 'SP association suspended'
+            : 'SP join request rejected'
       );
       void load();
     } catch (e: unknown) {
@@ -247,7 +247,7 @@ function Inner() {
       <SchoolsHeader
         title="DBE / DoH & agencies"
         titleAccent="Programme hierarchy"
-        description="DBE/PEU → ISPs → Schools · DoH → ISPs → Clinics & hospitals. Approve associations, then run coverage reports."
+        description="DBE/PEU → SPs → Schools · DoH → SPs → Clinics & hospitals. Approve associations, then run coverage reports."
         action={
           <div className="flex flex-wrap gap-2">
             {role === 'agency' ? (
@@ -286,11 +286,11 @@ function Inner() {
                   Education
                 </p>
                 <p className="font-black text-slate-900 tracking-tight">
-                  DBE / PEU → ISPs → Schools
+                  DBE / PEU → SPs → Schools
                 </p>
                 <p className="text-xs text-slate-600 mt-1">
-                  Department approves ISPs and schools. Schools order only
-                  approved foods from those ISPs.
+                  Department approves SPs and schools. Schools order only
+                  approved foods from those SPs.
                 </p>
               </div>
               <div className="rounded-2xl bg-white/80 border border-rose-100 px-4 py-3">
@@ -298,7 +298,7 @@ function Inner() {
                   Health
                 </p>
                 <p className="font-black text-slate-900 tracking-tight">
-                  DoH → ISPs → Clinics &amp; hospitals
+                  DoH → SPs → Clinics &amp; hospitals
                 </p>
                 <p className="text-xs text-slate-600 mt-1">
                   Same model for health facilities under Department of Health.
@@ -314,7 +314,7 @@ function Inner() {
               Register this company as DBE / PEU / DoH
             </h3>
             <p className="text-xs text-slate-500 mb-3">
-              Register the government company here. Facilities and ISPs request
+              Register the government company here. Facilities and SPs request
               to join; you approve them. Then run hierarchy &amp; coverage
               reports.
             </p>
@@ -400,7 +400,7 @@ function Inner() {
             <div className="space-y-4">
               <div className="rounded-2xl border border-sky-100 bg-sky-50/70 px-4 py-3 text-sm flex flex-wrap items-center justify-between gap-3">
                 <p className="text-slate-700">
-                  <strong>Hierarchy:</strong> approve <em>ISPs</em> and{' '}
+                  <strong>Hierarchy:</strong> approve <em>SPs</em> and{' '}
                   <em>facilities</em> (schools under DBE, clinics/hospitals
                   under DoH). Only active associations appear in reports and can
                   trade.
@@ -431,12 +431,12 @@ function Inner() {
                     icon: Users,
                   },
                   {
-                    label: 'ISPs pending',
+                    label: 'SPs pending',
                     value: pendingIsps.length,
                     icon: Link2,
                   },
                   {
-                    label: 'ISPs approved',
+                    label: 'SPs approved',
                     value: compliantIsps.length,
                     icon: CheckCircle2,
                   },
@@ -456,14 +456,14 @@ function Inner() {
                 ))}
               </div>
 
-              {/* ISP association queue — same join+approve pattern as schools */}
+              {/* SP association queue — same join+approve pattern as schools */}
               <div className="rounded-3xl border border-amber-200 bg-white overflow-hidden">
                 <div className="px-5 py-3 border-b border-amber-100 bg-amber-50/50 text-xs font-bold uppercase text-amber-900">
-                  ISP associations · ISPs join your department, then you approve
+                  SP associations · SPs join your department, then you approve
                 </div>
                 {pendingIsps.length === 0 && compliantIsps.length === 0 ? (
                   <p className="px-5 py-6 text-sm text-slate-500">
-                    No ISP join requests yet. Providers register as ISP, then
+                    No SP join requests yet. Providers register as SP, then
                     request association with your department (DBE/PEU/DoH).
                     Pending requests appear here until you approve — same as
                     schools.
@@ -481,7 +481,7 @@ function Inner() {
                               link.display_name ||
                                 (link.isp as { trading_name?: string } | null)
                                   ?.trading_name ||
-                                `ISP ${link.isp_profile_id}`
+                                `SP ${link.isp_profile_id}`
                             )}
                           </p>
                           <p className="text-[11px] text-amber-800 font-bold uppercase">
@@ -521,7 +521,7 @@ function Inner() {
                               link.display_name ||
                                 (link.isp as { trading_name?: string } | null)
                                   ?.trading_name ||
-                                `ISP ${link.isp_profile_id}`
+                                `SP ${link.isp_profile_id}`
                             )}
                           </p>
                           <p className="text-[11px] text-emerald-800 font-bold uppercase">

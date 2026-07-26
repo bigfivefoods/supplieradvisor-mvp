@@ -235,7 +235,7 @@ function Inner() {
               value={ispId}
               onChange={(e) => setIspId(e.target.value)}
             >
-              <option value="">ISP (optional)</option>
+              <option value="">SP (optional)</option>
               {links.map((l) => (
                 <option
                   key={String(l.id)}

@@ -97,12 +97,12 @@ function Inner() {
               DBE/DoH approved foods list
             </a>
             . That wins prize points <em>and</em> keeps claim funding at 100%.
-            Prefer ISPs marked preferred on{' '}
+            Prefer SPs marked preferred on{' '}
             <a
               href="/dashboard/schools/isp-sla"
               className="font-bold text-[#0077b6] underline"
             >
-              ISP SLA
+              SP SLA
             </a>
             .
           </div>

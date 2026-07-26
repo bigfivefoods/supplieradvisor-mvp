@@ -19,12 +19,12 @@ type Props = {
 const GROUP_PILL: Record<string, string> = {
   DBE: 'bg-violet-100 text-violet-800 border-violet-200',
   School: 'bg-sky-100 text-sky-900 border-sky-200',
-  ISP: 'bg-amber-100 text-amber-900 border-amber-200',
+  SP: 'bg-amber-100 text-amber-900 border-amber-200',
 };
 
 /**
  * Single sticky top rail: process steps + Action centre on one horizontal level.
- * Grouped modules (e.g. Schools → DBE | School | ISP) show labelled segments.
+ * Grouped modules (e.g. Schools → DBE | School | SP) show labelled segments.
  */
 export default function ModuleProcessBar({ onOpenMobileMenu }: Props) {
   const pathname = usePathname() || '';

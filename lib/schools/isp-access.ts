@@ -1,5 +1,5 @@
 /**
- * ISP eligibility for school trade: must be associated + approved by the school's agency.
+ * SP eligibility for school trade: must be associated + approved by the school's agency.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -22,7 +22,7 @@ export async function schoolActiveAgencyIds(
 }
 
 /**
- * ISP profile_ids approved (active link) under any of the given agencies.
+ * SP profile_ids approved (active link) under any of the given agencies.
  */
 export async function ispsApprovedUnderAgencies(
   supabase: SupabaseClient,
@@ -45,7 +45,7 @@ export async function ispsApprovedUnderAgencies(
 }
 
 /**
- * True if ISP has an active association with at least one of the school's agencies.
+ * True if SP has an active association with at least one of the school's agencies.
  */
 export async function ispMaySupplySchool(
   supabase: SupabaseClient,
@@ -57,7 +57,7 @@ export async function ispMaySupplySchool(
     return {
       ok: false,
       reason:
-        'School must join and be approved by a DBE/PEU/DoH agency before ordering from ISPs.',
+        'School must join and be approved by a DBE/PEU/DoH agency before ordering from SPs.',
     };
   }
 
@@ -88,7 +88,7 @@ export async function ispMaySupplySchool(
     return {
       ok: false,
       reason:
-        'ISP must request to join your department (DBE/PEU/DoH) and be approved before schools can trade with them.',
+        'SP must request to join your department (DBE/PEU/DoH) and be approved before schools can trade with them.',
     };
   }
 

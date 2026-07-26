@@ -357,7 +357,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Provision school / DBE / ISP domain rows + module presets
+    // Provision school / DBE / SP domain rows + module presets
     let homePath = '/dashboard';
     let entityId = entityKind.id;
     try {

@@ -10,7 +10,7 @@ import {
 
 /**
  * In-page schools nav is OFF by default — module chrome (sidebar + process bar)
- * is the single source of truth, grouped DBE → School → ISP.
+ * is the single source of truth, grouped DBE → School → SP.
  * Kept for rare explicit showNav=true use.
  */
 export const SCHOOLS_NAV: readonly NavItem[] = [
@@ -20,8 +20,8 @@ export const SCHOOLS_NAV: readonly NavItem[] = [
   { href: '/dashboard/schools', label: 'School · Command', exact: true },
   { href: '/dashboard/schools/serve-day', label: 'School · Serve' },
   { href: '/dashboard/schools/kitchen', label: 'School · Kitchen' },
-  { href: '/dashboard/schools/isps', label: 'ISP · Network' },
-  { href: '/dashboard/schools/isp-sla', label: 'ISP · SLA' },
+  { href: '/dashboard/schools/isps', label: 'SP · Network' },
+  { href: '/dashboard/schools/isp-sla', label: 'SP · SLA' },
 ] as const;
 
 export function SchoolsNav() {
@@ -52,7 +52,7 @@ export function SchoolsHeader({
     mode === 'agency'
       ? 'DBE · PEU programme'
       : mode === 'isp'
-        ? 'ISP · NSNP supply'
+        ? 'SP · NSNP supply'
         : 'School · NSNP kitchen';
 
   return (

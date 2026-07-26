@@ -1,12 +1,12 @@
 /**
- * NSNP delivery lifecycle — ISP supplies, school receives, both attach docs.
+ * NSNP delivery lifecycle — SP supplies, school receives, both attach docs.
  */
 
 export const DELIVERY_STATUSES = [
   { value: 'draft', label: 'Draft', role: 'isp' },
   { value: 'confirmed', label: 'Confirmed', role: 'isp' },
   { value: 'dispatched', label: 'On the way', role: 'isp' },
-  { value: 'delivered', label: 'Delivered (ISP)', role: 'isp' },
+  { value: 'delivered', label: 'Delivered (SP)', role: 'isp' },
   { value: 'received', label: 'Received (school)', role: 'school' },
   { value: 'disputed', label: 'Disputed', role: 'school' },
   { value: 'cancelled', label: 'Cancelled', role: 'both' },

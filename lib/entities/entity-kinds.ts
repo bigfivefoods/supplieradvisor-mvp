@@ -3,12 +3,12 @@
  *
  * Programme hierarchy:
  *
- *   DBE / PEU  →  ISPs  →  Schools
- *   DoH        →  ISPs  →  Clinics & hospitals
+ *   DBE / PEU  →  SPs  →  Schools
+ *   DoH        →  SPs  →  Clinics & hospitals
  *
- * Agency owns the approved catalogue and must approve ISPs + facilities.
- * Facilities order only from ISPs associated under the same agency.
- * ISPs buy stock from normal wholesalers/businesses on the trade network.
+ * Agency owns the approved catalogue and must approve SPs + facilities.
+ * Facilities order only from SPs associated under the same agency.
+ * SPs buy stock from normal wholesalers/businesses on the trade network.
  */
 
 import type { ModulePresetId } from '@/lib/business/company-modules';
@@ -61,7 +61,7 @@ export const ENTITY_DEFINITIONS: readonly EntityDefinition[] = [
     label: 'Business / wholesaler',
     shortLabel: 'Business',
     description:
-      'Manufacturer, distributor, wholesaler or retailer — sell to ISPs and other companies on the network.',
+      'Manufacturer, distributor, wholesaler or retailer — sell to SPs and other companies on the network.',
     group: 'trade',
     homePath: '/dashboard',
     modulePreset: 'trading',
@@ -91,7 +91,7 @@ export const ENTITY_DEFINITIONS: readonly EntityDefinition[] = [
     label: 'Department of Education (DBE / PEU)',
     shortLabel: 'DBE / PEU',
     description:
-      'Top of the education chain: approve ISPs and schools, publish the approved foods list, PEU visits, claims & nutrition.',
+      'Top of the education chain: approve SPs and schools, publish the approved foods list, PEU visits, claims & nutrition.',
     group: 'education',
     homePath: '/dashboard/schools',
     modulePreset: 'dbe_agency',
@@ -106,7 +106,7 @@ export const ENTITY_DEFINITIONS: readonly EntityDefinition[] = [
     label: 'School',
     shortLabel: 'School',
     description:
-      'Under DBE/PEU: join the department, order only approved foods from approved ISPs, kitchen, serve day, claims.',
+      'Under DBE/PEU: join the department, order only approved foods from approved SPs, kitchen, serve day, claims.',
     group: 'education',
     homePath: '/dashboard/schools',
     modulePreset: 'school_nsnp',
@@ -118,15 +118,15 @@ export const ENTITY_DEFINITIONS: readonly EntityDefinition[] = [
     id: 'nsnp_isp',
     business_type: 'nsnp_isp',
     org_type: 'nsnp_isp',
-    label: 'Independent Service Provider (ISP)',
-    shortLabel: 'ISP',
+    label: 'Service Provider (SP)',
+    shortLabel: 'SP',
     description:
       'Middle of the chain: join DBE and/or DoH, then supply schools (education) or clinics & hospitals (health) with approved products. Buy from wholesalers on the trade network.',
     group: 'education',
     homePath: '/dashboard/schools/isp',
     modulePreset: 'nsnp_isp',
     provision: 'isp',
-    badge: 'ISP',
+    badge: 'SP',
     badgeClass: 'bg-amber-100 text-amber-900 border-amber-200',
   },
   {
@@ -136,7 +136,7 @@ export const ENTITY_DEFINITIONS: readonly EntityDefinition[] = [
     label: 'Department of Health',
     shortLabel: 'DoH',
     description:
-      'Top of the health chain: approve ISPs and clinics/hospitals, publish approved foods, same association model as DBE.',
+      'Top of the health chain: approve SPs and clinics/hospitals, publish approved foods, same association model as DBE.',
     group: 'health',
     homePath: '/dashboard/schools',
     modulePreset: 'dbe_agency',
@@ -151,7 +151,7 @@ export const ENTITY_DEFINITIONS: readonly EntityDefinition[] = [
     label: 'Hospital / clinic',
     shortLabel: 'Clinic / hospital',
     description:
-      'Under DoH: join the department, order only approved foods from approved ISPs (same operating model as schools).',
+      'Under DoH: join the department, order only approved foods from approved SPs (same operating model as schools).',
     group: 'health',
     homePath: '/dashboard/schools',
     modulePreset: 'school_nsnp',
@@ -248,23 +248,23 @@ export function entityGroups(): Array<{
   return [
     {
       id: 'education',
-      title: 'Education · DBE → ISPs → Schools',
+      title: 'Education · DBE → SPs → Schools',
       blurb:
-        'Chain: Department of Education approves ISPs and schools. Schools order only approved foods from those ISPs.',
+        'Chain: Department of Education approves SPs and schools. Schools order only approved foods from those SPs.',
       entities: ENTITY_DEFINITIONS.filter((e) => e.group === 'education'),
     },
     {
       id: 'health',
-      title: 'Health · DoH → ISPs → Clinics & hospitals',
+      title: 'Health · DoH → SPs → Clinics & hospitals',
       blurb:
-        'Same chain for health: Department of Health approves ISPs and clinics/hospitals. Facilities order only approved foods from those ISPs.',
+        'Same chain for health: Department of Health approves SPs and clinics/hospitals. Facilities order only approved foods from those SPs.',
       entities: ENTITY_DEFINITIONS.filter((e) => e.group === 'health'),
     },
     {
       id: 'trade',
       title: 'Trade network',
       blurb:
-        'Wholesalers, manufacturers and suppliers that ISPs (and others) buy from.',
+        'Wholesalers, manufacturers and suppliers that SPs (and others) buy from.',
       entities: ENTITY_DEFINITIONS.filter((e) => e.group === 'trade'),
     },
     {

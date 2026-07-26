@@ -9,7 +9,7 @@ import type { DeliveryLine } from '@/lib/schools/deliveries';
 import { logNsnpEvent } from '@/lib/schools/events';
 
 /**
- * ISP → school deliveries with shared POD / invoice files.
+ * SP → school deliveries with shared POD / invoice files.
  *
  * GET ?companyId=&role=school|isp|auto&status=
  * POST create / dispatch / deliver / receive / dispute / attach
@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
       if (!d) {
         return NextResponse.json({ error: 'Not found' }, { status: 404 });
       }
-      // Access: school company or ISP company
+      // Access: school company or SP company
       if (
         Number(d.school_company_id) !== companyId &&
         Number(d.isp_profile_id) !== companyId
@@ -188,7 +188,7 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseServer();
     const action = String(body.action || 'create');
 
-    // ── Attach file (school or ISP) ────────────────────────────────────
+    // ── Attach file (school or SP) ────────────────────────────────────
     if (action === 'attach') {
       const deliveryId = Number(body.delivery_id);
       if (!Number.isFinite(deliveryId) || !body.file_url) {
@@ -421,8 +421,8 @@ export async function POST(request: NextRequest) {
           kind: action === 'dispatch' ? 'delivery_dispatched' : 'delivery_delivered',
           title:
             action === 'dispatch'
-              ? 'ISP food is on the way'
-              : 'ISP marked delivery complete',
+              ? 'SP food is on the way'
+              : 'SP marked delivery complete',
           body: `Delivery ${d.delivery_number || d.id} — open to receive / view POD`,
           href: '/dashboard/schools/deliveries',
           metadata: { delivery_id: d.id, action },
@@ -444,7 +444,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, delivery: updated, grn });
     }
 
-    // ── Create delivery (ISP or school on behalf of linked ISP) ────────
+    // ── Create delivery (SP or school on behalf of linked SP) ────────
     const poId = body.po_id != null ? Number(body.po_id) : null;
     let schoolProfileId = body.school_profile_id
       ? Number(body.school_profile_id)
@@ -466,7 +466,7 @@ export async function POST(request: NextRequest) {
       if (!po) {
         return NextResponse.json({ error: 'PO not found' }, { status: 404 });
       }
-      // ISP must own the PO, or school owns it
+      // SP must own the PO, or school owns it
       const schoolOwns = Number(po.profile_id) === companyId;
       const ispOwns = Number(po.isp_profile_id) === companyId;
       if (!schoolOwns && !ispOwns) {
@@ -487,7 +487,7 @@ export async function POST(request: NextRequest) {
         }));
       }
     } else {
-      // Manual create: school must specify ISP; ISP must specify school
+      // Manual create: school must specify SP; SP must specify school
       const { data: ispCheck } = await supabase
         .from('nsnp_isp_profiles')
         .select('profile_id')
@@ -497,7 +497,7 @@ export async function POST(request: NextRequest) {
         ispProfileId = companyId;
         if (!schoolProfileId) {
           return NextResponse.json(
-            { error: 'school_profile_id required for ISP create' },
+            { error: 'school_profile_id required for SP create' },
             { status: 400 }
           );
         }
@@ -663,7 +663,7 @@ async function postGrnFromDelivery(
           status: 'open',
           severity: 'high',
           event_date: new Date().toISOString().slice(0, 10),
-          body: `Delivery ${delivery.delivery_number || delivery.id}: only department-approved foods may be received. ISP ${delivery.isp_profile_id || '?'}.`,
+          body: `Delivery ${delivery.delivery_number || delivery.id}: only department-approved foods may be received. SP ${delivery.isp_profile_id || '?'}.`,
           metadata: {
             delivery_id: delivery.id,
             isp_profile_id: delivery.isp_profile_id,

@@ -12,7 +12,7 @@ import {
 } from '@/lib/schools/incentives';
 
 /**
- * ISP SLA + approved-product incentive scorecard (school or agency network).
+ * SP SLA + approved-product incentive scorecard (school or agency network).
  * Preferred suppliers = high % on-catalogue deliveries → schools should order from them.
  */
 export async function GET(request: NextRequest) {
@@ -131,7 +131,7 @@ export async function GET(request: NextRequest) {
         .in('profile_id', ispIds);
       for (const i of isps || []) {
         names[Number(i.profile_id)] =
-          String(i.trading_name || `ISP ${i.profile_id}`);
+          String(i.trading_name || `SP ${i.profile_id}`);
       }
       const missing = ispIds.filter((id) => !names[id]);
       if (missing.length) {
@@ -155,7 +155,7 @@ export async function GET(request: NextRequest) {
         });
         return {
           ...m,
-          name: names[m.isp_profile_id] || `ISP ${m.isp_profile_id}`,
+          name: names[m.isp_profile_id] || `SP ${m.isp_profile_id}`,
           compliance_pct: incentive.compliance_pct,
           otifef_pct: incentive.compliance_pct,
           incentive_score: incentive.score,

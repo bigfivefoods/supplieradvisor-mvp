@@ -86,7 +86,7 @@ export async function GET(request: NextRequest) {
       ),
     ];
 
-    // ISP coverage is independent of school members — always load for DBE
+    // SP coverage is independent of school members — always load for DBE
     const ispCoverage = await loadIspCoverage(supabase, companyId, schoolIds);
 
     if (!schoolIds.length) {
@@ -511,7 +511,7 @@ export async function GET(request: NextRequest) {
       avg_prize: r.avg_prize,
     }));
 
-    // Combined coverage: schools + ISPs per province / district
+    // Combined coverage: schools + SPs per province / district
     const schoolProvMap = new Map(
       schoolsByProvince.map((r) => [r.key, r] as const)
     );
@@ -697,7 +697,7 @@ export async function GET(request: NextRequest) {
     (kpis as Record<string, number>).submittedClaims = claimsInbox.length;
     (kpis as Record<string, number>).totalClaims = claims.length;
 
-    // Hierarchy: Agency → ISPs → facilities each ISP supplies
+    // Hierarchy: Agency → SPs → facilities each SP supplies
     const {
       programmeHierarchyBlurb,
       familyForAgencyType,
@@ -708,7 +708,7 @@ export async function GET(request: NextRequest) {
       members.map((m) => [m.school_profile_id, m] as const)
     );
 
-    // Map ISP → school_profile_ids in this network
+    // Map SP → school_profile_ids in this network
     const ispToFacilities = new Map<number, number[]>();
     for (const isp of ispCoverage.isps) {
       const ispId = Number(isp.isp_profile_id);
@@ -767,7 +767,7 @@ export async function GET(request: NextRequest) {
       }),
       unlinked_facilities: members
         .filter((m) => {
-          // Facilities with no active ISP link under any associated ISP
+          // Facilities with no active SP link under any associated SP
           for (const [, ids] of ispToFacilities) {
             if (ids.includes(m.school_profile_id)) return false;
           }
@@ -834,8 +834,8 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * ISP associations for this DBE/DoH, rolled up by province and by district.
- * Province comes from ISP.provinces[]; district is derived from schools they
+ * SP associations for this DBE/DoH, rolled up by province and by district.
+ * Province comes from SP.provinces[]; district is derived from schools they
  * supply in this agency network (POs / school_isp_links).
  */
 async function loadIspCoverage(
@@ -940,7 +940,7 @@ async function loadIspCoverage(
       .in('id', missingNames);
     for (const p of profs || []) {
       nameById[Number(p.id)] =
-        p.trading_name || p.legal_name || `ISP ${p.id}`;
+        p.trading_name || p.legal_name || `SP ${p.id}`;
     }
   }
 
@@ -955,7 +955,7 @@ async function loadIspCoverage(
       trading_name:
         isp?.trading_name ||
         nameById[Number(l.isp_profile_id)] ||
-        `ISP ${l.isp_profile_id}`,
+        `SP ${l.isp_profile_id}`,
       provinces,
       compliance_status: isp?.compliance_status || null,
       food_handling_cert: isp?.food_handling_cert ?? null,
@@ -983,7 +983,7 @@ async function buildIspCoverageFromRows(
   }>,
   networkSchoolIds: number[]
 ) {
-  // Districts served: schools in this agency network linked to each ISP
+  // Districts served: schools in this agency network linked to each SP
   const ispDistricts = new Map<number, Set<string>>();
   const ispSchoolCounts = new Map<number, number>();
 
@@ -1032,7 +1032,7 @@ async function buildIspCoverageFromRows(
 
   const isps = rows.map((r) => ({
     isp_profile_id: r.isp_profile_id,
-    name: r.trading_name || `ISP ${r.isp_profile_id}`,
+    name: r.trading_name || `SP ${r.isp_profile_id}`,
     status: r.status,
     compliance_status: r.compliance_status || null,
     provinces: r.provinces,
@@ -1041,7 +1041,7 @@ async function buildIspCoverageFromRows(
     food_handling_cert: r.food_handling_cert ?? null,
   }));
 
-  // Province rollup: an ISP listing a province counts once there
+  // Province rollup: an SP listing a province counts once there
   const provMap = new Map<
     string,
     { key: string; isps: number; isps_active: number; isps_pending: number; ids: Set<number> }

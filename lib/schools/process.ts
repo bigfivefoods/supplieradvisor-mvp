@@ -40,7 +40,7 @@ export const PROCESS_STAGES: Array<{
   { id: 'setup', label: 'School identity', short: '1 · Setup', color: 'sky' },
   { id: 'register', label: 'Learners & EMIS', short: '2 · Register', color: 'indigo' },
   { id: 'catalogue', label: 'Approved foods & menu', short: '3 · Menu', color: 'violet' },
-  { id: 'supply', label: 'ISPs & orders', short: '4 · Supply', color: 'fuchsia' },
+  { id: 'supply', label: 'SPs & orders', short: '4 · Supply', color: 'fuchsia' },
   { id: 'kitchen', label: 'Kitchen GRN & stock', short: '5 · Kitchen', color: 'rose' },
   { id: 'serve', label: 'Serve day', short: '6 · Serve', color: 'orange' },
   { id: 'quality', label: 'Feedback & compliance', short: '7 · Quality', color: 'amber' },
@@ -117,7 +117,7 @@ export const PROCESS_STEPS: ProcessStep[] = [
   {
     id: 'isps',
     stage: 'supply',
-    label: 'ISPs',
+    label: 'SPs',
     href: '/dashboard/schools/isps',
     desc: 'Link only compliant service providers',
     school: true,
@@ -136,7 +136,7 @@ export const PROCESS_STEPS: ProcessStep[] = [
   {
     id: 'isp_sla',
     stage: 'supply',
-    label: 'ISP SLA',
+    label: 'SP SLA',
     href: '/dashboard/schools/isp-sla',
     desc: 'Delivery & brand compliance scores',
     school: false,

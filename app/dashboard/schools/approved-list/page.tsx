@@ -291,9 +291,9 @@ function Inner() {
         }
         description={
           canEdit
-            ? 'You publish the only foods schools, clinics and hospitals may order. ISPs must supply these items. That list drives prize scores, preferred-supplier status, and claim funding.'
+            ? 'You publish the only foods schools, clinics and hospitals may order. SPs must supply these items. That list drives prize scores, preferred-supplier status, and claim funding.'
             : catalogue?.message ||
-              'Only DBE/DoH approved brands may be ordered or received. That protects claim funding, headmaster prizes, and ISP preferred status.'
+              'Only DBE/DoH approved brands may be ordered or received. That protects claim funding, headmaster prizes, and SP preferred status.'
         }
         action={
           <div className="flex flex-wrap gap-2">
@@ -345,7 +345,7 @@ function Inner() {
                 : 'Strict compliance.'}
           </strong>{' '}
           {canEdit
-            ? 'Schools and ISPs are blocked from ordering or receiving anything not on this list. Quarterly prizes reward headmasters for 100% approved-brand spend.'
+            ? 'Schools and SPs are blocked from ordering or receiving anything not on this list. Quarterly prizes reward headmasters for 100% approved-brand spend.'
             : 'POs and GRNs reject non-approved brands. Buy what is listed to climb the quarterly prize leaderboard (Schools → Prizes).'}
           {!canEdit ? (
             <>

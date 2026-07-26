@@ -39,7 +39,7 @@ const REPORTS = [
   { id: 'district', label: 'By district' },
   { id: 'circuit', label: 'By circuit' },
   { id: 'quintile', label: 'By quintile' },
-  { id: 'isps', label: 'ISPs' },
+  { id: 'isps', label: 'SPs' },
   { id: 'prizes', label: 'Prize board' },
   { id: 'feeding', label: 'Feeding' },
   { id: 'risks', label: 'Risks' },
@@ -483,7 +483,7 @@ function Inner() {
             />
             <Kpi
               icon={Truck}
-              label="ISPs (middle tier)"
+              label="SPs (middle tier)"
               value={String(k.isps ?? ispList.length ?? 0)}
               sub={`${k.isps_active ?? 0} active · ${k.isps_pending ?? 0} pending`}
               tone="emerald"
@@ -676,19 +676,19 @@ function Inner() {
             <div className="space-y-6">
               <div className="rounded-2xl border border-sky-100 bg-sky-50/80 px-4 py-3 text-sm text-slate-700">
                 <strong>Coverage report:</strong> schools associated with your
-                department by province/district, plus ISPs that joined you
-                (province from ISP service areas; district from schools they
+                department by province/district, plus SPs that joined you
+                (province from SP service areas; district from schools they
                 supply in your network).
               </div>
               <CoverageTable
-                title="Schools & ISPs by province"
+                title="Schools & SPs by province"
                 rows={
                   coverageByProvince.length ? coverageByProvince : byProvince
                 }
                 keyLabel="Province"
               />
               <CoverageTable
-                title="Schools & ISPs by district"
+                title="Schools & SPs by district"
                 rows={
                   coverageByDistrict.length ? coverageByDistrict : byDistrict
                 }
@@ -696,12 +696,12 @@ function Inner() {
               />
               <div className="grid lg:grid-cols-2 gap-4">
                 <IspCountTable
-                  title="ISPs by province (service area)"
+                  title="SPs by province (service area)"
                   rows={ispsByProvince}
                   keyLabel="Province"
                 />
                 <IspCountTable
-                  title="ISPs by district (schools they supply)"
+                  title="SPs by district (schools they supply)"
                   rows={ispsByDistrict}
                   keyLabel="District"
                 />
@@ -722,7 +722,7 @@ function Inner() {
           {report === 'province' && (
             <div className="space-y-6">
               <CoverageTable
-                title="Province coverage · schools + ISPs"
+                title="Province coverage · schools + SPs"
                 rows={
                   coverageByProvince.length ? coverageByProvince : byProvince
                 }
@@ -734,7 +734,7 @@ function Inner() {
                 keyLabel="Province"
               />
               <IspCountTable
-                title="ISPs by province"
+                title="SPs by province"
                 rows={ispsByProvince}
                 keyLabel="Province"
               />
@@ -743,7 +743,7 @@ function Inner() {
           {report === 'district' && (
             <div className="space-y-6">
               <CoverageTable
-                title="District coverage · schools + ISPs"
+                title="District coverage · schools + SPs"
                 rows={
                   coverageByDistrict.length ? coverageByDistrict : byDistrict
                 }
@@ -755,7 +755,7 @@ function Inner() {
                 keyLabel="District"
               />
               <IspCountTable
-                title="ISPs by district (from school links)"
+                title="SPs by district (from school links)"
                 rows={ispsByDistrict}
                 keyLabel="District"
               />
@@ -1116,7 +1116,7 @@ function HierarchyView({
 }) {
   const chain = tree?.agency?.chain || meta?.chain || [
     'Agency',
-    'ISPs',
+    'SPs',
     'Facilities',
   ];
   const isps = tree?.isps || [];
@@ -1143,7 +1143,7 @@ function HierarchyView({
         <p className="text-sm text-slate-600 mt-3 max-w-2xl">
           {tree?.agency?.description ||
             meta?.description ||
-            'Agency approves ISPs and facilities. Facilities order only from ISPs under the same agency.'}
+            'Agency approves SPs and facilities. Facilities order only from SPs under the same agency.'}
         </p>
       </div>
 
@@ -1166,18 +1166,18 @@ function HierarchyView({
         </div>
       </div>
 
-      {/* Level 2: ISPs */}
+      {/* Level 2: SPs */}
       <div className="rounded-3xl border-2 border-amber-200 bg-white overflow-hidden">
         <div className="px-5 py-3 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
           <Truck className="w-4 h-4 text-amber-700" />
           <span className="text-xs font-bold uppercase text-amber-900">
-            2 · ISPs · {isps.length} associated
+            2 · SPs · {isps.length} associated
           </span>
         </div>
         {isps.length === 0 ? (
           <p className="px-5 py-8 text-sm text-slate-500">
-            No ISPs have joined this department yet. ISPs request association
-            under Schools → ISPs, then you approve them.
+            No SPs have joined this department yet. SPs request association
+            under Schools → SPs, then you approve them.
           </p>
         ) : (
           <ul className="divide-y">
@@ -1192,11 +1192,11 @@ function HierarchyView({
                     </p>
                   </div>
                 </div>
-                {/* Level 3: facilities under this ISP */}
+                {/* Level 3: facilities under this SP */}
                 {isp.facilities.length === 0 ? (
                   <p className="text-xs text-slate-400 pl-3 border-l-2 border-slate-100">
                     No linked {meta?.facilityPlural?.toLowerCase() || 'facilities'}{' '}
-                    yet under this ISP.
+                    yet under this SP.
                   </p>
                 ) : (
                   <ul className="mt-2 space-y-1.5 pl-3 border-l-2 border-sky-200">
@@ -1229,11 +1229,11 @@ function HierarchyView({
         )}
       </div>
 
-      {/* Facilities under agency but not yet linked to an ISP */}
+      {/* Facilities under agency but not yet linked to an SP */}
       {unlinked.length > 0 ? (
         <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
           <div className="px-5 py-3 border-b text-xs font-bold uppercase text-slate-500">
-            3 · Approved facilities not yet linked to an ISP ({unlinked.length})
+            3 · Approved facilities not yet linked to an SP ({unlinked.length})
           </div>
           <ul className="divide-y max-h-64 overflow-y-auto">
             {unlinked.map((f) => (
@@ -1350,9 +1350,9 @@ function CoverageTable({
               <th className="px-4 py-3">{keyLabel}</th>
               <th className="px-3 py-3 text-right">Schools</th>
               <th className="px-3 py-3 text-right">Learners</th>
-              <th className="px-3 py-3 text-right">ISPs</th>
-              <th className="px-3 py-3 text-right">ISPs active</th>
-              <th className="px-3 py-3 text-right">ISPs pending</th>
+              <th className="px-3 py-3 text-right">SPs</th>
+              <th className="px-3 py-3 text-right">SPs active</th>
+              <th className="px-3 py-3 text-right">SPs pending</th>
               <th className="px-3 py-3 text-right">Meals</th>
               <th className="px-3 py-3 text-right">PO spend</th>
             </tr>
@@ -1364,7 +1364,7 @@ function CoverageTable({
                   colSpan={8}
                   className="px-4 py-10 text-center text-slate-500"
                 >
-                  No geographic coverage data yet. Approve school and ISP
+                  No geographic coverage data yet. Approve school and SP
                   associations first.
                 </td>
               </tr>
@@ -1422,7 +1422,7 @@ function IspCountTable({
         <thead>
           <tr className="border-b text-left text-[10px] font-bold uppercase text-slate-400">
             <th className="px-4 py-3">{keyLabel}</th>
-            <th className="px-3 py-3 text-right">ISPs</th>
+            <th className="px-3 py-3 text-right">SPs</th>
             <th className="px-3 py-3 text-right">Active</th>
             <th className="px-3 py-3 text-right">Pending</th>
           </tr>
@@ -1431,7 +1431,7 @@ function IspCountTable({
           {rows.length === 0 ? (
             <tr>
               <td colSpan={4} className="px-4 py-8 text-center text-slate-500">
-                No ISPs associated yet.
+                No SPs associated yet.
               </td>
             </tr>
           ) : (
@@ -1466,19 +1466,19 @@ function IspDirectoryTable({
   return (
     <div className="space-y-4">
       <IspCountTable
-        title="ISPs per province"
+        title="SPs per province"
         rows={byProvince}
         keyLabel="Province"
       />
       <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
         <div className="px-5 py-3 border-b text-xs font-bold uppercase text-slate-500">
-          ISP directory · associated with this department
+          SP directory · associated with this department
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[720px]">
             <thead>
               <tr className="border-b text-left text-[10px] font-bold uppercase text-slate-400">
-                <th className="px-4 py-3">ISP</th>
+                <th className="px-4 py-3">SP</th>
                 <th className="px-3 py-3">Status</th>
                 <th className="px-3 py-3">Provinces</th>
                 <th className="px-3 py-3 text-right">Schools linked</th>
@@ -1492,7 +1492,7 @@ function IspDirectoryTable({
                     colSpan={5}
                     className="px-4 py-10 text-center text-slate-500"
                   >
-                    No ISPs have requested to join this department yet.
+                    No SPs have requested to join this department yet.
                   </td>
                 </tr>
               ) : (
