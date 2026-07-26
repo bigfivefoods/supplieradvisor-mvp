@@ -546,7 +546,10 @@ export default function BusinessOnboardingWizard() {
               <p className="text-neutral-600 mb-8">Confirm everything looks right. You can edit your profile later.</p>
               <div className="rounded-2xl border border-neutral-200 divide-y bg-neutral-50">
                 {[
-                  ['Organisation type', BUSINESS_TYPES.find((t) => t.id === form.business_type)?.label],
+                  [
+                    'Organisation type',
+                    resolveEntityKind(form.business_type).label,
+                  ],
                   ['Trading name', form.trading_name],
                   ['Legal name', form.legal_name || form.trading_name],
                   ['Location', [form.city, form.country].filter(Boolean).join(', ')],
