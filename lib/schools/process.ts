@@ -3,7 +3,7 @@
  * Single source of truth for journey stages, readiness, and role nav.
  */
 
-export type ProcessRole = 'school' | 'agency';
+export type ProcessRole = 'school' | 'agency' | 'isp';
 
 export type ProcessStageId =
   | 'setup'
@@ -301,6 +301,7 @@ export type SchoolReadiness = {
     openRiad: number;
     openMaint: number;
     openCompliance: number;
+    deliveriesAwaiting?: number;
   };
 };
 

@@ -29,14 +29,73 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseServer();
     const today = new Date().toISOString().slice(0, 10);
 
-    // Detect agency role first
+    // Role priority: agency → ISP → school
     const { data: agencyRow } = await supabase
       .from('nsnp_agency_profiles')
       .select('*')
       .eq('profile_id', companyId)
       .maybeSingle();
 
-    const role: ProcessRole = agencyRow ? 'agency' : 'school';
+    const { data: ispRow } = await supabase
+      .from('nsnp_isp_profiles')
+      .select('*')
+      .eq('profile_id', companyId)
+      .maybeSingle();
+
+    if (agencyRow) {
+      // handled below as agency
+    }
+
+    const role: ProcessRole = agencyRow
+      ? 'agency'
+      : ispRow
+        ? 'isp'
+        : 'school';
+
+    if (role === 'isp' && ispRow) {
+      const { data: dels } = await supabase
+        .from('school_nsnp_deliveries')
+        .select('id, status')
+        .eq('isp_profile_id', companyId)
+        .limit(200);
+      const list = dels || [];
+      const toMove = list.filter((d) =>
+        ['draft', 'confirmed', 'dispatched'].includes(String(d.status))
+      ).length;
+      const awaitingSchool = list.filter((d) =>
+        ['dispatched', 'delivered'].includes(String(d.status))
+      ).length;
+      const { data: openPos } = await supabase
+        .from('school_purchase_orders')
+        .select('id')
+        .eq('isp_profile_id', companyId)
+        .in('status', ['submitted', 'confirmed', 'open', 'dispatched'])
+        .limit(50);
+
+      return NextResponse.json({
+        success: true,
+        role: 'isp' as const,
+        isp: ispRow,
+        summary: {
+          openPos: (openPos || []).length,
+          deliveriesActive: toMove,
+          awaitingSchoolReceive: awaitingSchool,
+          compliance: String(ispRow.compliance_status || 'pending'),
+        },
+        nextAction:
+          (openPos || []).length > 0
+            ? {
+                label: 'Fulfil open school POs',
+                href: '/dashboard/schools/deliveries',
+                desc: `${(openPos || []).length} open order(s) — create delivery notes, dispatch, attach POD & invoice`,
+              }
+            : {
+                label: 'Open deliveries',
+                href: '/dashboard/schools/deliveries',
+                desc: 'Track dispatch, POD, invoice and school receipt',
+              },
+      });
+    }
 
     if (role === 'agency') {
       const { data: links } = await supabase
@@ -95,6 +154,7 @@ export async function GET(request: NextRequest) {
       riadRes,
       maintRes,
       complianceRes,
+      delivRes,
     ] = await Promise.all([
       supabase
         .from('school_agency_links')
@@ -127,7 +187,7 @@ export async function GET(request: NextRequest) {
         .from('school_purchase_orders')
         .select('id, status')
         .eq('school_profile_id', schoolId)
-        .in('status', ['draft', 'submitted', 'open', 'confirmed'])
+        .in('status', ['draft', 'submitted', 'open', 'confirmed', 'dispatched'])
         .limit(50),
       supabase
         .from('school_feeding_days')
@@ -156,6 +216,12 @@ export async function GET(request: NextRequest) {
         .select('id, status')
         .eq('school_profile_id', schoolId)
         .limit(100),
+      supabase
+        .from('school_nsnp_deliveries')
+        .select('id, status')
+        .eq('school_profile_id', schoolId)
+        .in('status', ['dispatched', 'delivered', 'confirmed'])
+        .limit(50),
     ]);
 
     const links = linksRes.data || [];
@@ -208,6 +274,7 @@ export async function GET(request: NextRequest) {
     const openCompliance = (complianceRes.data || []).filter(
       (c) => !['closed', 'resolved', 'done'].includes(String(c.status || ''))
     ).length;
+    const deliveriesAwaiting = (delivRes.data || []).length;
 
     const hasPhoto = Boolean(school.photo_url);
     const hasEmis = Boolean(school.emis_number);
@@ -312,27 +379,34 @@ export async function GET(request: NextRequest) {
     const firstTodo = checks.find((c) => c.required && !c.done) ||
       checks.find((c) => !c.done);
 
-    const nextAction = !serveComplete
-      ? {
-          label: readyForServeDay ? 'Start serve day' : 'Finish setup first',
-          href: readyForServeDay
-            ? '/dashboard/schools/serve-day'
-            : firstTodo?.href || '/dashboard/schools/profile',
-          desc: readyForServeDay
-            ? 'Log present, meals served & waste for today'
-            : firstTodo?.hint || firstTodo?.label || 'Complete setup',
-        }
-      : firstTodo
+    const nextAction =
+      deliveriesAwaiting > 0
         ? {
-            label: firstTodo.label,
-            href: firstTodo.href,
-            desc: firstTodo.hint || 'Complete your NSNP golden path',
+            label: `Receive ${deliveriesAwaiting} delivery(ies)`,
+            href: '/dashboard/schools/deliveries',
+            desc: 'Confirm ISP drop-offs, adjust quantities, post kitchen GRN',
           }
-        : {
-            label: 'Share food survey',
-            href: '/dashboard/schools/surveys',
-            desc: 'Collect learner & parent feedback',
-          };
+        : !serveComplete
+          ? {
+              label: readyForServeDay ? 'Start serve day' : 'Finish setup first',
+              href: readyForServeDay
+                ? '/dashboard/schools/serve-day'
+                : firstTodo?.href || '/dashboard/schools/profile',
+              desc: readyForServeDay
+                ? 'Log present, meals served & waste for today'
+                : firstTodo?.hint || firstTodo?.label || 'Complete setup',
+            }
+          : firstTodo
+            ? {
+                label: firstTodo.label,
+                href: firstTodo.href,
+                desc: firstTodo.hint || 'Complete your NSNP golden path',
+              }
+            : {
+                label: 'Share food survey',
+                href: '/dashboard/schools/surveys',
+                desc: 'Collect learner & parent feedback',
+              };
 
     // Menu dish today
     let menuDish: string | null = null;
@@ -377,6 +451,7 @@ export async function GET(request: NextRequest) {
         openRiad,
         openMaint,
         openCompliance,
+        deliveriesAwaiting,
       },
     };
 

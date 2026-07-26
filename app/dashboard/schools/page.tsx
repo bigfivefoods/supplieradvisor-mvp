@@ -44,14 +44,23 @@ export default function SchoolsHubPage() {
 function Inner() {
   const companyId = getSelectedCompanyId()!;
   const [loading, setLoading] = useState(true);
-  const [role, setRole] = useState<'school' | 'agency'>('school');
+  const [role, setRole] = useState<'school' | 'agency' | 'isp'>('school');
   const [school, setSchool] = useState<Record<string, unknown> | null>(null);
   const [readiness, setReadiness] = useState<SchoolReadiness | null>(null);
   const [agencySummary, setAgencySummary] = useState<Record<
     string,
-    number
+    number | string
   > | null>(null);
   const [agencyNext, setAgencyNext] = useState<{
+    label: string;
+    href: string;
+    desc: string;
+  } | null>(null);
+  const [ispSummary, setIspSummary] = useState<Record<
+    string,
+    number | string
+  > | null>(null);
+  const [ispNext, setIspNext] = useState<{
     label: string;
     href: string;
     desc: string;
@@ -80,10 +89,19 @@ function Inner() {
         setAgencyNext(ready.nextAction || null);
         setSchool(null);
         setReadiness(null);
+        setIspSummary(null);
+      } else if (ready.role === 'isp') {
+        setRole('isp');
+        setIspSummary(ready.summary || null);
+        setIspNext(ready.nextAction || null);
+        setSchool(null);
+        setReadiness(null);
+        setAgencySummary(null);
       } else {
         setRole('school');
         setSchool(ready.school || null);
         setReadiness(ready.readiness || null);
+        setIspSummary(null);
       }
       if (prizeRes.ok && prize.score) {
         setPrizeScore(Number(prize.score.total) || null);
@@ -110,6 +128,97 @@ function Inner() {
         />
         <div className="py-20 flex justify-center">
           <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
+        </div>
+      </SchoolsPage>
+    );
+  }
+
+  if (role === 'isp') {
+    return (
+      <SchoolsPage>
+        <SchoolsHeader
+          title="ISP command"
+          titleAccent="Supply"
+          description="Fulfil school POs, dispatch trucks, attach POD & invoices — schools confirm receipt into kitchen stock."
+          mode="isp"
+          action={
+            <button
+              type="button"
+              onClick={() => void load()}
+              className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-2"
+            >
+              <RefreshCw className="w-4 h-4" /> Refresh
+            </button>
+          }
+        />
+        <div className="rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-sky-50 p-6 mb-6">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
+            Independent service provider
+          </p>
+          <h2 className="text-xl font-black text-slate-900 mt-0.5">
+            {ispNext?.label || 'Deliveries workspace'}
+          </h2>
+          <p className="text-sm text-slate-600 mt-1">
+            {ispNext?.desc ||
+              'Create delivery notes from school POs, mark dispatched/delivered, upload POD + invoice.'}
+          </p>
+          <div className="flex flex-wrap gap-2 mt-4">
+            <Link
+              href={ispNext?.href || '/dashboard/schools/deliveries'}
+              className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center gap-2"
+            >
+              Open deliveries <ArrowRight className="w-4 h-4" />
+            </Link>
+            <Link
+              href="/dashboard/schools/isps"
+              className="btn-secondary !py-2.5 !px-4 text-sm"
+            >
+              ISP profile
+            </Link>
+            <Link
+              href="/dashboard/schools/isp-sla"
+              className="btn-secondary !py-2.5 !px-4 text-sm"
+            >
+              SLA scores
+            </Link>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[
+            {
+              label: 'Open POs',
+              value: ispSummary?.openPos ?? 0,
+              href: '/dashboard/schools/deliveries',
+            },
+            {
+              label: 'Active DNs',
+              value: ispSummary?.deliveriesActive ?? 0,
+              href: '/dashboard/schools/deliveries',
+            },
+            {
+              label: 'Awaiting school',
+              value: ispSummary?.awaitingSchoolReceive ?? 0,
+              href: '/dashboard/schools/deliveries',
+            },
+            {
+              label: 'Compliance',
+              value: String(ispSummary?.compliance || 'pending'),
+              href: '/dashboard/schools/isps',
+            },
+          ].map((t) => (
+            <Link
+              key={t.label}
+              href={t.href}
+              className="rounded-3xl border border-slate-200 bg-white p-4 hover:border-amber-300 transition-all"
+            >
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                {t.label}
+              </p>
+              <p className="text-2xl font-black tabular-nums capitalize mt-0.5">
+                {t.value}
+              </p>
+            </Link>
+          ))}
         </div>
       </SchoolsPage>
     );
@@ -350,8 +459,22 @@ function Inner() {
       {(k?.openCompliance || 0) > 0 ||
       (k?.openRiad || 0) > 0 ||
       (k?.openMaint || 0) > 0 ||
+      (k?.deliveriesAwaiting || 0) > 0 ||
       (k && !k.agencyActive) ? (
         <div className="mb-4 space-y-2">
+          {(k?.deliveriesAwaiting || 0) > 0 ? (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 flex gap-2">
+              <Truck className="w-4 h-4 shrink-0 mt-0.5" />
+              {k!.deliveriesAwaiting} ISP delivery(ies) waiting to be received
+              into kitchen —{' '}
+              <Link
+                href="/dashboard/schools/deliveries"
+                className="font-bold underline"
+              >
+                receive now
+              </Link>
+            </div>
+          ) : null}
           {k && !k.agencyActive ? (
             <div className="rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-950 flex gap-2">
               <Landmark className="w-4 h-4 shrink-0 mt-0.5" />
@@ -405,11 +528,11 @@ function Inner() {
         </div>
       ) : null}
 
-      {/* Daily 4 */}
+      {/* Daily path — includes deliveries */}
       <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
         Daily school path
       </p>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
         {[
           {
             href: '/dashboard/schools/serve-day',
@@ -419,6 +542,16 @@ function Inner() {
               ? `${r.today.served} meals logged`
               : 'Present → meals → waste',
             accent: 'from-sky-500 to-cyan-400',
+          },
+          {
+            href: '/dashboard/schools/deliveries',
+            icon: Truck,
+            label: 'Deliveries',
+            desc:
+              (k?.deliveriesAwaiting || 0) > 0
+                ? `${k!.deliveriesAwaiting} to receive`
+                : 'ISP drops & POD',
+            accent: 'from-amber-500 to-orange-400',
           },
           {
             href: '/dashboard/schools/kitchen',
