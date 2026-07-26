@@ -9,7 +9,6 @@ import Link from 'next/link';
 import {
   Building2,
   Users,
-  FolderOpen,
   ShieldCheck,
   FileText,
   Settings,
@@ -299,7 +298,7 @@ function HubInner() {
     {
       id: 'control',
       title: '6 · Control tower',
-      blurb: 'Readiness, risks, internal projects — keep the company sharp.',
+      blurb: 'Readiness and risks — keep the company sharp.',
       modules: [
         {
           href: '/dashboard/my-business/ops',
@@ -318,14 +317,6 @@ function HubInner() {
           accent: 'from-rose-50 to-white border-rose-100',
           metric: s?.openRiads ?? '—',
           metricLabel: 'open',
-        },
-        {
-          href: '/dashboard/my-business/projects',
-          icon: FolderOpen,
-          code: '15',
-          title: 'Internal projects',
-          desc: 'Strategic initiatives and workstreams.',
-          accent: 'from-slate-50 to-white border-slate-200',
         },
       ],
     },

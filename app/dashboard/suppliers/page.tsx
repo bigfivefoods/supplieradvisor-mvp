@@ -140,21 +140,13 @@ function HubInner() {
       icon: Search,
       code: '01',
       title: 'Source — discover',
-      desc: 'Find suppliers on the network: location, industry, certs, trust & OTIFEF.',
+      desc: 'Find & search suppliers on the network: location, industry, certs, trust & OTIFEF.',
       accent: 'from-violet-50 to-white border-violet-100',
-    },
-    {
-      href: '/dashboard/suppliers/search',
-      icon: Search,
-      code: '02',
-      title: 'Source — search book',
-      desc: 'Search your SRM book and shortlist candidates for RFQ / PO.',
-      accent: 'from-indigo-50 to-white border-indigo-100',
     },
     {
       href: '/dashboard/suppliers/shortlist',
       icon: Award,
-      code: '03',
+      code: '02',
       title: 'Source — shortlist',
       desc: 'Compare shortlisted suppliers before you connect or buy.',
       accent: 'from-fuchsia-50 to-white border-fuchsia-100',
@@ -162,7 +154,7 @@ function HubInner() {
     {
       href: '/dashboard/suppliers/connect',
       icon: Handshake,
-      code: '04',
+      code: '03',
       title: 'Connect',
       desc: 'Request / accept platform connections that unlock POs, docs, ratings.',
       accent: 'from-cyan-50 to-white border-cyan-100',
@@ -172,7 +164,7 @@ function HubInner() {
     {
       href: '/dashboard/suppliers/network',
       icon: Users,
-      code: '05',
+      code: '04',
       title: 'Supplier book',
       desc: 'Prospects, preferred, and connected partners in one book.',
       accent: 'from-sky-50 to-white border-sky-100',
@@ -182,7 +174,7 @@ function HubInner() {
     {
       href: '/dashboard/suppliers/add',
       icon: Plus,
-      code: '06',
+      code: '05',
       title: 'Add & invite',
       desc: 'Off-platform suppliers: add to book and invite them to claim.',
       accent: 'from-emerald-50 to-white border-emerald-100',
@@ -192,7 +184,7 @@ function HubInner() {
     {
       href: '/dashboard/suppliers/invites',
       icon: Handshake,
-      code: '07',
+      code: '06',
       title: 'Invite lifecycle',
       desc: 'Pending, resend, revoke — full invite tracking.',
       accent: 'from-teal-50 to-white border-teal-100',
@@ -200,7 +192,7 @@ function HubInner() {
     {
       href: '/dashboard/suppliers/po',
       icon: Truck,
-      code: '08',
+      code: '07',
       title: 'Procure — purchase orders',
       desc: 'Raise POs (add supplier if missing), receive, escrow, settle.',
       accent: 'from-amber-50 to-white border-amber-100',
@@ -208,7 +200,7 @@ function HubInner() {
     {
       href: '/dashboard/escrow',
       icon: ShieldCheck,
-      code: '09',
+      code: '08',
       title: 'Procure — escrow',
       desc: 'USDC / ETH rails: fund → ship → release or dispute.',
       accent: 'from-orange-50 to-white border-orange-100',
@@ -216,7 +208,7 @@ function HubInner() {
     {
       href: '/dashboard/suppliers/documents',
       icon: FileText,
-      code: '10',
+      code: '09',
       title: 'Contracts & documents',
       desc: 'SLAs, certs, pricing agreements shared when connected.',
       accent: 'from-slate-50 to-white border-slate-200',
@@ -224,7 +216,7 @@ function HubInner() {
     {
       href: '/dashboard/suppliers/performance',
       icon: TrendingUp,
-      code: '11',
+      code: '10',
       title: 'Rate — OTIFEF scorecards',
       desc: 'On-Time · In-Full · Error-Free across the supply base.',
       accent: 'from-rose-50 to-white border-rose-100',
@@ -234,7 +226,7 @@ function HubInner() {
     {
       href: '/dashboard/suppliers/ratings',
       icon: Star,
-      code: '12',
+      code: '11',
       title: 'Rate — peer reviews',
       desc: 'Quality, delivery, communication, value after every PO.',
       accent: 'from-violet-50 to-white border-violet-100',
@@ -242,7 +234,7 @@ function HubInner() {
     {
       href: '/dashboard/suppliers/report',
       icon: FileText,
-      code: '13',
+      code: '12',
       title: 'Report — supply pack',
       desc: 'Spend, OTIFEF, concentration, and performance reporting.',
       accent: 'from-sky-50 to-white border-sky-100',
@@ -250,7 +242,7 @@ function HubInner() {
     {
       href: '/dashboard/suppliers/riad-log',
       icon: AlertTriangle,
-      code: '14',
+      code: '13',
       title: 'Report — supplier RIAD',
       desc: 'Risks, issues, actions, decisions on the supply base.',
       accent: 'from-amber-50 to-white border-amber-100',

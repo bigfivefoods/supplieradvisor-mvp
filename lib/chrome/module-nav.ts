@@ -141,7 +141,6 @@ export const MODULE_NAV: readonly ModuleNav[] = [
     steps: [
       { name: 'Overview', href: '/dashboard/suppliers', exact: true, desc: 'SRM command tower' },
       { name: 'Source', href: '/dashboard/suppliers/discover', desc: 'Find & search network suppliers' },
-      { name: 'Search', href: '/dashboard/suppliers/search', desc: 'Search your book & directory' },
       { name: 'Connect', href: '/dashboard/suppliers/connect', desc: 'Connect / shortlist partners' },
       { name: 'Book', href: '/dashboard/suppliers/network', desc: 'Your supplier book' },
       { name: 'Invite', href: '/dashboard/suppliers/invites', desc: 'Invite off-platform suppliers' },
