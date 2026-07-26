@@ -5,11 +5,13 @@
 
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { computeProfileCompleteness } from '@/lib/business/completeness';
+import { hasModulesConfigured } from '@/lib/business/company-modules';
 import { normalizeProfileRow } from '@/lib/business/types';
 import { computeCompanySubscription } from '@/lib/billing/company-subscription';
 
 export type OnboardingStepId =
   | 'profile'
+  | 'modules'
   | 'team'
   | 'invite_first_partner'
   | 'invite_partners'
@@ -39,6 +41,14 @@ export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
     cta: 'Edit profile',
   },
   {
+    id: 'modules',
+    day: 1,
+    title: 'Choose workspace modules',
+    body: 'Enable suppliers, customers, inventory, accounting — hide what you do not need yet.',
+    href: '/dashboard/my-business/modules',
+    cta: 'Open modules',
+  },
+  {
     id: 'team',
     day: 1,
     title: 'Invite your team',
@@ -50,7 +60,7 @@ export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
     id: 'invite_first_partner',
     day: 2,
     title: 'Invite your first partner',
-    body: 'Connect or invite one supplier, customer, or business partner.',
+    body: 'Connect or invite one supplier or customer — they complete their own company setup.',
     href: '/dashboard/invite-business',
     cta: 'Invite business',
   },
@@ -132,6 +142,7 @@ export async function inferOnboardingSteps(
 ): Promise<Record<OnboardingStepId, boolean>> {
   const empty: Record<OnboardingStepId, boolean> = {
     profile: false,
+    modules: false,
     team: false,
     invite_first_partner: false,
     invite_partners: false,
@@ -195,6 +206,7 @@ export async function inferOnboardingSteps(
         profile as Record<string, unknown>
       );
       empty.profile = comp.pct >= 60;
+      empty.modules = hasModulesConfigured(raw.metadata);
 
       const sub = computeCompanySubscription({
         subscription_status: raw.subscription_status as string | null,
@@ -266,6 +278,7 @@ export function mergeOnboardingSteps(
 ): Record<OnboardingStepId, boolean> {
   const out: Record<OnboardingStepId, boolean> = {
     profile: false,
+    modules: false,
     team: false,
     invite_first_partner: false,
     invite_partners: false,

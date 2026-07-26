@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
+import Link from 'next/link';
 import {
   Loader2,
   Save,
@@ -2371,14 +2372,26 @@ function ProfileInner() {
           </Panel>
         </div>
 
-        {/* ── Workspace modules (sidebar) ── */}
+        {/* ── Workspace modules — full UI on dedicated page ── */}
         <Panel id="modules" title="Workspace modules">
           <div className="p-4 space-y-3">
             <p className="text-xs text-neutral-600 leading-relaxed">
-              Choose which modules appear in your company sidebar. Default is{' '}
-              <strong>all selected</strong>. Home, Company, and Guide stay on so you can
-              always manage the business. Toggles save immediately.
+              Choose which modules appear in your company sidebar. Use the dedicated{' '}
+              <Link
+                href="/dashboard/my-business/modules"
+                className="font-bold text-[#0077b6] underline"
+              >
+                Modules workspace
+              </Link>{' '}
+              for presets and categories. Default is <strong>all selected</strong>. Home,
+              Company, and Guide stay on. Toggles below save immediately.
             </p>
+            <Link
+              href="/dashboard/my-business/modules"
+              className="inline-flex items-center gap-1.5 text-sm font-bold text-[#0077b6]"
+            >
+              Open full modules setup →
+            </Link>
             <div className="flex flex-wrap gap-3 mb-1">
               <button
                 type="button"

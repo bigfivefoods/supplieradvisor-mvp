@@ -106,6 +106,13 @@ const EXTRA: Cmd[] = [
     group: 'Company',
   },
   {
+    id: 'modules',
+    label: 'Workspace modules',
+    href: '/dashboard/my-business/modules',
+    group: 'Company',
+    keywords: 'enable disable sidebar capabilities',
+  },
+  {
     id: 'guide',
     label: 'In-app guide',
     href: '/dashboard/guide',

@@ -15,6 +15,7 @@ import {
   Handshake,
   Star,
   ShieldCheck,
+  Globe,
   RefreshCw,
 } from 'lucide-react';
 import { getCanonicalUserId } from '@/lib/auth/identity';
