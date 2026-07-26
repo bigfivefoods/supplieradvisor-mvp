@@ -28,6 +28,7 @@ import {
   entityGroups,
   resolveEntityKind,
 } from '@/lib/entities/entity-kinds';
+import { industriesGroupedBySector } from '@/lib/business/industries';
 
 /** Icons for entity kinds (wizard cards) */
 const ENTITY_ICONS: Record<string, typeof Building2> = {
@@ -485,8 +486,30 @@ export default function BusinessOnboardingWizard() {
                     <input className="input w-full" value={form.registration_number} onChange={(e) => update('registration_number', e.target.value)} />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Industry</label>
-                    <input className="input w-full" value={form.industry} onChange={(e) => update('industry', e.target.value)} placeholder="Food & beverage" />
+                    <label className="block text-sm font-medium mb-2">
+                      Industry / sector
+                    </label>
+                    <select
+                      className="input w-full"
+                      value={form.industry}
+                      onChange={(e) => update('industry', e.target.value)}
+                    >
+                      <option value="">Select industry…</option>
+                      {industriesGroupedBySector().map(
+                        ({ sector, industries }) => (
+                          <optgroup
+                            key={sector.id}
+                            label={`${sector.order}. ${sector.label}`}
+                          >
+                            {industries.map((ind) => (
+                              <option key={ind.name} value={ind.name}>
+                                {ind.name}
+                              </option>
+                            ))}
+                          </optgroup>
+                        )
+                      )}
+                    </select>
                   </div>
                 </div>
                 <div className="grid sm:grid-cols-2 gap-4">

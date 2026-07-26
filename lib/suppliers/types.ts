@@ -36,8 +36,11 @@ export const SUPPLIER_CERTIFICATIONS = [
   'BEE Level 4',
 ] as const;
 
+/** Prefer full catalogue from lib/business/industries for new UI. */
 export const SUPPLIER_INDUSTRIES = [
   'Agriculture & Farming',
+  'Aquaculture & Fisheries',
+  'Mining & Resources',
   'Food & Beverage Processing',
   'Ingredients & Raw Materials',
   'Packaging & Materials',
@@ -46,8 +49,15 @@ export const SUPPLIER_INDUSTRIES = [
   'Retail & Wholesale',
   'Manufacturing',
   'Chemicals',
+  'Construction & Infrastructure',
+  'Energy generation & Utilities',
   'Technology & Software',
   'Professional services',
+  'Government & Public administration',
+  'Education (schools & ECD)',
+  'Healthcare (hospitals & clinics)',
+  'NGO / Non-profit / Impact',
+  'Food service & Catering',
   'Other',
 ] as const;
 

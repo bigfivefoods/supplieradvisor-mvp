@@ -36,7 +36,9 @@ import type {
   ExportLicenseEntry,
 } from '@/lib/business/types';
 import {
-  COMPANY_INDUSTRIES,
+  BUSINESS_TYPE_GROUPS,
+  BUSINESS_TYPE_OPTIONS,
+  industriesGroupedBySector,
   subIndustriesFor,
 } from '@/lib/business/industries';
 import { uploadCompanyAssetServerFirst } from '@/lib/business/uploadCompanyAssets';
@@ -85,25 +87,6 @@ const BEE = [
   'Level 8',
   'Non-compliant',
 ];
-
-/** Identity → business type dropdown (values stored on profiles.business_type). */
-const BUSINESS_TYPE_OPTIONS = [
-  'Private Company (Pty Ltd)',
-  'Public Company (Ltd)',
-  'Close Corporation (CC)',
-  'Sole Proprietor',
-  'Partnership',
-  'Non-Profit Company (NPC)',
-  'Trust',
-  'Cooperative',
-  'Government entity',
-  'School / Education',
-  'Association / Industry body',
-  'NGO / Impact',
-  'Supplier',
-  'Business',
-  'Other',
-] as const;
 
 const VERIFY_AMOUNT_ZAR = 69;
 const VERIFY_AMOUNT_CENTS = VERIFY_AMOUNT_ZAR * 100;
@@ -1653,7 +1636,10 @@ function ProfileInner() {
                     onChange={(e) => set('legal_name', e.target.value)}
                   />
                 </Field>
-                <Field label="Business type" className="sm:col-span-2">
+                <Field
+                  label="Organisation type"
+                  className="sm:col-span-2"
+                >
                   <select
                     className={inputCls}
                     value={form.business_type || form.category || ''}
@@ -1663,9 +1649,11 @@ function ProfileInner() {
                       set('category', v);
                     }}
                   >
-                    <option value="">Select business type…</option>
+                    <option value="">Select organisation type…</option>
                     {(() => {
-                      const current = String(form.business_type || form.category || '');
+                      const current = String(
+                        form.business_type || form.category || ''
+                      );
                       if (
                         current &&
                         !BUSINESS_TYPE_OPTIONS.includes(
@@ -1676,12 +1664,20 @@ function ProfileInner() {
                       }
                       return null;
                     })()}
-                    {BUSINESS_TYPE_OPTIONS.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
+                    {BUSINESS_TYPE_GROUPS.map((g) => (
+                      <optgroup key={g.label} label={g.label}>
+                        {g.options.map((t) => (
+                          <option key={t} value={t}>
+                            {t}
+                          </option>
+                        ))}
+                      </optgroup>
                     ))}
                   </select>
+                  <p className="text-[10px] text-neutral-400 mt-1">
+                    Legal form, trade role, or public-sector kind (government,
+                    school, hospital, SP, NGO…).
+                  </p>
                 </Field>
                 <Field label="Registration no. (CIPC)">
                   <input
@@ -2154,32 +2150,49 @@ function ProfileInner() {
 
         {/* ── Industry + Certifications ── */}
         <div className="grid lg:grid-cols-2 gap-3 sm:gap-4">
-          <Panel id="industry" title="Industry">
+          <Panel id="industry" title="Sector & industry">
             <div className="p-4 space-y-3">
-              <div>
-                <SectionLabel>Primary industries</SectionLabel>
-                <div className="flex flex-wrap gap-1 mt-1.5">
-                  {COMPANY_INDUSTRIES.map((ind) => (
-                    <button
-                      key={ind}
-                      type="button"
-                      onClick={() => toggleIndustry(ind)}
-                      className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-all ${
-                        selectedIndustries.includes(ind)
-                          ? 'border-[#00b4d8] bg-[#00b4d8] text-white'
-                          : 'border-neutral-200 text-neutral-600 hover:border-[#00b4d8]/40'
-                      }`}
-                    >
-                      {ind}
-                    </button>
-                  ))}
-                </div>
+              <p className="text-[11px] text-neutral-500 leading-relaxed">
+                Choose from the full economy: primary → secondary → tertiary →
+                quaternary → quinary (government, education, health, NGOs).
+                Select one or more industries that describe this organisation.
+              </p>
+              <div className="max-h-72 overflow-y-auto space-y-3 pr-0.5">
+                {industriesGroupedBySector().map(({ sector, industries }) => (
+                  <div key={sector.id}>
+                    <SectionLabel>
+                      {sector.order}. {sector.label}
+                    </SectionLabel>
+                    <p className="text-[10px] text-neutral-400 mb-1.5">
+                      {sector.description}
+                    </p>
+                    <div className="flex flex-wrap gap-1">
+                      {industries.map((ind) => (
+                        <button
+                          key={ind.name}
+                          type="button"
+                          title={ind.blurb || ind.name}
+                          onClick={() => toggleIndustry(ind.name)}
+                          className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-all ${
+                            selectedIndustries.includes(ind.name)
+                              ? 'border-[#00b4d8] bg-[#00b4d8] text-white'
+                              : 'border-neutral-200 text-neutral-600 hover:border-[#00b4d8]/40'
+                          }`}
+                        >
+                          {ind.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
               <div>
                 <SectionLabel>Sub-industries</SectionLabel>
-                <div className="flex flex-wrap gap-1 mt-1.5 max-h-32 overflow-y-auto">
+                <div className="flex flex-wrap gap-1 mt-1.5 max-h-36 overflow-y-auto">
                   {subIndustryOptions.length === 0 ? (
-                    <p className="text-[11px] text-neutral-400">Select an industry first.</p>
+                    <p className="text-[11px] text-neutral-400">
+                      Select an industry first.
+                    </p>
                   ) : (
                     subIndustryOptions.map((sub) => (
                       <button
