@@ -126,19 +126,39 @@ function Inner() {
       ) : pack ? (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-            {[
-              ['Days fed', pack.days_fed],
-              ['Meals served', pack.meals_served],
-              ['Avg present', pack.learners_avg_present],
-              ['Cost / meal', formatMoney(Number(pack.cost_per_meal || 0))],
-              ['Food spend', formatMoney(Number(pack.food_spend || 0))],
-              ['Approved brand %', `${pack.approved_brand_pct ?? '—'}%`],
-              ['Nutrition pass %', pack.nutrition_pass_pct != null ? `${pack.nutrition_pass_pct}%` : '—'],
-              ['Claim amount', formatMoney(Number(pack.claim_amount || 0))],
-            ].map(([l, v]) => (
-              <div key={String(l)} className="rounded-2xl border border-slate-200 bg-white p-4">
-                <div className="text-[10px] font-bold uppercase text-slate-400">{l}</div>
-                <div className="text-xl font-black tabular-nums mt-0.5">{String(v)}</div>
+            {(
+              [
+                ['Days fed', pack.days_fed],
+                ['Meals served', pack.meals_served],
+                ['Avg present', pack.learners_avg_present],
+                ['Cost / meal', formatMoney(Number(pack.cost_per_meal || 0))],
+                ['Food spend', formatMoney(Number(pack.food_spend || 0))],
+                [
+                  'Approved brand %',
+                  `${pack.approved_brand_pct ?? '—'}%`,
+                ],
+                [
+                  'Nutrition pass %',
+                  pack.nutrition_pass_pct != null
+                    ? `${pack.nutrition_pass_pct}%`
+                    : '—',
+                ],
+                [
+                  'Claim amount',
+                  formatMoney(Number(pack.claim_amount || 0)),
+                ],
+              ] as Array<[string, string | number | null | undefined]>
+            ).map(([l, v]) => (
+              <div
+                key={l}
+                className="rounded-2xl border border-slate-200 bg-white p-4"
+              >
+                <div className="text-[10px] font-bold uppercase text-slate-400">
+                  {l}
+                </div>
+                <div className="text-xl font-black tabular-nums mt-0.5">
+                  {String(v ?? '—')}
+                </div>
               </div>
             ))}
           </div>
