@@ -152,6 +152,14 @@ type PurchaseOrder = {
   created_at?: string;
   metadata?: Record<string, unknown> | null;
   fulfilment_status?: string | null;
+  /** Hub / call-off */
+  order_kind?: 'standard' | 'hub' | 'call_off' | string | null;
+  parent_po_id?: number | null;
+  call_off_window_end?: string | null;
+  call_off_window_months?: number | null;
+  hub_quantity?: number | null;
+  called_off_quantity?: number | null;
+  remaining_quantity?: number | null;
   /** Cost allocation (manufacturing cost objects) */
   business_unit_id?: number | null;
   work_center_id?: number | null;
@@ -252,6 +260,12 @@ function PoInner() {
     'CIA (Cash in advance)',
     'On receipt',
   ]);
+  /** standard | hub (blanket) | call_off */
+  const [orderKind, setOrderKind] = useState<'standard' | 'hub' | 'call_off'>(
+    'standard'
+  );
+  const [callOffWindowMonths, setCallOffWindowMonths] = useState(3);
+  const [parentHubPoId, setParentHubPoId] = useState<number | null>(null);
   const [poCurrency, setPoCurrency] = useState('ZAR');
   const [useEscrow, setUseEscrow] = useState(false);
   const [supplierWallet, setSupplierWallet] = useState('');
@@ -323,6 +337,25 @@ function PoInner() {
   );
 
   const selectedSupplier = suppliers.find((s) => s.id === selectedSrmId) || null;
+
+  const openHubOrders = useMemo(() => {
+    return purchaseOrders.filter((p) => {
+      if (String(p.order_kind || '').toLowerCase() !== 'hub') return false;
+      const st = String(p.status || '').toLowerCase();
+      if (st === 'cancelled') return false;
+      const rem =
+        p.remaining_quantity != null
+          ? Number(p.remaining_quantity)
+          : Number(p.hub_quantity || p.order_quantity || 0) -
+            Number(p.called_off_quantity || 0);
+      return rem > 1e-9;
+    });
+  }, [purchaseOrders]);
+
+  const selectedHub = useMemo(
+    () => openHubOrders.find((h) => h.id === parentHubPoId) || null,
+    [openHubOrders, parentHubPoId]
+  );
 
   // Load selected supplier’s catalogue (price agreements + their inventory)
   useEffect(() => {
@@ -1087,8 +1120,20 @@ function PoInner() {
       toast.error('Select a supplier — or add & invite a new one below');
       return;
     }
+    if (orderKind === 'call_off' && !parentHubPoId) {
+      toast.error('Select a hub order to call off against');
+      return;
+    }
     const mode = opts?.mode ?? (useEscrow ? 'escrow' : 'standard');
-    const wantEscrow = escrowEnabled && mode === 'escrow' && !asDraft;
+    // Hub orders are commitments — no on-chain escrow on the hub itself
+    const wantEscrow =
+      orderKind !== 'hub' &&
+      escrowEnabled &&
+      mode === 'escrow' &&
+      !asDraft;
+    if (orderKind === 'hub' && mode === 'escrow') {
+      toast.message('Hub orders are off-chain; use call-offs for escrow settlement');
+    }
     if (!selectedSupplier.linked_profile_id && wantEscrow) {
       toast.error(
         'Escrow needs a platform-linked supplier. Invite them first, or raise a standard PO.'
@@ -1132,6 +1177,10 @@ function PoInner() {
           work_station_id: costWsId,
           asset_id: costAssetId,
           cost_category: costCategory || 'materials',
+          order_kind: orderKind,
+          parent_po_id: orderKind === 'call_off' ? parentHubPoId : null,
+          call_off_window_months:
+            orderKind === 'hub' ? callOffWindowMonths : undefined,
         },
       });
       const data = await res.json();
@@ -1147,7 +1196,11 @@ function PoInner() {
           ? `Draft PO #${po.id} saved${costLabel}`
           : wantEscrow
             ? `PO #${po.id} created — confirm escrow in wallet…`
-            : `Standard PO #${po.id} sent${costLabel}`
+            : orderKind === 'hub'
+              ? `Hub order #${po.id} created · ${callOffWindowMonths}mo call-off window${costLabel}`
+              : orderKind === 'call_off'
+                ? `Call-off #${po.id} sent against hub #${parentHubPoId}${costLabel}`
+                : `Standard PO #${po.id} sent${costLabel}`
       );
       const { toastGoldenPathFromResponse } = await import(
         '@/lib/onboarding/toast-client'
@@ -1636,6 +1689,152 @@ function PoInner() {
             <h2 className="font-bold text-lg flex items-center gap-2">
               <Plus className="w-5 h-5 text-[#00b4d8]" /> New purchase order
             </h2>
+
+            {/* Order type: standard | hub (blanket) | call-off */}
+            <div className="rounded-2xl border border-indigo-100 bg-indigo-50/40 p-3.5 space-y-3">
+              <div>
+                <label className="text-xs font-bold text-indigo-950 uppercase tracking-wide">
+                  Order type
+                </label>
+                <p className="text-[11px] text-indigo-900/70 mt-0.5 leading-relaxed">
+                  <strong>Hub order</strong> locks a big production run (e.g. 3-month
+                  window). <strong>Call-off</strong> draws partial deliveries against that
+                  hub until the quantity or window ends.
+                </p>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {(
+                  [
+                    { id: 'standard' as const, label: 'Standard', hint: 'One-shot PO' },
+                    { id: 'hub' as const, label: 'Hub order', hint: 'Blanket / master' },
+                    { id: 'call_off' as const, label: 'Call-off', hint: 'Against hub' },
+                  ] as const
+                ).map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => {
+                      setOrderKind(opt.id);
+                      if (opt.id === 'hub') setUseEscrow(false);
+                      if (opt.id !== 'call_off') setParentHubPoId(null);
+                    }}
+                    className={`rounded-xl border px-2.5 py-2.5 text-left transition-all ${
+                      orderKind === opt.id
+                        ? 'border-indigo-400 bg-white shadow-sm ring-1 ring-indigo-200'
+                        : 'border-indigo-100/80 bg-white/70 hover:border-indigo-200'
+                    }`}
+                  >
+                    <div className="text-xs font-bold text-slate-900">{opt.label}</div>
+                    <div className="text-[10px] text-neutral-500 mt-0.5">{opt.hint}</div>
+                  </button>
+                ))}
+              </div>
+              {orderKind === 'hub' && (
+                <div>
+                  <label className="text-[11px] font-medium text-indigo-950">
+                    Call-off window
+                  </label>
+                  <select
+                    className="input mt-1 w-full !p-2.5 !text-sm bg-white max-w-xs"
+                    value={callOffWindowMonths}
+                    onChange={(e) => setCallOffWindowMonths(Number(e.target.value))}
+                  >
+                    <option value={1}>1 month</option>
+                    <option value={3}>3 months (typical)</option>
+                    <option value={6}>6 months</option>
+                    <option value={12}>12 months</option>
+                  </select>
+                  <p className="text-[10px] text-indigo-900/60 mt-1">
+                    Enter full production quantities on the lines below. You will call off
+                    smaller shipments against this hub until qty or window is used up.
+                  </p>
+                </div>
+              )}
+              {orderKind === 'call_off' && (
+                <div className="space-y-2">
+                  <label className="text-[11px] font-medium text-indigo-950">
+                    Hub order to call off *
+                  </label>
+                  {openHubOrders.length === 0 ? (
+                    <p className="text-xs text-amber-900 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+                      No open hub orders with remaining quantity. Create a{' '}
+                      <button
+                        type="button"
+                        className="font-bold underline"
+                        onClick={() => setOrderKind('hub')}
+                      >
+                        hub order
+                      </button>{' '}
+                      first.
+                    </p>
+                  ) : (
+                    <select
+                      className="input mt-0.5 w-full !p-2.5 !text-sm bg-white"
+                      value={parentHubPoId ?? ''}
+                      onChange={(e) => {
+                        const id = e.target.value ? Number(e.target.value) : null;
+                        setParentHubPoId(id);
+                        const hub = openHubOrders.find((h) => h.id === id);
+                        if (hub) {
+                          // Prefer same supplier as hub when linked in book
+                          const sid = Number(hub.supplier_profile_id || hub.supplier_id);
+                          const match = suppliers.find(
+                            (s) =>
+                              Number(s.linked_profile_id) === sid ||
+                              Number(s.id) === Number(hub.metadata?.srm_supplier_id)
+                          );
+                          if (match) setSelectedSrmId(match.id);
+                        }
+                      }}
+                    >
+                      <option value="">Select hub order…</option>
+                      {openHubOrders.map((h) => {
+                        const rem =
+                          h.remaining_quantity != null
+                            ? Number(h.remaining_quantity)
+                            : Number(h.hub_quantity || h.order_quantity || 0) -
+                              Number(h.called_off_quantity || 0);
+                        return (
+                          <option key={h.id} value={h.id}>
+                            Hub #{h.id}
+                            {h.supplier_name ? ` · ${h.supplier_name}` : ''} · rem{' '}
+                            {rem.toLocaleString()}
+                            {h.call_off_window_end
+                              ? ` · until ${h.call_off_window_end}`
+                              : ''}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  )}
+                  {selectedHub && (
+                    <div className="text-[11px] text-indigo-950 bg-white/80 border border-indigo-100 rounded-xl px-3 py-2 space-y-0.5">
+                      <p>
+                        <strong>Remaining:</strong>{' '}
+                        {(
+                          selectedHub.remaining_quantity ??
+                          Number(selectedHub.hub_quantity || selectedHub.order_quantity || 0) -
+                            Number(selectedHub.called_off_quantity || 0)
+                        ).toLocaleString()}{' '}
+                        of{' '}
+                        {Number(
+                          selectedHub.hub_quantity || selectedHub.order_quantity || 0
+                        ).toLocaleString()}
+                      </p>
+                      {selectedHub.call_off_window_end && (
+                        <p>
+                          <strong>Window ends:</strong> {selectedHub.call_off_window_end}
+                        </p>
+                      )}
+                      <p className="text-neutral-500">
+                        Enter this call-off’s shipment qty on the lines (must not exceed
+                        remaining).
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
 
             <div>
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -2486,10 +2685,16 @@ function PoInner() {
               </div>
             </div>
 
-            {/* PO type: standard vs escrow — always explicit */}
+            {/* Settlement: standard vs escrow (not for hub commitments) */}
+            {orderKind === 'hub' ? (
+              <div className="rounded-2xl border border-indigo-100 bg-indigo-50/50 px-4 py-3 text-xs text-indigo-950 leading-relaxed">
+                <strong>Hub order</strong> is an off-chain volume commitment. Settlement and escrow
+                apply on each <strong>call-off</strong> shipment, not on the hub itself.
+              </div>
+            ) : (
             <div className="rounded-2xl border border-neutral-200 bg-white p-4 space-y-3">
               <div className="text-xs font-bold uppercase tracking-wider text-neutral-400">
-                Purchase order type
+                Settlement type
               </div>
               <div className="grid sm:grid-cols-2 gap-2">
                 <button
@@ -2621,9 +2826,30 @@ function PoInner() {
                 </div>
               )}
             </div>
+            )}
 
             <div className="flex flex-col sm:flex-row flex-wrap gap-2 pt-2 border-t">
-              {/* Two first-class paths — mode passed explicitly (no setState race) */}
+              {/* Primary actions depend on order kind */}
+              {orderKind === 'hub' ? (
+                <button
+                  type="button"
+                  disabled={saving || isContractPending}
+                  onClick={() => {
+                    setUseEscrow(false);
+                    void handleRaisePO(false, { mode: 'standard' });
+                  }}
+                  className="btn-primary !py-3 !px-6 text-sm inline-flex items-center gap-2"
+                >
+                  {saving ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>
+                      <Package className="w-4 h-4" /> Create hub order
+                    </>
+                  )}
+                </button>
+              ) : (
+                <>
               <button
                 type="button"
                 disabled={saving || isContractPending}
@@ -2639,7 +2865,8 @@ function PoInner() {
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <>
-                    <Truck className="w-4 h-4" /> Send standard PO
+                    <Truck className="w-4 h-4" />
+                    {orderKind === 'call_off' ? 'Send call-off' : 'Send standard PO'}
                   </>
                 )}
               </button>
@@ -2659,10 +2886,13 @@ function PoInner() {
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
                     <>
-                      <Shield className="w-4 h-4" /> Send escrow PO
+                      <Shield className="w-4 h-4" /> Send escrow
+                      {orderKind === 'call_off' ? ' call-off' : ' PO'}
                     </>
                   )}
                 </button>
+              )}
+                </>
               )}
               <button
                 type="button"
@@ -2773,6 +3003,20 @@ function PoInner() {
                             >
                               {po.status}
                             </span>
+                            {String(po.order_kind || '').toLowerCase() === 'hub' && (
+                              <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border bg-indigo-100 text-indigo-900 border-indigo-200">
+                                Hub
+                                {po.remaining_quantity != null
+                                  ? ` · rem ${Number(po.remaining_quantity).toLocaleString()}`
+                                  : ''}
+                              </span>
+                            )}
+                            {String(po.order_kind || '').toLowerCase() === 'call_off' && (
+                              <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border bg-teal-100 text-teal-900 border-teal-200">
+                                Call-off
+                                {po.parent_po_id ? ` #${po.parent_po_id}` : ''}
+                              </span>
+                            )}
                             <SettleModeChip po={po} />
                             {onchain && (
                               <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-[#00b4d8]/15 text-[#0077b6]">
@@ -2787,7 +3031,28 @@ function PoInner() {
                               R{Number(po.total_amount || 0).toLocaleString()}
                             </span>
                             {po.promised_date ? ` · promised ${po.promised_date}` : ''}
+                            {String(po.order_kind || '').toLowerCase() === 'hub' &&
+                            po.call_off_window_end
+                              ? ` · call-off until ${po.call_off_window_end}`
+                              : ''}
                           </div>
+                          {String(po.order_kind || '').toLowerCase() === 'hub' &&
+                            (po.remaining_quantity == null ||
+                              Number(po.remaining_quantity) > 0) &&
+                            String(po.status).toLowerCase() !== 'cancelled' && (
+                              <button
+                                type="button"
+                                className="mt-2 text-[11px] font-bold text-indigo-700 underline"
+                                onClick={() => {
+                                  setOrderKind('call_off');
+                                  setParentHubPoId(po.id);
+                                  setTab('create');
+                                  toast.message(`Call-off against hub #${po.id}`);
+                                }}
+                              >
+                                Call off from this hub →
+                              </button>
+                            )}
                           {po.description && (
                             <p className="text-xs text-neutral-500 mt-1 line-clamp-2">
                               {po.description}

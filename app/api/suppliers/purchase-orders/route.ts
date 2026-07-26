@@ -138,6 +138,10 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const { extractHubMeta, remainingHubQty, parseOrderKind } = await import(
+      '@/lib/procurement/hub-order'
+    );
+
     const enriched = pos.map((p) => {
       const profileId = Number(p.supplier_profile_id);
       const srmId = Number(p.supplier_id);
@@ -154,6 +158,7 @@ export async function GET(request: NextRequest) {
           : String(p.status || '').toLowerCase() === 'invoiced'
             ? false
             : null;
+      const hub = extractHubMeta(p as Record<string, unknown>);
       return {
         ...p,
         supplier_name:
@@ -165,6 +170,14 @@ export async function GET(request: NextRequest) {
         invoice_id: invoiceId ?? p.invoice_id ?? null,
         invoice_number: inv?.invoice_number ?? null,
         invoice_shared: invoiceShared,
+        order_kind: hub.order_kind,
+        parent_po_id: hub.parent_po_id,
+        call_off_window_end: hub.call_off_window_end,
+        call_off_window_months: hub.call_off_window_months,
+        hub_quantity: hub.hub_quantity,
+        called_off_quantity: hub.called_off_quantity,
+        remaining_quantity:
+          hub.order_kind === 'hub' ? remainingHubQty(hub) : null,
       };
     });
 
@@ -184,6 +197,9 @@ export async function GET(request: NextRequest) {
       ).length,
       onchain: enriched.filter((p) => p.onchain_po_id != null && p.onchain_po_id !== '').length,
       cancelled: enriched.filter((p) => p.status === 'cancelled').length,
+      hubs: enriched.filter((p) => parseOrderKind(p.order_kind) === 'hub').length,
+      call_offs: enriched.filter((p) => parseOrderKind(p.order_kind) === 'call_off')
+        .length,
     };
 
     return NextResponse.json({ success: true, purchaseOrders: enriched, counts });
@@ -200,7 +216,10 @@ export async function GET(request: NextRequest) {
  * Body: companyId, privyUserId, supplierProfileId | srmSupplierId, items[], description?,
  *       promised_date?, useEscrow?, supplier_wallet?, currency?, payment_terms?, status?,
  *       business_unit_id?, work_center_id?, work_station_id?, asset_id?, cost_category?,
- *       cost_allocations? (optional multi-split [{…, pct}])
+ *       cost_allocations? (optional multi-split [{…, pct}]),
+ *       order_kind?: 'standard' | 'hub' | 'call_off',
+ *       parent_po_id?: number (required for call_off),
+ *       call_off_window_months?: number (hub only, default 3)
  */
 export async function POST(request: NextRequest) {
   try {
@@ -332,6 +351,121 @@ export async function POST(request: NextRequest) {
       (Array.isArray(costFields.cost_allocations) &&
         (costFields.cost_allocations as unknown[]).length > 0);
 
+    // ── Hub / call-off order kind ─────────────────────────────────────────
+    const {
+      parseOrderKind,
+      extractHubMeta,
+      remainingHubQty,
+      isHubWindowOpen,
+      addMonths,
+    } = await import('@/lib/procurement/hub-order');
+    const orderKind = parseOrderKind(body.order_kind);
+    let parentPoId: number | null =
+      body.parent_po_id != null ? Number(body.parent_po_id) : null;
+    let hubWindowMonths = Math.min(
+      24,
+      Math.max(1, Number(body.call_off_window_months) || 3)
+    );
+    let hubWindowStart: string | null = null;
+    let hubWindowEnd: string | null = null;
+    let hubQuantity: number | null = null;
+    let parentHubRow: Record<string, unknown> | null = null;
+    let parentMetaAfterCallOff: Record<string, unknown> | null = null;
+
+    if (orderKind === 'hub') {
+      if (body.useEscrow === true) {
+        return NextResponse.json(
+          {
+            error:
+              'Hub (blanket) orders are off-chain commitments. Raise call-offs as standard or escrow POs.',
+          },
+          { status: 400 }
+        );
+      }
+      hubWindowStart = now.slice(0, 10);
+      hubWindowEnd = addMonths(hubWindowStart, hubWindowMonths);
+      hubQuantity = orderQty;
+    }
+
+    if (orderKind === 'call_off') {
+      if (!parentPoId || !Number.isFinite(parentPoId) || parentPoId <= 0) {
+        return NextResponse.json(
+          { error: 'parent_po_id is required for call-off orders' },
+          { status: 400 }
+        );
+      }
+      const { data: parent, error: parentErr } = await supabase
+        .from('purchase_orders')
+        .select('*')
+        .eq('id', parentPoId)
+        .eq('buyer_profile_id', companyId)
+        .maybeSingle();
+      if (parentErr || !parent) {
+        return NextResponse.json(
+          { error: 'Hub order not found' },
+          { status: 404 }
+        );
+      }
+      parentHubRow = parent as Record<string, unknown>;
+      const hub = extractHubMeta(parentHubRow);
+      if (hub.order_kind !== 'hub') {
+        return NextResponse.json(
+          { error: 'Parent is not a hub order — cannot call off' },
+          { status: 400 }
+        );
+      }
+      if (['cancelled', 'completed'].includes(String(parent.status || '').toLowerCase())) {
+        return NextResponse.json(
+          { error: 'Hub order is closed — no further call-offs' },
+          { status: 400 }
+        );
+      }
+      if (!isHubWindowOpen(hub)) {
+        return NextResponse.json(
+          {
+            error: `Call-off window ended${hub.call_off_window_end ? ` on ${hub.call_off_window_end}` : ''}`,
+          },
+          { status: 400 }
+        );
+      }
+      const remaining = remainingHubQty(hub);
+      if (orderQty <= 0) {
+        return NextResponse.json(
+          { error: 'Call-off quantity must be greater than zero' },
+          { status: 400 }
+        );
+      }
+      if (orderQty > remaining + 1e-9) {
+        return NextResponse.json(
+          {
+            error: `Call-off qty ${orderQty} exceeds remaining hub qty ${remaining}`,
+            remaining,
+            hub_quantity: hub.hub_quantity,
+            called_off_quantity: hub.called_off_quantity,
+          },
+          { status: 400 }
+        );
+      }
+      // Inherit supplier from hub when not provided
+      if (!supplierProfileId && parent.supplier_profile_id) {
+        supplierProfileId = Number(parent.supplier_profile_id);
+      }
+      const newCalled = (hub.called_off_quantity || 0) + orderQty;
+      const parentMeta =
+        parent.metadata && typeof parent.metadata === 'object' && !Array.isArray(parent.metadata)
+          ? { ...(parent.metadata as Record<string, unknown>) }
+          : {};
+      parentMetaAfterCallOff = {
+        ...parentMeta,
+        order_kind: 'hub',
+        hub_quantity: hub.hub_quantity,
+        called_off_quantity: newCalled,
+        call_off_window_months: hub.call_off_window_months,
+        call_off_window_start: hub.call_off_window_start,
+        call_off_window_end: hub.call_off_window_end,
+      };
+    }
+
     const payload: Record<string, unknown> = {
       buyer_profile_id: companyId,
       supplier_profile_id: supplierProfileId,
@@ -349,6 +483,13 @@ export async function POST(request: NextRequest) {
       order_quantity: orderQty,
       supplier_wallet: supplierWallet,
       source: 'srm',
+      order_kind: orderKind,
+      parent_po_id: orderKind === 'call_off' ? parentPoId : null,
+      call_off_window_months: orderKind === 'hub' ? hubWindowMonths : null,
+      call_off_window_start: orderKind === 'hub' ? hubWindowStart : null,
+      call_off_window_end: orderKind === 'hub' ? hubWindowEnd : null,
+      hub_quantity: orderKind === 'hub' ? hubQuantity : null,
+      called_off_quantity: orderKind === 'hub' ? 0 : null,
       ...costFields,
       metadata: {
         srm: true,
@@ -356,6 +497,13 @@ export async function POST(request: NextRequest) {
         book_only: !supplierProfileId,
         connection_id: conn?.id ?? null,
         use_escrow: body.useEscrow === true,
+        order_kind: orderKind,
+        parent_po_id: orderKind === 'call_off' ? parentPoId : null,
+        call_off_window_months: orderKind === 'hub' ? hubWindowMonths : null,
+        call_off_window_start: orderKind === 'hub' ? hubWindowStart : null,
+        call_off_window_end: orderKind === 'hub' ? hubWindowEnd : null,
+        hub_quantity: orderKind === 'hub' ? hubQuantity : null,
+        called_off_quantity: orderKind === 'hub' ? 0 : null,
         cost_object: hasAlloc
           ? {
               business_unit_id: costFields.business_unit_id,
@@ -378,19 +526,35 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error && /column|schema cache|does not exist/i.test(error.message)) {
-      console.warn('SRM PO insert retry minimal:', error.message);
-      const minimal = {
-        buyer_profile_id: companyId,
-        supplier_id: supplierProfileId,
-        supplier_profile_id: supplierProfileId,
-        total_amount: normalized.total,
-        description: payload.description,
-        items: normalized.items,
-        status: initialStatus,
-        supplier_wallet: supplierWallet,
-        updated_at: now,
-      };
-      const retry = await supabase.from('purchase_orders').insert(minimal).select('*').single();
+      console.warn('SRM PO insert retry without hub columns:', error.message);
+      // Retry with metadata-only hub fields (pre-migration DBs)
+      const {
+        order_kind: _ok,
+        parent_po_id: _pp,
+        call_off_window_months: _cm,
+        call_off_window_start: _cs,
+        call_off_window_end: _ce,
+        hub_quantity: _hq,
+        called_off_quantity: _cq,
+        ...rest
+      } = payload;
+      const soft = { ...rest, updated_at: now };
+      let retry = await supabase.from('purchase_orders').insert(soft).select('*').single();
+      if (retry.error && /column|schema cache|does not exist/i.test(retry.error.message)) {
+        const minimal = {
+          buyer_profile_id: companyId,
+          supplier_id: supplierProfileId,
+          supplier_profile_id: supplierProfileId,
+          total_amount: normalized.total,
+          description: payload.description,
+          items: normalized.items,
+          status: initialStatus,
+          supplier_wallet: supplierWallet,
+          metadata: payload.metadata,
+          updated_at: now,
+        };
+        retry = await supabase.from('purchase_orders').insert(minimal).select('*').single();
+      }
       data = retry.data;
       error = retry.error;
     }
@@ -400,18 +564,66 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // Update hub remaining after successful call-off
+    if (
+      orderKind === 'call_off' &&
+      parentPoId &&
+      parentMetaAfterCallOff &&
+      data?.id
+    ) {
+      const newCalled = Number(parentMetaAfterCallOff.called_off_quantity) || 0;
+      const hubUpdate: Record<string, unknown> = {
+        called_off_quantity: newCalled,
+        metadata: parentMetaAfterCallOff,
+        updated_at: now,
+      };
+      // Mark hub completed when fully called off
+      const hubQty = Number(parentMetaAfterCallOff.hub_quantity) || 0;
+      if (hubQty > 0 && newCalled >= hubQty - 1e-9) {
+        hubUpdate.status = 'completed';
+        hubUpdate.closed_at = now;
+        (parentMetaAfterCallOff as { fully_called_off?: boolean }).fully_called_off =
+          true;
+        hubUpdate.metadata = parentMetaAfterCallOff;
+      }
+      const { error: hubErr } = await supabase
+        .from('purchase_orders')
+        .update(hubUpdate)
+        .eq('id', parentPoId)
+        .eq('buyer_profile_id', companyId);
+      if (hubErr && /column|schema cache|does not exist/i.test(hubErr.message)) {
+        await supabase
+          .from('purchase_orders')
+          .update({ metadata: parentMetaAfterCallOff, updated_at: now })
+          .eq('id', parentPoId)
+          .eq('buyer_profile_id', companyId);
+      }
+    }
+
     await logActivity({
       profile_id: companyId,
       actor_user_id: member.userId,
-      action: 'po.created.srm',
+      action:
+        orderKind === 'hub'
+          ? 'po.created.hub'
+          : orderKind === 'call_off'
+            ? 'po.created.call_off'
+            : 'po.created.srm',
       entity_type: 'purchase_order',
       entity_id: data?.id != null ? String(data.id) : undefined,
-      summary: `SRM PO #${data?.id ?? '?'} raised against supplier ${supplierProfileId}`,
+      summary:
+        orderKind === 'hub'
+          ? `Hub PO #${data?.id ?? '?'} (${hubWindowMonths}mo window · qty ${orderQty})`
+          : orderKind === 'call_off'
+            ? `Call-off PO #${data?.id ?? '?'} against hub #${parentPoId}`
+            : `SRM PO #${data?.id ?? '?'} raised against supplier ${supplierProfileId}`,
       metadata: {
         supplier_profile_id: supplierProfileId,
         srm_supplier_id: srmId,
         total_amount: normalized.total,
         use_escrow: body.useEscrow === true,
+        order_kind: orderKind,
+        parent_po_id: parentPoId,
       },
     });
 
