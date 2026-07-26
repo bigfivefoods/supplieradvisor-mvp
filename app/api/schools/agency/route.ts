@@ -120,7 +120,7 @@ export async function GET(request: NextRequest) {
         scores.map((s) => [Number(s.school_profile_id), s])
       );
 
-      const enriched = schools.map((s) => {
+      const enriched: Array<Record<string, unknown>> = schools.map((s) => {
         const link = (links || []).find(
           (l) => Number(l.school_profile_id) === Number(s.id)
         );
@@ -141,11 +141,11 @@ export async function GET(request: NextRequest) {
         pendingLinks: (links || []).filter((l) => l.status === 'pending')
           .length,
         totalLearners: enriched.reduce(
-          (n, s) => n + Number(s.learner_count_enrolled || 0),
+          (n, s) => n + Number(s.learner_count_enrolled ?? 0),
           0
         ),
         totalVerified: enriched.reduce(
-          (n, s) => n + Number(s.learner_count_verified || 0),
+          (n, s) => n + Number(s.learner_count_verified ?? 0),
           0
         ),
         avgPrizeScore: (() => {
