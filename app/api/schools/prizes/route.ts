@@ -9,10 +9,8 @@ import {
   computePrizeScore,
   currentQuarterPeriod,
 } from '@/lib/schools/prize';
-import {
-  computeFeedingCompletenessPct,
-  computeMenuAdherencePct,
-} from '@/lib/schools/process';
+import { computeFeedingCompletenessPct } from '@/lib/schools/process';
+import { schoolMenuAdherenceForPeriod } from '@/lib/schools/agency-menu';
 
 async function ensurePeriod(
   supabase: ReturnType<typeof getSupabaseServer>
@@ -116,13 +114,25 @@ export async function GET(request: NextRequest) {
       totalLines > 0 ? (approvedLines / totalLines) * 100 : 100;
 
     const feeding = feedingRes.data || [];
-    // Honest denominators: weekdays in period + menu_name logging rate
+    // Honest denominators: weekdays in period
     const feedingCompletenessPct = computeFeedingCompletenessPct(
       feeding,
       from,
       to
     );
-    const menuAdherencePct = computeMenuAdherencePct(feeding);
+    // Rate against department-mandated menu (dish / products for that weekday)
+    const menuScore = await schoolMenuAdherenceForPeriod(
+      supabase,
+      companyId,
+      Number(school.id),
+      from,
+      to
+    );
+    const menuAdherencePct =
+      menuScore.menu && menuScore.total > 0
+        ? menuScore.pct
+        : // No department menu yet — do not penalise
+          100;
 
     const learners = learnersRes.data || [];
     const verified = learners.filter((l) =>

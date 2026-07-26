@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Camera, Loader2, Save } from 'lucide-react';
+import Link from 'next/link';
+import { Camera, Loader2, Save, Utensils } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { SA_PROVINCES } from '@/lib/schools/types';
@@ -30,6 +31,18 @@ function Inner() {
   const [form, setForm] = useState<Record<string, string | number | boolean>>(
     {}
   );
+  const [departmentMenu, setDepartmentMenu] = useState<{
+    name?: string;
+    agency_name?: string | null;
+    description?: string | null;
+    items?: Array<{ day: number; dish?: string; meal_type?: string }>;
+  } | null>(null);
+  const [menuAdherence, setMenuAdherence] = useState<{
+    pct?: number;
+    matched?: number;
+    total?: number;
+    period?: { name?: string };
+  } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -42,6 +55,8 @@ function Inner() {
       if (!res.ok) throw new Error(data.error || 'Failed');
       const s = data.school || {};
       setPhotoUrl(s.photo_url || null);
+      setDepartmentMenu(data.departmentMenu || null);
+      setMenuAdherence(data.menuAdherence || null);
       setForm({
         school_name: s.school_name || '',
         emis_number: s.emis_number || '',
@@ -242,6 +257,87 @@ function Inner() {
                 {photoUrl ? 'Change photo' : 'Upload photo'}
               </button>
             </div>
+          </div>
+
+          {/* Department menu on school profile */}
+          <div className="rounded-3xl border border-violet-100 bg-gradient-to-br from-violet-50 to-white p-5">
+            <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
+              <div>
+                <p className="text-[10px] font-bold uppercase text-violet-700 flex items-center gap-1">
+                  <Utensils className="w-3.5 h-3.5" />
+                  Department menu (must follow)
+                </p>
+                {departmentMenu ? (
+                  <>
+                    <p className="font-black text-base mt-1">
+                      {departmentMenu.name}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      Set by {departmentMenu.agency_name || 'your department'} ·
+                      live for this school
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm text-slate-600 mt-1">
+                    No mandated menu yet — join DBE/DoH and wait for them to
+                    publish under Schools → Menu.
+                  </p>
+                )}
+              </div>
+              {menuAdherence && departmentMenu ? (
+                <div className="rounded-2xl bg-white border border-amber-100 px-4 py-2 text-center min-w-[5.5rem]">
+                  <p className="text-[9px] font-bold uppercase text-amber-800/70">
+                    Adherence
+                  </p>
+                  <p className="text-2xl font-black tabular-nums text-slate-900">
+                    {Number(menuAdherence.pct || 0)}%
+                  </p>
+                  <p className="text-[10px] text-slate-500">
+                    {menuAdherence.matched}/{menuAdherence.total} days
+                    {menuAdherence.period?.name
+                      ? ` · ${menuAdherence.period.name}`
+                      : ''}
+                  </p>
+                </div>
+              ) : null}
+            </div>
+            {departmentMenu?.items && departmentMenu.items.length > 0 ? (
+              <ul className="grid sm:grid-cols-2 gap-1.5 text-sm mb-3">
+                {departmentMenu.items
+                  .filter((it) => it.dish)
+                  .map((it) => {
+                    const labels = [
+                      '',
+                      'Mon',
+                      'Tue',
+                      'Wed',
+                      'Thu',
+                      'Fri',
+                      'Sat',
+                      'Sun',
+                    ];
+                    return (
+                      <li
+                        key={`${it.day}-${it.dish}`}
+                        className="rounded-xl border border-violet-50 bg-white/80 px-3 py-1.5 flex gap-2"
+                      >
+                        <span className="text-[10px] font-black text-violet-600 w-8 shrink-0">
+                          {labels[it.day] || `D${it.day}`}
+                        </span>
+                        <span className="font-semibold text-slate-800">
+                          {it.dish}
+                        </span>
+                      </li>
+                    );
+                  })}
+              </ul>
+            ) : null}
+            <Link
+              href="/dashboard/schools/menu"
+              className="text-xs font-bold text-[#0077b6] underline underline-offset-2"
+            >
+              Open full menu & adherence →
+            </Link>
           </div>
 
           <div className="rounded-3xl border border-slate-200 bg-white p-6 space-y-6">

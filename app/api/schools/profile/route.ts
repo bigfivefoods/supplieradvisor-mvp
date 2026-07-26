@@ -20,7 +20,48 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseServer();
     const { school, error } = await getOrCreateSchoolProfile(supabase, companyId);
     if (error) return NextResponse.json({ error }, { status: 503 });
-    return NextResponse.json({ success: true, school });
+
+    // Department menu + adherence (what this school is measured on)
+    let departmentMenu = null as Record<string, unknown> | null;
+    let menuAdherence = null as Record<string, unknown> | null;
+    try {
+      const { loadMandatedMenu, schoolMenuAdherenceForPeriod } = await import(
+        '@/lib/schools/agency-menu'
+      );
+      const { currentQuarterPeriod } = await import('@/lib/schools/prize');
+      const mandated = await loadMandatedMenu(supabase, companyId);
+      if (mandated.menu) {
+        departmentMenu = {
+          ...mandated.menu,
+          agency_name: mandated.agencyName,
+        };
+        if (school?.id) {
+          const q = currentQuarterPeriod();
+          const adh = await schoolMenuAdherenceForPeriod(
+            supabase,
+            companyId,
+            Number(school.id),
+            q.starts_on,
+            q.ends_on
+          );
+          menuAdherence = {
+            pct: adh.pct,
+            matched: adh.matched,
+            total: adh.total,
+            period: { from: q.starts_on, to: q.ends_on, name: q.name },
+          };
+        }
+      }
+    } catch {
+      /* soft */
+    }
+
+    return NextResponse.json({
+      success: true,
+      school,
+      departmentMenu,
+      menuAdherence,
+    });
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },

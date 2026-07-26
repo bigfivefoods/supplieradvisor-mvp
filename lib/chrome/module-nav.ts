@@ -444,6 +444,12 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         group: 'DBE/DoH',
       },
       {
+        name: 'Menu',
+        href: '/dashboard/schools/menu',
+        desc: 'Set weekly cycle schools & SPs must follow',
+        group: 'DBE/DoH',
+      },
+      {
         name: 'Programme',
         href: '/dashboard/schools/agency-report',
         desc: 'Multi-facility pack · claims inbox',
@@ -527,7 +533,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       {
         name: 'Menu',
         href: '/dashboard/schools/menu',
-        desc: 'Weekly cycle · approved products',
+        desc: 'Department menu you must follow + adherence %',
         group: 'School',
       },
       {
@@ -638,6 +644,12 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         name: 'Catalogue',
         href: '/dashboard/schools/approved-list',
         desc: 'Approved foods you must supply',
+        group: 'SP',
+      },
+      {
+        name: 'Menu',
+        href: '/dashboard/schools/menu',
+        desc: 'Department menu schools serve from',
         group: 'SP',
       },
       {
