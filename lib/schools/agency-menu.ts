@@ -7,9 +7,10 @@ import { resolveCatalogueContext } from '@/lib/schools/approved-catalogue';
 
 export type MenuCycleItem = {
   day: number; // 1=Mon … 7=Sun (ISO-style Mon-first for school week)
-  meal_type?: string;
+  meal_type?: string; // breakfast | lunch (NSNP two-meal day)
   dish?: string;
   approved_product_ids?: number[];
+  notes?: string;
 };
 
 export type AgencyMenu = {
@@ -47,14 +48,25 @@ export function parseMenuItems(raw: unknown): MenuCycleItem[] {
             .map((x) => Number(x))
             .filter((n) => Number.isFinite(n) && n > 0)
         : [];
+      const mt = String(o.meal_type || 'lunch').toLowerCase();
       return {
         day,
-        meal_type: String(o.meal_type || 'lunch'),
+        meal_type: mt === 'breakfast' ? 'breakfast' : mt === 'snack' ? 'snack' : 'lunch',
         dish: String(o.dish || '').trim(),
         approved_product_ids: ids,
+        notes: o.notes != null ? String(o.notes) : undefined,
       };
     })
     .filter(Boolean) as MenuCycleItem[];
+}
+
+/** Unique approved product ids prescribed across the whole week (for SP ordering guide) */
+export function productsPrescribedOnMenu(items: MenuCycleItem[]): number[] {
+  return [
+    ...new Set(
+      items.flatMap((i) => i.approved_product_ids || []).filter((n) => n > 0)
+    ),
+  ];
 }
 
 /**
@@ -122,9 +134,10 @@ export async function loadMandatedMenu(
 
 /**
  * % of feeding days that followed the department menu for that weekday.
- * A day counts as matched if:
- *  - menu_name matches prescribed dish (case-insensitive, fuzzy contains), OR
- *  - any product used that day is in the day's approved_product_ids
+ * With 2 meals/day, a day is matched if logged dish matches breakfast OR lunch
+ * (or products used appear on either meal's approved list).
+ * Optional: if both breakfast+lunch are prescribed, partial credit if one matches
+ * (still counts as ok for day-level score — schools log one menu_name typically).
  */
 export function computePrescribedMenuAdherencePct(
   feeding: Array<{
@@ -169,14 +182,18 @@ export function computePrescribedMenuAdherencePct(
     if (!date) continue;
     const wd = menuDayFromDate(date);
     const prescribed = byWeekday.get(wd) || [];
-    // Skip weekend if no menu items for that day
-    if (!prescribed.length) {
-      continue;
-    }
-    const dishes = prescribed
-      .map((p) => p.dish || '')
+    if (!prescribed.length) continue;
+
+    const breakfast = prescribed.filter((p) => p.meal_type === 'breakfast');
+    const lunch = prescribed.filter(
+      (p) => p.meal_type === 'lunch' || !p.meal_type
+    );
+    const dishes = [
+      ...breakfast.map((p) => (p.dish ? `B: ${p.dish}` : '')),
+      ...lunch.map((p) => (p.dish ? `L: ${p.dish}` : '')),
+    ]
       .filter(Boolean)
-      .join(' / ');
+      .join(' · ');
     const productSet = new Set(
       prescribed.flatMap((p) => p.approved_product_ids || [])
     );
@@ -202,14 +219,15 @@ export function computePrescribedMenuAdherencePct(
     byDay.push({
       feed_date: date,
       prescribed: dishes || `Day ${wd}`,
-      logged: logged || (usedProducts.length ? `products:${usedProducts.join(',')}` : '—'),
+      logged:
+        logged ||
+        (usedProducts.length ? `products:${usedProducts.join(',')}` : '—'),
       ok,
     });
   }
 
   const total = byDay.length;
-  const pct =
-    total > 0 ? Math.round((matched / total) * 1000) / 10 : 0;
+  const pct = total > 0 ? Math.round((matched / total) * 1000) / 10 : 0;
   return { pct, matched, total, byDay };
 }
 

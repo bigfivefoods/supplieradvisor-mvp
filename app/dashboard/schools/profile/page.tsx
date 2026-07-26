@@ -35,7 +35,12 @@ function Inner() {
     name?: string;
     agency_name?: string | null;
     description?: string | null;
-    items?: Array<{ day: number; dish?: string; meal_type?: string }>;
+    items?: Array<{
+      day: number;
+      dish?: string;
+      meal_type?: string;
+      approved_product_ids?: number[];
+    }>;
   } | null>(null);
   const [menuAdherence, setMenuAdherence] = useState<{
     pct?: number;
@@ -302,35 +307,43 @@ function Inner() {
               ) : null}
             </div>
             {departmentMenu?.items && departmentMenu.items.length > 0 ? (
-              <ul className="grid sm:grid-cols-2 gap-1.5 text-sm mb-3">
-                {departmentMenu.items
-                  .filter((it) => it.dish)
-                  .map((it) => {
-                    const labels = [
-                      '',
-                      'Mon',
-                      'Tue',
-                      'Wed',
-                      'Thu',
-                      'Fri',
-                      'Sat',
-                      'Sun',
-                    ];
-                    return (
-                      <li
-                        key={`${it.day}-${it.dish}`}
-                        className="rounded-xl border border-violet-50 bg-white/80 px-3 py-1.5 flex gap-2"
-                      >
-                        <span className="text-[10px] font-black text-violet-600 w-8 shrink-0">
-                          {labels[it.day] || `D${it.day}`}
-                        </span>
-                        <span className="font-semibold text-slate-800">
-                          {it.dish}
-                        </span>
-                      </li>
-                    );
-                  })}
-              </ul>
+              <div className="space-y-2 mb-3">
+                {[1, 2, 3, 4, 5].map((day) => {
+                  const labels = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+                  const dayItems = (departmentMenu.items || []).filter(
+                    (it) => Number(it.day) === day && it.dish
+                  );
+                  if (!dayItems.length) return null;
+                  const breakfast = dayItems.find(
+                    (i) => String(i.meal_type) === 'breakfast'
+                  );
+                  const lunch = dayItems.find(
+                    (i) => String(i.meal_type) !== 'breakfast'
+                  );
+                  return (
+                    <div
+                      key={day}
+                      className="rounded-xl border border-violet-50 bg-white/80 px-3 py-2 text-sm"
+                    >
+                      <p className="text-[10px] font-black uppercase text-violet-600 mb-1">
+                        {labels[day]}
+                      </p>
+                      <div className="grid sm:grid-cols-2 gap-1.5">
+                        <p className="text-xs">
+                          <span className="font-bold text-amber-800">
+                            Breakfast:{' '}
+                          </span>
+                          {breakfast?.dish || '—'}
+                        </p>
+                        <p className="text-xs">
+                          <span className="font-bold text-sky-800">Lunch: </span>
+                          {lunch?.dish || '—'}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             ) : null}
             <Link
               href="/dashboard/schools/menu"

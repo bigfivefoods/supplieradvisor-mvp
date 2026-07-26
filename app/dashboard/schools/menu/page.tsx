@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Loader2,
   Plus,
@@ -10,6 +10,8 @@ import {
   Utensils,
   Landmark,
   School,
+  Coffee,
+  Sun,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -18,36 +20,33 @@ import {
   SchoolsHeader,
   SchoolsPage,
 } from '@/components/schools/SchoolsShell';
-
-const DAYS = [
-  { day: 1, label: 'Mon' },
-  { day: 2, label: 'Tue' },
-  { day: 3, label: 'Wed' },
-  { day: 4, label: 'Thu' },
-  { day: 5, label: 'Fri' },
-  { day: 6, label: 'Sat' },
-  { day: 7, label: 'Sun' },
-];
-
-type MenuItem = {
-  day: number;
-  meal_type: string;
-  dish: string;
-  approved_product_ids?: number[];
-};
+import {
+  emptyTwoMealWeek,
+  groupItemsByDay,
+  MEAL_TYPE_META,
+  normalizeTwoMealItems,
+  productsForMealHint,
+  type DayMealSlot,
+  type MealTypeKey,
+} from '@/lib/schools/meal-guide';
 
 type Menu = {
   id: number;
   name: string;
   cycle_days?: number;
-  items?: MenuItem[];
+  items?: DayMealSlot[];
   active?: boolean;
   description?: string | null;
-  is_agency_menu?: boolean;
+  meal_types?: string[];
   agency_name?: string | null;
 };
 
-type Product = { id: number; name: string; brand_name: string };
+type Product = {
+  id: number;
+  name: string;
+  brand_name: string;
+  category?: string | null;
+};
 
 export default function SchoolMenuPage() {
   return (
@@ -61,7 +60,6 @@ function Inner() {
   const companyId = getSelectedCompanyId()!;
   const [loading, setLoading] = useState(true);
   const [canEdit, setCanEdit] = useState(false);
-  const [role, setRole] = useState<string>('school');
   const [menus, setMenus] = useState<Menu[]>([]);
   const [mandated, setMandated] = useState<Menu | null>(null);
   const [adherence, setAdherence] = useState<{
@@ -72,18 +70,21 @@ function Inner() {
   const [agencyName, setAgencyName] = useState<string | null>(null);
   const [policy, setPolicy] = useState('');
   const [products, setProducts] = useState<Product[]>([]);
-  const [name, setName] = useState('NSNP weekly menu');
-  const [description, setDescription] = useState('');
-  const [items, setItems] = useState<MenuItem[]>(
-    DAYS.slice(0, 5).map((d) => ({
-      day: d.day,
-      meal_type: 'lunch',
-      dish: '',
-      approved_product_ids: [],
-    }))
+  const [name, setName] = useState('NSNP 2-meal weekly cycle');
+  const [description, setDescription] = useState(
+    'Breakfast + lunch Mon–Fri — schools and SPs must follow'
   );
+  const [items, setItems] = useState<DayMealSlot[]>(() => emptyTwoMealWeek());
   const [editingId, setEditingId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
+  const [productFilter, setProductFilter] = useState('');
+
+  const loadMenuIntoEditor = useCallback((m: Menu) => {
+    setEditingId(m.id);
+    setName(m.name);
+    setDescription(m.description || '');
+    setItems(normalizeTwoMealItems(m.items || []));
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -100,7 +101,6 @@ function Inner() {
       const p = await pRes.json();
       if (!mRes.ok) throw new Error(m.error || 'Failed');
       setCanEdit(Boolean(m.canEdit));
-      setRole(String(m.role || 'school'));
       setMenus(m.menus || []);
       setMandated(m.mandated || null);
       setAdherence(m.adherence || null);
@@ -108,50 +108,45 @@ function Inner() {
       setPolicy(String(m.policy || ''));
       setProducts(p.products || []);
       if (m.warning) toast.message(m.warning);
-      // Prefill editor with active mandated for agency
-      if (m.canEdit && m.mandated) {
+      if (m.mandated) {
         loadMenuIntoEditor(m.mandated as Menu);
-      } else if (!m.canEdit && m.mandated) {
-        loadMenuIntoEditor(m.mandated as Menu);
+      } else if (m.canEdit) {
+        setItems(emptyTwoMealWeek());
       }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Load failed');
     } finally {
       setLoading(false);
     }
-  }, [companyId]);
+  }, [companyId, loadMenuIntoEditor]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const loadMenuIntoEditor = (m: Menu) => {
-    setEditingId(m.id);
-    setName(m.name);
-    setDescription(m.description || '');
-    const base = DAYS.slice(0, m.cycle_days || 5).map((d) => {
-      const found = (m.items || []).find((it) => Number(it.day) === d.day);
-      return {
-        day: d.day,
-        meal_type: found?.meal_type || 'lunch',
-        dish: found?.dish || '',
-        approved_product_ids: found?.approved_product_ids || [],
-      };
-    });
-    setItems(base.length ? base : items);
-  };
+  const dayGroups = useMemo(() => groupItemsByDay(items), [items]);
 
-  const setItem = (day: number, patch: Partial<MenuItem>) => {
+  const setSlot = (
+    day: number,
+    meal: MealTypeKey,
+    patch: Partial<DayMealSlot>
+  ) => {
     setItems((prev) =>
-      prev.map((it) => (it.day === day ? { ...it, ...patch } : it))
+      prev.map((it) =>
+        it.day === day && it.meal_type === meal ? { ...it, ...patch } : it
+      )
     );
   };
 
-  const toggleProduct = (day: number, productId: number) => {
+  const toggleProduct = (
+    day: number,
+    meal: MealTypeKey,
+    productId: number
+  ) => {
     if (!canEdit) return;
     setItems((prev) =>
       prev.map((it) => {
-        if (it.day !== day) return it;
+        if (it.day !== day || it.meal_type !== meal) return it;
         const ids = new Set(it.approved_product_ids || []);
         if (ids.has(productId)) ids.delete(productId);
         else ids.add(productId);
@@ -163,17 +158,21 @@ function Inner() {
   const save = async () => {
     if (!canEdit) return toast.error('Only the department can set the menu');
     if (!name.trim()) return toast.error('Menu name required');
+    const filled = items.filter((it) => it.dish.trim());
+    if (!filled.length) {
+      return toast.error('Add at least one breakfast or lunch dish');
+    }
     setSaving(true);
     try {
       const payload = {
         companyId,
         name: name.trim(),
         description: description || null,
-        cycle_days: items.length,
-        items: items.filter((it) => it.dish.trim()),
+        cycle_days: 5,
+        items: filled,
         active: true,
         mandatory: true,
-        meal_types: ['lunch'],
+        meal_types: ['breakfast', 'lunch'],
       };
       const res = await fetch('/api/schools/menu', {
         method: editingId ? 'PATCH' : 'POST',
@@ -186,9 +185,7 @@ function Inner() {
       if (!res.ok) throw new Error(data.error || 'Save failed');
       toast.success(
         data.message ||
-          (editingId
-            ? 'Menu updated — schools & SPs see it live'
-            : 'Menu published — schools & SPs must follow')
+          '2-meal menu published — schools & SPs follow breakfast + lunch'
       );
       setEditingId(data.menu?.id ?? editingId);
       void load();
@@ -201,7 +198,7 @@ function Inner() {
 
   const remove = async (id: number) => {
     if (!canEdit) return;
-    if (!confirm('Delete this department menu cycle?')) return;
+    if (!confirm('Delete this department menu?')) return;
     try {
       const res = await fetch(
         `/api/schools/menu?companyId=${companyId}&id=${id}`,
@@ -211,6 +208,7 @@ function Inner() {
       if (!res.ok) throw new Error(data.error || 'Failed');
       toast.success('Menu deleted');
       setEditingId(null);
+      setItems(emptyTwoMealWeek());
       void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed');
@@ -220,16 +218,11 @@ function Inner() {
   const newMenu = () => {
     if (!canEdit) return;
     setEditingId(null);
-    setName('NSNP weekly menu');
-    setDescription('');
-    setItems(
-      DAYS.slice(0, 5).map((d) => ({
-        day: d.day,
-        meal_type: 'lunch',
-        dish: '',
-        approved_product_ids: [],
-      }))
+    setName('NSNP 2-meal weekly cycle');
+    setDescription(
+      'Breakfast + lunch Mon–Fri — schools and SPs must follow'
     );
+    setItems(emptyTwoMealWeek());
   };
 
   const productLabel = (id: number) => {
@@ -237,20 +230,18 @@ function Inner() {
     return p ? `${p.brand_name} · ${p.name}` : `Product ${id}`;
   };
 
+  const pf = productFilter.trim().toLowerCase();
+
   return (
     <SchoolsPage>
       <SchoolsHeader
         title={canEdit ? 'Department menu' : 'Programme menu'}
-        titleAccent={
-          canEdit
-            ? 'DBE / DoH sets'
-            : agencyName || 'Follow department'
-        }
+        titleAccent="Breakfast + lunch"
         description={
           canEdit
-            ? 'Set the weekly cycle schools and SPs must follow. Link dishes to approved products. Schools are rated on % menu adherence.'
+            ? 'Set two meals a day (breakfast and lunch) for Mon–Fri. Pick approved products for each meal — schools and SPs use this as the daily feeding guide.'
             : policy ||
-              'Your department sets this menu. Log the dish on serve day to score adherence.'
+              'Your department sets breakfast and lunch for each school day. Follow the dishes and approved products listed.'
         }
         action={
           <div className="flex gap-2">
@@ -274,6 +265,30 @@ function Inner() {
         }
       />
 
+      {/* Legend */}
+      <div className="mb-4 grid sm:grid-cols-2 gap-2">
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3 flex gap-2 text-sm">
+          <Coffee className="w-5 h-5 text-amber-700 shrink-0" />
+          <div>
+            <p className="font-black text-amber-950 text-xs uppercase">
+              Breakfast
+            </p>
+            <p className="text-[12px] text-amber-900/80">
+              {MEAL_TYPE_META.breakfast.hint}
+            </p>
+          </div>
+        </div>
+        <div className="rounded-2xl border border-sky-200 bg-sky-50/80 px-4 py-3 flex gap-2 text-sm">
+          <Sun className="w-5 h-5 text-sky-700 shrink-0" />
+          <div>
+            <p className="font-black text-sky-950 text-xs uppercase">Lunch</p>
+            <p className="text-[12px] text-sky-900/80">
+              {MEAL_TYPE_META.lunch.hint}
+            </p>
+          </div>
+        </div>
+      </div>
+
       {!canEdit && adherence ? (
         <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -284,8 +299,8 @@ function Inner() {
               {adherence.pct}%
             </p>
             <p className="text-xs text-slate-600">
-              {adherence.matched} of {adherence.total} serve days matched the
-              department menu · feeds prize score (15%)
+              {adherence.matched} of {adherence.total} serve days matched
+              breakfast/lunch guide · prize pillar 15%
             </p>
           </div>
           <School className="w-8 h-8 text-amber-600 opacity-60" />
@@ -302,18 +317,12 @@ function Inner() {
             {!canEdit && mandated ? (
               <div className="rounded-2xl border border-violet-100 bg-violet-50/50 p-3">
                 <p className="text-[10px] font-bold uppercase text-violet-700 flex items-center gap-1">
-                  <Landmark className="w-3 h-3" /> Department menu
+                  <Landmark className="w-3 h-3" /> Department 2-meal guide
                 </p>
                 <p className="font-black text-sm mt-1">{mandated.name}</p>
                 <p className="text-[11px] text-slate-500 mt-0.5">
-                  {agencyName || 'DBE'} ·{' '}
-                  {(mandated.items || []).length} dishes · mandatory
+                  {agencyName || 'DBE'} · breakfast + lunch · mandatory
                 </p>
-                {mandated.description ? (
-                  <p className="text-xs text-slate-600 mt-2">
-                    {mandated.description}
-                  </p>
-                ) : null}
               </div>
             ) : null}
 
@@ -324,8 +333,8 @@ function Inner() {
                 </h3>
                 {menus.length === 0 ? (
                   <p className="text-sm text-slate-500">
-                    No department menu yet — create the weekly cycle schools
-                    must follow.
+                    Create the breakfast + lunch week schools and SPs must
+                    follow.
                   </p>
                 ) : (
                   <ul className="space-y-2">
@@ -350,7 +359,10 @@ function Inner() {
                             </span>
                           ) : null}
                           <span className="block text-[10px] text-slate-400">
-                            {(m.items || []).length} dishes
+                            {(m.items || []).filter((i) => i.meal_type === 'breakfast').length}{' '}
+                            breakfast ·{' '}
+                            {(m.items || []).filter((i) => i.meal_type !== 'breakfast').length}{' '}
+                            lunch slots
                           </span>
                         </button>
                         <button
@@ -366,23 +378,16 @@ function Inner() {
                 )}
               </>
             ) : (
-              <div>
-                <h3 className="text-xs font-bold uppercase text-slate-400 mb-2">
-                  How adherence is scored
-                </h3>
-                <ul className="text-xs text-slate-600 space-y-1.5 list-disc pl-4">
-                  <li>
-                    On serve day, log the dish name from this menu (or issue
-                    the linked approved products).
-                  </li>
-                  <li>
-                    Each weekday is checked against Mon–Fri dishes set by{' '}
-                    {agencyName || 'the department'}.
-                  </li>
-                  <li>
-                    Adherence is 15% of the headmaster prize scorecard.
-                  </li>
-                </ul>
+              <div className="text-xs text-slate-600 space-y-2">
+                <p className="font-bold text-slate-800">Daily feeding guide</p>
+                <p>
+                  Serve <strong>breakfast</strong> and <strong>lunch</strong>{' '}
+                  using only the approved products listed for each meal. SPs
+                  should supply those products for the week.
+                </p>
+                <p>
+                  Log the dish on serve day to score menu adherence for prizes.
+                </p>
               </div>
             )}
           </div>
@@ -392,11 +397,9 @@ function Inner() {
               <Utensils className="w-4 h-4 text-[#00b4d8]" />
               {canEdit
                 ? editingId
-                  ? `Edit department menu #${editingId}`
-                  : 'Publish department menu'
-                : mandated
-                  ? mandated.name
-                  : 'No menu published yet'}
+                  ? `Edit 2-meal menu #${editingId}`
+                  : 'Publish 2-meal weekly guide'
+                : mandated?.name || 'No menu published'}
             </div>
 
             {canEdit ? (
@@ -413,92 +416,161 @@ function Inner() {
                 </label>
                 <label className="text-xs sm:col-span-2">
                   <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
-                    Description
+                    Guideline note
                   </span>
                   <input
                     className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
-                    placeholder="e.g. Term 2 winter cycle — mandatory"
+                    placeholder="e.g. Term 2 — 2 meals/day, fortified staples only"
+                  />
+                </label>
+                <label className="text-xs sm:col-span-2">
+                  <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                    Filter products
+                  </span>
+                  <input
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                    value={productFilter}
+                    onChange={(e) => setProductFilter(e.target.value)}
+                    placeholder="Search catalogue…"
                   />
                 </label>
               </div>
             ) : null}
 
-            <div className="space-y-3">
-              {items.map((it) => {
-                const dayLabel =
-                  DAYS.find((d) => d.day === it.day)?.label || `D${it.day}`;
-                return (
-                  <div
-                    key={it.day}
-                    className="rounded-2xl border border-slate-100 p-3 space-y-2"
-                  >
-                    <div className="flex flex-wrap gap-2 items-center">
-                      <span className="text-xs font-black w-10 text-slate-500">
-                        {dayLabel}
-                      </span>
-                      {canEdit ? (
-                        <input
-                          className="flex-1 min-w-[10rem] rounded-xl border border-slate-200 px-3 py-1.5 text-sm"
-                          value={it.dish}
-                          onChange={(e) =>
-                            setItem(it.day, { dish: e.target.value })
-                          }
-                          placeholder="Dish name (e.g. Samp & beans)"
-                        />
-                      ) : (
-                        <span className="font-semibold text-sm">
-                          {it.dish || '—'}
-                        </span>
-                      )}
-                    </div>
-                    {(canEdit || (it.approved_product_ids || []).length > 0) && (
-                      <div>
-                        <p className="text-[10px] font-bold uppercase text-slate-400 mb-1">
-                          Approved products for this dish
-                        </p>
-                        {canEdit ? (
-                          <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
-                            {products.length === 0 ? (
-                              <span className="text-[11px] text-slate-400">
-                                Add products on the approved foods catalogue
-                                first.
-                              </span>
+            {/* Week grid: each day = breakfast + lunch */}
+            <div className="space-y-4">
+              {dayGroups.map((dg) => (
+                <div
+                  key={dg.day}
+                  className="rounded-2xl border border-slate-200 overflow-hidden"
+                >
+                  <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 text-xs font-black uppercase text-slate-600">
+                    {dg.label}
+                  </div>
+                  <div className="grid md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-100">
+                    {dg.meals.map((slot) => {
+                      const meta = MEAL_TYPE_META[slot.meal_type];
+                      const isB = slot.meal_type === 'breakfast';
+                      let mealProducts = productsForMealHint(
+                        products,
+                        slot.meal_type
+                      ) as Product[];
+                      if (pf) {
+                        mealProducts = mealProducts.filter((p) =>
+                          `${p.brand_name} ${p.name} ${p.category || ''}`
+                            .toLowerCase()
+                            .includes(pf)
+                        );
+                      }
+                      return (
+                        <div
+                          key={`${slot.day}-${slot.meal_type}`}
+                          className={`p-3 space-y-2 ${
+                            isB ? 'bg-amber-50/30' : 'bg-sky-50/30'
+                          }`}
+                        >
+                          <div className="flex items-center gap-1.5">
+                            {isB ? (
+                              <Coffee className="w-3.5 h-3.5 text-amber-700" />
                             ) : (
-                              products.map((p) => {
-                                const on = (it.approved_product_ids || []).includes(
-                                  p.id
-                                );
-                                return (
-                                  <button
-                                    key={p.id}
-                                    type="button"
-                                    onClick={() => toggleProduct(it.day, p.id)}
-                                    className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
-                                      on
-                                        ? 'border-emerald-500 bg-emerald-50 text-emerald-900'
-                                        : 'border-slate-200 text-slate-500'
-                                    }`}
-                                  >
-                                    {p.brand_name} · {p.name}
-                                  </button>
-                                );
-                              })
+                              <Sun className="w-3.5 h-3.5 text-sky-700" />
+                            )}
+                            <span
+                              className={`text-[10px] font-black uppercase ${
+                                isB ? 'text-amber-800' : 'text-sky-800'
+                              }`}
+                            >
+                              {meta.label}
+                            </span>
+                          </div>
+                          {canEdit ? (
+                            <input
+                              className="w-full rounded-xl border border-slate-200 px-3 py-1.5 text-sm bg-white"
+                              value={slot.dish}
+                              onChange={(e) =>
+                                setSlot(slot.day, slot.meal_type, {
+                                  dish: e.target.value,
+                                })
+                              }
+                              placeholder={
+                                isB
+                                  ? 'e.g. Fortified maize porridge'
+                                  : 'e.g. Samp & beans with veg'
+                              }
+                            />
+                          ) : (
+                            <p className="font-semibold text-sm text-slate-900">
+                              {slot.dish || '—'}
+                            </p>
+                          )}
+                          <div>
+                            <p className="text-[9px] font-bold uppercase text-slate-400 mb-1">
+                              {canEdit
+                                ? 'Select approved products'
+                                : 'Approved products to use'}
+                            </p>
+                            {canEdit ? (
+                              <div className="flex flex-wrap gap-1 max-h-28 overflow-y-auto">
+                                {mealProducts.length === 0 ? (
+                                  <span className="text-[11px] text-slate-400">
+                                    No products in catalogue yet.
+                                  </span>
+                                ) : (
+                                  mealProducts.map((p) => {
+                                    const on = (
+                                      slot.approved_product_ids || []
+                                    ).includes(p.id);
+                                    return (
+                                      <button
+                                        key={p.id}
+                                        type="button"
+                                        onClick={() =>
+                                          toggleProduct(
+                                            slot.day,
+                                            slot.meal_type,
+                                            p.id
+                                          )
+                                        }
+                                        className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                                          on
+                                            ? isB
+                                              ? 'border-amber-500 bg-amber-100 text-amber-950'
+                                              : 'border-sky-500 bg-sky-100 text-sky-950'
+                                            : 'border-slate-200 text-slate-500 bg-white'
+                                        }`}
+                                        title={p.category || ''}
+                                      >
+                                        {p.brand_name} · {p.name}
+                                      </button>
+                                    );
+                                  })
+                                )}
+                              </div>
+                            ) : (
+                              <ul className="text-xs text-slate-700 space-y-0.5">
+                                {(slot.approved_product_ids || []).length ===
+                                0 ? (
+                                  <li className="text-slate-400">
+                                    No products linked
+                                  </li>
+                                ) : (
+                                  (slot.approved_product_ids || []).map(
+                                    (id) => (
+                                      <li key={id}>· {productLabel(id)}</li>
+                                    )
+                                  )
+                                )}
+                              </ul>
                             )}
                           </div>
-                        ) : (
-                          <ul className="text-xs text-slate-600 space-y-0.5">
-                            {(it.approved_product_ids || []).map((id) => (
-                              <li key={id}>· {productLabel(id)}</li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    )}
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
 
             {canEdit ? (
@@ -513,12 +585,13 @@ function Inner() {
                 ) : (
                   <Save className="w-4 h-4" />
                 )}
-                {editingId ? 'Update & publish live' : 'Publish for schools & SPs'}
+                {editingId
+                  ? 'Update 2-meal guide (live)'
+                  : 'Publish breakfast + lunch for schools & SPs'}
               </button>
             ) : !mandated ? (
               <p className="text-sm text-slate-500">
-                Your department has not published a menu yet. Ask DBE/DoH to
-                set it under Schools → Menu.
+                Department has not published a 2-meal menu yet.
               </p>
             ) : null}
           </div>

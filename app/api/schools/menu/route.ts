@@ -12,9 +12,11 @@ import {
 import {
   loadMandatedMenu,
   parseMenuItems,
+  productsPrescribedOnMenu,
   schoolMenuAdherenceForPeriod,
 } from '@/lib/schools/agency-menu';
 import { currentQuarterPeriod } from '@/lib/schools/prize';
+import { MEAL_TYPES } from '@/lib/schools/meal-guide';
 
 /**
  * Department menu (DBE/DoH sets) + school view of mandated cycle.
@@ -67,6 +69,7 @@ export async function GET(request: NextRequest) {
         success: true,
         role: 'agency',
         canEdit: true,
+        meal_types: MEAL_TYPES,
         menus: (menus || []).map((m) => ({
           ...m,
           items: parseMenuItems(m.items),
@@ -74,7 +77,7 @@ export async function GET(request: NextRequest) {
         mandated: mandated.menu,
         catalogue: ctx,
         policy:
-          'You set the menu schools and SPs must follow. Changes pull through live. Schools are rated on % menu adherence.',
+          'Set breakfast and lunch for each school day. Select approved products per meal. Schools and SPs follow this live; schools are rated on % menu adherence.',
       });
     }
 
@@ -112,13 +115,20 @@ export async function GET(request: NextRequest) {
       }));
     }
 
+    const prescribedIds = mandated.menu
+      ? productsPrescribedOnMenu(mandated.menu.items)
+      : [];
+
     return NextResponse.json({
       success: true,
       role: ctx.isIsp ? 'sp' : 'school',
       canEdit: false,
+      meal_types: MEAL_TYPES,
       mandated: mandated.menu,
       agencyName: mandated.agencyName,
       agencyProfileId: mandated.agencyProfileId,
+      /** Product ids the department selected across breakfast+lunch for the week */
+      weekly_approved_product_ids: prescribedIds,
       menus: localMenus,
       adherence: adherence
         ? {
@@ -130,8 +140,8 @@ export async function GET(request: NextRequest) {
         : null,
       catalogue: ctx,
       policy: mandated.menu
-        ? `Follow the ${mandated.agencyName || 'department'} menu. Adherence this quarter: ${adherence?.pct ?? 0}% (${adherence?.matched ?? 0}/${adherence?.total ?? 0} days).`
-        : 'Your department has not published a mandated menu yet.',
+        ? `2 meals/day (breakfast + lunch) set by ${mandated.agencyName || 'department'}. Adherence this quarter: ${adherence?.pct ?? 0}% (${adherence?.matched ?? 0}/${adherence?.total ?? 0} days).`
+        : 'Your department has not published a 2-meal mandated menu yet.',
     });
   } catch (e: unknown) {
     return NextResponse.json(
@@ -215,7 +225,7 @@ export async function POST(request: NextRequest) {
       description: body.description || null,
       cycle_days: Number(body.cycle_days || items.length || 5),
       items,
-      meal_types: body.meal_types || ['lunch'],
+      meal_types: body.meal_types || ['breakfast', 'lunch'],
       active: makeActive,
       published_at: makeActive ? now : null,
       updated_at: now,
