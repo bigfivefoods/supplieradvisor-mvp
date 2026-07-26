@@ -14,6 +14,8 @@ export const SCHOOLS_NAV: readonly NavItem[] = [
   { href: '/dashboard/schools/learners', label: 'Learners' },
   { href: '/dashboard/schools/staff', label: 'Staff' },
   { href: '/dashboard/schools/approved-list', label: 'Approved' },
+  { href: '/dashboard/schools/menu', label: 'Menu' },
+  { href: '/dashboard/schools/agency', label: 'DBE' },
   { href: '/dashboard/schools/isps', label: 'ISPs' },
   { href: '/dashboard/schools/orders', label: 'Orders' },
   { href: '/dashboard/schools/kitchen', label: 'Kitchen' },

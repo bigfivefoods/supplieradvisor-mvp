@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = getSupabaseServer();
+    // all=1 includes inactive (for editors); default active-only for order/GRN UIs
     const activeOnly = sp.get('all') !== '1';
     const q = String(sp.get('q') || '').trim().toLowerCase();
     const category = String(sp.get('category') || '').trim();
@@ -84,7 +85,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-/** Platform admin: add product (any authenticated company for MVP — tighten later) */
+/** Add brand or product (authenticated company — programme admins / operators). */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -141,6 +142,7 @@ export async function POST(request: NextRequest) {
         energy_kcal: body.energy_kcal ?? null,
         protein_g: body.protein_g ?? null,
         active: body.active !== false,
+        notes: body.notes || null,
       })
       .select('*')
       .single();
@@ -148,6 +150,126 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
     return NextResponse.json({ success: true, product: data });
+  } catch (e: unknown) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : 'Error' },
+      { status: 500 }
+    );
+  }
+}
+
+/** Update brand or product (edit / deactivate). */
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const companyId = Number(body.companyId);
+    const id = Number(body.id);
+    if (!Number.isFinite(companyId) || !Number.isFinite(id)) {
+      return NextResponse.json(
+        { error: 'companyId and id required' },
+        { status: 400 }
+      );
+    }
+    const gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request),
+    });
+    if (!gate.ok) return gate.response;
+
+    const supabase = getSupabaseServer();
+    const kind = String(body.kind || 'product');
+
+    if (kind === 'brand') {
+      const patch: Record<string, unknown> = {
+        updated_at: new Date().toISOString(),
+      };
+      for (const k of ['name', 'manufacturer', 'notes', 'active'] as const) {
+        if (body[k] !== undefined) patch[k] = body[k];
+      }
+      if (body.name) {
+        patch.slug = String(body.name)
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-');
+      }
+      const { data, error } = await supabase
+        .from('nsnp_approved_brands')
+        .update(patch)
+        .eq('id', id)
+        .select('*')
+        .single();
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+      return NextResponse.json({ success: true, brand: data });
+    }
+
+    const patch: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
+    for (const k of [
+      'name',
+      'brand_name',
+      'brand_id',
+      'category',
+      'sku',
+      'pack_size',
+      'uom',
+      'energy_kcal',
+      'protein_g',
+      'active',
+      'notes',
+      'province',
+    ] as const) {
+      if (body[k] !== undefined) patch[k] = body[k];
+    }
+    const { data, error } = await supabase
+      .from('nsnp_approved_products')
+      .update(patch)
+      .eq('id', id)
+      .select('*')
+      .single();
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    return NextResponse.json({ success: true, product: data });
+  } catch (e: unknown) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : 'Error' },
+      { status: 500 }
+    );
+  }
+}
+
+/** Soft-delete = deactivate (keep history for audits). */
+export async function DELETE(request: NextRequest) {
+  try {
+    const sp = request.nextUrl.searchParams;
+    const companyId = Number(sp.get('companyId'));
+    const id = Number(sp.get('id'));
+    const kind = String(sp.get('kind') || 'product');
+    if (!Number.isFinite(companyId) || !Number.isFinite(id)) {
+      return NextResponse.json(
+        { error: 'companyId and id required' },
+        { status: 400 }
+      );
+    }
+    const gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request),
+    });
+    if (!gate.ok) return gate.response;
+
+    const supabase = getSupabaseServer();
+    const table =
+      kind === 'brand' ? 'nsnp_approved_brands' : 'nsnp_approved_products';
+    const { data, error } = await supabase
+      .from(table)
+      .update({ active: false, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select('*')
+      .single();
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    return NextResponse.json({ success: true, item: data });
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },

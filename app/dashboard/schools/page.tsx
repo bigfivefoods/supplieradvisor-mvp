@@ -216,7 +216,7 @@ function Inner() {
             ))}
           </div>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {[
               {
                 href: '/dashboard/schools/profile',
@@ -229,9 +229,19 @@ function Inner() {
                 desc: 'Excel-compatible CSV template',
               },
               {
-                href: '/dashboard/schools/isps',
-                label: 'Link compliant ISPs',
-                desc: 'Only approved brands delivered',
+                href: '/dashboard/schools/approved-list',
+                label: 'Edit approved brands',
+                desc: 'Add / edit / deactivate catalogue',
+              },
+              {
+                href: '/dashboard/schools/menu',
+                label: 'School menu cycle',
+                desc: 'Weekly dishes linked to approved products',
+              },
+              {
+                href: '/dashboard/schools/agency',
+                label: 'Join DBE / PEU',
+                desc: 'Associate with government agency',
               },
               {
                 href: '/dashboard/schools/report',

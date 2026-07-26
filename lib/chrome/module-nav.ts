@@ -425,7 +425,17 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       {
         name: 'Approved',
         href: '/dashboard/schools/approved-list',
-        desc: 'Strict NSNP brand list',
+        desc: 'Edit strict NSNP brand list',
+      },
+      {
+        name: 'Menu',
+        href: '/dashboard/schools/menu',
+        desc: 'Weekly NSNP menu cycle',
+      },
+      {
+        name: 'DBE',
+        href: '/dashboard/schools/agency',
+        desc: 'Join DBE / PEU agency',
       },
       {
         name: 'ISPs',
