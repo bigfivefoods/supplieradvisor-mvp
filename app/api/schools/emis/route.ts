@@ -4,10 +4,7 @@ import {
   requireCompanyAccess,
   legacyPrivyFrom,
 } from '@/lib/auth/api-auth';
-import {
-  getOrCreateSchoolProfile,
-  refreshSchoolCounts,
-} from '@/lib/schools/school-context';
+import { getOrCreateSchoolProfile } from '@/lib/schools/school-context';
 
 /**
  * W4 EMIS snapshot import / attest.
