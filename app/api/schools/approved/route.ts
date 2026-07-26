@@ -5,6 +5,8 @@ import {
   legacyPrivyFrom,
 } from '@/lib/auth/api-auth';
 import {
+  cloneNationalIntoAgency,
+  ensureNationalNsnpSeed,
   loadApprovedBrands,
   loadApprovedProducts,
   resolveCatalogueContext,
@@ -47,8 +49,12 @@ export async function GET(request: NextRequest) {
     let brands: Array<Record<string, unknown>> = [];
     let products: Array<Record<string, unknown>> = [];
 
+    // Keep national seed available as template source
+    await ensureNationalNsnpSeed(supabase);
+
     if (ctx.canEdit) {
-      // Agency editor: only their catalogue (not merged national when they have edits)
+      // Agency editor: live catalogue for this DBE/DoH only
+      // Auto-import NSNP starter list once so schools have something to measure against
       let bq = supabase
         .from('nsnp_approved_brands')
         .select('*')
@@ -65,7 +71,7 @@ export async function GET(request: NextRequest) {
         bq = bq.eq('active', true);
         pq = pq.eq('active', true);
       }
-      const [br, pr] = await Promise.all([bq, pq]);
+      let [br, pr] = await Promise.all([bq, pq]);
       if (br.error || pr.error) {
         const msg = br.error?.message || pr.error?.message || '';
         if (/does not exist|schema cache/i.test(msg)) {
@@ -78,7 +84,6 @@ export async function GET(request: NextRequest) {
               'Run migrations 20260726_schools_nsnp_module.sql and 20260726_nsnp_agency_owned_catalogue.sql',
           });
         }
-        // columns missing — fall back without agency filter
         brands = await loadApprovedBrands(supabase, null, { activeOnly });
         products = await loadApprovedProducts(supabase, null, {
           activeOnly,
@@ -86,24 +91,33 @@ export async function GET(request: NextRequest) {
       } else {
         brands = (br.data || []) as Array<Record<string, unknown>>;
         products = (pr.data || []) as Array<Record<string, unknown>>;
-        // If agency has no products yet, show national seed as read-only template hint
+        // First open: clone full NSNP seed into this department's catalogue
         if (!products.length) {
-          const national = await loadApprovedProducts(supabase, null, {
-            activeOnly: true,
-          });
-          products = national.map((p) => ({
-            ...p,
-            _national_template: true,
-          }));
+          await cloneNationalIntoAgency(supabase, companyId);
+          const [br2, pr2] = await Promise.all([bq, pq]);
+          brands = (br2.data || []) as Array<Record<string, unknown>>;
+          products = (pr2.data || []) as Array<Record<string, unknown>>;
         }
       }
     } else {
+      // School / SP: always the department's live list when associated
+      if (agencyProfileId != null) {
+        // If department never opened catalogue, seed it so associates are not blocked
+        const owned = await loadApprovedProducts(supabase, agencyProfileId, {
+          activeOnly: true,
+          includeNationalFallback: false,
+        });
+        if (!owned.length) {
+          await cloneNationalIntoAgency(supabase, agencyProfileId);
+        }
+      }
       brands = await loadApprovedBrands(supabase, agencyProfileId, {
         activeOnly,
       });
       products = await loadApprovedProducts(supabase, agencyProfileId, {
         activeOnly,
-        includeNationalFallback: true,
+        // Only fall back to national if no department association
+        includeNationalFallback: agencyProfileId == null,
       });
     }
 
@@ -135,11 +149,12 @@ export async function GET(request: NextRequest) {
       catalogue: {
         ...ctx,
         agencyProfileId,
+        live_pull_through: true,
         message: ctx.canEdit
-          ? 'You publish this list as the government agency. Schools and SPs must buy/supply only these items.'
+          ? 'You own this NSNP catalogue. Schools and SPs associated with you always see the live list — edits pull through immediately for orders, GRNs, prizes and claims.'
           : ctx.source === 'agency'
-            ? `Catalogue set by ${ctx.agencyName || 'DBE'}. You may only order and receive these approved foods.`
-            : 'National fallback list — join and get approved by DBE to use their official catalogue.',
+            ? `Live catalogue from ${ctx.agencyName || 'your department'}. You are measured only against these approved foods (orders, GRNs, prizes, claims).`
+            : 'Not yet associated with a department — join DBE/DoH to inherit their approved foods list.',
       },
     });
   } catch (e: unknown) {
@@ -199,92 +214,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, brand: data });
     }
 
-    // Clone national template into agency list
-    if (body.action === 'clone_national') {
-      const national = await loadApprovedProducts(supabase, null, {
-        activeOnly: true,
-      });
-      const brands = await loadApprovedBrands(supabase, null, {
-        activeOnly: true,
-      });
-      let brandMap = new Map<string, number>();
-      for (const b of brands) {
-        const { data: nb } = await supabase
-          .from('nsnp_approved_brands')
-          .upsert(
-            {
-              name: String(b.name),
-              slug: String(b.slug || b.name)
-                .toLowerCase()
-                .replace(/[^a-z0-9]+/g, '-'),
-              manufacturer: b.manufacturer || null,
-              active: true,
-              agency_profile_id: companyId,
-              published_at: new Date().toISOString(),
-            },
-            { onConflict: 'agency_profile_id,name' }
-          )
-          .select('id, name')
-          .maybeSingle();
-        // upsert onConflict may fail if unique index differs — insert or find
-        if (nb?.id) {
-          brandMap.set(String(nb.name).toLowerCase(), Number(nb.id));
-        } else {
-          const { data: existing } = await supabase
-            .from('nsnp_approved_brands')
-            .select('id, name')
-            .eq('agency_profile_id', companyId)
-            .ilike('name', String(b.name))
-            .maybeSingle();
-          if (existing) {
-            brandMap.set(String(existing.name).toLowerCase(), Number(existing.id));
-          } else {
-            const { data: ins } = await supabase
-              .from('nsnp_approved_brands')
-              .insert({
-                name: String(b.name),
-                slug: String(b.slug || b.name)
-                  .toLowerCase()
-                  .replace(/[^a-z0-9]+/g, '-'),
-                manufacturer: b.manufacturer || null,
-                active: true,
-                agency_profile_id: companyId,
-                published_at: new Date().toISOString(),
-              })
-              .select('id, name')
-              .single();
-            if (ins) {
-              brandMap.set(String(ins.name).toLowerCase(), Number(ins.id));
-            }
-          }
-        }
-      }
-
-      let imported = 0;
-      for (const p of national) {
-        const brandName = String(p.brand_name || '');
-        const brandId = brandMap.get(brandName.toLowerCase()) || null;
-        const { error } = await supabase.from('nsnp_approved_products').insert({
-          brand_id: brandId,
-          category: p.category || 'commodity',
-          name: p.name,
-          brand_name: brandName,
-          sku: p.sku || null,
-          pack_size: p.pack_size || null,
-          uom: p.uom || 'kg',
-          energy_kcal: p.energy_kcal ?? null,
-          protein_g: p.protein_g ?? null,
-          active: true,
-          agency_profile_id: companyId,
-          published_at: new Date().toISOString(),
-          notes: p.notes || 'Cloned from national template',
-        });
-        if (!error) imported += 1;
-      }
+    // Clone / re-sync NSNP starter list into this department's catalogue
+    if (
+      body.action === 'clone_national' ||
+      body.action === 'import_nsnp_seed' ||
+      body.action === 'sync_nsnp_seed'
+    ) {
+      const result = await cloneNationalIntoAgency(supabase, companyId);
       return NextResponse.json({
         success: true,
-        imported,
-        message: `Cloned ${imported} products into your DBE catalogue`,
+        imported: result.imported,
+        brands: result.brands,
+        skipped: result.skipped,
+        message:
+          result.imported > 0
+            ? `Imported ${result.imported} NSNP products into your department catalogue (${result.skipped} already present). Schools and SPs under you use this list live.`
+            : result.skipped > 0
+              ? `Catalogue already has NSNP items (${result.skipped} unchanged). Edits here pull through to all associated schools and SPs.`
+              : 'No products imported — check national seed.',
       });
     }
 

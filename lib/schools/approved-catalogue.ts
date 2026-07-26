@@ -1,9 +1,17 @@
 /**
  * Resolve and load the DBE/agency-owned NSNP approved catalogue.
- * Schools linked (approved) to an agency use that agency's list;
- * otherwise fall back to national/platform items (agency_profile_id IS NULL).
+ *
+ * Inheritance model (live pull-through):
+ * - DBE/DoH owns products with agency_profile_id = their company id
+ * - Schools & SPs with an active association always read THAT list
+ * - When the department edits the catalogue, all associates see it next load
+ * - National rows (agency_profile_id IS NULL) are a template only until cloned
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
+import {
+  NSNP_SEED_BRANDS,
+  NSNP_SEED_PRODUCTS,
+} from '@/lib/schools/nsnp-seed-products';
 
 export type CatalogueContext = {
   /** Company id of owning agency (DBE), or null for national fallback */
@@ -13,6 +21,8 @@ export type CatalogueContext = {
   source: 'agency' | 'national' | 'none';
   canEdit: boolean;
   schoolProfileId?: number | null;
+  /** True when viewer is SP reading department catalogue */
+  isIsp?: boolean;
 };
 
 export async function getAgencyRegistration(
@@ -30,8 +40,9 @@ export async function getAgencyRegistration(
 
 /**
  * For a school company: primary active agency link wins.
+ * For an SP: first active nsnp_isp_agency_links agency.
  * For an agency company: themselves.
- * Else national.
+ * Else national template (not yet associated).
  */
 export async function resolveCatalogueContext(
   supabase: SupabaseClient,
@@ -49,6 +60,40 @@ export async function resolveCatalogueContext(
       canEdit: true,
       schoolProfileId: null,
     };
+  }
+
+  // SP path — catalogue of the department they supply under
+  const { data: ispRow } = await supabase
+    .from('nsnp_isp_profiles')
+    .select('profile_id')
+    .eq('profile_id', companyId)
+    .maybeSingle();
+  if (ispRow) {
+    const { data: ispLinks } = await supabase
+      .from('nsnp_isp_agency_links')
+      .select('agency_profile_id, status, accepted_at')
+      .eq('isp_profile_id', companyId)
+      .eq('status', 'active')
+      .order('accepted_at', { ascending: false })
+      .limit(1);
+    const al = ispLinks?.[0];
+    if (al?.agency_profile_id) {
+      const aid = Number(al.agency_profile_id);
+      const { data: ag } = await supabase
+        .from('nsnp_agency_profiles')
+        .select('agency_name, agency_type')
+        .eq('profile_id', aid)
+        .maybeSingle();
+      return {
+        agencyProfileId: aid,
+        agencyName: ag?.agency_name ? String(ag.agency_name) : 'DBE',
+        agencyType: ag?.agency_type != null ? String(ag.agency_type) : null,
+        source: 'agency',
+        canEdit: false,
+        schoolProfileId: null,
+        isIsp: true,
+      };
+    }
   }
 
   // School path
@@ -200,17 +245,212 @@ export async function filterApprovedProductIds(
   productIds: number[]
 ): Promise<Map<number, Record<string, unknown>>> {
   if (!productIds.length) return new Map();
+  // Strict: if school/SP is under an agency, only that agency's live list
+  // (plus national only when agency list still empty — transitional)
   const products = await loadApprovedProducts(supabase, agencyProfileId, {
     activeOnly: true,
-    includeNationalFallback: true,
+    includeNationalFallback: agencyProfileId == null,
   });
-  const byId = new Map(
-    products.map((p) => [Number(p.id), p] as const)
-  );
+  // When agency list exists, do not allow national-only product ids
+  let list = products;
+  if (agencyProfileId != null) {
+    const owned = products.filter(
+      (p) => Number(p.agency_profile_id) === agencyProfileId
+    );
+    if (owned.length > 0) list = owned;
+  }
+  const byId = new Map(list.map((p) => [Number(p.id), p] as const));
   const out = new Map<number, Record<string, unknown>>();
   for (const id of productIds) {
     const p = byId.get(id);
     if (p && p.active !== false) out.set(id, p);
   }
   return out;
+}
+
+/**
+ * Ensure national NSNP seed rows exist (agency_profile_id null).
+ * Idempotent by name+brand.
+ */
+export async function ensureNationalNsnpSeed(
+  supabase: SupabaseClient
+): Promise<{ brands: number; products: number }> {
+  let brandsAdded = 0;
+  let productsAdded = 0;
+  const brandIdBySlug = new Map<string, number>();
+
+  for (const b of NSNP_SEED_BRANDS) {
+    const { data: existing } = await supabase
+      .from('nsnp_approved_brands')
+      .select('id, name')
+      .is('agency_profile_id', null)
+      .ilike('name', b.name)
+      .maybeSingle();
+    if (existing?.id) {
+      brandIdBySlug.set(b.slug, Number(existing.id));
+      continue;
+    }
+    const { data: ins } = await supabase
+      .from('nsnp_approved_brands')
+      .insert({
+        name: b.name,
+        slug: b.slug,
+        manufacturer: b.manufacturer,
+        notes: b.notes || null,
+        active: true,
+        agency_profile_id: null,
+      })
+      .select('id')
+      .single();
+    if (ins?.id) {
+      brandIdBySlug.set(b.slug, Number(ins.id));
+      brandsAdded += 1;
+    }
+  }
+
+  // Resolve brand ids that already existed under alternate lookup
+  for (const b of NSNP_SEED_BRANDS) {
+    if (brandIdBySlug.has(b.slug)) continue;
+    const { data: bySlug } = await supabase
+      .from('nsnp_approved_brands')
+      .select('id')
+      .is('agency_profile_id', null)
+      .eq('slug', b.slug)
+      .maybeSingle();
+    if (bySlug?.id) brandIdBySlug.set(b.slug, Number(bySlug.id));
+  }
+
+  for (const p of NSNP_SEED_PRODUCTS) {
+    const { data: existing } = await supabase
+      .from('nsnp_approved_products')
+      .select('id')
+      .is('agency_profile_id', null)
+      .ilike('name', p.name)
+      .limit(1)
+      .maybeSingle();
+    if (existing?.id) continue;
+    const brandId = brandIdBySlug.get(p.brand_slug) || null;
+    const brandName =
+      NSNP_SEED_BRANDS.find((b) => b.slug === p.brand_slug)?.name ||
+      p.brand_slug;
+    const { error } = await supabase.from('nsnp_approved_products').insert({
+      brand_id: brandId,
+      category: p.category,
+      name: p.name,
+      brand_name: brandName,
+      pack_size: p.pack_size,
+      uom: p.uom,
+      energy_kcal: p.energy_kcal ?? null,
+      protein_g: p.protein_g ?? null,
+      active: true,
+      agency_profile_id: null,
+      notes: p.notes || 'NSNP national seed',
+    });
+    if (!error) productsAdded += 1;
+  }
+
+  return { brands: brandsAdded, products: productsAdded };
+}
+
+/**
+ * Clone national (or seed) products into an agency catalogue.
+ * Skips name+brand already present for that agency — safe to re-run.
+ * Schools/SPs always read this live list for the department.
+ */
+export async function cloneNationalIntoAgency(
+  supabase: SupabaseClient,
+  agencyProfileId: number
+): Promise<{ imported: number; brands: number; skipped: number }> {
+  await ensureNationalNsnpSeed(supabase);
+
+  const nationalBrands = await loadApprovedBrands(supabase, null, {
+    activeOnly: true,
+  });
+  const nationalProducts = await loadApprovedProducts(supabase, null, {
+    activeOnly: true,
+    includeNationalFallback: false,
+  });
+
+  // Existing agency products for skip
+  const { data: existingAgency } = await supabase
+    .from('nsnp_approved_products')
+    .select('name, brand_name')
+    .eq('agency_profile_id', agencyProfileId)
+    .limit(5000);
+  const existingKeys = new Set(
+    (existingAgency || []).map(
+      (p) =>
+        `${String(p.brand_name || '').toLowerCase()}::${String(p.name || '').toLowerCase()}`
+    )
+  );
+
+  const brandMap = new Map<string, number>();
+  let brandsCreated = 0;
+  for (const b of nationalBrands) {
+    const name = String(b.name);
+    const { data: existing } = await supabase
+      .from('nsnp_approved_brands')
+      .select('id, name')
+      .eq('agency_profile_id', agencyProfileId)
+      .ilike('name', name)
+      .maybeSingle();
+    if (existing?.id) {
+      brandMap.set(name.toLowerCase(), Number(existing.id));
+      continue;
+    }
+    const { data: ins } = await supabase
+      .from('nsnp_approved_brands')
+      .insert({
+        name,
+        slug: String(b.slug || name)
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-'),
+        manufacturer: b.manufacturer || null,
+        notes: b.notes || null,
+        active: true,
+        agency_profile_id: agencyProfileId,
+        published_at: new Date().toISOString(),
+      })
+      .select('id, name')
+      .single();
+    if (ins?.id) {
+      brandMap.set(String(ins.name).toLowerCase(), Number(ins.id));
+      brandsCreated += 1;
+    }
+  }
+
+  let imported = 0;
+  let skipped = 0;
+  for (const p of nationalProducts) {
+    const brandName = String(p.brand_name || '');
+    const key = `${brandName.toLowerCase()}::${String(p.name || '').toLowerCase()}`;
+    if (existingKeys.has(key)) {
+      skipped += 1;
+      continue;
+    }
+    const brandId = brandMap.get(brandName.toLowerCase()) || null;
+    const { error } = await supabase.from('nsnp_approved_products').insert({
+      brand_id: brandId,
+      category: p.category || 'commodity',
+      name: p.name,
+      brand_name: brandName,
+      sku: p.sku || null,
+      pack_size: p.pack_size || null,
+      uom: p.uom || 'kg',
+      energy_kcal: p.energy_kcal ?? null,
+      protein_g: p.protein_g ?? null,
+      active: true,
+      agency_profile_id: agencyProfileId,
+      published_at: new Date().toISOString(),
+      notes:
+        p.notes ||
+        'NSNP catalogue — owned by department; schools & SPs inherit live',
+    });
+    if (!error) {
+      imported += 1;
+      existingKeys.add(key);
+    }
+  }
+
+  return { imported, brands: brandsCreated, skipped };
 }

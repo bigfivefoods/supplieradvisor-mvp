@@ -290,6 +290,15 @@ export async function POST(request: NextRequest) {
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 400 });
       }
+      // Seed NSNP approved foods into this department catalogue (live for schools/SPs)
+      try {
+        const { cloneNationalIntoAgency } = await import(
+          '@/lib/schools/approved-catalogue'
+        );
+        await cloneNationalIntoAgency(supabase, companyId);
+      } catch {
+        /* soft — catalogue can be imported later */
+      }
       try {
         await supabase
           .from('profiles')

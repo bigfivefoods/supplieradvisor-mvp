@@ -254,7 +254,7 @@ function Inner() {
   const cloneNational = async () => {
     if (
       !confirm(
-        'Copy the national template products into your DBE catalogue? You can edit them after.'
+        'Import / re-sync the full NSNP approved foods list into your department catalogue? Existing items are kept; new ones are added. Schools and SPs under you use this list live.'
       )
     ) {
       return;
@@ -266,15 +266,15 @@ function Inner() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           companyId,
-          action: 'clone_national',
+          action: 'import_nsnp_seed',
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Clone failed');
+      if (!res.ok) throw new Error(data.error || 'Import failed');
       toast.success(data.message || `Imported ${data.imported}`);
       void load();
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Clone failed');
+      toast.error(e instanceof Error ? e.message : 'Import failed');
     } finally {
       setSaving(false);
     }
@@ -291,9 +291,9 @@ function Inner() {
         }
         description={
           canEdit
-            ? 'You publish the only foods schools, clinics and hospitals may order. SPs must supply these items. That list drives prize scores, preferred-supplier status, and claim funding.'
+            ? 'Department-owned NSNP catalogue. Schools and SPs associated with you always inherit this live list — orders, GRNs, prizes and claims measure against it.'
             : catalogue?.message ||
-              'Only DBE/DoH approved brands may be ordered or received. That protects claim funding, headmaster prizes, and SP preferred status.'
+              'Only foods on your department’s approved list may be ordered or received. That list is the prize and claims yardstick.'
         }
         action={
           <div className="flex flex-wrap gap-2">
@@ -305,7 +305,7 @@ function Inner() {
                   disabled={saving}
                   className="btn-secondary !py-2 !px-3 text-xs"
                 >
-                  Clone national template
+                  Import NSNP list
                 </button>
                 <button
                   type="button"
