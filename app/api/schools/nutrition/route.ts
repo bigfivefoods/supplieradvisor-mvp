@@ -249,7 +249,17 @@ export async function GET(request: NextRequest) {
             .eq('school_profile_id', schoolId)
             .eq('status', 'active')
             .limit(5000)
-        : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
+        : Promise.resolve({
+            data: [] as Array<{
+              id: number;
+              first_name?: string | null;
+              last_name?: string | null;
+              grade?: string | null;
+              nsnp_eligible?: boolean | null;
+              verification_status?: string | null;
+              status?: string | null;
+            }>,
+          }),
       supabase
         .from('school_kitchen_receipts')
         .select('compliance_ok, lines')
@@ -294,7 +304,29 @@ export async function GET(request: NextRequest) {
         ? Math.round((approvedLines / totalLines) * 1000) / 10
         : null;
 
-    const learners = learnersRes.data || [];
+    type LearnerInput = {
+      id: number;
+      first_name?: string | null;
+      last_name?: string | null;
+      grade?: string | null;
+      nsnp_eligible?: boolean | null;
+      verification_status?: string | null;
+      status?: string | null;
+    };
+    const learners: LearnerInput[] = (
+      (learnersRes.data || []) as Array<Record<string, unknown>>
+    ).map((l) => ({
+      id: Number(l.id),
+      first_name: (l.first_name as string | null) ?? null,
+      last_name: (l.last_name as string | null) ?? null,
+      grade: (l.grade as string | null) ?? null,
+      nsnp_eligible:
+        l.nsnp_eligible === false || l.nsnp_eligible === true
+          ? Boolean(l.nsnp_eligible)
+          : null,
+      verification_status: (l.verification_status as string | null) ?? null,
+      status: (l.status as string | null) ?? null,
+    }));
     const verified = learners.filter((l) =>
       ['school_verified', 'attested'].includes(String(l.verification_status))
     ).length;
