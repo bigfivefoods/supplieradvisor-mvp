@@ -123,7 +123,9 @@ export type ModulePresetId =
   | 'trading'
   | 'operations'
   | 'full'
-  | 'school_nsnp';
+  | 'school_nsnp'
+  | 'dbe_agency'
+  | 'nsnp_isp';
 
 export const MODULE_PRESETS: Array<{
   id: ModulePresetId;
@@ -184,6 +186,27 @@ export const MODULE_PRESETS: Array<{
     description:
       'School kitchen, learners, approved brands, ISPs, feeding & prizes.',
     enable: ['schools', 'inventory', 'suppliers', 'network', 'quality', 'sheq'],
+  },
+  {
+    id: 'dbe_agency',
+    label: 'DBE / PEU agency',
+    description:
+      'Approve schools, catalogue, PEU visits, claims, multi-school nutrition.',
+    enable: ['schools', 'network', 'intelligence'],
+  },
+  {
+    id: 'nsnp_isp',
+    label: 'NSNP ISP',
+    description:
+      'Deliver to schools + buy from wholesalers (suppliers, inventory, schools).',
+    enable: [
+      'schools',
+      'suppliers',
+      'inventory',
+      'network',
+      'customers',
+      'accounting',
+    ],
   },
 ];
 

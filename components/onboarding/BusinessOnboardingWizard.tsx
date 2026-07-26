@@ -18,48 +18,29 @@ import {
   Loader2,
   ShieldCheck,
   Users2,
+  Truck,
+  HeartPulse,
+  Hospital,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { extractEmailFromPrivyUser, getCanonicalUserId } from '@/lib/auth/identity';
+import {
+  entityGroups,
+  resolveEntityKind,
+} from '@/lib/entities/entity-kinds';
 
-const BUSINESS_TYPES = [
-  {
-    id: 'business',
-    label: 'Business',
-    description: 'Manufacturer, distributor, retailer, or service provider',
-    icon: Building2,
-  },
-  {
-    id: 'supplier',
-    label: 'Supplier',
-    description: 'Farm, raw materials, packaging, or logistics supplier',
-    icon: Factory,
-  },
-  {
-    id: 'government',
-    label: 'Government',
-    description: 'Public sector entity or programme',
-    icon: Landmark,
-  },
-  {
-    id: 'school',
-    label: 'School / Education',
-    description: 'School, college, or training institution',
-    icon: GraduationCap,
-  },
-  {
-    id: 'association',
-    label: 'Association',
-    description: 'Co-op, industry body, or member group',
-    icon: Users2,
-  },
-  {
-    id: 'consumer_org',
-    label: 'Impact / NGO',
-    description: 'Non-profit or regenerative initiative',
-    icon: Leaf,
-  },
-] as const;
+/** Icons for entity kinds (wizard cards) */
+const ENTITY_ICONS: Record<string, typeof Building2> = {
+  business: Building2,
+  supplier: Factory,
+  government_education: Landmark,
+  government_health: HeartPulse,
+  school: GraduationCap,
+  hospital: Hospital,
+  nsnp_isp: Truck,
+  association: Users2,
+  consumer_org: Leaf,
+};
 
 type FormState = {
   business_type: string;
@@ -87,7 +68,7 @@ export default function BusinessOnboardingWizard() {
   const prefillEmail = searchParams.get('email') || '';
   const { ready, authenticated, user, login } = usePrivy();
 
-  const initialType = BUSINESS_TYPES.some((t) => t.id === typeParam) ? typeParam : 'business';
+  const initialType = resolveEntityKind(typeParam).business_type;
 
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
@@ -238,9 +219,15 @@ export default function BusinessOnboardingWizard() {
 
       setDone(true);
       toast.success(
-        data.claimed ? 'Listing claimed — workspace ready!' : 'Your business is ready!'
+        data.claimed
+          ? 'Listing claimed — workspace ready!'
+          : `${resolveEntityKind(form.business_type).shortLabel} workspace ready!`
       );
-      setTimeout(() => router.push('/dashboard/select-company'), 2800);
+      const dest =
+        data.homePath ||
+        resolveEntityKind(form.business_type).homePath ||
+        '/dashboard/select-company';
+      setTimeout(() => router.push(dest), 2200);
     } catch {
       toast.error('Something went wrong. Please try again.');
     } finally {
@@ -420,29 +407,61 @@ export default function BusinessOnboardingWizard() {
 
           {step === 1 && (
             <div>
-              <h1 className="text-3xl font-black tracking-[-1.5px] text-[#00b4d8] mb-3">What are you registering?</h1>
-              <p className="text-neutral-600 mb-8">Choose the option that best describes your organisation.</p>
-              <div className="grid sm:grid-cols-2 gap-4">
-                {BUSINESS_TYPES.map((type) => {
-                  const Icon = type.icon;
-                  const selected = form.business_type === type.id;
-                  return (
-                    <button
-                      key={type.id}
-                      type="button"
-                      onClick={() => update('business_type', type.id)}
-                      className={`text-left p-5 rounded-2xl border transition-all ${
-                        selected
-                          ? 'border-[#00b4d8] bg-[#00b4d8]/5 shadow-sm'
-                          : 'border-neutral-200 hover:border-neutral-300 bg-white'
-                      }`}
-                    >
-                      <Icon className={`w-6 h-6 mb-3 ${selected ? 'text-[#00b4d8]' : 'text-neutral-500'}`} />
-                      <div className="font-semibold text-slate-900">{type.label}</div>
-                      <div className="text-sm text-neutral-600 mt-1">{type.description}</div>
-                    </button>
-                  );
-                })}
+              <h1 className="text-3xl font-black tracking-[-1.5px] text-[#00b4d8] mb-3">
+                Who is registering?
+              </h1>
+              <p className="text-neutral-600 mb-6">
+                Separate workspaces: Department of Education (DBE), schools, ISPs,
+                health, and trade businesses each get their own login path and
+                modules.
+              </p>
+              <div className="space-y-8">
+                {entityGroups().map((group) => (
+                  <div key={group.id}>
+                    <h2 className="text-xs font-black uppercase tracking-wider text-slate-500 mb-1">
+                      {group.title}
+                    </h2>
+                    <p className="text-xs text-slate-500 mb-3">{group.blurb}</p>
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      {group.entities.map((type) => {
+                        const Icon = ENTITY_ICONS[type.id] || Building2;
+                        const selected = form.business_type === type.business_type;
+                        return (
+                          <button
+                            key={type.id}
+                            type="button"
+                            onClick={() =>
+                              update('business_type', type.business_type)
+                            }
+                            className={`text-left p-4 rounded-2xl border transition-all ${
+                              selected
+                                ? 'border-[#00b4d8] bg-[#00b4d8]/5 shadow-sm'
+                                : 'border-neutral-200 hover:border-neutral-300 bg-white'
+                            }`}
+                          >
+                            <div className="flex items-start gap-3">
+                              <Icon
+                                className={`w-6 h-6 shrink-0 ${
+                                  selected
+                                    ? 'text-[#00b4d8]'
+                                    : 'text-neutral-500'
+                                }`}
+                              />
+                              <div>
+                                <div className="font-semibold text-slate-900 text-sm">
+                                  {type.label}
+                                </div>
+                                <div className="text-xs text-neutral-600 mt-1 leading-relaxed">
+                                  {type.description}
+                                </div>
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}

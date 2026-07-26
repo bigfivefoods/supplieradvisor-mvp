@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import { getCanonicalUserId, userIdMatchVariants } from '@/lib/auth/identity';
 import { requireVerifiedUser, legacyPrivyFrom } from '@/lib/auth/api-auth';
+import {
+  homePathForEntity,
+  resolveEntityKind,
+} from '@/lib/entities/entity-kinds';
 
 /**
  * POST /api/me/companies
@@ -93,7 +97,7 @@ export async function POST(request: NextRequest) {
     let profilesQuery = supabase
       .from('profiles')
       .select(
-        'id, trading_name, legal_name, supplier_status, verification_status, deleted_at'
+        'id, trading_name, legal_name, supplier_status, verification_status, deleted_at, business_type, org_type'
       )
       .in('id', profileIds);
 
@@ -103,7 +107,17 @@ export async function POST(request: NextRequest) {
     if (profilesError && /deleted_at|column|schema cache/i.test(profilesError.message)) {
       const retry = await supabase
         .from('profiles')
-        .select('id, trading_name, legal_name, supplier_status, verification_status')
+        .select(
+          'id, trading_name, legal_name, supplier_status, verification_status, business_type, org_type'
+        )
+        .in('id', profileIds);
+      profiles = retry.data as typeof profiles;
+      profilesError = retry.error;
+    }
+    if (profilesError && /business_type|org_type|column|schema cache/i.test(profilesError.message || '')) {
+      const retry = await supabase
+        .from('profiles')
+        .select('id, trading_name, legal_name, supplier_status, verification_status, deleted_at')
         .in('id', profileIds);
       profiles = retry.data as typeof profiles;
       profilesError = retry.error;
@@ -126,12 +140,27 @@ export async function POST(request: NextRequest) {
         const bu = memberships.find(
           (b) => String(b.profile_id) === String(profile.id)
         );
+        const p = profile as {
+          id: number;
+          trading_name?: string;
+          legal_name?: string | null;
+          supplier_status?: string | null;
+          verification_status?: string | null;
+          business_type?: string | null;
+          org_type?: string | null;
+        };
+        const ent = resolveEntityKind(p.org_type || p.business_type);
         return {
-          id: String(profile.id),
-          trading_name: profile.trading_name,
-          legal_name: profile.legal_name,
-          supplier_status: profile.supplier_status,
-          verification_status: profile.verification_status,
+          id: String(p.id),
+          trading_name: p.trading_name,
+          legal_name: p.legal_name,
+          supplier_status: p.supplier_status,
+          verification_status: p.verification_status,
+          business_type: p.business_type || null,
+          org_type: p.org_type || null,
+          entity_kind: ent.id,
+          entity_badge: ent.shortLabel,
+          home_path: homePathForEntity(p.business_type, p.org_type),
           role: bu?.role || 'member',
         };
       });

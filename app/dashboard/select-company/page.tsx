@@ -34,6 +34,11 @@ interface Company {
   supplier_status: string | null;
   verification_status?: string | null;
   role: string;
+  business_type?: string | null;
+  org_type?: string | null;
+  entity_kind?: string | null;
+  entity_badge?: string | null;
+  home_path?: string | null;
 }
 
 interface DeletedCompany {
@@ -156,7 +161,12 @@ export default function SelectCompanyPage() {
     };
   }, [ready, authenticated, privyUser, router]);
 
-  const handleSelectCompany = (companyId: string, tradingName?: string, role?: string) => {
+  const handleSelectCompany = (
+    companyId: string,
+    tradingName?: string,
+    role?: string,
+    homePath?: string | null
+  ) => {
     try {
       localStorage.setItem('selectedCompanyId', companyId);
       if (tradingName) localStorage.setItem('selectedCompanyName', tradingName);
@@ -164,7 +174,12 @@ export default function SelectCompanyPage() {
     } catch {
       /* private mode */
     }
-    router.push(defaultHomePathForRole(role));
+    // Entity home (school/DBE/ISP) wins; team role only for sales_contractor etc.
+    const path =
+      role === 'sales_contractor'
+        ? defaultHomePathForRole(role)
+        : homePath || defaultHomePathForRole(role);
+    router.push(path);
   };
 
   /** Derive continent from country on every owned company (discover search quality) */
@@ -329,7 +344,7 @@ export default function SelectCompanyPage() {
                 </button>
               ) : null}
               <Link
-                href="/onboarding?type=business"
+                href="/join"
                 className="btn-primary !py-2.5 !px-5 text-sm inline-flex items-center gap-2"
               >
                 <Plus className="h-4 w-4" /> Register business
@@ -429,17 +444,17 @@ export default function SelectCompanyPage() {
                 Different account
               </button>
               <Link
-                href="/onboarding?type=business"
+                href="/join"
                 className="btn-primary !py-3 !px-6 inline-flex items-center justify-center gap-2"
               >
-                <Plus className="h-4 w-4" /> Register a business
+                <Plus className="h-4 w-4" /> Register organisation
               </Link>
             </div>
           </div>
         ) : (
           <>
             <p className="mb-3 text-[10px] font-black uppercase tracking-[0.16em] text-neutral-400">
-              Your companies
+              Your organisations
             </p>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {companies.map((company, i) => {
@@ -460,7 +475,12 @@ export default function SelectCompanyPage() {
                     key={company.id}
                     type="button"
                     onClick={() =>
-                      handleSelectCompany(company.id, company.trading_name, company.role)
+                      handleSelectCompany(
+                        company.id,
+                        company.trading_name,
+                        company.role,
+                        company.home_path
+                      )
                     }
                     className={`group rounded-3xl border bg-gradient-to-br ${accent} p-5 text-left shadow-sm transition-all hover:border-[#00b4d8]/50 hover:shadow-md active:scale-[0.99] touch-manipulation sm:p-6`}
                   >
@@ -469,6 +489,11 @@ export default function SelectCompanyPage() {
                         <Building2 className="h-5 w-5" />
                       </div>
                       <div className="flex flex-col items-end gap-1.5">
+                        {company.entity_badge ? (
+                          <span className="rounded-full border border-[#00b4d8]/30 bg-[#00b4d8]/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#0077b6]">
+                            {company.entity_badge}
+                          </span>
+                        ) : null}
                         <span className="rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600">
                           {String(company.role || 'member').replace(/_/g, ' ')}
                         </span>
@@ -480,7 +505,7 @@ export default function SelectCompanyPage() {
                       </div>
                     </div>
                     <h3 className="mb-1 text-lg font-black tracking-tight text-slate-900 transition-colors group-hover:text-[#0077b6] sm:text-xl">
-                      {company.trading_name || 'Untitled company'}
+                      {company.trading_name || 'Untitled organisation'}
                     </h3>
                     {company.legal_name && company.legal_name !== company.trading_name && (
                       <p className="mb-3 truncate text-xs text-neutral-500 sm:text-sm">
@@ -489,7 +514,14 @@ export default function SelectCompanyPage() {
                     )}
                     <div className="mt-4 flex items-center justify-between border-t border-white/80 pt-4">
                       <span className="text-xs font-semibold text-neutral-500">
-                        {isSales ? 'Open sales portal' : 'Open command center'}
+                        {isSales
+                          ? 'Open sales portal'
+                          : company.entity_kind === 'nsnp_isp'
+                            ? 'Open ISP deliveries'
+                            : company.entity_kind === 'school' ||
+                                company.entity_kind === 'government_education'
+                              ? 'Open schools programme'
+                              : 'Open command center'}
                       </span>
                       <span className="inline-flex items-center gap-1 text-xs font-bold text-[#00b4d8]">
                         Enter{' '}
@@ -503,10 +535,10 @@ export default function SelectCompanyPage() {
 
             <div className="mt-8 text-center">
               <Link
-                href="/onboarding?type=business"
+                href="/join"
                 className="inline-flex items-center gap-2 text-sm font-bold text-[#00b4d8] hover:underline"
               >
-                <Plus className="h-4 w-4" /> Add another company
+                <Plus className="h-4 w-4" /> Add another organisation
               </Link>
             </div>
           </>

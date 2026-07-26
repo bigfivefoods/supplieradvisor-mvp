@@ -223,12 +223,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const { resolveEntityKind } = await import('@/lib/entities/entity-kinds');
+    const entityKind = resolveEntityKind(business_type || 'business');
+
     const baseInsert: Record<string, unknown> = {
       trading_name: tradingNameTrim,
       legal_name: legalNameTrim,
       registration_number: registration_number || null,
-      industry: industry || null,
-      business_type: business_type || 'business',
+      industry: industry || entityKind.group || null,
+      business_type: entityKind.business_type,
+      org_type: entityKind.org_type,
       country: country || 'South Africa',
       city: city || null,
       website: website || null,
@@ -237,7 +241,14 @@ export async function POST(request: NextRequest) {
       email,
       short_description: short_description || null,
       supplier_status: 'active',
-      relationship_type: business_type === 'supplier' ? 'supplier' : 'business',
+      relationship_type:
+        entityKind.id === 'supplier'
+          ? 'supplier'
+          : entityKind.id === 'nsnp_isp'
+            ? 'supplier'
+            : entityKind.group === 'education' || entityKind.group === 'health'
+              ? 'programme'
+              : 'business',
       is_discoverable: true,
       user_id: userId,
       created_at: now,
@@ -346,6 +357,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Provision school / DBE / ISP domain rows + module presets
+    let homePath = '/dashboard';
+    let entityId = entityKind.id;
+    try {
+      const { provisionEntityWorkspace } = await import(
+        '@/lib/entities/provision'
+      );
+      const provisioned = await provisionEntityWorkspace(supabase, {
+        profileId: Number(profile.id),
+        businessType: entityKind.business_type,
+        tradingName: profile.trading_name || tradingNameTrim,
+        contactName: contact_name ? String(contact_name) : null,
+        contactEmail: email,
+        contactPhone: contact_phone ? String(contact_phone) : null,
+        city: city ? String(city) : null,
+        userId,
+      });
+      homePath = provisioned.homePath;
+      entityId = provisioned.entity.id;
+    } catch (e) {
+      console.warn('entity provision soft-fail', e);
+    }
+
     // Soft ops alert — never blocks registration
     void import('@/lib/notifications/email-alerts')
       .then(({ notifyNewCompanyRegistered }) =>
@@ -359,7 +393,7 @@ export async function POST(request: NextRequest) {
           country: country ? String(country) : 'South Africa',
           city: city ? String(city) : null,
           industry: industry ? String(industry) : null,
-          businessType: business_type ? String(business_type) : 'business',
+          businessType: entityKind.business_type,
           website: website ? String(website) : null,
           ownerUserId: userId,
           lifetimePlan,
@@ -378,9 +412,12 @@ export async function POST(request: NextRequest) {
       success: true,
       profileId: profile.id,
       tradingName: profile.trading_name,
+      entityKind: entityId,
+      orgType: entityKind.org_type,
+      homePath,
       message: lifetimePlan
-        ? 'Business registered with complimentary lifetime access.'
-        : 'Business registered successfully.',
+        ? 'Organisation registered with complimentary lifetime access.'
+        : 'Organisation registered successfully.',
       trial: lifetimePlan
         ? null
         : {

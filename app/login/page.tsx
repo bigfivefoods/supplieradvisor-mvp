@@ -187,7 +187,7 @@ function LoginForm() {
 
         <p className="text-center text-sm text-neutral-500">
           New business?{' '}
-          <Link href="/onboarding?type=business" className="text-[#00b4d8] font-medium hover:underline">
+          <Link href="/join" className="text-[#00b4d8] font-medium hover:underline">
             Start onboarding
           </Link>
         </p>
