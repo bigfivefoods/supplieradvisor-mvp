@@ -84,24 +84,25 @@ function HubInner() {
 
   const s = summary;
 
+  /** Sell-side journey: Source → Connect → Sell → Rate → Report (mirrors Suppliers SRM) */
   const modules: HubModule[] = [
     {
       href: '/dashboard/customers/leads',
       icon: Target,
       code: '01',
-      title: 'Leads & opportunities',
-      desc: 'Capture, score, and convert — full pipeline with weighted value.',
+      title: 'Source — leads & pipeline',
+      desc: 'Capture, score, and convert demand — weighted pipeline value.',
       accent: 'from-violet-50 to-white border-violet-100',
       metric: s?.leadsOpen ?? '—',
       metricLabel: 'open leads',
     },
     {
       href: '/dashboard/customers/profiles',
-      icon: Users,
+      icon: Search,
       code: '02',
-      title: 'Customer profiles',
-      desc: 'Account master — contacts, credit, industry, addresses.',
-      accent: 'from-sky-50 to-white border-sky-100',
+      title: 'Source — search book',
+      desc: 'Find accounts by name, industry, city — your CRM master.',
+      accent: 'from-indigo-50 to-white border-indigo-100',
       metric: s?.customers ?? '—',
       metricLabel: 'accounts',
     },
@@ -109,7 +110,7 @@ function HubInner() {
       href: '/dashboard/customers/onboard',
       icon: UserPlus,
       code: '03',
-      title: 'Add customer',
+      title: 'Source — add customer',
       desc: 'Onboard from a lead or create a clean account from scratch.',
       accent: 'from-cyan-50 to-white border-cyan-100',
     },
@@ -117,101 +118,127 @@ function HubInner() {
       href: '/dashboard/customers/invites',
       icon: Handshake,
       code: '04',
-      title: 'Platform invites',
-      desc: 'Connect buyers on SupplierAdvisor — claim, suspend, expire.',
+      title: 'Connect — platform invites',
+      desc: 'Invite buyers onto SupplierAdvisor — claim, suspend, expire.',
       accent: 'from-emerald-50 to-white border-emerald-100',
       metric: s?.invitePending ?? '—',
       metricLabel: 'pending',
     },
     {
+      href: '/dashboard/connections',
+      icon: Globe,
+      code: '05',
+      title: 'Connect — network edges',
+      desc: 'Accept buyer connections that unlock shared docs & ratings.',
+      accent: 'from-teal-50 to-white border-teal-100',
+      metric: s?.inviteAccepted ?? '—',
+      metricLabel: 'linked',
+    },
+    {
       href: '/dashboard/customers/quotes',
       icon: FileText,
-      code: '05',
-      title: 'Quotes',
-      desc: 'Catalogue lines, price, send, convert to order.',
+      code: '06',
+      title: 'Sell — quotes',
+      desc: 'Catalogue lines, price, send — add customer if missing.',
       accent: 'from-amber-50 to-white border-amber-100',
     },
     {
       href: '/dashboard/customers/orders',
       icon: ShoppingCart,
-      code: '06',
-      title: 'Sales orders',
+      code: '07',
+      title: 'Sell — orders',
       desc: 'Confirmed demand — convert quotes or build from inventory.',
       accent: 'from-rose-50 to-white border-rose-100',
     },
     {
+      href: '/dashboard/customers/orders?tab=inbound',
+      icon: ShoppingCart,
+      code: '08',
+      title: 'Sell — inbound POs',
+      desc: 'Accept buyer purchase orders and fulfil as seller.',
+      accent: 'from-orange-50 to-white border-orange-100',
+    },
+    {
       href: '/dashboard/customers/invoices',
       icon: FileText,
-      code: '07',
-      title: 'Invoices',
-      desc: 'Bill, partial or full pay, WhatsApp PDF, loyalty points.',
+      code: '09',
+      title: 'Sell — invoices',
+      desc: 'Bill, partial/full pay, WhatsApp PDF, loyalty on paid.',
       accent: 'from-violet-50 to-white border-violet-100',
     },
     {
       href: '/dashboard/customers/money',
       icon: Wallet,
-      code: '$',
-      title: 'Money hub',
-      desc: 'Settle-by-default: claims, POP, dunning, installments, ledger.',
+      code: '10',
+      title: 'Sell — money hub',
+      desc: 'Claims, POP, dunning, installments, ledger — settle loop.',
       accent: 'from-emerald-50 to-white border-emerald-100',
     },
     {
       href: '/dashboard/customers/ar',
       icon: Wallet,
-      code: 'AR',
-      title: 'AR aging',
-      desc: 'Open balances by current / 30 / 60 / 90+ days. Collections command.',
+      code: '11',
+      title: 'Sell — AR aging',
+      desc: 'Open balances by current / 30 / 60 / 90+ — collections.',
       accent: 'from-amber-50 to-white border-amber-100',
       metric: s?.overdueFollowups ?? '—',
-      metricLabel: 'overdue signals',
-    },
-    {
-      href: '/dashboard/settle',
-      icon: Handshake,
-      code: 'ST',
-      title: 'Settle command',
-      desc: 'Money, buyer claims, first trade, USDC escrow — one command center.',
-      accent: 'from-teal-50 to-white border-teal-100',
+      metricLabel: 'overdue',
     },
     {
       href: '/dashboard/customers/loyalty',
       icon: Award,
-      code: '08',
-      title: 'Loyalty',
-      desc: 'Points and bronze → platinum tiers after the sale.',
+      code: '12',
+      title: 'Score — loyalty tiers',
+      desc: 'Points and bronze → platinum after paid sales.',
       accent: 'from-sky-50 to-white border-sky-100',
     },
     {
-      href: '/dashboard/customers/claims',
-      icon: AlertTriangle,
-      code: '09',
-      title: 'Claims',
-      desc: 'Quality, delivery, damage — investigate and resolve.',
-      accent: 'from-amber-50 to-white border-amber-100',
-    },
-    {
-      href: '/dashboard/customers/contracts',
-      icon: Handshake,
-      code: '10',
-      title: 'Contracts',
-      desc: 'Agreements, SLAs, renewals with connected buyers.',
-      accent: 'from-slate-50 to-white border-slate-200',
+      href: '/dashboard/customers/ratings',
+      icon: Star,
+      code: '13',
+      title: 'Rate — peer scores',
+      desc: 'Rate buyers after trade; build bilateral trust.',
+      accent: 'from-violet-50 to-white border-violet-100',
     },
     {
       href: '/dashboard/customers/reviews',
       icon: Star,
-      code: '11',
-      title: 'Peer reviews',
-      desc: 'Bilateral post-PO ratings that build trust.',
-      accent: 'from-emerald-50 to-white border-emerald-100',
+      code: '14',
+      title: 'Rate — reviews',
+      desc: 'Post-PO bilateral reviews that feed reputation.',
+      accent: 'from-fuchsia-50 to-white border-fuchsia-100',
+    },
+    {
+      href: '/dashboard/customers/report',
+      icon: TrendingUp,
+      code: '15',
+      title: 'Report — performance',
+      desc: 'Revenue, AR, win rates, and customer health pack.',
+      accent: 'from-sky-50 to-white border-sky-100',
     },
     {
       href: '/dashboard/customers/riad-log',
       icon: AlertTriangle,
-      code: '12',
-      title: 'Customer RIAD',
-      desc: 'Risks, issues, actions, decisions — relationship control.',
+      code: '16',
+      title: 'Report — customer RIAD',
+      desc: 'Risks, issues, actions, decisions on demand relationships.',
       accent: 'from-rose-50 to-white border-rose-100',
+    },
+    {
+      href: '/dashboard/customers/contracts',
+      icon: Handshake,
+      code: '17',
+      title: 'Contracts & SLAs',
+      desc: 'Commercial agreements and renewals with buyers.',
+      accent: 'from-slate-50 to-white border-slate-200',
+    },
+    {
+      href: '/dashboard/customers/claims',
+      icon: AlertTriangle,
+      code: '18',
+      title: 'Claims',
+      desc: 'Quality, delivery, damage — investigate and resolve.',
+      accent: 'from-amber-50 to-white border-amber-100',
     },
   ];
 
@@ -220,8 +247,8 @@ function HubInner() {
       <RelationshipHeader
         eyebrow="Customer relationship management"
         title="Customers"
-        titleAccent="Command"
-        description="One precision system: lead → opportunity → quote → order → invoice → loyalty. Invites connect buyers on-platform. Claims, contracts, and RIAD keep every relationship under control."
+        titleAccent="Selling"
+        description="End-to-end CRM: source (find leads & accounts) → connect & invite buyers → sell (quote, order, invoice, collect) → rate & score → report performance. Mirrors the suppliers tower from the sell side."
         action={
           <div className="flex flex-wrap gap-2">
             <button
@@ -235,6 +262,9 @@ function HubInner() {
             <Link href="/dashboard/customers/onboard" className="btn-primary !py-2.5 !px-5 text-sm">
               <UserPlus className="w-4 h-4" /> Add customer
             </Link>
+            <Link href="/dashboard/customers/quotes" className="btn-secondary !py-2.5 !px-4 text-sm">
+              New quote
+            </Link>
           </div>
         }
       />
@@ -244,9 +274,9 @@ function HubInner() {
       </Suspense>
 
       <HubHero
-        pill="Live CRM · lead → loyalty"
+        pill="Live CRM · source → sell → score"
         title="Customers you can grow."
-        description="Pipeline, quotes, orders, and invoices on one tower. Platform invites turn CRM rows into live buyer edges with shared documents."
+        description="Find demand, connect buyers, quote and invoice, then rate and report — one selling tower parallel to supplier sourcing."
         stats={[
           {
             label: 'Customers',
@@ -338,16 +368,16 @@ function HubInner() {
       <HubPrinciples
         items={[
           {
-            title: 'Single source of truth',
-            body: 'Every stage lives on Supabase — no spreadsheet drift between sales and fulfilment.',
+            title: 'Source demand',
+            body: 'Leads, search, and onboard — build a clean book before you quote.',
           },
           {
-            title: 'Connect, then collaborate',
-            body: 'Platform invites turn CRM rows into live buyer edges with shared documents.',
+            title: 'Connect, then sell',
+            body: 'Invite buyers to the platform; quote and invoice even while invite is pending.',
           },
           {
-            title: 'Close the loop',
-            body: 'Reviews, loyalty, claims, and RIAD keep performance visible after the sale.',
+            title: 'Score & report',
+            body: 'Loyalty, peer ratings, AR, and the customer report pack close the loop after cash.',
           },
         ]}
       />

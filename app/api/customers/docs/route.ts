@@ -99,10 +99,23 @@ function buildPayload(
     updated_at: now,
   };
 
+  const paymentTerms =
+    body.payment_terms != null
+      ? String(body.payment_terms).trim()
+      : body.terms != null
+        ? String(body.terms).trim()
+        : customer?.payment_terms
+          ? String(customer.payment_terms).trim()
+          : '';
+
   if (kind === 'quote') {
     base.valid_until = body.valid_until || null;
     base.billing_address = body.billing_address || customer?.billing_address || null;
-    base.terms = body.terms || 'Prices valid until the date shown. Subject to stock availability.';
+    base.terms =
+      paymentTerms ||
+      body.terms ||
+      'Prices valid until the date shown. Subject to stock availability.';
+    if (paymentTerms) base.payment_terms = paymentTerms;
     base.order_id = body.order_id || null;
   }
   if (kind === 'order') {
@@ -112,6 +125,7 @@ function buildPayload(
     base.shipping_address =
       body.shipping_address || customer?.shipping_address || customer?.billing_address || null;
     base.invoice_id = body.invoice_id || null;
+    if (paymentTerms) base.payment_terms = paymentTerms;
   }
   if (kind === 'invoice') {
     base.order_id = body.order_id || null;
@@ -121,6 +135,10 @@ function buildPayload(
     base.amount_paid = body.amount_paid != null ? Number(body.amount_paid) : 0;
     base.paid_at = body.paid_at || null;
     base.billing_address = body.billing_address || customer?.billing_address || null;
+    if (paymentTerms) {
+      base.payment_terms = paymentTerms;
+      base.terms = paymentTerms;
+    }
     // fromPo: durable link for double-invoice guard (column may strip if migration not run)
     const sourcePo = body.source_po_id != null ? Number(body.source_po_id) : NaN;
     if (Number.isFinite(sourcePo) && sourcePo > 0) {

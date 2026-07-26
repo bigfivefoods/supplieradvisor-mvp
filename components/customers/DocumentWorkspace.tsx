@@ -222,6 +222,27 @@ function DocInner({
   const [validUntil, setValidUntil] = useState('');
   const [promisedDate, setPromisedDate] = useState('');
   const [dueDate, setDueDate] = useState('');
+  const [paymentTerms, setPaymentTerms] = useState('Net 30');
+  const [paymentTermsOptions, setPaymentTermsOptions] = useState<string[]>([
+    'Net 7',
+    'Net 14',
+    'Net 30',
+    'Net 45',
+    'Net 60',
+    'COD (Cash on delivery)',
+    'CIA (Cash in advance)',
+    'On receipt',
+  ]);
+  /** Inline add & invite when customer not in book */
+  const [showAddCustomer, setShowAddCustomer] = useState(false);
+  const [addingCustomer, setAddingCustomer] = useState(false);
+  const [newCustomer, setNewCustomer] = useState({
+    trading_name: '',
+    email: '',
+    contact_name: '',
+    phone: '',
+    sendInvite: true,
+  });
   const [lines, setLines] = useState<DocLineItem[]>([
     { name: '', quantity: 1, unit_price: 0, line_total: 0, uom: 'unit', currency: 'ZAR' },
   ]);
@@ -266,10 +287,14 @@ function DocInner({
     try {
       const params = new URLSearchParams({ companyId: String(companyId), type });
       if (statusFilter !== 'all') params.set('status', statusFilter);
-      const [d, c, p] = await Promise.all([
+      const settingsQs = privyUserId
+        ? `companyId=${companyId}&privyUserId=${encodeURIComponent(privyUserId)}`
+        : `companyId=${companyId}`;
+      const [d, c, p, settingsRes] = await Promise.all([
         fetch(`/api/customers/docs?${params}`).then((r) => r.json()),
         fetch(`/api/customers?companyId=${companyId}`).then((r) => r.json()),
         fetch(`/api/inventory/products?companyId=${companyId}`).then((r) => r.json()),
+        fetch(`/api/business/settings?${settingsQs}`).catch(() => null),
       ]);
       setDocs(d.documents || []);
       setCustomers(c.customers || []);
@@ -284,11 +309,26 @@ function DocInner({
           return true;
         })
       );
+      if (settingsRes && settingsRes.ok) {
+        try {
+          const sj = await settingsRes.json();
+          const { resolvePaymentTermsConfig } = await import(
+            '@/lib/business/types'
+          );
+          const cfg = resolvePaymentTermsConfig(sj.settings || {});
+          setPaymentTermsOptions(cfg.options);
+          setPaymentTerms((prev) =>
+            cfg.options.includes(prev) ? prev : cfg.defaultTerms
+          );
+        } catch {
+          /* soft */
+        }
+      }
       if (d.warning) toast.message(d.warning, { description: d.hint });
     } finally {
       setLoading(false);
     }
-  }, [companyId, type, statusFilter]);
+  }, [companyId, type, statusFilter, privyUserId]);
 
   useEffect(() => {
     void load();
@@ -653,6 +693,90 @@ function DocInner({
     setPendingProductCurrency('');
   };
 
+  const handleAddAndInviteCustomer = async () => {
+    const name = newCustomer.trading_name.trim();
+    const email = newCustomer.email.trim().toLowerCase();
+    if (!name) {
+      toast.error('Customer trading name is required');
+      return;
+    }
+    if (newCustomer.sendInvite && !email) {
+      toast.error('Email is required to send an invite');
+      return;
+    }
+    if (!privyUserId) {
+      toast.error('Sign in required');
+      return;
+    }
+    setAddingCustomer(true);
+    try {
+      const createRes = await fetch('/api/customers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          trading_name: name,
+          email: email || null,
+          contact_name: newCustomer.contact_name || null,
+          phone: newCustomer.phone || null,
+          payment_terms: paymentTerms || 'Net 30',
+          invite_status: newCustomer.sendInvite ? 'invited' : 'not_invited',
+        }),
+      });
+      const createData = await createRes.json();
+      if (!createRes.ok) {
+        throw new Error(createData.error || 'Could not add customer');
+      }
+      const cust = createData.customer as CustomerRecord | undefined;
+      const cid = Number(cust?.id);
+      if (!Number.isFinite(cid) || cid <= 0) {
+        throw new Error('Customer created but id missing');
+      }
+
+      if (newCustomer.sendInvite && email) {
+        const invRes = await fetch('/api/customers/invites', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyId,
+            customerId: cid,
+            privyUserId,
+            email,
+            contactName: newCustomer.contact_name || null,
+          }),
+        });
+        const invData = await invRes.json();
+        if (!invRes.ok) {
+          toast.message(`Added ${name}`, {
+            description:
+              invData.error ||
+              'Invite email failed — you can resend from Customers → Invites',
+          });
+        } else {
+          toast.success(`Added & invited ${name}`);
+        }
+      } else {
+        toast.success(`Added ${name} to customer book`);
+      }
+
+      await load();
+      setCustomerId(String(cid));
+      setShowAddCustomer(false);
+      setNewCustomer({
+        trading_name: '',
+        email: '',
+        contact_name: '',
+        phone: '',
+        sendInvite: true,
+      });
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed to add customer');
+    } finally {
+      setAddingCustomer(false);
+    }
+  };
+
   /** When document currency changes, re-price lines that have product_id from catalogue */
   const applyDocCurrency = (next: string) => {
     setDocCurrency(next);
@@ -730,6 +854,8 @@ function DocInner({
         notes: notesFinal || null,
         items: valid,
         status: createStatus,
+        payment_terms: paymentTerms || null,
+        terms: paymentTerms || null,
       };
       if (type === 'quote') body.valid_until = validUntil || null;
       if (type === 'order') body.promised_date = promisedDate || null;
@@ -1848,13 +1974,37 @@ function DocInner({
 
           <FxRateStrip currency={docCurrency} />
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-6 gap-3">
             <div className="lg:col-span-2">
-              <label className="text-xs font-medium text-neutral-500">Customer</label>
+              <div className="flex flex-wrap items-center justify-between gap-1">
+                <label className="text-xs font-medium text-neutral-500">Customer</label>
+                <button
+                  type="button"
+                  onClick={() => setShowAddCustomer((v) => !v)}
+                  className="text-[11px] font-bold text-[#00b4d8] underline inline-flex items-center gap-0.5"
+                >
+                  <Plus className="w-3 h-3" />
+                  {showAddCustomer ? 'Hide' : 'Not listed? Add & invite'}
+                </button>
+              </div>
               <select
                 className="input mt-1 w-full !p-3 !text-sm"
                 value={customerId}
-                onChange={(e) => setCustomerId(e.target.value)}
+                onChange={(e) => {
+                  setCustomerId(e.target.value);
+                  const cust = customers.find(
+                    (x) => String(x.id) === String(e.target.value)
+                  );
+                  if (cust?.payment_terms) {
+                    const t = String(cust.payment_terms);
+                    if (paymentTermsOptions.includes(t) || t) {
+                      setPaymentTerms(t);
+                      if (!paymentTermsOptions.includes(t)) {
+                        setPaymentTermsOptions((opts) => [t, ...opts]);
+                      }
+                    }
+                  }
+                }}
               >
                 <option value="">Select customer…</option>
                 {customers.map((c) => {
@@ -1875,10 +2025,97 @@ function DocInner({
                 })}
               </select>
               <p className="text-[10px] text-neutral-400 mt-1 leading-relaxed">
-                Invited companies appear here even before they accept the connect
-                request — quote and invoice now. Same customer is reused when they
-                accept (no re-add). Buyer portal share unlocks after they connect.
+                Invited companies appear here even before they accept — quote and
+                invoice now. Buyer portal share unlocks after they connect.
               </p>
+              {showAddCustomer && (
+                <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50/50 p-3 space-y-2">
+                  <p className="text-xs font-bold text-emerald-950">
+                    Add & invite customer (buyer)
+                  </p>
+                  <input
+                    className="input w-full !p-2 !text-sm bg-white"
+                    placeholder="Trading name *"
+                    value={newCustomer.trading_name}
+                    onChange={(e) =>
+                      setNewCustomer((s) => ({
+                        ...s,
+                        trading_name: e.target.value,
+                      }))
+                    }
+                  />
+                  <input
+                    type="email"
+                    className="input w-full !p-2 !text-sm bg-white"
+                    placeholder={
+                      newCustomer.sendInvite
+                        ? 'Contact email *'
+                        : 'Contact email'
+                    }
+                    value={newCustomer.email}
+                    onChange={(e) =>
+                      setNewCustomer((s) => ({ ...s, email: e.target.value }))
+                    }
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      className="input w-full !p-2 !text-sm bg-white"
+                      placeholder="Contact name"
+                      value={newCustomer.contact_name}
+                      onChange={(e) =>
+                        setNewCustomer((s) => ({
+                          ...s,
+                          contact_name: e.target.value,
+                        }))
+                      }
+                    />
+                    <input
+                      className="input w-full !p-2 !text-sm bg-white"
+                      placeholder="Phone"
+                      value={newCustomer.phone}
+                      onChange={(e) =>
+                        setNewCustomer((s) => ({ ...s, phone: e.target.value }))
+                      }
+                    />
+                  </div>
+                  <label className="flex items-center gap-2 text-[11px] text-slate-700">
+                    <input
+                      type="checkbox"
+                      className="accent-[#00b4d8]"
+                      checked={newCustomer.sendInvite}
+                      onChange={(e) =>
+                        setNewCustomer((s) => ({
+                          ...s,
+                          sendInvite: e.target.checked,
+                        }))
+                      }
+                    />
+                    Send platform invite email
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={addingCustomer}
+                      onClick={() => void handleAddAndInviteCustomer()}
+                      className="btn-primary !py-1.5 !px-3 text-xs"
+                    >
+                      {addingCustomer ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Plus className="w-3.5 h-3.5" />
+                      )}
+                      {newCustomer.sendInvite ? 'Add & invite' : 'Add to book'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddCustomer(false)}
+                      className="btn-secondary !py-1.5 !px-3 text-xs"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
             <div>
               <label className="text-xs font-medium text-neutral-500">
@@ -1897,6 +2134,35 @@ function DocInner({
               </select>
               <p className="text-[10px] text-neutral-400 mt-0.5">
                 Lines re-price from catalogue when currency changes
+              </p>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-neutral-500">
+                Payment terms
+              </label>
+              <select
+                className="input mt-1 w-full !p-3 !text-sm"
+                value={
+                  paymentTermsOptions.includes(paymentTerms)
+                    ? paymentTerms
+                    : paymentTermsOptions[0] || 'Net 30'
+                }
+                onChange={(e) => setPaymentTerms(e.target.value)}
+              >
+                {paymentTermsOptions.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[10px] text-neutral-400 mt-0.5">
+                From{' '}
+                <a
+                  href="/dashboard/my-business/settings"
+                  className="text-[#00b4d8] underline"
+                >
+                  Company settings
+                </a>
               </p>
             </div>
             <div>

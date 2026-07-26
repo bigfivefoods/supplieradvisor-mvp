@@ -415,8 +415,15 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Soft notify supplier (never blocks create)
-    if (data?.id && initialStatus !== 'draft') {
+    // Soft notify supplier (never blocks create). Skip book-only POs (no platform supplier).
+    if (
+      data?.id &&
+      initialStatus !== 'draft' &&
+      supplierProfileId != null &&
+      Number.isFinite(supplierProfileId) &&
+      supplierProfileId > 0
+    ) {
+      const notifySupplierId = supplierProfileId;
       void (async () => {
         try {
           const { data: buyerProf } = await supabase
@@ -429,7 +436,7 @@ export async function POST(request: NextRequest) {
           );
           const buyerName = buyerProf?.trading_name || null;
           await notifyInboundPo({
-            supplierProfileId,
+            supplierProfileId: notifySupplierId,
             buyerProfileId: companyId,
             buyerName,
             poId: Number(data.id),
@@ -440,7 +447,7 @@ export async function POST(request: NextRequest) {
           });
           const { notifyInboundPoPush } = await import('@/lib/push/web-push');
           await notifyInboundPoPush({
-            supplierProfileId,
+            supplierProfileId: notifySupplierId,
             buyerName,
             poId: Number(data.id),
             totalAmount: Number(data.total_amount ?? normalized.total),

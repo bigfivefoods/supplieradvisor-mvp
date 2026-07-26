@@ -34,12 +34,15 @@ import {
 import GeoSelectFields, { type GeoValue } from '@/components/geo/GeoSelectFields';
 
 const PROCESS = [
-  { label: 'Lead', href: '/dashboard/customers/leads' },
+  { label: 'Source', href: '/dashboard/customers/leads' },
+  { label: 'Search', href: '/dashboard/customers/profiles' },
   { label: 'Onboard', href: '/dashboard/customers/onboard' },
-  { label: 'Invite', href: '/dashboard/customers/invites' },
+  { label: 'Connect', href: '/dashboard/customers/invites' },
   { label: 'Quote', href: '/dashboard/customers/quotes' },
   { label: 'Order', href: '/dashboard/customers/orders' },
   { label: 'Invoice', href: '/dashboard/customers/invoices' },
+  { label: 'Rate', href: '/dashboard/customers/ratings' },
+  { label: 'Report', href: '/dashboard/customers/report' },
 ];
 
 type FormState = {
@@ -489,11 +492,54 @@ function OnboardInner() {
                   value={form.currency}
                   onChange={(v) => set('currency', v)}
                 />
-                <Field
-                  label="Payment terms"
-                  value={form.payment_terms}
-                  onChange={(v) => set('payment_terms', v)}
-                />
+                <div>
+                  <Label>Payment terms</Label>
+                  <select
+                    className="input mt-1 w-full !p-3 !text-sm"
+                    value={form.payment_terms}
+                    onChange={(e) => set('payment_terms', e.target.value)}
+                  >
+                    {(
+                      [
+                        'Net 7',
+                        'Net 14',
+                        'Net 30',
+                        'Net 45',
+                        'Net 60',
+                        'Net 90',
+                        'COD (Cash on delivery)',
+                        'CIA (Cash in advance)',
+                        'EOM (End of month)',
+                        'On receipt',
+                        'Letter of credit',
+                        'Custom / other',
+                      ] as const
+                    ).map((opt) => (
+                      <option key={opt} value={opt}>
+                        {opt}
+                      </option>
+                    ))}
+                    {form.payment_terms &&
+                      ![
+                        'Net 7',
+                        'Net 14',
+                        'Net 30',
+                        'Net 45',
+                        'Net 60',
+                        'Net 90',
+                        'COD (Cash on delivery)',
+                        'CIA (Cash in advance)',
+                        'EOM (End of month)',
+                        'On receipt',
+                        'Letter of credit',
+                        'Custom / other',
+                      ].includes(form.payment_terms as never) && (
+                        <option value={form.payment_terms}>
+                          {form.payment_terms}
+                        </option>
+                      )}
+                  </select>
+                </div>
                 <Field
                   label="Credit limit"
                   value={form.credit_limit}
