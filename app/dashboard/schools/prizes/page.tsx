@@ -105,23 +105,49 @@ function Inner() {
               </p>
             </div>
             <div className="ml-auto grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
-              {[
-                ['Approved brand', score?.approvedBrand, weights.approvedBrand],
-                ['Zero non-approved', score?.zeroNonapproved, weights.zeroNonapproved],
-                ['Feeding', score?.feedingCompleteness, weights.feedingCompleteness],
-                ['Data quality', score?.dataQuality, weights.dataQuality],
-                ['Stock discipline', score?.stockDiscipline, weights.stockDiscipline],
-                ['Menu', score?.menuAdherence, weights.menuAdherence],
-              ].map(([label, val, w]) => (
+              {(
+                [
+                  {
+                    label: 'Approved brand',
+                    val: score?.approvedBrand,
+                    w: weights.approvedBrand,
+                  },
+                  {
+                    label: 'Zero non-approved',
+                    val: score?.zeroNonapproved,
+                    w: weights.zeroNonapproved,
+                  },
+                  {
+                    label: 'Feeding',
+                    val: score?.feedingCompleteness,
+                    w: weights.feedingCompleteness,
+                  },
+                  {
+                    label: 'Data quality',
+                    val: score?.dataQuality,
+                    w: weights.dataQuality,
+                  },
+                  {
+                    label: 'Stock discipline',
+                    val: score?.stockDiscipline,
+                    w: weights.stockDiscipline,
+                  },
+                  {
+                    label: 'Menu',
+                    val: score?.menuAdherence,
+                    w: weights.menuAdherence,
+                  },
+                ] as Array<{ label: string; val: unknown; w?: number }>
+              ).map((row) => (
                 <div
-                  key={String(label)}
+                  key={row.label}
                   className="rounded-xl bg-white/80 border border-amber-100 px-3 py-2"
                 >
                   <div className="text-[9px] font-bold uppercase text-slate-400">
-                    {label} (w{w})
+                    {row.label} (w{row.w ?? '—'})
                   </div>
                   <div className="font-black tabular-nums">
-                    {val != null ? Number(val).toFixed(1) : '—'}
+                    {row.val != null ? Number(row.val).toFixed(1) : '—'}
                   </div>
                 </div>
               ))}
