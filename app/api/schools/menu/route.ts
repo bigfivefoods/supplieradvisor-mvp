@@ -81,18 +81,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'name required' }, { status: 400 });
     }
 
-    const items = Array.isArray(body.items) ? body.items : [];
+    const items: unknown[] = Array.isArray(body.items) ? body.items : [];
     // Validate approved_product_ids if present
-    const productIds: number[] = [
-      ...new Set(
-        items.flatMap((it: { approved_product_ids?: unknown }) => {
-          if (!Array.isArray(it?.approved_product_ids)) return [] as number[];
-          return it.approved_product_ids
-            .map((x) => Number(x))
-            .filter((n): n is number => Number.isFinite(n) && n > 0);
-        })
-      ),
-    ];
+    const productIdSet = new Set<number>();
+    for (const raw of items) {
+      const it =
+        raw && typeof raw === 'object'
+          ? (raw as { approved_product_ids?: unknown })
+          : {};
+      if (!Array.isArray(it.approved_product_ids)) continue;
+      for (const x of it.approved_product_ids) {
+        const n = Number(x);
+        if (Number.isFinite(n) && n > 0) productIdSet.add(n);
+      }
+    }
+    const productIds = Array.from(productIdSet);
 
     if (productIds.length) {
       const { data: approved } = await supabase
