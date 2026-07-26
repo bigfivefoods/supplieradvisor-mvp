@@ -285,30 +285,30 @@ function Inner() {
         }
       />
 
-      {/* Hero + process */}
-      <div className="grid lg:grid-cols-5 gap-4 mb-6">
-        <div className="lg:col-span-3 rounded-3xl border border-slate-200 bg-white overflow-hidden flex flex-col sm:flex-row">
-          <div className="sm:w-36 h-32 sm:h-auto shrink-0 bg-gradient-to-br from-sky-100 to-emerald-50 relative">
-            {school?.photo_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={String(school.photo_url)}
-                alt=""
-                className="absolute inset-0 w-full h-full object-cover"
-              />
-            ) : (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-[#0077b6]">
-                <Camera className="w-7 h-7 opacity-60" />
-                <Link
-                  href="/dashboard/schools/profile"
-                  className="text-[11px] font-bold underline"
-                >
-                  Add photo
-                </Link>
-              </div>
-            )}
-          </div>
-          <div className="p-5 flex-1">
+      {/* Hero — no second process nav; module chrome navbar owns navigation */}
+      <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden flex flex-col sm:flex-row mb-6">
+        <div className="sm:w-36 h-32 sm:h-auto shrink-0 bg-gradient-to-br from-sky-100 to-emerald-50 relative">
+          {school?.photo_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={String(school.photo_url)}
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+          ) : (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-[#0077b6]">
+              <Camera className="w-7 h-7 opacity-60" />
+              <Link
+                href="/dashboard/schools/profile"
+                className="text-[11px] font-bold underline"
+              >
+                Add photo
+              </Link>
+            </div>
+          )}
+        </div>
+        <div className="p-5 flex-1 flex flex-col sm:flex-row sm:items-start gap-4">
+          <div className="flex-1">
             <p className="text-[10px] font-bold uppercase tracking-wider text-[#0077b6]">
               Today at your school
             </p>
@@ -321,7 +321,7 @@ function Inner() {
             </h2>
             <p className="text-sm text-slate-500 mt-1">
               {next?.desc ||
-                'One clear path: setup → approved foods → kitchen → serve day → claims.'}
+                'Use the Schools navbar for every function — this screen is your status and next action only.'}
             </p>
             <div className="flex flex-wrap gap-2 mt-3">
               <Link
@@ -331,21 +331,18 @@ function Inner() {
                 {next?.label || 'Serve day'}{' '}
                 <ArrowRight className="w-3.5 h-3.5" />
               </Link>
-              <Link
-                href="/dashboard/schools/surveys"
-                className="btn-secondary !py-2 !px-3 text-xs"
-              >
-                Food survey
-              </Link>
             </div>
           </div>
-        </div>
-        <div className="lg:col-span-2">
-          <NsnpProcessRail
-            role="school"
-            checks={checks}
-            score={r?.score}
-          />
+          {typeof r?.score === 'number' ? (
+            <div className="shrink-0 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-center min-w-[5.5rem]">
+              <p className="text-2xl font-black tabular-nums text-slate-900">
+                {r.score}%
+              </p>
+              <p className="text-[10px] font-bold uppercase text-slate-400">
+                Setup
+              </p>
+            </div>
+          ) : null}
         </div>
       </div>
 
