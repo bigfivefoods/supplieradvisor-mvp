@@ -579,6 +579,7 @@ function groupSum(
   members: Array<{
     province?: string | null;
     district?: string | null;
+    quintile?: number | null;
     learners_enrolled: number;
     learners_verified: number;
     meals_served: number;
