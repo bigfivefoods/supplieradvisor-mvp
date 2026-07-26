@@ -1,10 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { Loader2, Save } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Camera, Loader2, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { SA_PROVINCES } from '@/lib/schools/types';
+import { uploadCompanyAssetServerFirst } from '@/lib/business/uploadCompanyAssets';
 import {
   CompanyRequired,
   SchoolsHeader,
@@ -21,8 +22,11 @@ export default function SchoolProfilePage() {
 
 function Inner() {
   const companyId = getSelectedCompanyId()!;
+  const fileRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [form, setForm] = useState<Record<string, string | number | boolean>>(
     {}
   );
@@ -37,6 +41,7 @@ function Inner() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
       const s = data.school || {};
+      setPhotoUrl(s.photo_url || null);
       setForm({
         school_name: s.school_name || '',
         emis_number: s.emis_number || '',
@@ -61,6 +66,8 @@ function Inner() {
         feeding_breakfast: Boolean(s.feeding_breakfast),
         feeding_lunch: s.feeding_lunch !== false,
         feeding_snack: Boolean(s.feeding_snack),
+        motto: s.motto || '',
+        about: s.about || '',
       });
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Load failed');
@@ -84,6 +91,7 @@ function Inner() {
           body[k] = v;
         }
       }
+      if (photoUrl) body.photo_url = photoUrl;
       const res = await fetch('/api/schools/profile', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -96,10 +104,49 @@ function Inner() {
         ...f,
         school_name: data.school?.school_name || f.school_name,
       }));
+      if (data.school?.photo_url) setPhotoUrl(data.school.photo_url);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Save failed');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const onPhoto = async (file: File | null) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      return toast.error('Please choose a photo (JPG, PNG, WebP)');
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      return toast.error('Photo must be under 8MB');
+    }
+    setUploading(true);
+    try {
+      const result = await uploadCompanyAssetServerFirst({
+        file,
+        companyId,
+        kind: 'school_photo',
+      });
+      if (!result.url) {
+        throw new Error(result.error || 'Upload failed');
+      }
+      const res = await fetch('/api/schools/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          photo_url: result.url,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not save photo');
+      setPhotoUrl(result.url);
+      toast.success('School photo updated');
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Upload failed');
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
     }
   };
 
@@ -111,7 +158,7 @@ function Inner() {
       <SchoolsHeader
         title="School profile"
         titleAccent="Identity"
-        description="EMIS, location, kitchen flags, and contacts. Set lat/lng for the map."
+        description="Photo, EMIS, location, kitchen flags, and contacts. Your photo appears on food surveys and the command hub."
         action={
           <button
             type="button"
@@ -134,156 +181,238 @@ function Inner() {
           <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
         </div>
       ) : (
-        <div className="rounded-3xl border border-slate-200 bg-white p-6 space-y-6 max-w-3xl">
-          <div className="grid sm:grid-cols-2 gap-4">
-            <Field label="School name">
-              <input
-                className="input"
-                value={String(form.school_name || '')}
-                onChange={(e) => set('school_name', e.target.value)}
-              />
-            </Field>
-            <Field label="EMIS number">
-              <input
-                className="input"
-                value={String(form.emis_number || '')}
-                onChange={(e) => set('emis_number', e.target.value)}
-              />
-            </Field>
-            <Field label="Phase">
-              <select
-                className="input"
-                value={String(form.phase || '')}
-                onChange={(e) => set('phase', e.target.value)}
-              >
-                <option value="primary">Primary</option>
-                <option value="secondary">Secondary</option>
-                <option value="combined">Combined</option>
-                <option value="special">Special</option>
-              </select>
-            </Field>
-            <Field label="Province">
-              <select
-                className="input"
-                value={String(form.province || '')}
-                onChange={(e) => set('province', e.target.value)}
-              >
-                <option value="">Select…</option>
-                {SA_PROVINCES.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="District">
-              <input
-                className="input"
-                value={String(form.district || '')}
-                onChange={(e) => set('district', e.target.value)}
-              />
-            </Field>
-            <Field label="Circuit">
-              <input
-                className="input"
-                value={String(form.circuit || '')}
-                onChange={(e) => set('circuit', e.target.value)}
-              />
-            </Field>
-            <Field label="Quintile (1–5)">
-              <input
-                className="input"
-                type="number"
-                min={1}
-                max={5}
-                value={form.quintile === '' ? '' : Number(form.quintile)}
-                onChange={(e) => set('quintile', e.target.value)}
-              />
-            </Field>
-            <Field label="City">
-              <input
-                className="input"
-                value={String(form.city || '')}
-                onChange={(e) => set('city', e.target.value)}
-              />
-            </Field>
-            <Field label="Address">
-              <input
-                className="input"
-                value={String(form.address || '')}
-                onChange={(e) => set('address', e.target.value)}
-              />
-            </Field>
-            <Field label="Latitude">
-              <input
-                className="input"
-                value={String(form.lat ?? '')}
-                onChange={(e) => set('lat', e.target.value)}
-                placeholder="-26.2041"
-              />
-            </Field>
-            <Field label="Longitude">
-              <input
-                className="input"
-                value={String(form.lng ?? '')}
-                onChange={(e) => set('lng', e.target.value)}
-                placeholder="28.0473"
-              />
-            </Field>
-          </div>
-
-          <div className="border-t pt-4 grid sm:grid-cols-2 gap-4">
-            <Field label="Principal name">
-              <input
-                className="input"
-                value={String(form.principal_name || '')}
-                onChange={(e) => set('principal_name', e.target.value)}
-              />
-            </Field>
-            <Field label="Principal email">
-              <input
-                className="input"
-                value={String(form.principal_email || '')}
-                onChange={(e) => set('principal_email', e.target.value)}
-              />
-            </Field>
-            <Field label="NSNP coordinator">
-              <input
-                className="input"
-                value={String(form.nsnp_coordinator_name || '')}
-                onChange={(e) => set('nsnp_coordinator_name', e.target.value)}
-              />
-            </Field>
-            <Field label="Coordinator email">
-              <input
-                className="input"
-                value={String(form.nsnp_coordinator_email || '')}
-                onChange={(e) => set('nsnp_coordinator_email', e.target.value)}
-              />
-            </Field>
-          </div>
-
-          <div className="border-t pt-4 flex flex-wrap gap-4">
-            {(
-              [
-                ['has_on_site_kitchen', 'On-site kitchen'],
-                ['feeding_breakfast', 'Breakfast'],
-                ['feeding_lunch', 'Lunch'],
-                ['feeding_snack', 'Snack'],
-              ] as const
-            ).map(([k, label]) => (
-              <label
-                key={k}
-                className="inline-flex items-center gap-2 text-sm font-semibold"
-              >
-                <input
-                  type="checkbox"
-                  checked={Boolean(form[k])}
-                  onChange={(e) => set(k, e.target.checked)}
+        <div className="space-y-4 max-w-3xl">
+          {/* Photo hero */}
+          <div className="rounded-3xl border border-slate-200 bg-white p-5 flex flex-col sm:flex-row gap-5 items-center sm:items-start">
+            <div className="relative group">
+              {photoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={photoUrl}
+                  alt="School"
+                  className="w-28 h-28 sm:w-32 sm:h-32 rounded-2xl object-cover border border-slate-100 shadow-sm"
                 />
-                {label}
-              </label>
-            ))}
+              ) : (
+                <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-2xl bg-gradient-to-br from-sky-100 to-emerald-50 border border-slate-100 flex items-center justify-center text-3xl font-black text-[#0077b6]">
+                  {String(form.school_name || 'S').slice(0, 1).toUpperCase()}
+                </div>
+              )}
+              <button
+                type="button"
+                disabled={uploading}
+                onClick={() => fileRef.current?.click()}
+                className="absolute inset-0 rounded-2xl bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center"
+              >
+                <span className="opacity-0 group-hover:opacity-100 transition-opacity bg-white rounded-full p-2 shadow">
+                  {uploading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Camera className="w-4 h-4 text-slate-700" />
+                  )}
+                </span>
+              </button>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={(e) => void onPhoto(e.target.files?.[0] || null)}
+              />
+            </div>
+            <div className="flex-1 text-center sm:text-left">
+              <h2 className="font-black text-lg text-slate-900">
+                {String(form.school_name || 'Your school')}
+              </h2>
+              <p className="text-sm text-slate-500 mt-1">
+                Add a clear photo of the school front or kitchen entrance —
+                builds pride and helps parents recognise surveys.
+              </p>
+              <button
+                type="button"
+                disabled={uploading}
+                onClick={() => fileRef.current?.click()}
+                className="mt-3 btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1.5"
+              >
+                {uploading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Camera className="w-3.5 h-3.5" />
+                )}
+                {photoUrl ? 'Change photo' : 'Upload photo'}
+              </button>
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 space-y-6">
+            <div className="grid sm:grid-cols-2 gap-4">
+              <Field label="School name">
+                <input
+                  className="input"
+                  value={String(form.school_name || '')}
+                  onChange={(e) => set('school_name', e.target.value)}
+                />
+              </Field>
+              <Field label="EMIS number">
+                <input
+                  className="input"
+                  value={String(form.emis_number || '')}
+                  onChange={(e) => set('emis_number', e.target.value)}
+                />
+              </Field>
+              <Field label="Motto">
+                <input
+                  className="input"
+                  value={String(form.motto || '')}
+                  onChange={(e) => set('motto', e.target.value)}
+                  placeholder="Optional short motto"
+                />
+              </Field>
+              <Field label="Phase">
+                <select
+                  className="input"
+                  value={String(form.phase || '')}
+                  onChange={(e) => set('phase', e.target.value)}
+                >
+                  <option value="primary">Primary</option>
+                  <option value="secondary">Secondary</option>
+                  <option value="combined">Combined</option>
+                  <option value="special">Special</option>
+                </select>
+              </Field>
+              <Field label="Province">
+                <select
+                  className="input"
+                  value={String(form.province || '')}
+                  onChange={(e) => set('province', e.target.value)}
+                >
+                  <option value="">Select…</option>
+                  {SA_PROVINCES.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="District">
+                <input
+                  className="input"
+                  value={String(form.district || '')}
+                  onChange={(e) => set('district', e.target.value)}
+                />
+              </Field>
+              <Field label="Circuit">
+                <input
+                  className="input"
+                  value={String(form.circuit || '')}
+                  onChange={(e) => set('circuit', e.target.value)}
+                />
+              </Field>
+              <Field label="Quintile (1–5)">
+                <input
+                  className="input"
+                  type="number"
+                  min={1}
+                  max={5}
+                  value={form.quintile === '' ? '' : Number(form.quintile)}
+                  onChange={(e) => set('quintile', e.target.value)}
+                />
+              </Field>
+              <Field label="City">
+                <input
+                  className="input"
+                  value={String(form.city || '')}
+                  onChange={(e) => set('city', e.target.value)}
+                />
+              </Field>
+              <Field label="Address">
+                <input
+                  className="input"
+                  value={String(form.address || '')}
+                  onChange={(e) => set('address', e.target.value)}
+                />
+              </Field>
+              <Field label="Latitude">
+                <input
+                  className="input"
+                  value={String(form.lat ?? '')}
+                  onChange={(e) => set('lat', e.target.value)}
+                  placeholder="-26.2041"
+                />
+              </Field>
+              <Field label="Longitude">
+                <input
+                  className="input"
+                  value={String(form.lng ?? '')}
+                  onChange={(e) => set('lng', e.target.value)}
+                  placeholder="28.0473"
+                />
+              </Field>
+            </div>
+
+            <Field label="About the school">
+              <textarea
+                className="input min-h-[80px]"
+                value={String(form.about || '')}
+                onChange={(e) => set('about', e.target.value)}
+                placeholder="Short note for agency visits and pride…"
+              />
+            </Field>
+
+            <div className="border-t pt-4 grid sm:grid-cols-2 gap-4">
+              <Field label="Principal name">
+                <input
+                  className="input"
+                  value={String(form.principal_name || '')}
+                  onChange={(e) => set('principal_name', e.target.value)}
+                />
+              </Field>
+              <Field label="Principal email">
+                <input
+                  className="input"
+                  value={String(form.principal_email || '')}
+                  onChange={(e) => set('principal_email', e.target.value)}
+                />
+              </Field>
+              <Field label="NSNP coordinator">
+                <input
+                  className="input"
+                  value={String(form.nsnp_coordinator_name || '')}
+                  onChange={(e) => set('nsnp_coordinator_name', e.target.value)}
+                />
+              </Field>
+              <Field label="Coordinator email">
+                <input
+                  className="input"
+                  value={String(form.nsnp_coordinator_email || '')}
+                  onChange={(e) =>
+                    set('nsnp_coordinator_email', e.target.value)
+                  }
+                />
+              </Field>
+            </div>
+
+            <div className="border-t pt-4 flex flex-wrap gap-4">
+              {(
+                [
+                  ['has_on_site_kitchen', 'On-site kitchen'],
+                  ['feeding_breakfast', 'Breakfast'],
+                  ['feeding_lunch', 'Lunch'],
+                  ['feeding_snack', 'Snack'],
+                ] as const
+              ).map(([k, label]) => (
+                <label
+                  key={k}
+                  className="inline-flex items-center gap-2 text-sm font-semibold"
+                >
+                  <input
+                    type="checkbox"
+                    checked={Boolean(form[k])}
+                    onChange={(e) => set(k, e.target.checked)}
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
           </div>
         </div>
       )}

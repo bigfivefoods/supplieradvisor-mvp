@@ -13,6 +13,11 @@ import {
   ClipboardCheck,
   MapPin,
   AlertTriangle,
+  Camera,
+  MessageSquareHeart,
+  ShieldAlert,
+  Wrench,
+  ArrowRight,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -33,6 +38,8 @@ type School = {
   learner_count_nsnp_eligible?: number;
   staff_count?: number;
   has_on_site_kitchen?: boolean;
+  photo_url?: string | null;
+  motto?: string | null;
 };
 
 type Kpis = {
@@ -62,11 +69,15 @@ function Inner() {
   const [kpis, setKpis] = useState<Kpis | null>(null);
   const [prizeScore, setPrizeScore] = useState<number | null>(null);
   const [prizeRank, setPrizeRank] = useState<number | null>(null);
+  const [surveyAvg, setSurveyAvg] = useState<number | null>(null);
+  const [surveyResponses, setSurveyResponses] = useState(0);
+  const [riadOpen, setRiadOpen] = useState(0);
+  const [maintOpen, setMaintOpen] = useState(0);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [pRes, rRes, zRes] = await Promise.all([
+      const [pRes, rRes, zRes, sRes, riadRes, mRes] = await Promise.all([
         fetch(`/api/schools/profile?companyId=${companyId}`, {
           cache: 'no-store',
         }),
@@ -77,16 +88,40 @@ function Inner() {
         fetch(`/api/schools/prizes?companyId=${companyId}`, {
           cache: 'no-store',
         }),
+        fetch(`/api/schools/surveys?companyId=${companyId}`, {
+          cache: 'no-store',
+        }),
+        fetch(`/api/schools/riad?companyId=${companyId}&status=open`, {
+          cache: 'no-store',
+        }),
+        fetch(`/api/schools/maintenance?companyId=${companyId}`, {
+          cache: 'no-store',
+        }),
       ]);
       const p = await pRes.json();
       const r = await rRes.json();
       const z = await zRes.json();
+      const s = await sRes.json().catch(() => ({}));
+      const riad = await riadRes.json().catch(() => ({}));
+      const m = await mRes.json().catch(() => ({}));
       if (!pRes.ok) throw new Error(p.error || 'Failed to load school');
       setSchool(p.school);
       if (rRes.ok) setKpis(r.kpis || null);
       if (zRes.ok && z.score) {
         setPrizeScore(z.score.total);
         setPrizeRank(z.score.rank);
+      }
+      if (sRes.ok && s.summary) {
+        setSurveyAvg(s.summary.avgRating ?? null);
+        setSurveyResponses(s.summary.responses ?? 0);
+      }
+      if (riadRes.ok && riad.summary) {
+        setRiadOpen(
+          (riad.summary.open || 0) + (riad.summary.inProgress || 0)
+        );
+      }
+      if (mRes.ok && m.summary) {
+        setMaintOpen((m.summary.open || 0) + (m.summary.inProgress || 0));
       }
       if (p.error) toast.message(p.error);
       if (r.warning || r.warnings?.[0]) {
@@ -103,6 +138,40 @@ function Inner() {
     void load();
   }, [load]);
 
+  const primaryActions = [
+    {
+      href: '/dashboard/schools/serve-day',
+      icon: UtensilsCrossed,
+      label: 'Serve day',
+      desc: 'Menu → present → meals → waste',
+      accent: 'from-sky-500 to-cyan-400',
+    },
+    {
+      href: '/dashboard/schools/surveys',
+      icon: MessageSquareHeart,
+      label: 'Food surveys',
+      desc:
+        surveyResponses > 0
+          ? `${surveyResponses} responses · ${surveyAvg != null ? surveyAvg.toFixed(1) + '★' : 'live'}`
+          : 'Learner & parent feedback',
+      accent: 'from-violet-500 to-fuchsia-400',
+    },
+    {
+      href: '/dashboard/schools/riad',
+      icon: ShieldAlert,
+      label: 'RIAD log',
+      desc: riadOpen > 0 ? `${riadOpen} open items` : 'Risks & decisions',
+      accent: 'from-amber-500 to-orange-400',
+    },
+    {
+      href: '/dashboard/schools/maintenance',
+      icon: Wrench,
+      label: 'Maintenance',
+      desc: maintOpen > 0 ? `${maintOpen} open fixes` : 'Kitchen & campus',
+      accent: 'from-emerald-500 to-teal-400',
+    },
+  ];
+
   const tiles = [
     {
       href: '/dashboard/schools/learners',
@@ -110,13 +179,6 @@ function Inner() {
       label: 'Learners',
       value: kpis?.learnersEnrolled ?? school?.learner_count_enrolled ?? '—',
       sub: `${kpis?.verifyPct ?? 0}% verified`,
-    },
-    {
-      href: '/dashboard/schools/serve-day',
-      icon: UtensilsCrossed,
-      label: 'Serve day',
-      value: 'Today',
-      sub: 'Kitchen feed mode',
     },
     {
       href: '/dashboard/schools/kitchen',
@@ -147,6 +209,13 @@ function Inner() {
       value: prizeScore != null ? prizeScore.toFixed(1) : '—',
       sub: prizeRank ? `Rank #${prizeRank}` : 'Quarterly',
     },
+    {
+      href: '/dashboard/schools/profile',
+      icon: Camera,
+      label: 'School photo',
+      value: school?.photo_url ? '✓' : 'Add',
+      sub: school?.photo_url ? 'On profile' : 'Build pride',
+    },
   ];
 
   return (
@@ -155,7 +224,8 @@ function Inner() {
         title={school?.school_name || 'School NSNP'}
         titleAccent="Command"
         description={
-          school
+          school?.motto ||
+          (school
             ? [
                 school.emis_number && `EMIS ${school.emis_number}`,
                 school.district,
@@ -163,8 +233,8 @@ function Inner() {
               ]
                 .filter(Boolean)
                 .join(' · ') ||
-              'Own kitchen · strict approved brands · ISP procurement · headmaster prizes'
-            : 'Register your school kitchen and start NSNP operations'
+              'Own kitchen · approved brands · better meals for every child'
+            : 'Register your school and start improving meals & learning')
         }
         action={
           <button
@@ -183,19 +253,120 @@ function Inner() {
         </div>
       ) : (
         <>
-          {(kpis?.openCompliance || 0) > 0 ? (
-            <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 flex gap-2">
-              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-              {kpis!.openCompliance} open compliance item
-              {kpis!.openCompliance === 1 ? '' : 's'} —{' '}
-              <Link
-                href="/dashboard/schools/compliance"
-                className="font-bold underline"
-              >
-                review
-              </Link>
+          {/* Hero identity */}
+          <div className="mb-6 rounded-3xl border border-slate-200 bg-white overflow-hidden flex flex-col sm:flex-row">
+            <div className="sm:w-40 h-36 sm:h-auto shrink-0 bg-gradient-to-br from-sky-100 to-emerald-50 relative">
+              {school?.photo_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={school.photo_url}
+                  alt=""
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
+              ) : (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-[#0077b6]">
+                  <Camera className="w-8 h-8 opacity-60" />
+                  <Link
+                    href="/dashboard/schools/profile"
+                    className="text-[11px] font-bold underline"
+                  >
+                    Add photo
+                  </Link>
+                </div>
+              )}
+            </div>
+            <div className="p-5 flex-1">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-[#0077b6]">
+                Principal command centre
+              </p>
+              <h2 className="text-xl font-black text-slate-900 mt-0.5">
+                {school?.school_name || 'Your school'}
+              </h2>
+              <p className="text-sm text-slate-500 mt-1 max-w-xl">
+                Improve education quality and the meals children receive —
+                one clear screen for today&apos;s serve, feedback, risks, and
+                fixes.
+              </p>
+              <div className="flex flex-wrap gap-2 mt-3">
+                <Link
+                  href="/dashboard/schools/serve-day"
+                  className="btn-primary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+                >
+                  Start serve day <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+                <Link
+                  href="/dashboard/schools/surveys"
+                  className="btn-secondary !py-2 !px-3 text-xs"
+                >
+                  Share food survey
+                </Link>
+              </div>
+            </div>
+          </div>
+
+          {(kpis?.openCompliance || 0) > 0 || riadOpen > 0 || maintOpen > 0 ? (
+            <div className="mb-4 space-y-2">
+              {(kpis?.openCompliance || 0) > 0 ? (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 flex gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                  {kpis!.openCompliance} open compliance item
+                  {kpis!.openCompliance === 1 ? '' : 's'} —{' '}
+                  <Link
+                    href="/dashboard/schools/compliance"
+                    className="font-bold underline"
+                  >
+                    review
+                  </Link>
+                </div>
+              ) : null}
+              {riadOpen > 0 ? (
+                <div className="rounded-2xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-950 flex gap-2">
+                  <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
+                  {riadOpen} open RIAD item{riadOpen === 1 ? '' : 's'} —{' '}
+                  <Link
+                    href="/dashboard/schools/riad"
+                    className="font-bold underline"
+                  >
+                    lead the list
+                  </Link>
+                </div>
+              ) : null}
+              {maintOpen > 0 ? (
+                <div className="rounded-2xl border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-950 flex gap-2">
+                  <Wrench className="w-4 h-4 shrink-0 mt-0.5" />
+                  {maintOpen} open maintenance fix
+                  {maintOpen === 1 ? '' : 'es'} —{' '}
+                  <Link
+                    href="/dashboard/schools/maintenance"
+                    className="font-bold underline"
+                  >
+                    clear the queue
+                  </Link>
+                </div>
+              ) : null}
             </div>
           ) : null}
+
+          {/* Big 4 principal actions */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+            {primaryActions.map((a) => (
+              <Link
+                key={a.href}
+                href={a.href}
+                className="group relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-4 hover:shadow-md transition-all"
+              >
+                <div
+                  className={`w-9 h-9 rounded-xl bg-gradient-to-br ${a.accent} text-white flex items-center justify-center mb-3 shadow-sm`}
+                >
+                  <a.icon className="w-4 h-4" />
+                </div>
+                <p className="font-black text-slate-900 text-sm">{a.label}</p>
+                <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                  {a.desc}
+                </p>
+              </Link>
+            ))}
+          </div>
 
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-8">
             {tiles.map((t) => (
@@ -279,7 +450,9 @@ function Inner() {
             <MapPin className="w-3.5 h-3.5" />
             Enable the Schools module under Company → Modules if this rail is
             missing for other team members. Run migration{' '}
-            <code className="text-[10px]">20260726_schools_nsnp_module.sql</code>
+            <code className="text-[10px]">
+              20260726_schools_photo_survey_riad_maintenance.sql
+            </code>
             .
           </p>
         </>

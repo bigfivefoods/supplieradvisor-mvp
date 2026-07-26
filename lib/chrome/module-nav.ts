@@ -415,7 +415,22 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       {
         name: 'School',
         href: '/dashboard/schools/profile',
-        desc: 'EMIS, map, kitchen',
+        desc: 'Photo, EMIS, map, kitchen',
+      },
+      {
+        name: 'Surveys',
+        href: '/dashboard/schools/surveys',
+        desc: 'Learner & parent food feedback',
+      },
+      {
+        name: 'RIAD',
+        href: '/dashboard/schools/riad',
+        desc: 'Risks, issues, actions, decisions',
+      },
+      {
+        name: 'Maintain',
+        href: '/dashboard/schools/maintenance',
+        desc: 'Facilities & kitchen fixes',
       },
       {
         name: 'Learners',

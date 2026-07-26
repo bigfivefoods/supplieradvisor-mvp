@@ -53,10 +53,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'File must be under 15MB' }, { status: 400 });
     }
 
-    const isLogo = kind === 'logo' || profileField === 'logo_url';
+    const isLogo =
+      kind === 'logo' ||
+      kind === 'school_photo' ||
+      profileField === 'logo_url';
     if (isLogo && file.type && !file.type.startsWith('image/')) {
       return NextResponse.json(
-        { error: 'Logo must be an image (JPG, PNG, WebP)' },
+        { error: 'Image must be JPG, PNG, or WebP' },
         { status: 400 }
       );
     }

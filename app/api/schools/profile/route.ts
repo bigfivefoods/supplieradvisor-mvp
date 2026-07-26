@@ -79,6 +79,10 @@ export async function PATCH(request: NextRequest) {
       'feeding_lunch',
       'feeding_snack',
       'status',
+      'photo_url',
+      'photo_urls',
+      'motto',
+      'about',
     ] as const;
 
     const patch: Record<string, unknown> = {

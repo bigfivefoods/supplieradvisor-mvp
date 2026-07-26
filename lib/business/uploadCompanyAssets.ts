@@ -93,7 +93,10 @@ export async function uploadCompanyAssetServerFirst(opts: {
   }
 
   // 2) Client fallback (storage only — caller must PATCH profile URL)
-  const isLogo = kind === 'logo' || profileField === 'logo_url';
+  const isLogo =
+    kind === 'logo' ||
+    kind === 'school_photo' ||
+    profileField === 'logo_url';
   if (isLogo) {
     const r = await uploadCompanyLogo(file, companyId);
     return { ...r, profileSynced: false };
