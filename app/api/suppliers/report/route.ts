@@ -41,20 +41,28 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseServer();
 
-    let bookRes = await supabase
-      .from('srm_suppliers')
-      .select(
-        'id, trading_name, legal_name, status, invite_status, linked_profile_id, otifef_pct, trust_score, rating_avg, rating_count, verified'
-      )
-      .eq('profile_id', companyId);
-
-    if (bookRes.error) {
-      bookRes = await supabase
+    // Soft fallback if optional SRM columns are missing (typed loosely for retries)
+    let bookRows: Array<Record<string, unknown>> = [];
+    let bookError: string | undefined;
+    {
+      const full = await supabase
         .from('srm_suppliers')
         .select(
-          'id, trading_name, legal_name, status, invite_status, linked_profile_id'
+          'id, trading_name, legal_name, status, invite_status, linked_profile_id, otifef_pct, trust_score, rating_avg, rating_count, verified'
         )
         .eq('profile_id', companyId);
+      if (full.error) {
+        const min = await supabase
+          .from('srm_suppliers')
+          .select(
+            'id, trading_name, legal_name, status, invite_status, linked_profile_id'
+          )
+          .eq('profile_id', companyId);
+        bookRows = (min.data || []) as Array<Record<string, unknown>>;
+        bookError = min.error?.message || full.error.message;
+      } else {
+        bookRows = (full.data || []) as Array<Record<string, unknown>>;
+      }
     }
 
     const [poRes, ratingsRes, riadRes, invRes, riadListRes] = await Promise.all([
@@ -135,7 +143,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const suppliers = bookRes.data || [];
+    const suppliers = bookRows;
     const ratings = (ratingsRes.data || []) as CompanyRatingRow[];
     const ratingsMissing =
       ratingsRes.error &&
@@ -290,9 +298,14 @@ export async function GET(request: NextRequest) {
       return {
         supplier_profile_id: id,
         book_id: book?.id != null ? Number(book.id) : null,
-        name: nameMap[id] || book?.trading_name || ot?.name || `Supplier ${id}`,
-        status: book?.status || null,
-        invite_status: book?.invite_status || null,
+        name:
+          nameMap[id] ||
+          (book?.trading_name != null ? String(book.trading_name) : null) ||
+          ot?.name ||
+          `Supplier ${id}`,
+        status: book?.status != null ? String(book.status) : null,
+        invite_status:
+          book?.invite_status != null ? String(book.invite_status) : null,
         verified: Boolean(book?.verified),
         city: null as string | null,
         country: null as string | null,
@@ -462,7 +475,9 @@ export async function GET(request: NextRequest) {
       .sort((a, b) => b.count - a.count);
 
     const connected = suppliers.filter(
-      (s) => s.invite_status === 'accepted' || s.linked_profile_id
+      (s) =>
+        s.invite_status === 'accepted' ||
+        (s.linked_profile_id != null && Number(s.linked_profile_id) > 0)
     ).length;
     const preferred = suppliers.filter(
       (s) => String(s.status || '').toLowerCase() === 'preferred'
@@ -553,7 +568,7 @@ export async function GET(request: NextRequest) {
       })),
       poHref: '/dashboard/suppliers/po',
       warnings: [
-        bookRes.error?.message,
+        bookError,
         poRes.error?.message,
         otifef.warning,
         ratingsMissing
