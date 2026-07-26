@@ -32,26 +32,30 @@ function emit(level: LogLevel, message: string, fields?: LogFields) {
   else if (level === 'warn') console.warn(line);
   else console.log(line);
 
-  // Soft Sentry hook — only if DSN present and runtime supports it
+  // Soft Sentry hook — never static-require @sentry/nextjs (breaks builds when absent).
+  // Optional: instrumentation may attach globalThis.Sentry when the package is installed.
   if (
     (level === 'error' || level === 'warn') &&
     process.env.SENTRY_DSN &&
     typeof globalThis !== 'undefined'
   ) {
     try {
-      // Lazy optional dependency; never hard-fail if @sentry/nextjs missing
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const Sentry = require('@sentry/nextjs') as {
-        captureMessage?: (m: string, ctx?: unknown) => void;
-        captureException?: (e: unknown, ctx?: unknown) => void;
-      };
+      const Sentry = (
+        globalThis as unknown as {
+          Sentry?: {
+            captureMessage?: (m: string, ctx?: unknown) => void;
+            captureException?: (e: unknown, ctx?: unknown) => void;
+          };
+        }
+      ).Sentry;
+      if (!Sentry) return;
       if (fields?.err && Sentry.captureException) {
         Sentry.captureException(fields.err, { extra: payload });
       } else if (Sentry.captureMessage) {
         Sentry.captureMessage(message, { level, extra: payload });
       }
     } catch {
-      /* Sentry not installed — fine */
+      /* Sentry not configured — fine */
     }
   }
 }
