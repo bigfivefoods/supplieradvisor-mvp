@@ -63,8 +63,8 @@ function Inner() {
     <SchoolsPage>
       <SchoolsHeader
         title="Headmaster prizes"
-        titleAccent="Incentives"
-        description="Quarterly & annual prizes for schools that buy strict NSNP-approved brands and run clean kitchens."
+        titleAccent="Quarterly"
+        description="Every quarter, headmasters are ranked on buying only DBE-approved foods (40% of score), zero non-approved GRNs, feeding completeness, and data quality. Win recognition and prizes for compliance."
         action={
           <button
             type="button"
@@ -82,13 +82,24 @@ function Inner() {
         </div>
       ) : (
         <>
+          <div className="mb-4 rounded-2xl border border-sky-100 bg-sky-50/80 px-4 py-3 text-sm text-slate-700">
+            <strong>How to win:</strong> order and receive only items on the{' '}
+            <a
+              href="/dashboard/schools/approved-list"
+              className="font-bold text-[#0077b6] underline"
+            >
+              DBE approved foods list
+            </a>
+            . Approved-brand spend is the largest prize pillar every quarter.
+          </div>
+
           <div className="mb-6 rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-6 flex flex-wrap items-center gap-6">
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white border border-amber-100 shadow-sm">
               <Trophy className="w-8 h-8 text-amber-600" />
             </div>
             <div>
               <p className="text-[10px] font-bold uppercase tracking-wider text-amber-800/70">
-                {String(period?.name || 'Current period')}
+                {String(period?.name || 'Current quarter')}
               </p>
               <p className="text-4xl font-black text-slate-900 tabular-nums">
                 {score?.total != null

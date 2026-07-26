@@ -6,6 +6,10 @@ import {
 } from '@/lib/auth/api-auth';
 import { getOrCreateSchoolProfile } from '@/lib/schools/school-context';
 import type { ReceiptLine } from '@/lib/schools/types';
+import {
+  filterApprovedProductIds,
+  resolveCatalogueContext,
+} from '@/lib/schools/approved-catalogue';
 
 export async function GET(request: NextRequest) {
   try {
@@ -88,12 +92,17 @@ export async function POST(request: NextRequest) {
         )
         .filter((n: number) => Number.isFinite(n) && n > 0);
 
-      const { data: approved } = await supabase
-        .from('nsnp_approved_products')
-        .select('id, name, brand_name, uom, active')
-        .in('id', productIds.length ? productIds : [0]);
-
-      const byId = new Map((approved || []).map((p) => [Number(p.id), p]));
+      const catalogue = await resolveCatalogueContext(supabase, companyId, {
+        schoolProfileId: schoolId,
+      });
+      const byId = await filterApprovedProductIds(
+        supabase,
+        catalogue.agencyProfileId,
+        productIds
+      );
+      const listLabel = catalogue.agencyName
+        ? `${catalogue.agencyName} approved foods list`
+        : 'NSNP approved brand list';
 
       const lines: ReceiptLine[] = [];
       let allApproved = true;
@@ -118,15 +127,18 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // Strict mode: reject entire GRN if any non-approved (unless force_reject_line)
+      // Strict mode: reject entire GRN if any non-approved
       const strict = body.strict !== false;
       if (strict && !allApproved) {
         return NextResponse.json(
           {
-            error:
-              'GRN rejected — one or more lines are not on the strict NSNP approved brand list',
+            error: `GRN rejected — ISPs may only deliver items on the ${listLabel}`,
             lines,
             compliance_ok: false,
+            catalogue: {
+              agencyName: catalogue.agencyName,
+              source: catalogue.source,
+            },
           },
           { status: 400 }
         );

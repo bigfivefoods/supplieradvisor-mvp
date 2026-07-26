@@ -78,6 +78,12 @@ function Inner() {
   const [brandForm, setBrandForm] = useState({ name: '', manufacturer: '' });
   const [showBrandForm, setShowBrandForm] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [catalogue, setCatalogue] = useState<{
+    canEdit?: boolean;
+    agencyName?: string | null;
+    source?: string;
+    message?: string;
+  } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -94,6 +100,7 @@ function Inner() {
       setProducts(data.products || []);
       setBrands(data.brands || []);
       setCategories(data.categories || []);
+      setCatalogue(data.catalogue || null);
       if (data.warning) toast.message(data.warning);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Load failed');
@@ -242,29 +249,80 @@ function Inner() {
   };
 
   const formOpen = creating || editing;
+  const canEdit = Boolean(catalogue?.canEdit);
+
+  const cloneNational = async () => {
+    if (
+      !confirm(
+        'Copy the national template products into your DBE catalogue? You can edit them after.'
+      )
+    ) {
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch('/api/schools/approved', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          action: 'clone_national',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Clone failed');
+      toast.success(data.message || `Imported ${data.imported}`);
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Clone failed');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <SchoolsPage>
       <SchoolsHeader
-        title="NSNP approved list"
-        titleAccent="Edit catalogue"
-        description="Add, edit, or deactivate brands and products. Only active items may be ordered or received into school kitchens."
+        title="NSNP approved foods"
+        titleAccent={
+          canEdit
+            ? 'DBE publishes'
+            : catalogue?.agencyName || 'Comply'
+        }
+        description={
+          canEdit
+            ? 'You set the official foods/brands list. Approved schools and ISPs may only buy and supply these items. Headmasters earn quarterly prizes for compliance.'
+            : catalogue?.message ||
+              'Only DBE-approved brands/products may be ordered or received. Compliance feeds the quarterly headmaster prize.'
+        }
         action={
           <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => setShowBrandForm((v) => !v)}
-              className="btn-secondary !py-2 !px-3 text-xs"
-            >
-              + Brand
-            </button>
-            <button
-              type="button"
-              onClick={openCreate}
-              className="btn-primary !py-2 !px-3 text-xs inline-flex items-center gap-1"
-            >
-              <Plus className="w-3.5 h-3.5" /> Product
-            </button>
+            {canEdit ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => void cloneNational()}
+                  disabled={saving}
+                  className="btn-secondary !py-2 !px-3 text-xs"
+                >
+                  Clone national template
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowBrandForm((v) => !v)}
+                  className="btn-secondary !py-2 !px-3 text-xs"
+                >
+                  + Brand
+                </button>
+                <button
+                  type="button"
+                  onClick={openCreate}
+                  className="btn-primary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Product
+                </button>
+              </>
+            ) : null}
             <button
               type="button"
               onClick={() => void load()}
@@ -279,13 +337,31 @@ function Inner() {
       <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-950 flex gap-2">
         <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5" />
         <div>
-          <strong>Strict mode.</strong> Changes apply immediately to school
-          POs and GRN checks. Prefer deactivate over hard-delete for audit
-          history.
+          <strong>
+            {canEdit
+              ? 'You own this list as government agency.'
+              : catalogue?.agencyName
+                ? `Set by ${catalogue.agencyName}.`
+                : 'Strict compliance.'}
+          </strong>{' '}
+          {canEdit
+            ? 'Schools and ISPs are blocked from ordering or receiving anything not on this list. Quarterly prizes reward headmasters for 100% approved-brand spend.'
+            : 'POs and GRNs reject non-approved brands. Buy what is listed to climb the quarterly prize leaderboard (Schools → Prizes).'}
+          {!canEdit ? (
+            <>
+              {' '}
+              <a
+                href="/dashboard/schools/agency"
+                className="font-bold underline"
+              >
+                Join DBE →
+              </a>
+            </>
+          ) : null}
         </div>
       </div>
 
-      {showBrandForm ? (
+      {canEdit && showBrandForm ? (
         <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 flex flex-wrap gap-2 items-end">
           <label className="text-xs">
             <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">

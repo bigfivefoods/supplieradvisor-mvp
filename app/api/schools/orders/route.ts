@@ -6,6 +6,10 @@ import {
 } from '@/lib/auth/api-auth';
 import { getOrCreateSchoolProfile } from '@/lib/schools/school-context';
 import type { SchoolPoLine } from '@/lib/schools/types';
+import {
+  filterApprovedProductIds,
+  resolveCatalogueContext,
+} from '@/lib/schools/approved-catalogue';
 
 /**
  * School NSNP POs — every line must be on the approved product list.
@@ -70,35 +74,37 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'At least one line required' }, { status: 400 });
     }
 
-    // Validate every product against approved list
+    // Validate every product against DBE/agency approved list for this school
+    const catalogue = await resolveCatalogueContext(supabase, companyId, {
+      schoolProfileId: Number(school.id),
+    });
     const productIds = rawLines
       .map((l: { approved_product_id?: number }) => Number(l.approved_product_id))
       .filter((n: number) => Number.isFinite(n));
 
-    const { data: approved } = await supabase
-      .from('nsnp_approved_products')
-      .select('id, name, brand_name, uom, active')
-      .in('id', productIds.length ? productIds : [0])
-      .eq('active', true);
-
-    const byId = new Map(
-      (approved || []).map((p) => [Number(p.id), p])
+    const byId = await filterApprovedProductIds(
+      supabase,
+      catalogue.agencyProfileId,
+      productIds
     );
 
     const lines: SchoolPoLine[] = [];
     const rejected: string[] = [];
+    const listLabel = catalogue.agencyName
+      ? `${catalogue.agencyName} approved list`
+      : 'NSNP approved list';
     for (const l of rawLines) {
       const pid = Number(l.approved_product_id);
       const prod = byId.get(pid);
       if (!prod) {
         rejected.push(
-          `Product ${pid || l.product_name || '?'} is not on the NSNP approved list`
+          `Product ${pid || l.product_name || '?'} is not on the ${listLabel}`
         );
         continue;
       }
       const qty = Number(l.qty || 0);
       if (!(qty > 0)) {
-        rejected.push(`${prod.name}: qty must be > 0`);
+        rejected.push(`${String(prod.name)}: qty must be > 0`);
         continue;
       }
       lines.push({
@@ -114,8 +120,12 @@ export async function POST(request: NextRequest) {
     if (!lines.length) {
       return NextResponse.json(
         {
-          error: 'No approved lines — strict NSNP list enforced',
+          error: `No approved lines — schools may only buy from the ${listLabel}`,
           rejected,
+          catalogue: {
+            agencyName: catalogue.agencyName,
+            source: catalogue.source,
+          },
         },
         { status: 400 }
       );
