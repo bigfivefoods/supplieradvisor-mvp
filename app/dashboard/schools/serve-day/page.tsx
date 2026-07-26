@@ -16,6 +16,12 @@ import {
   SchoolsHeader,
   SchoolsPage,
 } from '@/components/schools/SchoolsShell';
+import {
+  clearOfflineDraft,
+  isBrowserOnline,
+  loadOfflineDraft,
+  saveOfflineDraft,
+} from '@/lib/schools/offline-draft';
 
 export default function ServeDayPage() {
   return (
@@ -35,6 +41,10 @@ function Inner() {
   const [waste, setWaste] = useState('0');
   const [cost, setCost] = useState('');
   const [autoIssue, setAutoIssue] = useState(true);
+  const [draftBanner, setDraftBanner] = useState<string | null>(null);
+  const [offline, setOffline] = useState(false);
+
+  const draftId = String(data?.date || 'today');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -46,11 +56,48 @@ function Inner() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed');
       setData(json);
-      const sug = String(json.suggestedServed ?? '');
-      setPresent(sug);
-      setServed(sug);
+      const day = String(json.date || 'today');
+      const draft = loadOfflineDraft<{
+        present?: string;
+        served?: string;
+        waste?: string;
+        cost?: string;
+        autoIssue?: boolean;
+      }>('serve-day', companyId, day);
+      if (draft?.payload) {
+        setPresent(String(draft.payload.present ?? json.suggestedServed ?? ''));
+        setServed(String(draft.payload.served ?? json.suggestedServed ?? ''));
+        setWaste(String(draft.payload.waste ?? '0'));
+        setCost(String(draft.payload.cost ?? ''));
+        if (draft.payload.autoIssue != null)
+          setAutoIssue(Boolean(draft.payload.autoIssue));
+        setDraftBanner(
+          `Restored offline draft from ${new Date(draft.savedAt).toLocaleString()}`
+        );
+      } else {
+        const sug = String(json.suggestedServed ?? '');
+        setPresent(sug);
+        setServed(sug);
+        setDraftBanner(null);
+      }
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Load failed');
+      // Offline: restore draft only
+      const draft = loadOfflineDraft<{
+        present?: string;
+        served?: string;
+        waste?: string;
+        cost?: string;
+      }>('serve-day', companyId, 'today');
+      if (draft?.payload) {
+        setPresent(String(draft.payload.present || ''));
+        setServed(String(draft.payload.served || ''));
+        setWaste(String(draft.payload.waste || '0'));
+        setCost(String(draft.payload.cost || ''));
+        setDraftBanner('Offline — working from local draft');
+        setOffline(true);
+      } else {
+        toast.error(e instanceof Error ? e.message : 'Load failed');
+      }
     } finally {
       setLoading(false);
     }
@@ -60,9 +107,47 @@ function Inner() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    const onOff = () => setOffline(!isBrowserOnline());
+    const onOn = () => setOffline(false);
+    window.addEventListener('offline', onOff);
+    window.addEventListener('online', onOn);
+    setOffline(!isBrowserOnline());
+    return () => {
+      window.removeEventListener('offline', onOff);
+      window.removeEventListener('online', onOn);
+    };
+  }, []);
+
+  // Autosave draft
+  useEffect(() => {
+    if (!data?.date && !offline) return;
+    const t = setTimeout(() => {
+      saveOfflineDraft(
+        'serve-day',
+        companyId,
+        String(data?.date || 'today'),
+        { present, served, waste, cost, autoIssue },
+        'Serve day'
+      );
+    }, 400);
+    return () => clearTimeout(t);
+  }, [companyId, data?.date, present, served, waste, cost, autoIssue, offline]);
+
   const complete = async () => {
     setSaving(true);
     try {
+      if (!isBrowserOnline()) {
+        saveOfflineDraft(
+          'serve-day',
+          companyId,
+          draftId,
+          { present, served, waste, cost, autoIssue, pendingSubmit: true },
+          'Serve day pending sync'
+        );
+        toast.message('Saved offline — will need to submit when online');
+        return;
+      }
       const nutrition = data?.nutrition as
         | { pass?: boolean; energy_kcal?: number; protein_g?: number }
         | undefined;
@@ -96,6 +181,8 @@ function Inner() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed');
+      clearOfflineDraft('serve-day', companyId, draftId);
+      setDraftBanner(null);
       const issued = (json.stock_issues || []).filter(
         (x: { status?: string }) => x.status === 'issued'
       ).length;
@@ -106,7 +193,14 @@ function Inner() {
       );
       void load();
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Failed');
+      saveOfflineDraft(
+        'serve-day',
+        companyId,
+        draftId,
+        { present, served, waste, cost, autoIssue, pendingSubmit: true },
+        'Serve day (failed submit)'
+      );
+      toast.error(e instanceof Error ? e.message : 'Failed — draft saved');
     } finally {
       setSaving(false);
     }
@@ -154,6 +248,12 @@ function Inner() {
         </div>
       ) : (
         <div className="max-w-xl mx-auto space-y-4">
+          {offline || draftBanner ? (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+              {offline ? 'You are offline. ' : ''}
+              {draftBanner || 'Draft autosaved on this device.'}
+            </div>
+          ) : null}
           {alerts.length > 0 ? (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 space-y-2">
               {alerts.map((a) => (

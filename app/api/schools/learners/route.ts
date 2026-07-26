@@ -12,6 +12,7 @@ import {
   learnerTemplateCsv,
   parseLearnerCsv,
 } from '@/lib/schools/import';
+import { maskName, privacyEnabled } from '@/lib/schools/privacy';
 
 export async function GET(request: NextRequest) {
   try {
@@ -71,9 +72,29 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    const privacy = privacyEnabled(
+      school as { metadata?: unknown; privacy_mode?: boolean | null }
+    );
+    if (privacy) {
+      learners = learners.map((l) => ({
+        ...l,
+        display_name: maskName(l.first_name, l.last_name, true),
+        first_name: l.first_name
+          ? `${String(l.first_name)[0]}.`
+          : l.first_name,
+        last_name: l.last_name ? `${String(l.last_name)[0]}.` : l.last_name,
+        guardian_phone: l.guardian_phone ? '•••' : l.guardian_phone,
+        guardian_name: l.guardian_name
+          ? maskName(String(l.guardian_name), '', true)
+          : l.guardian_name,
+        id_number: l.id_number ? '••••' : l.id_number,
+      }));
+    }
+
     return NextResponse.json({
       success: true,
       schoolId: school.id,
+      privacy_mode: privacy,
       learners,
       counts: {
         total: learners.length,

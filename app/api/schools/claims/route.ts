@@ -131,15 +131,46 @@ export async function GET(request: NextRequest) {
         ? Math.min(100, Math.round((daysFed / schoolDays) * 1000) / 10)
         : 0;
 
-    // Funding model: tariff × meals served (not raw PO spend)
+    // Funding model: agency meal tariff (preferred) → school meta → default
     const schoolMeta =
       school.metadata && typeof school.metadata === 'object'
         ? (school.metadata as Record<string, unknown>)
         : {};
-    const tariff =
+    let agencyTariff: number | null = null;
+    let agencyClaimsLocked = false;
+    let periodLocked = false;
+    if (catalogue.agencyProfileId) {
+      const { data: ag } = await supabase
+        .from('nsnp_agency_profiles')
+        .select(
+          'meal_tariff_zar, meal_tariff_lunch_zar, claims_locked, profile_id'
+        )
+        .eq('profile_id', catalogue.agencyProfileId)
+        .maybeSingle();
+      if (ag) {
+        agencyTariff =
+          Number(ag.meal_tariff_lunch_zar) > 0
+            ? Number(ag.meal_tariff_lunch_zar)
+            : Number(ag.meal_tariff_zar) > 0
+              ? Number(ag.meal_tariff_zar)
+              : null;
+        agencyClaimsLocked = ag.claims_locked === true;
+      }
+      const { data: lock } = await supabase
+        .from('nsnp_claim_period_locks')
+        .select('id, locked')
+        .eq('agency_profile_id', catalogue.agencyProfileId)
+        .eq('period_from', from)
+        .eq('period_to', to)
+        .eq('locked', true)
+        .maybeSingle();
+      periodLocked = Boolean(lock);
+    }
+    const schoolTariff =
       Number(schoolMeta.nsnp_meal_tariff_zar) > 0
         ? Number(schoolMeta.nsnp_meal_tariff_zar)
         : null;
+    const tariff = agencyTariff ?? schoolTariff;
     const claim = computeClaimAmount({
       mealsServed,
       foodSpend: spend,
@@ -176,7 +207,22 @@ export async function GET(request: NextRequest) {
       claim_tariff_zar: claim.tariff,
       claim_method: claim.method,
       cost_evidence: claim.costEvidence,
-      submit_ready: Boolean(agencyLink) && mealsServed > 0 && daysFed > 0,
+      period_locked: periodLocked || agencyClaimsLocked,
+      submit_ready:
+        Boolean(agencyLink) &&
+        mealsServed > 0 &&
+        daysFed > 0 &&
+        !periodLocked &&
+        !agencyClaimsLocked,
+      submit_block_reason: periodLocked
+        ? 'Agency locked this claim period'
+        : agencyClaimsLocked
+          ? 'Agency has claims locked'
+          : !agencyLink
+            ? 'Need active DBE/PEU association'
+            : mealsServed <= 0
+              ? 'No meals served in period'
+              : null,
     };
 
     return NextResponse.json({
@@ -236,6 +282,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error:
+            String(pack.submit_block_reason) ||
             'Claim not ready — need active DBE/PEU association and at least one feeding day with meals served',
           pack,
         },
@@ -246,6 +293,13 @@ export async function POST(request: NextRequest) {
     const catalogue = await resolveCatalogueContext(supabase, companyId, {
       schoolProfileId: Number(school.id),
     });
+
+    const auditEntry = {
+      at: new Date().toISOString(),
+      by: gate.userId || null,
+      action: 'submitted',
+      note: 'School submitted claim pack',
+    };
 
     const { data, error: iErr } = await supabase
       .from('nsnp_claim_packs')
@@ -266,6 +320,8 @@ export async function POST(request: NextRequest) {
         approved_brand_pct: pack.approved_brand_pct,
         status: body.status || 'submitted',
         pack_json: pack,
+        tariff_zar: pack.claim_tariff_zar,
+        audit_log: [auditEntry],
         created_by: gate.userId || null,
       })
       .select('*')

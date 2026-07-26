@@ -119,6 +119,7 @@ function Inner() {
   const [showDispatch, setShowDispatch] = useState(false);
   const [driverName, setDriverName] = useState('');
   const [vehicleReg, setVehicleReg] = useState('');
+  const [expectedDate, setExpectedDate] = useState('');
   const [notesIsp, setNotesIsp] = useState('');
   const [showReceive, setShowReceive] = useState(false);
   const [receiveLines, setReceiveLines] = useState<LineEdit[]>([]);
@@ -253,6 +254,7 @@ function Inner() {
       const data = await postAction('dispatch', {
         driver_name: driverName || null,
         vehicle_reg: vehicleReg || null,
+        expected_date: expectedDate || null,
         notes_isp: notesIsp || null,
       });
       if (!data) return;
@@ -875,6 +877,17 @@ function Inner() {
                 value={vehicleReg}
                 onChange={(e) => setVehicleReg(e.target.value)}
                 placeholder="e.g. CA 123-456"
+              />
+            </label>
+            <label className="text-xs block">
+              <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                Expected delivery date (OTIF)
+              </span>
+              <input
+                type="date"
+                className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm"
+                value={expectedDate}
+                onChange={(e) => setExpectedDate(e.target.value)}
               />
             </label>
             <label className="text-xs block">

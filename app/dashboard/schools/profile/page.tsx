@@ -68,6 +68,7 @@ function Inner() {
         feeding_snack: Boolean(s.feeding_snack),
         motto: s.motto || '',
         about: s.about || '',
+        privacy_mode: Boolean(s.privacy_mode),
       });
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Load failed');
@@ -398,6 +399,7 @@ function Inner() {
                   ['feeding_breakfast', 'Breakfast'],
                   ['feeding_lunch', 'Lunch'],
                   ['feeding_snack', 'Snack'],
+                  ['privacy_mode', 'Privacy mode (mask learner names)'],
                 ] as const
               ).map(([k, label]) => (
                 <label

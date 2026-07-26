@@ -316,6 +316,10 @@ export async function POST(request: NextRequest) {
         'contact_phone',
         'description',
         'about',
+        'meal_tariff_zar',
+        'meal_tariff_lunch_zar',
+        'meal_tariff_breakfast_zar',
+        'claims_locked',
       ]) {
         if (body[k] !== undefined) patch[k] = body[k];
       }
@@ -504,7 +508,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, isp: data });
     }
 
-    // Agency reviews claim packs
+    // Agency reviews claim packs (audit trail)
     if (action === 'set_claim_status' || action === 'review_claim') {
       const claimId = Number(body.claim_id);
       const claimStatus = String(body.status || 'approved');
@@ -514,12 +518,29 @@ export async function POST(request: NextRequest) {
       if (!['approved', 'rejected', 'paid', 'submitted', 'draft'].includes(claimStatus)) {
         return NextResponse.json({ error: 'Invalid claim status' }, { status: 400 });
       }
+      const { data: existing } = await supabase
+        .from('nsnp_claim_packs')
+        .select('id, audit_log, profile_id, school_profile_id')
+        .eq('id', claimId)
+        .eq('agency_profile_id', companyId)
+        .maybeSingle();
+      const prevLog = Array.isArray(existing?.audit_log)
+        ? existing!.audit_log
+        : [];
+      const auditEntry = {
+        at: new Date().toISOString(),
+        by: gate.userId || null,
+        action: claimStatus,
+        note: body.notes || null,
+      };
       const { data, error } = await supabase
         .from('nsnp_claim_packs')
         .update({
           status: claimStatus,
           reviewed_at: new Date().toISOString(),
           review_notes: body.notes || null,
+          reviewed_by: gate.userId || null,
+          audit_log: [...prevLog, auditEntry],
           updated_at: new Date().toISOString(),
         })
         .eq('id', claimId)
@@ -527,7 +548,6 @@ export async function POST(request: NextRequest) {
         .select('*')
         .single();
       if (error) {
-        // soft if columns missing
         const retry = await supabase
           .from('nsnp_claim_packs')
           .update({ status: claimStatus })
@@ -541,6 +561,39 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: true, claim: retry.data });
       }
       return NextResponse.json({ success: true, claim: data });
+    }
+
+    // Lock / unlock a claim period for all schools under this agency
+    if (action === 'lock_claim_period' || action === 'unlock_claim_period') {
+      const periodFrom = String(body.period_from || body.from || '');
+      const periodTo = String(body.period_to || body.to || '');
+      if (!periodFrom || !periodTo) {
+        return NextResponse.json(
+          { error: 'period_from and period_to required' },
+          { status: 400 }
+        );
+      }
+      const locked = action === 'lock_claim_period';
+      const { data, error } = await supabase
+        .from('nsnp_claim_period_locks')
+        .upsert(
+          {
+            agency_profile_id: companyId,
+            period_from: periodFrom,
+            period_to: periodTo,
+            locked,
+            locked_at: new Date().toISOString(),
+            locked_by: gate.userId || null,
+            notes: body.notes || null,
+          },
+          { onConflict: 'agency_profile_id,period_from,period_to' }
+        )
+        .select('*')
+        .single();
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+      return NextResponse.json({ success: true, lock: data });
     }
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 });

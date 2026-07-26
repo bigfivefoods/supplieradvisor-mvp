@@ -95,6 +95,57 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = getSupabaseServer();
+
+    // Rate limit: max 20 responses / IP / token / 10 minutes (Sprint E)
+    const fwd = request.headers.get('x-forwarded-for') || '';
+    const clientKey = (
+      fwd.split(',')[0]?.trim() ||
+      request.headers.get('x-real-ip') ||
+      'unknown'
+    ).slice(0, 80);
+    const tokenHash = token.slice(0, 64);
+    try {
+      const { data: rl } = await supabase
+        .from('school_survey_rate_limits')
+        .select('*')
+        .eq('token_hash', tokenHash)
+        .eq('client_key', clientKey)
+        .maybeSingle();
+      const now = Date.now();
+      if (rl) {
+        const windowStart = new Date(rl.window_start).getTime();
+        const windowMs = 10 * 60 * 1000;
+        if (now - windowStart < windowMs && Number(rl.hits) >= 20) {
+          return NextResponse.json(
+            { error: 'Too many responses from this device. Try again later.' },
+            { status: 429 }
+          );
+        }
+        if (now - windowStart >= windowMs) {
+          await supabase
+            .from('school_survey_rate_limits')
+            .update({ hits: 1, window_start: new Date().toISOString() })
+            .eq('token_hash', tokenHash)
+            .eq('client_key', clientKey);
+        } else {
+          await supabase
+            .from('school_survey_rate_limits')
+            .update({ hits: Number(rl.hits) + 1 })
+            .eq('token_hash', tokenHash)
+            .eq('client_key', clientKey);
+        }
+      } else {
+        await supabase.from('school_survey_rate_limits').insert({
+          token_hash: tokenHash,
+          client_key: clientKey,
+          hits: 1,
+          window_start: new Date().toISOString(),
+        });
+      }
+    } catch {
+      /* soft if table missing */
+    }
+
     const { data: survey, error } = await supabase
       .from('school_food_surveys')
       .select('id, school_profile_id, active, response_count, avg_rating')

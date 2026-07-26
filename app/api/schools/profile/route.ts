@@ -83,6 +83,7 @@ export async function PATCH(request: NextRequest) {
       'photo_urls',
       'motto',
       'about',
+      'privacy_mode',
     ] as const;
 
     const patch: Record<string, unknown> = {

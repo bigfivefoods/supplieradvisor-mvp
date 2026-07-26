@@ -534,6 +534,12 @@ export const MODULE_NAV: readonly ModuleNav[] = [
 
       // ── ISP network ──────────────────────────────────────────────────
       {
+        name: 'Workspace',
+        href: '/dashboard/schools/isp',
+        desc: 'ISP-only entry → deliveries',
+        group: 'ISP',
+      },
+      {
         name: 'Network',
         href: '/dashboard/schools/isps',
         desc: 'Register ISP · link to schools · vet compliance',
@@ -542,7 +548,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       {
         name: 'Deliver',
         href: '/dashboard/schools/deliveries',
-        desc: 'Dispatch · POD · invoice · school receive',
+        desc: 'Dispatch · POD · invoice · OTIF · school receive',
         group: 'ISP',
       },
       {

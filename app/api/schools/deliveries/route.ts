@@ -6,6 +6,7 @@ import {
 } from '@/lib/auth/api-auth';
 import { getOrCreateSchoolProfile } from '@/lib/schools/school-context';
 import type { DeliveryLine } from '@/lib/schools/deliveries';
+import { logNsnpEvent } from '@/lib/schools/events';
 
 /**
  * ISP → school deliveries with shared POD / invoice files.
@@ -319,11 +320,22 @@ export async function POST(request: NextRequest) {
         if (body.vehicle_reg) patch.vehicle_reg = body.vehicle_reg;
         if (body.driver_name) patch.driver_name = body.driver_name;
         if (body.notes_isp !== undefined) patch.notes_isp = body.notes_isp;
+        if (body.expected_date) patch.expected_date = body.expected_date;
       } else if (action === 'mark_delivered' && isIsp) {
         patch.status = 'delivered';
         patch.delivered_at = now;
         if (Array.isArray(body.lines)) patch.lines = body.lines;
         if (body.notes_isp !== undefined) patch.notes_isp = body.notes_isp;
+        // OTIF: delivered on/before expected_date
+        if (d.expected_date) {
+          const exp = String(d.expected_date).slice(0, 10);
+          const day = now.slice(0, 10);
+          patch.otif = day <= exp;
+          patch.otif_notes =
+            day <= exp
+              ? 'On-time (delivered on/before expected date)'
+              : `Late vs expected ${exp}`;
+        }
       } else if (action === 'receive' && isSchool) {
         patch.status = 'received';
         patch.received_at = now;
@@ -331,6 +343,11 @@ export async function POST(request: NextRequest) {
         if (Array.isArray(body.lines)) {
           // Merge qty_received into lines
           patch.lines = body.lines;
+        }
+        if (d.expected_date && d.otif == null) {
+          const exp = String(d.expected_date).slice(0, 10);
+          const day = now.slice(0, 10);
+          patch.otif = day <= exp;
         }
       } else if (action === 'dispute' && isSchool) {
         patch.status = 'disputed';
@@ -393,6 +410,35 @@ export async function POST(request: NextRequest) {
             updated_at: now,
           })
           .eq('id', updated.po_id);
+      }
+
+      // Soft notifications (Sprint A)
+      if (action === 'dispatch' || action === 'mark_delivered') {
+        await logNsnpEvent(supabase, {
+          companyId,
+          targetCompanyId: Number(d.school_company_id),
+          schoolProfileId: Number(d.school_profile_id),
+          kind: action === 'dispatch' ? 'delivery_dispatched' : 'delivery_delivered',
+          title:
+            action === 'dispatch'
+              ? 'ISP food is on the way'
+              : 'ISP marked delivery complete',
+          body: `Delivery ${d.delivery_number || d.id} — open to receive / view POD`,
+          href: '/dashboard/schools/deliveries',
+          metadata: { delivery_id: d.id, action },
+        });
+      }
+      if (action === 'receive') {
+        await logNsnpEvent(supabase, {
+          companyId,
+          targetCompanyId: Number(d.isp_profile_id),
+          schoolProfileId: Number(d.school_profile_id),
+          kind: 'delivery_received',
+          title: 'School received your delivery',
+          body: `Delivery ${d.delivery_number || d.id} confirmed into kitchen stock`,
+          href: '/dashboard/schools/deliveries',
+          metadata: { delivery_id: d.id, grn_id: grn?.id },
+        });
       }
 
       return NextResponse.json({ success: true, delivery: updated, grn });

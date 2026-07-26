@@ -596,6 +596,16 @@ function AgencyProfileEditor({
   const [about, setAbout] = useState(
     String(agency.about || agency.description || '')
   );
+  const [tariff, setTariff] = useState(
+    agency.meal_tariff_lunch_zar != null
+      ? String(agency.meal_tariff_lunch_zar)
+      : agency.meal_tariff_zar != null
+        ? String(agency.meal_tariff_zar)
+        : '4.5'
+  );
+  const [claimsLocked, setClaimsLocked] = useState(
+    agency.claims_locked === true
+  );
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
@@ -613,6 +623,9 @@ function AgencyProfileEditor({
           contact_phone: contactPhone,
           about,
           description: about,
+          meal_tariff_zar: Number(tariff) || null,
+          meal_tariff_lunch_zar: Number(tariff) || null,
+          claims_locked: claimsLocked,
         }),
       });
       const data = await res.json();
@@ -684,6 +697,29 @@ function AgencyProfileEditor({
             value={contactPhone}
             onChange={(e) => setContactPhone(e.target.value)}
           />
+        </label>
+        <label className="text-xs">
+          <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+            Lunch meal tariff (ZAR)
+          </span>
+          <input
+            type="number"
+            step="0.01"
+            min={0}
+            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+            value={tariff}
+            onChange={(e) => setTariff(e.target.value)}
+          />
+        </label>
+        <label className="text-xs flex items-center gap-2 pt-5">
+          <input
+            type="checkbox"
+            checked={claimsLocked}
+            onChange={(e) => setClaimsLocked(e.target.checked)}
+          />
+          <span className="font-semibold text-slate-700">
+            Lock all claims (pause school submit)
+          </span>
         </label>
         <label className="text-xs sm:col-span-2">
           <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
