@@ -399,7 +399,7 @@ function Inner() {
         </div>
       ) : null}
 
-      {formOpen ? (
+      {canEdit && formOpen ? (
         <div className="mb-6 rounded-3xl border border-sky-100 bg-sky-50/40 p-5 space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-black">
@@ -633,34 +633,45 @@ function Inner() {
                       {p.active === false ? 'Inactive' : 'Active'}
                     </td>
                     <td className="px-3 py-2.5 text-right">
-                      <div className="inline-flex gap-1">
-                        <button
-                          type="button"
-                          onClick={() => openEdit(p)}
-                          className="rounded-lg border border-slate-200 p-1.5 hover:bg-white"
-                          title="Edit"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                        {p.active === false ? (
+                      {canEdit && !(p as Product & { _national_template?: boolean })._national_template ? (
+                        <div className="inline-flex gap-1">
                           <button
                             type="button"
-                            onClick={() => void reactivate(p)}
-                            className="rounded-lg border border-emerald-200 px-2 py-1 text-[10px] font-bold text-emerald-800"
+                            onClick={() => openEdit(p)}
+                            className="rounded-lg border border-slate-200 p-1.5 hover:bg-white"
+                            title="Edit"
                           >
-                            Reactivate
+                            <Pencil className="w-3.5 h-3.5" />
                           </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => void deactivate(p)}
-                            className="rounded-lg border border-rose-200 p-1.5 hover:bg-rose-50"
-                            title="Deactivate"
-                          >
-                            <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                          </button>
-                        )}
-                      </div>
+                          {p.active === false ? (
+                            <button
+                              type="button"
+                              onClick={() => void reactivate(p)}
+                              className="rounded-lg border border-emerald-200 px-2 py-1 text-[10px] font-bold text-emerald-800"
+                            >
+                              Reactivate
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => void deactivate(p)}
+                              className="rounded-lg border border-rose-200 p-1.5 hover:bg-rose-50"
+                              title="Deactivate"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                            </button>
+                          )}
+                        </div>
+                      ) : (p as Product & { _national_template?: boolean })
+                          ._national_template ? (
+                        <span className="text-[10px] text-slate-400">
+                          Template
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold text-emerald-700">
+                          Mandatory
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))

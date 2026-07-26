@@ -179,6 +179,22 @@ function Inner() {
             </div>
           </div>
 
+          {certs.length > 0 ? (
+            <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm">
+              <p className="font-bold text-emerald-950 mb-1">Certificates</p>
+              <ul className="space-y-1">
+                {certs.map((c) => (
+                  <li key={String(c.id || c.certificate_code)}>
+                    <span className="font-semibold">{String(c.title)}</span>
+                    <span className="text-xs text-emerald-800/80 ml-2 font-mono">
+                      {String(c.certificate_code || '')}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
           <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
             <div className="px-5 py-3 border-b flex items-center gap-2 text-xs font-bold uppercase text-slate-500">
               <Award className="w-4 h-4 text-amber-500" />
