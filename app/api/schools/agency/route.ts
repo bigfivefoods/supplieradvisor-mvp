@@ -301,6 +301,36 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, agency: data });
     }
 
+    // Update DBE / PEU profile fields
+    if (action === 'update_agency') {
+      const patch: Record<string, unknown> = {
+        updated_at: new Date().toISOString(),
+      };
+      for (const k of [
+        'agency_name',
+        'agency_type',
+        'province',
+        'district',
+        'contact_name',
+        'contact_email',
+        'contact_phone',
+        'description',
+        'about',
+      ]) {
+        if (body[k] !== undefined) patch[k] = body[k];
+      }
+      const { data, error } = await supabase
+        .from('nsnp_agency_profiles')
+        .update(patch)
+        .eq('profile_id', companyId)
+        .select('*')
+        .single();
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+      return NextResponse.json({ success: true, agency: data });
+    }
+
     // School joins agency
     if (action === 'join' || action === 'link') {
       const agencyProfileId = Number(body.agency_profile_id);

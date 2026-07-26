@@ -121,6 +121,9 @@ export async function POST(request: NextRequest) {
             food_handling_cert: Boolean(body.food_handling_cert),
             compliance_status: keepCompliant,
             notes: body.notes || null,
+            contact_name: body.contact_name || null,
+            contact_phone: body.contact_phone || null,
+            contact_email: body.contact_email || null,
             updated_at: new Date().toISOString(),
           },
           { onConflict: 'profile_id' }
@@ -146,6 +149,34 @@ export async function POST(request: NextRequest) {
             ? 'ISP registered as pending — DBE/agency must mark compliant before schools should order.'
             : 'ISP profile updated',
       });
+    }
+
+    // Update ISP contact / trading fields (no self-compliant)
+    if (body.action === 'update_isp') {
+      const patch: Record<string, unknown> = {
+        updated_at: new Date().toISOString(),
+      };
+      for (const k of [
+        'trading_name',
+        'provinces',
+        'food_handling_cert',
+        'notes',
+        'contact_name',
+        'contact_phone',
+        'contact_email',
+      ]) {
+        if (body[k] !== undefined) patch[k] = body[k];
+      }
+      const { data, error } = await supabase
+        .from('nsnp_isp_profiles')
+        .update(patch)
+        .eq('profile_id', companyId)
+        .select('*')
+        .single();
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+      return NextResponse.json({ success: true, isp: data });
     }
 
     // School links to ISP

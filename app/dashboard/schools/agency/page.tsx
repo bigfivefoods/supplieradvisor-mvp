@@ -229,12 +229,11 @@ function Inner() {
               you will see their reports and scores.
             </p>
             {myAgency ? (
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm">
-                <strong>{String(myAgency.agency_name)}</strong>
-                <span className="ml-2 text-[10px] font-bold uppercase text-emerald-800">
-                  {String(myAgency.agency_type)} · {String(myAgency.status)}
-                </span>
-              </div>
+              <AgencyProfileEditor
+                companyId={companyId}
+                agency={myAgency}
+                onSaved={() => void load()}
+              />
             ) : (
               <div className="flex flex-wrap gap-2 items-end">
                 <label className="text-xs">
@@ -572,5 +571,131 @@ function Inner() {
         </div>
       )}
     </SchoolsPage>
+  );
+}
+
+function AgencyProfileEditor({
+  companyId,
+  agency,
+  onSaved,
+}: {
+  companyId: number;
+  agency: Record<string, unknown>;
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState(String(agency.agency_name || ''));
+  const [contactName, setContactName] = useState(
+    String(agency.contact_name || '')
+  );
+  const [contactEmail, setContactEmail] = useState(
+    String(agency.contact_email || '')
+  );
+  const [contactPhone, setContactPhone] = useState(
+    String(agency.contact_phone || '')
+  );
+  const [about, setAbout] = useState(
+    String(agency.about || agency.description || '')
+  );
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch('/api/schools/agency', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          action: 'update_agency',
+          agency_name: name,
+          contact_name: contactName,
+          contact_email: contactEmail,
+          contact_phone: contactPhone,
+          about,
+          description: about,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Save failed');
+      toast.success('DBE / PEU profile updated');
+      onSaved();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4 space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <p className="font-black text-slate-900">{String(agency.agency_name)}</p>
+          <span className="text-[10px] font-bold uppercase text-emerald-800">
+            {String(agency.agency_type)} · {String(agency.status)}
+          </span>
+        </div>
+        <button
+          type="button"
+          disabled={saving}
+          onClick={() => void save()}
+          className="btn-primary !py-1.5 !px-3 text-xs"
+        >
+          {saving ? 'Saving…' : 'Save fields'}
+        </button>
+      </div>
+      <div className="grid sm:grid-cols-2 gap-2">
+        <label className="text-xs">
+          <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+            Agency name
+          </span>
+          <input
+            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+        </label>
+        <label className="text-xs">
+          <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+            Contact name
+          </span>
+          <input
+            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+            value={contactName}
+            onChange={(e) => setContactName(e.target.value)}
+          />
+        </label>
+        <label className="text-xs">
+          <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+            Contact email
+          </span>
+          <input
+            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+            value={contactEmail}
+            onChange={(e) => setContactEmail(e.target.value)}
+          />
+        </label>
+        <label className="text-xs">
+          <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+            Contact phone
+          </span>
+          <input
+            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+            value={contactPhone}
+            onChange={(e) => setContactPhone(e.target.value)}
+          />
+        </label>
+        <label className="text-xs sm:col-span-2">
+          <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+            About / notes
+          </span>
+          <textarea
+            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white min-h-[64px]"
+            value={about}
+            onChange={(e) => setAbout(e.target.value)}
+          />
+        </label>
+      </div>
+    </div>
   );
 }

@@ -496,6 +496,12 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         group: 'School',
       },
       {
+        name: 'Deliver',
+        href: '/dashboard/schools/deliveries',
+        desc: 'ISP supply · receive · POD & invoices',
+        group: 'School',
+      },
+      {
         name: 'Survey',
         href: '/dashboard/schools/surveys',
         desc: 'Learner & parent meal feedback',
@@ -531,6 +537,12 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         name: 'Network',
         href: '/dashboard/schools/isps',
         desc: 'Register ISP · link to schools · vet compliance',
+        group: 'ISP',
+      },
+      {
+        name: 'Deliver',
+        href: '/dashboard/schools/deliveries',
+        desc: 'Dispatch · POD · invoice · school receive',
         group: 'ISP',
       },
       {

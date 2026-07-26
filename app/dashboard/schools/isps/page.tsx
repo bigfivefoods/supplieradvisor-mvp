@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Loader2, RefreshCw, Link2, Building2 } from 'lucide-react';
+import Link from 'next/link';
+import { Loader2, RefreshCw, Link2, Building2, Truck } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import {
@@ -62,7 +63,10 @@ function Inner() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
-      toast.success('Registered as NSNP ISP (compliant)');
+      toast.success(
+        data.message ||
+          'Registered as NSNP ISP (pending DBE/agency vetting)'
+      );
       void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed');
@@ -96,12 +100,18 @@ function Inner() {
         description="Independent Service Providers deliver only NSNP-approved brands to your kitchen."
         action={
           <div className="flex flex-wrap gap-2">
+            <Link
+              href="/dashboard/schools/deliveries"
+              className="btn-primary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+            >
+              <Truck className="w-3.5 h-3.5" /> Deliveries · POD
+            </Link>
             <button
               type="button"
               onClick={() => void registerAsIsp()}
               className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1"
             >
-              <Building2 className="w-3.5 h-3.5" /> Register my company as ISP
+              <Building2 className="w-3.5 h-3.5" /> Register as ISP
             </button>
             <button
               type="button"
