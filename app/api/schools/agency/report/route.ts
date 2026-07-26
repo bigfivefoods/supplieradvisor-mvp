@@ -783,7 +783,7 @@ export async function GET(request: NextRequest) {
         })),
     };
 
-    const byMemberType = groupSum(members, (m) =>
+    const byMemberType = groupSum(members, (m: GroupableMember) =>
       facilityLabel(m.member_type, { plural: true })
     );
 
@@ -1171,20 +1171,23 @@ function avg(nums: number[]): number | null {
   return Math.round((nums.reduce((a, b) => a + b, 0) / nums.length) * 10) / 10;
 }
 
+/** Shape required for geographic / member-type rollups (not full MemberRow). */
+type GroupableMember = {
+  province?: string | null;
+  district?: string | null;
+  circuit?: string | null;
+  member_type?: string | null;
+  quintile?: number | null;
+  learners_enrolled: number;
+  learners_verified: number;
+  meals_served: number;
+  po_spend: number;
+  prize_score: number | null;
+};
+
 function groupSum(
-  members: Array<{
-    province?: string | null;
-    district?: string | null;
-    circuit?: string | null;
-    member_type?: string | null;
-    quintile?: number | null;
-    learners_enrolled: number;
-    learners_verified: number;
-    meals_served: number;
-    po_spend: number;
-    prize_score: number | null;
-  }>,
-  keyFn: (m: (typeof members)[0]) => string
+  members: GroupableMember[],
+  keyFn: (m: GroupableMember) => string
 ) {
   const map = new Map<
     string,
