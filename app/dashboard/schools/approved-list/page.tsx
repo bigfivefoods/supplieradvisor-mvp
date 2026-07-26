@@ -291,9 +291,9 @@ function Inner() {
         }
         description={
           canEdit
-            ? 'You set the official foods/brands list. Approved schools and ISPs may only buy and supply these items. Headmasters earn quarterly prizes for compliance.'
+            ? 'You publish the only foods schools, clinics and hospitals may order. ISPs must supply these items. That list drives prize scores, preferred-supplier status, and claim funding.'
             : catalogue?.message ||
-              'Only DBE-approved brands/products may be ordered or received. Compliance feeds the quarterly headmaster prize.'
+              'Only DBE/DoH approved brands may be ordered or received. That protects claim funding, headmaster prizes, and ISP preferred status.'
         }
         action={
           <div className="flex flex-wrap gap-2">

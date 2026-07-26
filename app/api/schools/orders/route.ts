@@ -78,6 +78,19 @@ export async function POST(request: NextRequest) {
     const catalogue = await resolveCatalogueContext(supabase, companyId, {
       schoolProfileId: Number(school.id),
     });
+
+    // Schools/clinics under a programme must be agency-linked to order
+    if (!catalogue.agencyProfileId) {
+      return NextResponse.json(
+        {
+          error:
+            'Join and get approved by your DBE / PEU / DoH before ordering. Orders only use that department’s approved foods list.',
+          catalogue: { source: catalogue.source },
+        },
+        { status: 400 }
+      );
+    }
+
     const productIds = rawLines
       .map((l: { approved_product_id?: number }) => Number(l.approved_product_id))
       .filter((n: number) => Number.isFinite(n));
@@ -91,8 +104,8 @@ export async function POST(request: NextRequest) {
     const lines: SchoolPoLine[] = [];
     const rejected: string[] = [];
     const listLabel = catalogue.agencyName
-      ? `${catalogue.agencyName} approved list`
-      : 'NSNP approved list';
+      ? `${catalogue.agencyName} approved foods list`
+      : 'department approved foods list';
     for (const l of rawLines) {
       const pid = Number(l.approved_product_id);
       const prod = byId.get(pid);
@@ -115,6 +128,27 @@ export async function POST(request: NextRequest) {
         unit_price: Number(l.unit_price || 0),
         uom: String(l.uom || prod.uom || 'kg'),
       });
+    }
+
+    // Strict: entire PO rejected if any line is off-catalogue (no partial POs)
+    if (rejected.length > 0 || lines.length !== rawLines.length) {
+      return NextResponse.json(
+        {
+          error: `PO rejected — schools may only order products on the ${listLabel}. Every line must be approved (protects claims & headmaster prize).`,
+          rejected:
+            rejected.length > 0
+              ? rejected
+              : ['One or more lines missing a valid approved_product_id'],
+          catalogue: {
+            agencyName: catalogue.agencyName,
+            agencyProfileId: catalogue.agencyProfileId,
+            source: catalogue.source,
+          },
+          incentive:
+            'Approved-only orders raise prize score (55% weight) and keep claim funding at 100%.',
+        },
+        { status: 400 }
+      );
     }
 
     if (!lines.length) {
@@ -172,11 +206,8 @@ export async function POST(request: NextRequest) {
         total_amount: Math.round(total * 100) / 100,
         currency: body.currency || 'ZAR',
         lines,
-        compliance_ok: rejected.length === 0,
-        notes:
-          rejected.length > 0
-            ? `Partial: ${rejected.join('; ')}`
-            : body.notes || null,
+        compliance_ok: true,
+        notes: body.notes || null,
         created_by: gate.userId || null,
       })
       .select('*')
@@ -188,7 +219,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       order: data,
-      rejected,
+      catalogue: {
+        agencyName: catalogue.agencyName,
+        agencyProfileId: catalogue.agencyProfileId,
+      },
+      incentive:
+        'Approved-only PO logged — counts toward headmaster prize and full claim funding.',
     });
   } catch (e: unknown) {
     return NextResponse.json(

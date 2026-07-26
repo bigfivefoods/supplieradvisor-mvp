@@ -6,9 +6,14 @@ import {
 } from '@/lib/auth/api-auth';
 import { getOrCreateSchoolProfile } from '@/lib/schools/school-context';
 import { getAgencyRegistration } from '@/lib/schools/approved-catalogue';
+import {
+  computeIspIncentive,
+  ISP_APPROVED_INCENTIVE_COPY,
+} from '@/lib/schools/incentives';
 
 /**
- * W3 ISP SLA scorecard for school or agency network.
+ * ISP SLA + approved-product incentive scorecard (school or agency network).
+ * Preferred suppliers = high % on-catalogue deliveries → schools should order from them.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -143,29 +148,29 @@ export async function GET(request: NextRequest) {
 
     const rows = [...byIsp.values()]
       .map((m) => {
-        const compliance_pct =
-          m.deliveries > 0
-            ? Math.round((m.approved_ok / m.deliveries) * 1000) / 10
-            : 100;
-        // OTIFEF proxy: compliance + delivery volume (simplified)
-        const otifef_pct = compliance_pct;
+        const incentive = computeIspIncentive({
+          deliveries: m.deliveries,
+          approved_ok: m.approved_ok,
+          wrong_brand: m.wrong_brand,
+        });
         return {
           ...m,
           name: names[m.isp_profile_id] || `ISP ${m.isp_profile_id}`,
-          compliance_pct,
-          otifef_pct,
+          compliance_pct: incentive.compliance_pct,
+          otifef_pct: incentive.compliance_pct,
+          incentive_score: incentive.score,
+          badge: incentive.badge,
+          incentive_note: incentive.incentive_note,
           spend: Math.round(m.spend * 100) / 100,
-          status:
-            compliance_pct >= 95
-              ? 'excellent'
-              : compliance_pct >= 80
-                ? 'ok'
-                : compliance_pct >= 60
-                  ? 'watch'
-                  : 'probation',
+          status: incentive.status,
+          preferred: incentive.status === 'preferred',
         };
       })
-      .sort((a, b) => b.deliveries - a.deliveries);
+      // Preferred / high incentive score first — school incentive to pick them
+      .sort(
+        (a, b) =>
+          b.incentive_score - a.incentive_score || b.deliveries - a.deliveries
+      );
 
     const totalDel = rows.reduce((n, r) => n + r.deliveries, 0);
     const totalOk = rows.reduce((n, r) => n + r.approved_ok, 0);
@@ -174,6 +179,7 @@ export async function GET(request: NextRequest) {
       success: true,
       period: { from, to },
       isps: rows,
+      policy: ISP_APPROVED_INCENTIVE_COPY,
       summary: {
         deliveries: totalDel,
         otifef_pct:
@@ -181,6 +187,7 @@ export async function GET(request: NextRequest) {
             ? Math.round((totalOk / totalDel) * 1000) / 10
             : null,
         isp_count: rows.length,
+        preferred: rows.filter((r) => r.preferred).length,
         probation: rows.filter((r) => r.status === 'probation').length,
       },
     });

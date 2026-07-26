@@ -146,18 +146,36 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // Strict mode: reject entire GRN if any non-approved
+      // Strict mode (default): reject entire GRN if any non-approved
       const strict = body.strict !== false;
       if (strict && !allApproved) {
+        try {
+          await supabase.from('school_compliance_events').insert({
+            school_profile_id: schoolId,
+            profile_id: companyId,
+            kind: 'non_approved_grn_attempt',
+            title: 'Blocked off-catalogue GRN',
+            status: 'open',
+            severity: 'high',
+            event_date: new Date().toISOString().slice(0, 10),
+            body: `Receive attempt rejected — only items on the ${listLabel} may enter kitchen stock.`,
+            metadata: { rejected_lines: lines.filter((l) => !l.approved) },
+            created_by: gate.userId || null,
+          });
+        } catch {
+          /* soft */
+        }
         return NextResponse.json(
           {
-            error: `GRN rejected — ISPs may only deliver items on the ${listLabel}`,
+            error: `GRN rejected — kitchens may only receive products on the ${listLabel}`,
             lines,
             compliance_ok: false,
             catalogue: {
               agencyName: catalogue.agencyName,
               source: catalogue.source,
             },
+            incentive:
+              'Receiving only approved foods protects claim funding and headmaster prize score.',
           },
           { status: 400 }
         );

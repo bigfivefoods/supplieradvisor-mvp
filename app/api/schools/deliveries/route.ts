@@ -590,22 +590,52 @@ async function postGrnFromDelivery(
 ): Promise<Record<string, unknown> | null> {
   try {
     const schoolId = Number(delivery.school_profile_id);
+    const schoolCompanyId = Number(
+      delivery.school_company_id || companyId
+    );
     const lines = (
       Array.isArray(delivery.lines) ? delivery.lines : []
     ) as DeliveryLine[];
+
+    // Re-validate every line against the school's DBE/DoH approved catalogue
+    const {
+      resolveCatalogueContext,
+      filterApprovedProductIds,
+    } = await import('@/lib/schools/approved-catalogue');
+    const catalogue = await resolveCatalogueContext(
+      supabase,
+      schoolCompanyId,
+      { schoolProfileId: schoolId }
+    );
+    const productIds = lines
+      .map((l) => Number(l.approved_product_id))
+      .filter((n) => Number.isFinite(n) && n > 0);
+    const byId = await filterApprovedProductIds(
+      supabase,
+      catalogue.agencyProfileId,
+      productIds
+    );
+
     const grnLines = lines
       .map((l) => {
         const qty = Number(
           l.qty_received ?? l.qty_delivered ?? l.qty_ordered ?? 0
         );
         if (!(qty > 0)) return null;
+        const pid = Number(l.approved_product_id);
+        const prod = Number.isFinite(pid) ? byId.get(pid) : undefined;
+        const approved = Boolean(prod && prod.active !== false);
         return {
-          approved_product_id: l.approved_product_id || null,
-          product_name: l.product_name,
-          brand_name: l.brand_name,
+          approved_product_id: approved ? pid : null,
+          product_name: String(
+            (prod?.name as string) || l.product_name || 'Unknown'
+          ),
+          brand_name: String(
+            (prod?.brand_name as string) || l.brand_name || 'Unknown'
+          ),
           qty,
-          uom: l.uom || 'kg',
-          approved: Boolean(l.approved_product_id),
+          uom: String(l.uom || prod?.uom || 'kg'),
+          approved,
         };
       })
       .filter(Boolean) as Array<{
@@ -619,53 +649,81 @@ async function postGrnFromDelivery(
 
     if (!grnLines.length) return null;
 
+    // Stock only approved lines — off-catalogue never enters kitchen stock
+    const approvedStockLines = grnLines.filter((l) => l.approved);
+    const complianceOk = grnLines.every((l) => l.approved);
+
+    if (!complianceOk) {
+      try {
+        await supabase.from('school_compliance_events').insert({
+          school_profile_id: schoolId,
+          profile_id: schoolCompanyId,
+          kind: 'non_approved_delivery',
+          title: 'Off-catalogue products on delivery GRN',
+          status: 'open',
+          severity: 'high',
+          event_date: new Date().toISOString().slice(0, 10),
+          body: `Delivery ${delivery.delivery_number || delivery.id}: only department-approved foods may be received. ISP ${delivery.isp_profile_id || '?'}.`,
+          metadata: {
+            delivery_id: delivery.id,
+            isp_profile_id: delivery.isp_profile_id,
+            off_catalogue: grnLines.filter((l) => !l.approved),
+            agency: catalogue.agencyName,
+          },
+          created_by: userId || null,
+        });
+      } catch {
+        /* soft */
+      }
+    }
+
+    const receiptPayload = {
+      school_profile_id: schoolId,
+      profile_id: schoolCompanyId,
+      isp_profile_id: delivery.isp_profile_id
+        ? Number(delivery.isp_profile_id)
+        : null,
+      po_id: delivery.po_id ? Number(delivery.po_id) : null,
+      purchase_order_id: delivery.po_id ? Number(delivery.po_id) : null,
+      receipt_number: `GRN-${String(delivery.delivery_number || delivery.id)}`,
+      received_at: new Date().toISOString().slice(0, 10),
+      status: 'posted',
+      compliance_ok: complianceOk,
+      // Persist all lines for audit; stock only uses approved
+      lines: grnLines,
+      notes: `From delivery ${delivery.delivery_number || delivery.id}${
+        complianceOk ? '' : ' · OFF-CATALOGUE LINES FLAGGED'
+      }`,
+      created_by: userId || null,
+    };
+
     const { data: receipt, error } = await supabase
       .from('school_kitchen_receipts')
-      .insert({
-        school_profile_id: schoolId,
-        profile_id: companyId,
-        isp_profile_id: delivery.isp_profile_id
-          ? Number(delivery.isp_profile_id)
-          : null,
-        po_id: delivery.po_id ? Number(delivery.po_id) : null,
-        purchase_order_id: delivery.po_id ? Number(delivery.po_id) : null,
-        receipt_number: `GRN-${String(delivery.delivery_number || delivery.id)}`,
-        received_at: new Date().toISOString().slice(0, 10),
-        status: 'posted',
-        compliance_ok: grnLines.every((l) => l.approved),
-        lines: grnLines,
-        notes: `From delivery ${delivery.delivery_number || delivery.id}`,
-        created_by: userId || null,
-      })
+      .insert(receiptPayload)
       .select('*')
       .single();
 
     if (error || !receipt) {
       // soft without po_id
+      const soft = { ...receiptPayload } as Record<string, unknown>;
+      delete soft.po_id;
+      delete soft.purchase_order_id;
+      soft.receipt_number = `GRN-D${delivery.id}`;
       const retry = await supabase
         .from('school_kitchen_receipts')
-        .insert({
-          school_profile_id: schoolId,
-          profile_id: companyId,
-          isp_profile_id: delivery.isp_profile_id
-            ? Number(delivery.isp_profile_id)
-            : null,
-          receipt_number: `GRN-D${delivery.id}`,
-          received_at: new Date().toISOString().slice(0, 10),
-          status: 'posted',
-          compliance_ok: true,
-          lines: grnLines,
-          notes: `From delivery ${delivery.id}`,
-          created_by: userId || null,
-        })
+        .insert(soft)
         .select('*')
         .single();
       if (retry.error || !retry.data) return null;
-      await upsertStock(supabase, schoolId, companyId, grnLines);
+      if (approvedStockLines.length) {
+        await upsertStock(supabase, schoolId, schoolCompanyId, approvedStockLines);
+      }
       return retry.data as Record<string, unknown>;
     }
 
-    await upsertStock(supabase, schoolId, companyId, grnLines);
+    if (approvedStockLines.length) {
+      await upsertStock(supabase, schoolId, schoolCompanyId, approvedStockLines);
+    }
     return receipt as Record<string, unknown>;
   } catch {
     return null;

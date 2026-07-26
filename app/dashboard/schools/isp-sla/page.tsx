@@ -62,8 +62,8 @@ function Inner() {
     <SchoolsPage>
       <SchoolsHeader
         title="ISP SLA"
-        titleAccent="Delivery quality"
-        description="On-brand deliveries, wrong-brand flags, spend, and probation status for Independent Service Providers."
+        titleAccent="Approved-product incentive"
+        description="ISPs that deliver only DBE/DoH approved products become preferred suppliers. Schools earn prizes and full claims when they buy from them."
         action={
           <button type="button" onClick={() => void load()} className="btn-secondary !py-2 !px-3 text-xs">
             <RefreshCw className="w-3.5 h-3.5" />
@@ -72,19 +72,29 @@ function Inner() {
       />
       <PeriodSlicer value={period} onChange={setPeriod} className="mb-4" />
 
+      <div className="mb-4 rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-950">
+        <strong>Incentive loop:</strong> ISP stays on the department catalogue →
+        preferred badge → more school orders → school prize & claim scores stay
+        high. Wrong-brand deliveries push ISPs into probation.
+      </div>
+
       {summary ? (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
           <div className="rounded-2xl border border-slate-200 bg-white p-4">
             <div className="text-[10px] font-bold uppercase text-slate-400">Deliveries</div>
             <div className="text-2xl font-black">{Number(summary.deliveries || 0)}</div>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-4">
-            <div className="text-[10px] font-bold uppercase text-slate-400">Compliance %</div>
+            <div className="text-[10px] font-bold uppercase text-slate-400">On-catalogue %</div>
             <div className="text-2xl font-black">{summary.otifef_pct != null ? `${summary.otifef_pct}%` : '—'}</div>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-4">
             <div className="text-[10px] font-bold uppercase text-slate-400">ISPs</div>
             <div className="text-2xl font-black">{Number(summary.isp_count || 0)}</div>
+          </div>
+          <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4">
+            <div className="text-[10px] font-bold uppercase text-emerald-800/70">Preferred</div>
+            <div className="text-2xl font-black">{Number(summary.preferred || 0)}</div>
           </div>
           <div className="rounded-2xl border border-amber-100 bg-amber-50/50 p-4">
             <div className="text-[10px] font-bold uppercase text-amber-800/70">Probation</div>
@@ -104,11 +114,11 @@ function Inner() {
               <tr className="border-b text-left text-[10px] font-bold uppercase text-slate-400">
                 <th className="px-4 py-3">ISP</th>
                 <th className="px-3 py-3 text-right">Deliveries</th>
-                <th className="px-3 py-3 text-right">On-brand</th>
+                <th className="px-3 py-3 text-right">On-catalogue</th>
                 <th className="px-3 py-3 text-right">Wrong brand</th>
                 <th className="px-3 py-3 text-right">Spend</th>
-                <th className="px-3 py-3 text-right">Compliance</th>
-                <th className="px-3 py-3">Status</th>
+                <th className="px-3 py-3 text-right">Incentive</th>
+                <th className="px-3 py-3">Badge</th>
               </tr>
             </thead>
             <tbody>
@@ -120,17 +130,38 @@ function Inner() {
                 </tr>
               ) : (
                 isps.map((i) => (
-                  <tr key={String(i.isp_profile_id)} className="border-b border-slate-50">
-                    <td className="px-4 py-2.5 font-semibold inline-flex items-center gap-1">
-                      <Truck className="w-3.5 h-3.5 text-[#00b4d8]" />
-                      {String(i.name)}
+                  <tr
+                    key={String(i.isp_profile_id)}
+                    className={`border-b border-slate-50 ${
+                      i.preferred ? 'bg-emerald-50/40' : ''
+                    }`}
+                  >
+                    <td className="px-4 py-2.5 font-semibold">
+                      <span className="inline-flex items-center gap-1">
+                        <Truck className="w-3.5 h-3.5 text-[#00b4d8]" />
+                        {String(i.name)}
+                      </span>
                     </td>
                     <td className="px-3 py-2.5 text-right tabular-nums">{Number(i.deliveries || 0)}</td>
                     <td className="px-3 py-2.5 text-right tabular-nums">{Number(i.approved_ok || 0)}</td>
                     <td className="px-3 py-2.5 text-right tabular-nums text-rose-700">{Number(i.wrong_brand || 0)}</td>
                     <td className="px-3 py-2.5 text-right font-bold tabular-nums">{formatMoney(Number(i.spend || 0))}</td>
-                    <td className="px-3 py-2.5 text-right font-black tabular-nums">{Number(i.compliance_pct || 0)}%</td>
-                    <td className="px-3 py-2.5 text-xs font-bold uppercase">{String(i.status)}</td>
+                    <td className="px-3 py-2.5 text-right font-black tabular-nums">
+                      {Number(i.incentive_score ?? i.compliance_pct ?? 0)}%
+                    </td>
+                    <td className="px-3 py-2.5 text-[11px] font-bold">
+                      <span
+                        className={
+                          i.preferred || i.status === 'excellent'
+                            ? 'text-emerald-800'
+                            : i.status === 'probation'
+                              ? 'text-rose-700'
+                              : 'text-slate-600'
+                        }
+                      >
+                        {String(i.badge || i.status)}
+                      </span>
+                    </td>
                   </tr>
                 ))
               )}

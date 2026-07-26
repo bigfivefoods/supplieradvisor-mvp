@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Loader2, Plus, RefreshCw } from 'lucide-react';
+import Link from 'next/link';
+import { Loader2, Plus, RefreshCw, Trophy, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { formatMoney } from '@/lib/accounting/types';
@@ -48,6 +49,7 @@ function Inner() {
     }>
   >([]);
   const [submitting, setSubmitting] = useState(false);
+  const [catalogueLabel, setCatalogueLabel] = useState('department approved list');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -70,6 +72,11 @@ function Inner() {
       setOrders(o.orders || []);
       setProducts(p.products || []);
       setLinks(i.links || []);
+      if (p.catalogue?.agencyName) {
+        setCatalogueLabel(`${p.catalogue.agencyName} approved foods`);
+      } else if (p.agencyName) {
+        setCatalogueLabel(`${p.agencyName} approved foods`);
+      }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Load failed');
     } finally {
@@ -133,7 +140,7 @@ function Inner() {
       <SchoolsHeader
         title="Kitchen orders"
         titleAccent="Approved only"
-        description="Raise POs to ISPs. Every line is validated against the strict NSNP approved list."
+        description="Schools and clinics may only order products on their DBE/DoH approved list. That protects claim funding and headmaster prize score."
         action={
           <div className="flex gap-2">
             <button
@@ -153,6 +160,46 @@ function Inner() {
           </div>
         }
       />
+
+      <div className="mb-4 grid sm:grid-cols-2 gap-3">
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 px-4 py-3 text-sm text-emerald-950 flex gap-2">
+          <ShieldCheck className="w-5 h-5 shrink-0 text-emerald-700" />
+          <div>
+            <p className="font-black text-xs uppercase tracking-wide">
+              Hard gate · {catalogueLabel}
+            </p>
+            <p className="text-[13px] mt-0.5">
+              Every PO line must be on the department list. Off-catalogue
+              products are rejected — not partial-accepted.
+            </p>
+          </div>
+        </div>
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-950 flex gap-2">
+          <Trophy className="w-5 h-5 shrink-0 text-amber-700" />
+          <div>
+            <p className="font-black text-xs uppercase tracking-wide">
+              Incentive · prizes & claims
+            </p>
+            <p className="text-[13px] mt-0.5">
+              Approved-brand spend is ~55% of the headmaster prize. Claims need
+              ≥98% on-catalogue GRNs for full funding.{' '}
+              <Link
+                href="/dashboard/schools/prizes"
+                className="font-bold underline"
+              >
+                Prize score
+              </Link>
+              {' · '}
+              <Link
+                href="/dashboard/schools/claims"
+                className="font-bold underline"
+              >
+                Claims
+              </Link>
+            </p>
+          </div>
+        </div>
+      </div>
 
       {showForm ? (
         <div className="mb-6 rounded-3xl border border-sky-100 bg-sky-50/40 p-5 space-y-3">

@@ -10,6 +10,11 @@ import {
   computeClaimAmount,
   countWeekdays,
 } from '@/lib/schools/process';
+import {
+  applyApprovedProductClaimIncentive,
+  CLAIM_APPROVED_MIN_PCT,
+  SCHOOL_APPROVED_INCENTIVE_COPY,
+} from '@/lib/schools/incentives';
 
 /**
  * W2 claim / funding pack: cost per meal, days fed, claim CSV payload.
@@ -177,6 +182,12 @@ export async function GET(request: NextRequest) {
       tariffZar: tariff,
     });
 
+    // Funding incentive: only full claim when kitchen buys approved products
+    const approvedIncentive = applyApprovedProductClaimIncentive({
+      claimAmount: claim.claimAmount,
+      approvedBrandPct,
+    });
+
     // Require agency link for full claim eligibility
     const { data: agencyLink } = await supabase
       .from('school_agency_links')
@@ -185,6 +196,22 @@ export async function GET(request: NextRequest) {
       .eq('status', 'active')
       .limit(1)
       .maybeSingle();
+
+    const approvedBlocked = Boolean(approvedIncentive.block_reason);
+    const submitBlock =
+      periodLocked
+        ? 'Agency locked this claim period'
+        : agencyClaimsLocked
+          ? 'Agency has claims locked'
+          : !agencyLink
+            ? 'Need active DBE/PEU/DoH association'
+            : mealsServed <= 0
+              ? 'No meals served in period'
+              : approvedBlocked
+                ? approvedIncentive.block_reason
+                : approvedBrandPct < CLAIM_APPROVED_MIN_PCT
+                  ? `Approved foods ${approvedBrandPct}% — need ≥${CLAIM_APPROVED_MIN_PCT}% for full claim submit (order only from department list)`
+                  : null;
 
     const pack = {
       school_name: school.school_name,
@@ -203,26 +230,26 @@ export async function GET(request: NextRequest) {
       feeding_completeness_pct: feedingCompletenessPct,
       agency: catalogue.agencyName,
       agency_linked: Boolean(agencyLink),
-      claim_amount: claim.claimAmount,
+      claim_amount: approvedIncentive.claim_amount,
+      claim_amount_full: approvedIncentive.claim_amount_full,
+      claim_clawback_pct: approvedIncentive.clawback_pct,
+      claim_eligible_full: approvedIncentive.eligible_full,
       claim_tariff_zar: claim.tariff,
       claim_method: claim.method,
       cost_evidence: claim.costEvidence,
       period_locked: periodLocked || agencyClaimsLocked,
+      approved_min_pct: CLAIM_APPROVED_MIN_PCT,
+      incentive_note: approvedIncentive.incentive_note,
+      policy: SCHOOL_APPROVED_INCENTIVE_COPY,
       submit_ready:
         Boolean(agencyLink) &&
         mealsServed > 0 &&
         daysFed > 0 &&
         !periodLocked &&
-        !agencyClaimsLocked,
-      submit_block_reason: periodLocked
-        ? 'Agency locked this claim period'
-        : agencyClaimsLocked
-          ? 'Agency has claims locked'
-          : !agencyLink
-            ? 'Need active DBE/PEU association'
-            : mealsServed <= 0
-              ? 'No meals served in period'
-              : null,
+        !agencyClaimsLocked &&
+        approvedBrandPct >= CLAIM_APPROVED_MIN_PCT &&
+        !approvedBlocked,
+      submit_block_reason: submitBlock,
     };
 
     return NextResponse.json({

@@ -103,8 +103,8 @@ function Inner() {
     <SchoolsPage>
       <SchoolsHeader
         title="Claims & cost"
-        titleAccent="Funding pack"
-        description="Days fed, meals served, food spend, cost per meal, brand compliance — ready for PEU/province claims."
+        titleAccent="Approved foods unlock funding"
+        description="Full claim funding requires on-catalogue kitchen receipts (≥98% approved). That is the main financial incentive to only buy DBE/DoH listed products."
         action={
           <div className="flex gap-2">
             <button type="button" onClick={exportCsv} className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1">
@@ -190,17 +190,32 @@ function Inner() {
           <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 mb-4">
             <p className="font-bold text-slate-900">How claim amount works</p>
             <p className="text-xs mt-1">
-              Funding = meals served × NSNP meal tariff (
-              {formatMoney(Number(pack.claim_tariff_zar || 0))}). Food spend is
-              cost evidence for auditors — not the claim total. Method:{' '}
+              Base funding = meals served × department meal tariff (
+              {formatMoney(Number(pack.claim_tariff_zar || 0))}). Then scaled by
+              approved-foods adherence — off-catalogue GRNs reduce the claim.
+              Method:{' '}
               <code className="text-[10px]">
                 {String(pack.claim_method || 'tariff_x_meals')}
               </code>
               .
               {pack.agency_linked
-                ? ' DBE/PEU link: active.'
-                : ' Join & get DBE/PEU approval before submit.'}
+                ? ' DBE/PEU/DoH link: active.'
+                : ' Join & get department approval before submit.'}
             </p>
+            {pack.incentive_note ? (
+              <p className="text-xs mt-2 text-emerald-900 font-medium">
+                {String(pack.incentive_note)}
+              </p>
+            ) : null}
+            {pack.claim_amount_full != null &&
+            Number(pack.claim_amount_full) !== Number(pack.claim_amount) ? (
+              <p className="text-xs mt-1 text-rose-800">
+                Full tariff claim {formatMoney(Number(pack.claim_amount_full))} →
+                after approved-product clawback{' '}
+                {formatMoney(Number(pack.claim_amount))} (
+                {String(pack.claim_clawback_pct)}% reduction).
+              </p>
+            ) : null}
           </div>
 
           {pack.submit_block_reason ? (

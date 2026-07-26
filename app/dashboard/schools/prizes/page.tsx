@@ -70,7 +70,7 @@ function Inner() {
       <SchoolsHeader
         title="Headmaster prizes"
         titleAccent="Quarterly"
-        description="Every quarter, headmasters are ranked on buying only DBE-approved foods (40% of score), zero non-approved GRNs, feeding completeness, and data quality. Win recognition and prizes for compliance."
+        description="Quarterly headmaster prize: ~55% of points for approved-brand procurement and zero off-catalogue GRNs. Same list that unlocks full claim funding."
         action={
           <button
             type="button"
@@ -89,14 +89,22 @@ function Inner() {
       ) : (
         <>
           <div className="mb-4 rounded-2xl border border-sky-100 bg-sky-50/80 px-4 py-3 text-sm text-slate-700">
-            <strong>How to win:</strong> order and receive only items on the{' '}
+            <strong>Incentive stack:</strong> order & receive only items on the{' '}
             <a
               href="/dashboard/schools/approved-list"
               className="font-bold text-[#0077b6] underline"
             >
-              DBE approved foods list
+              DBE/DoH approved foods list
             </a>
-            . Approved-brand spend is the largest prize pillar every quarter.
+            . That wins prize points <em>and</em> keeps claim funding at 100%.
+            Prefer ISPs marked preferred on{' '}
+            <a
+              href="/dashboard/schools/isp-sla"
+              className="font-bold text-[#0077b6] underline"
+            >
+              ISP SLA
+            </a>
+            .
           </div>
 
           <div className="mb-6 rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-6 flex flex-wrap items-center gap-6">
