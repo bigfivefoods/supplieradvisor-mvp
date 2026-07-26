@@ -7,8 +7,10 @@ import {
   Download,
   Landmark,
   Loader2,
+  MapPinned,
   RefreshCw,
   School,
+  Truck,
   Trophy,
   Users,
   UtensilsCrossed,
@@ -29,11 +31,14 @@ import {
 
 const REPORTS = [
   { id: 'overview', label: 'Overview' },
+  { id: 'coverage', label: 'Coverage · geo' },
   { id: 'claims', label: 'Claims inbox' },
   { id: 'members', label: 'Organisations' },
   { id: 'province', label: 'By province' },
   { id: 'district', label: 'By district' },
+  { id: 'circuit', label: 'By circuit' },
   { id: 'quintile', label: 'By quintile' },
+  { id: 'isps', label: 'ISPs' },
   { id: 'prizes', label: 'Prize board' },
   { id: 'feeding', label: 'Feeding' },
   { id: 'risks', label: 'Risks' },
@@ -127,7 +132,19 @@ function Inner() {
   const members = (data?.members || []) as Member[];
   const byProvince = (data?.byProvince || []) as Array<Record<string, unknown>>;
   const byDistrict = (data?.byDistrict || []) as Array<Record<string, unknown>>;
+  const byCircuit = (data?.byCircuit ||
+    data?.schoolsByCircuit ||
+    []) as Array<Record<string, unknown>>;
   const byQuintile = (data?.byQuintile || []) as Array<Record<string, unknown>>;
+  const coverageByProvince = (data?.coverageByProvince ||
+    []) as Array<Record<string, unknown>>;
+  const coverageByDistrict = (data?.coverageByDistrict ||
+    []) as Array<Record<string, unknown>>;
+  const ispsByProvince = (data?.ispsByProvince ||
+    []) as Array<Record<string, unknown>>;
+  const ispsByDistrict = (data?.ispsByDistrict ||
+    []) as Array<Record<string, unknown>>;
+  const ispList = (data?.isps || []) as Array<Record<string, unknown>>;
   const prizeBoard = (data?.prizeLeaderboard || []) as Array<
     Record<string, unknown>
   >;
@@ -181,6 +198,83 @@ function Inner() {
   }, [members, q]);
 
   const exportCsv = () => {
+    // Coverage export when on geo tabs
+    if (
+      report === 'coverage' ||
+      report === 'province' ||
+      report === 'district'
+    ) {
+      const rows =
+        report === 'district' ||
+        (report === 'coverage' && coverageByDistrict.length)
+          ? coverageByDistrict.length
+            ? coverageByDistrict
+            : byDistrict
+          : coverageByProvince.length
+            ? coverageByProvince
+            : byProvince;
+      const lines = [
+        'region,schools,learners,verified,meals_served,po_spend,isps,isps_active,isps_pending',
+      ];
+      for (const r of rows) {
+        lines.push(
+          [
+            csv(String(r.key || '')),
+            Number(r.schools ?? r.organisations ?? 0),
+            Number(r.learners || 0),
+            Number(r.verified || 0),
+            Number(r.meals_served || 0),
+            Number(r.po_spend || 0),
+            Number(r.isps || 0),
+            Number(r.isps_active || 0),
+            Number(r.isps_pending || 0),
+          ].join(',')
+        );
+      }
+      const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `dbe-coverage-${report}-${period.from}_${period.to}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      return;
+    }
+
+    if (report === 'isps') {
+      const lines = [
+        'name,status,provinces,schools_linked,districts_served,compliance',
+      ];
+      for (const i of ispList) {
+        lines.push(
+          [
+            csv(String(i.name || '')),
+            String(i.status || ''),
+            csv(
+              Array.isArray(i.provinces)
+                ? (i.provinces as string[]).join('; ')
+                : ''
+            ),
+            Number(i.schools_linked || 0),
+            csv(
+              Array.isArray(i.districts_served)
+                ? (i.districts_served as string[]).join('; ')
+                : ''
+            ),
+            String(i.compliance_status || ''),
+          ].join(',')
+        );
+      }
+      const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `dbe-isps-${period.from}_${period.to}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      return;
+    }
+
     const lines = [
       'name,emis,province,district,quintile,learners,verified,eligible,verify_pct,meals_served,meals_waste,po_spend,approved_brand_pct,prize_score,open_compliance',
     ];
@@ -246,7 +340,7 @@ function Inner() {
       <SchoolsHeader
         title="Agency reports"
         titleAccent={agency.name || 'DBE'}
-        description={`Programme roll-up of approved schools/organisations · ${period.label} (${period.from} → ${period.to}). Hospitals & other orgs can join the same association model later.`}
+        description={`Schools & ISPs by province, district and circuit · ${period.label} (${period.from} → ${period.to}). Coverage tab is the geo roll-up for programme planning.`}
         action={
           <div className="flex flex-wrap gap-2">
             <Link
@@ -342,9 +436,16 @@ function Inner() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
             <Kpi
               icon={School}
-              label="Approved orgs"
-              value={String(k.organisations ?? 0)}
-              sub={`${k.schools ?? 0} schools · ${k.hospitals ?? 0} hospitals`}
+              label="Approved schools"
+              value={String(k.organisations ?? k.schools ?? 0)}
+              sub={`${k.districts_with_schools ?? 0} districts · ${k.provinces_with_schools ?? 0} provinces`}
+            />
+            <Kpi
+              icon={Truck}
+              label="Associated ISPs"
+              value={String(k.isps ?? ispList.length ?? 0)}
+              sub={`${k.isps_active ?? 0} active · ${k.isps_pending ?? 0} pending`}
+              tone="emerald"
             />
             <Kpi
               icon={Users}
@@ -389,7 +490,7 @@ function Inner() {
               tone="amber"
             />
             <Kpi
-              icon={Landmark}
+              icon={MapPinned}
               label="GPS mapped"
               value={String(k.withGps ?? 0)}
               sub="Schools with coordinates"
@@ -522,19 +623,104 @@ function Inner() {
             <MemberTable members={filteredMembers} />
           )}
 
+          {report === 'coverage' && (
+            <div className="space-y-6">
+              <div className="rounded-2xl border border-sky-100 bg-sky-50/80 px-4 py-3 text-sm text-slate-700">
+                <strong>Coverage report:</strong> schools associated with your
+                department by province/district, plus ISPs that joined you
+                (province from ISP service areas; district from schools they
+                supply in your network).
+              </div>
+              <CoverageTable
+                title="Schools & ISPs by province"
+                rows={
+                  coverageByProvince.length ? coverageByProvince : byProvince
+                }
+                keyLabel="Province"
+              />
+              <CoverageTable
+                title="Schools & ISPs by district"
+                rows={
+                  coverageByDistrict.length ? coverageByDistrict : byDistrict
+                }
+                keyLabel="District"
+              />
+              <div className="grid lg:grid-cols-2 gap-4">
+                <IspCountTable
+                  title="ISPs by province (service area)"
+                  rows={ispsByProvince}
+                  keyLabel="Province"
+                />
+                <IspCountTable
+                  title="ISPs by district (schools they supply)"
+                  rows={ispsByDistrict}
+                  keyLabel="District"
+                />
+              </div>
+              <GroupTable
+                title="Schools by province (detail)"
+                rows={byProvince}
+                keyLabel="Province"
+              />
+              <GroupTable
+                title="Schools by district (detail)"
+                rows={byDistrict}
+                keyLabel="District"
+              />
+            </div>
+          )}
+
           {report === 'province' && (
-            <GroupTable
-              title="By province"
-              rows={byProvince}
-              keyLabel="Province"
-            />
+            <div className="space-y-6">
+              <CoverageTable
+                title="Province coverage · schools + ISPs"
+                rows={
+                  coverageByProvince.length ? coverageByProvince : byProvince
+                }
+                keyLabel="Province"
+              />
+              <GroupTable
+                title="Schools by province"
+                rows={byProvince}
+                keyLabel="Province"
+              />
+              <IspCountTable
+                title="ISPs by province"
+                rows={ispsByProvince}
+                keyLabel="Province"
+              />
+            </div>
           )}
           {report === 'district' && (
+            <div className="space-y-6">
+              <CoverageTable
+                title="District coverage · schools + ISPs"
+                rows={
+                  coverageByDistrict.length ? coverageByDistrict : byDistrict
+                }
+                keyLabel="District"
+              />
+              <GroupTable
+                title="Schools by district"
+                rows={byDistrict}
+                keyLabel="District"
+              />
+              <IspCountTable
+                title="ISPs by district (from school links)"
+                rows={ispsByDistrict}
+                keyLabel="District"
+              />
+            </div>
+          )}
+          {report === 'circuit' && (
             <GroupTable
-              title="By district"
-              rows={byDistrict}
-              keyLabel="District"
+              title="Schools by circuit"
+              rows={byCircuit}
+              keyLabel="Circuit"
             />
+          )}
+          {report === 'isps' && (
+            <IspDirectoryTable isps={ispList} byProvince={ispsByProvince} />
           )}
           {report === 'quintile' && (
             <GroupTable
@@ -850,44 +1036,271 @@ function GroupTable({
       <div className="px-5 py-3 border-b text-xs font-bold uppercase text-slate-500">
         {title}
       </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[640px]">
+          <thead>
+            <tr className="border-b text-left text-[10px] font-bold uppercase text-slate-400">
+              <th className="px-4 py-3">{keyLabel}</th>
+              <th className="px-3 py-3 text-right">Schools</th>
+              <th className="px-3 py-3 text-right">Learners</th>
+              <th className="px-3 py-3 text-right">Verified</th>
+              <th className="px-3 py-3 text-right">Meals</th>
+              <th className="px-3 py-3 text-right">PO spend</th>
+              <th className="px-3 py-3 text-right">Avg prize</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={7}
+                  className="px-4 py-10 text-center text-slate-500"
+                >
+                  No schools in this view yet.
+                </td>
+              </tr>
+            ) : (
+              rows.map((r) => (
+                <tr key={String(r.key)} className="border-b border-slate-50">
+                  <td className="px-4 py-2 font-semibold">{String(r.key)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums font-black">
+                    {Number(r.schools ?? r.organisations ?? 0)}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums">
+                    {Number(r.learners || 0)}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums">
+                    {Number(r.verified || 0)}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums">
+                    {Number(r.meals_served || 0)}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums font-bold">
+                    {formatMoney(Number(r.po_spend || 0))}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums">
+                    {r.avg_prize != null ? Number(r.avg_prize).toFixed(1) : '—'}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function CoverageTable({
+  title,
+  rows,
+  keyLabel,
+}: {
+  title: string;
+  rows: Array<Record<string, unknown>>;
+  keyLabel: string;
+}) {
+  return (
+    <div className="rounded-3xl border border-emerald-100 bg-white overflow-hidden">
+      <div className="px-5 py-3 border-b border-emerald-50 bg-emerald-50/40 text-xs font-bold uppercase text-emerald-900 flex items-center gap-2">
+        <MapPinned className="w-3.5 h-3.5" />
+        {title}
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[720px]">
+          <thead>
+            <tr className="border-b text-left text-[10px] font-bold uppercase text-slate-400">
+              <th className="px-4 py-3">{keyLabel}</th>
+              <th className="px-3 py-3 text-right">Schools</th>
+              <th className="px-3 py-3 text-right">Learners</th>
+              <th className="px-3 py-3 text-right">ISPs</th>
+              <th className="px-3 py-3 text-right">ISPs active</th>
+              <th className="px-3 py-3 text-right">ISPs pending</th>
+              <th className="px-3 py-3 text-right">Meals</th>
+              <th className="px-3 py-3 text-right">PO spend</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={8}
+                  className="px-4 py-10 text-center text-slate-500"
+                >
+                  No geographic coverage data yet. Approve school and ISP
+                  associations first.
+                </td>
+              </tr>
+            ) : (
+              rows.map((r) => (
+                <tr key={String(r.key)} className="border-b border-slate-50">
+                  <td className="px-4 py-2 font-semibold">{String(r.key)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums font-black text-sky-900">
+                    {Number(r.schools ?? r.organisations ?? 0)}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums">
+                    {Number(r.learners || 0)}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums font-black text-emerald-900">
+                    {Number(r.isps || 0)}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums">
+                    {Number(r.isps_active || 0)}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums text-amber-800">
+                    {Number(r.isps_pending || 0)}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums">
+                    {Number(r.meals_served || 0)}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums font-bold">
+                    {formatMoney(Number(r.po_spend || 0))}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function IspCountTable({
+  title,
+  rows,
+  keyLabel,
+}: {
+  title: string;
+  rows: Array<Record<string, unknown>>;
+  keyLabel: string;
+}) {
+  return (
+    <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+      <div className="px-5 py-3 border-b text-xs font-bold uppercase text-slate-500 flex items-center gap-2">
+        <Truck className="w-3.5 h-3.5 text-emerald-600" />
+        {title}
+      </div>
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b text-left text-[10px] font-bold uppercase text-slate-400">
             <th className="px-4 py-3">{keyLabel}</th>
-            <th className="px-3 py-3 text-right">Orgs</th>
-            <th className="px-3 py-3 text-right">Learners</th>
-            <th className="px-3 py-3 text-right">Verified</th>
-            <th className="px-3 py-3 text-right">Meals</th>
-            <th className="px-3 py-3 text-right">PO spend</th>
-            <th className="px-3 py-3 text-right">Avg prize</th>
+            <th className="px-3 py-3 text-right">ISPs</th>
+            <th className="px-3 py-3 text-right">Active</th>
+            <th className="px-3 py-3 text-right">Pending</th>
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
-            <tr key={String(r.key)} className="border-b border-slate-50">
-              <td className="px-4 py-2 font-semibold">{String(r.key)}</td>
-              <td className="px-3 py-2 text-right tabular-nums">
-                {Number(r.organisations || 0)}
-              </td>
-              <td className="px-3 py-2 text-right tabular-nums">
-                {Number(r.learners || 0)}
-              </td>
-              <td className="px-3 py-2 text-right tabular-nums">
-                {Number(r.verified || 0)}
-              </td>
-              <td className="px-3 py-2 text-right tabular-nums">
-                {Number(r.meals_served || 0)}
-              </td>
-              <td className="px-3 py-2 text-right tabular-nums font-bold">
-                {formatMoney(Number(r.po_spend || 0))}
-              </td>
-              <td className="px-3 py-2 text-right tabular-nums">
-                {r.avg_prize != null ? Number(r.avg_prize).toFixed(1) : '—'}
+          {rows.length === 0 ? (
+            <tr>
+              <td colSpan={4} className="px-4 py-8 text-center text-slate-500">
+                No ISPs associated yet.
               </td>
             </tr>
-          ))}
+          ) : (
+            rows.map((r) => (
+              <tr key={String(r.key)} className="border-b border-slate-50">
+                <td className="px-4 py-2 font-semibold">{String(r.key)}</td>
+                <td className="px-3 py-2 text-right font-black tabular-nums">
+                  {Number(r.isps || 0)}
+                </td>
+                <td className="px-3 py-2 text-right tabular-nums text-emerald-800">
+                  {Number(r.isps_active || 0)}
+                </td>
+                <td className="px-3 py-2 text-right tabular-nums text-amber-800">
+                  {Number(r.isps_pending || 0)}
+                </td>
+              </tr>
+            ))
+          )}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function IspDirectoryTable({
+  isps,
+  byProvince,
+}: {
+  isps: Array<Record<string, unknown>>;
+  byProvince: Array<Record<string, unknown>>;
+}) {
+  return (
+    <div className="space-y-4">
+      <IspCountTable
+        title="ISPs per province"
+        rows={byProvince}
+        keyLabel="Province"
+      />
+      <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+        <div className="px-5 py-3 border-b text-xs font-bold uppercase text-slate-500">
+          ISP directory · associated with this department
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[720px]">
+            <thead>
+              <tr className="border-b text-left text-[10px] font-bold uppercase text-slate-400">
+                <th className="px-4 py-3">ISP</th>
+                <th className="px-3 py-3">Status</th>
+                <th className="px-3 py-3">Provinces</th>
+                <th className="px-3 py-3 text-right">Schools linked</th>
+                <th className="px-3 py-3">Districts served</th>
+              </tr>
+            </thead>
+            <tbody>
+              {isps.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={5}
+                    className="px-4 py-10 text-center text-slate-500"
+                  >
+                    No ISPs have requested to join this department yet.
+                  </td>
+                </tr>
+              ) : (
+                isps.map((i) => (
+                  <tr
+                    key={String(i.isp_profile_id)}
+                    className="border-b border-slate-50"
+                  >
+                    <td className="px-4 py-2 font-semibold">
+                      {String(i.name)}
+                    </td>
+                    <td className="px-3 py-2 text-xs font-bold uppercase">
+                      <span
+                        className={
+                          i.status === 'active'
+                            ? 'text-emerald-800'
+                            : i.status === 'pending'
+                              ? 'text-amber-800'
+                              : 'text-slate-500'
+                        }
+                      >
+                        {String(i.status)}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-xs">
+                      {Array.isArray(i.provinces) && i.provinces.length
+                        ? (i.provinces as string[]).join(', ')
+                        : '—'}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums font-black">
+                      {Number(i.schools_linked || 0)}
+                    </td>
+                    <td className="px-3 py-2 text-xs text-slate-600 max-w-xs">
+                      {Array.isArray(i.districts_served) &&
+                      (i.districts_served as string[]).length
+                        ? (i.districts_served as string[]).join(' · ')
+                        : '—'}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }

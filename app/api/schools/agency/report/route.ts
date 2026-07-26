@@ -86,19 +86,52 @@ export async function GET(request: NextRequest) {
       ),
     ];
 
+    // ISP coverage is independent of school members — always load for DBE
+    const ispCoverage = await loadIspCoverage(supabase, companyId, schoolIds);
+
     if (!schoolIds.length) {
       return NextResponse.json({
         success: true,
         period: { from, to },
         report,
-        agency,
-        kpis: emptyKpis(),
+        agency: {
+          id: agency.id,
+          name: agency.agency_name,
+          type: agency.agency_type,
+          province: agency.province,
+        },
+        kpis: {
+          ...emptyKpis(),
+          isps: ispCoverage.summary.total,
+          isps_active: ispCoverage.summary.active,
+          isps_pending: ispCoverage.summary.pending,
+        },
         members: [],
         byProvince: [],
         byDistrict: [],
+        byCircuit: [],
         byQuintile: [],
+        schoolsByProvince: [],
+        schoolsByDistrict: [],
+        schoolsByCircuit: [],
+        isps: ispCoverage.isps,
+        ispsByProvince: ispCoverage.byProvince,
+        ispsByDistrict: ispCoverage.byDistrict,
+        coverageByProvince: ispCoverage.byProvince.map((r) => ({
+          key: r.key,
+          schools: 0,
+          learners: 0,
+          isps: r.isps,
+          isps_active: r.isps_active,
+          isps_pending: r.isps_pending,
+        })),
+        coverageByDistrict: [],
         prizeLeaderboard: [],
         feedingTrend: [],
+        facets: {
+          provinces: ispCoverage.facets.provinces,
+          districts: ispCoverage.facets.districts,
+        },
         warnings: ['No approved organisations linked yet'],
       });
     }
@@ -296,6 +329,7 @@ export async function GET(request: NextRequest) {
       emis: string | null;
       province: string | null;
       district: string | null;
+      circuit: string | null;
       quintile: number | null;
       lat: number | null;
       lng: number | null;
@@ -343,6 +377,7 @@ export async function GET(request: NextRequest) {
         emis: s.emis_number != null ? String(s.emis_number) : null,
         province: s.province != null ? String(s.province) : null,
         district: s.district != null ? String(s.district) : null,
+        circuit: s.circuit != null ? String(s.circuit) : null,
         quintile: s.quintile != null ? Number(s.quintile) : null,
         lat: s.lat != null ? Number(s.lat) : null,
         lng: s.lng != null ? Number(s.lng) : null,
@@ -414,16 +449,119 @@ export async function GET(request: NextRequest) {
       ).length,
       pendingApprovals: (links || []).filter((l) => l.status === 'pending')
         .length,
+      isps: ispCoverage.summary.total,
+      isps_active: ispCoverage.summary.active,
+      isps_pending: ispCoverage.summary.pending,
+      provinces_with_schools: new Set(
+        members.map((m) => m.province).filter(Boolean)
+      ).size,
+      districts_with_schools: new Set(
+        members.map((m) => m.district).filter(Boolean)
+      ).size,
     };
 
-    // Groupings
+    // Groupings — schools by geography
     const byProvince = groupSum(members, (m) => m.province || 'Unknown');
     const byDistrict = groupSum(members, (m) =>
       [m.district, m.province].filter(Boolean).join(', ') || 'Unknown'
     );
+    const byCircuit = groupSum(members, (m) => {
+      if (m.circuit) {
+        return [m.circuit, m.district, m.province].filter(Boolean).join(', ');
+      }
+      return [m.district, m.province].filter(Boolean).join(', ') || 'Unknown';
+    });
     const byQuintile = groupSum(members, (m) =>
       m.quintile != null ? `Q${m.quintile}` : 'Unspecified'
     );
+
+    // Explicit school counts (same data, clearer labels for coverage report)
+    const schoolsByProvince = byProvince.map((r) => ({
+      key: r.key,
+      schools: r.organisations,
+      organisations: r.organisations,
+      learners: r.learners,
+      verified: r.verified,
+      meals_served: r.meals_served,
+      po_spend: r.po_spend,
+      avg_prize: r.avg_prize,
+    }));
+    const schoolsByDistrict = byDistrict.map((r) => ({
+      key: r.key,
+      schools: r.organisations,
+      organisations: r.organisations,
+      learners: r.learners,
+      verified: r.verified,
+      meals_served: r.meals_served,
+      po_spend: r.po_spend,
+      avg_prize: r.avg_prize,
+    }));
+    const schoolsByCircuit = byCircuit.map((r) => ({
+      key: r.key,
+      schools: r.organisations,
+      organisations: r.organisations,
+      learners: r.learners,
+      verified: r.verified,
+      meals_served: r.meals_served,
+      po_spend: r.po_spend,
+      avg_prize: r.avg_prize,
+    }));
+
+    // Combined coverage: schools + ISPs per province / district
+    const schoolProvMap = new Map(
+      schoolsByProvince.map((r) => [r.key, r] as const)
+    );
+    const ispProvMap = new Map(
+      ispCoverage.byProvince.map((r) => [r.key, r] as const)
+    );
+    const allProvKeys = [
+      ...new Set([
+        ...schoolProvMap.keys(),
+        ...ispProvMap.keys(),
+      ]),
+    ].sort((a, b) => a.localeCompare(b));
+    const coverageByProvince = allProvKeys.map((key) => {
+      const s = schoolProvMap.get(key);
+      const i = ispProvMap.get(key);
+      return {
+        key,
+        schools: s?.schools ?? 0,
+        learners: s?.learners ?? 0,
+        verified: s?.verified ?? 0,
+        meals_served: s?.meals_served ?? 0,
+        po_spend: s?.po_spend ?? 0,
+        isps: i?.isps ?? 0,
+        isps_active: i?.isps_active ?? 0,
+        isps_pending: i?.isps_pending ?? 0,
+      };
+    }).sort((a, b) => b.schools - a.schools || b.isps - a.isps);
+
+    const schoolDistMap = new Map(
+      schoolsByDistrict.map((r) => [r.key, r] as const)
+    );
+    const ispDistMap = new Map(
+      ispCoverage.byDistrict.map((r) => [r.key, r] as const)
+    );
+    const allDistKeys = [
+      ...new Set([...schoolDistMap.keys(), ...ispDistMap.keys()]),
+    ];
+    const coverageByDistrict = allDistKeys
+      .map((key) => {
+        const s = schoolDistMap.get(key);
+        const i = ispDistMap.get(key);
+        return {
+          key,
+          schools: s?.schools ?? 0,
+          learners: s?.learners ?? 0,
+          verified: s?.verified ?? 0,
+          meals_served: s?.meals_served ?? 0,
+          po_spend: s?.po_spend ?? 0,
+          isps: i?.isps ?? 0,
+          isps_active: i?.isps_active ?? 0,
+          isps_pending: i?.isps_pending ?? 0,
+        };
+      })
+      .sort((a, b) => b.schools - a.schools || b.isps - a.isps);
 
     const prizeLeaderboard = [...members]
       .filter((m) => m.prize_score != null)
@@ -504,14 +642,20 @@ export async function GET(request: NextRequest) {
     };
 
     const provinces = [
-      ...new Set(
-        members.map((m) => m.province).filter((x): x is string => Boolean(x))
-      ),
+      ...new Set([
+        ...members
+          .map((m) => m.province)
+          .filter((x): x is string => Boolean(x)),
+        ...ispCoverage.facets.provinces,
+      ]),
     ].sort();
     const districts = [
-      ...new Set(
-        members.map((m) => m.district).filter((x): x is string => Boolean(x))
-      ),
+      ...new Set([
+        ...members
+          .map((m) => m.district)
+          .filter((x): x is string => Boolean(x)),
+        ...ispCoverage.facets.districts,
+      ]),
     ].sort();
 
     // Claims inbox for agency review (submitted → approve/reject/paid)
@@ -563,7 +707,16 @@ export async function GET(request: NextRequest) {
       members,
       byProvince,
       byDistrict,
+      byCircuit,
       byQuintile,
+      schoolsByProvince,
+      schoolsByDistrict,
+      schoolsByCircuit,
+      isps: ispCoverage.isps,
+      ispsByProvince: ispCoverage.byProvince,
+      ispsByDistrict: ispCoverage.byDistrict,
+      coverageByProvince,
+      coverageByDistrict,
       prizeLeaderboard,
       feedingTrend,
       risks,
@@ -579,6 +732,308 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+/**
+ * ISP associations for this DBE/DoH, rolled up by province and by district.
+ * Province comes from ISP.provinces[]; district is derived from schools they
+ * supply in this agency network (POs / school_isp_links).
+ */
+async function loadIspCoverage(
+  supabase: ReturnType<typeof getSupabaseServer>,
+  agencyProfileId: number,
+  networkSchoolIds: number[]
+): Promise<{
+  isps: Array<Record<string, unknown>>;
+  byProvince: Array<{
+    key: string;
+    isps: number;
+    isps_active: number;
+    isps_pending: number;
+  }>;
+  byDistrict: Array<{
+    key: string;
+    isps: number;
+    isps_active: number;
+    isps_pending: number;
+  }>;
+  summary: { total: number; active: number; pending: number; suspended: number };
+  facets: { provinces: string[]; districts: string[] };
+}> {
+  const empty = {
+    isps: [] as Array<Record<string, unknown>>,
+    byProvince: [] as Array<{
+      key: string;
+      isps: number;
+      isps_active: number;
+      isps_pending: number;
+    }>,
+    byDistrict: [] as Array<{
+      key: string;
+      isps: number;
+      isps_active: number;
+      isps_pending: number;
+    }>,
+    summary: { total: 0, active: 0, pending: 0, suspended: 0 },
+    facets: { provinces: [] as string[], districts: [] as string[] },
+  };
+
+  const { data: links, error } = await supabase
+    .from('nsnp_isp_agency_links')
+    .select('*')
+    .eq('agency_profile_id', agencyProfileId)
+    .in('status', ['pending', 'active', 'suspended'])
+    .limit(2000);
+
+  if (error || !links?.length) {
+    // Soft-fallback: legacy global approved_by this agency
+    const { data: legacy } = await supabase
+      .from('nsnp_isp_profiles')
+      .select(
+        'profile_id, trading_name, provinces, compliance_status, approved_by_agency_profile_id'
+      )
+      .eq('approved_by_agency_profile_id', agencyProfileId)
+      .limit(500);
+    if (!legacy?.length) return empty;
+
+    return buildIspCoverageFromRows(
+      supabase,
+      legacy.map((i) => ({
+        isp_profile_id: Number(i.profile_id),
+        status:
+          String(i.compliance_status) === 'compliant' ? 'active' : 'pending',
+        trading_name: i.trading_name,
+        provinces: Array.isArray(i.provinces) ? i.provinces : [],
+        compliance_status: i.compliance_status,
+      })),
+      networkSchoolIds
+    );
+  }
+
+  const ispIds = [
+    ...new Set(
+      links
+        .map((l) => Number(l.isp_profile_id))
+        .filter((n) => Number.isFinite(n) && n > 0)
+    ),
+  ];
+
+  const { data: ispRows } = await supabase
+    .from('nsnp_isp_profiles')
+    .select(
+      'profile_id, trading_name, provinces, compliance_status, food_handling_cert, contact_name, contact_phone, contact_email'
+    )
+    .in('profile_id', ispIds);
+
+  const byId = new Map(
+    (ispRows || []).map((i) => [Number(i.profile_id), i] as const)
+  );
+
+  // Display names from profiles if trading_name missing
+  const missingNames = ispIds.filter(
+    (id) => !byId.get(id)?.trading_name
+  );
+  const nameById: Record<number, string> = {};
+  if (missingNames.length) {
+    const { data: profs } = await supabase
+      .from('profiles')
+      .select('id, trading_name, legal_name')
+      .in('id', missingNames);
+    for (const p of profs || []) {
+      nameById[Number(p.id)] =
+        p.trading_name || p.legal_name || `ISP ${p.id}`;
+    }
+  }
+
+  const rows = links.map((l) => {
+    const isp = byId.get(Number(l.isp_profile_id));
+    const provinces = Array.isArray(isp?.provinces)
+      ? (isp!.provinces as string[])
+      : [];
+    return {
+      isp_profile_id: Number(l.isp_profile_id),
+      status: String(l.status || 'pending'),
+      trading_name:
+        isp?.trading_name ||
+        nameById[Number(l.isp_profile_id)] ||
+        `ISP ${l.isp_profile_id}`,
+      provinces,
+      compliance_status: isp?.compliance_status || null,
+      food_handling_cert: isp?.food_handling_cert ?? null,
+      link_id: l.id,
+      requested_at: l.requested_at,
+      accepted_at: l.accepted_at,
+    };
+  });
+
+  return buildIspCoverageFromRows(supabase, rows, networkSchoolIds);
+}
+
+async function buildIspCoverageFromRows(
+  supabase: ReturnType<typeof getSupabaseServer>,
+  rows: Array<{
+    isp_profile_id: number;
+    status: string;
+    trading_name: string | null | undefined;
+    provinces: string[];
+    compliance_status?: string | null;
+    food_handling_cert?: boolean | null;
+    link_id?: unknown;
+    requested_at?: unknown;
+    accepted_at?: unknown;
+  }>,
+  networkSchoolIds: number[]
+) {
+  // Districts served: schools in this agency network linked to each ISP
+  const ispDistricts = new Map<number, Set<string>>();
+  const ispSchoolCounts = new Map<number, number>();
+
+  if (networkSchoolIds.length) {
+    const schoolMeta = new Map<
+      number,
+      { province: string | null; district: string | null }
+    >();
+    for (let i = 0; i < networkSchoolIds.length; i += 200) {
+      const chunk = networkSchoolIds.slice(i, i + 200);
+      const { data: sch } = await supabase
+        .from('school_profiles')
+        .select('id, province, district')
+        .in('id', chunk);
+      for (const s of sch || []) {
+        schoolMeta.set(Number(s.id), {
+          province: s.province != null ? String(s.province) : null,
+          district: s.district != null ? String(s.district) : null,
+        });
+      }
+    }
+
+    for (let i = 0; i < networkSchoolIds.length; i += 200) {
+      const chunk = networkSchoolIds.slice(i, i + 200);
+      const { data: sil } = await supabase
+        .from('school_isp_links')
+        .select('school_profile_id, isp_profile_id, status')
+        .in('school_profile_id', chunk)
+        .eq('status', 'active')
+        .limit(5000);
+      for (const link of sil || []) {
+        const ispId = Number(link.isp_profile_id);
+        const sid = Number(link.school_profile_id);
+        if (!Number.isFinite(ispId)) continue;
+        ispSchoolCounts.set(ispId, (ispSchoolCounts.get(ispId) || 0) + 1);
+        const meta = schoolMeta.get(sid);
+        if (!meta?.district && !meta?.province) continue;
+        const label =
+          [meta.district, meta.province].filter(Boolean).join(', ') ||
+          'Unknown';
+        if (!ispDistricts.has(ispId)) ispDistricts.set(ispId, new Set());
+        ispDistricts.get(ispId)!.add(label);
+      }
+    }
+  }
+
+  const isps = rows.map((r) => ({
+    isp_profile_id: r.isp_profile_id,
+    name: r.trading_name || `ISP ${r.isp_profile_id}`,
+    status: r.status,
+    compliance_status: r.compliance_status || null,
+    provinces: r.provinces,
+    schools_linked: ispSchoolCounts.get(r.isp_profile_id) || 0,
+    districts_served: [...(ispDistricts.get(r.isp_profile_id) || [])].sort(),
+    food_handling_cert: r.food_handling_cert ?? null,
+  }));
+
+  // Province rollup: an ISP listing a province counts once there
+  const provMap = new Map<
+    string,
+    { key: string; isps: number; isps_active: number; isps_pending: number; ids: Set<number> }
+  >();
+  for (const r of rows) {
+    const provs =
+      r.provinces.length > 0 ? r.provinces : (['Unspecified'] as string[]);
+    for (const p of provs) {
+      const key = String(p || 'Unspecified').trim() || 'Unspecified';
+      if (!provMap.has(key)) {
+        provMap.set(key, {
+          key,
+          isps: 0,
+          isps_active: 0,
+          isps_pending: 0,
+          ids: new Set(),
+        });
+      }
+      const g = provMap.get(key)!;
+      if (g.ids.has(r.isp_profile_id)) continue;
+      g.ids.add(r.isp_profile_id);
+      g.isps += 1;
+      if (r.status === 'active') g.isps_active += 1;
+      else if (r.status === 'pending') g.isps_pending += 1;
+    }
+  }
+
+  // District rollup from schools served
+  const distMap = new Map<
+    string,
+    { key: string; isps: number; isps_active: number; isps_pending: number; ids: Set<number> }
+  >();
+  for (const r of rows) {
+    const dists = ispDistricts.get(r.isp_profile_id);
+    if (!dists || dists.size === 0) continue;
+    for (const d of dists) {
+      if (!distMap.has(d)) {
+        distMap.set(d, {
+          key: d,
+          isps: 0,
+          isps_active: 0,
+          isps_pending: 0,
+          ids: new Set(),
+        });
+      }
+      const g = distMap.get(d)!;
+      if (g.ids.has(r.isp_profile_id)) continue;
+      g.ids.add(r.isp_profile_id);
+      g.isps += 1;
+      if (r.status === 'active') g.isps_active += 1;
+      else if (r.status === 'pending') g.isps_pending += 1;
+    }
+  }
+
+  const byProvince = [...provMap.values()]
+    .map(({ key, isps, isps_active, isps_pending }) => ({
+      key,
+      isps,
+      isps_active,
+      isps_pending,
+    }))
+    .sort((a, b) => b.isps - a.isps);
+
+  const byDistrict = [...distMap.values()]
+    .map(({ key, isps, isps_active, isps_pending }) => ({
+      key,
+      isps,
+      isps_active,
+      isps_pending,
+    }))
+    .sort((a, b) => b.isps - a.isps);
+
+  const summary = {
+    total: rows.length,
+    active: rows.filter((r) => r.status === 'active').length,
+    pending: rows.filter((r) => r.status === 'pending').length,
+    suspended: rows.filter((r) => r.status === 'suspended').length,
+  };
+
+  return {
+    isps,
+    byProvince,
+    byDistrict,
+    summary,
+    facets: {
+      provinces: byProvince.map((r) => r.key).filter((k) => k !== 'Unspecified'),
+      districts: byDistrict
+        .map((r) => r.key.split(',')[0]?.trim() || r.key)
+        .filter(Boolean),
+    },
+  };
 }
 
 function emptyKpis() {
@@ -604,6 +1059,11 @@ function emptyKpis() {
     avgVerifyPct: null as number | null,
     withGps: 0,
     pendingApprovals: 0,
+    isps: 0,
+    isps_active: 0,
+    isps_pending: 0,
+    provinces_with_schools: 0,
+    districts_with_schools: 0,
   };
 }
 
@@ -616,6 +1076,7 @@ function groupSum(
   members: Array<{
     province?: string | null;
     district?: string | null;
+    circuit?: string | null;
     quintile?: number | null;
     learners_enrolled: number;
     learners_verified: number;
