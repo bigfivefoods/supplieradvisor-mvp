@@ -10,6 +10,8 @@ import {
 } from '@/lib/chrome/module-lifecycles';
 import { groupNavSteps } from '@/lib/chrome/module-nav';
 import NotificationBell from '@/components/chrome/NotificationBell';
+import { useProgrammeRole } from '@/lib/schools/useProgrammeRole';
+import { stepVisibleForRole } from '@/lib/schools/programme-role';
 
 type Props = {
   /** Mobile sidebar open — when set, menu control sits on this same rail */
@@ -18,40 +20,54 @@ type Props = {
 
 const GROUP_PILL: Record<string, string> = {
   DBE: 'bg-violet-100 text-violet-800 border-violet-200',
+  'DBE/DoH': 'bg-violet-100 text-violet-800 border-violet-200',
   School: 'bg-sky-100 text-sky-900 border-sky-200',
   SP: 'bg-amber-100 text-amber-900 border-amber-200',
 };
 
 /**
  * Single sticky top rail: process steps + Action centre on one horizontal level.
- * Grouped modules (e.g. Schools → DBE | School | SP) show labelled segments.
+ * Schools module shows only the nav tool for the company's programme role
+ * (DBE/DoH · School · SP).
  */
 export default function ModuleProcessBar({ onOpenMobileMenu }: Props) {
   const pathname = usePathname() || '';
   const life = lifecycleForPath(pathname);
+  const programme = useProgrammeRole();
+  const isSchoolsLife = life?.id === 'schools';
+
+  const roleSteps =
+    life && isSchoolsLife
+      ? life.steps.filter((s) =>
+          stepVisibleForRole(
+            (s as { group?: string }).group,
+            programme.role
+          )
+        )
+      : life?.steps || [];
 
   let activeHref: string | null = null;
-  if (life) {
-    for (const step of [...life.steps].sort((a, b) => b.href.length - a.href.length)) {
+  if (life && roleSteps.length) {
+    for (const step of [...roleSteps].sort((a, b) => b.href.length - a.href.length)) {
       if (isStepActive(pathname, step.href, step.exact) || pathname === step.href) {
         activeHref = step.href;
         break;
       }
     }
     if (!activeHref) {
-      const hub = life.steps.find((s) => pathname === s.href);
+      const hub = roleSteps.find((s) => pathname === s.href);
       if (hub) activeHref = hub.href;
     }
   }
 
   const segments = life
     ? groupNavSteps(
-        life.steps.map((s) => ({
+        roleSteps.map((s) => ({
           name: s.label,
           href: s.href,
           exact: s.exact,
           desc: s.desc,
-          group: s.group,
+          group: (s as { group?: string }).group,
           label: s.label,
         }))
       )

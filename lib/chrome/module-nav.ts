@@ -406,63 +406,92 @@ export const MODULE_NAV: readonly ModuleNav[] = [
     href: '/dashboard/schools',
     resource: 'schools',
     /**
-     * NSNP operating model — three world-class processes:
-     * 1) DBE  — govern programme (approve, catalogue, pack, visits)
-     * 2) School — feed children daily (setup → serve → claim → improve)
-     * 3) SP — supply approved brands (network + SLA)
-     * Group order in sidebar / process rail = first appearance (DBE → School → SP).
+     * Three separate navigation tools under Schools (filtered by company role):
+     * 1) DBE/DoH — department governs programme
+     * 2) School  — facility feeds / operates kitchen
+     * 3) SP      — service provider supplies approved foods
      */
     steps: [
-      // ── DBE / PEU programme ──────────────────────────────────────────
+      // ── Department tool (DBE / DoH) ───────────────────────────────────
       {
-        name: 'Approve',
+        name: 'Desk',
         href: '/dashboard/schools/agency',
-        desc: 'Register agency · approve school joins',
-        group: 'DBE',
+        desc: 'Register department · approve facilities & SPs',
+        group: 'DBE/DoH',
+      },
+      {
+        name: 'Hierarchy',
+        href: '/dashboard/schools/agency-report?report=hierarchy',
+        desc: 'DBE/DoH → SPs → schools / clinics',
+        group: 'DBE/DoH',
+      },
+      {
+        name: 'Coverage',
+        href: '/dashboard/schools/agency-report?report=coverage',
+        desc: 'Schools & SPs by province / district',
+        group: 'DBE/DoH',
       },
       {
         name: 'Catalogue',
         href: '/dashboard/schools/approved-list',
-        desc: 'Own approved foods schools may buy',
-        group: 'DBE',
+        desc: 'Approved foods only facilities may buy',
+        group: 'DBE/DoH',
       },
       {
         name: 'Programme',
         href: '/dashboard/schools/agency-report',
-        desc: 'Multi-school pack · claims inbox',
-        group: 'DBE',
+        desc: 'Multi-facility pack · claims inbox',
+        group: 'DBE/DoH',
+      },
+      {
+        name: 'Claims',
+        href: '/dashboard/schools/agency-report?report=claims',
+        desc: 'Review facility claim packs',
+        group: 'DBE/DoH',
+      },
+      {
+        name: 'SPs',
+        href: '/dashboard/schools/isps',
+        desc: 'Approve SP associations',
+        group: 'DBE/DoH',
+      },
+      {
+        name: 'SP SLA',
+        href: '/dashboard/schools/isp-sla',
+        desc: 'Preferred suppliers · on-catalogue scores',
+        group: 'DBE/DoH',
       },
       {
         name: 'Nutrition',
         href: '/dashboard/schools/nutrition-agency',
         desc: 'Programme nutrition roll-up',
-        group: 'DBE',
+        group: 'DBE/DoH',
       },
       {
         name: 'Visits',
         href: '/dashboard/schools/visits',
-        desc: 'PEU field monitor checklists',
-        group: 'DBE',
+        desc: 'PEU / field monitor checklists',
+        group: 'DBE/DoH',
       },
       {
         name: 'Prizes',
         href: '/dashboard/schools/prizes',
         desc: 'Fair quarterly headmaster prizes',
-        group: 'DBE',
+        group: 'DBE/DoH',
       },
       {
         name: 'Map',
         href: '/dashboard/schools/map',
-        desc: 'School locations & coverage',
-        group: 'DBE',
+        desc: 'Facility locations & coverage',
+        group: 'DBE/DoH',
       },
 
-      // ── School kitchen & NSNP ops ─────────────────────────────────────
+      // ── School / facility tool ────────────────────────────────────────
       {
         name: 'Command',
         href: '/dashboard/schools',
         exact: true,
-        desc: 'School readiness & next action',
+        desc: 'Readiness & next action',
         group: 'School',
       },
       {
@@ -472,27 +501,39 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         group: 'School',
       },
       {
+        name: 'Join dept',
+        href: '/dashboard/schools/agency',
+        desc: 'Request DBE/DoH association',
+        group: 'School',
+      },
+      {
         name: 'Learners',
         href: '/dashboard/schools/learners',
         desc: 'Import & verify NSNP register',
         group: 'School',
       },
       {
+        name: 'Staff',
+        href: '/dashboard/schools/staff',
+        desc: 'Principal, coordinator, kitchen team',
+        group: 'School',
+      },
+      {
         name: 'Menu',
         href: '/dashboard/schools/menu',
-        desc: 'Weekly cycle linked to approved products',
+        desc: 'Weekly cycle · approved products',
         group: 'School',
       },
       {
-        name: 'Serve',
-        href: '/dashboard/schools/serve-day',
-        desc: 'Present → meals → waste → stock issue',
+        name: 'Approved',
+        href: '/dashboard/schools/approved-list',
+        desc: 'Department foods you may order',
         group: 'School',
       },
       {
-        name: 'Kitchen',
-        href: '/dashboard/schools/kitchen',
-        desc: 'PO → GRN · issue · waste',
+        name: 'SPs',
+        href: '/dashboard/schools/isps',
+        desc: 'Link department-approved SPs',
         group: 'School',
       },
       {
@@ -504,7 +545,19 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       {
         name: 'Deliver',
         href: '/dashboard/schools/deliveries',
-        desc: 'SP supply · receive · POD & invoices',
+        desc: 'Receive SP deliveries · POD',
+        group: 'School',
+      },
+      {
+        name: 'Kitchen',
+        href: '/dashboard/schools/kitchen',
+        desc: 'GRN · issue · waste',
+        group: 'School',
+      },
+      {
+        name: 'Serve',
+        href: '/dashboard/schools/serve-day',
+        desc: 'Present → meals → waste',
         group: 'School',
       },
       {
@@ -522,19 +575,25 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       {
         name: 'Nutrition',
         href: '/dashboard/schools/nutrition',
-        desc: 'School + learner report vs DBE average',
+        desc: 'Vs department average',
+        group: 'School',
+      },
+      {
+        name: 'Prizes',
+        href: '/dashboard/schools/prizes',
+        desc: 'Headmaster prize score',
         group: 'School',
       },
       {
         name: 'Audit',
         href: '/dashboard/schools/audit',
-        desc: 'Hashed evidence & transparency',
+        desc: 'Hashed evidence pack',
         group: 'School',
       },
       {
         name: 'Improve',
         href: '/dashboard/schools/riad',
-        desc: 'RIAD risks · decisions · leadership',
+        desc: 'RIAD risks · decisions',
         group: 'School',
       },
       {
@@ -544,29 +603,47 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         group: 'School',
       },
 
-      // ── SP network ──────────────────────────────────────────────────
+      // ── SP (service provider) tool ───────────────────────────────────
       {
         name: 'Workspace',
         href: '/dashboard/schools/isp',
-        desc: 'SP-only entry → deliveries',
+        desc: 'SP home → deliveries',
         group: 'SP',
       },
       {
-        name: 'Network',
+        name: 'Profile',
         href: '/dashboard/schools/isps',
-        desc: 'Register SP · link to schools · vet compliance',
+        desc: 'Register SP · join DBE/DoH',
+        group: 'SP',
+      },
+      {
+        name: 'Join dept',
+        href: '/dashboard/schools/isps',
+        desc: 'Request association with DBE/DoH',
         group: 'SP',
       },
       {
         name: 'Deliver',
         href: '/dashboard/schools/deliveries',
-        desc: 'Dispatch · POD · invoice · OTIF · school receive',
+        desc: 'Dispatch · POD · invoice · OTIF',
+        group: 'SP',
+      },
+      {
+        name: 'Catalogue',
+        href: '/dashboard/schools/approved-list',
+        desc: 'Approved foods you must supply',
         group: 'SP',
       },
       {
         name: 'SLA',
         href: '/dashboard/schools/isp-sla',
-        desc: 'Delivery & brand compliance scores',
+        desc: 'Your preferred / probation score',
+        group: 'SP',
+      },
+      {
+        name: 'Trade',
+        href: '/dashboard/suppliers',
+        desc: 'Buy from wholesalers (trade network)',
         group: 'SP',
       },
     ],

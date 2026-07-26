@@ -39,6 +39,7 @@ import {
   BUSINESS_TYPE_GROUPS,
   BUSINESS_TYPE_OPTIONS,
   industriesGroupedBySector,
+  searchIndustries,
   subIndustriesFor,
 } from '@/lib/business/industries';
 import { uploadCompanyAssetServerFirst } from '@/lib/business/uploadCompanyAssets';
@@ -141,6 +142,7 @@ function ProfileInner() {
   const [form, setForm] = useState<Partial<CompanyProfile>>({});
   const [selectedIndustries, setSelectedIndustries] = useState<string[]>([]);
   const [selectedSubIndustries, setSelectedSubIndustries] = useState<string[]>([]);
+  const [industryQuery, setIndustryQuery] = useState('');
   const [certEntries, setCertEntries] = useState<CertificationEntry[]>([]);
   const [exportLicenses, setExportLicenses] = useState<ExportLicenseEntry[]>([]);
   const [geo, setGeo] = useState<GeoValue>({
@@ -189,6 +191,18 @@ function ProfileInner() {
     () => subIndustriesFor(selectedIndustries),
     [selectedIndustries]
   );
+
+  const industryGroups = useMemo(() => {
+    const q = industryQuery.trim().toLowerCase();
+    if (!q) return industriesGroupedBySector();
+    const hitNames = new Set(searchIndustries(q, 80).map((i) => i.name));
+    return industriesGroupedBySector()
+      .map(({ sector, industries }) => ({
+        sector,
+        industries: industries.filter((i) => hitNames.has(i.name)),
+      }))
+      .filter((g) => g.industries.length > 0);
+  }, [industryQuery]);
 
   const latNum = form.latitude != null && form.latitude !== '' ? Number(form.latitude) : null;
   const lngNum = form.longitude != null && form.longitude !== '' ? Number(form.longitude) : null;
@@ -2153,12 +2167,33 @@ function ProfileInner() {
           <Panel id="industry" title="Sector & industry">
             <div className="p-4 space-y-3">
               <p className="text-[11px] text-neutral-500 leading-relaxed">
-                Choose from the full economy: primary → secondary → tertiary →
-                quaternary → quinary (government, education, health, NGOs).
-                Select one or more industries that describe this organisation.
+                Exhaustive catalogue across primary → secondary → tertiary →
+                quaternary → quinary (includes government, education, health,
+                NGOs). Search or browse by sector; then pick sub-industries.
               </p>
-              <div className="max-h-72 overflow-y-auto space-y-3 pr-0.5">
-                {industriesGroupedBySector().map(({ sector, industries }) => (
+              <input
+                className={inputCls}
+                value={industryQuery}
+                onChange={(e) => setIndustryQuery(e.target.value)}
+                placeholder="Search industries or sub-industries…"
+              />
+              {selectedIndustries.length > 0 ? (
+                <div className="flex flex-wrap gap-1">
+                  {selectedIndustries.map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => toggleIndustry(n)}
+                      className="text-[10px] font-semibold px-2 py-0.5 rounded-full border border-[#00b4d8] bg-[#00b4d8] text-white"
+                      title="Click to remove"
+                    >
+                      {n} ×
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+              <div className="max-h-80 overflow-y-auto space-y-3 pr-0.5">
+                {industryGroups.map(({ sector, industries }) => (
                   <div key={sector.id}>
                     <SectionLabel>
                       {sector.order}. {sector.label}
@@ -2185,6 +2220,11 @@ function ProfileInner() {
                     </div>
                   </div>
                 ))}
+                {industryGroups.length === 0 ? (
+                  <p className="text-[11px] text-neutral-400">
+                    No industries match “{industryQuery}”.
+                  </p>
+                ) : null}
               </div>
               <div>
                 <SectionLabel>Sub-industries</SectionLabel>

@@ -15,6 +15,8 @@ import { SIDEBAR_MODULE_RESOURCE } from '@/lib/business/permissions';
 import SystemHealthBadge from '@/components/system/SystemHealthBadge';
 import { useSidebarChrome } from '@/components/chrome/SidebarContext';
 import { sidebarModulesFromNav } from '@/lib/chrome/module-nav';
+import { useProgrammeRole } from '@/lib/schools/useProgrammeRole';
+import { stepVisibleForRole } from '@/lib/schools/programme-role';
 
 /** Critical-process nav only — icons unique per module (see lib/chrome/module-nav.ts). */
 const modules = sidebarModulesFromNav();
@@ -57,6 +59,7 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
     loading,
     isCompanyModuleEnabled,
   } = useCompanyRole();
+  const programme = useProgrammeRole();
 
   const visibleModules = useMemo(() => {
     // sales_contractor must only see Sales (enforced in /sales SalesShell;
@@ -64,15 +67,36 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
     if (role === 'sales_contractor') {
       return modules.filter((mod) => mod.id === 'sales-portal');
     }
-    return modules.filter((mod) => {
-      // Company profile module toggles (default all on)
-      if (!isCompanyModuleEnabled(mod.id)) return false;
-      const resource = SIDEBAR_MODULE_RESOURCE[mod.id];
-      if (!resource) return true;
-      if (!role) return true;
-      return canViewModule(resource);
-    });
-  }, [role, canViewModule, isCompanyModuleEnabled]);
+    return modules
+      .filter((mod) => {
+        // Company profile module toggles (default all on)
+        if (!isCompanyModuleEnabled(mod.id)) return false;
+        const resource = SIDEBAR_MODULE_RESOURCE[mod.id];
+        if (!resource) return true;
+        if (!role) return true;
+        return canViewModule(resource);
+      })
+      .map((mod) => {
+        // Schools module: one navigation tool per programme role
+        if (mod.id !== 'schools') return mod;
+        const filtered = mod.sub.filter((s) =>
+          stepVisibleForRole(
+            (s as { group?: string }).group,
+            programme.role
+          )
+        );
+        return {
+          ...mod,
+          name:
+            programme.role === 'department'
+              ? 'Schools · DBE/DoH'
+              : programme.role === 'sp'
+                ? 'Schools · SP'
+                : 'Schools · School',
+          sub: filtered.length ? filtered : mod.sub,
+        };
+      });
+  }, [role, canViewModule, isCompanyModuleEnabled, programme.role]);
 
   const toggleModule = (id: string) => {
     setExpandedModules((prev) => {
@@ -344,7 +368,7 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
                           {showHeader ? (
                             <div
                               className={`mt-2 first:mt-0 mb-0.5 px-3 py-1 text-[9px] font-black uppercase tracking-[0.14em] ${
-                                group === 'DBE'
+                                group === 'DBE' || group === 'DBE/DoH'
                                   ? 'text-violet-600'
                                   : group === 'SP'
                                     ? 'text-amber-700'
@@ -353,7 +377,7 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
                                       : 'text-neutral-400'
                               }`}
                             >
-                              {group}
+                              {group === 'DBE' ? 'DBE/DoH' : group}
                             </div>
                           ) : null}
                           <Link
