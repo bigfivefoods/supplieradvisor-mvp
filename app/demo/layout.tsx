@@ -1,10 +1,32 @@
 import type { Metadata } from 'next';
+import { SITE_URL } from '@/lib/seo/site';
 
 export const metadata: Metadata = {
-  title: 'Interactive demo',
+  title: 'Interactive demo — try SupplierAdvisor free',
   description:
-    'Click through SupplierAdvisor® product mocks — operations, suppliers, finance, quality, and more — without signing up.',
-  alternates: { canonical: 'https://www.supplieradvisor.com/demo' },
+    'Click through SupplierAdvisor® product mocks — operations, suppliers, finance, quality, inventory, and Super-Cube leadership — without signing up.',
+  keywords: [
+    'SupplierAdvisor demo',
+    'supply chain software demo',
+    'SRM demo',
+    'B2B platform tour',
+  ],
+  alternates: { canonical: `${SITE_URL}/demo` },
+  openGraph: {
+    title: 'Interactive demo · SupplierAdvisor®',
+    description:
+      'Explore product mocks without signing up — ops, suppliers, finance, quality, and more.',
+    url: `${SITE_URL}/demo`,
+    type: 'website',
+    images: [{ url: '/og-image.png', width: 1200, height: 630 }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Interactive demo · SupplierAdvisor®',
+    description: 'Click through the product without signing up.',
+    images: ['/og-image.png'],
+  },
+  robots: { index: true, follow: true },
 };
 
 export default function DemoLayout({

@@ -81,6 +81,13 @@ const EXTRA: Cmd[] = [
     group: 'Trade',
   },
   {
+    id: 'crm-book',
+    label: 'Customer book',
+    href: '/dashboard/customers/profiles',
+    group: 'Trade',
+    keywords: 'crm profiles accounts',
+  },
+  {
     id: 'stock',
     label: 'Stock levels',
     href: '/dashboard/inventory/stock',

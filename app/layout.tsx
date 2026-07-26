@@ -2,13 +2,13 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Providers } from '@/components/Providers';
 import JsonLd from '@/components/seo/JsonLd';
-
-const SITE_URL = 'https://www.supplieradvisor.com';
-const SITE_NAME = 'SupplierAdvisor®';
-const DEFAULT_TITLE =
-  'SupplierAdvisor® — The world’s most trusted supplier advice — and OS';
-const DEFAULT_DESCRIPTION =
-  'SupplierAdvisor® is the supply-chain OS — not Excel, not accounting-only, not a multi-year ERP. B2B, B2G & B2C on one verified network: SRM, CRM, inventory, manufacturing, finance, SHEQ, people, containers. 30-day free trial. From R299/mo.';
+import {
+  DEFAULT_DESCRIPTION,
+  DEFAULT_TITLE,
+  SITE_KEYWORDS,
+  SITE_NAME,
+  SITE_URL,
+} from '@/lib/seo/site';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -19,29 +19,7 @@ export const metadata: Metadata = {
   description: DEFAULT_DESCRIPTION,
   applicationName: 'SupplierAdvisor',
   generator: 'Next.js',
-  keywords: [
-    'SupplierAdvisor',
-    'supply chain software',
-    'supply chain operating system',
-    'B2B marketplace',
-    'B2G procurement',
-    'supplier relationship management',
-    'SRM',
-    'CRM',
-    'inventory management',
-    'warehouse management',
-    'manufacturing ERP',
-    'MPS MRP BOM',
-    'distribution software',
-    'operations control tower',
-    'trade network',
-    'verified suppliers',
-    'multi-currency accounting',
-    'bank reconciliation',
-    'South Africa supply chain',
-    'on-chain escrow',
-    'Super-Cube leadership',
-  ],
+  keywords: SITE_KEYWORDS,
   authors: [{ name: 'SupplierAdvisor', url: SITE_URL }],
   creator: 'SupplierAdvisor',
   publisher: 'SupplierAdvisor',
@@ -68,12 +46,12 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'en_ZA',
-    alternateLocale: ['en_US', 'en_GB'],
+    alternateLocale: ['en_US', 'en_GB', 'en_AU'],
     url: SITE_URL,
     siteName: SITE_NAME,
     title: DEFAULT_TITLE,
     description:
-      'The world’s most trusted supplier advice — and OS. B2B, B2G & B2C on one verified network. 30-day free trial.',
+      'The world’s most trusted supplier advice — and OS. Public directory of verified B2B suppliers. 30-day free trial.',
     images: [
       {
         url: '/og-image.png',
@@ -88,9 +66,10 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: DEFAULT_TITLE,
     description:
-      'SupplierAdvisor® unites B2B, B2G & B2C on one verified network. 30-day free trial · from R299/mo.',
+      'SupplierAdvisor® unites B2B, B2G & B2C on one verified network. Browse the public supplier directory · 30-day free trial.',
     images: ['/og-image.png'],
     creator: '@supplieradvisa',
+    site: '@supplieradvisa',
   },
   robots: {
     index: true,
@@ -105,6 +84,14 @@ export const metadata: Metadata = {
   },
   alternates: {
     canonical: SITE_URL,
+  },
+  verification: {
+    // Set NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION in env when GSC is connected
+    ...(process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION
+      ? {
+          google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION,
+        }
+      : {}),
   },
   other: {
     'msapplication-TileColor': '#00b4d8',

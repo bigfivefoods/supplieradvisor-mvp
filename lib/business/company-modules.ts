@@ -37,6 +37,8 @@ const MODULE_DESCRIPTIONS: Record<string, string> = {
   projects: 'Portfolio, kanban, milestones & timesheets',
   sustainability: 'Carbon tracking, ESG packs & impact',
   intelligence: 'Pulse, forecasts, scorecards & Super-Cube® leadership',
+  schools:
+    'NSNP schools: kitchen, learners, ISPs, approved brands, feeding, prizes',
   home: 'Command centre home',
   'my-business': 'Company profile, team, modules, billing & trust',
   guide: 'In-app training curriculum',
@@ -50,7 +52,8 @@ export type ModuleCategoryId =
   | 'finance'
   | 'people'
   | 'compliance'
-  | 'intelligence';
+  | 'intelligence'
+  | 'programmes';
 
 export const MODULE_CATEGORIES: Array<{
   id: ModuleCategoryId;
@@ -106,10 +109,21 @@ export const MODULE_CATEGORIES: Array<{
     blurb: 'Pulse, insights, forecasts, Super-Cube® leadership.',
     moduleIds: ['intelligence'],
   },
+  {
+    id: 'programmes',
+    title: 'Programmes',
+    blurb: 'Sector programmes — NSNP schools, kitchens, approved brands.',
+    moduleIds: ['schools'],
+  },
 ];
 
 /** One-click presets for onboarding */
-export type ModulePresetId = 'starter' | 'trading' | 'operations' | 'full';
+export type ModulePresetId =
+  | 'starter'
+  | 'trading'
+  | 'operations'
+  | 'full'
+  | 'school_nsnp';
 
 export const MODULE_PRESETS: Array<{
   id: ModulePresetId;
@@ -163,6 +177,13 @@ export const MODULE_PRESETS: Array<{
     label: 'Everything',
     description: 'All modules visible — turn off what you do not need later.',
     enable: MODULE_NAV.map((m) => m.id),
+  },
+  {
+    id: 'school_nsnp',
+    label: 'School / NSNP',
+    description:
+      'School kitchen, learners, approved brands, ISPs, feeding & prizes.',
+    enable: ['schools', 'inventory', 'suppliers', 'network', 'quality', 'sheq'],
   },
 ];
 
@@ -270,7 +291,8 @@ export function normalizeEnabledModules(
     if (Object.prototype.hasOwnProperty.call(src, id)) {
       map[id] = src[id] === true || src[id] === 'true' || src[id] === 1;
     } else {
-      map[id] = true; // default all selected
+      // Schools / NSNP is opt-in (sector programme); other modules default on
+      map[id] = id === 'schools' ? false : true;
     }
   }
   return map;
@@ -291,11 +313,11 @@ export function isModuleEnabled(
   moduleId: string
 ): boolean {
   if (isAlwaysOnModule(moduleId)) return true;
-  if (!enabled) return true; // fail open until loaded
+  if (!enabled) return moduleId !== 'schools'; // fail open except opt-in schools
   if (Object.prototype.hasOwnProperty.call(enabled, moduleId)) {
     return enabled[moduleId] !== false;
   }
-  return true;
+  return moduleId !== 'schools';
 }
 
 /** Sidebar / process rail: keep module if role allows AND company enabled it */

@@ -3,11 +3,9 @@
  * Used by generateMetadata, JSON-LD, and sitemap prioritization.
  */
 
-export const SITE_URL = (
-  process.env.NEXT_PUBLIC_APP_URL ||
-  process.env.NEXT_PUBLIC_SITE_URL ||
-  'https://www.supplieradvisor.com'
-).replace(/\/$/, '');
+import { SITE_URL as CANONICAL_SITE } from '@/lib/seo/site';
+
+export const SITE_URL = CANONICAL_SITE;
 
 export type CompanySeoInput = {
   id: number;
@@ -201,6 +199,9 @@ export function companyJsonLdGraph(
   const url = opts?.pageUrl || companyCanonicalUrl(c);
   const place = companyLocationLine(c);
   const verified = isCompanyVerified(c);
+  const industry = String(c.industry || '').trim();
+  const city = String(c.city || '').trim();
+  const country = String(c.country || '').trim();
   const logo = c.logo_url
     ? c.logo_url.startsWith('http')
       ? c.logo_url
@@ -219,6 +220,7 @@ export function companyJsonLdGraph(
     '@id': `${url}#organization`,
     name,
     legalName: c.legal_name || name,
+    alternateName: c.legal_name && c.legal_name !== name ? [c.legal_name] : undefined,
     url,
     description: companySeoDescription(c, {
       ratingAvg: opts?.ratingAvg,
@@ -240,11 +242,20 @@ export function companyJsonLdGraph(
         }
       : {}),
     ...(Object.keys(address).length > 1 ? { address } : {}),
-    ...(place ? { areaServed: place } : {}),
-    ...(c.industry
+    ...(place
       ? {
-          knowsAbout: c.industry,
-          additionalType: `https://schema.org/${encodeURIComponent(c.industry)}`,
+          areaServed: place,
+          location: {
+            '@type': 'Place',
+            name: place,
+            address,
+          },
+        }
+      : {}),
+    ...(industry
+      ? {
+          knowsAbout: industry,
+          category: industry,
         }
       : {}),
     ...(c.registration_number
@@ -254,17 +265,30 @@ export function companyJsonLdGraph(
             name: 'Company registration number',
             value: c.registration_number,
           },
+          taxID: c.registration_number,
         }
       : {}),
     ...(verified
       ? {
           award: 'CIPC verified on SupplierAdvisor',
+          hasCredential: {
+            '@type': 'EducationalOccupationalCredential',
+            name: 'SupplierAdvisor CIPC-verified identity',
+            credentialCategory: 'verification',
+          },
         }
       : {}),
     memberOf: {
       '@type': 'Organization',
       name: 'SupplierAdvisor',
       url: SITE_URL,
+    },
+    potentialAction: {
+      '@type': 'TradeAction',
+      target: `${SITE_URL}/login?next=${encodeURIComponent(
+        `/dashboard?peerTrade=${c.id}&peerName=${encodeURIComponent(name)}`
+      )}`,
+      name: `Connect & trade with ${name}`,
     },
   };
 
@@ -282,29 +306,50 @@ export function companyJsonLdGraph(
     };
   }
 
+  const crumbItems: Array<Record<string, unknown>> = [
+    {
+      '@type': 'ListItem',
+      position: 1,
+      name: 'SupplierAdvisor',
+      item: SITE_URL,
+    },
+    {
+      '@type': 'ListItem',
+      position: 2,
+      name: 'Directory',
+      item: `${SITE_URL}/directory`,
+    },
+  ];
+  let pos = 3;
+  if (industry) {
+    crumbItems.push({
+      '@type': 'ListItem',
+      position: pos,
+      name: industry,
+      item: `${SITE_URL}/directory/industry/${slugifyCompanyName(industry)}`,
+    });
+    pos += 1;
+  }
+  if (city) {
+    crumbItems.push({
+      '@type': 'ListItem',
+      position: pos,
+      name: city,
+      item: `${SITE_URL}/directory/city/${slugifyCompanyName(city)}`,
+    });
+    pos += 1;
+  }
+  crumbItems.push({
+    '@type': 'ListItem',
+    position: pos,
+    name,
+    item: url,
+  });
+
   const breadcrumb = {
     '@type': 'BreadcrumbList',
     '@id': `${url}#breadcrumb`,
-    itemListElement: [
-      {
-        '@type': 'ListItem',
-        position: 1,
-        name: 'SupplierAdvisor',
-        item: SITE_URL,
-      },
-      {
-        '@type': 'ListItem',
-        position: 2,
-        name: 'Directory',
-        item: `${SITE_URL}/directory`,
-      },
-      {
-        '@type': 'ListItem',
-        position: 3,
-        name,
-        item: url,
-      },
-    ],
+    itemListElement: crumbItems,
   };
 
   const webPage = {
@@ -318,14 +363,66 @@ export function companyJsonLdGraph(
     }),
     isPartOf: { '@type': 'WebSite', name: 'SupplierAdvisor', url: SITE_URL },
     about: { '@id': `${url}#organization` },
+    mainEntity: { '@id': `${url}#organization` },
     primaryImageOfPage: logo
       ? { '@type': 'ImageObject', url: logo }
       : undefined,
     inLanguage: 'en',
+    dateModified: new Date().toISOString().slice(0, 10),
+  };
+
+  // FAQ rich results — unique per company for long-tail discovery
+  const faqAnswers: Array<{ q: string; a: string }> = [
+    {
+      q: `Who is ${name}?`,
+      a: companySeoDescription(c, {
+        ratingAvg: opts?.ratingAvg,
+        ratingCount: opts?.ratingCount,
+      }),
+    },
+    {
+      q: `Where is ${name} based?`,
+      a: place
+        ? `${name} is based in ${place} and listed on the SupplierAdvisor verified trade network.`
+        : `${name} is listed on SupplierAdvisor — the B2B trade network for verified suppliers and buyers.`,
+    },
+    {
+      q: `How do I connect with ${name} on SupplierAdvisor?`,
+      a: `Open the public profile at ${url}, then use Connect & trade or Request to trade. You can also claim this listing if you own ${name}.`,
+    },
+  ];
+  if (industry) {
+    faqAnswers.push({
+      q: `What industry is ${name} in?`,
+      a: `${name} operates in ${industry}${
+        city || country
+          ? ` and serves buyers from ${[city, country].filter(Boolean).join(', ')}`
+          : ''
+      }. Browse more ${industry} companies at ${SITE_URL}/directory/industry/${slugifyCompanyName(industry)}.`,
+    });
+  }
+  if (verified) {
+    faqAnswers.push({
+      q: `Is ${name} verified?`,
+      a: `Yes — ${name} has CIPC-verified identity on SupplierAdvisor (paid verification with a 24-hour SLA).`,
+    });
+  }
+
+  const faqPage = {
+    '@type': 'FAQPage',
+    '@id': `${url}#faq`,
+    mainEntity: faqAnswers.map((item) => ({
+      '@type': 'Question',
+      name: item.q,
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: item.a,
+      },
+    })),
   };
 
   return {
     '@context': 'https://schema.org',
-    '@graph': [org, breadcrumb, webPage],
+    '@graph': [org, breadcrumb, webPage, faqPage],
   };
 }

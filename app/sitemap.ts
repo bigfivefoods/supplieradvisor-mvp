@@ -1,245 +1,158 @@
 import type { MetadataRoute } from 'next';
-import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { isEligibleForDiscovery } from '@/lib/business/completeness';
-import { companyPublicPath, SITE_URL } from '@/lib/seo/company-public';
-import { facetSlug } from '@/lib/seo/directory-data';
+import { companyPublicPath } from '@/lib/seo/company-public';
+import { facetSlug, industryCityPairs, type DirCompany } from '@/lib/seo/directory-data';
+import { loadAllPublicCompanyRows } from '@/lib/seo/load-public-companies';
+import { SITE_URL, STATIC_SEO_ROUTES } from '@/lib/seo/site';
 
 /** Prefer www canonical host for Google Search Console */
 const BASE = SITE_URL;
 
-export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+/** Companies per sitemap shard (Google supports 50k URLs; keep shards lean). */
+const COMPANIES_PER_SITEMAP = 2000;
+
+/**
+ * Sitemap index shards:
+ *  0 — static marketing + directory facet hubs + industry×city long-tail
+ *  1+ — company profile pages (every discoverable business)
+ */
+export async function generateSitemaps() {
+  try {
+    const companies = await loadAllPublicCompanyRows();
+    const companyShards = Math.max(
+      1,
+      Math.ceil(companies.length / COMPANIES_PER_SITEMAP)
+    );
+    // id 0 = static + hubs; ids 1..N = company shards
+    return Array.from({ length: 1 + companyShards }, (_, id) => ({ id }));
+  } catch {
+    return [{ id: 0 }, { id: 1 }];
+  }
+}
+
+export default async function sitemap(props: {
+  id: Promise<string> | string | number;
+}): Promise<MetadataRoute.Sitemap> {
+  const rawId = await Promise.resolve(props.id);
+  const id = typeof rawId === 'number' ? rawId : Number(rawId);
   const now = new Date();
-  const staticRoutes: MetadataRoute.Sitemap = [
-    {
-      url: `${BASE}/`,
-      lastModified: now,
-      changeFrequency: 'daily',
-      priority: 1,
-    },
-    {
-      url: `${BASE}/directory`,
-      lastModified: now,
-      changeFrequency: 'daily',
-      priority: 0.95,
-    },
-    {
-      url: `${BASE}/#directory`,
-      lastModified: now,
-      changeFrequency: 'daily',
-      priority: 0.85,
-    },
-    {
-      url: `${BASE}/pricing`,
-      lastModified: now,
-      changeFrequency: 'weekly',
-      priority: 0.8,
-    },
-    {
-      url: `${BASE}/verification-sla`,
-      lastModified: now,
-      changeFrequency: 'monthly',
-      priority: 0.75,
-    },
-    {
-      url: `${BASE}/privacy`,
-      lastModified: now,
-      changeFrequency: 'yearly',
-      priority: 0.3,
-    },
-    {
-      url: `${BASE}/terms`,
-      lastModified: now,
-      changeFrequency: 'yearly',
-      priority: 0.3,
-    },
-    {
-      url: `${BASE}/onboarding?type=business`,
-      lastModified: now,
-      changeFrequency: 'monthly',
-      priority: 0.6,
-    },
-    {
-      url: `${BASE}/demo`,
-      lastModified: now,
-      changeFrequency: 'weekly',
-      priority: 0.85,
-    },
-    {
-      url: `${BASE}/industries`,
-      lastModified: now,
-      changeFrequency: 'weekly',
-      priority: 0.85,
-    },
-    {
-      url: `${BASE}/industries/food-beverage`,
-      lastModified: now,
-      changeFrequency: 'monthly',
-      priority: 0.75,
-    },
-    {
-      url: `${BASE}/industries/agriculture`,
-      lastModified: now,
-      changeFrequency: 'monthly',
-      priority: 0.75,
-    },
-    {
-      url: `${BASE}/industries/manufacturing`,
-      lastModified: now,
-      changeFrequency: 'monthly',
-      priority: 0.75,
-    },
-    {
-      url: `${BASE}/industries/distribution`,
-      lastModified: now,
-      changeFrequency: 'monthly',
-      priority: 0.75,
-    },
-    {
-      url: `${BASE}/industries/public-sector`,
-      lastModified: now,
-      changeFrequency: 'monthly',
-      priority: 0.75,
-    },
-    {
-      url: `${BASE}/industries/multi-entity`,
-      lastModified: now,
-      changeFrequency: 'monthly',
-      priority: 0.75,
-    },
-  ];
+
+  if (!Number.isFinite(id) || id <= 0) {
+    return buildStaticAndHubs(now);
+  }
+
+  return buildCompanyShard(id - 1, now);
+}
+
+async function buildStaticAndHubs(now: Date): Promise<MetadataRoute.Sitemap> {
+  const staticRoutes: MetadataRoute.Sitemap = STATIC_SEO_ROUTES.map((r) => ({
+    url: `${BASE}${r.path === '/' ? '/' : r.path}`,
+    lastModified: now,
+    changeFrequency: r.changeFrequency,
+    priority: r.priority,
+  }));
 
   try {
-    const supabase = getSupabaseServer();
-    // Paginate to cover more of the directory (Google sitemap soft limit is large)
-    const pageSize = 1000;
-    const maxPages = 5;
-    const allCompanies: Array<Record<string, unknown>> = [];
+    const rows = await loadAllPublicCompanyRows();
+    const asDir: DirCompany[] = rows.map((r) => ({
+      id: r.id,
+      trading_name: r.trading_name,
+      legal_name: r.legal_name,
+      industry: r.industry,
+      city: r.city,
+      country: r.country,
+      logo_url: r.logo_url,
+      short_description: r.short_description,
+      verification_status: r.verification_status,
+      trust_score: r.trust_score,
+    }));
 
-    for (let page = 0; page < maxPages; page += 1) {
-      const from = page * pageSize;
-      const to = from + pageSize - 1;
-      const { data, error } = await supabase
-        .from('profiles')
-        .select(
-          // Never select is_verified — ghost column on profiles
-          'id, trading_name, legal_name, is_discoverable, logo_url, email, city, country, registration_number, verification_status, industry, updated_at'
-        )
-        .not('trading_name', 'is', null)
-        .order('updated_at', { ascending: false })
-        .range(from, to);
-
-      if (error) {
-        // Fallback single page without range
-        if (page === 0) {
-          const retry = await supabase
-            .from('profiles')
-            .select(
-              'id, trading_name, legal_name, is_discoverable, email, city, country, verification_status, industry, updated_at'
-            )
-            .not('trading_name', 'is', null)
-            .order('updated_at', { ascending: false })
-            .limit(500);
-          if (retry.data) allCompanies.push(...(retry.data as Array<Record<string, unknown>>));
-        }
-        break;
-      }
-      const batch = (data || []) as Array<Record<string, unknown>>;
-      allCompanies.push(...batch);
-      if (batch.length < pageSize) break;
-    }
-
-    const discoverable = allCompanies.filter((p) =>
-      isEligibleForDiscovery(p).ok
-    );
-
-    const companyUrls: MetadataRoute.Sitemap = discoverable.map((p) => {
-      const verified =
-        String(p.verification_status || '').toLowerCase() === 'verified';
-      const path = companyPublicPath({
-        id: Number(p.id),
-        trading_name:
-          p.trading_name != null ? String(p.trading_name) : null,
-        legal_name: p.legal_name != null ? String(p.legal_name) : null,
-      });
-      return {
-        url: `${BASE}${path}`,
-        lastModified: p.updated_at
-          ? new Date(String(p.updated_at))
-          : undefined,
-        changeFrequency: 'weekly' as const,
-        priority: verified ? 0.85 : 0.7,
-      };
-    });
-
-    // Industry + city hub landing pages for long-tail SEO
     const industries = [
       ...new Set(
-        discoverable
+        asDir
           .map((p) => (p.industry != null ? String(p.industry).trim() : ''))
           .filter(Boolean)
       ),
     ];
     const cities = [
       ...new Set(
-        discoverable
+        asDir
           .map((p) => (p.city != null ? String(p.city).trim() : ''))
           .filter(Boolean)
       ),
     ];
-    const industryHubs: MetadataRoute.Sitemap = industries
-      .slice(0, 80)
-      .map((ind) => ({
-        url: `${BASE}/directory/industry/${facetSlug(ind)}`,
-        lastModified: now,
-        changeFrequency: 'weekly' as const,
-        priority: 0.75,
-      }));
-    const cityHubs: MetadataRoute.Sitemap = cities.slice(0, 80).map((city) => ({
-      url: `${BASE}/directory/city/${facetSlug(city)}`,
-      lastModified: now,
-      changeFrequency: 'weekly' as const,
-      priority: 0.75,
-    }));
-    const countriesList = [
+    const countries = [
       ...new Set(
-        discoverable
+        asDir
           .map((p) => (p.country != null ? String(p.country).trim() : ''))
           .filter(Boolean)
       ),
     ];
-    const countryHubs: MetadataRoute.Sitemap = countriesList
-      .slice(0, 80)
-      .map((country) => ({
-        url: `${BASE}/directory/country/${facetSlug(country)}`,
-        lastModified: now,
-        changeFrequency: 'weekly' as const,
-        priority: 0.78,
-      }));
 
-    const { data: products } = await supabase
-      .from('products')
-      .select('public_id, updated_at')
-      .not('public_id', 'is', null)
-      .limit(1000);
+    const industryHubs: MetadataRoute.Sitemap = industries.map((ind) => ({
+      url: `${BASE}/directory/industry/${facetSlug(ind)}`,
+      lastModified: now,
+      changeFrequency: 'weekly' as const,
+      priority: 0.8,
+    }));
+    const cityHubs: MetadataRoute.Sitemap = cities.map((city) => ({
+      url: `${BASE}/directory/city/${facetSlug(city)}`,
+      lastModified: now,
+      changeFrequency: 'weekly' as const,
+      priority: 0.78,
+    }));
+    const countryHubs: MetadataRoute.Sitemap = countries.map((country) => ({
+      url: `${BASE}/directory/country/${facetSlug(country)}`,
+      lastModified: now,
+      changeFrequency: 'weekly' as const,
+      priority: 0.8,
+    }));
 
-    const productUrls: MetadataRoute.Sitemap = (products || [])
-      .filter((p) => p.public_id)
-      .map((p) => ({
-        url: `${BASE}/p/${p.public_id}`,
-        lastModified: p.updated_at ? new Date(String(p.updated_at)) : undefined,
-        changeFrequency: 'weekly' as const,
-        priority: 0.55,
-      }));
+    // Long-tail: industry × city (e.g. Food suppliers in Johannesburg)
+    const pairs = industryCityPairs(asDir, 500);
+    const comboHubs: MetadataRoute.Sitemap = pairs.map(({ industry, city }) => ({
+      url: `${BASE}/directory/industry/${facetSlug(industry)}/in/${facetSlug(city)}`,
+      lastModified: now,
+      changeFrequency: 'weekly' as const,
+      priority: 0.72,
+    }));
 
     return [
       ...staticRoutes,
       ...industryHubs,
       ...cityHubs,
       ...countryHubs,
-      ...companyUrls,
-      ...productUrls,
+      ...comboHubs,
     ];
   } catch {
     return staticRoutes;
+  }
+}
+
+async function buildCompanyShard(
+  shardIndex: number,
+  now: Date
+): Promise<MetadataRoute.Sitemap> {
+  try {
+    const rows = await loadAllPublicCompanyRows();
+    const from = shardIndex * COMPANIES_PER_SITEMAP;
+    const slice = rows.slice(from, from + COMPANIES_PER_SITEMAP);
+
+    return slice.map((p) => {
+      const verified =
+        String(p.verification_status || '').toLowerCase() === 'verified';
+      const path = companyPublicPath({
+        id: Number(p.id),
+        trading_name: p.trading_name,
+        legal_name: p.legal_name,
+      });
+      return {
+        url: `${BASE}${path}`,
+        lastModified: p.updated_at ? new Date(String(p.updated_at)) : now,
+        changeFrequency: 'weekly' as const,
+        priority: verified ? 0.9 : 0.75,
+      };
+    });
+  } catch {
+    return [];
   }
 }

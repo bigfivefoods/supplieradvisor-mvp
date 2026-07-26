@@ -629,10 +629,14 @@ export async function GET(request: NextRequest) {
       )
     ).length;
 
-    // Invoice detail for transparency (top 50 by total)
+    // Invoice detail for transparency (full period ledger, cap 500)
     const invoiceDetails = [...unified]
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 50)
+      .sort((a, b) => {
+        const da = a.date || '';
+        const db = b.date || '';
+        return db.localeCompare(da) || b.total - a.total;
+      })
+      .slice(0, 500)
       .map((inv) => {
         const cust =
           inv.customer_id != null
@@ -654,6 +658,7 @@ export async function GET(request: NextRequest) {
           open: round2(inv.open),
           status: inv.status,
           date: inv.date,
+          due_date: null as string | null,
           order_id: inv.order_id,
           feedback_star_avg:
             ratings.length > 0
@@ -665,51 +670,321 @@ export async function GET(request: NextRequest) {
         };
       });
 
+    // Attach due dates from CRM invoices for aging
+    for (const inv of invoiceDetails) {
+      if (inv.source !== 'crm') continue;
+      const full = crmInvoicesAll.find((i) => Number(i.id) === inv.id);
+      if (full?.due_date) inv.due_date = String(full.due_date).slice(0, 10);
+    }
+
+    // Revenue concentration (Pareto)
+    let cumRev = 0;
+    const revBase = customerRows
+      .map((r) => ({
+        ...r,
+        commercial: r.billed > 0 ? r.billed : r.order_revenue,
+      }))
+      .filter((r) => r.commercial > 0)
+      .sort((a, b) => b.commercial - a.commercial);
+    const totalCommercial = revBase.reduce((s, r) => s + r.commercial, 0);
+    const concentration = revBase.map((r, i) => {
+      cumRev += r.commercial;
+      return {
+        rank: i + 1,
+        customer_id: r.customer_id,
+        name: r.name,
+        revenue: round2(r.commercial),
+        share_pct:
+          totalCommercial > 0
+            ? round1((r.commercial / totalCommercial) * 100)
+            : 0,
+        cumulative_pct:
+          totalCommercial > 0
+            ? round1((cumRev / totalCommercial) * 100)
+            : 0,
+      };
+    });
+    const top3Rev = concentration
+      .slice(0, 3)
+      .reduce((s, r) => s + r.revenue, 0);
+    const top3Share =
+      totalCommercial > 0
+        ? round1((top3Rev / totalCommercial) * 100)
+        : 0;
+
+    // Monthly trend (orders + billed)
+    const monthly: Record<
+      string,
+      { orders: number; orderRevenue: number; billed: number; invoices: number }
+    > = {};
+    for (const o of orders) {
+      const ym = String(o.created_at || '').slice(0, 7);
+      if (!ym) continue;
+      if (!monthly[ym]) {
+        monthly[ym] = {
+          orders: 0,
+          orderRevenue: 0,
+          billed: 0,
+          invoices: 0,
+        };
+      }
+      monthly[ym].orders += 1;
+      monthly[ym].orderRevenue += Number(o.total_amount || 0);
+    }
+    for (const inv of unified) {
+      const ym = String(inv.date || '').slice(0, 7);
+      if (!ym) continue;
+      if (!monthly[ym]) {
+        monthly[ym] = {
+          orders: 0,
+          orderRevenue: 0,
+          billed: 0,
+          invoices: 0,
+        };
+      }
+      monthly[ym].invoices += 1;
+      monthly[ym].billed += inv.total;
+    }
+    const trend = Object.keys(monthly)
+      .sort()
+      .map((ym) => ({
+        month: ym,
+        orders: monthly[ym].orders,
+        orderRevenue: round2(monthly[ym].orderRevenue),
+        invoices: monthly[ym].invoices,
+        billed: round2(monthly[ym].billed),
+      }));
+
+    // AR aging buckets (open invoices)
+    const today = new Date();
+    const aging = {
+      current: 0,
+      d1_30: 0,
+      d31_60: 0,
+      d61_90: 0,
+      d90_plus: 0,
+      total: 0,
+    };
+    const agingRows: Array<{
+      id: number;
+      number: string | null;
+      customer_name: string | null;
+      open: number;
+      days: number;
+      bucket: string;
+      due_date: string | null;
+    }> = [];
+    for (const inv of unified) {
+      if (inv.open <= 0) continue;
+      const dueStr = inv.date; // fallback to issue date if no due
+      const full = crmInvoicesAll.find((i) => Number(i.id) === inv.id);
+      const due =
+        full?.due_date != null
+          ? String(full.due_date).slice(0, 10)
+          : dueStr;
+      let days = 0;
+      if (due) {
+        const d = new Date(due);
+        days = Math.floor(
+          (today.getTime() - d.getTime()) / (1000 * 60 * 60 * 24)
+        );
+      }
+      let bucket = 'current';
+      if (days <= 0) {
+        aging.current += inv.open;
+        bucket = 'current';
+      } else if (days <= 30) {
+        aging.d1_30 += inv.open;
+        bucket = '1-30';
+      } else if (days <= 60) {
+        aging.d31_60 += inv.open;
+        bucket = '31-60';
+      } else if (days <= 90) {
+        aging.d61_90 += inv.open;
+        bucket = '61-90';
+      } else {
+        aging.d90_plus += inv.open;
+        bucket = '90+';
+      }
+      aging.total += inv.open;
+      agingRows.push({
+        id: inv.id,
+        number: inv.number,
+        customer_name:
+          inv.customer_id != null
+            ? String(
+                customerById.get(inv.customer_id)?.trading_name ||
+                  customerById.get(inv.customer_id)?.legal_name ||
+                  inv.customer_name ||
+                  ''
+              )
+            : inv.customer_name,
+        open: round2(inv.open),
+        days: Math.max(0, days),
+        bucket,
+        due_date: due,
+      });
+    }
+    agingRows.sort((a, b) => b.days - a.days || b.open - a.open);
+
+    // Pipeline by stage
+    const pipelineByStage: Record<
+      string,
+      { count: number; amount: number; weighted: number }
+    > = {};
+    for (const o of openOpps) {
+      const stage = String(o.stage || o.status || 'prospecting')
+        .toLowerCase()
+        .replace(/\s+/g, '_');
+      const amount = Number(o.amount ?? o.opportunity_size ?? 0);
+      const prob =
+        o.probability != null
+          ? Number(o.probability)
+          : stageProbability(stage);
+      if (!pipelineByStage[stage]) {
+        pipelineByStage[stage] = { count: 0, amount: 0, weighted: 0 };
+      }
+      pipelineByStage[stage].count += 1;
+      pipelineByStage[stage].amount += amount;
+      pipelineByStage[stage].weighted += (amount * prob) / 100;
+    }
+    const pipelineStages = Object.entries(pipelineByStage)
+      .map(([stage, v]) => ({
+        stage,
+        count: v.count,
+        amount: round2(v.amount),
+        weighted: round2(v.weighted),
+      }))
+      .sort((a, b) => b.amount - a.amount);
+
+    // Order status mix
+    const orderStatusMix: Record<string, { count: number; revenue: number }> =
+      {};
+    for (const o of orders) {
+      const st = String(o.status || 'unknown').toLowerCase();
+      if (!orderStatusMix[st]) orderStatusMix[st] = { count: 0, revenue: 0 };
+      orderStatusMix[st].count += 1;
+      orderStatusMix[st].revenue += Number(o.total_amount || 0);
+    }
+    const orderStatusRows = Object.entries(orderStatusMix)
+      .map(([status, v]) => ({
+        status,
+        count: v.count,
+        revenue: round2(v.revenue),
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    // Risk pack
+    const risk = {
+      highAr: customerRows
+        .filter((r) => (r.ar_open || 0) > 0)
+        .sort((a, b) => (b.ar_open || 0) - (a.ar_open || 0))
+        .slice(0, 20),
+      lowFeedback: customerRows
+        .filter(
+          (r) =>
+            r.feedback_star_avg != null &&
+            r.feedback_star_avg < 3 &&
+            (r.feedback_count || 0) > 0
+        )
+        .sort(
+          (a, b) => (a.feedback_star_avg || 0) - (b.feedback_star_avg || 0)
+        )
+        .slice(0, 20),
+      lowPeerStars: customerRows
+        .filter(
+          (r) =>
+            r.star_avg != null && r.star_avg < 3 && (r.star_count || 0) > 0
+        )
+        .sort((a, b) => (a.star_avg || 0) - (b.star_avg || 0))
+        .slice(0, 20),
+      concentration:
+        top3Share >= 50
+          ? {
+              message: `Top 3 customers = ${top3Share}% of commercial volume — concentration risk`,
+              top3Share,
+            }
+          : null,
+      agingOver60: round2(aging.d61_90 + aging.d90_plus),
+    };
+
+    // Claims breakdown
+    const claimsByStatus: Record<string, number> = {};
+    for (const c of claims) {
+      const st = String(c.status || 'unknown').toLowerCase();
+      claimsByStatus[st] = (claimsByStatus[st] || 0) + 1;
+    }
+
+    const kpis = {
+      customersTotal: customers.length,
+      customersActive: customers.filter((c) =>
+        ['active', 'accepted'].includes(
+          String(c.status || c.invite_status || '').toLowerCase()
+        )
+      ).length,
+      invitePending: invites.filter((i) => String(i.status) === 'pending')
+        .length,
+      inviteAccepted: customers.filter(
+        (c) => String(c.invite_status || '').toLowerCase() === 'accepted'
+      ).length,
+      openLeads: openLeads.length,
+      openOpportunities: openOpps.length,
+      pipelineValue: round2(pipelineValue),
+      weightedPipeline: round2(weightedPipeline),
+      wonValue: round2(wonValue),
+      ordersCount: orders.length,
+      orderRevenue: round2(orderRevenue),
+      invoicesCount: unified.length,
+      billed: round2(billed),
+      arOpen: round2(arOpen),
+      unassignedBilled: round2(unassignedBilled),
+      openClaims,
+      claimsTotal: claims.length,
+      top3Share,
+      avgOrderValue:
+        orders.length > 0 ? round2(orderRevenue / orders.length) : 0,
+      starAvgGiven:
+        starAvgs.length > 0
+          ? round1(starAvgs.reduce((a, b) => a + b, 0) / starAvgs.length)
+          : null,
+      customersStarRated: starAvgs.length,
+      feedbackAvgStars:
+        fbStars.length > 0
+          ? round1(fbStars.reduce((a, b) => a + b, 0) / fbStars.length)
+          : null,
+      feedbackCount: recentFeedback.length,
+      agingOver60: risk.agingOver60,
+    };
+
     return NextResponse.json({
       success: true,
       period: { from, to },
-      kpis: {
-        customersTotal: customers.length,
-        customersActive: customers.filter((c) =>
-          ['active', 'accepted'].includes(
-            String(c.status || c.invite_status || '').toLowerCase()
-          )
-        ).length,
-        invitePending: invites.filter((i) => String(i.status) === 'pending')
-          .length,
-        inviteAccepted: customers.filter(
-          (c) =>
-            String(c.invite_status || '').toLowerCase() === 'accepted'
-        ).length,
-        openLeads: openLeads.length,
-        openOpportunities: openOpps.length,
-        pipelineValue: round2(pipelineValue),
-        weightedPipeline: round2(weightedPipeline),
-        wonValue: round2(wonValue),
-        ordersCount: orders.length,
-        orderRevenue: round2(orderRevenue),
-        invoicesCount: unified.length,
-        billed: round2(billed),
-        arOpen: round2(arOpen),
-        unassignedBilled: round2(unassignedBilled),
-        openClaims,
-        starAvgGiven:
-          starAvgs.length > 0
-            ? round1(
-                starAvgs.reduce((a, b) => a + b, 0) / starAvgs.length
-              )
-            : null,
-        customersStarRated: starAvgs.length,
-        feedbackAvgStars:
-          fbStars.length > 0
-            ? round1(fbStars.reduce((a, b) => a + b, 0) / fbStars.length)
-            : null,
-        feedbackCount: recentFeedback.length,
-      },
+      kpis,
       customers: customerRows,
-      orders: orderFeedbackRows.slice(0, 100),
+      orders: orderFeedbackRows.slice(0, 300),
       invoices: invoiceDetails,
-      recentFeedback: recentFeedback.slice(0, 40),
+      recentFeedback: recentFeedback.slice(0, 80),
+      concentration,
+      trend,
+      aging: {
+        buckets: {
+          current: round2(aging.current),
+          d1_30: round2(aging.d1_30),
+          d31_60: round2(aging.d31_60),
+          d61_90: round2(aging.d61_90),
+          d90_plus: round2(aging.d90_plus),
+          total: round2(aging.total),
+        },
+        rows: agingRows.slice(0, 100),
+      },
+      pipelineStages,
+      orderStatusMix: orderStatusRows,
+      risk,
+      claimsByStatus: Object.entries(claimsByStatus).map(
+        ([status, count]) => ({ status, count })
+      ),
+      ordersHref: '/dashboard/customers/orders',
+      invoicesHref: '/dashboard/customers/invoices',
       warnings: [
         custRes.error?.message,
         orderRes.error?.message,

@@ -8,25 +8,18 @@ import {
   type NavItem,
 } from '@/components/relationship/RelationshipChrome';
 
+/** Secondary pill nav — mirrors process rail (no duplicate settle/AR/reviews paths) */
 export const CUSTOMERS_NAV: readonly NavItem[] = [
-  { href: '/dashboard/customers', label: 'Command', exact: true },
-  { href: '/dashboard/customers/leads', label: 'Leads' },
-  { href: '/dashboard/customers/profiles', label: 'Profiles' },
-  { href: '/dashboard/customers/onboard', label: 'Onboard' },
-  { href: '/dashboard/customers/invites', label: 'Invites' },
-  { href: '/dashboard/customers/quotes', label: 'Quotes' },
-  { href: '/dashboard/customers/orders', label: 'Orders' },
-  { href: '/dashboard/customers/invoices', label: 'Invoices' },
+  { href: '/dashboard/customers', label: 'Overview', exact: true },
+  { href: '/dashboard/customers/leads', label: 'Source' },
+  { href: '/dashboard/customers/profiles', label: 'Book' },
+  { href: '/dashboard/customers/invites', label: 'Invite' },
+  { href: '/dashboard/customers/quotes', label: 'Quote' },
+  { href: '/dashboard/customers/orders', label: 'Order' },
+  { href: '/dashboard/customers/invoices', label: 'Invoice' },
   { href: '/dashboard/customers/money', label: 'Money' },
-  { href: '/dashboard/customers/ar', label: 'AR aging' },
-  { href: '/dashboard/settle', label: 'Settle' },
-  { href: '/dashboard/customers/loyalty', label: 'Loyalty' },
-  { href: '/dashboard/customers/claims', label: 'Claims' },
-  { href: '/dashboard/customers/contracts', label: 'Contracts' },
-  { href: '/dashboard/customers/ratings', label: 'Ratings' },
+  { href: '/dashboard/customers/ratings', label: 'Rate' },
   { href: '/dashboard/customers/report', label: 'Report' },
-  { href: '/dashboard/customers/reviews', label: 'Reviews' },
-  { href: '/dashboard/customers/riad-log', label: 'RIAD' },
 ] as const;
 
 

@@ -78,12 +78,12 @@ export default async function IndustryHubPage({ params }: Props) {
     },
   };
 
-  // Related city chips from this industry set
+  // Related city chips + long-tail industry×city hubs
   const cityFacets = [
     ...new Set(companies.map((c) => c.city).filter((x): x is string => Boolean(x))),
   ]
     .sort((a, b) => a.localeCompare(b))
-    .slice(0, 16);
+    .slice(0, 24);
 
   return (
     <div className="min-h-screen bg-[#f8fafc]">
@@ -121,7 +121,8 @@ export default async function IndustryHubPage({ params }: Props) {
               ? ` · ${verifiedCount} CIPC-verified (paid identity, 24h SLA)`
               : ''}
             . Connect, raise POs, and close the trade loop with verified
-            partners.
+            partners. Each company has a public SEO profile for Google and
+            partner discovery.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <Link
@@ -150,16 +151,27 @@ export default async function IndustryHubPage({ params }: Props) {
         {cityFacets.length > 0 ? (
           <div className="mb-6">
             <h2 className="text-[10px] font-bold uppercase tracking-wide text-neutral-400 mb-2">
-              Cities with {industry} companies
+              {industry} suppliers by city
             </h2>
             <div className="flex flex-wrap gap-2">
               {cityFacets.map((city) => (
                 <Link
                   key={city}
-                  href={`/directory/city/${facetSlug(city)}`}
-                  className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:border-[#00b4d8] hover:text-[#0077b6]"
+                  href={`/directory/industry/${facetSlug(industry)}/in/${facetSlug(city)}`}
+                  className="rounded-full border border-sky-100 bg-sky-50/80 px-3 py-1 text-xs font-semibold text-sky-900 hover:border-[#00b4d8] hover:text-[#0077b6]"
                 >
-                  {city}
+                  {industry} in {city}
+                </Link>
+              ))}
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {cityFacets.map((city) => (
+                <Link
+                  key={`city-${city}`}
+                  href={`/directory/city/${facetSlug(city)}`}
+                  className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-[11px] font-semibold text-slate-600 hover:border-[#00b4d8]"
+                >
+                  All in {city}
                 </Link>
               ))}
             </div>
@@ -169,7 +181,17 @@ export default async function IndustryHubPage({ params }: Props) {
         {countries.length > 0 ? (
           <p className="text-xs text-neutral-500 mb-4">
             Countries in this industry:{' '}
-            {countries.slice(0, 12).join(' · ')}
+            {countries.slice(0, 12).map((co, i) => (
+              <span key={co}>
+                {i > 0 ? ' · ' : null}
+                <Link
+                  href={`/directory/country/${facetSlug(co)}`}
+                  className="font-semibold text-[#0077b6] hover:underline"
+                >
+                  {co}
+                </Link>
+              </span>
+            ))}
             {countries.length > 12 ? '…' : ''}
           </p>
         ) : null}

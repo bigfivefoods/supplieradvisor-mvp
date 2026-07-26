@@ -41,10 +41,14 @@ export async function generateMetadata({
       'B2B suppliers',
       'verified companies',
       'SupplierAdvisor',
+      'company directory',
+      'trade network',
+      'CIPC verified suppliers',
       sp.industry,
       sp.city,
       sp.country,
       'South Africa suppliers',
+      'Africa B2B marketplace',
     ].filter(Boolean) as string[],
     alternates: { canonical },
     openGraph: {
@@ -53,8 +57,32 @@ export async function generateMetadata({
       url: canonical,
       siteName: 'SupplierAdvisor®',
       type: 'website',
+      locale: 'en_ZA',
+      images: [
+        {
+          url: '/og-image.png',
+          width: 1200,
+          height: 630,
+          alt: 'SupplierAdvisor company directory',
+        },
+      ],
     },
-    robots: { index: true, follow: true },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: ['/og-image.png'],
+    },
+    robots: {
+      index: true,
+      follow: true,
+      googleBot: {
+        index: true,
+        follow: true,
+        'max-image-preview': 'large',
+        'max-snippet': -1,
+      },
+    },
   };
 }
 

@@ -35,12 +35,12 @@ import GeoSelectFields, { type GeoValue } from '@/components/geo/GeoSelectFields
 
 const PROCESS = [
   { label: 'Source', href: '/dashboard/customers/leads' },
-  { label: 'Search', href: '/dashboard/customers/profiles' },
-  { label: 'Onboard', href: '/dashboard/customers/onboard' },
-  { label: 'Connect', href: '/dashboard/customers/invites' },
+  { label: 'Book', href: '/dashboard/customers/profiles' },
+  { label: 'Invite', href: '/dashboard/customers/invites' },
   { label: 'Quote', href: '/dashboard/customers/quotes' },
   { label: 'Order', href: '/dashboard/customers/orders' },
   { label: 'Invoice', href: '/dashboard/customers/invoices' },
+  { label: 'Money', href: '/dashboard/customers/money' },
   { label: 'Rate', href: '/dashboard/customers/ratings' },
   { label: 'Report', href: '/dashboard/customers/report' },
 ];

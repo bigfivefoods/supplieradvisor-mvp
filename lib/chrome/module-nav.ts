@@ -25,6 +25,7 @@ import {
   Brain,
   BookOpen,
   IdCard,
+  School,
 } from 'lucide-react';
 import type { ProcessStep } from '@/components/relationship/RelationshipChrome';
 import type { PermissionResource } from '@/lib/business/permissions';
@@ -56,7 +57,7 @@ export type ModuleNav = {
  * inventory Warehouse · operations Workflow · manufacturing Factory
  * distribution Ship · accounting Landmark · quality ClipboardCheck
  * projects FolderKanban · sustainability Leaf · intelligence Brain · guide BookOpen
- * people IdCard
+ * people IdCard · schools School
  */
 export const MODULE_NAV: readonly ModuleNav[] = [
   {
@@ -144,7 +145,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Connect', href: '/dashboard/suppliers/connect', desc: 'Connect / shortlist partners' },
       { name: 'Book', href: '/dashboard/suppliers/network', desc: 'Your supplier book' },
       { name: 'Invite', href: '/dashboard/suppliers/invites', desc: 'Invite off-platform suppliers' },
-      { name: 'Order', href: '/dashboard/suppliers/po', desc: 'Raise POs & receive' },
+      { name: 'Order', href: '/dashboard/suppliers/po', desc: 'All POs — raise, receive, settle' },
       {
         name: 'Escrow',
         href: '/dashboard/escrow',
@@ -152,7 +153,11 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       },
       { name: 'Score', href: '/dashboard/suppliers/performance', desc: 'OTIFEF performance' },
       { name: 'Rate', href: '/dashboard/suppliers/ratings', desc: 'Peer ratings after trade' },
-      { name: 'Report', href: '/dashboard/suppliers/report', desc: 'Supply-base reporting' },
+      {
+        name: 'Report',
+        href: '/dashboard/suppliers/report',
+        desc: 'Slice & dice — spend, OTIFEF, risk, PO ledger',
+      },
     ],
   },
   {
@@ -164,22 +169,18 @@ export const MODULE_NAV: readonly ModuleNav[] = [
     steps: [
       { name: 'Overview', href: '/dashboard/customers', exact: true, desc: 'CRM command tower' },
       { name: 'Source', href: '/dashboard/customers/leads', desc: 'Leads & pipeline' },
-      { name: 'Search', href: '/dashboard/customers/profiles', desc: 'Find accounts in book' },
-      { name: 'Connect', href: '/dashboard/customers/invites', desc: 'Invite buyers to platform' },
-      { name: 'Book', href: '/dashboard/customers/onboard', desc: 'Add / onboard customers' },
-      { name: 'Quote', href: '/dashboard/customers/quotes', desc: 'Sell — quotes' },
-      { name: 'Order', href: '/dashboard/customers/orders', desc: 'Sales orders' },
-      {
-        name: 'Inbound',
-        href: '/dashboard/customers/orders?tab=inbound',
-        desc: 'Buyer POs to accept',
-      },
+      { name: 'Book', href: '/dashboard/customers/profiles', desc: 'Customer accounts' },
+      { name: 'Invite', href: '/dashboard/customers/invites', desc: 'Invite buyers to platform' },
+      { name: 'Quote', href: '/dashboard/customers/quotes', desc: 'Quotes' },
+      { name: 'Order', href: '/dashboard/customers/orders', desc: 'Sales orders & inbound POs' },
       { name: 'Invoice', href: '/dashboard/customers/invoices', desc: 'Bill customers' },
-      { name: 'Money', href: '/dashboard/customers/money', desc: 'Claims & settle' },
-      { name: 'AR', href: '/dashboard/customers/ar', desc: 'Collections aging' },
-      { name: 'Score', href: '/dashboard/customers/loyalty', desc: 'Loyalty & value tiers' },
-      { name: 'Rate', href: '/dashboard/customers/ratings', desc: 'Peer ratings' },
-      { name: 'Report', href: '/dashboard/customers/report', desc: 'Customer performance pack' },
+      { name: 'Money', href: '/dashboard/customers/money', desc: 'Collect, claims, AR, settle' },
+      { name: 'Rate', href: '/dashboard/customers/ratings', desc: 'Peer ratings after trade' },
+      {
+        name: 'Report',
+        href: '/dashboard/customers/report',
+        desc: 'Slice & dice — revenue, AR, pipeline, risk',
+      },
     ],
   },
   {
@@ -391,6 +392,86 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Score', href: '/dashboard/intelligence/custom-scorecards' },
       { name: 'Lab', href: '/dashboard/intelligence/simulation-lab' },
       { name: 'Lead', href: '/dashboard/intelligence/leadership-development' },
+    ],
+  },
+  {
+    id: 'schools',
+    name: 'Schools',
+    icon: School,
+    href: '/dashboard/schools',
+    resource: 'schools',
+    steps: [
+      {
+        name: 'Overview',
+        href: '/dashboard/schools',
+        exact: true,
+        desc: 'NSNP command tower',
+      },
+      {
+        name: 'School',
+        href: '/dashboard/schools/profile',
+        desc: 'EMIS, map, kitchen',
+      },
+      {
+        name: 'Learners',
+        href: '/dashboard/schools/learners',
+        desc: 'Import & verify learners',
+      },
+      {
+        name: 'Staff',
+        href: '/dashboard/schools/staff',
+        desc: 'Teachers & kitchen staff',
+      },
+      {
+        name: 'Approved',
+        href: '/dashboard/schools/approved-list',
+        desc: 'Strict NSNP brand list',
+      },
+      {
+        name: 'ISPs',
+        href: '/dashboard/schools/isps',
+        desc: 'Compliant service providers',
+      },
+      {
+        name: 'Order',
+        href: '/dashboard/schools/orders',
+        desc: 'POs to ISPs (approved only)',
+      },
+      {
+        name: 'Kitchen',
+        href: '/dashboard/schools/kitchen',
+        desc: 'Stock, GRN, waste',
+      },
+      {
+        name: 'Feed',
+        href: '/dashboard/schools/feeding',
+        desc: 'Daily meals served',
+      },
+      {
+        name: 'Attendance',
+        href: '/dashboard/schools/attendance',
+        desc: 'Learners present',
+      },
+      {
+        name: 'Compliance',
+        href: '/dashboard/schools/compliance',
+        desc: 'Hygiene, incidents, docs',
+      },
+      {
+        name: 'Prizes',
+        href: '/dashboard/schools/prizes',
+        desc: 'Headmaster prize scorecard',
+      },
+      {
+        name: 'Report',
+        href: '/dashboard/schools/report',
+        desc: 'Slice & dice NSNP analytics',
+      },
+      {
+        name: 'Map',
+        href: '/dashboard/schools/map',
+        desc: 'School locations',
+      },
     ],
   },
   /**

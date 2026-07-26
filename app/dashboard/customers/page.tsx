@@ -10,7 +10,6 @@ import {
   AlertTriangle,
   Award,
   Globe,
-  Search,
   Target,
   TrendingUp,
   Handshake,
@@ -84,7 +83,7 @@ function HubInner() {
 
   const s = summary;
 
-  /** Sell-side journey: Source → Connect → Sell → Rate → Report (mirrors Suppliers SRM) */
+  /** Sell journey (matches process rail): Source → Book → Invite → Quote → Order → Invoice → Money → Rate → Report */
   const modules: HubModule[] = [
     {
       href: '/dashboard/customers/leads',
@@ -98,11 +97,11 @@ function HubInner() {
     },
     {
       href: '/dashboard/customers/profiles',
-      icon: Search,
+      icon: Users,
       code: '02',
-      title: 'Source — search book',
-      desc: 'Find accounts by name, industry, city — your CRM master.',
-      accent: 'from-indigo-50 to-white border-indigo-100',
+      title: 'Book — customer accounts',
+      desc: 'CRM master: search, contacts, credit, industry.',
+      accent: 'from-sky-50 to-white border-sky-100',
       metric: s?.customers ?? '—',
       metricLabel: 'accounts',
     },
@@ -110,135 +109,93 @@ function HubInner() {
       href: '/dashboard/customers/onboard',
       icon: UserPlus,
       code: '03',
-      title: 'Source — add customer',
-      desc: 'Onboard from a lead or create a clean account from scratch.',
+      title: 'Add customer',
+      desc: 'Onboard from a lead or create a clean account (then invite).',
       accent: 'from-cyan-50 to-white border-cyan-100',
     },
     {
       href: '/dashboard/customers/invites',
       icon: Handshake,
       code: '04',
-      title: 'Connect — platform invites',
+      title: 'Invite — platform connect',
       desc: 'Invite buyers onto SupplierAdvisor — claim, suspend, expire.',
       accent: 'from-emerald-50 to-white border-emerald-100',
       metric: s?.invitePending ?? '—',
       metricLabel: 'pending',
     },
     {
-      href: '/dashboard/connections',
-      icon: Globe,
-      code: '05',
-      title: 'Connect — network edges',
-      desc: 'Accept buyer connections that unlock shared docs & ratings.',
-      accent: 'from-teal-50 to-white border-teal-100',
-      metric: s?.inviteAccepted ?? '—',
-      metricLabel: 'linked',
-    },
-    {
       href: '/dashboard/customers/quotes',
       icon: FileText,
-      code: '06',
-      title: 'Sell — quotes',
+      code: '05',
+      title: 'Quote',
       desc: 'Catalogue lines, price, send — add customer if missing.',
       accent: 'from-amber-50 to-white border-amber-100',
     },
     {
       href: '/dashboard/customers/orders',
       icon: ShoppingCart,
-      code: '07',
-      title: 'Sell — orders',
-      desc: 'Confirmed demand — convert quotes or build from inventory.',
+      code: '06',
+      title: 'Order',
+      desc: 'Sales orders and inbound buyer POs (tab) in one place.',
       accent: 'from-rose-50 to-white border-rose-100',
-    },
-    {
-      href: '/dashboard/customers/orders?tab=inbound',
-      icon: ShoppingCart,
-      code: '08',
-      title: 'Sell — inbound POs',
-      desc: 'Accept buyer purchase orders and fulfil as seller.',
-      accent: 'from-orange-50 to-white border-orange-100',
     },
     {
       href: '/dashboard/customers/invoices',
       icon: FileText,
-      code: '09',
-      title: 'Sell — invoices',
+      code: '07',
+      title: 'Invoice',
       desc: 'Bill, partial/full pay, WhatsApp PDF, loyalty on paid.',
       accent: 'from-violet-50 to-white border-violet-100',
     },
     {
       href: '/dashboard/customers/money',
       icon: Wallet,
-      code: '10',
-      title: 'Sell — money hub',
-      desc: 'Claims, POP, dunning, installments, ledger — settle loop.',
+      code: '08',
+      title: 'Money',
+      desc: 'Collect: claims, POP, dunning, installments, AR aging, settle.',
       accent: 'from-emerald-50 to-white border-emerald-100',
-    },
-    {
-      href: '/dashboard/customers/ar',
-      icon: Wallet,
-      code: '11',
-      title: 'Sell — AR aging',
-      desc: 'Open balances by current / 30 / 60 / 90+ — collections.',
-      accent: 'from-amber-50 to-white border-amber-100',
       metric: s?.overdueFollowups ?? '—',
-      metricLabel: 'overdue',
-    },
-    {
-      href: '/dashboard/customers/loyalty',
-      icon: Award,
-      code: '12',
-      title: 'Score — loyalty tiers',
-      desc: 'Points and bronze → platinum after paid sales.',
-      accent: 'from-sky-50 to-white border-sky-100',
+      metricLabel: 'overdue signals',
     },
     {
       href: '/dashboard/customers/ratings',
       icon: Star,
-      code: '13',
-      title: 'Rate — peer scores',
-      desc: 'Rate buyers after trade; build bilateral trust.',
+      code: '09',
+      title: 'Rate',
+      desc: 'Peer ratings and post-trade reviews that build trust.',
       accent: 'from-violet-50 to-white border-violet-100',
-    },
-    {
-      href: '/dashboard/customers/reviews',
-      icon: Star,
-      code: '14',
-      title: 'Rate — reviews',
-      desc: 'Post-PO bilateral reviews that feed reputation.',
-      accent: 'from-fuchsia-50 to-white border-fuchsia-100',
     },
     {
       href: '/dashboard/customers/report',
       icon: TrendingUp,
-      code: '15',
-      title: 'Report — performance',
+      code: '10',
+      title: 'Report',
       desc: 'Revenue, AR, win rates, and customer health pack.',
       accent: 'from-sky-50 to-white border-sky-100',
     },
     {
-      href: '/dashboard/customers/riad-log',
-      icon: AlertTriangle,
-      code: '16',
-      title: 'Report — customer RIAD',
-      desc: 'Risks, issues, actions, decisions on demand relationships.',
-      accent: 'from-rose-50 to-white border-rose-100',
+      href: '/dashboard/customers/loyalty',
+      icon: Award,
+      code: '11',
+      title: 'Loyalty',
+      desc: 'Points and bronze → platinum after paid sales.',
+      accent: 'from-sky-50 to-white border-sky-100',
     },
     {
       href: '/dashboard/customers/contracts',
       icon: Handshake,
-      code: '17',
+      code: '12',
       title: 'Contracts & SLAs',
       desc: 'Commercial agreements and renewals with buyers.',
       accent: 'from-slate-50 to-white border-slate-200',
     },
     {
-      href: '/dashboard/customers/claims',
+      href: '/dashboard/customers/riad-log',
       icon: AlertTriangle,
-      code: '18',
-      title: 'Claims',
-      desc: 'Quality, delivery, damage — investigate and resolve.',
-      accent: 'from-amber-50 to-white border-amber-100',
+      code: '13',
+      title: 'Customer RIAD',
+      desc: 'Risks, issues, actions, decisions on demand relationships.',
+      accent: 'from-rose-50 to-white border-rose-100',
     },
   ];
 
@@ -248,7 +205,7 @@ function HubInner() {
         eyebrow="Customer relationship management"
         title="Customers"
         titleAccent="Selling"
-        description="End-to-end CRM: source (find leads & accounts) → connect & invite buyers → sell (quote, order, invoice, collect) → rate & score → report performance. Mirrors the suppliers tower from the sell side."
+        description="Source leads → book & invite buyers → quote, order, invoice, collect → rate → report. One clean sell path (no duplicate search/connect/money tabs)."
         action={
           <div className="flex flex-wrap gap-2">
             <button
@@ -274,9 +231,9 @@ function HubInner() {
       </Suspense>
 
       <HubHero
-        pill="Live CRM · source → sell → score"
+        pill="Live CRM · source → sell → rate"
         title="Customers you can grow."
-        description="Find demand, connect buyers, quote and invoice, then rate and report — one selling tower parallel to supplier sourcing."
+        description="Leads and book first, then quote through collect, then rate and report — parallel to suppliers, without duplicate nav."
         stats={[
           {
             label: 'Customers',
@@ -354,12 +311,12 @@ function HubInner() {
           href="/dashboard/customers/invites"
         />
         <TelemetryCard
-          label="Search"
-          value="Find"
-          sub="Customers, leads, deals"
+          label="Customer book"
+          value="Open"
+          sub="Profiles & accounts"
           accent="violet"
-          icon={Search}
-          href="/dashboard/customers/search"
+          icon={Users}
+          href="/dashboard/customers/profiles"
         />
       </HubTelemetryGrid>
 

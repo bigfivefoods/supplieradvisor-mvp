@@ -51,7 +51,9 @@ export type PermissionResource =
   /** SHEQ — OH&S, NCR/CAPA, quality assurance */
   | 'sheq'
   /** HR / People — employees, leave, payroll */
-  | 'people';
+  | 'people'
+  /** Schools / NSNP kitchen, learners, ISP procurement, prizes */
+  | 'schools';
 
 const ALL_RESOURCES: PermissionResource[] = [
   'dashboard',
@@ -80,6 +82,7 @@ const ALL_RESOURCES: PermissionResource[] = [
   'sales_portal',
   'sheq',
   'people',
+  'schools',
 ];
 
 const LEVEL_RANK: Record<AccessLevel, number> = {
@@ -146,6 +149,7 @@ export const ROLE_PERMISSIONS: Record<TeamRole, Record<PermissionResource, Acces
     distribution: 'write',
     sheq: 'write',
     people: 'write',
+    schools: 'write',
     invites: 'none',
   },
   sales: {
@@ -377,6 +381,7 @@ export function resourceForPath(pathname: string | null | undefined): Permission
   if (pathname.startsWith('/dashboard/procurement')) return 'suppliers';
   if (pathname.startsWith('/dashboard/supplychain')) return 'operations';
   if (pathname.startsWith('/dashboard/people')) return 'people';
+  if (pathname.startsWith('/dashboard/schools')) return 'schools';
   return 'dashboard';
 }
 
@@ -452,6 +457,7 @@ export function resourceLabel(resource: PermissionResource): string {
     sales_portal: 'Sales contractor portal',
     sheq: 'SHEQ',
     people: 'People (HR)',
+    schools: 'Schools (NSNP)',
   };
   return map[resource];
 }

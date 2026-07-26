@@ -231,16 +231,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       canonical,
     },
     openGraph: {
-      type: 'website',
+      type: 'profile',
       url: canonical,
       siteName: 'SupplierAdvisor®',
       locale: 'en_ZA',
       title,
       description,
-      images,
+      images: images.map((img) => ({
+        ...img,
+        width: 1200,
+        height: 630,
+      })),
     },
     twitter: {
-      card: 'summary',
+      card: 'summary_large_image',
       title,
       description,
       images: c.logo_url ? [c.logo_url] : ['/og-image.png'],
@@ -253,11 +257,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         follow: true,
         'max-image-preview': 'large',
         'max-snippet': -1,
+        'max-video-preview': -1,
       },
     },
     other: {
       ...(c.country ? { 'geo.region': c.country } : {}),
       ...(c.city ? { 'geo.placename': c.city } : {}),
+      ...(c.updated_at ? { 'article:modified_time': c.updated_at } : {}),
     },
   };
 }
@@ -679,6 +685,14 @@ export default async function PublicCompanyPage({
                     More in {c.city} →
                   </Link>
                 ) : null}
+                {industry && c.city ? (
+                  <Link
+                    href={`/directory/industry/${facetSlug(industry)}/in/${facetSlug(c.city)}`}
+                    className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-950 hover:border-amber-400"
+                  >
+                    {industry} in {c.city} →
+                  </Link>
+                ) : null}
                 {c.country ? (
                   <Link
                     href={`/directory/country/${facetSlug(c.country)}`}
@@ -690,10 +704,70 @@ export default async function PublicCompanyPage({
               </div>
               <p className="mt-2 text-[11px] text-neutral-500 leading-relaxed">
                 Explore related suppliers and partners on SupplierAdvisor by
-                industry and city.
+                industry and city — every listing has a public SEO profile.
               </p>
             </section>
           ) : null}
+
+          <section
+            className="mt-8 rounded-2xl border border-neutral-200 bg-white px-4 py-4"
+            aria-labelledby="company-faq"
+          >
+            <h2
+              id="company-faq"
+              className="text-[10px] font-bold uppercase tracking-wide text-neutral-400 mb-3"
+            >
+              About this listing
+            </h2>
+            <dl className="space-y-3 text-sm">
+              <div>
+                <dt className="font-bold text-slate-800">
+                  Who is {name}?
+                </dt>
+                <dd className="mt-0.5 text-neutral-600 leading-relaxed">
+                  {about ||
+                    `${name}${industry ? ` operates in ${industry}` : ''}${
+                      location ? ` from ${location}` : ''
+                    }. Listed on the SupplierAdvisor verified trade network.`}
+                </dd>
+              </div>
+              <div>
+                <dt className="font-bold text-slate-800">
+                  How do I connect with {name}?
+                </dt>
+                <dd className="mt-0.5 text-neutral-600 leading-relaxed">
+                  Use Connect &amp; trade above, or{' '}
+                  <Link
+                    href={`/login?next=${encodeURIComponent(
+                      `/dashboard?peerTrade=${c.id}&peerName=${encodeURIComponent(name)}`
+                    )}`}
+                    className="font-semibold text-[#0077b6] hover:underline"
+                  >
+                    sign in to start a trade
+                  </Link>
+                  . Buyers and suppliers meet on SupplierAdvisor without
+                  spreadsheet chaos.
+                </dd>
+              </div>
+              {verified ? (
+                <div>
+                  <dt className="font-bold text-slate-800">
+                    Is {name} verified?
+                  </dt>
+                  <dd className="mt-0.5 text-neutral-600 leading-relaxed">
+                    Yes — CIPC-verified identity on SupplierAdvisor (
+                    <Link
+                      href="/verification-sla"
+                      className="font-semibold text-[#0077b6] hover:underline"
+                    >
+                      24h paid verification SLA
+                    </Link>
+                    ).
+                  </dd>
+                </div>
+              ) : null}
+            </dl>
+          </section>
 
           <footer className="mt-8 pt-4 border-t border-neutral-100 text-[11px] text-neutral-400 leading-relaxed">
             <p>

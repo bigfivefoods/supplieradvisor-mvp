@@ -91,7 +91,7 @@ export default async function CityHubPage({ params }: Props) {
     ),
   ]
     .sort((a, b) => a.localeCompare(b))
-    .slice(0, 16);
+    .slice(0, 24);
 
   return (
     <div className="min-h-screen bg-[#f8fafc]">
@@ -125,7 +125,8 @@ export default async function CityHubPage({ params }: Props) {
             {companies.length} discoverable compan
             {companies.length === 1 ? 'y' : 'ies'}
             {countryHint ? ` in ${city}, ${countryHint}` : ` in ${city}`} on
-            SupplierAdvisor. Browse verified trade partners near you.
+            SupplierAdvisor. Browse verified trade partners near you — each with
+            a public SEO profile for web discovery.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <Link
@@ -134,6 +135,14 @@ export default async function CityHubPage({ params }: Props) {
             >
               All cities
             </Link>
+            {countryHint ? (
+              <Link
+                href={`/directory/country/${facetSlug(countryHint)}`}
+                className="btn-secondary !py-2 !px-3 text-xs"
+              >
+                All in {countryHint}
+              </Link>
+            ) : null}
             <Link
               href="/onboarding?type=business"
               className="btn-primary !py-2 !px-3 text-xs"
@@ -154,10 +163,10 @@ export default async function CityHubPage({ params }: Props) {
               {industryFacets.map((ind) => (
                 <Link
                   key={ind}
-                  href={`/directory/industry/${facetSlug(ind)}`}
-                  className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:border-[#00b4d8] hover:text-[#0077b6]"
+                  href={`/directory/industry/${facetSlug(ind)}/in/${facetSlug(city)}`}
+                  className="rounded-full border border-sky-100 bg-sky-50/80 px-3 py-1 text-xs font-semibold text-sky-900 hover:border-[#00b4d8] hover:text-[#0077b6]"
                 >
-                  {ind}
+                  {ind} in {city}
                 </Link>
               ))}
             </div>

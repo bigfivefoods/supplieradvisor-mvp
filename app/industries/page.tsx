@@ -5,10 +5,28 @@ import { INDUSTRIES } from '@/lib/marketing/industries';
 import { ArrowRight } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'Industries',
+  title: 'Industries — supply chain OS by sector',
   description:
-    'SupplierAdvisor® for food, agriculture, manufacturing, distribution, public sector, and multi-entity groups.',
+    'SupplierAdvisor® for food & beverage, agriculture, manufacturing, distribution, public sector, and multi-entity groups. Sector-ready workflows on one verified network.',
+  keywords: [
+    'supply chain by industry',
+    'food beverage ERP',
+    'agriculture supply chain',
+    'manufacturing software',
+    'distribution software',
+    'public sector procurement',
+    'SupplierAdvisor industries',
+  ],
+  openGraph: {
+    title: 'Industries · SupplierAdvisor®',
+    description:
+      'Sector-ready depth on one OS — food, ag, manufacturing, distribution, public sector, multi-entity.',
+    url: 'https://www.supplieradvisor.com/industries',
+    type: 'website',
+    images: [{ url: '/og-image.png', width: 1200, height: 630 }],
+  },
   alternates: { canonical: 'https://www.supplieradvisor.com/industries' },
+  robots: { index: true, follow: true },
 };
 
 export default function IndustriesIndexPage() {

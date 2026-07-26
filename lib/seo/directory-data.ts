@@ -1,9 +1,13 @@
 /**
  * Shared load/filter for public directory + industry/city hub pages.
+ * Loads all eligible companies (paginated) so every listed business is findable.
  */
-import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { isEligibleForDiscovery } from '@/lib/business/completeness';
 import { slugifyCompanyName } from '@/lib/seo/company-public';
+import {
+  loadAllPublicCompanyRows,
+  type PublicCompanyRow,
+} from '@/lib/seo/load-public-companies';
 
 export type DirectoryFilters = {
   q?: string;
@@ -56,43 +60,65 @@ export function matchFacetBySlug(
   return null;
 }
 
-export async function loadDirectory(filters: DirectoryFilters): Promise<{
+function rowToDirCompany(r: PublicCompanyRow): DirCompany {
+  const settings =
+    r.settings && typeof r.settings === 'object'
+      ? (r.settings as Record<string, unknown>)
+      : {};
+  const openTrade =
+    settings.open_to_trade === false
+      ? false
+      : settings.open_to_trade === true
+        ? true
+        : r.is_buyer !== false;
+  return {
+    id: r.id,
+    trading_name: r.trading_name,
+    legal_name: r.legal_name,
+    industry: r.industry,
+    city: r.city,
+    country: r.country,
+    logo_url: r.logo_url,
+    short_description: r.short_description,
+    verification_status: r.verification_status,
+    trust_score: r.trust_score,
+    open_to_trade: openTrade,
+  };
+}
+
+/**
+ * Load directory with optional filters.
+ * @param listLimit max companies returned after filter (default 500 — was 200)
+ */
+export async function loadDirectory(
+  filters: DirectoryFilters,
+  opts?: { listLimit?: number }
+): Promise<{
   companies: DirCompany[];
   industries: string[];
   cities: string[];
   countries: string[];
   eligibleTotal: number;
 }> {
-  const supabase = getSupabaseServer();
-  const { data, error } = await supabase
-    .from('profiles')
-    .select(
-      'id, trading_name, legal_name, industry, city, country, logo_url, short_description, verification_status, trust_score, is_discoverable, is_buyer, settings, email, updated_at'
+  const rows = await loadAllPublicCompanyRows();
+  // Map through discovery filter again in case completeness rules change
+  const eligible = rows
+    .filter((r) =>
+      isEligibleForDiscovery({
+        ...r,
+        is_discoverable: r.is_discoverable,
+      } as Record<string, unknown>).ok
     )
-    .not('trading_name', 'is', null)
-    .order('updated_at', { ascending: false })
-    .limit(800);
+    .map(rowToDirCompany)
+    .filter((c) => Number.isFinite(c.id) && c.id > 0);
 
-  let rows: Array<Record<string, unknown>> = [];
-  if (error) {
-    const retry = await supabase
-      .from('profiles')
-      .select(
-        'id, trading_name, legal_name, industry, city, country, logo_url, verification_status, is_discoverable'
-      )
-      .not('trading_name', 'is', null)
-      .limit(400);
-    rows = (retry.data || []) as Array<Record<string, unknown>>;
-  } else {
-    rows = (data || []) as Array<Record<string, unknown>>;
-  }
-
-  return filterAndFacet(rows, filters);
+  return filterAndFacet(eligible, filters, opts?.listLimit ?? 500);
 }
 
 function filterAndFacet(
-  rows: Array<Record<string, unknown>>,
-  filters: DirectoryFilters
+  eligible: DirCompany[],
+  filters: DirectoryFilters,
+  listLimit: number
 ): {
   companies: DirCompany[];
   industries: string[];
@@ -100,44 +126,6 @@ function filterAndFacet(
   countries: string[];
   eligibleTotal: number;
 } {
-  const eligible = rows
-    .filter((r) => isEligibleForDiscovery(r).ok)
-    .map(
-      (r): DirCompany => {
-        const settings =
-          r.settings && typeof r.settings === 'object'
-            ? (r.settings as Record<string, unknown>)
-            : {};
-        const openTrade =
-          settings.open_to_trade === false
-            ? false
-            : settings.open_to_trade === true
-              ? true
-              : r.is_buyer !== false;
-        return {
-          id: Number(r.id),
-          trading_name: r.trading_name != null ? String(r.trading_name) : null,
-          legal_name: r.legal_name != null ? String(r.legal_name) : null,
-          industry: r.industry != null ? String(r.industry) : null,
-          city: r.city != null ? String(r.city) : null,
-          country: r.country != null ? String(r.country) : null,
-          logo_url: r.logo_url != null ? String(r.logo_url) : null,
-          short_description:
-            r.short_description != null ? String(r.short_description) : null,
-          verification_status:
-            r.verification_status != null
-              ? String(r.verification_status)
-              : null,
-          trust_score:
-            r.trust_score != null && Number.isFinite(Number(r.trust_score))
-              ? Number(r.trust_score)
-              : null,
-          open_to_trade: openTrade,
-        };
-      }
-    )
-    .filter((c) => Number.isFinite(c.id) && c.id > 0);
-
   const q = String(filters.q || '')
     .toLowerCase()
     .trim();
@@ -212,10 +200,30 @@ function filterAndFacet(
   });
 
   return {
-    companies: list.slice(0, 200),
+    companies: list.slice(0, listLimit),
     industries,
     cities,
     countries,
     eligibleTotal: eligible.length,
   };
+}
+
+/** Build industry×city pairs that have at least one company (long-tail SEO). */
+export function industryCityPairs(
+  companies: DirCompany[],
+  max = 400
+): Array<{ industry: string; city: string; count: number }> {
+  const map = new Map<string, { industry: string; city: string; count: number }>();
+  for (const c of companies) {
+    const industry = String(c.industry || '').trim();
+    const city = String(c.city || '').trim();
+    if (!industry || !city) continue;
+    const key = `${industry.toLowerCase()}::${city.toLowerCase()}`;
+    const prev = map.get(key);
+    if (prev) prev.count += 1;
+    else map.set(key, { industry, city, count: 1 });
+  }
+  return [...map.values()]
+    .sort((a, b) => b.count - a.count)
+    .slice(0, max);
 }
