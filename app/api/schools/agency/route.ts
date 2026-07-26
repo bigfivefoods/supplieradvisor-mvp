@@ -480,8 +480,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, status, link: updated?.[0] });
     }
 
-    // Agency vets ISP → compliant | suspended | pending
-    if (action === 'set_isp_status' || action === 'approve_isp') {
+    // Agency (DBE/PEU/DoH) vets ISP — only path to compliant
+    if (
+      action === 'set_isp_status' ||
+      action === 'approve_isp' ||
+      action === 'suspend_isp' ||
+      action === 'reject_isp'
+    ) {
+      const { data: agencyGate } = await supabase
+        .from('nsnp_agency_profiles')
+        .select('profile_id, agency_name, agency_type, status')
+        .eq('profile_id', companyId)
+        .maybeSingle();
+      if (!agencyGate || agencyGate.status !== 'active') {
+        return NextResponse.json(
+          {
+            error:
+              'Only a registered DBE / PEU / DoH agency can approve or suspend ISPs',
+          },
+          { status: 403 }
+        );
+      }
+
       const ispProfileId = Number(body.isp_profile_id);
       if (!Number.isFinite(ispProfileId)) {
         return NextResponse.json(
@@ -489,23 +509,106 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
-      const compliance =
-        action === 'approve_isp'
-          ? 'compliant'
-          : String(body.compliance_status || 'pending');
-      const { data, error } = await supabase
+
+      let compliance = String(body.compliance_status || 'pending');
+      if (action === 'approve_isp') compliance = 'compliant';
+      if (action === 'suspend_isp') compliance = 'suspended';
+      if (action === 'reject_isp') compliance = 'revoked';
+
+      if (
+        !['pending', 'compliant', 'suspended', 'revoked'].includes(compliance)
+      ) {
+        return NextResponse.json(
+          { error: 'Invalid compliance_status' },
+          { status: 400 }
+        );
+      }
+
+      const now = new Date().toISOString();
+      const patch: Record<string, unknown> = {
+        compliance_status: compliance,
+        updated_at: now,
+      };
+      if (compliance === 'compliant') {
+        patch.approved_by_agency_profile_id = companyId;
+        patch.approved_at = now;
+        patch.approved_by_user_id = gate.userId || null;
+        patch.rejection_reason = null;
+        patch.suspended_at = null;
+        patch.suspension_reason = null;
+      } else if (compliance === 'suspended' || compliance === 'revoked') {
+        patch.suspended_at = now;
+        patch.suspension_reason =
+          body.reason || body.notes || body.rejection_reason || null;
+        if (compliance === 'revoked') {
+          patch.rejection_reason =
+            body.reason || body.rejection_reason || 'Rejected by agency';
+        }
+      } else if (compliance === 'pending') {
+        patch.approved_by_agency_profile_id = null;
+        patch.approved_at = null;
+      }
+
+      let { data, error } = await supabase
         .from('nsnp_isp_profiles')
-        .update({
-          compliance_status: compliance,
-          updated_at: new Date().toISOString(),
-        })
+        .update(patch)
         .eq('profile_id', ispProfileId)
         .select('*')
         .single();
+
+      // Soft if approval columns missing
+      if (error && /column|schema cache/i.test(error.message || '')) {
+        const retry = await supabase
+          .from('nsnp_isp_profiles')
+          .update({
+            compliance_status: compliance,
+            updated_at: now,
+          })
+          .eq('profile_id', ispProfileId)
+          .select('*')
+          .single();
+        data = retry.data;
+        error = retry.error;
+      }
+
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 400 });
       }
-      return NextResponse.json({ success: true, isp: data });
+
+      // Soft notify ISP company
+      try {
+        await supabase.from('nsnp_activity_events').insert({
+          company_id: companyId,
+          target_company_id: ispProfileId,
+          kind: `isp_${compliance}`,
+          title:
+            compliance === 'compliant'
+              ? 'Your ISP is approved for school deliveries'
+              : compliance === 'suspended'
+                ? 'Your ISP status was suspended by the department'
+                : compliance === 'revoked'
+                  ? 'Your ISP application was not approved'
+                  : 'ISP status updated',
+          body: String(
+            body.reason ||
+              `${agencyGate.agency_name || 'Department'} set status to ${compliance}`
+          ),
+          href: '/dashboard/schools/deliveries',
+          metadata: {
+            agency_profile_id: companyId,
+            compliance_status: compliance,
+          },
+        });
+      } catch {
+        /* soft */
+      }
+
+      return NextResponse.json({
+        success: true,
+        isp: data,
+        approved_by: agencyGate.agency_name,
+        compliance_status: compliance,
+      });
     }
 
     // Agency reviews claim packs (audit trail)

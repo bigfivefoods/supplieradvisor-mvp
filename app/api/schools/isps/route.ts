@@ -18,12 +18,78 @@ export async function GET(request: NextRequest) {
     if (!gate.ok) return gate.response;
 
     const supabase = getSupabaseServer();
+    const mode = String(request.nextUrl.searchParams.get('mode') || 'auto');
+
+    // Agency queue: all ISPs pending approval by DBE/DoH
+    const { data: myAgency } = await supabase
+      .from('nsnp_agency_profiles')
+      .select('profile_id, agency_name, agency_type, status')
+      .eq('profile_id', companyId)
+      .maybeSingle();
+
+    if (mode === 'agency' || (mode === 'auto' && myAgency)) {
+      const { data: allIsps, error } = await supabase
+        .from('nsnp_isp_profiles')
+        .select('*')
+        .order('updated_at', { ascending: false })
+        .limit(500);
+      if (error) {
+        return NextResponse.json({
+          success: true,
+          role: 'agency',
+          agency: myAgency,
+          pending: [],
+          compliant: [],
+          suspended: [],
+          directory: [],
+          warning: error.message,
+        });
+      }
+      const ispIds = (allIsps || [])
+        .map((i) => Number(i.profile_id))
+        .filter(Boolean);
+      let names: Record<number, string> = {};
+      if (ispIds.length) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, trading_name, legal_name, city, province')
+          .in('id', ispIds);
+        for (const p of profiles || []) {
+          names[Number(p.id)] =
+            p.trading_name || p.legal_name || `ISP ${p.id}`;
+        }
+      }
+      const directory = (allIsps || []).map((i) => ({
+        ...i,
+        display_name:
+          i.trading_name ||
+          names[Number(i.profile_id)] ||
+          `ISP ${i.profile_id}`,
+      }));
+      return NextResponse.json({
+        success: true,
+        role: 'agency',
+        agency: myAgency,
+        pending: directory.filter(
+          (i) => String(i.compliance_status) === 'pending'
+        ),
+        compliant: directory.filter(
+          (i) => String(i.compliance_status) === 'compliant'
+        ),
+        suspended: directory.filter((i) =>
+          ['suspended', 'revoked'].includes(String(i.compliance_status))
+        ),
+        directory,
+      });
+    }
+
+    // School view: only DBE-approved (compliant) ISPs in directory
     const { school, error } = await getOrCreateSchoolProfile(supabase, companyId);
     if (error || !school) {
       return NextResponse.json({ error: error || 'No school' }, { status: 503 });
     }
 
-    const [linksRes, ispsRes] = await Promise.all([
+    const [linksRes, compliantRes] = await Promise.all([
       supabase
         .from('school_isp_links')
         .select('*')
@@ -32,19 +98,21 @@ export async function GET(request: NextRequest) {
         .from('nsnp_isp_profiles')
         .select('*')
         .eq('compliance_status', 'compliant')
-        .limit(200),
+        .limit(300),
     ]);
 
-    // Also list pending ISPs for discovery
-    const { data: allIsps } = await supabase
+    // Own ISP status (if this company also registered as ISP)
+    const { data: myIsp } = await supabase
       .from('nsnp_isp_profiles')
       .select('*')
-      .limit(300);
+      .eq('profile_id', companyId)
+      .maybeSingle();
 
     const ispIds = [
       ...new Set([
         ...(linksRes.data || []).map((l) => Number(l.isp_profile_id)),
-        ...(allIsps || []).map((i) => Number(i.profile_id)),
+        ...(compliantRes.data || []).map((i) => Number(i.profile_id)),
+        myIsp ? Number(myIsp.profile_id) : 0,
       ]),
     ].filter(Boolean);
 
@@ -60,22 +128,48 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const directory = (allIsps || []).map((i) => ({
+    // Schools only see agency-approved ISPs
+    const directory = (compliantRes.data || []).map((i) => ({
       ...i,
       display_name:
         i.trading_name || names[Number(i.profile_id)] || `ISP ${i.profile_id}`,
     }));
 
+    // Enrich links with compliance (block UI if linked ISP later suspended)
+    const { data: linkedIsps } = await supabase
+      .from('nsnp_isp_profiles')
+      .select('profile_id, compliance_status, trading_name')
+      .in(
+        'profile_id',
+        (linksRes.data || []).map((l) => Number(l.isp_profile_id)).filter(Boolean)
+          .length
+          ? (linksRes.data || []).map((l) => Number(l.isp_profile_id))
+          : [-1]
+      );
+
+    const complianceByIsp: Record<number, string> = {};
+    for (const i of linkedIsps || []) {
+      complianceByIsp[Number(i.profile_id)] = String(
+        i.compliance_status || 'pending'
+      );
+    }
+
     const links = (linksRes.data || []).map((l) => ({
       ...l,
       display_name: names[Number(l.isp_profile_id)] || `ISP ${l.isp_profile_id}`,
+      compliance_status:
+        complianceByIsp[Number(l.isp_profile_id)] || 'unknown',
     }));
 
     return NextResponse.json({
       success: true,
+      role: 'school',
       links,
       directory,
-      warning: ispsRes.error?.message,
+      myIsp,
+      policy:
+        'Schools may only link and order from ISPs approved by DBE/PEU/DoH (compliance_status = compliant).',
+      warning: linksRes.error?.message || compliantRes.error?.message,
     });
   } catch (e: unknown) {
     return NextResponse.json(
@@ -193,16 +287,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Prefer compliant ISPs
+    // Schools may ONLY link ISPs approved by DBE/PEU/DoH
     const { data: isp } = await supabase
       .from('nsnp_isp_profiles')
-      .select('compliance_status')
+      .select('compliance_status, trading_name')
       .eq('profile_id', ispProfileId)
       .maybeSingle();
 
-    if (isp && String(isp.compliance_status) === 'suspended') {
+    if (!isp) {
       return NextResponse.json(
-        { error: 'This ISP is suspended for NSNP deliveries' },
+        { error: 'ISP not registered on the programme' },
+        { status: 404 }
+      );
+    }
+    const status = String(isp.compliance_status || 'pending');
+    if (status !== 'compliant') {
+      return NextResponse.json(
+        {
+          error:
+            status === 'suspended' || status === 'revoked'
+              ? 'This ISP is suspended or revoked by the department and cannot supply schools.'
+              : 'This ISP is not yet approved by DBE/PEU/DoH. Schools can only link department-approved ISPs.',
+          compliance_status: status,
+        },
         { status: 400 }
       );
     }

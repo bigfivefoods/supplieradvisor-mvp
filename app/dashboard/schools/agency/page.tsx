@@ -45,21 +45,31 @@ function Inner() {
   const [regName, setRegName] = useState('Department of Basic Education');
   const [regType, setRegType] = useState('dbe');
   const [regProvince, setRegProvince] = useState('');
+  const [pendingIsps, setPendingIsps] = useState<
+    Array<Record<string, unknown>>
+  >([]);
+  const [compliantIsps, setCompliantIsps] = useState<
+    Array<Record<string, unknown>>
+  >([]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       // Prefer agency view if registered; also always load school-side data
-      const [schoolRes, agencyRes] = await Promise.all([
+      const [schoolRes, agencyRes, ispRes] = await Promise.all([
         fetch(`/api/schools/agency?companyId=${companyId}&mode=school`, {
           cache: 'no-store',
         }),
         fetch(`/api/schools/agency?companyId=${companyId}&mode=agency`, {
           cache: 'no-store',
         }),
+        fetch(`/api/schools/isps?companyId=${companyId}&mode=agency`, {
+          cache: 'no-store',
+        }),
       ]);
       const schoolData = await schoolRes.json();
       const agencyData = await agencyRes.json();
+      const ispData = await ispRes.json().catch(() => ({}));
 
       if (agencyData.agency || agencyData.role === 'agency') {
         setRole('agency');
@@ -69,6 +79,11 @@ function Inner() {
       } else {
         setRole('school');
         setMyAgency(schoolData.myAgency || null);
+      }
+
+      if (ispRes.ok && ispData.role === 'agency') {
+        setPendingIsps(ispData.pending || []);
+        setCompliantIsps(ispData.compliant || []);
       }
 
       if (schoolRes.ok) {

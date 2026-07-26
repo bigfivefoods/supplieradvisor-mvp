@@ -136,14 +136,34 @@ export async function POST(request: NextRequest) {
       body.po_number ||
       `NSNP-PO-${school.id}-${Date.now().toString(36).toUpperCase()}`;
 
+    // ISP must be DBE/DoH approved (compliant) before school can order
+    const ispProfileId = body.isp_profile_id
+      ? Number(body.isp_profile_id)
+      : null;
+    if (ispProfileId && Number.isFinite(ispProfileId)) {
+      const { data: isp } = await supabase
+        .from('nsnp_isp_profiles')
+        .select('compliance_status')
+        .eq('profile_id', ispProfileId)
+        .maybeSingle();
+      if (!isp || String(isp.compliance_status) !== 'compliant') {
+        return NextResponse.json(
+          {
+            error:
+              'Orders can only go to ISPs approved by the Department (DBE/PEU/DoH). This ISP is not compliant yet.',
+            compliance_status: isp?.compliance_status || 'missing',
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     const { data, error: iErr } = await supabase
       .from('school_purchase_orders')
       .insert({
         school_profile_id: school.id,
         profile_id: companyId,
-        isp_profile_id: body.isp_profile_id
-          ? Number(body.isp_profile_id)
-          : null,
+        isp_profile_id: ispProfileId,
         po_number: poNumber,
         status: body.status || 'submitted',
         order_date: body.order_date || new Date().toISOString().slice(0, 10),

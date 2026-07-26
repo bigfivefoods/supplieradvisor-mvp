@@ -113,7 +113,7 @@ export const ENTITY_DEFINITIONS: readonly EntityDefinition[] = [
     label: 'NSNP Independent Service Provider (ISP)',
     shortLabel: 'ISP',
     description:
-      'Deliver approved foods to schools. Buy from wholesalers on SupplierAdvisor; dispatch POD & invoices to schools.',
+      'Deliver approved foods to schools after DBE/PEU/DoH approval. Buy from wholesalers on SupplierAdvisor; dispatch POD & invoices.',
     group: 'education',
     homePath: '/dashboard/schools/isp',
     modulePreset: 'nsnp_isp',
