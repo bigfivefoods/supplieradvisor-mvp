@@ -157,24 +157,49 @@ function Inner() {
       ) : (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-            {[
-              ['Learners', k.learnersEnrolled],
-              ['Verified %', `${k.verifyPct ?? 0}%`],
-              ['Meals served', k.mealsServed],
-              ['Approved brand %', `${k.approvedBrandPct ?? 0}%`],
-              ['Waste %', `${k.wastePct ?? 0}%`],
-              ['PO spend', formatMoney(k.poSpend || 0)],
-              ['Stock lines', k.stockLines],
-              ['Open compliance', k.openCompliance],
-            ].map(([label, val]) => (
+            {(
+              [
+                {
+                  label: 'Learners',
+                  value: String(k.learnersEnrolled ?? '—'),
+                },
+                {
+                  label: 'Verified %',
+                  value: `${k.verifyPct ?? 0}%`,
+                },
+                {
+                  label: 'Meals served',
+                  value: String(k.mealsServed ?? '—'),
+                },
+                {
+                  label: 'Approved brand %',
+                  value: `${k.approvedBrandPct ?? 0}%`,
+                },
+                { label: 'Waste %', value: `${k.wastePct ?? 0}%` },
+                {
+                  label: 'PO spend',
+                  value: formatMoney(k.poSpend || 0),
+                },
+                {
+                  label: 'Stock lines',
+                  value: String(k.stockLines ?? '—'),
+                },
+                {
+                  label: 'Open compliance',
+                  value: String(k.openCompliance ?? '—'),
+                },
+              ] satisfies Array<{ label: string; value: string }>
+            ).map((tile) => (
               <div
-                key={String(label)}
+                key={tile.label}
                 className="rounded-2xl border border-slate-200 bg-white px-4 py-3"
               >
                 <div className="text-[10px] font-bold uppercase text-slate-400">
-                  {label}
+                  {tile.label}
                 </div>
-                <div className="text-xl font-black tabular-nums">{val}</div>
+                <div className="text-xl font-black tabular-nums">
+                  {tile.value}
+                </div>
               </div>
             ))}
           </div>

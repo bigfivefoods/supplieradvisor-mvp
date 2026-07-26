@@ -128,36 +128,49 @@ function Inner() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
             {(
               [
-                ['Days fed', pack.days_fed],
-                ['Meals served', pack.meals_served],
-                ['Avg present', pack.learners_avg_present],
-                ['Cost / meal', formatMoney(Number(pack.cost_per_meal || 0))],
-                ['Food spend', formatMoney(Number(pack.food_spend || 0))],
-                [
-                  'Approved brand %',
-                  `${pack.approved_brand_pct ?? '—'}%`,
-                ],
-                [
-                  'Nutrition pass %',
-                  pack.nutrition_pass_pct != null
-                    ? `${pack.nutrition_pass_pct}%`
-                    : '—',
-                ],
-                [
-                  'Claim amount',
-                  formatMoney(Number(pack.claim_amount || 0)),
-                ],
-              ] as Array<[string, string | number | null | undefined]>
-            ).map(([l, v]) => (
+                { label: 'Days fed', value: String(pack.days_fed ?? '—') },
+                {
+                  label: 'Meals served',
+                  value: String(pack.meals_served ?? '—'),
+                },
+                {
+                  label: 'Avg present',
+                  value: String(pack.learners_avg_present ?? '—'),
+                },
+                {
+                  label: 'Cost / meal',
+                  value: formatMoney(Number(pack.cost_per_meal || 0)),
+                },
+                {
+                  label: 'Food spend',
+                  value: formatMoney(Number(pack.food_spend || 0)),
+                },
+                {
+                  label: 'Approved brand %',
+                  value: `${pack.approved_brand_pct ?? '—'}%`,
+                },
+                {
+                  label: 'Nutrition pass %',
+                  value:
+                    pack.nutrition_pass_pct != null
+                      ? `${pack.nutrition_pass_pct}%`
+                      : '—',
+                },
+                {
+                  label: 'Claim amount',
+                  value: formatMoney(Number(pack.claim_amount || 0)),
+                },
+              ] satisfies Array<{ label: string; value: string }>
+            ).map((tile) => (
               <div
-                key={l}
+                key={tile.label}
                 className="rounded-2xl border border-slate-200 bg-white p-4"
               >
                 <div className="text-[10px] font-bold uppercase text-slate-400">
-                  {l}
+                  {tile.label}
                 </div>
                 <div className="text-xl font-black tabular-nums mt-0.5">
-                  {String(v ?? '—')}
+                  {tile.value}
                 </div>
               </div>
             ))}
