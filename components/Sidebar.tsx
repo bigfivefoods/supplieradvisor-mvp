@@ -328,22 +328,51 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
 
               {mod.sub.length > 0 && isExpanded && (
                 <div className="ml-5 mt-0.5 space-y-0.5 border-l border-neutral-100 pl-2">
-                  {mod.sub.map((sub) => (
-                    <Link
-                      key={sub.href}
-                      href={sub.href}
-                      className={`block px-3 py-2 rounded-xl text-xs transition-all ${
-                        isSubActive(
-                          sub.href,
-                          Boolean((sub as { exact?: boolean }).exact)
-                        )
-                          ? 'text-[#00b4d8] bg-sky-50 font-semibold'
-                          : 'text-slate-600 hover:text-slate-900 hover:bg-neutral-50'
-                      }`}
-                    >
-                      {sub.name}
-                    </Link>
-                  ))}
+                  {(() => {
+                    const hasGroups = mod.sub.some(
+                      (s) => Boolean((s as { group?: string }).group)
+                    );
+                    let lastGroup: string | null | undefined = undefined;
+                    return mod.sub.map((sub) => {
+                      const group =
+                        (sub as { group?: string }).group || null;
+                      const showHeader =
+                        hasGroups && group && group !== lastGroup;
+                      lastGroup = group;
+                      return (
+                        <div key={sub.href}>
+                          {showHeader ? (
+                            <div
+                              className={`mt-2 first:mt-0 mb-0.5 px-3 py-1 text-[9px] font-black uppercase tracking-[0.14em] ${
+                                group === 'DBE'
+                                  ? 'text-violet-600'
+                                  : group === 'ISP'
+                                    ? 'text-amber-700'
+                                    : group === 'School'
+                                      ? 'text-sky-700'
+                                      : 'text-neutral-400'
+                              }`}
+                            >
+                              {group}
+                            </div>
+                          ) : null}
+                          <Link
+                            href={sub.href}
+                            className={`block px-3 py-2 rounded-xl text-xs transition-all ${
+                              isSubActive(
+                                sub.href,
+                                Boolean((sub as { exact?: boolean }).exact)
+                              )
+                                ? 'text-[#00b4d8] bg-sky-50 font-semibold'
+                                : 'text-slate-600 hover:text-slate-900 hover:bg-neutral-50'
+                            }`}
+                          >
+                            {sub.name}
+                          </Link>
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
               )}
             </div>

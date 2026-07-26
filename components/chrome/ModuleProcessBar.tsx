@@ -8,6 +8,7 @@ import {
   isStepActive,
   lifecycleForPath,
 } from '@/lib/chrome/module-lifecycles';
+import { groupNavSteps } from '@/lib/chrome/module-nav';
 import NotificationBell from '@/components/chrome/NotificationBell';
 
 type Props = {
@@ -15,10 +16,15 @@ type Props = {
   onOpenMobileMenu?: () => void;
 };
 
+const GROUP_PILL: Record<string, string> = {
+  DBE: 'bg-violet-100 text-violet-800 border-violet-200',
+  School: 'bg-sky-100 text-sky-900 border-sky-200',
+  ISP: 'bg-amber-100 text-amber-900 border-amber-200',
+};
+
 /**
  * Single sticky top rail: process steps + Action centre on one horizontal level.
- * Mobile: brand (logo + name) shown once here — not again in the drawer.
- * Responsive: process chips scroll horizontally; brand compresses on xs.
+ * Grouped modules (e.g. Schools → DBE | School | ISP) show labelled segments.
  */
 export default function ModuleProcessBar({ onOpenMobileMenu }: Props) {
   const pathname = usePathname() || '';
@@ -37,6 +43,21 @@ export default function ModuleProcessBar({ onOpenMobileMenu }: Props) {
       if (hub) activeHref = hub.href;
     }
   }
+
+  const segments = life
+    ? groupNavSteps(
+        life.steps.map((s) => ({
+          name: s.label,
+          href: s.href,
+          exact: s.exact,
+          desc: s.desc,
+          group: s.group,
+          label: s.label,
+        }))
+      )
+    : [];
+
+  const hasGroups = segments.some((seg) => seg.group);
 
   const openPalette = () => {
     window.dispatchEvent(new Event('sa:open-command-palette'));
@@ -57,7 +78,6 @@ export default function ModuleProcessBar({ onOpenMobileMenu }: Props) {
             </button>
           )}
 
-          {/* Mobile brand — logo always; wordmark from sm */}
           <Link
             href="/dashboard"
             className="md:hidden flex items-center gap-1.5 sm:gap-2 shrink-0 min-w-0"
@@ -76,7 +96,6 @@ export default function ModuleProcessBar({ onOpenMobileMenu }: Props) {
             </span>
           </Link>
 
-          {/* Process lifecycle — same row as Action centre */}
           <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
             {life && life.steps.length > 0 ? (
               <>
@@ -84,45 +103,80 @@ export default function ModuleProcessBar({ onOpenMobileMenu }: Props) {
                   {life.title}
                 </span>
                 <div
-                  className="sa-scroll-x flex items-center gap-0.5 min-w-0 flex-1 mask-fade-r"
+                  className="sa-scroll-x flex items-center gap-1 sm:gap-1.5 min-w-0 flex-1 mask-fade-r"
                   role="navigation"
                   aria-label={`${life.title} process`}
                 >
-                  {life.steps.map((step, i) => {
-                    const active = activeHref === step.href;
-                    return (
-                      <div key={step.href + step.label} className="flex items-center shrink-0">
-                        <Link
-                          href={step.href}
-                          title={step.desc || step.label}
-                          className={`inline-flex items-center gap-1 sm:gap-1.5 rounded-full border px-2 sm:px-2.5 py-1.5 min-h-[36px] sm:min-h-[40px] text-[10px] sm:text-[11px] font-semibold transition-all whitespace-nowrap touch-manipulation ${
-                            active
-                              ? 'border-[#00b4d8] bg-[#00b4d8] text-white shadow-sm'
-                              : 'border-neutral-200 bg-white text-neutral-600 hover:border-[#00b4d8]/40 hover:text-[#0077b6]'
+                  {segments.map((seg, segIdx) => (
+                    <div
+                      key={`${seg.group ?? 'g'}-${segIdx}`}
+                      className="flex items-center gap-0.5 shrink-0"
+                    >
+                      {hasGroups && seg.group ? (
+                        <span
+                          className={`hidden sm:inline-flex items-center rounded-md border px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider mr-0.5 ${
+                            GROUP_PILL[seg.group] ||
+                            'bg-slate-100 text-slate-600 border-slate-200'
                           }`}
                         >
-                          <span
-                            className={`flex h-4 w-4 items-center justify-center rounded text-[9px] font-black shrink-0 ${
-                              active
-                                ? 'bg-white/20 text-white'
-                                : 'bg-[#00b4d8]/10 text-[#00b4d8]'
-                            }`}
+                          {seg.group}
+                        </span>
+                      ) : null}
+                      {seg.steps.map((step, i) => {
+                        const active = activeHref === step.href;
+                        const globalIndex =
+                          segments
+                            .slice(0, segIdx)
+                            .reduce((n, s) => n + s.steps.length, 0) + i;
+                        return (
+                          <div
+                            key={step.href + step.name}
+                            className="flex items-center shrink-0"
                           >
-                            {i + 1}
-                          </span>
-                          <span className="max-w-[5.5rem] sm:max-w-none truncate">
-                            {step.label}
-                          </span>
-                        </Link>
-                        {i < life.steps.length - 1 && (
-                          <ChevronRight
-                            className="w-3 h-3 text-neutral-300 mx-0.5 shrink-0 hidden md:block"
-                            aria-hidden
-                          />
-                        )}
-                      </div>
-                    );
-                  })}
+                            <Link
+                              href={step.href}
+                              title={
+                                (step as { desc?: string }).desc ||
+                                (seg.group
+                                  ? `${seg.group}: ${step.name}`
+                                  : step.name)
+                              }
+                              className={`inline-flex items-center gap-1 sm:gap-1.5 rounded-full border px-2 sm:px-2.5 py-1.5 min-h-[36px] sm:min-h-[40px] text-[10px] sm:text-[11px] font-semibold transition-all whitespace-nowrap touch-manipulation ${
+                                active
+                                  ? 'border-[#00b4d8] bg-[#00b4d8] text-white shadow-sm'
+                                  : 'border-neutral-200 bg-white text-neutral-600 hover:border-[#00b4d8]/40 hover:text-[#0077b6]'
+                              }`}
+                            >
+                              <span
+                                className={`flex h-4 w-4 items-center justify-center rounded text-[9px] font-black shrink-0 ${
+                                  active
+                                    ? 'bg-white/20 text-white'
+                                    : 'bg-[#00b4d8]/10 text-[#00b4d8]'
+                                }`}
+                              >
+                                {hasGroups ? i + 1 : globalIndex + 1}
+                              </span>
+                              <span className="max-w-[5.5rem] sm:max-w-none truncate">
+                                {step.name}
+                              </span>
+                            </Link>
+                            {i < seg.steps.length - 1 && (
+                              <ChevronRight
+                                className="w-3 h-3 text-neutral-300 mx-0.5 shrink-0 hidden md:block"
+                                aria-hidden
+                              />
+                            )}
+                          </div>
+                        );
+                      })}
+                      {segIdx < segments.length - 1 ? (
+                        <span
+                          className="mx-1 h-5 w-px bg-neutral-200 shrink-0 hidden md:block"
+                          aria-hidden
+                        />
+                      ) : null}
+                    </div>
+                  ))}
                 </div>
               </>
             ) : (
@@ -137,7 +191,6 @@ export default function ModuleProcessBar({ onOpenMobileMenu }: Props) {
             )}
           </div>
 
-          {/* Action centre — search + notifications */}
           <div className="flex items-center gap-0.5 sm:gap-1 shrink-0 pl-1 sm:pl-2 border-l border-neutral-200">
             <button
               type="button"

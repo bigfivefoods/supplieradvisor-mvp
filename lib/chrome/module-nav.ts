@@ -36,6 +36,11 @@ export type ModuleNavItem = {
   /** When true, only active on exact path (hub roots) */
   exact?: boolean;
   desc?: string;
+  /**
+   * Optional process group for sidebar + process rail.
+   * Schools NSNP: "DBE" | "School" | "ISP" (render order = first appearance).
+   */
+  group?: string;
 };
 
 export type ModuleNav = {
@@ -400,118 +405,139 @@ export const MODULE_NAV: readonly ModuleNav[] = [
     icon: School,
     href: '/dashboard/schools',
     resource: 'schools',
+    /**
+     * NSNP operating model — three world-class processes:
+     * 1) DBE  — govern programme (approve, catalogue, pack, visits)
+     * 2) School — feed children daily (setup → serve → claim → improve)
+     * 3) ISP — supply approved brands (network + SLA)
+     * Group order in sidebar / process rail = first appearance (DBE → School → ISP).
+     */
     steps: [
-      // Process order: daily first, then setup, supply, fund, govern
+      // ── DBE / PEU programme ──────────────────────────────────────────
       {
-        name: 'Command',
-        href: '/dashboard/schools',
-        exact: true,
-        desc: 'Golden path & readiness',
-      },
-      {
-        name: 'Serve day',
-        href: '/dashboard/schools/serve-day',
-        desc: 'Daily kitchen feed mode',
-      },
-      {
-        name: 'Kitchen',
-        href: '/dashboard/schools/kitchen',
-        desc: 'GRN, issue, waste',
-      },
-      {
-        name: 'Orders',
-        href: '/dashboard/schools/orders',
-        desc: 'POs — approved brands only',
-      },
-      {
-        name: 'Surveys',
-        href: '/dashboard/schools/surveys',
-        desc: 'Learner & parent food feedback',
-      },
-      {
-        name: 'Claims',
-        href: '/dashboard/schools/claims',
-        desc: 'Tariff × meals funding pack',
-      },
-      {
-        name: 'School',
-        href: '/dashboard/schools/profile',
-        desc: 'Photo, EMIS, contacts',
-      },
-      {
-        name: 'Learners',
-        href: '/dashboard/schools/learners',
-        desc: 'Import & verify register',
-      },
-      {
-        name: 'EMIS',
-        href: '/dashboard/schools/emis',
-        desc: 'Headcount snapshot & attest',
-      },
-      {
-        name: 'Menu',
-        href: '/dashboard/schools/menu',
-        desc: 'Weekly cycle + products',
-      },
-      {
-        name: 'Approved',
-        href: '/dashboard/schools/approved-list',
-        desc: 'DBE-owned foods list',
-      },
-      {
-        name: 'ISPs',
-        href: '/dashboard/schools/isps',
-        desc: 'Link vetted providers',
-      },
-      {
-        name: 'Join DBE',
+        name: 'Approve',
         href: '/dashboard/schools/agency',
-        desc: 'Request agency approval',
+        desc: 'Register agency · approve school joins',
+        group: 'DBE',
       },
       {
-        name: 'Agency pack',
+        name: 'Catalogue',
+        href: '/dashboard/schools/approved-list',
+        desc: 'Own approved foods schools may buy',
+        group: 'DBE',
+      },
+      {
+        name: 'Programme',
         href: '/dashboard/schools/agency-report',
-        desc: 'Multi-school DBE reports',
+        desc: 'Multi-school pack · claims inbox',
+        group: 'DBE',
       },
       {
         name: 'Visits',
         href: '/dashboard/schools/visits',
-        desc: 'PEU field checklists',
-      },
-      {
-        name: 'ISP SLA',
-        href: '/dashboard/schools/isp-sla',
-        desc: 'Delivery compliance',
-      },
-      {
-        name: 'Audit',
-        href: '/dashboard/schools/audit',
-        desc: 'Hashed evidence packs',
+        desc: 'PEU field monitor checklists',
+        group: 'DBE',
       },
       {
         name: 'Prizes',
         href: '/dashboard/schools/prizes',
-        desc: 'Honest quarterly scores',
-      },
-      {
-        name: 'RIAD',
-        href: '/dashboard/schools/riad',
-        desc: 'Risks & decisions',
-      },
-      {
-        name: 'Maintain',
-        href: '/dashboard/schools/maintenance',
-        desc: 'Facilities & kitchen fixes',
-      },
-      {
-        name: 'Report',
-        href: '/dashboard/schools/report',
-        desc: 'NSNP analytics',
+        desc: 'Fair quarterly headmaster prizes',
+        group: 'DBE',
       },
       {
         name: 'Map',
         href: '/dashboard/schools/map',
-        desc: 'School locations',
+        desc: 'School locations & coverage',
+        group: 'DBE',
+      },
+
+      // ── School kitchen & NSNP ops ─────────────────────────────────────
+      {
+        name: 'Command',
+        href: '/dashboard/schools',
+        exact: true,
+        desc: 'School readiness & next action',
+        group: 'School',
+      },
+      {
+        name: 'Profile',
+        href: '/dashboard/schools/profile',
+        desc: 'Photo, EMIS, principal, kitchen flags',
+        group: 'School',
+      },
+      {
+        name: 'Learners',
+        href: '/dashboard/schools/learners',
+        desc: 'Import & verify NSNP register',
+        group: 'School',
+      },
+      {
+        name: 'Menu',
+        href: '/dashboard/schools/menu',
+        desc: 'Weekly cycle linked to approved products',
+        group: 'School',
+      },
+      {
+        name: 'Serve',
+        href: '/dashboard/schools/serve-day',
+        desc: 'Present → meals → waste → stock issue',
+        group: 'School',
+      },
+      {
+        name: 'Kitchen',
+        href: '/dashboard/schools/kitchen',
+        desc: 'PO → GRN · issue · waste',
+        group: 'School',
+      },
+      {
+        name: 'Order',
+        href: '/dashboard/schools/orders',
+        desc: 'POs — approved brands only',
+        group: 'School',
+      },
+      {
+        name: 'Survey',
+        href: '/dashboard/schools/surveys',
+        desc: 'Learner & parent meal feedback',
+        group: 'School',
+      },
+      {
+        name: 'Claim',
+        href: '/dashboard/schools/claims',
+        desc: 'Tariff × meals funding pack',
+        group: 'School',
+      },
+      {
+        name: 'Audit',
+        href: '/dashboard/schools/audit',
+        desc: 'Hashed evidence & transparency',
+        group: 'School',
+      },
+      {
+        name: 'Improve',
+        href: '/dashboard/schools/riad',
+        desc: 'RIAD risks · decisions · leadership',
+        group: 'School',
+      },
+      {
+        name: 'Maintain',
+        href: '/dashboard/schools/maintenance',
+        desc: 'Kitchen & campus facilities',
+        group: 'School',
+      },
+
+      // ── ISP network ──────────────────────────────────────────────────
+      {
+        name: 'Network',
+        href: '/dashboard/schools/isps',
+        desc: 'Register ISP · link to schools · vet compliance',
+        group: 'ISP',
+      },
+      {
+        name: 'SLA',
+        href: '/dashboard/schools/isp-sla',
+        desc: 'Delivery & brand compliance scores',
+        group: 'ISP',
       },
     ],
   },
@@ -553,8 +579,23 @@ export function sidebarModulesFromNav() {
       name: s.name,
       href: s.href,
       exact: Boolean(s.exact),
+      group: s.group,
     })),
   }));
+}
+
+/** Group consecutive nav steps by `group` (first-seen order). */
+export function groupNavSteps<
+  T extends { group?: string; name: string; href: string },
+>(steps: readonly T[]): Array<{ group: string | null; steps: T[] }> {
+  const out: Array<{ group: string | null; steps: T[] }> = [];
+  for (const s of steps) {
+    const g = s.group || null;
+    const last = out[out.length - 1];
+    if (last && last.group === g) last.steps.push(s as T);
+    else out.push({ group: g, steps: [s as T] });
+  }
+  return out;
 }
 
 /**
@@ -572,7 +613,7 @@ export function lifecyclesFromNav(): Array<{
   id: string;
   prefixes: string[];
   title: string;
-  steps: ProcessStep[];
+  steps: Array<ProcessStep & { group?: string }>;
 }> {
   return MODULE_NAV.filter((m) => m.id !== 'home' && m.steps.length > 0).map((m) => ({
     id: m.id,
@@ -583,6 +624,7 @@ export function lifecyclesFromNav(): Array<{
       href: s.href,
       exact: s.exact,
       desc: s.desc,
+      group: s.group,
     })),
   }));
 }

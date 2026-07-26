@@ -33,6 +33,8 @@ export type ProcessStep = {
   desc?: string;
   /** When true, only highlight on exact path match (module command hubs) */
   exact?: boolean;
+  /** Optional process group (e.g. DBE | School | ISP) */
+  group?: string;
 };
 
 const BRAND = '#00b4d8';
