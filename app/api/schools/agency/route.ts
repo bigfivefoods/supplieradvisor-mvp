@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
         .from('school_agency_links')
         .select('*')
         .eq('agency_profile_id', companyId)
-        .in('status', ['active', 'pending'])
+        .in('status', ['active', 'pending', 'suspended'])
         .limit(2000);
 
       if (lErr && /does not exist|schema cache/i.test(lErr.message)) {
@@ -333,6 +333,8 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // Schools request association; DBE/agency must approve (status → active)
+      const joinStatus = body.status === 'active' ? 'active' : 'pending';
       const { data, error: lErr } = await supabase
         .from('school_agency_links')
         .upsert(
@@ -340,9 +342,9 @@ export async function POST(request: NextRequest) {
             school_profile_id: school.id,
             school_company_id: companyId,
             agency_profile_id: agencyProfileId,
-            status: body.status || 'active',
+            status: joinStatus,
             requested_by: gate.userId || null,
-            accepted_at: new Date().toISOString(),
+            accepted_at: joinStatus === 'active' ? new Date().toISOString() : null,
             notes: body.notes || null,
             updated_at: new Date().toISOString(),
           },
@@ -397,19 +399,44 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
-    // Agency accepts/suspends school
-    if (action === 'set_link_status') {
+    // Agency accepts / suspends / rejects school
+    if (
+      action === 'set_link_status' ||
+      action === 'approve' ||
+      action === 'suspend' ||
+      action === 'reject'
+    ) {
       const linkId = Number(body.link_id);
-      const status = String(body.status || 'active');
-      const { error } = await supabase
+      let status = String(body.status || 'active');
+      if (action === 'approve') status = 'active';
+      if (action === 'suspend') status = 'suspended';
+      if (action === 'reject') status = 'left';
+      const patch: Record<string, unknown> = {
+        status,
+        updated_at: new Date().toISOString(),
+      };
+      if (status === 'active') {
+        patch.accepted_at = new Date().toISOString();
+      }
+      let q = supabase
         .from('school_agency_links')
-        .update({ status, updated_at: new Date().toISOString() })
-        .eq('id', linkId)
+        .update(patch)
         .eq('agency_profile_id', companyId);
+      if (Number.isFinite(linkId)) {
+        q = q.eq('id', linkId);
+      } else if (body.school_profile_id) {
+        q = q.eq('school_profile_id', Number(body.school_profile_id));
+      } else {
+        return NextResponse.json(
+          { error: 'link_id or school_profile_id required' },
+          { status: 400 }
+        );
+      }
+      const { error } = await q;
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 400 });
       }
-      return NextResponse.json({ success: true });
+      return NextResponse.json({ success: true, status });
     }
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 });

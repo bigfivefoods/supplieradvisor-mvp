@@ -435,7 +435,12 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       {
         name: 'DBE',
         href: '/dashboard/schools/agency',
-        desc: 'Join DBE / PEU agency',
+        desc: 'Join / approve DBE associations',
+      },
+      {
+        name: 'Agency pack',
+        href: '/dashboard/schools/agency-report',
+        desc: 'DBE multi-school programme reports',
       },
       {
         name: 'ISPs',

@@ -1,8 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import {
   Building2,
+  CheckCircle2,
   Landmark,
   Link2,
   Loader2,
@@ -10,6 +12,7 @@ import {
   School,
   Unlink,
   Users,
+  BarChart3,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -150,20 +153,59 @@ function Inner() {
     }
   };
 
+  const setLinkStatus = async (
+    schoolProfileId: number,
+    action: 'approve' | 'suspend' | 'reject'
+  ) => {
+    try {
+      const res = await fetch('/api/schools/agency', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          action,
+          school_profile_id: schoolProfileId,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      toast.success(
+        action === 'approve'
+          ? 'School approved — included in agency reports'
+          : action === 'suspend'
+            ? 'School suspended'
+            : 'Request rejected'
+      );
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    }
+  };
+
   return (
     <SchoolsPage>
       <SchoolsHeader
         title="DBE & agencies"
         titleAccent="Join programme"
-        description="Schools associate with the Department of Basic Education (or provincial PEU) on SupplierAdvisor. DBE sees linked schools, learner counts, and prize scores."
+        description="Schools request to join DBE/PEU. You approve them, then run world-class programme reports across all approved organisations."
         action={
-          <button
-            type="button"
-            onClick={() => void load()}
-            className="btn-secondary !py-2 !px-3 text-xs"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-          </button>
+          <div className="flex flex-wrap gap-2">
+            {role === 'agency' ? (
+              <Link
+                href="/dashboard/schools/agency-report"
+                className="btn-primary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+              >
+                <BarChart3 className="w-3.5 h-3.5" /> Agency reports
+              </Link>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => void load()}
+              className="btn-secondary !py-2 !px-3 text-xs"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+            </button>
+          </div>
         }
       />
 
@@ -250,10 +292,24 @@ function Inner() {
           {/* Agency console */}
           {role === 'agency' && myAgency ? (
             <div className="space-y-4">
+              <div className="rounded-2xl border border-sky-100 bg-sky-50/70 px-4 py-3 text-sm flex flex-wrap items-center justify-between gap-3">
+                <p className="text-slate-700">
+                  <strong>Only approved</strong> organisations appear in agency
+                  reports. Pending joins wait for your approval. Hospitals and
+                  other orgs can use the same association model next.
+                </p>
+                <Link
+                  href="/dashboard/schools/agency-report"
+                  className="btn-primary !py-2 !px-3 text-xs inline-flex items-center gap-1 shrink-0"
+                >
+                  <BarChart3 className="w-3.5 h-3.5" /> Open full reports
+                </Link>
+              </div>
+
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {[
                   {
-                    label: 'Schools linked',
+                    label: 'Organisations',
                     value: summary?.schoolCount ?? schools.length,
                     icon: School,
                   },
@@ -293,68 +349,125 @@ function Inner() {
 
               <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
                 <div className="px-5 py-3 border-b text-xs font-bold uppercase text-slate-500">
-                  Schools associated with{' '}
-                  {String(myAgency.agency_name)}
+                  Associations · {String(myAgency.agency_name)}
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm min-w-[720px]">
+                  <table className="w-full text-sm min-w-[900px]">
                     <thead>
                       <tr className="border-b text-left text-[10px] font-bold uppercase text-slate-400">
-                        <th className="px-4 py-3">School</th>
+                        <th className="px-4 py-3">Organisation</th>
                         <th className="px-3 py-3">EMIS</th>
                         <th className="px-3 py-3">District</th>
+                        <th className="px-3 py-3">Status</th>
                         <th className="px-3 py-3 text-right">Learners</th>
                         <th className="px-3 py-3 text-right">Verified</th>
                         <th className="px-3 py-3 text-right">Prize</th>
-                        <th className="px-3 py-3 text-right">Approved %</th>
+                        <th className="px-3 py-3 text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {schools.length === 0 ? (
                         <tr>
                           <td
-                            colSpan={7}
+                            colSpan={8}
                             className="px-4 py-12 text-center text-slate-500"
                           >
-                            No schools have joined yet. Schools use this page
-                            to join your agency.
+                            No schools have requested to join yet.
                           </td>
                         </tr>
                       ) : (
-                        schools.map((s) => (
-                          <tr
-                            key={String(s.id)}
-                            className="border-b border-slate-50 hover:bg-sky-50/40"
-                          >
-                            <td className="px-4 py-2.5 font-semibold">
-                              {String(s.school_name)}
-                            </td>
-                            <td className="px-3 py-2.5 font-mono text-xs">
-                              {String(s.emis_number || '—')}
-                            </td>
-                            <td className="px-3 py-2.5 text-xs">
-                              {[s.district, s.province]
-                                .filter(Boolean)
-                                .join(', ') || '—'}
-                            </td>
-                            <td className="px-3 py-2.5 text-right tabular-nums">
-                              {Number(s.learner_count_enrolled || 0)}
-                            </td>
-                            <td className="px-3 py-2.5 text-right tabular-nums">
-                              {Number(s.learner_count_verified || 0)}
-                            </td>
-                            <td className="px-3 py-2.5 text-right font-bold tabular-nums">
-                              {s.prize_score != null
-                                ? Number(s.prize_score).toFixed(1)
-                                : '—'}
-                            </td>
-                            <td className="px-3 py-2.5 text-right tabular-nums">
-                              {s.approved_brand_pct != null
-                                ? `${Number(s.approved_brand_pct).toFixed(0)}%`
-                                : '—'}
-                            </td>
-                          </tr>
-                        ))
+                        schools.map((s) => {
+                          const st = String(s.link_status || 'pending');
+                          return (
+                            <tr
+                              key={String(s.id)}
+                              className="border-b border-slate-50 hover:bg-sky-50/40"
+                            >
+                              <td className="px-4 py-2.5 font-semibold">
+                                {String(s.school_name)}
+                              </td>
+                              <td className="px-3 py-2.5 font-mono text-xs">
+                                {String(s.emis_number || '—')}
+                              </td>
+                              <td className="px-3 py-2.5 text-xs">
+                                {[s.district, s.province]
+                                  .filter(Boolean)
+                                  .join(', ') || '—'}
+                              </td>
+                              <td className="px-3 py-2.5">
+                                <span
+                                  className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${
+                                    st === 'active'
+                                      ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                                      : st === 'pending'
+                                        ? 'bg-amber-50 border-amber-200 text-amber-900'
+                                        : 'bg-slate-50 border-slate-200 text-slate-600'
+                                  }`}
+                                >
+                                  {st}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2.5 text-right tabular-nums">
+                                {Number(s.learner_count_enrolled || 0)}
+                              </td>
+                              <td className="px-3 py-2.5 text-right tabular-nums">
+                                {Number(s.learner_count_verified || 0)}
+                              </td>
+                              <td className="px-3 py-2.5 text-right font-bold tabular-nums">
+                                {s.prize_score != null
+                                  ? Number(s.prize_score).toFixed(1)
+                                  : '—'}
+                              </td>
+                              <td className="px-3 py-2.5 text-right">
+                                <div className="inline-flex flex-wrap gap-1 justify-end">
+                                  {st !== 'active' ? (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        void setLinkStatus(
+                                          Number(s.id),
+                                          'approve'
+                                        )
+                                      }
+                                      className="rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-900 inline-flex items-center gap-0.5"
+                                    >
+                                      <CheckCircle2 className="w-3 h-3" />{' '}
+                                      Approve
+                                    </button>
+                                  ) : null}
+                                  {st === 'active' ? (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        void setLinkStatus(
+                                          Number(s.id),
+                                          'suspend'
+                                        )
+                                      }
+                                      className="rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-bold text-slate-600"
+                                    >
+                                      Suspend
+                                    </button>
+                                  ) : null}
+                                  {st === 'pending' ? (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        void setLinkStatus(
+                                          Number(s.id),
+                                          'reject'
+                                        )
+                                      }
+                                      className="rounded-lg border border-rose-200 px-2 py-1 text-[10px] font-bold text-rose-700"
+                                    >
+                                      Reject
+                                    </button>
+                                  ) : null}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
                       )}
                     </tbody>
                   </table>
