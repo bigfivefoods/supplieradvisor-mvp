@@ -143,7 +143,7 @@ export async function GET(request: NextRequest) {
       const { data } = await supabase
         .from('school_profiles')
         .select(
-          'id, profile_id, school_name, emis_number, province, district, circuit, quintile, urban_rural, city, lat, lng, learner_count_enrolled, learner_count_verified, learner_count_nsnp_eligible, staff_count, status, feeding_lunch, feeding_breakfast'
+          'id, profile_id, school_name, emis_number, province, district, circuit, quintile, urban_rural, city, lat, lng, learner_count_enrolled, learner_count_verified, learner_count_nsnp_eligible, staff_count, status, feeding_lunch, feeding_breakfast, member_type'
         )
         .in('id', chunk);
       schools.push(...((data || []) as Array<Record<string, unknown>>));
@@ -322,7 +322,7 @@ export async function GET(request: NextRequest) {
     }
 
     type MemberRow = {
-      member_type: 'school';
+      member_type: string;
       school_profile_id: number;
       company_id: number | null;
       name: string;
@@ -370,10 +370,10 @@ export async function GET(request: NextRequest) {
             : null;
       const link = linkBySchool.get(sid);
       return {
-        member_type: 'school' as const,
+        member_type: String(s.member_type || 'school'),
         school_profile_id: sid,
         company_id: s.profile_id != null ? Number(s.profile_id) : null,
-        name: String(s.school_name || `School ${sid}`),
+        name: String(s.school_name || `Facility ${sid}`),
         emis: s.emis_number != null ? String(s.emis_number) : null,
         province: s.province != null ? String(s.province) : null,
         district: s.district != null ? String(s.district) : null,
@@ -411,8 +411,12 @@ export async function GET(request: NextRequest) {
 
     const kpis = {
       organisations: members.length,
-      schools: members.filter((m) => m.member_type === 'school').length,
-      hospitals: 0, // reserved for future member types
+      schools: members.filter(
+        (m) => !['hospital', 'clinic', 'shelter'].includes(m.member_type)
+      ).length,
+      hospitals: members.filter((m) =>
+        ['hospital', 'clinic', 'shelter'].includes(m.member_type)
+      ).length,
       other_orgs: 0,
       totalLearners: members.reduce((n, m) => n + m.learners_enrolled, 0),
       totalVerified: members.reduce((n, m) => n + m.learners_verified, 0),
@@ -693,6 +697,96 @@ export async function GET(request: NextRequest) {
     (kpis as Record<string, number>).submittedClaims = claimsInbox.length;
     (kpis as Record<string, number>).totalClaims = claims.length;
 
+    // Hierarchy: Agency → ISPs → facilities each ISP supplies
+    const {
+      programmeHierarchyBlurb,
+      familyForAgencyType,
+      facilityLabel,
+    } = await import('@/lib/entities/programme-hierarchy');
+    const hierarchyMeta = programmeHierarchyBlurb(agency.agency_type);
+    const facilityById = new Map(
+      members.map((m) => [m.school_profile_id, m] as const)
+    );
+
+    // Map ISP → school_profile_ids in this network
+    const ispToFacilities = new Map<number, number[]>();
+    for (const isp of ispCoverage.isps) {
+      const ispId = Number(isp.isp_profile_id);
+      ispToFacilities.set(ispId, []);
+    }
+    if (filteredIds.length && ispCoverage.isps.length) {
+      for (let i = 0; i < filteredIds.length; i += 200) {
+        const chunk = filteredIds.slice(i, i + 200);
+        const { data: sil } = await supabase
+          .from('school_isp_links')
+          .select('school_profile_id, isp_profile_id, status')
+          .in('school_profile_id', chunk)
+          .eq('status', 'active')
+          .limit(5000);
+        for (const l of sil || []) {
+          const ispId = Number(l.isp_profile_id);
+          const sid = Number(l.school_profile_id);
+          if (!ispToFacilities.has(ispId)) continue;
+          ispToFacilities.get(ispId)!.push(sid);
+        }
+      }
+    }
+
+    const hierarchyTree = {
+      agency: {
+        name: agency.agency_name,
+        type: agency.agency_type,
+        family: hierarchyMeta.family,
+        chain: hierarchyMeta.chain,
+        description: hierarchyMeta.description,
+      },
+      isps: ispCoverage.isps.map((isp) => {
+        const ispId = Number(isp.isp_profile_id);
+        const facIds = [...new Set(ispToFacilities.get(ispId) || [])];
+        const facilities = facIds
+          .map((id) => facilityById.get(id))
+          .filter(Boolean)
+          .map((m) => ({
+            school_profile_id: m!.school_profile_id,
+            name: m!.name,
+            member_type: m!.member_type,
+            member_label: facilityLabel(m!.member_type),
+            province: m!.province,
+            district: m!.district,
+            learners_enrolled: m!.learners_enrolled,
+            link_status: m!.link_status,
+          }));
+        return {
+          isp_profile_id: ispId,
+          name: isp.name,
+          status: isp.status,
+          provinces: isp.provinces,
+          facility_count: facilities.length,
+          facilities,
+        };
+      }),
+      unlinked_facilities: members
+        .filter((m) => {
+          // Facilities with no active ISP link under any associated ISP
+          for (const [, ids] of ispToFacilities) {
+            if (ids.includes(m.school_profile_id)) return false;
+          }
+          return true;
+        })
+        .map((m) => ({
+          school_profile_id: m.school_profile_id,
+          name: m.name,
+          member_type: m.member_type,
+          member_label: facilityLabel(m.member_type),
+          province: m.province,
+          district: m.district,
+        })),
+    };
+
+    const byMemberType = groupSum(members, (m) =>
+      facilityLabel(m.member_type, { plural: true })
+    );
+
     return NextResponse.json({
       success: true,
       period: { from, to },
@@ -702,13 +796,19 @@ export async function GET(request: NextRequest) {
         name: agency.agency_name,
         type: agency.agency_type,
         province: agency.province,
+        family: familyForAgencyType(agency.agency_type),
+        hierarchy: hierarchyMeta.chain,
+        facility_plural: hierarchyMeta.facilityPlural,
       },
+      hierarchy: hierarchyMeta,
+      hierarchyTree,
       kpis,
       members,
       byProvince,
       byDistrict,
       byCircuit,
       byQuintile,
+      byMemberType,
       schoolsByProvince,
       schoolsByDistrict,
       schoolsByCircuit,
@@ -723,8 +823,7 @@ export async function GET(request: NextRequest) {
       claims,
       claimsInbox,
       facets: { provinces, districts },
-      // Future: hospitals / other orgs join same association pattern
-      memberTypesSupported: ['school', 'hospital', 'organisation'],
+      memberTypesSupported: ['school', 'hospital', 'clinic', 'ecd', 'organisation'],
     });
   } catch (e: unknown) {
     return NextResponse.json(

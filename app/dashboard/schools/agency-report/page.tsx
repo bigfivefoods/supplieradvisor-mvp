@@ -31,9 +31,10 @@ import {
 
 const REPORTS = [
   { id: 'overview', label: 'Overview' },
+  { id: 'hierarchy', label: 'Hierarchy' },
   { id: 'coverage', label: 'Coverage · geo' },
   { id: 'claims', label: 'Claims inbox' },
-  { id: 'members', label: 'Organisations' },
+  { id: 'members', label: 'Facilities' },
   { id: 'province', label: 'By province' },
   { id: 'district', label: 'By district' },
   { id: 'circuit', label: 'By circuit' },
@@ -145,6 +146,42 @@ function Inner() {
   const ispsByDistrict = (data?.ispsByDistrict ||
     []) as Array<Record<string, unknown>>;
   const ispList = (data?.isps || []) as Array<Record<string, unknown>>;
+  const hierarchyTree = (data?.hierarchyTree || null) as {
+    agency?: {
+      name?: string;
+      type?: string;
+      family?: string;
+      chain?: string[];
+      description?: string;
+    };
+    isps?: Array<{
+      isp_profile_id: number;
+      name: string;
+      status: string;
+      facility_count: number;
+      facilities: Array<{
+        school_profile_id: number;
+        name: string;
+        member_type: string;
+        member_label: string;
+        province: string | null;
+        district: string | null;
+        learners_enrolled: number;
+      }>;
+    }>;
+    unlinked_facilities?: Array<{
+      school_profile_id: number;
+      name: string;
+      member_label: string;
+      province: string | null;
+      district: string | null;
+    }>;
+  } | null;
+  const hierarchyMeta = (data?.hierarchy || null) as {
+    chain?: string[];
+    description?: string;
+    facilityPlural?: string;
+  } | null;
   const prizeBoard = (data?.prizeLeaderboard || []) as Array<
     Record<string, unknown>
   >;
@@ -339,8 +376,12 @@ function Inner() {
     <SchoolsPage>
       <SchoolsHeader
         title="Agency reports"
-        titleAccent={agency.name || 'DBE'}
-        description={`Schools & ISPs by province, district and circuit · ${period.label} (${period.from} → ${period.to}). Coverage tab is the geo roll-up for programme planning.`}
+        titleAccent={agency.name || 'DBE / DoH'}
+        description={
+          hierarchyMeta?.chain
+            ? `${hierarchyMeta.chain.join(' → ')} · ${period.label} (${period.from} → ${period.to})`
+            : `Programme hierarchy & geo coverage · ${period.label} (${period.from} → ${period.to})`
+        }
         action={
           <div className="flex flex-wrap gap-2">
             <Link
@@ -436,13 +477,13 @@ function Inner() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
             <Kpi
               icon={School}
-              label="Approved schools"
-              value={String(k.organisations ?? k.schools ?? 0)}
-              sub={`${k.districts_with_schools ?? 0} districts · ${k.provinces_with_schools ?? 0} provinces`}
+              label="Facilities"
+              value={String(k.organisations ?? 0)}
+              sub={`${k.schools ?? 0} schools · ${k.hospitals ?? 0} clinics/hospitals`}
             />
             <Kpi
               icon={Truck}
-              label="Associated ISPs"
+              label="ISPs (middle tier)"
               value={String(k.isps ?? ispList.length ?? 0)}
               sub={`${k.isps_active ?? 0} active · ${k.isps_pending ?? 0} pending`}
               tone="emerald"
@@ -621,6 +662,14 @@ function Inner() {
 
           {(report === 'overview' || report === 'members') && (
             <MemberTable members={filteredMembers} />
+          )}
+
+          {report === 'hierarchy' && (
+            <HierarchyView
+              tree={hierarchyTree}
+              meta={hierarchyMeta}
+              agencyName={String(agency.name || 'Agency')}
+            />
           )}
 
           {report === 'coverage' && (
@@ -1018,6 +1067,194 @@ function MemberTable({ members }: { members: Member[] }) {
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+function HierarchyView({
+  tree,
+  meta,
+  agencyName,
+}: {
+  tree: {
+    agency?: {
+      name?: string;
+      type?: string;
+      family?: string;
+      chain?: string[];
+      description?: string;
+    };
+    isps?: Array<{
+      isp_profile_id: number;
+      name: string;
+      status: string;
+      facility_count: number;
+      facilities: Array<{
+        school_profile_id: number;
+        name: string;
+        member_type: string;
+        member_label: string;
+        province: string | null;
+        district: string | null;
+        learners_enrolled: number;
+      }>;
+    }>;
+    unlinked_facilities?: Array<{
+      school_profile_id: number;
+      name: string;
+      member_label: string;
+      province: string | null;
+      district: string | null;
+    }>;
+  } | null;
+  meta: {
+    chain?: string[];
+    description?: string;
+    facilityPlural?: string;
+  } | null;
+  agencyName: string;
+}) {
+  const chain = tree?.agency?.chain || meta?.chain || [
+    'Agency',
+    'ISPs',
+    'Facilities',
+  ];
+  const isps = tree?.isps || [];
+  const unlinked = tree?.unlinked_facilities || [];
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-3xl border border-violet-100 bg-gradient-to-br from-violet-50 to-white p-5">
+        <p className="text-[10px] font-bold uppercase text-violet-700 mb-2">
+          Chain of association
+        </p>
+        <div className="flex flex-wrap items-center gap-2 text-sm font-black text-slate-900">
+          {chain.map((step, i) => (
+            <span key={step} className="inline-flex items-center gap-2">
+              {i > 0 ? (
+                <span className="text-violet-400 font-normal">→</span>
+              ) : null}
+              <span className="rounded-xl bg-white border border-violet-100 px-3 py-1.5 shadow-sm">
+                {step}
+              </span>
+            </span>
+          ))}
+        </div>
+        <p className="text-sm text-slate-600 mt-3 max-w-2xl">
+          {tree?.agency?.description ||
+            meta?.description ||
+            'Agency approves ISPs and facilities. Facilities order only from ISPs under the same agency.'}
+        </p>
+      </div>
+
+      {/* Level 1: Agency */}
+      <div className="rounded-3xl border-2 border-violet-200 bg-white overflow-hidden">
+        <div className="px-5 py-3 bg-violet-50 border-b border-violet-100 flex items-center gap-2">
+          <Landmark className="w-4 h-4 text-violet-700" />
+          <span className="text-xs font-bold uppercase text-violet-900">
+            1 · Department
+          </span>
+        </div>
+        <div className="px-5 py-4">
+          <p className="font-black text-lg text-slate-900">
+            {tree?.agency?.name || agencyName}
+          </p>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Type: {String(tree?.agency?.type || '—')} · Family:{' '}
+            {String(tree?.agency?.family || '—')}
+          </p>
+        </div>
+      </div>
+
+      {/* Level 2: ISPs */}
+      <div className="rounded-3xl border-2 border-amber-200 bg-white overflow-hidden">
+        <div className="px-5 py-3 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
+          <Truck className="w-4 h-4 text-amber-700" />
+          <span className="text-xs font-bold uppercase text-amber-900">
+            2 · ISPs · {isps.length} associated
+          </span>
+        </div>
+        {isps.length === 0 ? (
+          <p className="px-5 py-8 text-sm text-slate-500">
+            No ISPs have joined this department yet. ISPs request association
+            under Schools → ISPs, then you approve them.
+          </p>
+        ) : (
+          <ul className="divide-y">
+            {isps.map((isp) => (
+              <li key={isp.isp_profile_id} className="px-5 py-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                  <div>
+                    <p className="font-bold text-slate-900">{isp.name}</p>
+                    <p className="text-[11px] font-bold uppercase text-slate-500">
+                      {isp.status} · supplies {isp.facility_count}{' '}
+                      {meta?.facilityPlural?.toLowerCase() || 'facilities'}
+                    </p>
+                  </div>
+                </div>
+                {/* Level 3: facilities under this ISP */}
+                {isp.facilities.length === 0 ? (
+                  <p className="text-xs text-slate-400 pl-3 border-l-2 border-slate-100">
+                    No linked {meta?.facilityPlural?.toLowerCase() || 'facilities'}{' '}
+                    yet under this ISP.
+                  </p>
+                ) : (
+                  <ul className="mt-2 space-y-1.5 pl-3 border-l-2 border-sky-200">
+                    {isp.facilities.map((f) => (
+                      <li
+                        key={f.school_profile_id}
+                        className="flex flex-wrap items-center justify-between gap-2 text-sm"
+                      >
+                        <span className="font-semibold text-slate-800 inline-flex items-center gap-1.5">
+                          <School className="w-3.5 h-3.5 text-sky-600" />
+                          {f.name}
+                          <span className="text-[10px] font-bold uppercase text-slate-400">
+                            {f.member_label}
+                          </span>
+                        </span>
+                        <span className="text-xs text-slate-500">
+                          {[f.district, f.province].filter(Boolean).join(', ') ||
+                            '—'}
+                          {f.learners_enrolled
+                            ? ` · ${f.learners_enrolled} learners`
+                            : ''}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {/* Facilities under agency but not yet linked to an ISP */}
+      {unlinked.length > 0 ? (
+        <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+          <div className="px-5 py-3 border-b text-xs font-bold uppercase text-slate-500">
+            3 · Approved facilities not yet linked to an ISP ({unlinked.length})
+          </div>
+          <ul className="divide-y max-h-64 overflow-y-auto">
+            {unlinked.map((f) => (
+              <li
+                key={f.school_profile_id}
+                className="px-5 py-2.5 flex justify-between text-sm gap-2"
+              >
+                <span className="font-semibold">
+                  {f.name}{' '}
+                  <span className="text-[10px] uppercase text-slate-400 font-bold">
+                    {f.member_label}
+                  </span>
+                </span>
+                <span className="text-xs text-slate-500">
+                  {[f.district, f.province].filter(Boolean).join(', ') || '—'}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </div>
   );
 }

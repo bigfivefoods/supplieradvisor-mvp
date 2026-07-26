@@ -73,25 +73,37 @@ export async function provisionEntityWorkspace(
     }
   }
 
-  if (entity.provision === 'school') {
+  if (entity.provision === 'school' || entity.provision === 'facility_health') {
     try {
+      const memberType =
+        entity.provision === 'facility_health' ? 'hospital' : 'school';
       const { data: existingSchool } = await supabase
         .from('school_profiles')
-        .select('id')
+        .select('id, member_type')
         .eq('profile_id', opts.profileId)
         .maybeSingle();
       if (!existingSchool) {
         await supabase.from('school_profiles').insert({
           profile_id: opts.profileId,
           school_name: opts.tradingName,
+          member_type: memberType,
           principal_name: opts.contactName || null,
           principal_email: opts.contactEmail || null,
           principal_phone: opts.contactPhone || null,
           city: opts.city || null,
+          province: opts.province || null,
           has_on_site_kitchen: true,
           feeding_lunch: true,
           status: 'active',
         });
+      } else if (
+        entity.provision === 'facility_health' &&
+        !existingSchool.member_type
+      ) {
+        await supabase
+          .from('school_profiles')
+          .update({ member_type: 'hospital', updated_at: now })
+          .eq('id', existingSchool.id);
       }
     } catch {
       /* migration may not be applied */

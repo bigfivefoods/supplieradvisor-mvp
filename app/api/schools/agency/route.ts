@@ -259,18 +259,21 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseServer();
     const action = String(body.action || '');
 
-    // Register this company as DBE / PEU / provincial agency
+    // Register this company as DBE / PEU / DoH agency
     if (action === 'register_agency') {
       const name =
         String(body.agency_name || body.name || '').trim() ||
         'Government agency';
+      const agencyType = String(body.agency_type || 'dbe');
+      const isHealth =
+        /health|doh/i.test(agencyType) || agencyType === 'department_of_health';
       const { data, error } = await supabase
         .from('nsnp_agency_profiles')
         .upsert(
           {
             profile_id: companyId,
             agency_name: name,
-            agency_type: body.agency_type || 'dbe',
+            agency_type: agencyType,
             province: body.province || null,
             district: body.district || null,
             contact_name: body.contact_name || null,
@@ -291,7 +294,12 @@ export async function POST(request: NextRequest) {
         await supabase
           .from('profiles')
           .update({
-            org_type: 'government',
+            org_type: isHealth
+              ? 'government_health'
+              : 'government_education',
+            business_type: isHealth
+              ? 'government_health'
+              : 'government_education',
             trading_name: name,
           })
           .eq('id', companyId);
@@ -357,7 +365,7 @@ export async function POST(request: NextRequest) {
 
       const { data: agency } = await supabase
         .from('nsnp_agency_profiles')
-        .select('id, status, agency_name')
+        .select('id, status, agency_name, agency_type')
         .eq('profile_id', agencyProfileId)
         .maybeSingle();
       if (!agency || agency.status !== 'active') {
@@ -367,25 +375,57 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Schools may only REQUEST association — DBE/agency must approve.
+      const memberType = String(
+        school.member_type || body.member_type || 'school'
+      );
+      const {
+        facilityMayJoinAgency,
+        programmeHierarchyBlurb,
+      } = await import('@/lib/entities/programme-hierarchy');
+      const may = facilityMayJoinAgency(memberType, agency.agency_type);
+      if (!may.ok) {
+        return NextResponse.json(
+          { error: may.reason || 'Wrong programme family for this facility' },
+          { status: 400 }
+        );
+      }
+      const hierarchy = programmeHierarchyBlurb(agency.agency_type);
+
+      // Facilities may only REQUEST association — agency must approve.
       // Never honour client-supplied status=active (governance lock).
-      const { data, error: lErr } = await supabase
+      const linkPayload: Record<string, unknown> = {
+        school_profile_id: school.id,
+        school_company_id: companyId,
+        agency_profile_id: agencyProfileId,
+        status: 'pending',
+        requested_by: gate.userId || null,
+        accepted_at: null,
+        notes: body.notes || null,
+        updated_at: new Date().toISOString(),
+      };
+      // Soft: member_type on link when column exists
+      linkPayload.member_type = memberType;
+
+      let { data, error: lErr } = await supabase
         .from('school_agency_links')
-        .upsert(
-          {
-            school_profile_id: school.id,
-            school_company_id: companyId,
-            agency_profile_id: agencyProfileId,
-            status: 'pending',
-            requested_by: gate.userId || null,
-            accepted_at: null,
-            notes: body.notes || null,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'school_profile_id,agency_profile_id' }
-        )
+        .upsert(linkPayload, {
+          onConflict: 'school_profile_id,agency_profile_id',
+        })
         .select('*')
         .single();
+
+      if (lErr && /member_type|column/i.test(lErr.message || '')) {
+        delete linkPayload.member_type;
+        const retry = await supabase
+          .from('school_agency_links')
+          .upsert(linkPayload, {
+            onConflict: 'school_profile_id,agency_profile_id',
+          })
+          .select('*')
+          .single();
+        data = retry.data;
+        lErr = retry.error;
+      }
 
       if (lErr) {
         return NextResponse.json({ error: lErr.message }, { status: 400 });
@@ -397,8 +437,8 @@ export async function POST(request: NextRequest) {
         success: true,
         link: data,
         agency_name: agency.agency_name,
-        message:
-          'Join request submitted. Your DBE/PEU must approve before catalogue & claims unlock.',
+        hierarchy: hierarchy.chain,
+        message: `Join request submitted to ${agency.agency_name}. They must approve before catalogue & claims unlock (${hierarchy.chain.join(' → ')}).`,
       });
     }
 

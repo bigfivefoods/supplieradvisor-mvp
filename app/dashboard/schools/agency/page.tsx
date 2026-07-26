@@ -120,7 +120,11 @@ function Inner() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
-      toast.success('Registered as governmental agency (DBE / PEU)');
+      toast.success(
+        regType.includes('health')
+          ? 'Registered as Department of Health (DoH → ISPs → clinics & hospitals)'
+          : 'Registered as education agency (DBE/PEU → ISPs → schools)'
+      );
       void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed');
@@ -227,9 +231,9 @@ function Inner() {
       if (!res.ok) throw new Error(data.error || 'Failed');
       toast.success(
         action === 'approve'
-          ? 'School approved — included in agency reports'
+          ? 'Facility approved — included in agency hierarchy & reports'
           : action === 'suspend'
-            ? 'School suspended'
+            ? 'Facility suspended'
             : 'Request rejected'
       );
       void load();
@@ -241,9 +245,9 @@ function Inner() {
   return (
     <SchoolsPage>
       <SchoolsHeader
-        title="DBE & agencies"
-        titleAccent="Join programme"
-        description="Schools request to join DBE/PEU. You approve them, then run world-class programme reports across all approved organisations."
+        title="DBE / DoH & agencies"
+        titleAccent="Programme hierarchy"
+        description="DBE/PEU → ISPs → Schools · DoH → ISPs → Clinics & hospitals. Approve associations, then run coverage reports."
         action={
           <div className="flex flex-wrap gap-2">
             {role === 'agency' ? (
@@ -271,16 +275,48 @@ function Inner() {
         </div>
       ) : (
         <div className="space-y-6">
+          {/* Programme hierarchy explainer */}
+          <div className="rounded-3xl border border-violet-100 bg-gradient-to-br from-violet-50 to-sky-50 p-5">
+            <h3 className="text-sm font-black text-slate-900 mb-3">
+              Programme hierarchy
+            </h3>
+            <div className="grid sm:grid-cols-2 gap-3 text-sm">
+              <div className="rounded-2xl bg-white/80 border border-violet-100 px-4 py-3">
+                <p className="text-[10px] font-bold uppercase text-violet-700 mb-1">
+                  Education
+                </p>
+                <p className="font-black text-slate-900 tracking-tight">
+                  DBE / PEU → ISPs → Schools
+                </p>
+                <p className="text-xs text-slate-600 mt-1">
+                  Department approves ISPs and schools. Schools order only
+                  approved foods from those ISPs.
+                </p>
+              </div>
+              <div className="rounded-2xl bg-white/80 border border-rose-100 px-4 py-3">
+                <p className="text-[10px] font-bold uppercase text-rose-700 mb-1">
+                  Health
+                </p>
+                <p className="font-black text-slate-900 tracking-tight">
+                  DoH → ISPs → Clinics &amp; hospitals
+                </p>
+                <p className="text-xs text-slate-600 mt-1">
+                  Same model for health facilities under Department of Health.
+                </p>
+              </div>
+            </div>
+          </div>
+
           {/* Register as DBE / agency */}
           <div className="rounded-3xl border border-slate-200 bg-white p-5">
             <h3 className="text-sm font-black flex items-center gap-2 mb-2">
               <Landmark className="w-4 h-4 text-[#0077b6]" />
-              Register this company as DBE / PEU
+              Register this company as DBE / PEU / DoH
             </h3>
             <p className="text-xs text-slate-500 mb-3">
-              Add the DBE (or a provincial NSNP office) as a company on
-              SupplierAdvisor, then register it here. Schools can then join and
-              you will see their reports and scores.
+              Register the government company here. Facilities and ISPs request
+              to join; you approve them. Then run hierarchy &amp; coverage
+              reports.
             </p>
             {myAgency ? (
               <AgencyProfileEditor
@@ -307,12 +343,27 @@ function Inner() {
                   <select
                     className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
                     value={regType}
-                    onChange={(e) => setRegType(e.target.value)}
+                    onChange={(e) => {
+                      setRegType(e.target.value);
+                      if (e.target.value.includes('health')) {
+                        setRegName((n) =>
+                          n === 'Department of Basic Education'
+                            ? 'Department of Health'
+                            : n
+                        );
+                      }
+                    }}
                   >
-                    <option value="dbe">DBE (national)</option>
-                    <option value="provincial_nsnp">Provincial NSNP</option>
-                    <option value="district_peu">District PEU</option>
-                    <option value="circuit">Circuit</option>
+                    <option value="dbe">DBE (national) · schools</option>
+                    <option value="peu">PEU · schools</option>
+                    <option value="provincial_nsnp">Provincial NSNP · schools</option>
+                    <option value="district">District education · schools</option>
+                    <option value="department_of_health">
+                      DoH (national) · clinics &amp; hospitals
+                    </option>
+                    <option value="provincial_health">
+                      Provincial health · clinics &amp; hospitals
+                    </option>
                     <option value="other">Other</option>
                   </select>
                 </label>
@@ -349,9 +400,10 @@ function Inner() {
             <div className="space-y-4">
               <div className="rounded-2xl border border-sky-100 bg-sky-50/70 px-4 py-3 text-sm flex flex-wrap items-center justify-between gap-3">
                 <p className="text-slate-700">
-                  <strong>Only approved</strong> organisations appear in agency
-                  reports. Pending joins wait for your approval. Hospitals and
-                  other orgs can use the same association model next.
+                  <strong>Hierarchy:</strong> approve <em>ISPs</em> and{' '}
+                  <em>facilities</em> (schools under DBE, clinics/hospitals
+                  under DoH). Only active associations appear in reports and can
+                  trade.
                 </p>
                 <Link
                   href="/dashboard/schools/agency-report"
@@ -491,7 +543,8 @@ function Inner() {
 
               <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
                 <div className="px-5 py-3 border-b text-xs font-bold uppercase text-slate-500">
-                  School associations · {String(myAgency.agency_name)}
+                  Facility associations (schools / clinics / hospitals) ·{' '}
+                  {String(myAgency.agency_name)}
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm min-w-[900px]">

@@ -1,12 +1,15 @@
 /**
  * Resolve / ensure school_profiles row for a company workspace.
+ * Also used for clinics/hospitals (member_type = hospital | clinic).
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { resolveEntityKind } from '@/lib/entities/entity-kinds';
+import { defaultMemberTypeForEntity } from '@/lib/entities/programme-hierarchy';
 
 export async function getOrCreateSchoolProfile(
   supabase: SupabaseClient,
   companyId: number,
-  opts?: { schoolName?: string | null }
+  opts?: { schoolName?: string | null; memberType?: string | null }
 ): Promise<{ school: Record<string, unknown> | null; error?: string }> {
   const { data: existing, error: e1 } = await supabase
     .from('school_profiles')
@@ -23,18 +26,24 @@ export async function getOrCreateSchoolProfile(
   }
   if (existing) return { school: existing as Record<string, unknown> };
 
-  // Pull company name from profiles
+  // Pull company name + type from profiles
   let schoolName = opts?.schoolName || 'My School';
+  let memberType = opts?.memberType || 'school';
   try {
     const { data: prof } = await supabase
       .from('profiles')
-      .select('trading_name, legal_name')
+      .select('trading_name, legal_name, org_type, business_type')
       .eq('id', companyId)
       .maybeSingle();
     if (prof) {
       schoolName =
         String(prof.trading_name || prof.legal_name || schoolName).trim() ||
         schoolName;
+      const entity = resolveEntityKind(
+        String(prof.org_type || prof.business_type || '')
+      );
+      const def = defaultMemberTypeForEntity(entity.id);
+      if (def) memberType = def;
     }
   } catch {
     /* soft */
@@ -43,6 +52,7 @@ export async function getOrCreateSchoolProfile(
   const insert: Record<string, unknown> = {
     profile_id: companyId,
     school_name: schoolName,
+    member_type: memberType,
     has_on_site_kitchen: true,
     feeding_lunch: true,
     status: 'active',
@@ -65,11 +75,15 @@ export async function getOrCreateSchoolProfile(
     return { school: null, error: e2.message };
   }
 
-  // Soft: mark org_type on profile
+  // Soft: mark org_type on profile (school vs hospital)
   try {
     await supabase
       .from('profiles')
-      .update({ org_type: 'school' })
+      .update({
+        org_type: memberType === 'hospital' || memberType === 'clinic'
+          ? 'hospital'
+          : 'school',
+      })
       .eq('id', companyId);
   } catch {
     /* soft */
@@ -78,15 +92,23 @@ export async function getOrCreateSchoolProfile(
   // Soft: try create kitchen warehouse
   let kitchenWarehouseId: number | null = null;
   try {
+    const kitchenLabel =
+      memberType === 'hospital' || memberType === 'clinic'
+        ? 'Kitchen'
+        : 'Kitchen';
     const { data: wh } = await supabase
       .from('warehouses')
       .insert({
         profile_id: companyId,
-        name: `${schoolName} Kitchen`,
+        name: `${schoolName} ${kitchenLabel}`,
         code: 'NSNP-KITCHEN',
         warehouse_type: 'kitchen',
         is_active: true,
-        metadata: { nsnp: true, school_kitchen: true },
+        metadata: {
+          nsnp: true,
+          school_kitchen: true,
+          member_type: memberType,
+        },
       })
       .select('id')
       .single();

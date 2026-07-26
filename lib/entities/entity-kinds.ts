@@ -1,12 +1,14 @@
 /**
  * Separate organisation kinds on SupplierAdvisor.
  *
- * Programme model:
- * - Government education (DBE/PEU) owns catalogue & oversees schools
- * - Schools buy NSNP food from ISPs (under DBE association)
- * - ISPs supply schools and buy from normal wholesalers/businesses
- * - Government health + hospitals/clinics mirror the same pattern later
- * - Business/supplier = normal B2B trade (wholesalers etc.)
+ * Programme hierarchy:
+ *
+ *   DBE / PEU  →  ISPs  →  Schools
+ *   DoH        →  ISPs  →  Clinics & hospitals
+ *
+ * Agency owns the approved catalogue and must approve ISPs + facilities.
+ * Facilities order only from ISPs associated under the same agency.
+ * ISPs buy stock from normal wholesalers/businesses on the trade network.
  */
 
 import type { ModulePresetId } from '@/lib/business/company-modules';
@@ -40,7 +42,13 @@ export type EntityDefinition = {
   homePath: string;
   modulePreset: ModulePresetId;
   /** Soft provision NSNP domain rows on register */
-  provision: 'none' | 'school' | 'agency_education' | 'agency_health' | 'isp';
+  provision:
+    | 'none'
+    | 'school'
+    | 'facility_health'
+    | 'agency_education'
+    | 'agency_health'
+    | 'isp';
   badge: string;
   badgeClass: string;
 };
@@ -83,7 +91,7 @@ export const ENTITY_DEFINITIONS: readonly EntityDefinition[] = [
     label: 'Department of Education (DBE / PEU)',
     shortLabel: 'DBE / PEU',
     description:
-      'National, provincial or district education authority — approve schools, own approved foods list, PEU visits, claims & nutrition.',
+      'Top of the education chain: approve ISPs and schools, publish the approved foods list, PEU visits, claims & nutrition.',
     group: 'education',
     homePath: '/dashboard/schools',
     modulePreset: 'dbe_agency',
@@ -98,7 +106,7 @@ export const ENTITY_DEFINITIONS: readonly EntityDefinition[] = [
     label: 'School',
     shortLabel: 'School',
     description:
-      'Public or independent school — join DBE/PEU, order from ISPs, kitchen, serve day, nutrition & claims.',
+      'Under DBE/PEU: join the department, order only approved foods from approved ISPs, kitchen, serve day, claims.',
     group: 'education',
     homePath: '/dashboard/schools',
     modulePreset: 'school_nsnp',
@@ -110,10 +118,10 @@ export const ENTITY_DEFINITIONS: readonly EntityDefinition[] = [
     id: 'nsnp_isp',
     business_type: 'nsnp_isp',
     org_type: 'nsnp_isp',
-    label: 'NSNP Independent Service Provider (ISP)',
+    label: 'Independent Service Provider (ISP)',
     shortLabel: 'ISP',
     description:
-      'Deliver approved foods to schools after DBE/PEU/DoH approval. Buy from wholesalers on SupplierAdvisor; dispatch POD & invoices.',
+      'Middle of the chain: join DBE and/or DoH, then supply schools (education) or clinics & hospitals (health) with approved products. Buy from wholesalers on the trade network.',
     group: 'education',
     homePath: '/dashboard/schools/isp',
     modulePreset: 'nsnp_isp',
@@ -128,10 +136,10 @@ export const ENTITY_DEFINITIONS: readonly EntityDefinition[] = [
     label: 'Department of Health',
     shortLabel: 'DoH',
     description:
-      'National or provincial health authority — oversee hospitals & clinics (same association model as education).',
+      'Top of the health chain: approve ISPs and clinics/hospitals, publish approved foods, same association model as DBE.',
     group: 'health',
-    homePath: '/dashboard',
-    modulePreset: 'starter',
+    homePath: '/dashboard/schools',
+    modulePreset: 'dbe_agency',
     provision: 'agency_health',
     badge: 'Gov · Health',
     badgeClass: 'bg-rose-100 text-rose-900 border-rose-200',
@@ -141,13 +149,13 @@ export const ENTITY_DEFINITIONS: readonly EntityDefinition[] = [
     business_type: 'hospital',
     org_type: 'hospital',
     label: 'Hospital / clinic',
-    shortLabel: 'Hospital',
+    shortLabel: 'Clinic / hospital',
     description:
-      'Health facility under Department of Health — procurement & programme association (expanding).',
+      'Under DoH: join the department, order only approved foods from approved ISPs (same operating model as schools).',
     group: 'health',
-    homePath: '/dashboard',
-    modulePreset: 'starter',
-    provision: 'none',
+    homePath: '/dashboard/schools',
+    modulePreset: 'school_nsnp',
+    provision: 'facility_health',
     badge: 'Health facility',
     badgeClass: 'bg-rose-50 text-rose-800 border-rose-200',
   },
@@ -240,16 +248,16 @@ export function entityGroups(): Array<{
   return [
     {
       id: 'education',
-      title: 'Education programme (NSNP)',
+      title: 'Education · DBE → ISPs → Schools',
       blurb:
-        'Separate logins: DBE/PEU oversees · Schools order & feed · ISPs deliver from approved lists.',
+        'Chain: Department of Education approves ISPs and schools. Schools order only approved foods from those ISPs.',
       entities: ENTITY_DEFINITIONS.filter((e) => e.group === 'education'),
     },
     {
       id: 'health',
-      title: 'Health programme',
+      title: 'Health · DoH → ISPs → Clinics & hospitals',
       blurb:
-        'Department of Health and hospitals/clinics — same multi-entity model as education.',
+        'Same chain for health: Department of Health approves ISPs and clinics/hospitals. Facilities order only approved foods from those ISPs.',
       entities: ENTITY_DEFINITIONS.filter((e) => e.group === 'health'),
     },
     {
