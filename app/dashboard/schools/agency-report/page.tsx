@@ -1296,16 +1296,20 @@ function Kpi({
 function MemberTable({ members }: { members: Member[] }) {
   return (
     <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
-      <div className="px-5 py-3 border-b text-xs font-bold uppercase text-slate-500">
-        Approved organisations · {members.length}
+      <div className="px-5 py-3 border-b text-xs font-bold uppercase text-slate-500 flex flex-wrap items-center justify-between gap-2">
+        <span>Schools in current slice · {members.length.toLocaleString('en-ZA')}</span>
+        <span className="text-[10px] font-semibold normal-case text-slate-400">
+          Sorted via Slice &amp; dice controls
+        </span>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm min-w-[900px]">
-          <thead>
+      <div className="overflow-x-auto max-h-[70vh]">
+        <table className="w-full text-sm min-w-[960px]">
+          <thead className="sticky top-0 bg-white z-10">
             <tr className="border-b text-left text-[10px] font-bold uppercase text-slate-400">
-              <th className="px-4 py-3">Organisation</th>
+              <th className="px-4 py-3">School</th>
               <th className="px-3 py-3">EMIS</th>
-              <th className="px-3 py-3">Location</th>
+              <th className="px-3 py-3">District / circuit</th>
+              <th className="px-3 py-3">Q</th>
               <th className="px-3 py-3 text-right">Learners</th>
               <th className="px-3 py-3 text-right">Verified %</th>
               <th className="px-3 py-3 text-right">Meals</th>
@@ -1318,11 +1322,11 @@ function MemberTable({ members }: { members: Member[] }) {
             {members.length === 0 ? (
               <tr>
                 <td
-                  colSpan={9}
+                  colSpan={10}
                   className="px-4 py-12 text-center text-slate-500"
                 >
-                  No approved organisations in this filter. Approve schools
-                  under DBE → associations first.
+                  No schools in this filter. Clear slicers or approve joins
+                  under Join &amp; add.
                 </td>
               </tr>
             ) : (
@@ -1331,17 +1335,22 @@ function MemberTable({ members }: { members: Member[] }) {
                   key={m.school_profile_id}
                   className="border-b border-slate-50 hover:bg-sky-50/40"
                 >
-                  <td className="px-4 py-2.5 font-semibold">{m.name}</td>
+                  <td className="px-4 py-2.5 font-semibold max-w-[220px]">
+                    {m.name}
+                  </td>
                   <td className="px-3 py-2.5 font-mono text-xs">
                     {m.emis || '—'}
                   </td>
                   <td className="px-3 py-2.5 text-xs">
-                    {[m.district, m.province].filter(Boolean).join(', ') ||
-                      '—'}
-                    {m.quintile != null ? ` · Q${m.quintile}` : ''}
+                    {[m.district, m.circuit, m.province]
+                      .filter(Boolean)
+                      .join(' · ') || '—'}
+                  </td>
+                  <td className="px-3 py-2.5 text-xs tabular-nums">
+                    {m.quintile != null ? `Q${m.quintile}` : '—'}
                   </td>
                   <td className="px-3 py-2.5 text-right tabular-nums">
-                    {m.learners_enrolled}
+                    {m.learners_enrolled.toLocaleString('en-ZA')}
                   </td>
                   <td className="px-3 py-2.5 text-right tabular-nums">
                     {m.verify_pct}%
