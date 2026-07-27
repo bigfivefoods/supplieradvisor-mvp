@@ -8,147 +8,140 @@ import {
   parseSchoolRegistryBuffer,
   parseSchoolRegistryCsv,
   type SchoolRegistryRow,
+  REGISTRY_BATCH_SIZE,
 } from '@/lib/schools/school-registry-import';
 import { getAgencyRegistration } from '@/lib/schools/approved-catalogue';
 
 export const runtime = 'nodejs';
-export const maxDuration = 300;
+export const maxDuration = 60;
 
 /**
- * POST multipart: file (xlsx/csv) + companyId + optional province + link_status
- * Or JSON: { companyId, csvText, province, dryRun, create_workspaces, link_status }
- *
- * Only DBE/DoH agency can import. Upserts school_profiles by NATEMIS / EMIS.
+ * POST
+ *  - multipart file + dryRun=1 → parse only (quick)
+ *  - JSON { action: 'import_batch', rows: SchoolRegistryRow[] } → import ≤75 rows
+ *    Client parses xlsx once and sends batches to avoid Vercel 504 timeouts.
  */
 export async function POST(request: NextRequest) {
   try {
     const ct = request.headers.get('content-type') || '';
-    let companyId: number;
-    let province = 'KwaZulu-Natal';
-    let dryRun = false;
-    let createWorkspaces = false;
-    let linkStatus: 'pending' | 'active' = 'active';
-    let parseResult: ReturnType<typeof parseSchoolRegistryBuffer>;
 
-    if (ct.includes('multipart/form-data')) {
-      let form: FormData;
-      try {
-        form = await request.formData();
-      } catch (e: unknown) {
-        return NextResponse.json(
-          {
-            error:
-              e instanceof Error
-                ? `Could not read upload (${e.message}). Try a smaller file or export CSV.`
-                : 'Could not read upload. Try CSV instead of xlsx.',
-          },
-          { status: 400 }
-        );
-      }
-      companyId = Number(form.get('companyId'));
-      province = String(form.get('province') || province);
-      dryRun =
-        String(form.get('dryRun') || '') === '1' ||
-        form.get('dryRun') === 'true';
-      createWorkspaces =
-        String(form.get('create_workspaces') || '') === '1' ||
-        form.get('create_workspaces') === 'true';
-      const ls = String(form.get('link_status') || 'active');
-      linkStatus = ls === 'pending' ? 'pending' : 'active';
-      const file = form.get('file');
-      if (!(file instanceof Blob)) {
-        return NextResponse.json({ error: 'file required' }, { status: 400 });
-      }
-      const fileName =
-        file instanceof File ? file.name.toLowerCase() : 'upload.xlsx';
-      const ab = await file.arrayBuffer();
-      if (!ab.byteLength) {
-        return NextResponse.json(
-          { error: 'Uploaded file is empty' },
-          { status: 400 }
-        );
-      }
-      // Soft limit ~12MB to avoid serverless OOM
-      if (ab.byteLength > 12 * 1024 * 1024) {
-        return NextResponse.json(
-          {
-            error:
-              'File too large (max 12MB). Split the sheet or upload as CSV.',
-          },
-          { status: 400 }
-        );
-      }
-      const buf = Buffer.from(ab);
-      try {
-        if (fileName.endsWith('.csv') || fileName.endsWith('.txt')) {
-          parseResult = parseSchoolRegistryCsv(buf.toString('utf8'), {
-            provinceDefault: province,
-          });
-        } else {
-          parseResult = parseSchoolRegistryBuffer(buf, {
-            provinceDefault: province,
-          });
-        }
-      } catch (e: unknown) {
-        return NextResponse.json(
-          {
-            error:
-              e instanceof Error
-                ? `Failed to parse spreadsheet: ${e.message}`
-                : 'Failed to parse spreadsheet. Save as CSV and try again.',
-          },
-          { status: 400 }
-        );
-      }
-    } else {
+    // ── Batch import (JSON) — preferred for large lists ───────────────
+    if (ct.includes('application/json')) {
       let body: Record<string, unknown>;
       try {
         body = await request.json();
       } catch {
         return NextResponse.json(
-          {
-            error:
-              'Invalid request body. Use multipart file upload or JSON with csvText/base64.',
-          },
+          { error: 'Invalid JSON body', success: false },
           { status: 400 }
         );
       }
-      companyId = Number(body.companyId);
-      province = String(body.province || province);
-      dryRun = Boolean(body.dryRun);
-      createWorkspaces = Boolean(body.create_workspaces);
-      linkStatus = body.link_status === 'pending' ? 'pending' : 'active';
-      try {
-        if (body.csvText) {
-          parseResult = parseSchoolRegistryCsv(String(body.csvText), {
-            provinceDefault: province,
-          });
-        } else if (body.base64) {
-          const buf = Buffer.from(String(body.base64), 'base64');
-          parseResult = parseSchoolRegistryBuffer(buf, {
-            provinceDefault: province,
-          });
-        } else {
+
+      const companyId = Number(body.companyId);
+      if (!Number.isFinite(companyId)) {
+        return NextResponse.json(
+          { error: 'companyId required', success: false },
+          { status: 400 }
+        );
+      }
+      const gate = await requireCompanyAccess(request, companyId, {
+        legacyPrivyUserId: legacyPrivyFrom(request),
+      });
+      if (!gate.ok) return gate.response;
+
+      const supabase = getSupabaseServer();
+      const agency = await getAgencyRegistration(supabase, companyId);
+      if (!agency) {
+        return NextResponse.json(
+          {
+            error: 'Only a registered DBE / PEU / DoH can import schools',
+            success: false,
+          },
+          { status: 403 }
+        );
+      }
+
+      if (body.action === 'import_batch' || Array.isArray(body.rows)) {
+        const rows = (Array.isArray(body.rows) ? body.rows : []) as SchoolRegistryRow[];
+        if (!rows.length) {
           return NextResponse.json(
-            { error: 'file, csvText, or base64 required' },
+            { error: 'rows[] required', success: false },
             { status: 400 }
           );
         }
-      } catch (e: unknown) {
-        return NextResponse.json(
-          {
-            error:
-              e instanceof Error
-                ? `Failed to parse spreadsheet: ${e.message}`
-                : 'Failed to parse spreadsheet',
-          },
-          { status: 400 }
-        );
+        if (rows.length > REGISTRY_BATCH_SIZE + 10) {
+          return NextResponse.json(
+            {
+              error: `Max ${REGISTRY_BATCH_SIZE} schools per batch (got ${rows.length})`,
+              success: false,
+            },
+            { status: 400 }
+          );
+        }
+
+        const province = String(body.province || 'KwaZulu-Natal');
+        const createWorkspaces = Boolean(body.create_workspaces);
+        const linkStatus: 'pending' | 'active' =
+          body.link_status === 'pending' ? 'pending' : 'active';
+
+        await ensureRegistryColumns(supabase);
+
+        const stats = await importBatchFast(supabase, {
+          rows,
+          agencyCompanyId: companyId,
+          provinceDefault: province,
+          createWorkspaces,
+          linkStatus,
+        });
+
+        return NextResponse.json({
+          success: true,
+          ...stats,
+          batchSize: rows.length,
+          message: `Batch: ${stats.inserted} new, ${stats.updated} updated, ${stats.linked} linked`,
+        });
       }
+
+      // Legacy full-body json import not supported for large lists
+      return NextResponse.json(
+        {
+          error:
+            'Use action import_batch with rows[] (client-side batching). Full-file import times out on 5000+ rows.',
+          success: false,
+        },
+        { status: 400 }
+      );
     }
 
+    // ── Multipart: parse-only preview (or tiny imports) ───────────────
+    let form: FormData;
+    try {
+      form = await request.formData();
+    } catch (e: unknown) {
+      return NextResponse.json(
+        {
+          error:
+            e instanceof Error
+              ? `Could not read upload (${e.message})`
+              : 'Could not read upload',
+          success: false,
+        },
+        { status: 400 }
+      );
+    }
+
+    const companyId = Number(form.get('companyId'));
+    const province = String(form.get('province') || 'KwaZulu-Natal');
+    const dryRun =
+      String(form.get('dryRun') || '1') === '1' ||
+      form.get('dryRun') === 'true' ||
+      form.get('dryRun') === '1';
+
     if (!Number.isFinite(companyId)) {
-      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'companyId required', success: false },
+        { status: 400 }
+      );
     }
     const gate = await requireCompanyAccess(request, companyId, {
       legacyPrivyUserId: legacyPrivyFrom(request),
@@ -160,142 +153,251 @@ export async function POST(request: NextRequest) {
     if (!agency) {
       return NextResponse.json(
         {
-          error:
-            'Only a registered DBE / PEU / DoH can import the school registry. Register under Schools → Desk first.',
+          error: 'Only a registered DBE / PEU / DoH can import schools',
+          success: false,
         },
         { status: 403 }
       );
     }
 
-    // Ensure columns exist (best-effort)
+    const file = form.get('file');
+    if (!(file instanceof Blob)) {
+      return NextResponse.json(
+        { error: 'file required', success: false },
+        { status: 400 }
+      );
+    }
+    const fileName =
+      file instanceof File ? file.name.toLowerCase() : 'upload.xlsx';
+    const ab = await file.arrayBuffer();
+    if (!ab.byteLength) {
+      return NextResponse.json(
+        { error: 'Uploaded file is empty', success: false },
+        { status: 400 }
+      );
+    }
+    if (ab.byteLength > 15 * 1024 * 1024) {
+      return NextResponse.json(
+        {
+          error: 'File too large (max 15MB). Split or use CSV.',
+          success: false,
+        },
+        { status: 400 }
+      );
+    }
+
+    const buf = Buffer.from(ab);
+    let parseResult: ReturnType<typeof parseSchoolRegistryBuffer>;
     try {
-      for (const [col, typ] of [
-        ['cmc', 'text'],
-        ['local_municipality', 'text'],
-        ['municipality_ward', 'text'],
-        ['natemis', 'text'],
-        ['level_label', 'text'],
-        ['nsnp_applic_enrol', 'int'],
-        ['final_emis_enrol', 'int'],
-        ['final_nsnp_approved_enrol', 'int'],
-        ['enrolment_year', 'text'],
-        ['registry_source', 'text'],
-        ['registry_imported_at', 'timestamptz'],
-      ] as const) {
-        await supabase.rpc('sa_add_column', {
-          p_table: 'school_profiles',
-          p_column: col,
-          p_type: typ,
-          p_default: null,
-        });
-      }
+      parseResult =
+        fileName.endsWith('.csv') || fileName.endsWith('.txt')
+          ? parseSchoolRegistryCsv(buf.toString('utf8'), {
+              provinceDefault: province,
+            })
+          : parseSchoolRegistryBuffer(buf, { provinceDefault: province });
+    } catch (e: unknown) {
+      return NextResponse.json(
+        {
+          error:
+            e instanceof Error
+              ? `Failed to parse: ${e.message}`
+              : 'Failed to parse spreadsheet',
+          success: false,
+        },
+        { status: 400 }
+      );
+    }
+
+    // Always return parse result for multipart — full import is client-batched
+    return NextResponse.json({
+      success: true,
+      dryRun: true,
+      sheetName: parseResult.sheetName,
+      headers: parseResult.headers,
+      rowCount: parseResult.rows.length,
+      parseErrors: parseResult.errors.slice(0, 50),
+      parseErrorCount: parseResult.errors.length,
+      sample: parseResult.rows.slice(0, 8).map((r) => ({
+        school_name: r.school_name,
+        district: r.district,
+        cmc: r.cmc,
+        circuit: r.circuit,
+        natemis: r.natemis,
+        quintile: r.quintile,
+        final_nsnp_approved_enrol: r.final_nsnp_approved_enrol,
+      })),
+      // Include rows only when small enough; client usually parses itself
+      rows:
+        parseResult.rows.length <= 200 ? parseResult.rows : undefined,
+      useClientBatch: true,
+      batchSize: REGISTRY_BATCH_SIZE,
+      message: dryRun
+        ? `Parsed ${parseResult.rows.length} schools. Use Import to load in batches (avoids timeout).`
+        : `Parsed ${parseResult.rows.length} schools — import runs in browser batches.`,
+    });
+  } catch (e: unknown) {
+    console.error('[registry-import]', e);
+    const msg = e instanceof Error ? e.message : 'Import failed';
+    return NextResponse.json({ error: msg, success: false }, { status: 500 });
+  }
+}
+
+async function ensureRegistryColumns(
+  supabase: ReturnType<typeof getSupabaseServer>
+) {
+  try {
+    for (const [col, typ] of [
+      ['cmc', 'text'],
+      ['local_municipality', 'text'],
+      ['municipality_ward', 'text'],
+      ['natemis', 'text'],
+      ['level_label', 'text'],
+      ['nsnp_applic_enrol', 'int'],
+      ['final_emis_enrol', 'int'],
+      ['final_nsnp_approved_enrol', 'int'],
+      ['enrolment_year', 'text'],
+      ['registry_source', 'text'],
+      ['registry_imported_at', 'timestamptz'],
+    ] as const) {
       await supabase.rpc('sa_add_column', {
         p_table: 'school_profiles',
-        p_column: 'profile_id',
-        p_type: 'bigint',
+        p_column: col,
+        p_type: typ,
         p_default: null,
       });
-    } catch {
-      /* soft */
     }
+  } catch {
+    /* soft */
+  }
+}
 
-    const sample = parseResult.rows.slice(0, 5).map((r) => ({
-      school_name: r.school_name,
-      district: r.district,
-      cmc: r.cmc,
-      circuit: r.circuit,
-      natemis: r.natemis,
-      quintile: r.quintile,
-      final_nsnp_approved_enrol: r.final_nsnp_approved_enrol,
-    }));
+/**
+ * Fast batch: one lookup for existing keys, then parallel upserts (capped).
+ */
+async function importBatchFast(
+  supabase: ReturnType<typeof getSupabaseServer>,
+  opts: {
+    rows: SchoolRegistryRow[];
+    agencyCompanyId: number;
+    provinceDefault: string;
+    createWorkspaces: boolean;
+    linkStatus: 'pending' | 'active';
+  }
+): Promise<{
+  inserted: number;
+  updated: number;
+  linked: number;
+  workspaces_created: number;
+  errors: Array<{ row: string; message: string }>;
+}> {
+  const { rows, agencyCompanyId, provinceDefault, createWorkspaces, linkStatus } =
+    opts;
+  const now = new Date().toISOString();
 
-    if (dryRun) {
-      return NextResponse.json({
-        success: true,
-        dryRun: true,
-        sheetName: parseResult.sheetName,
-        headers: parseResult.headers,
-        rowCount: parseResult.rows.length,
-        parseErrors: parseResult.errors.slice(0, 50),
-        parseErrorCount: parseResult.errors.length,
-        sample,
-      });
+  const natemisKeys = [
+    ...new Set(
+      rows.map((r) => r.natemis).filter((x): x is string => Boolean(x))
+    ),
+  ];
+  const emisKeys = [
+    ...new Set(
+      rows.map((r) => r.emis_number).filter((x): x is string => Boolean(x))
+    ),
+  ];
+
+  const existingByNatemis = new Map<
+    string,
+    { id: number; profile_id: number | null }
+  >();
+  const existingByEmis = new Map<
+    string,
+    { id: number; profile_id: number | null }
+  >();
+
+  // Chunk .in() lookups
+  for (let i = 0; i < natemisKeys.length; i += 100) {
+    const chunk = natemisKeys.slice(i, i + 100);
+    const { data } = await supabase
+      .from('school_profiles')
+      .select('id, profile_id, natemis, emis_number')
+      .in('natemis', chunk);
+    for (const s of data || []) {
+      if (s.natemis) {
+        existingByNatemis.set(String(s.natemis), {
+          id: Number(s.id),
+          profile_id: s.profile_id != null ? Number(s.profile_id) : null,
+        });
+      }
     }
+  }
+  for (let i = 0; i < emisKeys.length; i += 100) {
+    const chunk = emisKeys.slice(i, i + 100);
+    const { data } = await supabase
+      .from('school_profiles')
+      .select('id, profile_id, natemis, emis_number')
+      .in('emis_number', chunk);
+    for (const s of data || []) {
+      const rec = {
+        id: Number(s.id),
+        profile_id: s.profile_id != null ? Number(s.profile_id) : null,
+      };
+      if (s.emis_number) existingByEmis.set(String(s.emis_number), rec);
+      if (s.natemis) existingByNatemis.set(String(s.natemis), rec);
+    }
+  }
 
-    const now = new Date().toISOString();
-    let inserted = 0;
-    let updated = 0;
-    let linked = 0;
-    let workspaces = 0;
-    const upsertErrors: Array<{ row: string; message: string }> = [];
+  let inserted = 0;
+  let updated = 0;
+  let linked = 0;
+  let workspaces = 0;
+  const errors: Array<{ row: string; message: string }> = [];
 
-    // Process in chunks
-    const chunkSize = 40;
-    for (let i = 0; i < parseResult.rows.length; i += chunkSize) {
-      const chunk = parseResult.rows.slice(i, i + chunkSize);
-      for (const row of chunk) {
+  // Parallelism limited
+  const concurrency = 12;
+  for (let i = 0; i < rows.length; i += concurrency) {
+    const slice = rows.slice(i, i + concurrency);
+    await Promise.all(
+      slice.map(async (row) => {
         try {
-          const result = await upsertRegistrySchool(supabase, {
+          const r = await upsertOne(supabase, {
             row,
-            agencyCompanyId: companyId,
-            provinceDefault: province,
+            existingByNatemis,
+            existingByEmis,
+            agencyCompanyId,
+            provinceDefault,
             createWorkspaces,
             linkStatus,
             now,
           });
-          if (result.inserted) inserted += 1;
+          if (r.inserted) inserted += 1;
           else updated += 1;
-          if (result.linked) linked += 1;
-          if (result.workspace) workspaces += 1;
+          if (r.linked) linked += 1;
+          if (r.workspace) workspaces += 1;
         } catch (e: unknown) {
-          upsertErrors.push({
+          errors.push({
             row: row.school_name,
-            message: e instanceof Error ? e.message : 'upsert failed',
+            message: e instanceof Error ? e.message : 'failed',
           });
         }
-      }
-    }
-
-    return NextResponse.json({
-      success: true,
-      sheetName: parseResult.sheetName,
-      headers: parseResult.headers,
-      rowCount: parseResult.rows.length,
-      inserted,
-      updated,
-      linked,
-      workspaces_created: workspaces,
-      parseErrorCount: parseResult.errors.length,
-      parseErrors: parseResult.errors.slice(0, 30),
-      upsertErrorCount: upsertErrors.length,
-      upsertErrors: upsertErrors.slice(0, 40),
-      message: `Imported ${inserted + updated} schools (${inserted} new, ${updated} updated), linked ${linked} to your department.`,
-    });
-  } catch (e: unknown) {
-    console.error('[registry-import]', e);
-    const msg =
-      e instanceof Error
-        ? e.message
-        : typeof e === 'string'
-          ? e
-          : 'Import failed';
-    // Always JSON so the browser never hits "Unexpected token"
-    return NextResponse.json(
-      {
-        error: msg.startsWith('An error')
-          ? `${msg} — if this is a large xlsx, try Preview first or export CSV.`
-          : msg,
-        success: false,
-      },
-      { status: 500 }
+      })
     );
   }
+
+  return {
+    inserted,
+    updated,
+    linked,
+    workspaces_created: workspaces,
+    errors: errors.slice(0, 30),
+  };
 }
 
-async function upsertRegistrySchool(
+async function upsertOne(
   supabase: ReturnType<typeof getSupabaseServer>,
   opts: {
     row: SchoolRegistryRow;
+    existingByNatemis: Map<string, { id: number; profile_id: number | null }>;
+    existingByEmis: Map<string, { id: number; profile_id: number | null }>;
     agencyCompanyId: number;
     provinceDefault: string;
     createWorkspaces: boolean;
@@ -303,27 +405,21 @@ async function upsertRegistrySchool(
     now: string;
   }
 ): Promise<{ inserted: boolean; linked: boolean; workspace: boolean }> {
-  const { row, agencyCompanyId, provinceDefault, createWorkspaces, linkStatus, now } =
-    opts;
+  const {
+    row,
+    existingByNatemis,
+    existingByEmis,
+    agencyCompanyId,
+    provinceDefault,
+    createWorkspaces,
+    linkStatus,
+    now,
+  } = opts;
 
-  // Find existing by natemis then emis
-  let existing: { id: number; profile_id: number | null } | null = null;
-  if (row.natemis) {
-    const { data } = await supabase
-      .from('school_profiles')
-      .select('id, profile_id')
-      .eq('natemis', row.natemis)
-      .maybeSingle();
-    if (data) existing = { id: Number(data.id), profile_id: data.profile_id != null ? Number(data.profile_id) : null };
-  }
-  if (!existing && row.emis_number) {
-    const { data } = await supabase
-      .from('school_profiles')
-      .select('id, profile_id')
-      .eq('emis_number', row.emis_number)
-      .maybeSingle();
-    if (data) existing = { id: Number(data.id), profile_id: data.profile_id != null ? Number(data.profile_id) : null };
-  }
+  let existing =
+    (row.natemis && existingByNatemis.get(row.natemis)) ||
+    (row.emis_number && existingByEmis.get(row.emis_number)) ||
+    null;
 
   const enrolled =
     row.final_emis_enrol ??
@@ -332,6 +428,35 @@ async function upsertRegistrySchool(
     0;
   const nsnpEligible =
     row.final_nsnp_approved_enrol ?? row.nsnp_applic_enrol ?? enrolled;
+
+  let profileId = existing?.profile_id ?? null;
+  let workspace = false;
+
+  if (createWorkspaces && !profileId) {
+    const { data: prof } = await supabase
+      .from('profiles')
+      .insert({
+        trading_name: row.school_name,
+        legal_name: row.school_name,
+        org_type: 'school',
+        business_type: 'school',
+        province: row.province || provinceDefault,
+        city: row.local_municipality || null,
+        metadata: {
+          entity_kind: 'school',
+          registry_import: true,
+          natemis: row.natemis,
+          enabled_modules: { schools: true, home: true, guide: true },
+        },
+        updated_at: now,
+      })
+      .select('id')
+      .single();
+    if (prof?.id) {
+      profileId = Number(prof.id);
+      workspace = true;
+    }
+  }
 
   const patch: Record<string, unknown> = {
     school_name: row.school_name,
@@ -364,35 +489,6 @@ async function upsertRegistrySchool(
 
   let schoolId: number;
   let inserted = false;
-  let workspace = false;
-  let profileId = existing?.profile_id ?? null;
-
-  if (createWorkspaces && !profileId) {
-    const { data: prof, error: pErr } = await supabase
-      .from('profiles')
-      .insert({
-        trading_name: row.school_name,
-        legal_name: row.school_name,
-        org_type: 'school',
-        business_type: 'school',
-        province: row.province || provinceDefault,
-        city: row.local_municipality || null,
-        metadata: {
-          entity_kind: 'school',
-          registry_import: true,
-          natemis: row.natemis,
-          enabled_modules: { schools: true, home: true, guide: true },
-        },
-        created_at: now,
-        updated_at: now,
-      })
-      .select('id')
-      .single();
-    if (!pErr && prof?.id) {
-      profileId = Number(prof.id);
-      workspace = true;
-    }
-  }
 
   if (existing) {
     if (profileId && !existing.profile_id) patch.profile_id = profileId;
@@ -403,20 +499,20 @@ async function upsertRegistrySchool(
     if (error) throw new Error(error.message);
     schoolId = existing.id;
   } else {
-    const insertRow = {
-      ...patch,
-      profile_id: profileId,
-      created_at: now,
-    };
     const { data, error } = await supabase
       .from('school_profiles')
-      .insert(insertRow)
+      .insert({
+        ...patch,
+        profile_id: profileId,
+        created_at: now,
+      })
       .select('id')
       .single();
     if (error) {
-      // Retry without new columns
-      if (/column|schema cache/i.test(error.message || '')) {
-        const soft = {
+      // Soft fallback without new columns
+      const { data: d2, error: e2 } = await supabase
+        .from('school_profiles')
+        .insert({
           profile_id: profileId,
           school_name: row.school_name,
           emis_number: row.emis_number || row.natemis || null,
@@ -439,33 +535,26 @@ async function upsertRegistrySchool(
             nsnp_applic_enrol: row.nsnp_applic_enrol,
             final_emis_enrol: row.final_emis_enrol,
             final_nsnp_approved_enrol: row.final_nsnp_approved_enrol,
-            enrolment_year: row.enrolment_year,
-            registry_source: 'xlsx_import',
           },
-        };
-        const retry = await supabase
-          .from('school_profiles')
-          .insert(soft)
-          .select('id')
-          .single();
-        if (retry.error) throw new Error(retry.error.message);
-        schoolId = Number(retry.data!.id);
-      } else {
-        throw new Error(error.message);
-      }
+        })
+        .select('id')
+        .single();
+      if (e2) throw new Error(e2.message);
+      schoolId = Number(d2!.id);
     } else {
       schoolId = Number(data!.id);
     }
     inserted = true;
+    const rec = { id: schoolId, profile_id: profileId };
+    if (row.natemis) existingByNatemis.set(row.natemis, rec);
+    if (row.emis_number) existingByEmis.set(row.emis_number, rec);
   }
 
-  // Link to importing agency
   let linked = false;
-  const companyForLink = profileId;
   const { error: lErr } = await supabase.from('school_agency_links').upsert(
     {
       school_profile_id: schoolId,
-      school_company_id: companyForLink || agencyCompanyId,
+      school_company_id: profileId || agencyCompanyId,
       agency_profile_id: agencyCompanyId,
       status: linkStatus,
       accepted_at: linkStatus === 'active' ? now : null,
@@ -494,7 +583,10 @@ export async function GET(request: NextRequest) {
   try {
     const companyId = Number(request.nextUrl.searchParams.get('companyId'));
     if (!Number.isFinite(companyId)) {
-      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'companyId required', success: false },
+        { status: 400 }
+      );
     }
     const gate = await requireCompanyAccess(request, companyId, {
       legacyPrivyUserId: legacyPrivyFrom(request),
@@ -505,7 +597,7 @@ export async function GET(request: NextRequest) {
     const agency = await getAgencyRegistration(supabase, companyId);
     if (!agency) {
       return NextResponse.json(
-        { error: 'Department only' },
+        { error: 'Department only', success: false },
         { status: 403 }
       );
     }
@@ -524,6 +616,7 @@ export async function GET(request: NextRequest) {
       success: true,
       schools_in_system: count ?? 0,
       schools_linked_to_you: linkedCount ?? 0,
+      batchSize: REGISTRY_BATCH_SIZE,
       expected_columns: [
         'District',
         'CMC',
@@ -538,11 +631,14 @@ export async function GET(request: NextRequest) {
         'Final EMIS Enrol:2026',
         'Final NSNP Approved Enrol. 26-27',
       ],
-      tip: 'Upload .xlsx or .csv as DBE. Preview with dry run first.',
+      tip: 'File is parsed in your browser, then uploaded in small batches (no 504 timeout).',
     });
   } catch (e: unknown) {
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : 'Error' },
+      {
+        error: e instanceof Error ? e.message : 'Error',
+        success: false,
+      },
       { status: 500 }
     );
   }

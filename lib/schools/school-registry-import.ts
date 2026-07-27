@@ -1,16 +1,8 @@
 /**
  * Bulk import of provincial school registry (xlsx / csv).
- * Expected columns (flexible header matching):
- * district, cmc, circuit, institution name, quintile, local municipality,
- * municipality ward number, level, NATEMIS, NSNP Applic. Enrol. 26-27,
- * Final EMIS Enrol:2026, Final NSNP Approved Enrol. 26-27
+ * Safe for browser + server (xlsx loaded at call time).
  */
-
-// Lazy-load so Next/webpack does not break the route when bundling xlsx
-function loadXlsx(): typeof import('xlsx') {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  return require('xlsx') as typeof import('xlsx');
-}
+import type * as XLSXType from 'xlsx';
 
 export type SchoolRegistryRow = {
   school_name: string;
@@ -39,6 +31,11 @@ export type RegistryParseResult = {
   sheetName: string;
 };
 
+function loadXlsx(): typeof XLSXType {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  return require('xlsx') as typeof XLSXType;
+}
+
 function normHeader(h: string): string {
   return String(h || '')
     .toLowerCase()
@@ -47,7 +44,6 @@ function normHeader(h: string): string {
     .replace(/^_|_$/g, '');
 }
 
-/** Map normalized header → canonical field */
 const HEADER_ALIASES: Record<string, keyof SchoolRegistryRow | 'skip'> = {
   institution_name: 'school_name',
   school_name: 'school_name',
@@ -96,7 +92,6 @@ const HEADER_ALIASES: Record<string, keyof SchoolRegistryRow | 'skip'> = {
 function resolveField(header: string): keyof SchoolRegistryRow | 'skip' | null {
   const n = normHeader(header);
   if (HEADER_ALIASES[n]) return HEADER_ALIASES[n];
-  // Fuzzy contains
   if (n.includes('institution') && n.includes('name')) return 'school_name';
   if (n === 'natemis' || (n.includes('nat') && n.includes('emis'))) return 'natemis';
   if (n.includes('nsnp') && n.includes('applic')) return 'nsnp_applic_enrol';
@@ -147,46 +142,17 @@ function mapLevelToPhase(level: string | null | undefined): string | null {
 function cellStr(v: unknown): string {
   if (v == null) return '';
   if (typeof v === 'number' && Number.isFinite(v)) {
-    // avoid scientific notation for EMIS
-    if (Number.isInteger(v) && Math.abs(v) > 1e10) return String(Math.round(v));
+    if (Number.isInteger(v) && Math.abs(v) >= 1e10) return String(Math.round(v));
     return String(v);
   }
   return String(v).trim();
 }
 
-export function parseSchoolRegistryBuffer(
-  buf: ArrayBuffer | Buffer,
-  opts?: { sheetName?: string; provinceDefault?: string }
+function gridToResult(
+  grid: unknown[][],
+  sheetName: string,
+  provinceDefault?: string
 ): RegistryParseResult {
-  const XLSX = loadXlsx();
-  const wb = XLSX.read(buf, { type: 'buffer', cellDates: false });
-  if (!wb.SheetNames?.length) {
-    return {
-      rows: [],
-      headers: [],
-      errors: [{ row: 0, message: 'Workbook has no sheets' }],
-      sheetName: '',
-    };
-  }
-  const sheetName =
-    opts?.sheetName && wb.SheetNames.includes(opts.sheetName)
-      ? opts.sheetName
-      : wb.SheetNames[0];
-  const sheet = wb.Sheets[sheetName];
-  if (!sheet) {
-    return {
-      rows: [],
-      headers: [],
-      errors: [{ row: 0, message: `Sheet “${sheetName}” not found` }],
-      sheetName,
-    };
-  }
-  const grid = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
-    header: 1,
-    defval: '',
-    raw: false,
-  }) as unknown[][];
-
   if (!grid.length) {
     return {
       rows: [],
@@ -196,7 +162,6 @@ export function parseSchoolRegistryBuffer(
     };
   }
 
-  // Find header row (first non-empty with institution/name-like cell)
   let headerRowIdx = 0;
   for (let i = 0; i < Math.min(15, grid.length); i += 1) {
     const row = grid[i] || [];
@@ -249,7 +214,9 @@ export function parseSchoolRegistryBuffer(
       continue;
     }
 
-    const natemis = rec.natemis ? String(rec.natemis).replace(/\.0$/, '') : null;
+    const natemis = rec.natemis
+      ? String(rec.natemis).replace(/\.0$/, '')
+      : null;
     const emis = rec.emis_number
       ? String(rec.emis_number).replace(/\.0$/, '')
       : natemis;
@@ -272,7 +239,7 @@ export function parseSchoolRegistryBuffer(
       final_emis_enrol: rec.final_emis_enrol ?? null,
       final_nsnp_approved_enrol: rec.final_nsnp_approved_enrol ?? null,
       enrolment_year: '2026-27',
-      province: rec.province || opts?.provinceDefault || null,
+      province: rec.province || provinceDefault || null,
       raw,
     });
   }
@@ -285,16 +252,73 @@ export function parseSchoolRegistryBuffer(
   };
 }
 
+export function parseSchoolRegistryBuffer(
+  buf: ArrayBuffer | Buffer,
+  opts?: { sheetName?: string; provinceDefault?: string }
+): RegistryParseResult {
+  try {
+    const XLSX = loadXlsx();
+    const wb = XLSX.read(buf, { type: 'buffer', cellDates: false });
+    if (!wb.SheetNames?.length) {
+      return {
+        rows: [],
+        headers: [],
+        errors: [{ row: 0, message: 'Workbook has no sheets' }],
+        sheetName: '',
+      };
+    }
+    const sheetName =
+      opts?.sheetName && wb.SheetNames.includes(opts.sheetName)
+        ? opts.sheetName
+        : wb.SheetNames[0];
+    const sheet = wb.Sheets[sheetName];
+    if (!sheet) {
+      return {
+        rows: [],
+        headers: [],
+        errors: [{ row: 0, message: `Sheet “${sheetName}” not found` }],
+        sheetName,
+      };
+    }
+    const grid = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+      header: 1,
+      defval: '',
+      raw: false,
+    }) as unknown[][];
+    return gridToResult(grid, sheetName, opts?.provinceDefault);
+  } catch (e: unknown) {
+    return {
+      rows: [],
+      headers: [],
+      errors: [
+        {
+          row: 0,
+          message:
+            e instanceof Error
+              ? `Spreadsheet parse failed: ${e.message}`
+              : 'Spreadsheet parse failed',
+        },
+      ],
+      sheetName: '',
+    };
+  }
+}
+
 export function parseSchoolRegistryCsv(
   text: string,
   opts?: { provinceDefault?: string }
 ): RegistryParseResult {
-  // Convert CSV to workbook buffer via sheetjs
   try {
     const XLSX = loadXlsx();
     const wb = XLSX.read(text, { type: 'string' });
-    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
-    return parseSchoolRegistryBuffer(buf, opts);
+    const sheetName = wb.SheetNames[0] || 'csv';
+    const sheet = wb.Sheets[sheetName];
+    const grid = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+      header: 1,
+      defval: '',
+      raw: false,
+    }) as unknown[][];
+    return gridToResult(grid, sheetName, opts?.provinceDefault);
   } catch (e: unknown) {
     return {
       rows: [],
@@ -312,3 +336,19 @@ export function parseSchoolRegistryCsv(
     };
   }
 }
+
+/** Browser helper: parse File without uploading */
+export async function parseSchoolRegistryFile(
+  file: File,
+  opts?: { provinceDefault?: string }
+): Promise<RegistryParseResult> {
+  const name = file.name.toLowerCase();
+  const ab = await file.arrayBuffer();
+  if (name.endsWith('.csv') || name.endsWith('.txt')) {
+    const text = new TextDecoder('utf-8').decode(ab);
+    return parseSchoolRegistryCsv(text, opts);
+  }
+  return parseSchoolRegistryBuffer(ab, opts);
+}
+
+export const REGISTRY_BATCH_SIZE = 75;

@@ -1,7 +1,8 @@
 'use client';
 
 /**
- * DBE: bulk-import provincial school registry (xlsx / csv) — 5000+ schools.
+ * DBE: bulk-import provincial school registry.
+ * Parse in browser → import in batches of 75 (avoids Vercel 504 timeout).
  */
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -22,6 +23,12 @@ import {
 } from '@/components/schools/SchoolsShell';
 import { useProgrammeRole } from '@/lib/schools/useProgrammeRole';
 import { SA_PROVINCES } from '@/lib/schools/types';
+import {
+  parseSchoolRegistryFile,
+  REGISTRY_BATCH_SIZE,
+  type SchoolRegistryRow,
+  type RegistryParseResult,
+} from '@/lib/schools/school-registry-import';
 
 export default function RegistryImportPage() {
   return (
@@ -39,7 +46,12 @@ function Inner() {
   const [createWorkspaces, setCreateWorkspaces] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
-  const [preview, setPreview] = useState<Record<string, unknown> | null>(null);
+  const [progress, setProgress] = useState<{
+    done: number;
+    total: number;
+    phase: string;
+  } | null>(null);
+  const [parsed, setParsed] = useState<RegistryParseResult | null>(null);
   const [result, setResult] = useState<Record<string, unknown> | null>(null);
   const [stats, setStats] = useState<Record<string, unknown> | null>(null);
 
@@ -47,19 +59,16 @@ function Inner() {
     const text = await res.text();
     if (!text) {
       throw new Error(
-        res.ok
-          ? 'Empty response from server'
-          : `Server error ${res.status} (empty body)`
+        res.ok ? 'Empty response' : `Server error ${res.status} (empty)`
       );
     }
     try {
       return JSON.parse(text) as Record<string, unknown>;
     } catch {
-      // Server returned HTML/plain text e.g. "An error occurred"
-      const snippet = text.replace(/\s+/g, ' ').slice(0, 180);
+      const snippet = text.replace(/\s+/g, ' ').slice(0, 200);
       throw new Error(
-        res.ok
-          ? `Invalid server response: ${snippet}`
+        res.status === 504
+          ? 'Server timed out (504). Use batch import — re-parse the file and click Import again.'
           : `Server error ${res.status}: ${snippet}`
       );
     }
@@ -82,41 +91,142 @@ function Inner() {
     if (programme.role === 'department') void loadStats();
   }, [programme.role, loadStats]);
 
-  const upload = async (dryRun: boolean) => {
+  const preview = async () => {
     if (!file) {
       toast.error('Choose an .xlsx or .csv file first');
       return;
     }
     setBusy(true);
-    if (!dryRun) setResult(null);
+    setResult(null);
+    setProgress({ done: 0, total: 1, phase: 'Parsing in browser…' });
     try {
-      const fd = new FormData();
-      fd.set('companyId', String(companyId));
-      fd.set('province', province);
-      fd.set('link_status', linkStatus);
-      fd.set('dryRun', dryRun ? '1' : '0');
-      fd.set('create_workspaces', createWorkspaces ? '1' : '0');
-      fd.set('file', file);
-      const res = await fetch('/api/schools/registry-import', {
-        method: 'POST',
-        body: fd,
+      const result = await parseSchoolRegistryFile(file, {
+        provinceDefault: province,
       });
-      const data = await readJson(res);
-      if (!res.ok) {
-        throw new Error(String(data.error || `Import failed (${res.status})`));
-      }
-      if (dryRun) {
-        setPreview(data);
-        toast.success(
-          `Preview: ${data.rowCount} schools parsed from “${data.sheetName}”`
+      setParsed(result);
+      setProgress(null);
+      if (!result.rows.length) {
+        toast.error(
+          result.errors[0]?.message ||
+            'No school rows found — check header names'
         );
-      } else {
-        setResult(data);
-        toast.success(String(data.message || 'Import complete'));
-        void loadStats();
+        return;
       }
+      toast.success(
+        `Parsed ${result.rows.length} schools from “${result.sheetName}”`
+      );
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Failed');
+      toast.error(e instanceof Error ? e.message : 'Parse failed');
+      setProgress(null);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const importAll = async () => {
+    let rows = parsed?.rows;
+    if (!rows?.length) {
+      if (!file) {
+        toast.error('Preview the file first, or choose a file');
+        return;
+      }
+      setBusy(true);
+      try {
+        const result = await parseSchoolRegistryFile(file, {
+          provinceDefault: province,
+        });
+        setParsed(result);
+        rows = result.rows;
+      } catch (e: unknown) {
+        toast.error(e instanceof Error ? e.message : 'Parse failed');
+        setBusy(false);
+        return;
+      }
+    }
+    if (!rows.length) {
+      toast.error('No rows to import');
+      setBusy(false);
+      return;
+    }
+
+    if (
+      !confirm(
+        `Import ${rows.length} schools in batches of ${REGISTRY_BATCH_SIZE}? This may take a few minutes — keep this tab open.`
+      )
+    ) {
+      setBusy(false);
+      return;
+    }
+
+    setBusy(true);
+    setResult(null);
+    const batchSize = REGISTRY_BATCH_SIZE;
+    const totalBatches = Math.ceil(rows.length / batchSize);
+    let inserted = 0;
+    let updated = 0;
+    let linked = 0;
+    let workspaces = 0;
+    const allErrors: Array<{ row: string; message: string }> = [];
+
+    try {
+      for (let b = 0; b < totalBatches; b += 1) {
+        const slice = rows.slice(b * batchSize, (b + 1) * batchSize);
+        setProgress({
+          done: b,
+          total: totalBatches,
+          phase: `Importing batch ${b + 1} of ${totalBatches} (${slice.length} schools)…`,
+        });
+
+        const res = await fetch('/api/schools/registry-import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyId,
+            action: 'import_batch',
+            rows: slice,
+            province,
+            link_status: linkStatus,
+            create_workspaces: createWorkspaces,
+          }),
+        });
+        const data = await readJson(res);
+        if (!res.ok) {
+          throw new Error(
+            String(data.error || `Batch ${b + 1} failed (${res.status})`)
+          );
+        }
+        inserted += Number(data.inserted || 0);
+        updated += Number(data.updated || 0);
+        linked += Number(data.linked || 0);
+        workspaces += Number(data.workspaces_created || 0);
+        if (Array.isArray(data.errors)) {
+          allErrors.push(
+            ...(data.errors as Array<{ row: string; message: string }>)
+          );
+        }
+      }
+
+      setProgress({
+        done: totalBatches,
+        total: totalBatches,
+        phase: 'Done',
+      });
+      const summary = {
+        success: true,
+        inserted,
+        updated,
+        linked,
+        workspaces_created: workspaces,
+        rowCount: rows.length,
+        upsertErrorCount: allErrors.length,
+        upsertErrors: allErrors.slice(0, 40),
+        message: `Imported ${inserted + updated} schools (${inserted} new, ${updated} updated), linked ${linked} to your department.`,
+      };
+      setResult(summary);
+      toast.success(summary.message);
+      void loadStats();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Import failed');
     } finally {
       setBusy(false);
     }
@@ -153,12 +263,17 @@ function Inner() {
     );
   }
 
+  const pct =
+    progress && progress.total > 0
+      ? Math.round((progress.done / progress.total) * 100)
+      : 0;
+
   return (
     <SchoolsPage>
       <SchoolsHeader
         title="School registry import"
-        titleAccent="xlsx / csv"
-        description="Import all provincial schools (district, CMC, circuit, NATEMIS, quintile, municipality, NSNP enrolment). Upserts by NATEMIS and links them to your department."
+        titleAccent="xlsx / csv · batched"
+        description="Parses in your browser, then uploads in small batches so large lists (5,000+ schools) do not hit server timeouts."
         action={
           <div className="flex gap-2">
             <Link
@@ -178,6 +293,12 @@ function Inner() {
         }
       />
 
+      <div className="mb-4 rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3 text-sm text-sky-950">
+        <strong>How it works:</strong> 1) Choose file → Preview (parses locally).
+        2) Import runs in batches of {REGISTRY_BATCH_SIZE} — keep this tab open.
+        Avoids Vercel 504 timeouts on large files.
+      </div>
+
       <div className="grid sm:grid-cols-3 gap-3 mb-6">
         <div className="rounded-2xl border border-slate-200 bg-white p-4">
           <p className="text-[10px] font-bold uppercase text-slate-400">
@@ -188,14 +309,18 @@ function Inner() {
               ? String(stats.schools_in_system)
               : '—'}
           </p>
+          <p className="text-[11px] text-slate-500">
+            Linked to you: {String(stats?.schools_linked_to_you ?? '—')}
+          </p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:col-span-2">
           <p className="text-[10px] font-bold uppercase text-slate-400 mb-1">
             Expected columns
           </p>
           <p className="text-[11px] text-slate-600 leading-relaxed">
-            {(stats?.expected_columns as string[] | undefined)?.join(' · ') ||
-              'District · CMC · Circuit · Institution Name · Quintile · Local Municipality · Municipality Ward Number · Level · NATEMIS · NSNP Applic. Enrol. 26-27 · Final EMIS Enrol:2026 · Final NSNP Approved Enrol. 26-27'}
+            District · CMC · Circuit · Institution Name · Quintile · Local
+            Municipality · Ward · Level · NATEMIS · NSNP Applic. Enrol. · Final
+            EMIS Enrol · Final NSNP Approved Enrol.
           </p>
         </div>
       </div>
@@ -205,16 +330,11 @@ function Inner() {
           <FileSpreadsheet className="w-4 h-4 text-violet-700" />
           Upload school list
         </h3>
-        <p className="text-xs text-slate-600">
-          Supports <strong>.xlsx</strong> and <strong>.csv</strong> (open Excel
-          and Save As CSV if needed). First sheet is used. Header row is
-          detected automatically.
-        </p>
 
         <div className="grid sm:grid-cols-2 gap-3">
           <label className="text-xs">
             <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
-              Province (default for rows)
+              Province (default)
             </span>
             <select
               className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
@@ -230,7 +350,7 @@ function Inner() {
           </label>
           <label className="text-xs">
             <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
-              Link to your department as
+              Link as
             </span>
             <select
               className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
@@ -251,13 +371,13 @@ function Inner() {
             checked={createWorkspaces}
             onChange={(e) => setCreateWorkspaces(e.target.checked)}
           />
-          Also create a company workspace per school (slower; only if each
-          school will log in soon)
+          Create company workspace per school (much slower — leave off for bulk
+          registry)
         </label>
 
         <label className="block">
           <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
-            File
+            File (.xlsx or .csv)
           </span>
           <input
             type="file"
@@ -265,8 +385,9 @@ function Inner() {
             className="block w-full text-sm"
             onChange={(e) => {
               setFile(e.target.files?.[0] || null);
-              setPreview(null);
+              setParsed(null);
               setResult(null);
+              setProgress(null);
             }}
           />
           {file ? (
@@ -276,57 +397,64 @@ function Inner() {
           ) : null}
         </label>
 
+        {progress ? (
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <p className="text-xs font-semibold text-slate-700 mb-2">
+              {progress.phase}
+            </p>
+            <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+              <div
+                className="h-full bg-[#00b4d8] transition-all"
+                style={{ width: `${Math.min(100, pct)}%` }}
+              />
+            </div>
+            <p className="text-[11px] text-slate-500 mt-1 tabular-nums">
+              {progress.done} / {progress.total} batches ({pct}%)
+            </p>
+          </div>
+        ) : null}
+
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
             disabled={busy || !file}
-            onClick={() => void upload(true)}
+            onClick={() => void preview()}
             className="btn-secondary !py-2 !px-4 text-sm inline-flex items-center gap-2"
           >
-            {busy ? (
+            {busy && !progress?.phase.includes('Importing') ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
               <FileSpreadsheet className="w-4 h-4" />
             )}
-            Preview (dry run)
+            1. Preview (parse locally)
           </button>
           <button
             type="button"
-            disabled={busy || !file}
-            onClick={() => {
-              if (
-                !confirm(
-                  `Import all schools from ${file?.name}? Existing NATEMIS/EMIS rows will be updated.`
-                )
-              )
-                return;
-              void upload(false);
-            }}
+            disabled={busy || (!file && !parsed)}
+            onClick={() => void importAll()}
             className="btn-primary !py-2 !px-4 text-sm inline-flex items-center gap-2"
           >
-            {busy ? (
+            {busy && progress?.phase.includes('Importing') ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
               <Upload className="w-4 h-4" />
             )}
-            Import into system
+            2. Import in batches
           </button>
         </div>
       </div>
 
-      {preview ? (
+      {parsed ? (
         <div className="mt-4 rounded-3xl border border-slate-200 bg-white p-5">
           <h3 className="text-sm font-black mb-2 flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-            Preview
+            Preview ready
           </h3>
           <p className="text-sm text-slate-600 mb-3">
-            Sheet <strong>{String(preview.sheetName)}</strong> ·{' '}
-            <strong>{String(preview.rowCount)}</strong> schools ·{' '}
-            {Number(preview.parseErrorCount || 0)} parse issues
-          </p>
-          <p className="text-[11px] text-slate-500 mb-2">
-            Headers: {(preview.headers as string[] | undefined)?.join(' · ')}
+            Sheet <strong>{parsed.sheetName}</strong> ·{' '}
+            <strong>{parsed.rows.length}</strong> schools ·{' '}
+            {parsed.errors.length} parse issues · will use{' '}
+            {Math.ceil(parsed.rows.length / REGISTRY_BATCH_SIZE)} batches
           </p>
           <div className="overflow-x-auto">
             <table className="w-full text-xs min-w-[640px]">
@@ -342,25 +470,23 @@ function Inner() {
                 </tr>
               </thead>
               <tbody>
-                {((preview.sample as Array<Record<string, unknown>>) || []).map(
-                  (r, i) => (
-                    <tr key={i} className="border-b border-slate-50">
-                      <td className="py-1.5 pr-2 font-semibold">
-                        {String(r.school_name)}
-                      </td>
-                      <td className="py-1.5 pr-2">{String(r.district || '—')}</td>
-                      <td className="py-1.5 pr-2">{String(r.cmc || '—')}</td>
-                      <td className="py-1.5 pr-2">{String(r.circuit || '—')}</td>
-                      <td className="py-1.5 pr-2 font-mono">
-                        {String(r.natemis || '—')}
-                      </td>
-                      <td className="py-1.5 pr-2">{String(r.quintile ?? '—')}</td>
-                      <td className="py-1.5">
-                        {String(r.final_nsnp_approved_enrol ?? '—')}
-                      </td>
-                    </tr>
-                  )
-                )}
+                {parsed.rows.slice(0, 8).map((r, i) => (
+                  <tr key={i} className="border-b border-slate-50">
+                    <td className="py-1.5 pr-2 font-semibold">
+                      {r.school_name}
+                    </td>
+                    <td className="py-1.5 pr-2">{r.district || '—'}</td>
+                    <td className="py-1.5 pr-2">{r.cmc || '—'}</td>
+                    <td className="py-1.5 pr-2">{r.circuit || '—'}</td>
+                    <td className="py-1.5 pr-2 font-mono">
+                      {r.natemis || '—'}
+                    </td>
+                    <td className="py-1.5 pr-2">{r.quintile ?? '—'}</td>
+                    <td className="py-1.5">
+                      {r.final_nsnp_approved_enrol ?? '—'}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -384,8 +510,7 @@ function Inner() {
             {Number(result.upsertErrorCount || 0) > 0 ? (
               <li className="text-rose-700 flex items-start gap-1">
                 <AlertTriangle className="w-3.5 h-3.5 mt-0.5" />
-                Errors: {String(result.upsertErrorCount)} (see first 40 in
-                response)
+                Row errors: {String(result.upsertErrorCount)}
               </li>
             ) : null}
           </ul>
@@ -393,7 +518,7 @@ function Inner() {
             href="/dashboard/schools/join"
             className="inline-block mt-3 text-xs font-bold text-[#0077b6] underline"
           >
-            Review schools on Join &amp; add →
+            Review on Join &amp; add →
           </Link>
         </div>
       ) : null}
