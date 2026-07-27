@@ -383,36 +383,48 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
               {mod.sub.length > 0 && isExpanded && (
                 <div className="ml-5 mt-0.5 space-y-0.5 border-l border-neutral-100 pl-2">
                   {(() => {
-                    const hasGroups = mod.sub.some(
-                      (s) => Boolean((s as { group?: string }).group)
+                    // Prefer fine-grained `section` headers (e.g. Govern · Reports).
+                    // Fall back to role `group` only when multiple groups remain
+                    // (unusual once role-filtered).
+                    const hasSections = mod.sub.some((s) =>
+                      Boolean((s as { section?: string }).section)
                     );
+                    const hasGroups =
+                      !hasSections &&
+                      mod.sub.some((s) =>
+                        Boolean((s as { group?: string }).group)
+                      );
+                    let lastSection: string | null | undefined = undefined;
                     let lastGroup: string | null | undefined = undefined;
-                    return mod.sub.map((sub) => {
+                    return mod.sub.map((sub, idx) => {
+                      const section =
+                        (sub as { section?: string }).section || null;
                       const group =
                         (sub as { group?: string }).group || null;
-                      const showHeader =
+                      const showSection =
+                        hasSections && section && section !== lastSection;
+                      const showGroup =
                         hasGroups && group && group !== lastGroup;
-                      lastGroup = group;
+                      if (showSection) lastSection = section;
+                      if (showGroup) lastGroup = group;
+                      const header = showSection
+                        ? section
+                        : showGroup
+                          ? group === 'DBE'
+                            ? 'DBE'
+                            : group
+                          : null;
                       return (
-                        <div key={sub.href}>
-                          {showHeader ? (
-                            <div
-                              className={`mt-2 first:mt-0 mb-0.5 px-3 py-1 text-[9px] font-black uppercase tracking-[0.14em] ${
-                                group === 'DBE' || group === 'DBE/DoH'
-                                  ? 'text-violet-600'
-                                  : group === 'SP'
-                                    ? 'text-amber-700'
-                                    : group === 'School'
-                                      ? 'text-sky-700'
-                                      : 'text-neutral-400'
-                              }`}
-                            >
-                              {group === 'DBE' ? 'DBE/DoH' : group}
+                        <div key={`${sub.href}-${sub.name}-${idx}`}>
+                          {header ? (
+                            <div className="mt-2.5 first:mt-0 mb-0.5 px-3 py-1 text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">
+                              {header}
                             </div>
                           ) : null}
                           <Link
                             href={sub.href}
-                            className={`block px-3 py-2 rounded-xl text-xs transition-all ${
+                            title={(sub as { desc?: string }).desc || sub.name}
+                            className={`block px-3 py-1.5 rounded-xl text-xs transition-all ${
                               isSubActive(
                                 sub.href,
                                 Boolean((sub as { exact?: boolean }).exact)
