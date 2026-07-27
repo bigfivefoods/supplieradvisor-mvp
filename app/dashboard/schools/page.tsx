@@ -317,19 +317,24 @@ function Inner() {
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {[
             {
+              href: '/dashboard/schools/join',
+              label: 'Add & approve schools / SPs',
+              desc: 'Create, search, add and approve under DBE',
+            },
+            {
               href: '/dashboard/schools/agency',
-              label: 'Approve school joins',
-              desc: 'Only approved schools unlock catalogue & claims',
+              label: 'DBE desk',
+              desc: 'Department profile, tariffs, school list',
             },
             {
               href: '/dashboard/schools/approved-list',
-              label: 'Own approved foods',
+              label: 'Approved foods catalogue',
               desc: 'Schools may only order from this list',
             },
             {
-              href: '/dashboard/schools/visits',
-              label: 'PEU field visits',
-              desc: 'Checklist scores for approved schools',
+              href: '/dashboard/schools/registry-import',
+              label: 'Import school register',
+              desc: 'Bulk xlsx — district, CMC, NATEMIS, enrolments',
             },
             {
               href: '/dashboard/schools/registry-report',
@@ -338,8 +343,13 @@ function Inner() {
             },
             {
               href: '/dashboard/schools/agency-report',
-              label: 'Multi-school pack',
-              desc: 'Heatmaps, risks, nutrition, brand compliance',
+              label: 'Programme reports & claims',
+              desc: 'Hierarchy, coverage, claim inbox (email approve)',
+            },
+            {
+              href: '/dashboard/schools/menu',
+              label: 'Mandated menu',
+              desc: 'Breakfast + lunch cycle schools must follow',
             },
             {
               href: '/dashboard/schools/isp-sla',
