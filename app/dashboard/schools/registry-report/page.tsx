@@ -547,13 +547,35 @@ function Inner() {
         </div>
       ) : (
         <>
+          {/* Import completeness banner */}
+          {k.schools != null && (
+            <div
+              className={`mb-4 rounded-2xl border px-4 py-3 text-sm ${
+                (k.registry_imported || 0) >= 5000
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-950'
+                  : 'border-amber-200 bg-amber-50 text-amber-950'
+              }`}
+            >
+              <strong>Register status:</strong>{' '}
+              {fmt(k.schools)} school(s) linked
+              {(k.registry_imported || 0) > 0
+                ? ` · ${fmt(k.registry_imported)} from provincial xlsx import`
+                : ''}
+              {(k.schools_with_natemis || 0) > 0
+                ? ` · ${fmt(k.schools_with_natemis)} with NATEMIS`
+                : ''}
+              . Same institution names can appear more than once when they have
+              different NATEMIS numbers (not duplicates).
+            </div>
+          )}
+
           {/* KPI strip */}
           <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-3 mb-4">
             <Kpi
               icon={<School className="w-4 h-4" />}
-              label="Schools"
+              label="Schools linked"
               value={fmt(k.schools)}
-              sub={`${fmt(k.registry_imported)} from registry import`}
+              sub={`${fmt(k.registry_imported)} registry import · ${fmt(k.schools_with_natemis)} NATEMIS`}
             />
             <Kpi
               icon={<Users className="w-4 h-4" />}
