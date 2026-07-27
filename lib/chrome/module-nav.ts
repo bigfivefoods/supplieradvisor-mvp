@@ -446,9 +446,16 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         section: 'Govern',
       },
       {
-        name: 'Import',
+        name: 'Import schools',
         href: '/dashboard/schools/registry-import',
-        desc: 'Bulk provincial register',
+        desc: 'Bulk provincial school register',
+        group: 'DBE',
+        section: 'Govern',
+      },
+      {
+        name: 'Import SPs',
+        href: '/dashboard/schools/sp-registry-import',
+        desc: 'District · cluster · CSD · SP name',
         group: 'DBE',
         section: 'Govern',
       },
