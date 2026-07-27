@@ -351,4 +351,5 @@ export async function parseSchoolRegistryFile(
   return parseSchoolRegistryBuffer(ab, opts);
 }
 
-export const REGISTRY_BATCH_SIZE = 75;
+/** Keep small: each batch must finish well under Vercel Hobby (~10s) / Pro limits. */
+export const REGISTRY_BATCH_SIZE = 25;

@@ -2,7 +2,7 @@
 
 /**
  * DBE: bulk-import provincial school registry.
- * Parse in browser → import in batches of 75 (avoids Vercel 504 timeout).
+ * Parse in browser → import in batches of 25 (avoids Vercel 504 timeout).
  */
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -68,7 +68,7 @@ function Inner() {
       const snippet = text.replace(/\s+/g, ' ').slice(0, 200);
       throw new Error(
         res.status === 504
-          ? 'Server timed out (504). Use batch import — re-parse the file and click Import again.'
+          ? 'Server timed out (504). Hard-refresh the page (Ctrl+Shift+R), wait for the latest deploy, then Preview → Import again. Keep the tab open while batches run.'
           : `Server error ${res.status}: ${snippet}`
       );
     }
@@ -191,8 +191,27 @@ function Inner() {
         });
         const data = await readJson(res);
         if (!res.ok) {
+          const partial = {
+            success: false,
+            inserted,
+            updated,
+            linked,
+            workspaces_created: workspaces,
+            rowCount: rows.length,
+            failedAtBatch: b + 1,
+            totalBatches,
+            upsertErrorCount: allErrors.length,
+            upsertErrors: allErrors.slice(0, 40),
+            message: `Stopped at batch ${b + 1}/${totalBatches}. ${inserted + updated} schools already saved — click Import again to continue (upserts are safe to re-run).`,
+          };
+          setResult(partial);
           throw new Error(
-            String(data.error || `Batch ${b + 1} failed (${res.status})`)
+            String(
+              data.error ||
+                (res.status === 504
+                  ? `Batch ${b + 1} timed out. ${inserted + updated} already saved — Import again to continue.`
+                  : `Batch ${b + 1} failed (${res.status})`)
+            )
           );
         }
         inserted += Number(data.inserted || 0);
