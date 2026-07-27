@@ -38,7 +38,9 @@ const MODULE_DESCRIPTIONS: Record<string, string> = {
   sustainability: 'Carbon tracking, ESG packs & impact',
   intelligence: 'Pulse, forecasts, scorecards & Super-Cube® leadership',
   schools:
-    'NSNP schools: kitchen, learners, SPs, approved brands, feeding, prizes',
+    'NSNP schools: kitchen, learners, SPs, approved brands, feeding, prizes (DBE only)',
+  health:
+    'Department of Health: clinics, hospitals, SPs, approved foods & nutrition',
   home: 'Command centre home',
   'my-business': 'Company profile, team, modules, billing & trust',
   guide: 'In-app training curriculum',
@@ -112,8 +114,9 @@ export const MODULE_CATEGORIES: Array<{
   {
     id: 'programmes',
     title: 'Programmes',
-    blurb: 'Sector programmes — NSNP schools, kitchens, approved brands.',
-    moduleIds: ['schools'],
+    blurb:
+      'Sector programmes — NSNP schools (DBE) and health facilities (DoH).',
+    moduleIds: ['schools', 'health'],
   },
 ];
 
@@ -125,7 +128,9 @@ export type ModulePresetId =
   | 'full'
   | 'school_nsnp'
   | 'dbe_agency'
-  | 'nsnp_isp';
+  | 'nsnp_isp'
+  | 'doh_agency'
+  | 'health_facility';
 
 export const MODULE_PRESETS: Array<{
   id: ModulePresetId;
@@ -191,7 +196,7 @@ export const MODULE_PRESETS: Array<{
     id: 'dbe_agency',
     label: 'DBE / PEU agency',
     description:
-      'Approve schools, catalogue, PEU visits, claims, multi-school nutrition.',
+      'Approve schools, catalogue, PEU visits, claims, multi-school nutrition. (Not DoH.)',
     enable: ['schools', 'network', 'intelligence'],
   },
   {
@@ -206,6 +211,27 @@ export const MODULE_PRESETS: Array<{
       'network',
       'customers',
       'accounting',
+    ],
+  },
+  {
+    id: 'doh_agency',
+    label: 'Department of Health (DoH)',
+    description:
+      'Standalone health programme: approve clinics & hospitals, catalogue, nutrition.',
+    enable: ['health', 'network', 'intelligence', 'suppliers'],
+  },
+  {
+    id: 'health_facility',
+    label: 'Clinic / hospital',
+    description:
+      'Join DoH, order approved foods, kitchen and nutrition for health facilities.',
+    enable: [
+      'health',
+      'inventory',
+      'suppliers',
+      'network',
+      'quality',
+      'sheq',
     ],
   },
 ];
@@ -314,8 +340,8 @@ export function normalizeEnabledModules(
     if (Object.prototype.hasOwnProperty.call(src, id)) {
       map[id] = src[id] === true || src[id] === 'true' || src[id] === 1;
     } else {
-      // Schools / NSNP is opt-in (sector programme); other modules default on
-      map[id] = id === 'schools' ? false : true;
+      // Sector programmes (Schools NSNP, Health DoH) are opt-in; others default on
+      map[id] = id === 'schools' || id === 'health' ? false : true;
     }
   }
   return map;
@@ -336,11 +362,14 @@ export function isModuleEnabled(
   moduleId: string
 ): boolean {
   if (isAlwaysOnModule(moduleId)) return true;
-  if (!enabled) return moduleId !== 'schools'; // fail open except opt-in schools
+  if (!enabled) {
+    // Fail open except opt-in sector programmes
+    return moduleId !== 'schools' && moduleId !== 'health';
+  }
   if (Object.prototype.hasOwnProperty.call(enabled, moduleId)) {
     return enabled[moduleId] !== false;
   }
-  return moduleId !== 'schools';
+  return moduleId !== 'schools' && moduleId !== 'health';
 }
 
 /** Sidebar / process rail: keep module if role allows AND company enabled it */
@@ -391,6 +420,8 @@ export function moduleIdForPath(pathname: string | null | undefined): string | n
   if (pathname.startsWith('/dashboard/projects')) return 'projects';
   if (pathname.startsWith('/dashboard/sustainability')) return 'sustainability';
   if (pathname.startsWith('/dashboard/intelligence')) return 'intelligence';
+  if (pathname.startsWith('/dashboard/schools')) return 'schools';
+  if (pathname.startsWith('/dashboard/health')) return 'health';
   return null;
 }
 

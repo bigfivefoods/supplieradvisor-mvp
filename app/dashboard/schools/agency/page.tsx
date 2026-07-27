@@ -249,9 +249,9 @@ function Inner() {
   return (
     <SchoolsPage>
       <SchoolsHeader
-        title="DBE / DoH & agencies"
-        titleAccent="Programme hierarchy"
-        description="DBE/PEU → SPs → Schools · DoH → SPs → Clinics & hospitals. Approve associations, then run coverage reports."
+        title="DBE / PEU desk"
+        titleAccent="Education only"
+        description="DBE / PEU → SPs → Schools. Department of Health is a separate module under Health."
         action={
           <div className="flex flex-wrap gap-2">
             {role === 'agency' ? (
@@ -270,6 +270,12 @@ function Inner() {
                 </Link>
               </>
             ) : null}
+            <Link
+              href="/dashboard/health/agency"
+              className="btn-secondary !py-2 !px-3 text-xs"
+            >
+              DoH (Health) →
+            </Link>
             <button
               type="button"
               onClick={() => void load()}
@@ -307,13 +313,20 @@ function Inner() {
               </div>
               <div className="rounded-2xl bg-white/80 border border-rose-100 px-4 py-3">
                 <p className="text-[10px] font-bold uppercase text-rose-700 mb-1">
-                  Health
+                  Health (separate module)
                 </p>
                 <p className="font-black text-slate-900 tracking-tight">
                   DoH → SPs → Clinics &amp; hospitals
                 </p>
                 <p className="text-xs text-slate-600 mt-1">
-                  Same model for health facilities under Department of Health.
+                  Not part of Schools — open the{' '}
+                  <Link
+                    href="/dashboard/health"
+                    className="font-bold text-rose-700 underline"
+                  >
+                    Health module
+                  </Link>
+                  .
                 </p>
               </div>
             </div>
@@ -323,12 +336,15 @@ function Inner() {
           <div className="rounded-3xl border border-slate-200 bg-white p-5">
             <h3 className="text-sm font-black flex items-center gap-2 mb-2">
               <Landmark className="w-4 h-4 text-[#0077b6]" />
-              Register this company as DBE / PEU / DoH
+              Register this company as DBE / PEU
             </h3>
             <p className="text-xs text-slate-500 mb-3">
-              Register the government company here. Facilities and SPs request
-              to join; you approve them. Then run hierarchy &amp; coverage
-              reports.
+              Education department only. Schools and SPs request to join; you
+              approve them. For Department of Health, use{' '}
+              <Link href="/dashboard/health/agency" className="font-bold underline">
+                Health → DoH desk
+              </Link>
+              .
             </p>
             {myAgency ? (
               <AgencyProfileEditor
@@ -355,28 +371,13 @@ function Inner() {
                   <select
                     className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
                     value={regType}
-                    onChange={(e) => {
-                      setRegType(e.target.value);
-                      if (e.target.value.includes('health')) {
-                        setRegName((n) =>
-                          n === 'Department of Basic Education'
-                            ? 'Department of Health'
-                            : n
-                        );
-                      }
-                    }}
+                    onChange={(e) => setRegType(e.target.value)}
                   >
-                    <option value="dbe">DBE (national) · schools</option>
-                    <option value="peu">PEU · schools</option>
-                    <option value="provincial_nsnp">Provincial NSNP · schools</option>
-                    <option value="district">District education · schools</option>
-                    <option value="department_of_health">
-                      DoH (national) · clinics &amp; hospitals
-                    </option>
-                    <option value="provincial_health">
-                      Provincial health · clinics &amp; hospitals
-                    </option>
-                    <option value="other">Other</option>
+                    <option value="dbe">DBE (national)</option>
+                    <option value="peu">PEU · provincial education</option>
+                    <option value="provincial_nsnp">Provincial NSNP office</option>
+                    <option value="district">District education office</option>
+                    <option value="other">Other education agency</option>
                   </select>
                 </label>
                 <label className="text-xs">
@@ -413,9 +414,12 @@ function Inner() {
               <div className="rounded-2xl border border-sky-100 bg-sky-50/70 px-4 py-3 text-sm flex flex-wrap items-center justify-between gap-3">
                 <p className="text-slate-700">
                   <strong>Hierarchy:</strong> approve <em>SPs</em> and{' '}
-                  <em>facilities</em> (schools under DBE, clinics/hospitals
-                  under DoH). Only active associations appear in reports and can
-                  trade.
+                  <em>schools</em> under DBE/PEU. Only active associations
+                  appear in reports. Clinics &amp; hospitals →{' '}
+                  <Link href="/dashboard/health" className="font-bold underline">
+                    Health module
+                  </Link>
+                  .
                 </p>
                 <Link
                   href="/dashboard/schools/agency-report"

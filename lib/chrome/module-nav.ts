@@ -26,6 +26,7 @@ import {
   BookOpen,
   IdCard,
   School,
+  HeartPulse,
 } from 'lucide-react';
 import type { ProcessStep } from '@/components/relationship/RelationshipChrome';
 import type { PermissionResource } from '@/lib/business/permissions';
@@ -406,111 +407,112 @@ export const MODULE_NAV: readonly ModuleNav[] = [
     href: '/dashboard/schools',
     resource: 'schools',
     /**
-     * Three separate navigation tools under Schools (filtered by company role):
-     * 1) DBE/DoH — department governs programme
-     * 2) School  — facility feeds / operates kitchen
-     * 3) SP      — service provider supplies approved foods
+     * Education / NSNP only (filtered by company role):
+     * 1) DBE / PEU — department governs programme
+     * 2) School — kitchen & learners
+     * 3) SP — service provider
+     * Health (DoH / clinics / hospitals) is the separate Health module.
      */
     steps: [
-      // ── Department tool (DBE / DoH) ───────────────────────────────────
+      // ── Department tool (DBE / PEU only) ─────────────────────────────
       {
         name: 'Desk',
         href: '/dashboard/schools/agency',
-        desc: 'Register department profile',
-        group: 'DBE/DoH',
+        desc: 'Register DBE / PEU profile',
+        group: 'DBE',
       },
       {
         name: 'Join & add',
         href: '/dashboard/schools/join',
         desc: 'Add schools & SPs · approve join requests',
-        group: 'DBE/DoH',
+        group: 'DBE',
       },
       {
         name: 'Import schools',
         href: '/dashboard/schools/registry-import',
         desc: 'Bulk xlsx/csv — district, CMC, NATEMIS, NSNP enrol',
-        group: 'DBE/DoH',
+        group: 'DBE',
       },
       {
         name: 'School register',
         href: '/dashboard/schools/registry-report',
         desc: 'Schools, districts, municipalities & learner enrolments',
-        group: 'DBE/DoH',
+        group: 'DBE',
       },
       {
         name: 'Hierarchy',
         href: '/dashboard/schools/agency-report?report=hierarchy',
-        desc: 'DBE/DoH → SPs → schools / clinics',
-        group: 'DBE/DoH',
+        desc: 'DBE → SPs → schools',
+        group: 'DBE',
       },
       {
         name: 'Coverage',
         href: '/dashboard/schools/agency-report?report=coverage',
         desc: 'Schools & SPs by province / district',
-        group: 'DBE/DoH',
+        group: 'DBE',
       },
       {
         name: 'Catalogue',
         href: '/dashboard/schools/approved-list',
-        desc: 'Approved foods only facilities may buy',
-        group: 'DBE/DoH',
+        desc: 'Approved foods only schools may buy',
+        group: 'DBE',
       },
       {
         name: 'Menu',
         href: '/dashboard/schools/menu',
         desc: 'Set weekly cycle schools & SPs must follow',
-        group: 'DBE/DoH',
+        group: 'DBE',
       },
       {
         name: 'Programme',
         href: '/dashboard/schools/agency-report',
-        desc: 'Multi-facility pack · claims inbox',
-        group: 'DBE/DoH',
+        desc: 'Multi-school pack · claims inbox',
+        group: 'DBE',
       },
       {
         name: 'Claims',
         href: '/dashboard/schools/agency-report?report=claims',
-        desc: 'Review facility claim packs',
-        group: 'DBE/DoH',
+        desc: 'Review school claim packs',
+        group: 'DBE',
       },
       {
         name: 'SPs',
         href: '/dashboard/schools/join',
         desc: 'Add & approve SPs (and schools)',
-        group: 'DBE/DoH',
+        group: 'DBE',
       },
       {
         name: 'SP SLA',
         href: '/dashboard/schools/isp-sla',
         desc: 'Preferred suppliers · on-catalogue scores',
-        group: 'DBE/DoH',
+        group: 'DBE',
       },
       {
         name: 'Nutrition',
         href: '/dashboard/schools/nutrition-agency',
         desc: 'Programme nutrition roll-up',
-        group: 'DBE/DoH',
+        group: 'DBE',
       },
       {
         name: 'Visits',
         href: '/dashboard/schools/visits',
         desc: 'PEU / field monitor checklists',
-        group: 'DBE/DoH',
+        group: 'DBE',
       },
       {
         name: 'Prizes',
         href: '/dashboard/schools/prizes',
         desc: 'Fair quarterly headmaster prizes',
-        group: 'DBE/DoH',
+        group: 'DBE',
       },
       {
         name: 'Map',
         href: '/dashboard/schools/map',
-        desc: 'Facility locations & coverage',
-        group: 'DBE/DoH',
+        desc: 'School locations & coverage',
+        group: 'DBE',
       },
 
-      // ── School / facility tool ────────────────────────────────────────
+      // ── School tool ──────────────────────────────────────────────────
       {
         name: 'Command',
         href: '/dashboard/schools',
@@ -525,9 +527,9 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         group: 'School',
       },
       {
-        name: 'Join dept',
+        name: 'Join DBE',
         href: '/dashboard/schools/join',
-        desc: 'One-click request to join DBE/DoH',
+        desc: 'One-click request to join DBE / PEU',
         group: 'School',
       },
       {
@@ -637,13 +639,13 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       {
         name: 'Profile',
         href: '/dashboard/schools/isps',
-        desc: 'Register SP · join DBE/DoH',
+        desc: 'Register SP · join DBE',
         group: 'SP',
       },
       {
-        name: 'Join dept',
+        name: 'Join DBE',
         href: '/dashboard/schools/join',
-        desc: 'One-click request to join DBE/DoH',
+        desc: 'One-click request to join DBE / PEU',
         group: 'SP',
       },
       {
@@ -674,6 +676,131 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         name: 'Trade',
         href: '/dashboard/suppliers',
         desc: 'Buy from wholesalers (trade network)',
+        group: 'SP',
+      },
+    ],
+  },
+  {
+    id: 'health',
+    name: 'Health',
+    icon: HeartPulse,
+    href: '/dashboard/health',
+    resource: 'schools',
+    /**
+     * Standalone DoH programme (not DBE):
+     * 1) DoH — department
+     * 2) Facility — clinic / hospital
+     * 3) SP — service provider for health
+     */
+    steps: [
+      {
+        name: 'Command',
+        href: '/dashboard/health',
+        exact: true,
+        desc: 'Health programme home',
+        group: 'DoH',
+      },
+      {
+        name: 'DoH desk',
+        href: '/dashboard/health/agency',
+        desc: 'Register department · approve facilities',
+        group: 'DoH',
+      },
+      {
+        name: 'Join & add',
+        href: '/dashboard/health/join',
+        desc: 'Add clinics, hospitals & SPs',
+        group: 'DoH',
+      },
+      {
+        name: 'Facilities',
+        href: '/dashboard/health/agency',
+        desc: 'All clinics & hospitals on your programme',
+        group: 'DoH',
+      },
+      {
+        name: 'Coverage',
+        href: '/dashboard/health/report',
+        desc: 'By district & facility type',
+        group: 'DoH',
+      },
+      {
+        name: 'Catalogue',
+        href: '/dashboard/schools/approved-list',
+        desc: 'Approved foods for health facilities',
+        group: 'DoH',
+      },
+      {
+        name: 'Nutrition',
+        href: '/dashboard/schools/nutrition-agency',
+        desc: 'Programme nutrition roll-up',
+        group: 'DoH',
+      },
+      {
+        name: 'Map',
+        href: '/dashboard/health/map',
+        desc: 'Facility locations',
+        group: 'DoH',
+      },
+      {
+        name: 'Command',
+        href: '/dashboard/health',
+        exact: true,
+        desc: 'Clinic / hospital home',
+        group: 'Facility',
+      },
+      {
+        name: 'Join DoH',
+        href: '/dashboard/health/join',
+        desc: 'Request to join Department of Health',
+        group: 'Facility',
+      },
+      {
+        name: 'Profile',
+        href: '/dashboard/schools/profile',
+        desc: 'Facility profile & kitchen',
+        group: 'Facility',
+      },
+      {
+        name: 'Approved foods',
+        href: '/dashboard/schools/approved-list',
+        desc: 'What you may order',
+        group: 'Facility',
+      },
+      {
+        name: 'Orders',
+        href: '/dashboard/schools/orders',
+        desc: 'Order from DoH-approved SPs',
+        group: 'Facility',
+      },
+      {
+        name: 'Kitchen',
+        href: '/dashboard/schools/kitchen',
+        desc: 'GRN · issue · waste',
+        group: 'Facility',
+      },
+      {
+        name: 'Nutrition',
+        href: '/dashboard/schools/nutrition',
+        desc: 'Meal nutrition vs norms',
+        group: 'Facility',
+      },
+      {
+        name: 'Join DoH',
+        href: '/dashboard/health/join',
+        desc: 'Associate with Department of Health',
+        group: 'SP',
+      },
+      {
+        name: 'Deliver',
+        href: '/dashboard/schools/deliveries',
+        desc: 'Dispatch to clinics & hospitals',
+        group: 'SP',
+      },
+      {
+        name: 'Catalogue',
+        href: '/dashboard/schools/approved-list',
+        desc: 'Approved foods you must supply',
         group: 'SP',
       },
     ],

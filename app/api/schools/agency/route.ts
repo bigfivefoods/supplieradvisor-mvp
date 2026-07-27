@@ -323,14 +323,33 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseServer();
     const action = String(body.action || '');
 
-    // Register this company as DBE / PEU / DoH agency
+    // Register this company as DBE / PEU only (DoH uses /api/health/agency)
     if (action === 'register_agency') {
       const name =
         String(body.agency_name || body.name || '').trim() ||
-        'Government agency';
-      const agencyType = String(body.agency_type || 'dbe');
-      const isHealth =
-        /health|doh/i.test(agencyType) || agencyType === 'department_of_health';
+        'Department of Basic Education';
+      let agencyType = String(body.agency_type || 'dbe');
+      const { familyForAgencyType } = await import(
+        '@/lib/entities/programme-hierarchy'
+      );
+      if (familyForAgencyType(agencyType) === 'health') {
+        return NextResponse.json(
+          {
+            error:
+              'Department of Health registers under the Health module (not Schools). Open Health → DoH desk.',
+            redirect: '/dashboard/health/agency',
+          },
+          { status: 400 }
+        );
+      }
+      // Force education types only
+      if (
+        !['dbe', 'peu', 'provincial_nsnp', 'district', 'other'].includes(
+          agencyType
+        )
+      ) {
+        agencyType = 'dbe';
+      }
       const { data, error } = await supabase
         .from('nsnp_agency_profiles')
         .upsert(
@@ -367,19 +386,15 @@ export async function POST(request: NextRequest) {
         await supabase
           .from('profiles')
           .update({
-            org_type: isHealth
-              ? 'government_health'
-              : 'government_education',
-            business_type: isHealth
-              ? 'government_health'
-              : 'government_education',
+            org_type: 'government_education',
+            business_type: 'government_education',
             trading_name: name,
           })
           .eq('id', companyId);
       } catch {
         /* soft */
       }
-      return NextResponse.json({ success: true, agency: data });
+      return NextResponse.json({ success: true, agency: data, programme: 'education' });
     }
 
     // Update DBE / PEU profile fields

@@ -17,6 +17,8 @@ import { useSidebarChrome } from '@/components/chrome/SidebarContext';
 import { sidebarModulesFromNav } from '@/lib/chrome/module-nav';
 import { useProgrammeRole } from '@/lib/schools/useProgrammeRole';
 import { stepVisibleForRole } from '@/lib/schools/programme-role';
+import { useHealthProgrammeRole } from '@/lib/health/useProgrammeRole';
+import { healthStepVisibleForRole } from '@/lib/health/programme-role';
 
 /** Critical-process nav only — icons unique per module (see lib/chrome/module-nav.ts). */
 const modules = sidebarModulesFromNav();
@@ -60,6 +62,7 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
     isCompanyModuleEnabled,
   } = useCompanyRole();
   const programme = useProgrammeRole();
+  const healthProgramme = useHealthProgrammeRole();
 
   const visibleModules = useMemo(() => {
     // sales_contractor must only see Sales (enforced in /sales SalesShell;
@@ -77,26 +80,53 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
         return canViewModule(resource);
       })
       .map((mod) => {
-        // Schools module: one navigation tool per programme role
-        if (mod.id !== 'schools') return mod;
-        const filtered = mod.sub.filter((s) =>
-          stepVisibleForRole(
-            (s as { group?: string }).group,
-            programme.role
-          )
-        );
-        return {
-          ...mod,
-          name:
-            programme.role === 'department'
-              ? 'Schools · DBE/DoH'
-              : programme.role === 'sp'
-                ? 'Schools · SP'
-                : 'Schools · School',
-          sub: filtered.length ? filtered : mod.sub,
-        };
+        // Schools module: education only (DBE / School / SP)
+        if (mod.id === 'schools') {
+          const filtered = mod.sub.filter((s) =>
+            stepVisibleForRole(
+              (s as { group?: string }).group,
+              programme.role
+            )
+          );
+          return {
+            ...mod,
+            name:
+              programme.role === 'department'
+                ? 'Schools · DBE'
+                : programme.role === 'sp'
+                  ? 'Schools · SP'
+                  : 'Schools · School',
+            sub: filtered.length ? filtered : mod.sub,
+          };
+        }
+        // Health module: DoH / Facility / SP
+        if (mod.id === 'health') {
+          const filtered = mod.sub.filter((s) =>
+            healthStepVisibleForRole(
+              (s as { group?: string }).group,
+              healthProgramme.role
+            )
+          );
+          return {
+            ...mod,
+            name:
+              healthProgramme.role === 'department'
+                ? 'Health · DoH'
+                : healthProgramme.role === 'sp'
+                  ? 'Health · SP'
+                  : 'Health · Facility',
+            sub: filtered.length ? filtered : mod.sub,
+          };
+        }
+        return mod;
       });
-  }, [role, canViewModule, isCompanyModuleEnabled, programme.role]);
+  }, [
+    role,
+    canViewModule,
+    isCompanyModuleEnabled,
+    programme.role,
+    healthProgramme.role,
+  ]);
 
   const toggleModule = (id: string) => {
     setExpandedModules((prev) => {

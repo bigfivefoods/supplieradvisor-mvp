@@ -12,6 +12,8 @@ import { groupNavSteps } from '@/lib/chrome/module-nav';
 import NotificationBell from '@/components/chrome/NotificationBell';
 import { useProgrammeRole } from '@/lib/schools/useProgrammeRole';
 import { stepVisibleForRole } from '@/lib/schools/programme-role';
+import { useHealthProgrammeRole } from '@/lib/health/useProgrammeRole';
+import { healthStepVisibleForRole } from '@/lib/health/programme-role';
 
 type Props = {
   /** Mobile sidebar open — when set, menu control sits on this same rail */
@@ -23,18 +25,21 @@ const GROUP_PILL: Record<string, string> = {
   'DBE/DoH': 'bg-violet-100 text-violet-800 border-violet-200',
   School: 'bg-sky-100 text-sky-900 border-sky-200',
   SP: 'bg-amber-100 text-amber-900 border-amber-200',
+  DoH: 'bg-rose-100 text-rose-900 border-rose-200',
+  Facility: 'bg-rose-50 text-rose-800 border-rose-100',
 };
 
 /**
  * Single sticky top rail: process steps + Action centre on one horizontal level.
- * Schools module shows only the nav tool for the company's programme role
- * (DBE/DoH · School · SP).
+ * Schools: DBE · School · SP. Health: DoH · Facility · SP.
  */
 export default function ModuleProcessBar({ onOpenMobileMenu }: Props) {
   const pathname = usePathname() || '';
   const life = lifecycleForPath(pathname);
   const programme = useProgrammeRole();
+  const healthProgramme = useHealthProgrammeRole();
   const isSchoolsLife = life?.id === 'schools';
+  const isHealthLife = life?.id === 'health';
 
   const roleSteps =
     life && isSchoolsLife
@@ -44,7 +49,14 @@ export default function ModuleProcessBar({ onOpenMobileMenu }: Props) {
             programme.role
           )
         )
-      : life?.steps || [];
+      : life && isHealthLife
+        ? life.steps.filter((s) =>
+            healthStepVisibleForRole(
+              (s as { group?: string }).group,
+              healthProgramme.role
+            )
+          )
+        : life?.steps || [];
 
   let activeHref: string | null = null;
   if (life && roleSteps.length) {
