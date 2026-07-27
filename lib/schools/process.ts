@@ -209,6 +209,15 @@ export const PROCESS_STEPS: ProcessStep[] = [
     agency: true,
   },
   {
+    id: 'school_register',
+    stage: 'govern',
+    label: 'School register',
+    href: '/dashboard/schools/registry-report',
+    desc: 'Schools, districts, municipalities & enrolments',
+    school: false,
+    agency: true,
+  },
+  {
     id: 'agency_pack',
     stage: 'govern',
     label: 'Agency pack',
