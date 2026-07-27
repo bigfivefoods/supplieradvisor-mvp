@@ -5,6 +5,10 @@ import {
   legacyPrivyFrom,
 } from '@/lib/auth/api-auth';
 import { getAgencyRegistration } from '@/lib/schools/approved-catalogue';
+import {
+  fetchAgencySchoolLinks,
+  fetchByIds,
+} from '@/lib/schools/supabase-page';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -52,7 +56,13 @@ export async function GET(request: NextRequest) {
     const includeSchools =
       sp.get('includeSchools') !== '0' && sp.get('includeSchools') !== 'false';
 
-    const links = await fetchAllLinks(supabase, companyId, linkStatus);
+    const statuses =
+      linkStatus === 'all'
+        ? ['active', 'pending', 'suspended']
+        : linkStatus === 'pending'
+          ? ['pending']
+          : ['active'];
+    const links = await fetchAgencySchoolLinks(supabase, companyId, statuses);
     const schoolIds = [
       ...new Set(
         links
@@ -88,7 +98,22 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const schoolsRaw = await fetchSchoolProfiles(supabase, schoolIds);
+    let schoolsRaw: Array<Record<string, unknown>>;
+    try {
+      schoolsRaw = await fetchByIds(
+        supabase,
+        'school_profiles',
+        'id, profile_id, school_name, emis_number, natemis, province, district, circuit, cmc, quintile, local_municipality, municipality_ward, level_label, phase, learner_count_enrolled, learner_count_nsnp_eligible, learner_count_verified, nsnp_applic_enrol, final_emis_enrol, final_nsnp_approved_enrol, enrolment_year, registry_source, registry_imported_at, status, member_type, primary_agency_profile_id',
+        schoolIds
+      );
+    } catch {
+      schoolsRaw = await fetchByIds(
+        supabase,
+        'school_profiles',
+        'id, profile_id, school_name, emis_number, province, district, circuit, quintile, phase, learner_count_enrolled, learner_count_nsnp_eligible, learner_count_verified, status, member_type',
+        schoolIds
+      );
+    }
     const linkBySchool = new Map(
       links.map((l) => [Number(l.school_profile_id), l] as const)
     );
@@ -350,85 +375,6 @@ function emptyKpis() {
     link_pending: 0,
     registry_imported: 0,
   };
-}
-
-async function fetchAllLinks(
-  supabase: ReturnType<typeof getSupabaseServer>,
-  companyId: number,
-  linkStatus: string
-) {
-  const pageSize = 1000;
-  const all: Array<Record<string, unknown>> = [];
-  let from = 0;
-  for (;;) {
-    let q = supabase
-      .from('school_agency_links')
-      .select('school_profile_id, status, accepted_at, notes, created_at')
-      .eq('agency_profile_id', companyId)
-      .order('id', { ascending: true })
-      .range(from, from + pageSize - 1);
-    if (linkStatus === 'all') {
-      q = q.in('status', ['active', 'pending', 'suspended']);
-    } else if (linkStatus === 'pending') {
-      q = q.eq('status', 'pending');
-    } else {
-      q = q.eq('status', 'active');
-    }
-    const { data, error } = await q;
-    if (error) throw new Error(error.message);
-    if (!data?.length) break;
-    for (const row of data) {
-      all.push({ ...(row as object) } as Record<string, unknown>);
-    }
-    if (data.length < pageSize) break;
-    from += pageSize;
-    if (from > 50000) break;
-  }
-  return all;
-}
-
-async function fetchSchoolProfiles(
-  supabase: ReturnType<typeof getSupabaseServer>,
-  schoolIds: number[]
-) {
-  const all: Array<Record<string, unknown>> = [];
-  let useLean = false;
-
-  for (let i = 0; i < schoolIds.length; i += 200) {
-    const chunk = schoolIds.slice(i, i + 200);
-
-    // Literal select strings (not a variable) so Supabase client types rows correctly.
-    const result = useLean
-      ? await supabase
-          .from('school_profiles')
-          .select(
-            'id, profile_id, school_name, emis_number, province, district, circuit, quintile, phase, learner_count_enrolled, learner_count_nsnp_eligible, learner_count_verified, status, member_type'
-          )
-          .in('id', chunk)
-      : await supabase
-          .from('school_profiles')
-          .select(
-            'id, profile_id, school_name, emis_number, natemis, province, district, circuit, cmc, quintile, local_municipality, municipality_ward, level_label, phase, learner_count_enrolled, learner_count_nsnp_eligible, learner_count_verified, nsnp_applic_enrol, final_emis_enrol, final_nsnp_approved_enrol, enrolment_year, registry_source, registry_imported_at, status, member_type, primary_agency_profile_id'
-          )
-          .in('id', chunk);
-
-    if (result.error) {
-      if (
-        !useLean &&
-        /column|schema cache|does not exist/i.test(result.error.message)
-      ) {
-        useLean = true;
-        i -= 200;
-        continue;
-      }
-      throw new Error(result.error.message);
-    }
-
-    for (const row of result.data || []) {
-      all.push({ ...(row as object) } as Record<string, unknown>);
-    }
-  }
-  return all;
 }
 
 function mapSchool(

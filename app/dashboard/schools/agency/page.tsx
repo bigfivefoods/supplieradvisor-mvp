@@ -51,6 +51,10 @@ function Inner() {
   const [compliantIsps, setCompliantIsps] = useState<
     Array<Record<string, unknown>>
   >([]);
+  const [schoolQ, setSchoolQ] = useState('');
+  const [schoolStatusFilter, setSchoolStatusFilter] = useState<
+    'all' | 'active' | 'pending' | 'suspended'
+  >('all');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -421,21 +425,38 @@ function Inner() {
                 </Link>
               </div>
 
-              <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+              <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
                 {[
                   {
-                    label: 'Organisations',
-                    value: summary?.schoolCount ?? schools.length,
+                    label: 'Schools linked',
+                    value: Number(
+                      summary?.schoolCount ?? schools.length
+                    ).toLocaleString('en-ZA'),
                     icon: School,
                   },
                   {
-                    label: 'Learners',
-                    value: summary?.totalLearners ?? 0,
-                    icon: Users,
+                    label: 'Active',
+                    value: Number(
+                      summary?.activeLinks ??
+                        schools.filter((s) => s.link_status === 'active')
+                          .length
+                    ).toLocaleString('en-ZA'),
+                    icon: CheckCircle2,
                   },
                   {
-                    label: 'Verified learners',
-                    value: summary?.totalVerified ?? 0,
+                    label: 'Pending',
+                    value: Number(
+                      summary?.pendingLinks ??
+                        schools.filter((s) => s.link_status === 'pending')
+                          .length
+                    ).toLocaleString('en-ZA'),
+                    icon: Link2,
+                  },
+                  {
+                    label: 'Learners',
+                    value: Number(summary?.totalLearners ?? 0).toLocaleString(
+                      'en-ZA'
+                    ),
                     icon: Users,
                   },
                   {
@@ -462,6 +483,29 @@ function Inner() {
                     </div>
                   </div>
                 ))}
+              </div>
+              <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-950 flex flex-wrap items-center justify-between gap-2">
+                <span>
+                  <strong>
+                    {Number(summary?.schoolCount ?? schools.length).toLocaleString(
+                      'en-ZA'
+                    )}
+                  </strong>{' '}
+                  schools on your programme
+                  {summary?.districts != null
+                    ? ` · ${Number(summary.districts).toLocaleString('en-ZA')} districts`
+                    : ''}
+                  {summary?.totalNsnpApproved
+                    ? ` · ${Number(summary.totalNsnpApproved).toLocaleString('en-ZA')} NSNP approved enrol.`
+                    : ''}
+                  . Full geo/enrolment report:{' '}
+                  <Link
+                    href="/dashboard/schools/registry-report"
+                    className="font-bold underline"
+                  >
+                    School register
+                  </Link>
+                </span>
               </div>
 
               {/* SP association queue — same join+approve pattern as schools */}
@@ -549,133 +593,17 @@ function Inner() {
                 )}
               </div>
 
-              <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
-                <div className="px-5 py-3 border-b text-xs font-bold uppercase text-slate-500">
-                  Facility associations (schools / clinics / hospitals) ·{' '}
-                  {String(myAgency.agency_name)}
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm min-w-[900px]">
-                    <thead>
-                      <tr className="border-b text-left text-[10px] font-bold uppercase text-slate-400">
-                        <th className="px-4 py-3">Organisation</th>
-                        <th className="px-3 py-3">EMIS</th>
-                        <th className="px-3 py-3">District</th>
-                        <th className="px-3 py-3">Status</th>
-                        <th className="px-3 py-3 text-right">Learners</th>
-                        <th className="px-3 py-3 text-right">Verified</th>
-                        <th className="px-3 py-3 text-right">Prize</th>
-                        <th className="px-3 py-3 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {schools.length === 0 ? (
-                        <tr>
-                          <td
-                            colSpan={8}
-                            className="px-4 py-12 text-center text-slate-500"
-                          >
-                            No schools have requested to join yet.
-                          </td>
-                        </tr>
-                      ) : (
-                        schools.map((s) => {
-                          const st = String(s.link_status || 'pending');
-                          return (
-                            <tr
-                              key={String(s.id)}
-                              className="border-b border-slate-50 hover:bg-sky-50/40"
-                            >
-                              <td className="px-4 py-2.5 font-semibold">
-                                {String(s.school_name)}
-                              </td>
-                              <td className="px-3 py-2.5 font-mono text-xs">
-                                {String(s.emis_number || '—')}
-                              </td>
-                              <td className="px-3 py-2.5 text-xs">
-                                {[s.district, s.province]
-                                  .filter(Boolean)
-                                  .join(', ') || '—'}
-                              </td>
-                              <td className="px-3 py-2.5">
-                                <span
-                                  className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${
-                                    st === 'active'
-                                      ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                                      : st === 'pending'
-                                        ? 'bg-amber-50 border-amber-200 text-amber-900'
-                                        : 'bg-slate-50 border-slate-200 text-slate-600'
-                                  }`}
-                                >
-                                  {st}
-                                </span>
-                              </td>
-                              <td className="px-3 py-2.5 text-right tabular-nums">
-                                {Number(s.learner_count_enrolled || 0)}
-                              </td>
-                              <td className="px-3 py-2.5 text-right tabular-nums">
-                                {Number(s.learner_count_verified || 0)}
-                              </td>
-                              <td className="px-3 py-2.5 text-right font-bold tabular-nums">
-                                {s.prize_score != null
-                                  ? Number(s.prize_score).toFixed(1)
-                                  : '—'}
-                              </td>
-                              <td className="px-3 py-2.5 text-right">
-                                <div className="inline-flex flex-wrap gap-1 justify-end">
-                                  {st !== 'active' ? (
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        void setLinkStatus(
-                                          Number(s.id),
-                                          'approve'
-                                        )
-                                      }
-                                      className="rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-900 inline-flex items-center gap-0.5"
-                                    >
-                                      <CheckCircle2 className="w-3 h-3" />{' '}
-                                      Approve
-                                    </button>
-                                  ) : null}
-                                  {st === 'active' ? (
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        void setLinkStatus(
-                                          Number(s.id),
-                                          'suspend'
-                                        )
-                                      }
-                                      className="rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-bold text-slate-600"
-                                    >
-                                      Suspend
-                                    </button>
-                                  ) : null}
-                                  {st === 'pending' ? (
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        void setLinkStatus(
-                                          Number(s.id),
-                                          'reject'
-                                        )
-                                      }
-                                      className="rounded-lg border border-rose-200 px-2 py-1 text-[10px] font-bold text-rose-700"
-                                    >
-                                      Reject
-                                    </button>
-                                  ) : null}
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+              <AgencySchoolsTable
+                schools={schools}
+                schoolQ={schoolQ}
+                setSchoolQ={setSchoolQ}
+                schoolStatusFilter={schoolStatusFilter}
+                setSchoolStatusFilter={setSchoolStatusFilter}
+                agencyName={String(myAgency.agency_name || '')}
+                onSetLinkStatus={(id, action) =>
+                  void setLinkStatus(id, action)
+                }
+              />
             </div>
           ) : null}
 
@@ -773,6 +701,208 @@ function Inner() {
         </div>
       )}
     </SchoolsPage>
+  );
+}
+
+function AgencySchoolsTable({
+  schools,
+  schoolQ,
+  setSchoolQ,
+  schoolStatusFilter,
+  setSchoolStatusFilter,
+  agencyName,
+  onSetLinkStatus,
+}: {
+  schools: Array<Record<string, unknown>>;
+  schoolQ: string;
+  setSchoolQ: (v: string) => void;
+  schoolStatusFilter: 'all' | 'active' | 'pending' | 'suspended';
+  setSchoolStatusFilter: (v: 'all' | 'active' | 'pending' | 'suspended') => void;
+  agencyName: string;
+  onSetLinkStatus: (id: number, action: 'approve' | 'suspend' | 'reject') => void;
+}) {
+  const filtered = schools.filter((s) => {
+    const st = String(s.link_status || 'pending');
+    if (schoolStatusFilter !== 'all' && st !== schoolStatusFilter) return false;
+    const qq = schoolQ.trim().toLowerCase();
+    if (!qq) return true;
+    const hay = [
+      s.school_name,
+      s.emis_number,
+      s.natemis,
+      s.district,
+      s.province,
+      s.local_municipality,
+      s.circuit,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+    return hay.includes(qq);
+  });
+
+  return (
+    <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+      <div className="px-5 py-3 border-b flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-xs font-bold uppercase text-slate-500">
+            Facility associations · {agencyName}
+          </p>
+          <p className="text-[11px] text-slate-500 mt-0.5">
+            Showing {filtered.length.toLocaleString('en-ZA')} of{' '}
+            {schools.length.toLocaleString('en-ZA')} schools
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2 items-center">
+          <select
+            className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
+            value={schoolStatusFilter}
+            onChange={(e) =>
+              setSchoolStatusFilter(
+                e.target.value as 'all' | 'active' | 'pending' | 'suspended'
+              )
+            }
+          >
+            <option value="all">All statuses</option>
+            <option value="active">Active</option>
+            <option value="pending">Pending</option>
+            <option value="suspended">Suspended</option>
+          </select>
+          <input
+            className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs min-w-[180px]"
+            placeholder="Search name, NATEMIS, district…"
+            value={schoolQ}
+            onChange={(e) => setSchoolQ(e.target.value)}
+          />
+          <Link
+            href="/dashboard/schools/registry-report"
+            className="text-xs font-bold text-[#0077b6] hover:underline"
+          >
+            Full register →
+          </Link>
+        </div>
+      </div>
+      <div className="overflow-x-auto max-h-[70vh]">
+        <table className="w-full text-sm min-w-[900px]">
+          <thead className="sticky top-0 bg-white z-10">
+            <tr className="border-b text-left text-[10px] font-bold uppercase text-slate-400">
+              <th className="px-4 py-3">Organisation</th>
+              <th className="px-3 py-3">NATEMIS / EMIS</th>
+              <th className="px-3 py-3">District</th>
+              <th className="px-3 py-3">Status</th>
+              <th className="px-3 py-3 text-right">Learners</th>
+              <th className="px-3 py-3 text-right">Verified</th>
+              <th className="px-3 py-3 text-right">Prize</th>
+              <th className="px-3 py-3 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={8}
+                  className="px-4 py-12 text-center text-slate-500"
+                >
+                  {schools.length === 0
+                    ? 'No schools linked yet — import the registry or approve joins.'
+                    : 'No schools match this filter.'}
+                </td>
+              </tr>
+            ) : (
+              filtered.map((s) => {
+                const st = String(s.link_status || 'pending');
+                const learners = Number(
+                  s.learner_count_enrolled ||
+                    s.final_emis_enrol ||
+                    s.final_nsnp_approved_enrol ||
+                    0
+                );
+                return (
+                  <tr
+                    key={String(s.id)}
+                    className="border-b border-slate-50 hover:bg-sky-50/40"
+                  >
+                    <td className="px-4 py-2.5 font-semibold">
+                      {String(s.school_name)}
+                    </td>
+                    <td className="px-3 py-2.5 font-mono text-xs">
+                      {String(s.natemis || s.emis_number || '—')}
+                    </td>
+                    <td className="px-3 py-2.5 text-xs">
+                      {[s.district, s.province].filter(Boolean).join(', ') ||
+                        '—'}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span
+                        className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${
+                          st === 'active'
+                            ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                            : st === 'pending'
+                              ? 'bg-amber-50 border-amber-200 text-amber-900'
+                              : 'bg-slate-50 border-slate-200 text-slate-600'
+                        }`}
+                      >
+                        {st}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 text-right tabular-nums">
+                      {learners.toLocaleString('en-ZA')}
+                    </td>
+                    <td className="px-3 py-2.5 text-right tabular-nums">
+                      {Number(s.learner_count_verified || 0).toLocaleString(
+                        'en-ZA'
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5 text-right font-bold tabular-nums">
+                      {s.prize_score != null
+                        ? Number(s.prize_score).toFixed(1)
+                        : '—'}
+                    </td>
+                    <td className="px-3 py-2.5 text-right">
+                      <div className="inline-flex flex-wrap gap-1 justify-end">
+                        {st !== 'active' ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              onSetLinkStatus(Number(s.id), 'approve')
+                            }
+                            className="rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-900 inline-flex items-center gap-0.5"
+                          >
+                            <CheckCircle2 className="w-3 h-3" /> Approve
+                          </button>
+                        ) : null}
+                        {st === 'active' ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              onSetLinkStatus(Number(s.id), 'suspend')
+                            }
+                            className="rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-bold text-slate-600"
+                          >
+                            Suspend
+                          </button>
+                        ) : null}
+                        {st === 'pending' ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              onSetLinkStatus(Number(s.id), 'reject')
+                            }
+                            className="rounded-lg border border-rose-200 px-2 py-1 text-[10px] font-bold text-rose-700"
+                          >
+                            Reject
+                          </button>
+                        ) : null}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 

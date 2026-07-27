@@ -66,13 +66,13 @@ export async function GET(request: NextRequest) {
           { status: 403 }
         );
       }
-      const { data: links } = await supabase
-        .from('school_agency_links')
-        .select('school_profile_id, status')
-        .eq('agency_profile_id', companyId)
-        .eq('status', 'active')
-        .limit(2000);
-      const schoolIds = (links || [])
+      const { fetchAgencySchoolLinks, fetchByIds } = await import(
+        '@/lib/schools/supabase-page'
+      );
+      const links = await fetchAgencySchoolLinks(supabase, companyId, [
+        'active',
+      ]);
+      const schoolIds = links
         .map((l) => Number(l.school_profile_id))
         .filter(Boolean);
       if (!schoolIds.length) {
@@ -86,12 +86,12 @@ export async function GET(request: NextRequest) {
         });
       }
 
-      const { data: schools } = await supabase
-        .from('school_profiles')
-        .select(
-          'id, school_name, emis_number, province, district, phase, learner_count_enrolled, learner_count_verified, learner_count_nsnp_eligible'
-        )
-        .in('id', schoolIds);
+      const schools = await fetchByIds(
+        supabase,
+        'school_profiles',
+        'id, school_name, emis_number, province, district, phase, learner_count_enrolled, learner_count_verified, learner_count_nsnp_eligible',
+        schoolIds
+      );
 
       const rows: Array<Record<string, unknown>> = [];
       for (let i = 0; i < schoolIds.length; i += 40) {
@@ -112,7 +112,7 @@ export async function GET(request: NextRequest) {
           bySchool.get(sid)!.push(f as FeedingDayNut);
         }
         for (const sid of chunk) {
-          const sch = (schools || []).find((s) => Number(s.id) === sid);
+          const sch = schools.find((s) => Number(s.id) === sid);
           const phase = sch?.phase != null ? String(sch.phase) : null;
           const norm = pickNorm(norms, 'lunch', phase) || lunchNorm;
           const sum = summariseSchoolNutrition(bySchool.get(sid) || [], {
@@ -366,13 +366,15 @@ export async function GET(request: NextRequest) {
     });
     if (catalogue.agencyProfileId) {
       agencyName = catalogue.agencyName;
-      const { data: links } = await supabase
-        .from('school_agency_links')
-        .select('school_profile_id')
-        .eq('agency_profile_id', catalogue.agencyProfileId)
-        .eq('status', 'active')
-        .limit(500);
-      const peerIds = (links || [])
+      const { fetchAgencySchoolLinks } = await import(
+        '@/lib/schools/supabase-page'
+      );
+      const links = await fetchAgencySchoolLinks(
+        supabase,
+        catalogue.agencyProfileId,
+        ['active']
+      );
+      const peerIds = links
         .map((l) => Number(l.school_profile_id))
         .filter((id) => id && id !== schoolId);
       peerCount = peerIds.length + 1;

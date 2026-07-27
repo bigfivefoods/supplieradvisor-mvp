@@ -98,13 +98,16 @@ export async function GET(request: NextRequest) {
     }
 
     if (role === 'agency') {
-      const { data: links } = await supabase
-        .from('school_agency_links')
-        .select('id, status')
-        .eq('agency_profile_id', companyId)
-        .limit(500);
-      const pending = (links || []).filter((l) => l.status === 'pending').length;
-      const active = (links || []).filter((l) => l.status === 'active').length;
+      const { fetchAgencySchoolLinks } = await import(
+        '@/lib/schools/supabase-page'
+      );
+      const links = await fetchAgencySchoolLinks(supabase, companyId, [
+        'active',
+        'pending',
+        'suspended',
+      ]);
+      const pending = links.filter((l) => l.status === 'pending').length;
+      const active = links.filter((l) => l.status === 'active').length;
       const { data: claims } = await supabase
         .from('nsnp_claim_packs')
         .select('id, status')

@@ -4,9 +4,15 @@ import {
   requireCompanyAccess,
   legacyPrivyFrom,
 } from '@/lib/auth/api-auth';
+import {
+  fetchAgencySchoolLinks,
+  fetchAllPaged,
+  fetchByIds,
+} from '@/lib/schools/supabase-page';
 
 /**
- * School locations for map (scoped: all schools if platform, else district peers).
+ * School locations for map.
+ * Prefer schools linked to this company as agency; else all active schools.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -23,30 +29,67 @@ export async function GET(request: NextRequest) {
     const province = request.nextUrl.searchParams.get('province');
     const district = request.nextUrl.searchParams.get('district');
 
-    let q = supabase
-      .from('school_profiles')
-      .select(
-        'id, profile_id, school_name, emis_number, province, district, city, lat, lng, quintile, learner_count_enrolled, learner_count_nsnp_eligible, status'
-      )
-      .eq('status', 'active')
-      .limit(2000);
+    const { data: agency } = await supabase
+      .from('nsnp_agency_profiles')
+      .select('profile_id')
+      .eq('profile_id', companyId)
+      .maybeSingle();
 
-    if (province) q = q.eq('province', province);
-    if (district) q = q.eq('district', district);
-
-    const { data, error } = await q;
-    if (error) {
-      if (/does not exist|schema cache/i.test(error.message)) {
+    let rows: Array<Record<string, unknown>> = [];
+    try {
+      if (agency) {
+        const links = await fetchAgencySchoolLinks(supabase, companyId, [
+          'active',
+        ]);
+        const ids = links
+          .map((l) => Number(l.school_profile_id))
+          .filter((n) => Number.isFinite(n) && n > 0);
+        rows = await fetchByIds(
+          supabase,
+          'school_profiles',
+          'id, profile_id, school_name, emis_number, province, district, city, lat, lng, quintile, learner_count_enrolled, learner_count_nsnp_eligible, status',
+          ids
+        );
+        rows = rows.filter((s) => String(s.status || 'active') === 'active');
+      } else {
+        rows = await fetchAllPaged(
+          supabase,
+          'school_profiles',
+          'id, profile_id, school_name, emis_number, province, district, city, lat, lng, quintile, learner_count_enrolled, learner_count_nsnp_eligible, status',
+          (q) => {
+            q = q.eq('status', 'active').order('id', { ascending: true });
+            if (province) q = q.eq('province', province);
+            if (district) q = q.eq('district', district);
+            return q;
+          }
+        );
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Error';
+      if (/does not exist|schema cache/i.test(msg)) {
         return NextResponse.json({
           success: true,
           schools: [],
           warning: 'Run schools migration',
         });
       }
-      return NextResponse.json({ error: error.message }, { status: 400 });
+      return NextResponse.json({ error: msg }, { status: 400 });
     }
 
-    const schools = (data || []).map((s) => ({
+    if (province) {
+      rows = rows.filter(
+        (s) =>
+          String(s.province || '').toLowerCase() === province.toLowerCase()
+      );
+    }
+    if (district) {
+      rows = rows.filter(
+        (s) =>
+          String(s.district || '').toLowerCase() === district.toLowerCase()
+      );
+    }
+
+    const schools = rows.map((s) => ({
       ...s,
       has_coords:
         s.lat != null &&

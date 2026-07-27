@@ -5,36 +5,13 @@ import {
   legacyPrivyFrom,
 } from '@/lib/auth/api-auth';
 
+import {
+  fetchAgencySchoolLinks,
+  fetchByIds,
+} from '@/lib/schools/supabase-page';
+
 export const runtime = 'nodejs';
 export const maxDuration = 60;
-
-type SupabaseServer = ReturnType<typeof getSupabaseServer>;
-
-/** PostgREST max_rows is often 1000 — always page with .range(). */
-async function fetchAllPaged(
-  supabase: SupabaseServer,
-  table: string,
-  select: string,
-  apply: (q: any) => any,
-  pageSize = 1000
-): Promise<Array<Record<string, unknown>>> {
-  const all: Array<Record<string, unknown>> = [];
-  let from = 0;
-  for (;;) {
-    let q = supabase.from(table).select(select).range(from, from + pageSize - 1);
-    q = apply(q);
-    const { data, error } = await q;
-    if (error) throw new Error(`${table}: ${error.message}`);
-    if (!data?.length) break;
-    for (const row of data) {
-      all.push({ ...(row as object) } as Record<string, unknown>);
-    }
-    if (data.length < pageSize) break;
-    from += pageSize;
-    if (from > 100000) break;
-  }
-  return all;
-}
 
 /**
  * DBE / PEU multi-member programme reports.
@@ -93,23 +70,13 @@ export async function GET(request: NextRequest) {
 
     let links: Array<Record<string, unknown>>;
     try {
-      links = await fetchAllPaged(
-        supabase,
-        'school_agency_links',
-        'school_profile_id, status, agency_profile_id, accepted_at, notes, created_at',
-        (q) => {
-          q = q
-            .eq('agency_profile_id', companyId)
-            .order('id', { ascending: true });
-          if (linkStatus === 'all') {
-            return q.in('status', ['active', 'pending', 'suspended']);
-          }
-          if (linkStatus === 'pending') {
-            return q.eq('status', 'pending');
-          }
-          return q.eq('status', 'active');
-        }
-      );
+      const statuses =
+        linkStatus === 'all'
+          ? ['active', 'pending', 'suspended']
+          : linkStatus === 'pending'
+            ? ['pending']
+            : ['active'];
+      links = await fetchAgencySchoolLinks(supabase, companyId, statuses);
     } catch (e: unknown) {
       return NextResponse.json(
         {
@@ -177,22 +144,19 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Chunk .in() for large sets (page past PostgREST 1000-row cap per request)
-    const schools: Array<Record<string, unknown>> = [];
-    for (let i = 0; i < schoolIds.length; i += 200) {
-      const chunk = schoolIds.slice(i, i + 200);
-      const { data, error: sErr } = await supabase
-        .from('school_profiles')
-        .select(
-          'id, profile_id, school_name, emis_number, province, district, circuit, quintile, urban_rural, city, lat, lng, learner_count_enrolled, learner_count_verified, learner_count_nsnp_eligible, staff_count, status, feeding_lunch, feeding_breakfast, member_type'
-        )
-        .in('id', chunk);
-      if (sErr) {
-        return NextResponse.json({ error: sErr.message }, { status: 400 });
-      }
-      for (const row of data || []) {
-        schools.push({ ...(row as object) } as Record<string, unknown>);
-      }
+    let schools: Array<Record<string, unknown>> = [];
+    try {
+      schools = await fetchByIds(
+        supabase,
+        'school_profiles',
+        'id, profile_id, school_name, emis_number, province, district, circuit, quintile, urban_rural, city, lat, lng, learner_count_enrolled, learner_count_verified, learner_count_nsnp_eligible, staff_count, status, feeding_lunch, feeding_breakfast, member_type',
+        schoolIds
+      );
+    } catch (e: unknown) {
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : 'Failed to load schools' },
+        { status: 400 }
+      );
     }
 
     let filtered = schools;

@@ -5,6 +5,11 @@ import {
   legacyPrivyFrom,
 } from '@/lib/auth/api-auth';
 import { getOrCreateSchoolProfile } from '@/lib/schools/school-context';
+import {
+  fetchAgencySchoolLinks,
+  fetchAllPaged,
+  fetchByIds,
+} from '@/lib/schools/supabase-page';
 
 /**
  * DBE / governmental agency:
@@ -57,73 +62,91 @@ export async function GET(request: NextRequest) {
       .maybeSingle();
 
     if (mode === 'agency' || myAgency) {
-      const { data: links, error: lErr } = await supabase
-        .from('school_agency_links')
-        .select('*')
-        .eq('agency_profile_id', companyId)
-        .in('status', ['active', 'pending', 'suspended'])
-        .limit(2000);
-
-      if (lErr && /does not exist|schema cache/i.test(lErr.message)) {
-        return NextResponse.json({
-          success: true,
-          agency: myAgency,
-          schools: [],
-          warning: lErr.message,
-        });
-      }
-      if (lErr) {
-        return NextResponse.json({ error: lErr.message }, { status: 400 });
+      let links: Array<Record<string, unknown>> = [];
+      try {
+        // Page past PostgREST 1000-row cap (provincial imports are 5k+)
+        links = await fetchAgencySchoolLinks(supabase, companyId, [
+          'active',
+          'pending',
+          'suspended',
+        ]);
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : 'link load failed';
+        if (/does not exist|schema cache/i.test(msg)) {
+          return NextResponse.json({
+            success: true,
+            agency: myAgency,
+            schools: [],
+            summary: {
+              schoolCount: 0,
+              activeLinks: 0,
+              pendingLinks: 0,
+              totalLearners: 0,
+              totalVerified: 0,
+              avgPrizeScore: null,
+            },
+            warning: msg,
+          });
+        }
+        return NextResponse.json({ error: msg }, { status: 400 });
       }
 
       const schoolIds = [
         ...new Set(
-          (links || [])
+          links
             .map((l) => Number(l.school_profile_id))
-            .filter((n) => Number.isFinite(n))
+            .filter((n) => Number.isFinite(n) && n > 0)
         ),
       ];
 
       let schools: Array<Record<string, unknown>> = [];
       if (schoolIds.length) {
-        const { data: rows } = await supabase
-          .from('school_profiles')
-          .select(
-            'id, profile_id, school_name, emis_number, province, district, quintile, learner_count_enrolled, learner_count_verified, learner_count_nsnp_eligible, staff_count, lat, lng, status'
-          )
-          .in('id', schoolIds);
-        schools = (rows || []) as Array<Record<string, unknown>>;
-      }
-
-      // Latest prize scores if any
-      const schoolIdList = schools.map((s) => Number(s.id));
-      let scores: Array<Record<string, unknown>> = [];
-      if (schoolIdList.length) {
-        const { data: sc } = await supabase
-          .from('nsnp_prize_scores')
-          .select(
-            'school_profile_id, total_score, approved_brand_pct, feeding_completeness_pct, data_quality_pct, computed_at, period_id'
-          )
-          .in('school_profile_id', schoolIdList)
-          .order('computed_at', { ascending: false })
-          .limit(500);
-        // keep latest per school
-        const seen = new Set<number>();
-        for (const row of sc || []) {
-          const sid = Number(row.school_profile_id);
-          if (seen.has(sid)) continue;
-          seen.add(sid);
-          scores.push(row as Record<string, unknown>);
+        try {
+          schools = await fetchByIds(
+            supabase,
+            'school_profiles',
+            'id, profile_id, school_name, emis_number, province, district, circuit, cmc, quintile, local_municipality, learner_count_enrolled, learner_count_verified, learner_count_nsnp_eligible, final_nsnp_approved_enrol, final_emis_enrol, natemis, staff_count, lat, lng, status, member_type, registry_source',
+            schoolIds
+          );
+        } catch {
+          // Lean select if registry columns not migrated yet
+          schools = await fetchByIds(
+            supabase,
+            'school_profiles',
+            'id, profile_id, school_name, emis_number, province, district, circuit, quintile, learner_count_enrolled, learner_count_verified, learner_count_nsnp_eligible, staff_count, lat, lng, status, member_type',
+            schoolIds
+          );
         }
       }
-      const scoreBySchool = new Map(
-        scores.map((s) => [Number(s.school_profile_id), s])
+
+      // Prize scores only for a sample (full board is on prizes report)
+      const scoreBySchool = new Map<number, Record<string, unknown>>();
+      const prizeSample = schoolIds.slice(0, 200);
+      if (prizeSample.length) {
+        for (let i = 0; i < prizeSample.length; i += 100) {
+          const chunk = prizeSample.slice(i, i + 100);
+          const { data: sc } = await supabase
+            .from('nsnp_prize_scores')
+            .select(
+              'school_profile_id, total_score, approved_brand_pct, feeding_completeness_pct, data_quality_pct, computed_at, period_id'
+            )
+            .in('school_profile_id', chunk)
+            .order('computed_at', { ascending: false })
+            .limit(500);
+          for (const row of sc || []) {
+            const sid = Number(row.school_profile_id);
+            if (scoreBySchool.has(sid)) continue;
+            scoreBySchool.set(sid, row as Record<string, unknown>);
+          }
+        }
+      }
+
+      const linkBySchool = new Map(
+        links.map((l) => [Number(l.school_profile_id), l] as const)
       );
 
       const enriched: Array<Record<string, unknown>> = schools.map((s) => {
-        const link = (links || []).find(
-          (l) => Number(l.school_profile_id) === Number(s.id)
-        );
+        const link = linkBySchool.get(Number(s.id));
         const sc = scoreBySchool.get(Number(s.id));
         return {
           ...s,
@@ -135,19 +158,58 @@ export async function GET(request: NextRequest) {
         };
       });
 
+      // Pending first, then by name
+      enriched.sort((a, b) => {
+        const sa = String(a.link_status || '');
+        const sb = String(b.link_status || '');
+        if (sa === 'pending' && sb !== 'pending') return -1;
+        if (sb === 'pending' && sa !== 'pending') return 1;
+        return String(a.school_name || '').localeCompare(
+          String(b.school_name || '')
+        );
+      });
+
+      const activeLinks = links.filter((l) => l.status === 'active').length;
+      const pendingLinks = links.filter((l) => l.status === 'pending').length;
+      const suspendedLinks = links.filter(
+        (l) => l.status === 'suspended'
+      ).length;
+
+      const byDistrict = new Map<string, number>();
+      for (const s of enriched) {
+        const key =
+          [s.district, s.province].filter(Boolean).join(', ') || 'Unknown';
+        byDistrict.set(key, (byDistrict.get(key) || 0) + 1);
+      }
+
       const summary = {
         schoolCount: enriched.length,
-        activeLinks: (links || []).filter((l) => l.status === 'active').length,
-        pendingLinks: (links || []).filter((l) => l.status === 'pending')
-          .length,
+        activeLinks,
+        pendingLinks,
+        suspendedLinks,
         totalLearners: enriched.reduce(
-          (n, s) => n + Number(s.learner_count_enrolled ?? 0),
+          (n, s) =>
+            n +
+            Number(
+              s.learner_count_enrolled ||
+                s.final_emis_enrol ||
+                s.final_nsnp_approved_enrol ||
+                0
+            ),
           0
         ),
         totalVerified: enriched.reduce(
           (n, s) => n + Number(s.learner_count_verified ?? 0),
           0
         ),
+        totalNsnpApproved: enriched.reduce(
+          (n, s) => n + Number(s.final_nsnp_approved_enrol ?? 0),
+          0
+        ),
+        districts: byDistrict.size,
+        byDistrict: [...byDistrict.entries()]
+          .map(([key, schools]) => ({ key, schools }))
+          .sort((a, b) => b.schools - a.schools),
         avgPrizeScore: (() => {
           const vals = enriched
             .map((s) => Number(s.prize_score))
@@ -166,8 +228,10 @@ export async function GET(request: NextRequest) {
         role: 'agency',
         agency: myAgency,
         schools: enriched,
+        schools_total: enriched.length,
         summary,
-        links: links || [],
+        // Links alone can be large; omit full list — summary + schools enough
+        links_total: links.length,
       });
     }
 
@@ -731,18 +795,17 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Schools on system
-      const { data: schoolRows } = await supabase
-        .from('school_profiles')
-        .select(
-          'id, profile_id, school_name, emis_number, province, district, member_type, status, learner_count_enrolled'
-        )
-        .order('school_name')
-        .limit(500);
+      // Schools on system (page past 1000-row PostgREST cap)
+      const schoolRows = await fetchAllPaged(
+        supabase,
+        'school_profiles',
+        'id, profile_id, school_name, emis_number, province, district, member_type, status, learner_count_enrolled',
+        (q) => q.order('school_name', { ascending: true })
+      );
 
       const schoolCompanyIds = [
         ...new Set(
-          (schoolRows || [])
+          schoolRows
             .map((s) => Number(s.profile_id))
             .filter((n) => Number.isFinite(n) && n > 0 && n !== companyId)
         ),
@@ -809,25 +872,21 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Existing links to this agency
-      const schoolProfileIds = (schoolRows || []).map((s) => Number(s.id));
+      // Existing links to this agency (full list, paged)
       const schoolLinkBySid = new Map<
         number,
         { status: string; link_id: number }
       >();
-      if (schoolProfileIds.length) {
-        const { data: sl } = await supabase
-          .from('school_agency_links')
-          .select('id, school_profile_id, status')
-          .eq('agency_profile_id', companyId)
-          .in('school_profile_id', schoolProfileIds)
-          .in('status', ['pending', 'active', 'suspended']);
-        for (const l of sl || []) {
-          schoolLinkBySid.set(Number(l.school_profile_id), {
-            status: String(l.status),
-            link_id: Number(l.id),
-          });
-        }
+      const existingLinks = await fetchAgencySchoolLinks(supabase, companyId, [
+        'pending',
+        'active',
+        'suspended',
+      ]);
+      for (const l of existingLinks) {
+        schoolLinkBySid.set(Number(l.school_profile_id), {
+          status: String(l.status),
+          link_id: Number(l.id),
+        });
       }
 
       const ispLinkById = new Map<
@@ -849,7 +908,7 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      const schoolsOnSystem = (schoolRows || [])
+      const schoolsOnSystem = schoolRows
         .filter((s) => Number(s.profile_id) !== companyId)
         .map((s) => {
           const cid = Number(s.profile_id);
