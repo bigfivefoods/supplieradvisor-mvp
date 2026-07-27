@@ -79,6 +79,13 @@ export function isClosedLike(status?: string | null) {
   return ['closed', 'resolved', 'done', 'cancelled'].includes(s);
 }
 
+/** DB stores "active" for UI "open" (legacy riad_logs_status_check). */
+export function isOpenLike(status?: string | null) {
+  const s = String(status || '').toLowerCase();
+  if (isClosedLike(s)) return false;
+  return ['open', 'active', 'new', 'logged', 'pending', ''].includes(s);
+}
+
 export function priorityClass(p?: string | null) {
   const s = String(p || 'medium').toLowerCase();
   if (s === 'critical') return 'bg-rose-100 text-rose-900 border-rose-200';

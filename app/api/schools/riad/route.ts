@@ -6,7 +6,7 @@ import {
 } from '@/lib/auth/api-auth';
 import { getOrCreateSchoolProfile } from '@/lib/schools/school-context';
 import { getAgencyRegistration } from '@/lib/schools/approved-catalogue';
-import { isClosedLike } from '@/lib/schools/riad';
+import { isClosedLike, isOpenLike } from '@/lib/schools/riad';
 import {
   fetchAgencySchoolLinks,
   fetchAllPaged,
@@ -101,8 +101,8 @@ export async function GET(request: NextRequest) {
       }
       let retryItems = retry.data || [];
       if (status === 'open') {
-        retryItems = retryItems.filter(
-          (it) => !isClosedLike(String(it.status || ''))
+        retryItems = retryItems.filter((it) =>
+          isOpenLike(String(it.status || ''))
         );
       }
       return NextResponse.json({
@@ -114,7 +114,7 @@ export async function GET(request: NextRequest) {
 
     let items = data || [];
     if (status === 'open') {
-      items = items.filter((it) => !isClosedLike(String(it.status || '')));
+      items = items.filter((it) => isOpenLike(String(it.status || '')));
     }
     return NextResponse.json({
       success: true,
@@ -293,18 +293,21 @@ export async function POST(request: NextRequest) {
       }
 
       const now = new Date().toISOString();
-      // riad_logs.stakeholder_type is NOT NULL (legacy schema; use school|isp|internal)
+      // Programme target (school|isp) lives in metadata; DB check allows
+      // stakeholder_type: internal | supplier | customer only.
       const entityType = isSchool ? 'school' : 'isp';
-      const stakeholderType = isSchool ? 'school' : 'isp';
+      const stakeholderType = isSchool ? 'customer' : 'supplier';
+      const priority = normalizePriority(body.priority || body.severity);
       const payload: Record<string, unknown> = {
         profile_id: subjectCompanyId,
         module: isSchool ? 'schools' : 'isp',
         riad_type: riadType,
         title: String(body.title),
         description: body.description || null,
-        status: body.status || 'open',
-        severity: body.severity || body.priority || 'medium',
-        priority: body.priority || body.severity || 'medium',
+        status: normalizeRiadStatus(body.status || 'open'),
+        // severity is integer on legacy schema; priority is text
+        severity: priorityToSeverityInt(priority),
+        priority,
         category: body.category || null,
         owner_name: body.owner_name || agency.agency_name || 'DBE',
         due_date: body.due_date || null,
@@ -312,12 +315,17 @@ export async function POST(request: NextRequest) {
         notes: body.notes || null,
         stakeholder_name: subjectName || 'Programme subject',
         stakeholder_type: stakeholderType,
+        // bigint columns — never pass Privy DID strings
+        owner_id: subjectCompanyId,
+        stakeholder_id: subjectCompanyId,
         related_entity_type: entityType,
         related_entity_id: isSchool ? schoolProfileId : ispProfileId,
         source: 'dbe_agency',
+        created_by_name: body.created_by_name || body.owner_name || agency.agency_name || 'DBE',
         metadata: {
           domain: isSchool ? 'nsnp_school' : 'nsnp_isp',
           target_type: entityType,
+          programme_stakeholder: entityType,
           school_profile_id: schoolProfileId,
           isp_profile_id: ispProfileId,
           subject_name: subjectName,
@@ -326,10 +334,10 @@ export async function POST(request: NextRequest) {
           raised_by_agency_name: agency.agency_name || 'Department',
           raised_by_user_id: gate.userId || null,
           raised_at: now,
+          ui_status: body.status || 'open',
           ...subjectMeta,
           ...(body.metadata || {}),
         },
-        created_by: gate.userId || null,
       };
 
       const { data, error } = await insertRiadLog(supabase, payload);
@@ -356,16 +364,21 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
 
     const isIspSelf = Boolean(myIsp) && !school;
-    const stakeholderType = isIspSelf ? 'isp' : school ? 'school' : 'internal';
+    const stakeholderType = isIspSelf
+      ? 'supplier'
+      : school
+        ? 'customer'
+        : 'internal';
+    const priority = normalizePriority(body.priority || body.severity);
     const payload: Record<string, unknown> = {
       profile_id: companyId,
       module: isIspSelf ? 'isp' : 'schools',
       riad_type: riadType,
       title: String(body.title),
       description: body.description || null,
-      status: body.status || 'open',
-      severity: body.severity || body.priority || 'medium',
-      priority: body.priority || body.severity || 'medium',
+      status: normalizeRiadStatus(body.status || 'open'),
+      severity: priorityToSeverityInt(priority),
+      priority,
       category: body.category || null,
       owner_name: body.owner_name || null,
       due_date: body.due_date || null,
@@ -376,6 +389,9 @@ export async function POST(request: NextRequest) {
         body.category ||
         (isIspSelf ? 'SP operations' : 'School operations'),
       stakeholder_type: stakeholderType,
+      // bigint columns — company/school ids only (not Privy DIDs)
+      owner_id: companyId,
+      stakeholder_id: companyId,
       related_entity_type: isIspSelf
         ? 'isp'
         : school
@@ -386,14 +402,17 @@ export async function POST(request: NextRequest) {
         : school
           ? Number(school.id)
           : companyId,
+      created_by_name: body.created_by_name || body.owner_name || null,
       metadata: {
         school_profile_id: school?.id ?? null,
         isp_profile_id: myIsp ? companyId : null,
         domain: isIspSelf ? 'nsnp_isp' : 'nsnp_school',
+        programme_stakeholder: isIspSelf ? 'isp' : 'school',
         raised_by: 'self',
+        raised_by_user_id: gate.userId || null,
+        ui_status: body.status || 'open',
         ...(body.metadata || {}),
       },
-      created_by: gate.userId || null,
     };
 
     const { data, error } = await insertRiadLog(supabase, payload);
@@ -413,6 +432,49 @@ export async function POST(request: NextRequest) {
   }
 }
 
+/** Map UI status → DB check constraint (open is not allowed). */
+function normalizeRiadStatus(raw: unknown): string {
+  const s = String(raw || 'open').toLowerCase().trim();
+  if (s === 'open' || s === 'new' || s === 'logged' || s === 'pending') {
+    return 'active';
+  }
+  if (s === 'done' || s === 'complete' || s === 'completed') return 'closed';
+  if (
+    ['active', 'in_progress', 'on_hold', 'closed', 'resolved'].includes(s)
+  ) {
+    return s;
+  }
+  return 'active';
+}
+
+function normalizePriority(raw: unknown): string {
+  const s = String(raw || 'medium').toLowerCase().trim();
+  if (['low', 'medium', 'high', 'critical'].includes(s)) return s;
+  return 'medium';
+}
+
+/** Legacy severity column is integer (1–5). */
+function priorityToSeverityInt(priority: string): number {
+  if (priority === 'critical') return 5;
+  if (priority === 'high') return 4;
+  if (priority === 'low') return 2;
+  return 3;
+}
+
+/**
+ * Map free-form programme types onto riad_logs_stakeholder_type_check.
+ * Allowed: internal | supplier | customer
+ */
+function normalizeStakeholderType(raw: unknown): string {
+  const s = String(raw || 'internal').toLowerCase().trim();
+  if (s === 'school' || s === 'customer' || s === 'buyer') return 'customer';
+  if (s === 'isp' || s === 'sp' || s === 'supplier' || s === 'service_provider') {
+    return 'supplier';
+  }
+  if (s === 'internal' || s === 'agency' || s === 'dbe') return 'internal';
+  return 'internal';
+}
+
 /**
  * Insert riad_logs with required NOT NULL columns always present.
  * Falls back to a minimal row if optional columns reject.
@@ -421,21 +483,59 @@ async function insertRiadLog(
   supabase: ReturnType<typeof getSupabaseServer>,
   payload: Record<string, unknown>
 ): Promise<{ data: Record<string, unknown> | null; error: string | null }> {
-  const stakeholderType = String(
-    payload.stakeholder_type || 'internal'
-  ).trim() || 'internal';
+  const stakeholderType = normalizeStakeholderType(payload.stakeholder_type);
   const stakeholderName = String(
     payload.stakeholder_name || 'Programme'
   ).trim() || 'Programme';
+  const priority = normalizePriority(payload.priority || payload.severity);
+  const status = normalizeRiadStatus(payload.status);
+
+  // Never put Privy DIDs into bigint columns (created_by, owner_id, …)
+  const profileId = Number(payload.profile_id);
+  const ownerId = Number(payload.owner_id ?? profileId);
+  const safeOwnerId =
+    Number.isFinite(ownerId) && ownerId > 0
+      ? ownerId
+      : Number.isFinite(profileId) && profileId > 0
+        ? profileId
+        : null;
 
   const full: Record<string, unknown> = {
     ...payload,
     stakeholder_type: stakeholderType,
     stakeholder_name: stakeholderName,
-    status: payload.status || 'open',
+    status,
     riad_type: payload.riad_type || 'risk',
     module: payload.module || 'schools',
+    priority,
+    severity: priorityToSeverityInt(priority),
+    owner_id: safeOwnerId,
+    stakeholder_id:
+      payload.stakeholder_id != null &&
+      Number.isFinite(Number(payload.stakeholder_id))
+        ? Number(payload.stakeholder_id)
+        : safeOwnerId,
   };
+  // Drop string user-ids that look like Privy DIDs / non-numeric
+  for (const col of ['created_by', 'owner_id', 'stakeholder_id'] as const) {
+    const v = full[col];
+    if (v == null || v === '') {
+      if (col === 'created_by') delete full.created_by;
+      continue;
+    }
+    if (typeof v === 'string' && !/^\d+$/.test(v.trim())) {
+      const meta = {
+        ...((full.metadata as Record<string, unknown>) || {}),
+      };
+      if (col === 'created_by') meta.created_by_privy_id = v;
+      full.metadata = meta;
+      if (col === 'created_by') delete full.created_by;
+      else if (col === 'owner_id') full.owner_id = safeOwnerId;
+      else full.stakeholder_id = safeOwnerId;
+    }
+  }
+  // Never leave created_by as a non-bigint
+  delete full.created_by;
 
   const { data, error } = await supabase
     .from('riad_logs')
@@ -452,17 +552,17 @@ async function insertRiadLog(
     profile_id: full.profile_id,
     title: full.title,
     description: full.description ?? null,
-    status: full.status,
+    status,
     riad_type: full.riad_type,
     module: full.module,
     stakeholder_type: stakeholderType,
     stakeholder_name: stakeholderName,
-    severity: full.severity ?? 'medium',
-    priority: full.priority ?? 'medium',
+    owner_id: safeOwnerId,
+    severity: priorityToSeverityInt(priority),
+    priority,
     category: full.category ?? null,
     metadata: full.metadata ?? {},
     source: full.source ?? null,
-    created_by: full.created_by ?? null,
   };
 
   const retry = await supabase
@@ -472,12 +572,14 @@ async function insertRiadLog(
     .single();
 
   if (retry.error) {
-    // Last resort — barest insert that satisfies NOT NULL
+    // Last resort — barest insert that satisfies NOT NULL + checks
     const bare: Record<string, unknown> = {
       profile_id: full.profile_id,
       title: full.title,
       stakeholder_type: stakeholderType,
-      status: 'open',
+      owner_id: safeOwnerId,
+      status: 'active',
+      riad_type: full.riad_type || 'risk',
     };
     const last = await supabase
       .from('riad_logs')
@@ -487,7 +589,9 @@ async function insertRiadLog(
     if (last.error) {
       return {
         data: null,
-        error: retry.error.message || last.error.message,
+        error:
+          (error?.message ? `${error.message}; ` : '') +
+          (retry.error.message || last.error.message),
       };
     }
     return { data: last.data as Record<string, unknown>, error: null };
@@ -518,9 +622,6 @@ export async function PATCH(request: NextRequest) {
     for (const k of [
       'title',
       'description',
-      'status',
-      'severity',
-      'priority',
       'category',
       'owner_name',
       'due_date',
@@ -530,10 +631,21 @@ export async function PATCH(request: NextRequest) {
     ]) {
       if (body[k] !== undefined) updates[k] = body[k];
     }
+    if (body.status !== undefined) {
+      updates.status = normalizeRiadStatus(body.status);
+    }
+    if (body.priority !== undefined || body.severity !== undefined) {
+      const p = normalizePriority(body.priority || body.severity);
+      updates.priority = p;
+      updates.severity = priorityToSeverityInt(p);
+    }
     if (body.entry_type || body.riad_type) {
       updates.riad_type = body.entry_type || body.riad_type;
     }
-    if (isClosedLike(String(body.status || '')) && !updates.resolution) {
+    if (
+      isClosedLike(String(updates.status || body.status || '')) &&
+      !updates.resolution
+    ) {
       updates.resolution = body.resolution || 'Closed';
     }
 
@@ -824,12 +936,14 @@ async function loadAgencyRiadLog(
   }
 
   if (opts.status === 'open') {
-    items = items.filter((it) => !isClosedLike(String(it.status || '')));
+    items = items.filter((it) => isOpenLike(String(it.status || '')));
   } else if (opts.status && opts.status !== 'all') {
+    const want = normalizeRiadStatus(opts.status);
     items = items.filter(
       (it) =>
+        String(it.status || '').toLowerCase() === want ||
         String(it.status || '').toLowerCase() ===
-        String(opts.status).toLowerCase()
+          String(opts.status).toLowerCase()
     );
   }
 
@@ -930,8 +1044,8 @@ function summarise(items: Array<Record<string, unknown>>) {
     else if (st === 'in_progress') s.inProgress += 1;
     else if (st === 'on_hold') s.onHold += 1;
     else s.open += 1;
-    const sev = String(it.severity || it.priority || '').toLowerCase();
-    if (sev === 'critical') s.critical += 1;
+    const sev = String(it.priority || it.severity || '').toLowerCase();
+    if (sev === 'critical' || sev === '5') s.critical += 1;
     if (String(it.target_type) === 'school') s.schools += 1;
     if (String(it.target_type) === 'isp') s.isps += 1;
     if (it.raised_by_agency) s.agency_raised += 1;
