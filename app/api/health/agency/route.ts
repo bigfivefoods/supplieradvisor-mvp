@@ -149,13 +149,13 @@ export async function GET(request: NextRequest) {
         links.map((l) => [Number(l.school_profile_id), l] as const)
       );
 
-      const enriched = facilities.map((f) => {
+      const enriched: Array<Record<string, unknown>> = facilities.map((f) => {
         const link = linkById.get(Number(f.id));
         return {
           ...f,
           facility_name: f.school_name,
-          link_status: link?.status || null,
-          linked_at: link?.created_at || null,
+          link_status: link?.status ?? null,
+          linked_at: link?.created_at ?? null,
         };
       });
 
