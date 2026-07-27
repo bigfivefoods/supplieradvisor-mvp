@@ -52,7 +52,8 @@
     "unpdf": "^1.6.2",
     "viem": "^2.53.1",
     "wagmi": "^2.19.5",
-    "web-push": "^3.6.7"
+    "web-push": "^3.6.7",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^7.0.0",

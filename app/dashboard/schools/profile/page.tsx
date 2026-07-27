@@ -65,12 +65,20 @@ function Inner() {
       setForm({
         school_name: s.school_name || '',
         emis_number: s.emis_number || '',
+        natemis: s.natemis || s.emis_number || '',
         school_type: s.school_type || 'public',
         phase: s.phase || 'primary',
         province: s.province || '',
         district: s.district || '',
         circuit: s.circuit || '',
+        cmc: s.cmc || '',
         quintile: s.quintile ?? '',
+        local_municipality: s.local_municipality || '',
+        municipality_ward: s.municipality_ward || '',
+        level_label: s.level_label || '',
+        nsnp_applic_enrol: s.nsnp_applic_enrol ?? '',
+        final_emis_enrol: s.final_emis_enrol ?? '',
+        final_nsnp_approved_enrol: s.final_nsnp_approved_enrol ?? '',
         urban_rural: s.urban_rural || '',
         address: s.address || '',
         city: s.city || '',
@@ -362,11 +370,94 @@ function Inner() {
                   onChange={(e) => set('school_name', e.target.value)}
                 />
               </Field>
-              <Field label="EMIS number">
+              <Field label="EMIS / NATEMIS">
                 <input
                   className="input"
-                  value={String(form.emis_number || '')}
-                  onChange={(e) => set('emis_number', e.target.value)}
+                  value={String(form.emis_number || form.natemis || '')}
+                  onChange={(e) => {
+                    set('emis_number', e.target.value);
+                    set('natemis', e.target.value);
+                  }}
+                />
+              </Field>
+              <Field label="CMC">
+                <input
+                  className="input"
+                  value={String(form.cmc || '')}
+                  onChange={(e) => set('cmc', e.target.value)}
+                />
+              </Field>
+              <Field label="Local municipality">
+                <input
+                  className="input"
+                  value={String(form.local_municipality || '')}
+                  onChange={(e) => set('local_municipality', e.target.value)}
+                />
+              </Field>
+              <Field label="Municipality ward">
+                <input
+                  className="input"
+                  value={String(form.municipality_ward || '')}
+                  onChange={(e) => set('municipality_ward', e.target.value)}
+                />
+              </Field>
+              <Field label="Level">
+                <input
+                  className="input"
+                  value={String(form.level_label || '')}
+                  onChange={(e) => set('level_label', e.target.value)}
+                />
+              </Field>
+              <Field label="NSNP applic. enrol">
+                <input
+                  className="input"
+                  type="number"
+                  value={
+                    form.nsnp_applic_enrol === '' || form.nsnp_applic_enrol == null
+                      ? ''
+                      : Number(form.nsnp_applic_enrol)
+                  }
+                  onChange={(e) =>
+                    set(
+                      'nsnp_applic_enrol',
+                      e.target.value === '' ? '' : Number(e.target.value)
+                    )
+                  }
+                />
+              </Field>
+              <Field label="Final EMIS enrol">
+                <input
+                  className="input"
+                  type="number"
+                  value={
+                    form.final_emis_enrol === '' || form.final_emis_enrol == null
+                      ? ''
+                      : Number(form.final_emis_enrol)
+                  }
+                  onChange={(e) =>
+                    set(
+                      'final_emis_enrol',
+                      e.target.value === '' ? '' : Number(e.target.value)
+                    )
+                  }
+                />
+              </Field>
+              <Field label="Final NSNP approved enrol">
+                <input
+                  className="input"
+                  type="number"
+                  value={
+                    form.final_nsnp_approved_enrol === '' ||
+                    form.final_nsnp_approved_enrol == null
+                      ? ''
+                      : Number(form.final_nsnp_approved_enrol)
+                  }
+                  onChange={(e) =>
+                    set(
+                      'final_nsnp_approved_enrol',
+                      e.target.value === '' ? '' : Number(e.target.value)
+                    )
+                  }
                 />
               </Field>
               <Field label="Motto">

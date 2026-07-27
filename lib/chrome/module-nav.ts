@@ -426,6 +426,12 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         group: 'DBE/DoH',
       },
       {
+        name: 'Import schools',
+        href: '/dashboard/schools/registry-import',
+        desc: 'Bulk xlsx/csv — district, CMC, NATEMIS, NSNP enrol',
+        group: 'DBE/DoH',
+      },
+      {
         name: 'Hierarchy',
         href: '/dashboard/schools/agency-report?report=hierarchy',
         desc: 'DBE/DoH → SPs → schools / clinics',
