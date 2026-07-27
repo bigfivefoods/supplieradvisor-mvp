@@ -5,6 +5,37 @@ import {
   legacyPrivyFrom,
 } from '@/lib/auth/api-auth';
 
+export const runtime = 'nodejs';
+export const maxDuration = 60;
+
+type SupabaseServer = ReturnType<typeof getSupabaseServer>;
+
+/** PostgREST max_rows is often 1000 — always page with .range(). */
+async function fetchAllPaged(
+  supabase: SupabaseServer,
+  table: string,
+  select: string,
+  apply: (q: any) => any,
+  pageSize = 1000
+): Promise<Array<Record<string, unknown>>> {
+  const all: Array<Record<string, unknown>> = [];
+  let from = 0;
+  for (;;) {
+    let q = supabase.from(table).select(select).range(from, from + pageSize - 1);
+    q = apply(q);
+    const { data, error } = await q;
+    if (error) throw new Error(`${table}: ${error.message}`);
+    if (!data?.length) break;
+    for (const row of data) {
+      all.push({ ...(row as object) } as Record<string, unknown>);
+    }
+    if (data.length < pageSize) break;
+    from += pageSize;
+    if (from > 100000) break;
+  }
+  return all;
+}
+
 /**
  * DBE / PEU multi-member programme reports.
  * Only **approved** (status=active) school associations are included.
@@ -60,27 +91,37 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    let linksQ = supabase
-      .from('school_agency_links')
-      .select('*')
-      .eq('agency_profile_id', companyId)
-      .limit(5000);
-    if (linkStatus === 'all') {
-      linksQ = linksQ.in('status', ['active', 'pending', 'suspended']);
-    } else if (linkStatus === 'pending') {
-      linksQ = linksQ.eq('status', 'pending');
-    } else {
-      linksQ = linksQ.eq('status', 'active');
-    }
-
-    const { data: links, error: lErr } = await linksQ;
-    if (lErr) {
-      return NextResponse.json({ error: lErr.message }, { status: 400 });
+    let links: Array<Record<string, unknown>>;
+    try {
+      links = await fetchAllPaged(
+        supabase,
+        'school_agency_links',
+        'school_profile_id, status, agency_profile_id, accepted_at, notes, created_at',
+        (q) => {
+          q = q
+            .eq('agency_profile_id', companyId)
+            .order('id', { ascending: true });
+          if (linkStatus === 'all') {
+            return q.in('status', ['active', 'pending', 'suspended']);
+          }
+          if (linkStatus === 'pending') {
+            return q.eq('status', 'pending');
+          }
+          return q.eq('status', 'active');
+        }
+      );
+    } catch (e: unknown) {
+      return NextResponse.json(
+        {
+          error: e instanceof Error ? e.message : 'Failed to load school links',
+        },
+        { status: 400 }
+      );
     }
 
     const schoolIds = [
       ...new Set(
-        (links || [])
+        links
           .map((l) => Number(l.school_profile_id))
           .filter((n) => Number.isFinite(n) && n > 0)
       ),
@@ -136,17 +177,22 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Chunk .in() for large sets
+    // Chunk .in() for large sets (page past PostgREST 1000-row cap per request)
     const schools: Array<Record<string, unknown>> = [];
     for (let i = 0; i < schoolIds.length; i += 200) {
       const chunk = schoolIds.slice(i, i + 200);
-      const { data } = await supabase
+      const { data, error: sErr } = await supabase
         .from('school_profiles')
         .select(
           'id, profile_id, school_name, emis_number, province, district, circuit, quintile, urban_rural, city, lat, lng, learner_count_enrolled, learner_count_verified, learner_count_nsnp_eligible, staff_count, status, feeding_lunch, feeding_breakfast, member_type'
         )
         .in('id', chunk);
-      schools.push(...((data || []) as Array<Record<string, unknown>>));
+      if (sErr) {
+        return NextResponse.json({ error: sErr.message }, { status: 400 });
+      }
+      for (const row of data || []) {
+        schools.push({ ...(row as object) } as Record<string, unknown>);
+      }
     }
 
     let filtered = schools;
@@ -167,10 +213,23 @@ export async function GET(request: NextRequest) {
 
     const filteredIds = filtered.map((s) => Number(s.id));
     const linkBySchool = new Map(
-      (links || []).map((l) => [Number(l.school_profile_id), l])
+      links.map((l) => [Number(l.school_profile_id), l])
     );
 
-    // Aggregate ops data for period across all member schools
+    // Aggregate ops data for period — skip on geo/hierarchy to stay under timeout for 5k+ schools
+    const lightReport = new Set([
+      'hierarchy',
+      'coverage',
+      'province',
+      'district',
+      'circuit',
+      'quintile',
+      'members',
+      'map',
+      'isps',
+    ]);
+    const needOps = !lightReport.has(report);
+
     const feedingBySchool = new Map<
       number,
       { days: number; planned: number; served: number; waste: number }
@@ -187,137 +246,135 @@ export async function GET(request: NextRequest) {
       number,
       { count: number; spend: number }
     >();
+    const prizeBySchool = new Map<number, Record<string, unknown>>();
+    const complianceBySchool = new Map<number, number>();
 
-    // Batch fetch - for many schools, query without school_profile_id filter is bad
-    // Use .in() chunks
-    for (let i = 0; i < filteredIds.length; i += 100) {
-      const chunk = filteredIds.slice(i, i + 100);
-      const [feedRes, attRes, recRes, ordRes] = await Promise.all([
-        supabase
-          .from('school_feeding_days')
+    if (needOps) {
+      for (let i = 0; i < filteredIds.length; i += 100) {
+        const chunk = filteredIds.slice(i, i + 100);
+        const [feedRes, attRes, recRes, ordRes] = await Promise.all([
+          supabase
+            .from('school_feeding_days')
+            .select(
+              'school_profile_id, feed_date, planned_meals, served_meals, waste_meals'
+            )
+            .in('school_profile_id', chunk)
+            .gte('feed_date', from)
+            .lte('feed_date', to)
+            .limit(10000),
+          supabase
+            .from('school_attendance_days')
+            .select('school_profile_id, attendance_date, present, enrolled')
+            .in('school_profile_id', chunk)
+            .gte('attendance_date', from)
+            .lte('attendance_date', to)
+            .limit(10000),
+          supabase
+            .from('school_kitchen_receipts')
+            .select('school_profile_id, compliance_ok, lines, received_at')
+            .in('school_profile_id', chunk)
+            .gte('received_at', from)
+            .lte('received_at', to)
+            .limit(10000),
+          supabase
+            .from('school_purchase_orders')
+            .select('school_profile_id, total_amount, order_date, status')
+            .in('school_profile_id', chunk)
+            .gte('order_date', from)
+            .lte('order_date', to)
+            .limit(10000),
+        ]);
+
+        for (const f of feedRes.data || []) {
+          const sid = Number(f.school_profile_id);
+          if (!feedingBySchool.has(sid)) {
+            feedingBySchool.set(sid, {
+              days: 0,
+              planned: 0,
+              served: 0,
+              waste: 0,
+            });
+          }
+          const m = feedingBySchool.get(sid)!;
+          m.days += 1;
+          m.planned += Number(f.planned_meals || 0);
+          m.served += Number(f.served_meals || 0);
+          m.waste += Number(f.waste_meals || 0);
+        }
+        for (const a of attRes.data || []) {
+          const sid = Number(a.school_profile_id);
+          if (!attendanceBySchool.has(sid)) {
+            attendanceBySchool.set(sid, {
+              days: 0,
+              present: 0,
+              enrolled: 0,
+            });
+          }
+          const m = attendanceBySchool.get(sid)!;
+          m.days += 1;
+          m.present += Number(a.present || 0);
+          m.enrolled += Number(a.enrolled || 0);
+        }
+        for (const r of recRes.data || []) {
+          const sid = Number(r.school_profile_id);
+          if (!receiptsBySchool.has(sid)) {
+            receiptsBySchool.set(sid, {
+              count: 0,
+              nonApproved: 0,
+              approvedLines: 0,
+              totalLines: 0,
+            });
+          }
+          const m = receiptsBySchool.get(sid)!;
+          m.count += 1;
+          if (r.compliance_ok === false) m.nonApproved += 1;
+          const lines = Array.isArray(r.lines) ? r.lines : [];
+          for (const line of lines as Array<{ approved?: boolean }>) {
+            m.totalLines += 1;
+            if (line.approved !== false) m.approvedLines += 1;
+          }
+        }
+        for (const o of ordRes.data || []) {
+          const sid = Number(o.school_profile_id);
+          if (!ordersBySchool.has(sid)) {
+            ordersBySchool.set(sid, { count: 0, spend: 0 });
+          }
+          const m = ordersBySchool.get(sid)!;
+          m.count += 1;
+          m.spend += Number(o.total_amount || 0);
+        }
+      }
+
+      for (let i = 0; i < filteredIds.length; i += 200) {
+        const chunk = filteredIds.slice(i, i + 200);
+        const { data: scores } = await supabase
+          .from('nsnp_prize_scores')
           .select(
-            'school_profile_id, feed_date, planned_meals, served_meals, waste_meals'
+            'school_profile_id, total_score, approved_brand_pct, feeding_completeness_pct, data_quality_pct, stock_discipline_pct, computed_at'
           )
           .in('school_profile_id', chunk)
-          .gte('feed_date', from)
-          .lte('feed_date', to)
-          .limit(10000),
-        supabase
-          .from('school_attendance_days')
-          .select('school_profile_id, attendance_date, present, enrolled')
-          .in('school_profile_id', chunk)
-          .gte('attendance_date', from)
-          .lte('attendance_date', to)
-          .limit(10000),
-        supabase
-          .from('school_kitchen_receipts')
-          .select('school_profile_id, compliance_ok, lines, received_at')
-          .in('school_profile_id', chunk)
-          .gte('received_at', from)
-          .lte('received_at', to)
-          .limit(10000),
-        supabase
-          .from('school_purchase_orders')
-          .select('school_profile_id, total_amount, order_date, status')
-          .in('school_profile_id', chunk)
-          .gte('order_date', from)
-          .lte('order_date', to)
-          .limit(10000),
-      ]);
+          .order('computed_at', { ascending: false })
+          .limit(2000);
+        for (const sc of scores || []) {
+          const sid = Number(sc.school_profile_id);
+          if (!prizeBySchool.has(sid)) {
+            prizeBySchool.set(sid, sc as Record<string, unknown>);
+          }
+        }
+      }
 
-      for (const f of feedRes.data || []) {
-        const sid = Number(f.school_profile_id);
-        if (!feedingBySchool.has(sid)) {
-          feedingBySchool.set(sid, {
-            days: 0,
-            planned: 0,
-            served: 0,
-            waste: 0,
-          });
+      for (let i = 0; i < filteredIds.length; i += 200) {
+        const chunk = filteredIds.slice(i, i + 200);
+        const { data: comps } = await supabase
+          .from('school_compliance_events')
+          .select('school_profile_id, status')
+          .in('school_profile_id', chunk)
+          .in('status', ['open', 'in_progress'])
+          .limit(5000);
+        for (const c of comps || []) {
+          const sid = Number(c.school_profile_id);
+          complianceBySchool.set(sid, (complianceBySchool.get(sid) || 0) + 1);
         }
-        const m = feedingBySchool.get(sid)!;
-        m.days += 1;
-        m.planned += Number(f.planned_meals || 0);
-        m.served += Number(f.served_meals || 0);
-        m.waste += Number(f.waste_meals || 0);
-      }
-      for (const a of attRes.data || []) {
-        const sid = Number(a.school_profile_id);
-        if (!attendanceBySchool.has(sid)) {
-          attendanceBySchool.set(sid, {
-            days: 0,
-            present: 0,
-            enrolled: 0,
-          });
-        }
-        const m = attendanceBySchool.get(sid)!;
-        m.days += 1;
-        m.present += Number(a.present || 0);
-        m.enrolled += Number(a.enrolled || 0);
-      }
-      for (const r of recRes.data || []) {
-        const sid = Number(r.school_profile_id);
-        if (!receiptsBySchool.has(sid)) {
-          receiptsBySchool.set(sid, {
-            count: 0,
-            nonApproved: 0,
-            approvedLines: 0,
-            totalLines: 0,
-          });
-        }
-        const m = receiptsBySchool.get(sid)!;
-        m.count += 1;
-        if (r.compliance_ok === false) m.nonApproved += 1;
-        const lines = Array.isArray(r.lines) ? r.lines : [];
-        for (const line of lines as Array<{ approved?: boolean }>) {
-          m.totalLines += 1;
-          if (line.approved !== false) m.approvedLines += 1;
-        }
-      }
-      for (const o of ordRes.data || []) {
-        const sid = Number(o.school_profile_id);
-        if (!ordersBySchool.has(sid)) {
-          ordersBySchool.set(sid, { count: 0, spend: 0 });
-        }
-        const m = ordersBySchool.get(sid)!;
-        m.count += 1;
-        m.spend += Number(o.total_amount || 0);
-      }
-    }
-
-    // Prize scores (latest per school)
-    const prizeBySchool = new Map<number, Record<string, unknown>>();
-    for (let i = 0; i < filteredIds.length; i += 200) {
-      const chunk = filteredIds.slice(i, i + 200);
-      const { data: scores } = await supabase
-        .from('nsnp_prize_scores')
-        .select(
-          'school_profile_id, total_score, approved_brand_pct, feeding_completeness_pct, data_quality_pct, stock_discipline_pct, computed_at'
-        )
-        .in('school_profile_id', chunk)
-        .order('computed_at', { ascending: false })
-        .limit(2000);
-      for (const sc of scores || []) {
-        const sid = Number(sc.school_profile_id);
-        if (!prizeBySchool.has(sid)) {
-          prizeBySchool.set(sid, sc as Record<string, unknown>);
-        }
-      }
-    }
-
-    // Open compliance counts
-    const complianceBySchool = new Map<number, number>();
-    for (let i = 0; i < filteredIds.length; i += 200) {
-      const chunk = filteredIds.slice(i, i + 200);
-      const { data: comps } = await supabase
-        .from('school_compliance_events')
-        .select('school_profile_id, status')
-        .in('school_profile_id', chunk)
-        .in('status', ['open', 'in_progress'])
-        .limit(5000);
-      for (const c of comps || []) {
-        const sid = Number(c.school_profile_id);
-        complianceBySchool.set(sid, (complianceBySchool.get(sid) || 0) + 1);
       }
     }
 
@@ -451,8 +508,7 @@ export async function GET(request: NextRequest) {
       withGps: members.filter(
         (m) => m.lat != null && m.lng != null && Number.isFinite(m.lat)
       ).length,
-      pendingApprovals: (links || []).filter((l) => l.status === 'pending')
-        .length,
+      pendingApprovals: links.filter((l) => l.status === 'pending').length,
       isps: ispCoverage.summary.total,
       isps_active: ispCoverage.summary.active,
       isps_pending: ispCoverage.summary.pending,
@@ -581,34 +637,31 @@ export async function GET(request: NextRequest) {
         learners_enrolled: m.learners_enrolled,
       }));
 
-    // Feeding trend across all members (month buckets from member period data)
-    // Rebuild from feeding maps is incomplete for monthly — re-query aggregate if needed
+    // Feeding trend — only when ops are loaded (skip for hierarchy/coverage geo)
     const monthlyFeed: Record<
       string,
       { served: number; planned: number; waste: number }
     > = {};
-    // Use a simplified approach: sum from a second pass isn't available; derive from re-fetch is heavy
-    // Instead expose per-member feeding for period and empty trend if not needed
-    // Light re-query one month series from first chunk of feeding data via parallel month keys
-    // We'll compute from re-fetch of feeding for filtered ids in period only months
-    for (let i = 0; i < filteredIds.length; i += 100) {
-      const chunk = filteredIds.slice(i, i + 100);
-      const { data: feedRows } = await supabase
-        .from('school_feeding_days')
-        .select('feed_date, planned_meals, served_meals, waste_meals')
-        .in('school_profile_id', chunk)
-        .gte('feed_date', from)
-        .lte('feed_date', to)
-        .limit(20000);
-      for (const f of feedRows || []) {
-        const ym = String(f.feed_date || '').slice(0, 7);
-        if (!ym) continue;
-        if (!monthlyFeed[ym]) {
-          monthlyFeed[ym] = { served: 0, planned: 0, waste: 0 };
+    if (needOps) {
+      for (let i = 0; i < filteredIds.length; i += 100) {
+        const chunk = filteredIds.slice(i, i + 100);
+        const { data: feedRows } = await supabase
+          .from('school_feeding_days')
+          .select('feed_date, planned_meals, served_meals, waste_meals')
+          .in('school_profile_id', chunk)
+          .gte('feed_date', from)
+          .lte('feed_date', to)
+          .limit(20000);
+        for (const f of feedRows || []) {
+          const ym = String(f.feed_date || '').slice(0, 7);
+          if (!ym) continue;
+          if (!monthlyFeed[ym]) {
+            monthlyFeed[ym] = { served: 0, planned: 0, waste: 0 };
+          }
+          monthlyFeed[ym].served += Number(f.served_meals || 0);
+          monthlyFeed[ym].planned += Number(f.planned_meals || 0);
+          monthlyFeed[ym].waste += Number(f.waste_meals || 0);
         }
-        monthlyFeed[ym].served += Number(f.served_meals || 0);
-        monthlyFeed[ym].planned += Number(f.planned_meals || 0);
-        monthlyFeed[ym].waste += Number(f.waste_meals || 0);
       }
     }
     const feedingTrend = Object.keys(monthlyFeed)
@@ -732,6 +785,41 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const linkedToAnySp = new Set<number>();
+    for (const ids of ispToFacilities.values()) {
+      for (const id of ids) linkedToAnySp.add(id);
+    }
+    const unlinkedAll = members
+      .filter((m) => !linkedToAnySp.has(m.school_profile_id))
+      .map((m) => ({
+        school_profile_id: m.school_profile_id,
+        name: m.name,
+        member_type: m.member_type,
+        member_label: facilityLabel(m.member_type),
+        province: m.province,
+        district: m.district,
+        learners_enrolled: m.learners_enrolled,
+      }));
+
+    // District roll-up for hierarchy (full counts even when list is sampled)
+    const unlinkedByDistrictMap = new Map<
+      string,
+      { key: string; schools: number; learners: number }
+    >();
+    for (const f of unlinkedAll) {
+      const key =
+        [f.district, f.province].filter(Boolean).join(', ') || 'Unknown';
+      if (!unlinkedByDistrictMap.has(key)) {
+        unlinkedByDistrictMap.set(key, { key, schools: 0, learners: 0 });
+      }
+      const g = unlinkedByDistrictMap.get(key)!;
+      g.schools += 1;
+      g.learners += Number(f.learners_enrolled || 0);
+    }
+    const unlinkedByDistrict = [...unlinkedByDistrictMap.values()].sort(
+      (a, b) => b.schools - a.schools
+    );
+
     const hierarchyTree = {
       agency: {
         name: agency.agency_name,
@@ -739,6 +827,15 @@ export async function GET(request: NextRequest) {
         family: hierarchyMeta.family,
         chain: hierarchyMeta.chain,
         description: hierarchyMeta.description,
+      },
+      totals: {
+        facilities: members.length,
+        learners: members.reduce((n, m) => n + m.learners_enrolled, 0),
+        isps: ispCoverage.isps.length,
+        linked_to_sp: linkedToAnySp.size,
+        unlinked_to_sp: unlinkedAll.length,
+        provinces: new Set(members.map((m) => m.province).filter(Boolean)).size,
+        districts: new Set(members.map((m) => m.district).filter(Boolean)).size,
       },
       isps: ispCoverage.isps.map((isp) => {
         const ispId = Number(isp.isp_profile_id);
@@ -762,25 +859,16 @@ export async function GET(request: NextRequest) {
           status: isp.status,
           provinces: isp.provinces,
           facility_count: facilities.length,
-          facilities,
+          // Cap per-SP list in hierarchy payload for large networks
+          facilities: facilities.slice(0, 50),
+          facilities_truncated: facilities.length > 50,
         };
       }),
-      unlinked_facilities: members
-        .filter((m) => {
-          // Facilities with no active SP link under any associated SP
-          for (const [, ids] of ispToFacilities) {
-            if (ids.includes(m.school_profile_id)) return false;
-          }
-          return true;
-        })
-        .map((m) => ({
-          school_profile_id: m.school_profile_id,
-          name: m.name,
-          member_type: m.member_type,
-          member_label: facilityLabel(m.member_type),
-          province: m.province,
-          district: m.district,
-        })),
+      unlinked_count: unlinkedAll.length,
+      unlinked_by_district: unlinkedByDistrict,
+      // Sample only — full directory is on School register report
+      unlinked_facilities: unlinkedAll.slice(0, 100),
+      unlinked_truncated: unlinkedAll.length > 100,
     };
 
     const byMemberType = groupSum(members, (m: GroupableMember) =>

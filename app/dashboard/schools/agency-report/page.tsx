@@ -154,6 +154,15 @@ function Inner() {
       chain?: string[];
       description?: string;
     };
+    totals?: {
+      facilities?: number;
+      learners?: number;
+      isps?: number;
+      linked_to_sp?: number;
+      unlinked_to_sp?: number;
+      provinces?: number;
+      districts?: number;
+    };
     isps?: Array<{
       isp_profile_id: number;
       name: string;
@@ -168,6 +177,14 @@ function Inner() {
         district: string | null;
         learners_enrolled: number;
       }>;
+      facilities_truncated?: boolean;
+    }>;
+    unlinked_count?: number;
+    unlinked_truncated?: boolean;
+    unlinked_by_district?: Array<{
+      key: string;
+      schools: number;
+      learners: number;
     }>;
     unlinked_facilities?: Array<{
       school_profile_id: number;
@@ -175,6 +192,7 @@ function Inner() {
       member_label: string;
       province: string | null;
       district: string | null;
+      learners_enrolled?: number;
     }>;
   } | null;
   const hierarchyMeta = (data?.hierarchy || null) as {
@@ -1084,6 +1102,15 @@ function HierarchyView({
       chain?: string[];
       description?: string;
     };
+    totals?: {
+      facilities?: number;
+      learners?: number;
+      isps?: number;
+      linked_to_sp?: number;
+      unlinked_to_sp?: number;
+      provinces?: number;
+      districts?: number;
+    };
     isps?: Array<{
       isp_profile_id: number;
       name: string;
@@ -1098,6 +1125,14 @@ function HierarchyView({
         district: string | null;
         learners_enrolled: number;
       }>;
+      facilities_truncated?: boolean;
+    }>;
+    unlinked_count?: number;
+    unlinked_truncated?: boolean;
+    unlinked_by_district?: Array<{
+      key: string;
+      schools: number;
+      learners: number;
     }>;
     unlinked_facilities?: Array<{
       school_profile_id: number;
@@ -1105,6 +1140,7 @@ function HierarchyView({
       member_label: string;
       province: string | null;
       district: string | null;
+      learners_enrolled?: number;
     }>;
   } | null;
   meta: {
@@ -1121,6 +1157,9 @@ function HierarchyView({
   ];
   const isps = tree?.isps || [];
   const unlinked = tree?.unlinked_facilities || [];
+  const unlinkedCount = tree?.unlinked_count ?? unlinked.length;
+  const totals = tree?.totals || {};
+  const byDistrict = tree?.unlinked_by_district || [];
 
   return (
     <div className="space-y-4">
@@ -1145,6 +1184,51 @@ function HierarchyView({
             meta?.description ||
             'Agency approves SPs and facilities. Facilities order only from SPs under the same agency.'}
         </p>
+        {totals.facilities != null ? (
+          <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="rounded-xl bg-white border border-violet-100 px-3 py-2">
+              <p className="text-[10px] font-bold uppercase text-slate-400">
+                Schools linked
+              </p>
+              <p className="text-xl font-black tabular-nums">
+                {Number(totals.facilities).toLocaleString('en-ZA')}
+              </p>
+            </div>
+            <div className="rounded-xl bg-white border border-violet-100 px-3 py-2">
+              <p className="text-[10px] font-bold uppercase text-slate-400">
+                Learners
+              </p>
+              <p className="text-xl font-black tabular-nums">
+                {Number(totals.learners || 0).toLocaleString('en-ZA')}
+              </p>
+            </div>
+            <div className="rounded-xl bg-white border border-violet-100 px-3 py-2">
+              <p className="text-[10px] font-bold uppercase text-slate-400">
+                Districts
+              </p>
+              <p className="text-xl font-black tabular-nums">
+                {Number(totals.districts || 0).toLocaleString('en-ZA')}
+              </p>
+            </div>
+            <div className="rounded-xl bg-white border border-violet-100 px-3 py-2">
+              <p className="text-[10px] font-bold uppercase text-slate-400">
+                SPs
+              </p>
+              <p className="text-xl font-black tabular-nums">
+                {Number(totals.isps || 0).toLocaleString('en-ZA')}
+              </p>
+            </div>
+          </div>
+        ) : null}
+        <p className="text-xs text-slate-500 mt-3">
+          Full school directory with municipalities &amp; enrolments:{' '}
+          <Link
+            href="/dashboard/schools/registry-report"
+            className="font-bold text-[#0077b6] hover:underline"
+          >
+            School register report →
+          </Link>
+        </p>
       </div>
 
       {/* Level 1: Agency */}
@@ -1161,7 +1245,8 @@ function HierarchyView({
           </p>
           <p className="text-xs text-slate-500 mt-0.5">
             Type: {String(tree?.agency?.type || '—')} · Family:{' '}
-            {String(tree?.agency?.family || '—')}
+            {String(tree?.agency?.family || '—')} ·{' '}
+            {Number(totals.facilities || 0).toLocaleString('en-ZA')} schools
           </p>
         </div>
       </div>
@@ -1192,7 +1277,6 @@ function HierarchyView({
                     </p>
                   </div>
                 </div>
-                {/* Level 3: facilities under this SP */}
                 {isp.facilities.length === 0 ? (
                   <p className="text-xs text-slate-400 pl-3 border-l-2 border-slate-100">
                     No linked {meta?.facilityPlural?.toLowerCase() || 'facilities'}{' '}
@@ -1216,11 +1300,16 @@ function HierarchyView({
                           {[f.district, f.province].filter(Boolean).join(', ') ||
                             '—'}
                           {f.learners_enrolled
-                            ? ` · ${f.learners_enrolled} learners`
+                            ? ` · ${f.learners_enrolled.toLocaleString('en-ZA')} learners`
                             : ''}
                         </span>
                       </li>
                     ))}
+                    {isp.facilities_truncated ? (
+                      <li className="text-xs text-slate-400 pl-1">
+                        … and more under this SP (full list on School register)
+                      </li>
+                    ) : null}
                   </ul>
                 )}
               </li>
@@ -1229,32 +1318,81 @@ function HierarchyView({
         )}
       </div>
 
-      {/* Facilities under agency but not yet linked to an SP */}
-      {unlinked.length > 0 ? (
-        <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
-          <div className="px-5 py-3 border-b text-xs font-bold uppercase text-slate-500">
-            3 · Approved facilities not yet linked to an SP ({unlinked.length})
-          </div>
-          <ul className="divide-y max-h-64 overflow-y-auto">
-            {unlinked.map((f) => (
-              <li
-                key={f.school_profile_id}
-                className="px-5 py-2.5 flex justify-between text-sm gap-2"
-              >
-                <span className="font-semibold">
-                  {f.name}{' '}
-                  <span className="text-[10px] uppercase text-slate-400 font-bold">
-                    {f.member_label}
-                  </span>
-                </span>
-                <span className="text-xs text-slate-500">
-                  {[f.district, f.province].filter(Boolean).join(', ') || '—'}
-                </span>
-              </li>
-            ))}
-          </ul>
+      {/* Level 3: facilities under agency (not yet on an SP) */}
+      <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+        <div className="px-5 py-3 border-b flex flex-wrap items-center justify-between gap-2">
+          <span className="text-xs font-bold uppercase text-slate-500">
+            3 · Schools on your programme not yet linked to an SP (
+            {unlinkedCount.toLocaleString('en-ZA')})
+          </span>
+          <Link
+            href="/dashboard/schools/registry-report"
+            className="text-xs font-bold text-[#0077b6] hover:underline"
+          >
+            Open full school register →
+          </Link>
         </div>
-      ) : null}
+        {byDistrict.length > 0 ? (
+          <div className="px-5 py-3 border-b bg-slate-50/80">
+            <p className="text-[10px] font-bold uppercase text-slate-400 mb-2">
+              By district
+            </p>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-1.5 max-h-48 overflow-y-auto">
+              {byDistrict.map((d) => (
+                <div
+                  key={d.key}
+                  className="flex justify-between gap-2 text-xs rounded-lg bg-white border border-slate-100 px-2 py-1.5"
+                >
+                  <span className="font-semibold text-slate-800 truncate">
+                    {d.key}
+                  </span>
+                  <span className="tabular-nums text-slate-600 shrink-0">
+                    {d.schools.toLocaleString('en-ZA')} ·{' '}
+                    {d.learners.toLocaleString('en-ZA')} learners
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+        {unlinked.length === 0 ? (
+          <p className="px-5 py-6 text-sm text-slate-500">
+            {unlinkedCount === 0
+              ? 'Every approved school is linked to an SP, or no schools yet.'
+              : 'See district breakdown above and the school register for the full list.'}
+          </p>
+        ) : (
+          <>
+            <p className="px-5 py-2 text-[11px] text-slate-500 border-b">
+              Sample of {unlinked.length.toLocaleString('en-ZA')}
+              {tree?.unlinked_truncated
+                ? ` (of ${unlinkedCount.toLocaleString('en-ZA')})`
+                : ''}
+            </p>
+            <ul className="divide-y max-h-64 overflow-y-auto">
+              {unlinked.map((f) => (
+                <li
+                  key={f.school_profile_id}
+                  className="px-5 py-2.5 flex justify-between text-sm gap-2"
+                >
+                  <span className="font-semibold">
+                    {f.name}{' '}
+                    <span className="text-[10px] uppercase text-slate-400 font-bold">
+                      {f.member_label}
+                    </span>
+                  </span>
+                  <span className="text-xs text-slate-500">
+                    {[f.district, f.province].filter(Boolean).join(', ') || '—'}
+                    {f.learners_enrolled
+                      ? ` · ${Number(f.learners_enrolled).toLocaleString('en-ZA')}`
+                      : ''}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </div>
     </div>
   );
 }
