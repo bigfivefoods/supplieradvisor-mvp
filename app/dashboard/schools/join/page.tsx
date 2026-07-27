@@ -77,15 +77,22 @@ function Inner() {
   >([]);
   const [dirFilter, setDirFilter] = useState('');
   const [addingId, setAddingId] = useState<number | null>(null);
+  const [summary, setSummary] = useState<Record<string, unknown> | null>(null);
+  const [createSchoolName, setCreateSchoolName] = useState('');
+  const [createSpName, setCreateSpName] = useState('');
+  const [createProvince, setCreateProvince] = useState('KwaZulu-Natal');
+  const [creating, setCreating] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       if (programme.role === 'department') {
+        // lite=1 avoids downloading 5k+ schools into the join hub
         const [agencyRes, ispRes, candRes] = await Promise.all([
-          fetch(`/api/schools/agency?companyId=${companyId}&mode=agency`, {
-            cache: 'no-store',
-          }),
+          fetch(
+            `/api/schools/agency?companyId=${companyId}&mode=agency&lite=1`,
+            { cache: 'no-store' }
+          ),
           fetch(`/api/schools/isps?companyId=${companyId}&mode=agency`, {
             cache: 'no-store',
           }),
@@ -95,27 +102,35 @@ function Inner() {
             body: JSON.stringify({
               companyId,
               action: 'list_candidates',
+              available_only: true,
+              limit: 80,
             }),
           }),
         ]);
         const agencyData = await agencyRes.json();
         const ispData = await ispRes.json().catch(() => ({}));
         const candData = await candRes.json().catch(() => ({}));
+        if (agencyRes.status === 403 && agencyData.redirect) {
+          toast.message(agencyData.error || 'Use Health module for DoH');
+          window.location.href = agencyData.redirect;
+          return;
+        }
         if (!agencyRes.ok) throw new Error(agencyData.error || 'Failed');
-        const schools = (agencyData.schools || []) as Array<
-          Record<string, unknown>
-        >;
+        const schools = (agencyData.schools ||
+          agencyData.pendingSchools ||
+          []) as Array<Record<string, unknown>>;
         setPendingSchools(
           schools.filter((s) => String(s.link_status || s.status) === 'pending')
         );
-        setActiveSchools(
-          schools.filter((s) => String(s.link_status || s.status) === 'active')
-        );
+        setActiveSchools([]); // full list lives on Desk / School register
+        setSummary(agencyData.summary || null);
         setPendingSps(ispData.pending || []);
         setActiveSps(ispData.compliant || []);
         if (candRes.ok) {
           setSchoolsOnSystem(candData.schools_on_system || []);
           setSpsOnSystem(candData.sps_on_system || []);
+        } else if (candData.error) {
+          toast.message(String(candData.error));
         }
       } else if (programme.role === 'sp') {
         const res = await fetch(
@@ -330,9 +345,10 @@ function Inner() {
   const addCompany = async (
     targetId: number,
     as: 'school' | 'sp' = addAs,
-    approve: boolean = approveNow
+    approve: boolean = approveNow,
+    schoolProfileId?: number
   ) => {
-    setAddingId(targetId);
+    setAddingId(targetId || schoolProfileId || 0);
     try {
       const res = await fetch('/api/schools/agency', {
         method: 'POST',
@@ -340,9 +356,14 @@ function Inner() {
         body: JSON.stringify({
           companyId,
           action: as === 'school' ? 'add_school' : 'add_sp',
-          school_company_id: as === 'school' ? targetId : undefined,
+          school_company_id:
+            as === 'school' && targetId > 0 ? targetId : undefined,
+          school_profile_id:
+            as === 'school' && schoolProfileId
+              ? schoolProfileId
+              : undefined,
           isp_profile_id: as === 'sp' ? targetId : undefined,
-          target_company_id: targetId,
+          target_company_id: targetId > 0 ? targetId : undefined,
           approve,
         }),
       });
@@ -359,12 +380,79 @@ function Inner() {
     }
   };
 
+  const createNew = async (kind: 'school' | 'sp') => {
+    const name =
+      kind === 'school' ? createSchoolName.trim() : createSpName.trim();
+    if (name.length < 2) {
+      toast.error(kind === 'school' ? 'Enter school name' : 'Enter SP name');
+      return;
+    }
+    setCreating(true);
+    try {
+      const res = await fetch('/api/schools/agency', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          action: kind === 'school' ? 'create_school' : 'create_sp',
+          school_name: kind === 'school' ? name : undefined,
+          trading_name: kind === 'sp' ? name : undefined,
+          name,
+          province: createProvince || null,
+          approve: approveNow,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Create failed');
+      toast.success(data.message || 'Created');
+      if (kind === 'school') setCreateSchoolName('');
+      else setCreateSpName('');
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const searchCandidates = async () => {
+    if (dirFilter.trim().length < 2) {
+      toast.message('Type at least 2 characters to search the school list');
+      return;
+    }
+    setSearching(true);
+    try {
+      const res = await fetch('/api/schools/agency', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          action: 'list_candidates',
+          q: dirFilter.trim(),
+          available_only: true,
+          limit: 100,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Search failed');
+      setSchoolsOnSystem(data.schools_on_system || []);
+      setSpsOnSystem(data.sps_on_system || []);
+      toast.success(
+        `Found ${(data.schools_on_system || []).length} schools · ${(data.sps_on_system || []).length} SPs`
+      );
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Search failed');
+    } finally {
+      setSearching(false);
+    }
+  };
+
   const title =
     programme.role === 'department'
       ? 'Add & approve'
       : programme.role === 'sp'
-        ? 'Join a department'
-        : 'Join a department';
+        ? 'Join DBE'
+        : 'Join DBE';
   const accent =
     programme.role === 'department'
       ? 'Schools & SPs'
@@ -373,10 +461,10 @@ function Inner() {
         : 'As school';
   const desc =
     programme.role === 'department'
-      ? 'Search for a company and add them as a school or SP. Approve join requests, or add them already approved.'
+      ? 'Create or search companies, add them as schools or SPs, and approve join requests. Registry schools (5k+) are already on your books — use School register for the full list.'
       : programme.role === 'sp'
-        ? 'One click to request association with DBE / PEU / DoH. They must approve before you can supply their facilities.'
-        : 'One click to request association with DBE / PEU / DoH. They must approve before you can order and claim.';
+        ? 'One click to request association with DBE / PEU. They must approve before you can supply their schools.'
+        : 'One click to request association with DBE / PEU. They must approve before you can order and claim.';
 
   return (
     <SchoolsPage>
@@ -411,6 +499,7 @@ function Inner() {
         </div>
       ) : programme.role === 'department' ? (
         <DepartmentDesk
+          summary={summary}
           pendingSchools={pendingSchools}
           activeSchools={activeSchools}
           pendingSps={pendingSps}
@@ -428,8 +517,19 @@ function Inner() {
           approveNow={approveNow}
           setApproveNow={setApproveNow}
           addingId={addingId}
+          creating={creating}
+          createSchoolName={createSchoolName}
+          setCreateSchoolName={setCreateSchoolName}
+          createSpName={createSpName}
+          setCreateSpName={setCreateSpName}
+          createProvince={createProvince}
+          setCreateProvince={setCreateProvince}
           onSearch={() => void runSearch()}
-          onAdd={(id, as, approve) => void addCompany(id, as, approve)}
+          onSearchCandidates={() => void searchCandidates()}
+          onAdd={(id, as, approve, schoolProfileId) =>
+            void addCompany(id, as, approve, schoolProfileId)
+          }
+          onCreate={(kind) => void createNew(kind)}
           onApproveSchool={approveSchool}
           onApproveSp={approveSp}
         />
@@ -470,7 +570,12 @@ function CandidateList({
   kind: 'school' | 'sp';
   addingId: number | null;
   approveNow: boolean;
-  onAdd: (id: number, as?: 'school' | 'sp', approve?: boolean) => void;
+  onAdd: (
+    id: number,
+    as?: 'school' | 'sp',
+    approve?: boolean,
+    schoolProfileId?: number
+  ) => void;
   linkedRows: Array<Record<string, unknown>>;
 }) {
   return (
@@ -494,16 +599,19 @@ function CandidateList({
           <li className="px-4 py-6 text-sm text-slate-500">{empty}</li>
         ) : (
           rows.map((r) => {
-            const cid = Number(r.company_id);
+            const cid = Number(r.company_id || 0);
+            const sid = Number(r.school_profile_id || 0);
+            const key = `${kind}-${cid || sid}`;
+            const busyKey = cid || sid;
             return (
               <li
-                key={`${kind}-${cid}`}
+                key={key}
                 className="px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-sm"
               >
                 <div className="min-w-0">
                   <p className="font-semibold truncate">{String(r.name)}</p>
                   <p className="text-[10px] text-slate-500">
-                    id {cid}
+                    {cid ? `company ${cid}` : sid ? `school #${sid}` : ''}
                     {r.emis ? ` · EMIS ${String(r.emis)}` : ''}
                     {r.province ? ` · ${String(r.province)}` : ''}
                     {r.district ? ` · ${String(r.district)}` : ''}
@@ -517,15 +625,17 @@ function CandidateList({
                 </div>
                 <button
                   type="button"
-                  disabled={addingId === cid}
-                  onClick={() => onAdd(cid, kind, approveNow)}
+                  disabled={addingId === busyKey}
+                  onClick={() =>
+                    onAdd(cid, kind, approveNow, sid > 0 ? sid : undefined)
+                  }
                   className={`rounded-lg px-2.5 py-1.5 text-[11px] font-bold border ${
                     kind === 'school'
                       ? 'border-sky-200 bg-sky-50 text-sky-900'
                       : 'border-amber-200 bg-amber-50 text-amber-900'
                   }`}
                 >
-                  {addingId === cid ? (
+                  {addingId === busyKey ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   ) : approveNow ? (
                     'Add + approve'
@@ -647,17 +757,21 @@ function JoinDirectory({
       <div className="rounded-3xl border-2 border-sky-100 bg-white p-5">
         <h3 className="text-sm font-black mb-1 flex items-center gap-2">
           <Landmark className="w-4 h-4 text-violet-600" />
-          Join DBE / DoH
+          Join DBE / PEU
         </h3>
         <p className="text-[11px] text-slate-500 mb-3">
           {kind === 'sp'
-            ? 'Request association. Department approves — then you can supply their schools/clinics.'
-            : 'Request association. Department approves — then you can order approved foods and claim.'}
+            ? 'Request association. DBE approves — then you can supply their schools.'
+            : 'Request association. DBE approves — then you can order approved foods and submit claims (DBE email approval required).'}
         </p>
         {agencies.length === 0 ? (
           <p className="text-sm text-slate-500">
-            No departments registered yet. Ask your DBE/DoH to register under
-            Schools → Desk.
+            No education departments registered yet. Ask DBE to register under
+            Schools → Desk. For clinics/hospitals use the{' '}
+            <Link href="/dashboard/health" className="font-bold underline">
+              Health module
+            </Link>
+            .
           </p>
         ) : (
           <ul className="space-y-2">
@@ -702,6 +816,7 @@ function JoinDirectory({
 }
 
 function DepartmentDesk({
+  summary,
   pendingSchools,
   activeSchools,
   pendingSps,
@@ -719,11 +834,21 @@ function DepartmentDesk({
   approveNow,
   setApproveNow,
   addingId,
+  creating,
+  createSchoolName,
+  setCreateSchoolName,
+  createSpName,
+  setCreateSpName,
+  createProvince,
+  setCreateProvince,
   onSearch,
+  onSearchCandidates,
   onAdd,
+  onCreate,
   onApproveSchool,
   onApproveSp,
 }: {
+  summary: Record<string, unknown> | null;
   pendingSchools: Array<Record<string, unknown>>;
   activeSchools: Array<Record<string, unknown>>;
   pendingSps: Array<Record<string, unknown>>;
@@ -741,8 +866,22 @@ function DepartmentDesk({
   approveNow: boolean;
   setApproveNow: (v: boolean) => void;
   addingId: number | null;
+  creating: boolean;
+  createSchoolName: string;
+  setCreateSchoolName: (v: string) => void;
+  createSpName: string;
+  setCreateSpName: (v: string) => void;
+  createProvince: string;
+  setCreateProvince: (v: string) => void;
   onSearch: () => void;
-  onAdd: (id: number, as?: 'school' | 'sp', approve?: boolean) => void;
+  onSearchCandidates: () => void;
+  onAdd: (
+    id: number,
+    as?: 'school' | 'sp',
+    approve?: boolean,
+    schoolProfileId?: number
+  ) => void;
+  onCreate: (kind: 'school' | 'sp') => void;
   onApproveSchool: (
     schoolProfileId: number,
     action: 'approve' | 'reject' | 'suspend'
@@ -752,65 +891,184 @@ function DepartmentDesk({
     action: 'approve_isp' | 'reject_isp' | 'suspend_isp'
   ) => void;
 }) {
-  const fq = dirFilter.trim().toLowerCase();
-  const filterRow = (name: unknown, extra = '') => {
-    if (!fq) return true;
-    return `${String(name || '')} ${extra}`.toLowerCase().includes(fq);
-  };
-  const schoolAvail = schoolsOnSystem.filter(
-    (s) => !s.already_linked && filterRow(s.name, `${s.province || ''} ${s.district || ''} ${s.emis || ''}`)
-  );
-  const schoolLinked = schoolsOnSystem.filter(
-    (s) => s.already_linked && filterRow(s.name, `${s.province || ''}`)
-  );
-  const spAvail = spsOnSystem.filter(
-    (s) => !s.already_linked && filterRow(s.name, `${s.province || ''} ${s.city || ''}`)
-  );
-  const spLinked = spsOnSystem.filter(
-    (s) => s.already_linked && filterRow(s.name, `${s.province || ''}`)
-  );
+  const schoolAvail = schoolsOnSystem.filter((s) => !s.already_linked);
+  const schoolLinked = schoolsOnSystem.filter((s) => s.already_linked);
+  const spAvail = spsOnSystem.filter((s) => !s.already_linked);
+  const spLinked = spsOnSystem.filter((s) => s.already_linked);
 
   return (
     <div className="space-y-4">
-      {/* Quick pick: schools & SPs already on the platform */}
-      <div className="rounded-3xl border-2 border-sky-100 bg-white p-5 space-y-4">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h3 className="text-sm font-black flex items-center gap-2">
-              <School className="w-4 h-4 text-sky-600" />
-              Schools &amp; SPs already on the system
-            </h3>
-            <p className="text-[11px] text-slate-600 mt-0.5">
-              One-click add under your department. Toggle approve immediately
-              below, or leave pending for later.
+      {/* KPI strip */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {[
+          {
+            label: 'Schools on programme',
+            value: Number(summary?.activeLinks ?? summary?.schoolCount ?? 0),
+          },
+          {
+            label: 'Pending school joins',
+            value: Number(summary?.pendingLinks ?? pendingSchools.length),
+          },
+          { label: 'SPs pending', value: pendingSps.length },
+          { label: 'SPs approved', value: activeSps.length },
+        ].map((k) => (
+          <div
+            key={k.label}
+            className="rounded-2xl border border-slate-200 bg-white p-4"
+          >
+            <p className="text-[10px] font-bold uppercase text-slate-400">
+              {k.label}
+            </p>
+            <p className="text-2xl font-black tabular-nums mt-0.5">
+              {k.value.toLocaleString('en-ZA')}
             </p>
           </div>
-          <label className="text-xs min-w-[12rem]">
-            <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
-              Filter list
-            </span>
-            <input
-              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-              value={dirFilter}
-              onChange={(e) => setDirFilter(e.target.value)}
-              placeholder="Name, province, EMIS…"
-            />
-          </label>
-        </div>
+        ))}
+      </div>
 
+      <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-950 flex flex-wrap items-center justify-between gap-2">
+        <span>
+          Full school register (all districts &amp; enrolments) lives on{' '}
+          <Link
+            href="/dashboard/schools/registry-report"
+            className="font-bold underline"
+          >
+            School register
+          </Link>
+          . Import more via{' '}
+          <Link
+            href="/dashboard/schools/registry-import"
+            className="font-bold underline"
+          >
+            Import schools
+          </Link>
+          .
+        </span>
+      </div>
+
+      {/* Create new school / SP */}
+      <div className="rounded-3xl border-2 border-emerald-100 bg-white p-5 space-y-4">
+        <h3 className="text-sm font-black flex items-center gap-2">
+          <Plus className="w-4 h-4 text-emerald-700" />
+          Create new school or SP
+        </h3>
+        <p className="text-[11px] text-slate-600 -mt-2">
+          Creates a company on the platform and links them to your department.
+        </p>
         <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
           <input
             type="checkbox"
             checked={approveNow}
             onChange={(e) => setApproveNow(e.target.checked)}
           />
-          Approve immediately when adding
+          Approve immediately when creating / adding
         </label>
+        <div className="grid md:grid-cols-2 gap-4">
+          <div className="rounded-2xl border border-sky-100 bg-sky-50/40 p-4 space-y-2">
+            <p className="text-xs font-bold uppercase text-sky-900">New school</p>
+            <input
+              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+              placeholder="Institution name"
+              value={createSchoolName}
+              onChange={(e) => setCreateSchoolName(e.target.value)}
+            />
+            <input
+              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+              placeholder="Province"
+              value={createProvince}
+              onChange={(e) => setCreateProvince(e.target.value)}
+            />
+            <button
+              type="button"
+              disabled={creating}
+              onClick={() => onCreate('school')}
+              className="btn-primary !py-2 !px-3 text-xs w-full"
+            >
+              {creating ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin inline" />
+              ) : (
+                'Create school'
+              )}
+            </button>
+          </div>
+          <div className="rounded-2xl border border-amber-100 bg-amber-50/40 p-4 space-y-2">
+            <p className="text-xs font-bold uppercase text-amber-900">New SP</p>
+            <input
+              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+              placeholder="Service provider name"
+              value={createSpName}
+              onChange={(e) => setCreateSpName(e.target.value)}
+            />
+            <input
+              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+              placeholder="Province"
+              value={createProvince}
+              onChange={(e) => setCreateProvince(e.target.value)}
+            />
+            <button
+              type="button"
+              disabled={creating}
+              onClick={() => onCreate('sp')}
+              className="btn-primary !py-2 !px-3 text-xs w-full !bg-amber-600 hover:!bg-amber-700"
+            >
+              {creating ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin inline" />
+              ) : (
+                'Create SP'
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Quick pick: schools & SPs already on the platform */}
+      <div className="rounded-3xl border-2 border-sky-100 bg-white p-5 space-y-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-black flex items-center gap-2">
+              <School className="w-4 h-4 text-sky-600" />
+              Add existing schools &amp; SPs
+            </h3>
+            <p className="text-[11px] text-slate-600 mt-0.5">
+              Search companies not yet under you, then one-click add. Registry
+              schools already linked appear on School register.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2 items-end">
+            <label className="text-xs min-w-[12rem]">
+              <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                Search schools / SPs
+              </span>
+              <input
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                value={dirFilter}
+                onChange={(e) => setDirFilter(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') onSearchCandidates();
+                }}
+                placeholder="Name, province, EMIS…"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={onSearchCandidates}
+              disabled={searching}
+              className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+            >
+              {searching ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Search className="w-3.5 h-3.5" />
+              )}
+              Find
+            </button>
+          </div>
+        </div>
 
         <div className="grid lg:grid-cols-2 gap-4">
           <CandidateList
-            title={`Schools on platform · ${schoolAvail.length} available`}
-            empty="No school companies found yet."
+            title={`Schools to add · ${schoolAvail.length}`}
+            empty="Search above or create a school. Linked registry schools are on School register."
             rows={schoolAvail}
             kind="school"
             addingId={addingId}
@@ -819,8 +1077,8 @@ function DepartmentDesk({
             linkedRows={schoolLinked}
           />
           <CandidateList
-            title={`SPs on platform · ${spAvail.length} available`}
-            empty="No SP companies found yet."
+            title={`SPs to add · ${spAvail.length}`}
+            empty="No unmatched SPs — create one above or search a company name."
             rows={spAvail}
             kind="sp"
             addingId={addingId}
@@ -959,13 +1217,20 @@ function DepartmentDesk({
         <div className="rounded-3xl border border-sky-200 bg-white overflow-hidden">
           <div className="px-5 py-3 border-b border-sky-100 bg-sky-50/60 text-xs font-bold uppercase text-sky-900 flex items-center gap-2">
             <School className="w-3.5 h-3.5" />
-            Schools · {pendingSchools.length} pending · {activeSchools.length}{' '}
+            Schools · {pendingSchools.length} pending ·{' '}
+            {Number(summary?.activeLinks ?? 0).toLocaleString('en-ZA')}{' '}
             approved
           </div>
           <ul className="divide-y max-h-80 overflow-y-auto">
-            {pendingSchools.length === 0 && activeSchools.length === 0 ? (
+            {pendingSchools.length === 0 ? (
               <li className="px-5 py-8 text-sm text-slate-500">
-                No schools yet. Add one above, or wait for join requests.
+                No pending school join requests.{' '}
+                <Link
+                  href="/dashboard/schools/registry-report"
+                  className="font-bold text-sky-800 underline"
+                >
+                  View all approved schools →
+                </Link>
               </li>
             ) : null}
             {pendingSchools.map((s) => (

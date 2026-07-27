@@ -10,12 +10,23 @@ import {
   fetchAllPaged,
   fetchByIds,
 } from '@/lib/schools/supabase-page';
+import { familyForAgencyType } from '@/lib/entities/programme-hierarchy';
+
+function familyForAgencyTypeSafe(t: string) {
+  try {
+    return familyForAgencyType(t);
+  } catch {
+    return 'education' as const;
+  }
+}
 
 /**
  * DBE / governmental agency:
  * - Register current company as agency (DBE)
  * - School joins agency
  * - Agency lists linked schools + summary scores
+ *
+ * GET ?mode=agency&lite=1 → counts + pending only (join hub)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -62,14 +73,36 @@ export async function GET(request: NextRequest) {
       .maybeSingle();
 
     if (mode === 'agency' || myAgency) {
+      // Health agencies belong in the Health module
+      if (
+        myAgency &&
+        familyForAgencyTypeSafe(String(myAgency.agency_type || '')) === 'health'
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              'This company is Department of Health. Use the Health module.',
+            redirect: '/dashboard/health/agency',
+          },
+          { status: 403 }
+        );
+      }
+
+      const lite =
+        sp.get('lite') === '1' ||
+        sp.get('lite') === 'true' ||
+        sp.get('summaryOnly') === '1';
+      const statusFilter = String(sp.get('linkStatus') || 'all').toLowerCase();
+
       let links: Array<Record<string, unknown>> = [];
       try {
-        // Page past PostgREST 1000-row cap (provincial imports are 5k+)
-        links = await fetchAgencySchoolLinks(supabase, companyId, [
-          'active',
-          'pending',
-          'suspended',
-        ]);
+        const statuses =
+          statusFilter === 'pending'
+            ? ['pending']
+            : statusFilter === 'active'
+              ? ['active']
+              : ['active', 'pending', 'suspended'];
+        links = await fetchAgencySchoolLinks(supabase, companyId, statuses);
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : 'link load failed';
         if (/does not exist|schema cache/i.test(msg)) {
@@ -89,6 +122,57 @@ export async function GET(request: NextRequest) {
           });
         }
         return NextResponse.json({ error: msg }, { status: 400 });
+      }
+
+      const activeLinks = links.filter((l) => l.status === 'active').length;
+      const pendingLinks = links.filter((l) => l.status === 'pending').length;
+      const suspendedLinks = links.filter(
+        (l) => l.status === 'suspended'
+      ).length;
+
+      // Lite mode for join hub: counts + pending schools only (not 5k rows)
+      if (lite) {
+        const pendingIds = links
+          .filter((l) => l.status === 'pending')
+          .map((l) => Number(l.school_profile_id))
+          .filter((n) => Number.isFinite(n) && n > 0);
+        let pendingSchools: Array<Record<string, unknown>> = [];
+        if (pendingIds.length) {
+          const rows = await fetchByIds(
+            supabase,
+            'school_profiles',
+            'id, profile_id, school_name, emis_number, natemis, province, district, learner_count_enrolled, member_type, status',
+            pendingIds.slice(0, 200)
+          );
+          const linkBy = new Map(
+            links.map((l) => [Number(l.school_profile_id), l] as const)
+          );
+          pendingSchools = rows.map((s) => ({
+            ...s,
+            link_status: 'pending',
+            linked_at: linkBy.get(Number(s.id))?.created_at || null,
+          }));
+        }
+        return NextResponse.json({
+          success: true,
+          role: 'agency',
+          programme: 'education',
+          agency: myAgency,
+          lite: true,
+          schools: pendingSchools,
+          pendingSchools,
+          schools_total: links.length,
+          summary: {
+            schoolCount: links.length,
+            activeLinks,
+            pendingLinks,
+            suspendedLinks,
+            totalLearners: 0,
+            totalVerified: 0,
+            avgPrizeScore: null,
+          },
+          links_total: links.length,
+        });
       }
 
       const schoolIds = [
@@ -118,6 +202,12 @@ export async function GET(request: NextRequest) {
           );
         }
       }
+
+      // Education desk: exclude health facilities
+      schools = schools.filter((s) => {
+        const mt = String(s.member_type || 'school');
+        return !['hospital', 'clinic', 'shelter'].includes(mt);
+      });
 
       // Prize scores only for a sample (full board is on prizes report)
       const scoreBySchool = new Map<number, Record<string, unknown>>();
@@ -168,12 +258,6 @@ export async function GET(request: NextRequest) {
           String(b.school_name || '')
         );
       });
-
-      const activeLinks = links.filter((l) => l.status === 'active').length;
-      const pendingLinks = links.filter((l) => l.status === 'pending').length;
-      const suspendedLinks = links.filter(
-        (l) => l.status === 'suspended'
-      ).length;
 
       const byDistrict = new Map<string, number>();
       for (const s of enriched) {
@@ -266,6 +350,12 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // Education join: only DBE/PEU (not DoH)
+    const educationAgencies = (dirRes.data || []).filter(
+      (a) =>
+        familyForAgencyType(String(a.agency_type || 'dbe')) === 'education'
+    );
+
     const agencyIds = [
       ...new Set(
         (linksRes.data || [])
@@ -296,9 +386,10 @@ export async function GET(request: NextRequest) {
       role: 'school',
       school,
       links,
-      agencies: dirRes.data || [],
+      agencies: educationAgencies,
       isAgency: Boolean(myAgency),
       myAgency: myAgency || null,
+      programme: 'education',
     });
   } catch (e: unknown) {
     return NextResponse.json(
@@ -800,23 +891,87 @@ export async function POST(request: NextRequest) {
     if (action === 'list_candidates') {
       const { data: agencyGate } = await supabase
         .from('nsnp_agency_profiles')
-        .select('profile_id, agency_name')
+        .select('profile_id, agency_name, agency_type')
         .eq('profile_id', companyId)
         .maybeSingle();
       if (!agencyGate) {
         return NextResponse.json(
-          { error: 'Only a registered department can list candidates' },
+          { error: 'Only a registered DBE / PEU department can list candidates' },
+          { status: 403 }
+        );
+      }
+      if (
+        familyForAgencyType(String(agencyGate.agency_type || 'dbe')) ===
+        'health'
+      ) {
+        return NextResponse.json(
+          {
+            error: 'Use Health module for clinics & hospitals',
+            redirect: '/dashboard/health/join',
+          },
           { status: 403 }
         );
       }
 
-      // Schools on system (page past 1000-row PostgREST cap)
-      const schoolRows = await fetchAllPaged(
-        supabase,
-        'school_profiles',
-        'id, profile_id, school_name, emis_number, province, district, member_type, status, learner_count_enrolled',
-        (q) => q.order('school_name', { ascending: true })
+      const q = String(body.q || body.query || '')
+        .trim()
+        .toLowerCase();
+      const limit = Math.min(
+        500,
+        Math.max(20, Number(body.limit) || 120)
       );
+      const availableOnly = body.available_only !== false;
+
+      // Existing links (for available_only + already-linked badges)
+      const schoolLinkBySid = new Map<
+        number,
+        { status: string; link_id: number }
+      >();
+      const existingLinks = await fetchAgencySchoolLinks(supabase, companyId, [
+        'pending',
+        'active',
+        'suspended',
+      ]);
+      for (const l of existingLinks) {
+        schoolLinkBySid.set(Number(l.school_profile_id), {
+          status: String(l.status),
+          link_id: Number(l.id),
+        });
+      }
+
+      let schoolRows: Array<Record<string, unknown>> = [];
+
+      // Search path: scan school_profiles (may be large) then filter
+      // Default path without q: skip full 5k scan — use profile directory only
+      if (q) {
+        const schoolRowsRaw = await fetchAllPaged(
+          supabase,
+          'school_profiles',
+          'id, profile_id, school_name, emis_number, natemis, province, district, member_type, status, learner_count_enrolled',
+          (qB) => qB.order('school_name', { ascending: true })
+        );
+        schoolRows = schoolRowsRaw.filter((s) => {
+          const mt = String(s.member_type || 'school');
+          if (['hospital', 'clinic', 'shelter'].includes(mt)) return false;
+          const hay = [
+            s.school_name,
+            s.emis_number,
+            s.natemis,
+            s.district,
+            s.province,
+          ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
+          return hay.includes(q);
+        });
+        if (availableOnly) {
+          schoolRows = schoolRows.filter(
+            (s) => !schoolLinkBySid.has(Number(s.id))
+          );
+        }
+        schoolRows = schoolRows.slice(0, limit);
+      }
 
       const schoolCompanyIds = [
         ...new Set(
@@ -826,14 +981,14 @@ export async function POST(request: NextRequest) {
         ),
       ];
 
-      // Also profiles typed as school/hospital without school_profiles yet
+      // Profiles typed as school without school_profiles yet
       const { data: schoolishProfiles } = await supabase
         .from('profiles')
         .select('id, trading_name, legal_name, org_type, business_type, city, province')
         .or(
-          'org_type.eq.school,org_type.eq.hospital,business_type.eq.school,business_type.ilike.%school%,business_type.ilike.%hospital%,business_type.ilike.%clinic%'
+          'org_type.eq.school,business_type.eq.school,business_type.ilike.%school%'
         )
-        .limit(300);
+        .limit(150);
 
       // SPs on system
       const { data: ispRows } = await supabase
@@ -887,23 +1042,6 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Existing links to this agency (full list, paged)
-      const schoolLinkBySid = new Map<
-        number,
-        { status: string; link_id: number }
-      >();
-      const existingLinks = await fetchAgencySchoolLinks(supabase, companyId, [
-        'pending',
-        'active',
-        'suspended',
-      ]);
-      for (const l of existingLinks) {
-        schoolLinkBySid.set(Number(l.school_profile_id), {
-          status: String(l.status),
-          link_id: Number(l.id),
-        });
-      }
-
       const ispLinkById = new Map<
         number,
         { status: string; link_id: number }
@@ -930,14 +1068,14 @@ export async function POST(request: NextRequest) {
           const prof = nameById[cid] || {};
           const link = schoolLinkBySid.get(Number(s.id));
           return {
-            company_id: cid,
+            company_id: cid || 0,
             school_profile_id: Number(s.id),
             name:
               String(s.school_name || '') ||
               prof.trading_name ||
               prof.legal_name ||
               `School ${s.id}`,
-            emis: s.emis_number,
+            emis: s.emis_number || s.natemis || null,
             province: s.province || prof.province || null,
             district: s.district || null,
             city: prof.city || null,
@@ -946,7 +1084,7 @@ export async function POST(request: NextRequest) {
             link_status: link?.status || null,
             link_id: link?.link_id || null,
             already_linked: Boolean(
-              link && ['pending', 'active'].includes(link.status)
+              link && ['pending', 'active', 'suspended'].includes(link.status)
             ),
           };
         });
@@ -1129,25 +1267,296 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Department adds a school (by company id) — optional instant approve
-    if (action === 'add_school' || action === 'invite_school') {
+    // Department creates a brand-new school company + link
+    if (action === 'create_school') {
       const { data: agencyGate } = await supabase
         .from('nsnp_agency_profiles')
-        .select('profile_id, agency_name, status')
+        .select('profile_id, agency_name, status, agency_type')
         .eq('profile_id', companyId)
         .maybeSingle();
       if (!agencyGate || agencyGate.status !== 'active') {
         return NextResponse.json(
-          { error: 'Only a registered DBE/DoH can add schools' },
+          { error: 'Only a registered DBE / PEU can create schools' },
           { status: 403 }
         );
       }
-      const targetCompanyId = Number(
+      if (
+        familyForAgencyType(String(agencyGate.agency_type || 'dbe')) ===
+        'health'
+      ) {
+        return NextResponse.json(
+          { error: 'Use Health module for clinics/hospitals' },
+          { status: 403 }
+        );
+      }
+      const name = String(body.school_name || body.name || '').trim();
+      if (name.length < 2) {
+        return NextResponse.json(
+          { error: 'school_name required' },
+          { status: 400 }
+        );
+      }
+      const now = new Date().toISOString();
+      const approveNow = body.approve !== false;
+      const { data: prof, error: pErr } = await supabase
+        .from('profiles')
+        .insert({
+          trading_name: name,
+          legal_name: name,
+          org_type: 'school',
+          business_type: 'school',
+          industry: 'Public schools',
+          industries: ['Public schools'],
+          province: body.province || null,
+          city: body.city || body.district || null,
+          country: 'South Africa',
+          continent: 'Africa',
+          planet: 'Earth',
+          status: 'active',
+          created_at: now,
+          updated_at: now,
+          metadata: {
+            entity_kind: 'school',
+            dbe_created: true,
+            dbe_agency_profile_id: companyId,
+            enabled_modules: {
+              schools: true,
+              home: true,
+              guide: true,
+              network: true,
+            },
+          },
+        })
+        .select('id')
+        .single();
+      if (pErr || !prof) {
+        return NextResponse.json(
+          { error: pErr?.message || 'Could not create school company' },
+          { status: 400 }
+        );
+      }
+      const targetCompanyId = Number(prof.id);
+      const { school, error: sErr } = await getOrCreateSchoolProfile(
+        supabase,
+        targetCompanyId
+      );
+      if (sErr || !school) {
+        return NextResponse.json(
+          { error: sErr || 'School profile failed' },
+          { status: 400 }
+        );
+      }
+      await supabase
+        .from('school_profiles')
+        .update({
+          school_name: name,
+          emis_number: body.emis_number || body.natemis || null,
+          natemis: body.natemis || body.emis_number || null,
+          province: body.province || null,
+          district: body.district || null,
+          member_type: 'school',
+          primary_agency_profile_id: approveNow ? companyId : null,
+          status: 'active',
+          updated_at: now,
+        })
+        .eq('id', school.id);
+      const status = approveNow ? 'active' : 'pending';
+      const { data: link, error: lErr } = await supabase
+        .from('school_agency_links')
+        .upsert(
+          {
+            school_profile_id: school.id,
+            school_company_id: targetCompanyId,
+            agency_profile_id: companyId,
+            status,
+            accepted_at: approveNow ? now : null,
+            notes: 'Created by DBE on Join hub',
+            updated_at: now,
+          },
+          { onConflict: 'school_profile_id,agency_profile_id' }
+        )
+        .select('*')
+        .single();
+      if (lErr) {
+        return NextResponse.json({ error: lErr.message }, { status: 400 });
+      }
+      return NextResponse.json({
+        success: true,
+        company_id: targetCompanyId,
+        school,
+        link,
+        message: approveNow
+          ? `School “${name}” created and approved under ${agencyGate.agency_name}`
+          : `School “${name}” created as pending`,
+      });
+    }
+
+    // Department creates a brand-new SP company + link
+    if (action === 'create_sp' || action === 'create_isp') {
+      const { data: agencyGate } = await supabase
+        .from('nsnp_agency_profiles')
+        .select('profile_id, agency_name, status, agency_type')
+        .eq('profile_id', companyId)
+        .maybeSingle();
+      if (!agencyGate || agencyGate.status !== 'active') {
+        return NextResponse.json(
+          { error: 'Only a registered DBE / PEU can create SPs' },
+          { status: 403 }
+        );
+      }
+      const name = String(body.trading_name || body.name || '').trim();
+      if (name.length < 2) {
+        return NextResponse.json(
+          { error: 'SP name required' },
+          { status: 400 }
+        );
+      }
+      const now = new Date().toISOString();
+      const approveNow = body.approve !== false;
+      const { data: prof, error: pErr } = await supabase
+        .from('profiles')
+        .insert({
+          trading_name: name,
+          legal_name: name,
+          org_type: 'nsnp_isp',
+          business_type: 'nsnp_isp',
+          province: body.province || null,
+          country: 'South Africa',
+          continent: 'Africa',
+          planet: 'Earth',
+          status: 'active',
+          created_at: now,
+          updated_at: now,
+          metadata: {
+            entity_kind: 'sp',
+            dbe_created: true,
+            enabled_modules: {
+              schools: true,
+              suppliers: true,
+              inventory: true,
+              network: true,
+              home: true,
+              guide: true,
+            },
+          },
+        })
+        .select('id')
+        .single();
+      if (pErr || !prof) {
+        return NextResponse.json(
+          { error: pErr?.message || 'Could not create SP company' },
+          { status: 400 }
+        );
+      }
+      const targetCompanyId = Number(prof.id);
+      await supabase.from('nsnp_isp_profiles').upsert(
+        {
+          profile_id: targetCompanyId,
+          trading_name: name,
+          compliance_status: approveNow ? 'compliant' : 'pending',
+          food_handling_cert: true,
+          provinces: body.province ? [body.province] : [],
+          updated_at: now,
+        },
+        { onConflict: 'profile_id' }
+      );
+      const linkStatus = approveNow ? 'active' : 'pending';
+      const { data: link, error: lErr } = await supabase
+        .from('nsnp_isp_agency_links')
+        .upsert(
+          {
+            isp_profile_id: targetCompanyId,
+            agency_profile_id: companyId,
+            status: linkStatus,
+            accepted_at: approveNow ? now : null,
+            notes: 'Created by DBE on Join hub',
+            updated_at: now,
+          },
+          { onConflict: 'isp_profile_id,agency_profile_id' }
+        )
+        .select('*')
+        .single();
+      if (lErr) {
+        // Soft: link table may use different conflict
+        await supabase.from('nsnp_isp_agency_links').insert({
+          isp_profile_id: targetCompanyId,
+          agency_profile_id: companyId,
+          status: linkStatus,
+          updated_at: now,
+        });
+      }
+      if (approveNow) {
+        await supabase
+          .from('nsnp_isp_profiles')
+          .update({
+            approved_by_agency_profile_id: companyId,
+            approved_at: now,
+            compliance_status: 'compliant',
+            updated_at: now,
+          })
+          .eq('profile_id', targetCompanyId);
+      }
+      return NextResponse.json({
+        success: true,
+        company_id: targetCompanyId,
+        link,
+        message: approveNow
+          ? `SP “${name}” created and approved under ${agencyGate.agency_name}`
+          : `SP “${name}” created as pending`,
+      });
+    }
+
+    // Department adds a school (by company id) — optional instant approve
+    if (action === 'add_school' || action === 'invite_school') {
+      const { data: agencyGate } = await supabase
+        .from('nsnp_agency_profiles')
+        .select('profile_id, agency_name, status, agency_type')
+        .eq('profile_id', companyId)
+        .maybeSingle();
+      if (!agencyGate || agencyGate.status !== 'active') {
+        return NextResponse.json(
+          { error: 'Only a registered DBE / PEU can add schools' },
+          { status: 403 }
+        );
+      }
+      // Add by school_profile_id (registry school) when company id not given
+      const schoolProfileId = Number(body.school_profile_id || 0);
+      let targetCompanyId = Number(
         body.school_company_id || body.target_company_id || body.company_id
       );
+
+      if (
+        (!Number.isFinite(targetCompanyId) || targetCompanyId === companyId) &&
+        Number.isFinite(schoolProfileId) &&
+        schoolProfileId > 0
+      ) {
+        const { data: spRow } = await supabase
+          .from('school_profiles')
+          .select('id, profile_id, school_name')
+          .eq('id', schoolProfileId)
+          .maybeSingle();
+        if (!spRow) {
+          return NextResponse.json(
+            { error: 'School not found' },
+            { status: 404 }
+          );
+        }
+        targetCompanyId =
+          spRow.profile_id != null ? Number(spRow.profile_id) : NaN;
+        if (!Number.isFinite(targetCompanyId)) {
+          return NextResponse.json(
+            {
+              error:
+                'School has no company workspace yet — use Create school or Import.',
+            },
+            { status: 400 }
+          );
+        }
+      }
+
       if (!Number.isFinite(targetCompanyId) || targetCompanyId === companyId) {
         return NextResponse.json(
-          { error: 'school_company_id required (another company)' },
+          { error: 'school_company_id or school_profile_id required' },
           { status: 400 }
         );
       }
