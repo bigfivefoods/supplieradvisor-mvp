@@ -377,7 +377,9 @@ async function fetchAllLinks(
     const { data, error } = await q;
     if (error) throw new Error(error.message);
     if (!data?.length) break;
-    all.push(...data);
+    for (const row of data) {
+      all.push({ ...(row as object) } as Record<string, unknown>);
+    }
     if (data.length < pageSize) break;
     from += pageSize;
     if (from > 50000) break;
@@ -385,81 +387,46 @@ async function fetchAllLinks(
   return all;
 }
 
-const SCHOOL_SELECT = [
-  'id',
-  'profile_id',
-  'school_name',
-  'emis_number',
-  'natemis',
-  'province',
-  'district',
-  'circuit',
-  'cmc',
-  'quintile',
-  'local_municipality',
-  'municipality_ward',
-  'level_label',
-  'phase',
-  'learner_count_enrolled',
-  'learner_count_nsnp_eligible',
-  'learner_count_verified',
-  'nsnp_applic_enrol',
-  'final_emis_enrol',
-  'final_nsnp_approved_enrol',
-  'enrolment_year',
-  'registry_source',
-  'registry_imported_at',
-  'status',
-  'member_type',
-  'primary_agency_profile_id',
-].join(', ');
-
-const SCHOOL_SELECT_LEAN = [
-  'id',
-  'profile_id',
-  'school_name',
-  'emis_number',
-  'province',
-  'district',
-  'circuit',
-  'quintile',
-  'phase',
-  'learner_count_enrolled',
-  'learner_count_nsnp_eligible',
-  'learner_count_verified',
-  'status',
-  'member_type',
-].join(', ');
-
 async function fetchSchoolProfiles(
   supabase: ReturnType<typeof getSupabaseServer>,
   schoolIds: number[]
 ) {
   const all: Array<Record<string, unknown>> = [];
-  let select = SCHOOL_SELECT;
-  let triedLean = false;
+  let useLean = false;
 
   for (let i = 0; i < schoolIds.length; i += 200) {
     const chunk = schoolIds.slice(i, i + 200);
-    const { data, error } = await supabase
-      .from('school_profiles')
-      .select(select)
-      .in('id', chunk);
-    if (error) {
+
+    // Literal select strings (not a variable) so Supabase client types rows correctly.
+    const result = useLean
+      ? await supabase
+          .from('school_profiles')
+          .select(
+            'id, profile_id, school_name, emis_number, province, district, circuit, quintile, phase, learner_count_enrolled, learner_count_nsnp_eligible, learner_count_verified, status, member_type'
+          )
+          .in('id', chunk)
+      : await supabase
+          .from('school_profiles')
+          .select(
+            'id, profile_id, school_name, emis_number, natemis, province, district, circuit, cmc, quintile, local_municipality, municipality_ward, level_label, phase, learner_count_enrolled, learner_count_nsnp_eligible, learner_count_verified, nsnp_applic_enrol, final_emis_enrol, final_nsnp_approved_enrol, enrolment_year, registry_source, registry_imported_at, status, member_type, primary_agency_profile_id'
+          )
+          .in('id', chunk);
+
+    if (result.error) {
       if (
-        !triedLean &&
-        /column|schema cache|does not exist/i.test(error.message)
+        !useLean &&
+        /column|schema cache|does not exist/i.test(result.error.message)
       ) {
-        triedLean = true;
-        select = SCHOOL_SELECT_LEAN;
+        useLean = true;
         i -= 200;
         continue;
       }
-      throw new Error(error.message);
+      throw new Error(result.error.message);
     }
-    // Dynamic select string → client types as GenericStringError[]; cast via unknown.
-    const rows = (data || []) as unknown as Array<Record<string, unknown>>;
-    all.push(...rows);
+
+    for (const row of result.data || []) {
+      all.push({ ...(row as object) } as Record<string, unknown>);
+    }
   }
   return all;
 }
