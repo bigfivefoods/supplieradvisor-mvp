@@ -296,10 +296,10 @@ function emptyKpis() {
   };
 }
 
-function rollup(
-  rows: Array<{ district?: string | null; name: string }>,
-  keyFn: (r: (typeof rows)[0]) => string
-) {
+function rollup<T>(
+  rows: T[],
+  keyFn: (r: T) => string
+): Array<{ key: string; sps: number }> {
   const map = new Map<string, number>();
   for (const r of rows) {
     const k = keyFn(r) || 'Unknown';
