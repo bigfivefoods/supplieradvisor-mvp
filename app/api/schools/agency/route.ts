@@ -1343,59 +1343,67 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Agency reviews claim packs (audit trail)
+    // Agency reviews claim packs — must confirm official DBE email
     if (action === 'set_claim_status' || action === 'review_claim') {
       const claimId = Number(body.claim_id);
       const claimStatus = String(body.status || 'approved');
       if (!Number.isFinite(claimId)) {
         return NextResponse.json({ error: 'claim_id required' }, { status: 400 });
       }
-      if (!['approved', 'rejected', 'paid', 'submitted', 'draft'].includes(claimStatus)) {
-        return NextResponse.json({ error: 'Invalid claim status' }, { status: 400 });
+      if (!['approved', 'rejected', 'paid'].includes(claimStatus)) {
+        return NextResponse.json(
+          {
+            error:
+              'Use approve, reject, or paid. DBE email confirmation is required.',
+          },
+          { status: 400 }
+        );
       }
-      const { data: existing } = await supabase
-        .from('nsnp_claim_packs')
-        .select('id, audit_log, profile_id, school_profile_id')
-        .eq('id', claimId)
-        .eq('agency_profile_id', companyId)
-        .maybeSingle();
-      const prevLog = Array.isArray(existing?.audit_log)
-        ? existing!.audit_log
-        : [];
-      const auditEntry = {
-        at: new Date().toISOString(),
-        by: gate.userId || null,
-        action: claimStatus,
-        note: body.notes || null,
-      };
-      const { data, error } = await supabase
-        .from('nsnp_claim_packs')
-        .update({
-          status: claimStatus,
-          reviewed_at: new Date().toISOString(),
-          review_notes: body.notes || null,
-          reviewed_by: gate.userId || null,
-          audit_log: [...prevLog, auditEntry],
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', claimId)
-        .eq('agency_profile_id', companyId)
-        .select('*')
-        .single();
-      if (error) {
-        const retry = await supabase
-          .from('nsnp_claim_packs')
-          .update({ status: claimStatus })
-          .eq('id', claimId)
-          .eq('agency_profile_id', companyId)
-          .select('*')
-          .single();
-        if (retry.error) {
-          return NextResponse.json({ error: retry.error.message }, { status: 400 });
+      const reviewAction =
+        claimStatus === 'approved'
+          ? 'approve'
+          : claimStatus === 'rejected'
+            ? 'reject'
+            : 'paid';
+      const approverEmail = String(
+        body.approver_email || body.email || ''
+      )
+        .trim()
+        .toLowerCase();
+      if (!approverEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(approverEmail)) {
+        return NextResponse.json(
+          {
+            error:
+              'Enter your official DBE email to confirm this claim decision.',
+          },
+          { status: 400 }
+        );
+      }
+      // Reuse strong review handler in-process
+      const reviewReq = new NextRequest(
+        new URL('/api/schools/claims/dbe-review', request.url),
+        {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            cookie: request.headers.get('cookie') || '',
+            authorization: request.headers.get('authorization') || '',
+            'x-legacy-privy-user-id':
+              request.headers.get('x-legacy-privy-user-id') || '',
+          },
+          body: JSON.stringify({
+            companyId,
+            claim_id: claimId,
+            action: reviewAction,
+            approver_email: approverEmail,
+            notes: body.notes || null,
+          }),
         }
-        return NextResponse.json({ success: true, claim: retry.data });
-      }
-      return NextResponse.json({ success: true, claim: data });
+      );
+      const { POST: reviewPost } = await import(
+        '@/app/api/schools/claims/dbe-review/route'
+      );
+      return reviewPost(reviewReq);
     }
 
     // Lock / unlock a claim period for all schools under this agency

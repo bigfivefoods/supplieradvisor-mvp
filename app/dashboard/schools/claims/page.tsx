@@ -31,6 +31,8 @@ function Inner() {
   const [loading, setLoading] = useState(true);
   const [pack, setPack] = useState<Record<string, unknown> | null>(null);
   const [history, setHistory] = useState<Array<Record<string, unknown>>>([]);
+  const [declaration, setDeclaration] = useState(false);
+  const [declarationName, setDeclarationName] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -59,6 +61,12 @@ function Inner() {
   }, [load]);
 
   const submit = async () => {
+    if (!declaration || declarationName.trim().length < 2) {
+      toast.error(
+        'Tick the declaration and type the principal / claim officer full name'
+      );
+      return;
+    }
     try {
       const res = await fetch('/api/schools/claims', {
         method: 'POST',
@@ -68,11 +76,17 @@ function Inner() {
           from: period.from,
           to: period.to,
           status: 'submitted',
+          declaration: true,
+          declaration_name: declarationName.trim(),
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
-      toast.success('Claim pack submitted');
+      toast.success(
+        data.message ||
+          'Claim submitted to DBE — awaits email approval before payment'
+      );
+      setDeclaration(false);
       void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed');
@@ -103,8 +117,8 @@ function Inner() {
     <SchoolsPage>
       <SchoolsHeader
         title="Claims & cost"
-        titleAccent="Approved foods unlock funding"
-        description="Full claim funding requires on-catalogue kitchen receipts (≥98% approved). That is the main financial incentive to only buy DBE/DoH listed products."
+        titleAccent="DBE email approval required"
+        description="Submit only when active under DBE and kitchen receipts are on-catalogue. Every claim is emailed to DBE for official email confirmation before approval or payment."
         action={
           <div className="flex gap-2">
             <button type="button" onClick={exportCsv} className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1">
@@ -223,13 +237,48 @@ function Inner() {
               {String(pack.submit_block_reason)}
             </p>
           ) : null}
+
+          <div className="rounded-2xl border border-violet-100 bg-violet-50/60 px-4 py-4 mb-4 space-y-3">
+            <p className="text-sm font-bold text-slate-900">
+              School declaration (required)
+            </p>
+            <p className="text-xs text-slate-600">
+              I confirm meals served, learner present counts, and kitchen
+              receipts for this period are true and complete. The claim will be
+              emailed to the Department of Basic Education and cannot be paid
+              until a DBE officer approves it with their official email.
+            </p>
+            <label className="flex items-start gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={declaration}
+                onChange={(e) => setDeclaration(e.target.checked)}
+              />
+              <span>I accept this declaration on behalf of the school</span>
+            </label>
+            <label className="block text-xs font-semibold text-slate-600">
+              Principal / claim officer full name
+              <input
+                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                value={declarationName}
+                onChange={(e) => setDeclarationName(e.target.value)}
+                placeholder="Full name"
+              />
+            </label>
+          </div>
+
           <button
             type="button"
             onClick={() => void submit()}
-            disabled={pack.submit_ready === false}
+            disabled={
+              pack.submit_ready === false ||
+              !declaration ||
+              declarationName.trim().length < 2
+            }
             className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center gap-2 mb-8 disabled:opacity-40"
           >
-            <FileText className="w-4 h-4" /> Submit claim pack to agency
+            <FileText className="w-4 h-4" /> Submit claim pack to DBE
           </button>
 
           {history.length > 0 ? (

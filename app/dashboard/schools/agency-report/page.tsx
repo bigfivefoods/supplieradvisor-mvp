@@ -223,6 +223,21 @@ function Inner() {
     claimId: number,
     status: 'approved' | 'rejected' | 'paid'
   ) => {
+    const email = window.prompt(
+      'Confirm with your official DBE email (must match department contact email on file):'
+    );
+    if (!email || !email.includes('@')) {
+      toast.error('DBE email is required to approve or reject a claim');
+      return;
+    }
+    let notes: string | null = null;
+    if (status === 'rejected') {
+      notes = window.prompt('Rejection reason (required):');
+      if (!notes?.trim()) {
+        toast.error('Rejection reason is required');
+        return;
+      }
+    }
     try {
       const res = await fetch('/api/schools/agency', {
         method: 'POST',
@@ -232,11 +247,13 @@ function Inner() {
           action: 'review_claim',
           claim_id: claimId,
           status,
+          approver_email: email.trim(),
+          notes,
         }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Review failed');
-      toast.success(`Claim ${status}`);
+      toast.success(json.message || `Claim ${status}`);
       void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed');

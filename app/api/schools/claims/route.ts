@@ -15,6 +15,11 @@ import {
   CLAIM_APPROVED_MIN_PCT,
   SCHOOL_APPROVED_INCENTIVE_COPY,
 } from '@/lib/schools/incentives';
+import {
+  claimReviewUrl,
+  generateClaimApprovalToken,
+  sendDbeClaimSubmittedEmail,
+} from '@/lib/schools/claim-dbe-email';
 
 /**
  * W2 claim / funding pack: cost per meal, days fed, claim CSV payload.
@@ -310,8 +315,23 @@ export async function POST(request: NextRequest) {
         {
           error:
             String(pack.submit_block_reason) ||
-            'Claim not ready — need active DBE/PEU association and at least one feeding day with meals served',
+            'Claim not ready — need active DBE association and at least one feeding day with meals served',
           pack,
+        },
+        { status: 400 }
+      );
+    }
+
+    // Strong control: principal / school declaration required before submit
+    const declared = body.declaration === true || body.school_declaration === true;
+    const declarationName = String(
+      body.declaration_name || body.principal_name || ''
+    ).trim();
+    if (!declared || declarationName.length < 2) {
+      return NextResponse.json(
+        {
+          error:
+            'Confirm the school declaration and type the principal / claim officer full name before submitting to DBE.',
         },
         { status: 400 }
       );
@@ -320,44 +340,198 @@ export async function POST(request: NextRequest) {
     const catalogue = await resolveCatalogueContext(supabase, companyId, {
       schoolProfileId: Number(school.id),
     });
+    if (!catalogue.agencyProfileId) {
+      return NextResponse.json(
+        { error: 'No DBE agency linked — cannot submit claim' },
+        { status: 400 }
+      );
+    }
+
+    // Load DBE contact email (required for strong approval)
+    const { data: agencyRow } = await supabase
+      .from('nsnp_agency_profiles')
+      .select('agency_name, contact_email, profile_id')
+      .eq('profile_id', catalogue.agencyProfileId)
+      .maybeSingle();
+    const dbeEmail = agencyRow?.contact_email
+      ? String(agencyRow.contact_email).trim()
+      : '';
+    if (!dbeEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(dbeEmail)) {
+      return NextResponse.json(
+        {
+          error:
+            'DBE contact email is not set. The department must record an official email on Schools → DBE desk before claims can be submitted for approval.',
+        },
+        { status: 400 }
+      );
+    }
+
+    const now = new Date().toISOString();
+    const approvalToken = generateClaimApprovalToken();
+    const expires = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
 
     const auditEntry = {
-      at: new Date().toISOString(),
+      at: now,
       by: gate.userId || null,
       action: 'submitted',
-      note: 'School submitted claim pack',
+      note: `School submitted claim pack. Declaration by ${declarationName}. Awaiting DBE email approval (${dbeEmail}).`,
     };
 
-    const { data, error: iErr } = await supabase
-      .from('nsnp_claim_packs')
-      .insert({
-        school_profile_id: school.id,
-        profile_id: companyId,
-        agency_profile_id: catalogue.agencyProfileId,
-        period_from: (pack.period as { from: string }).from,
-        period_to: (pack.period as { to: string }).to,
-        school_days: pack.school_days,
-        days_fed: pack.days_fed,
-        meals_served: pack.meals_served,
-        learners_avg_present: pack.learners_avg_present,
-        food_spend: pack.food_spend,
-        cost_per_meal: pack.cost_per_meal,
-        claim_amount: pack.claim_amount,
-        nutrition_pass_pct: pack.nutrition_pass_pct,
-        approved_brand_pct: pack.approved_brand_pct,
-        status: body.status || 'submitted',
-        pack_json: pack,
-        tariff_zar: pack.claim_tariff_zar,
-        audit_log: [auditEntry],
-        created_by: gate.userId || null,
-      })
-      .select('*')
-      .single();
+    const insertRow: Record<string, unknown> = {
+      school_profile_id: school.id,
+      profile_id: companyId,
+      agency_profile_id: catalogue.agencyProfileId,
+      period_from: (pack.period as { from: string }).from,
+      period_to: (pack.period as { to: string }).to,
+      school_days: pack.school_days,
+      days_fed: pack.days_fed,
+      meals_served: pack.meals_served,
+      learners_avg_present: pack.learners_avg_present,
+      food_spend: pack.food_spend,
+      cost_per_meal: pack.cost_per_meal,
+      claim_amount: pack.claim_amount,
+      nutrition_pass_pct: pack.nutrition_pass_pct,
+      approved_brand_pct: pack.approved_brand_pct,
+      status: 'submitted',
+      pack_json: {
+        ...pack,
+        school_declaration_name: declarationName,
+        submitted_at: now,
+      },
+      tariff_zar: pack.claim_tariff_zar,
+      audit_log: [auditEntry],
+      created_by: gate.userId || null,
+      approval_token: approvalToken,
+      approval_token_expires_at: expires,
+      dbe_notified_email: dbeEmail,
+      school_declaration: true,
+      school_declaration_name: declarationName,
+      school_declaration_at: now,
+    };
 
-    if (iErr) {
-      return NextResponse.json({ error: iErr.message }, { status: 400 });
+    let data: Record<string, unknown> | null = null;
+    let iErr: { message: string } | null = null;
+    {
+      const res = await supabase
+        .from('nsnp_claim_packs')
+        .insert(insertRow)
+        .select('*')
+        .single();
+      data = res.data as Record<string, unknown> | null;
+      iErr = res.error;
     }
-    return NextResponse.json({ success: true, claim: data, pack });
+
+    // Fallback if new claim columns not migrated yet
+    if (iErr && /column|schema cache|does not exist/i.test(iErr.message)) {
+      const retry = await supabase
+        .from('nsnp_claim_packs')
+        .insert({
+          school_profile_id: school.id,
+          profile_id: companyId,
+          agency_profile_id: catalogue.agencyProfileId,
+          period_from: (pack.period as { from: string }).from,
+          period_to: (pack.period as { to: string }).to,
+          school_days: pack.school_days,
+          days_fed: pack.days_fed,
+          meals_served: pack.meals_served,
+          learners_avg_present: pack.learners_avg_present,
+          food_spend: pack.food_spend,
+          cost_per_meal: pack.cost_per_meal,
+          claim_amount: pack.claim_amount,
+          nutrition_pass_pct: pack.nutrition_pass_pct,
+          approved_brand_pct: pack.approved_brand_pct,
+          status: 'submitted',
+          pack_json: {
+            ...pack,
+            school_declaration_name: declarationName,
+            approval_token: approvalToken,
+          },
+          tariff_zar: pack.claim_tariff_zar,
+          audit_log: [auditEntry],
+          created_by: gate.userId || null,
+        })
+        .select('*')
+        .single();
+      data = retry.data as Record<string, unknown> | null;
+      iErr = retry.error;
+    }
+
+    if (iErr || !data) {
+      return NextResponse.json(
+        { error: iErr?.message || 'Insert failed' },
+        { status: 400 }
+      );
+    }
+
+    const origin =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      process.env.APP_URL ||
+      request.nextUrl.origin ||
+      'https://www.supplieradvisor.com';
+    const token = String(
+      data.approval_token ||
+        (data.pack_json as { approval_token?: string } | null)?.approval_token ||
+        approvalToken
+    );
+    const reviewUrl = claimReviewUrl({ origin, token });
+    const approveUrl = claimReviewUrl({
+      origin,
+      token,
+      action: 'approve',
+    });
+    const rejectUrl = claimReviewUrl({ origin, token, action: 'reject' });
+
+    const emailResult = await sendDbeClaimSubmittedEmail({
+      to: dbeEmail,
+      agencyName: String(agencyRow?.agency_name || catalogue.agencyName || 'DBE'),
+      pack: {
+        id: Number(data.id),
+        school_name: String(school.school_name || `School ${school.id}`),
+        emis:
+          (school as { emis_number?: string; natemis?: string }).emis_number ||
+          (school as { natemis?: string }).natemis ||
+          null,
+        district: school.district != null ? String(school.district) : null,
+        province: school.province != null ? String(school.province) : null,
+        period_from: String((pack.period as { from: string }).from),
+        period_to: String((pack.period as { to: string }).to),
+        meals_served: Number(pack.meals_served || 0),
+        days_fed: Number(pack.days_fed || 0),
+        claim_amount: Number(pack.claim_amount || 0),
+        approved_brand_pct:
+          pack.approved_brand_pct != null
+            ? Number(pack.approved_brand_pct)
+            : null,
+        tariff_zar:
+          pack.claim_tariff_zar != null ? Number(pack.claim_tariff_zar) : null,
+      },
+      approveUrl,
+      rejectUrl,
+      reviewUrl,
+    });
+
+    if (emailResult.ok) {
+      try {
+        await supabase
+          .from('nsnp_claim_packs')
+          .update({ dbe_notified_at: now, dbe_notified_email: dbeEmail })
+          .eq('id', Number(data.id));
+      } catch {
+        /* soft */
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      claim: data,
+      pack,
+      dbe_notified: emailResult.ok,
+      dbe_email: dbeEmail,
+      dbe_email_error: emailResult.ok ? null : emailResult.error,
+      message: emailResult.ok
+        ? `Claim submitted. DBE notified at ${dbeEmail} — claim stays pending until DBE email approval.`
+        : `Claim submitted but email to DBE failed (${emailResult.error}). DBE can still approve in Claims inbox.`,
+    });
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },
