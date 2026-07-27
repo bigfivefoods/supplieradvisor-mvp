@@ -41,7 +41,7 @@ export default function ModuleProcessBar({ onOpenMobileMenu }: Props) {
   const isSchoolsLife = life?.id === 'schools';
   const isHealthLife = life?.id === 'health';
 
-  const roleSteps =
+  const roleStepsRaw =
     life && isSchoolsLife
       ? life.steps.filter((s) =>
           stepVisibleForRole(
@@ -57,6 +57,11 @@ export default function ModuleProcessBar({ onOpenMobileMenu }: Props) {
             )
           )
         : life?.steps || [];
+
+  // Top rail: primary steps only (sidebar still shows full set including rail:false)
+  const roleSteps = roleStepsRaw.filter(
+    (s) => (s as { rail?: boolean }).rail !== false
+  );
 
   let activeHref: string | null = null;
   if (life && roleSteps.length) {

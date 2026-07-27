@@ -42,6 +42,11 @@ export type ModuleNavItem = {
    * Schools NSNP: "DBE" | "School" | "SP" (render order = first appearance).
    */
   group?: string;
+  /**
+   * When false, step appears in sidebar only (not the top process rail).
+   * Use for secondary report deep-links so the rail stays scannable.
+   */
+  rail?: boolean;
 };
 
 export type ModuleNav = {
@@ -415,16 +420,24 @@ export const MODULE_NAV: readonly ModuleNav[] = [
      */
     steps: [
       // ── Department tool (DBE / PEU only) ─────────────────────────────
+      // Govern
+      {
+        name: 'Command',
+        href: '/dashboard/schools',
+        exact: true,
+        desc: 'DBE programme home · KPIs & next actions',
+        group: 'DBE',
+      },
       {
         name: 'Desk',
         href: '/dashboard/schools/agency',
-        desc: 'Register DBE / PEU profile',
+        desc: 'Register DBE · tariffs · school associations',
         group: 'DBE',
       },
       {
         name: 'Join & add',
         href: '/dashboard/schools/join',
-        desc: 'Add schools & SPs · approve join requests',
+        desc: 'Create / add schools & SPs · approve joins',
         group: 'DBE',
       },
       {
@@ -433,17 +446,25 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         desc: 'Bulk xlsx/csv — district, CMC, NATEMIS, NSNP enrol',
         group: 'DBE',
       },
+      // Reports
       {
         name: 'School register',
         href: '/dashboard/schools/registry-report',
-        desc: 'Schools, districts, municipalities & learner enrolments',
+        desc: 'All schools · geo · enrolments · CSV export',
+        group: 'DBE',
+      },
+      {
+        name: 'Reports',
+        href: '/dashboard/schools/agency-report',
+        desc: 'Programme overview · multi-school pack',
         group: 'DBE',
       },
       {
         name: 'Hierarchy',
         href: '/dashboard/schools/agency-report?report=hierarchy',
-        desc: 'DBE → SPs → schools',
+        desc: 'DBE → SPs → schools tree',
         group: 'DBE',
+        rail: false,
       },
       {
         name: 'Coverage',
@@ -451,6 +472,75 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         desc: 'Schools & SPs by province / district',
         group: 'DBE',
       },
+      {
+        name: 'By province',
+        href: '/dashboard/schools/agency-report?report=province',
+        desc: 'School & learner roll-up by province',
+        group: 'DBE',
+        rail: false,
+      },
+      {
+        name: 'By district',
+        href: '/dashboard/schools/agency-report?report=district',
+        desc: 'School & learner roll-up by district',
+        group: 'DBE',
+        rail: false,
+      },
+      {
+        name: 'By circuit',
+        href: '/dashboard/schools/agency-report?report=circuit',
+        desc: 'Schools by circuit / CMC',
+        group: 'DBE',
+        rail: false,
+      },
+      {
+        name: 'By quintile',
+        href: '/dashboard/schools/agency-report?report=quintile',
+        desc: 'Equity view Q1–Q5',
+        group: 'DBE',
+        rail: false,
+      },
+      {
+        name: 'Claims inbox',
+        href: '/dashboard/schools/agency-report?report=claims',
+        desc: 'Approve claims (DBE email required)',
+        group: 'DBE',
+      },
+      {
+        name: 'Feeding report',
+        href: '/dashboard/schools/agency-report?report=feeding',
+        desc: 'Meals served · waste trend',
+        group: 'DBE',
+        rail: false,
+      },
+      {
+        name: 'Risks',
+        href: '/dashboard/schools/agency-report?report=risks',
+        desc: 'Low verify · off-catalogue · no feeding',
+        group: 'DBE',
+        rail: false,
+      },
+      {
+        name: 'Prize board',
+        href: '/dashboard/schools/agency-report?report=prizes',
+        desc: 'Programme prize leaderboard',
+        group: 'DBE',
+        rail: false,
+      },
+      {
+        name: 'Analytics',
+        href: '/dashboard/schools/report',
+        desc: 'Slice NSNP performance analytics',
+        group: 'DBE',
+        rail: false,
+      },
+      {
+        name: 'Map',
+        href: '/dashboard/schools/map',
+        desc: 'School locations & coverage map',
+        group: 'DBE',
+      },
+      // Programme rules
       {
         name: 'Catalogue',
         href: '/dashboard/schools/approved-list',
@@ -460,37 +550,27 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       {
         name: 'Menu',
         href: '/dashboard/schools/menu',
-        desc: 'Set weekly cycle schools & SPs must follow',
-        group: 'DBE',
-      },
-      {
-        name: 'Programme',
-        href: '/dashboard/schools/agency-report',
-        desc: 'Multi-school pack · claims inbox',
-        group: 'DBE',
-      },
-      {
-        name: 'Claims',
-        href: '/dashboard/schools/agency-report?report=claims',
-        desc: 'Review school claim packs',
-        group: 'DBE',
-      },
-      {
-        name: 'SPs',
-        href: '/dashboard/schools/join',
-        desc: 'Add & approve SPs (and schools)',
-        group: 'DBE',
-      },
-      {
-        name: 'SP SLA',
-        href: '/dashboard/schools/isp-sla',
-        desc: 'Preferred suppliers · on-catalogue scores',
+        desc: 'Set breakfast + lunch cycle schools must follow',
         group: 'DBE',
       },
       {
         name: 'Nutrition',
         href: '/dashboard/schools/nutrition-agency',
         desc: 'Programme nutrition roll-up',
+        group: 'DBE',
+      },
+      // Network & field
+      {
+        name: 'SPs',
+        href: '/dashboard/schools/agency-report?report=isps',
+        desc: 'SP directory & coverage under you',
+        group: 'DBE',
+        rail: false,
+      },
+      {
+        name: 'SP SLA',
+        href: '/dashboard/schools/isp-sla',
+        desc: 'Preferred suppliers · on-catalogue scores',
         group: 'DBE',
       },
       {
@@ -503,12 +583,6 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         name: 'Prizes',
         href: '/dashboard/schools/prizes',
         desc: 'Fair quarterly headmaster prizes',
-        group: 'DBE',
-      },
-      {
-        name: 'Map',
-        href: '/dashboard/schools/map',
-        desc: 'School locations & coverage',
         group: 'DBE',
       },
 
@@ -529,7 +603,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       {
         name: 'Join DBE',
         href: '/dashboard/schools/join',
-        desc: 'One-click request to join DBE / PEU',
+        desc: 'Request to join DBE / PEU',
         group: 'School',
       },
       {
@@ -551,7 +625,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         group: 'School',
       },
       {
-        name: 'Approved',
+        name: 'Approved foods',
         href: '/dashboard/schools/approved-list',
         desc: 'Department foods you may order',
         group: 'School',
@@ -581,9 +655,21 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         group: 'School',
       },
       {
-        name: 'Serve',
+        name: 'Serve day',
         href: '/dashboard/schools/serve-day',
         desc: 'Present → meals → waste',
+        group: 'School',
+      },
+      {
+        name: 'Attendance',
+        href: '/dashboard/schools/attendance',
+        desc: 'Daily learner attendance',
+        group: 'School',
+      },
+      {
+        name: 'Feeding',
+        href: '/dashboard/schools/feeding',
+        desc: 'Feeding day history',
         group: 'School',
       },
       {
@@ -593,9 +679,9 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         group: 'School',
       },
       {
-        name: 'Claim',
+        name: 'Claims',
         href: '/dashboard/schools/claims',
-        desc: 'Tariff × meals funding pack',
+        desc: 'Submit claim pack · awaits DBE email approval',
         group: 'School',
       },
       {
@@ -608,6 +694,12 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         name: 'Prizes',
         href: '/dashboard/schools/prizes',
         desc: 'Headmaster prize score',
+        group: 'School',
+      },
+      {
+        name: 'Compliance',
+        href: '/dashboard/schools/compliance',
+        desc: 'Open compliance events',
         group: 'School',
       },
       {
@@ -628,6 +720,18 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         desc: 'Kitchen & campus facilities',
         group: 'School',
       },
+      {
+        name: 'Map',
+        href: '/dashboard/schools/map',
+        desc: 'School location',
+        group: 'School',
+      },
+      {
+        name: 'Report',
+        href: '/dashboard/schools/report',
+        desc: 'School analytics',
+        group: 'School',
+      },
 
       // ── SP (service provider) tool ───────────────────────────────────
       {
@@ -639,19 +743,13 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       {
         name: 'Profile',
         href: '/dashboard/schools/isps',
-        desc: 'Register SP · join DBE',
+        desc: 'Register SP · manage profile',
         group: 'SP',
       },
       {
         name: 'Join DBE',
         href: '/dashboard/schools/join',
-        desc: 'One-click request to join DBE / PEU',
-        group: 'SP',
-      },
-      {
-        name: 'Deliver',
-        href: '/dashboard/schools/deliveries',
-        desc: 'Dispatch · POD · invoice · OTIF',
+        desc: 'Request association with DBE / PEU',
         group: 'SP',
       },
       {
@@ -667,9 +765,21 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         group: 'SP',
       },
       {
+        name: 'Deliver',
+        href: '/dashboard/schools/deliveries',
+        desc: 'Dispatch · POD · invoice · OTIF',
+        group: 'SP',
+      },
+      {
+        name: 'Orders',
+        href: '/dashboard/schools/orders',
+        desc: 'School POs you fulfil',
+        group: 'SP',
+      },
+      {
         name: 'SLA',
         href: '/dashboard/schools/isp-sla',
-        desc: 'Your preferred / probation score',
+        desc: 'Preferred / probation score',
         group: 'SP',
       },
       {
@@ -844,6 +954,8 @@ export function sidebarModulesFromNav() {
       href: s.href,
       exact: Boolean(s.exact),
       group: s.group,
+      rail: s.rail !== false,
+      desc: s.desc,
     })),
   }));
 }
@@ -877,7 +989,7 @@ export function lifecyclesFromNav(): Array<{
   id: string;
   prefixes: string[];
   title: string;
-  steps: Array<ProcessStep & { group?: string }>;
+  steps: Array<ProcessStep & { group?: string; rail?: boolean }>;
 }> {
   return MODULE_NAV.filter((m) => m.id !== 'home' && m.steps.length > 0).map((m) => ({
     id: m.id,
@@ -889,6 +1001,7 @@ export function lifecyclesFromNav(): Array<{
       exact: s.exact,
       desc: s.desc,
       group: s.group,
+      rail: s.rail !== false,
     })),
   }));
 }

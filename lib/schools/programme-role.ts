@@ -75,7 +75,7 @@ export function infoForProgrammeRole(role: ProgrammeRole): ProgrammeRoleInfo {
       role: 'department',
       group: 'DBE',
       label: 'Department (DBE / PEU)',
-      homePath: '/dashboard/schools/agency',
+      homePath: '/dashboard/schools',
     };
   }
   if (role === 'sp') {
@@ -83,7 +83,7 @@ export function infoForProgrammeRole(role: ProgrammeRole): ProgrammeRoleInfo {
       role: 'sp',
       group: 'SP',
       label: 'Service Provider',
-      homePath: '/dashboard/schools/deliveries',
+      homePath: '/dashboard/schools/isp',
     };
   }
   return {
