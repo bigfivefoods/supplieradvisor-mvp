@@ -5,7 +5,12 @@
  * municipality ward number, level, NATEMIS, NSNP Applic. Enrol. 26-27,
  * Final EMIS Enrol:2026, Final NSNP Approved Enrol. 26-27
  */
-import * as XLSX from 'xlsx';
+
+// Lazy-load so Next/webpack does not break the route when bundling xlsx
+function loadXlsx(): typeof import('xlsx') {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  return require('xlsx') as typeof import('xlsx');
+}
 
 export type SchoolRegistryRow = {
   school_name: string;
@@ -153,12 +158,29 @@ export function parseSchoolRegistryBuffer(
   buf: ArrayBuffer | Buffer,
   opts?: { sheetName?: string; provinceDefault?: string }
 ): RegistryParseResult {
+  const XLSX = loadXlsx();
   const wb = XLSX.read(buf, { type: 'buffer', cellDates: false });
+  if (!wb.SheetNames?.length) {
+    return {
+      rows: [],
+      headers: [],
+      errors: [{ row: 0, message: 'Workbook has no sheets' }],
+      sheetName: '',
+    };
+  }
   const sheetName =
     opts?.sheetName && wb.SheetNames.includes(opts.sheetName)
       ? opts.sheetName
       : wb.SheetNames[0];
   const sheet = wb.Sheets[sheetName];
+  if (!sheet) {
+    return {
+      rows: [],
+      headers: [],
+      errors: [{ row: 0, message: `Sheet “${sheetName}” not found` }],
+      sheetName,
+    };
+  }
   const grid = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
     header: 1,
     defval: '',
@@ -268,7 +290,25 @@ export function parseSchoolRegistryCsv(
   opts?: { provinceDefault?: string }
 ): RegistryParseResult {
   // Convert CSV to workbook buffer via sheetjs
-  const wb = XLSX.read(text, { type: 'string' });
-  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
-  return parseSchoolRegistryBuffer(buf, opts);
+  try {
+    const XLSX = loadXlsx();
+    const wb = XLSX.read(text, { type: 'string' });
+    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+    return parseSchoolRegistryBuffer(buf, opts);
+  } catch (e: unknown) {
+    return {
+      rows: [],
+      headers: [],
+      errors: [
+        {
+          row: 0,
+          message:
+            e instanceof Error
+              ? `CSV parse failed: ${e.message}`
+              : 'CSV parse failed',
+        },
+      ],
+      sheetName: 'csv',
+    };
+  }
 }

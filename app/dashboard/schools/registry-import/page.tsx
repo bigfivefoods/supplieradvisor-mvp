@@ -43,13 +43,35 @@ function Inner() {
   const [result, setResult] = useState<Record<string, unknown> | null>(null);
   const [stats, setStats] = useState<Record<string, unknown> | null>(null);
 
+  const readJson = async (res: Response) => {
+    const text = await res.text();
+    if (!text) {
+      throw new Error(
+        res.ok
+          ? 'Empty response from server'
+          : `Server error ${res.status} (empty body)`
+      );
+    }
+    try {
+      return JSON.parse(text) as Record<string, unknown>;
+    } catch {
+      // Server returned HTML/plain text e.g. "An error occurred"
+      const snippet = text.replace(/\s+/g, ' ').slice(0, 180);
+      throw new Error(
+        res.ok
+          ? `Invalid server response: ${snippet}`
+          : `Server error ${res.status}: ${snippet}`
+      );
+    }
+  };
+
   const loadStats = useCallback(async () => {
     try {
       const res = await fetch(
         `/api/schools/registry-import?companyId=${companyId}`,
         { cache: 'no-store' }
       );
-      const data = await res.json();
+      const data = await readJson(res);
       if (res.ok) setStats(data);
     } catch {
       /* soft */
@@ -79,8 +101,10 @@ function Inner() {
         method: 'POST',
         body: fd,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Import failed');
+      const data = await readJson(res);
+      if (!res.ok) {
+        throw new Error(String(data.error || `Import failed (${res.status})`));
+      }
       if (dryRun) {
         setPreview(data);
         toast.success(
@@ -88,7 +112,7 @@ function Inner() {
         );
       } else {
         setResult(data);
-        toast.success(data.message || 'Import complete');
+        toast.success(String(data.message || 'Import complete'));
         void loadStats();
       }
     } catch (e: unknown) {

@@ -31,49 +31,117 @@ export async function POST(request: NextRequest) {
     let parseResult: ReturnType<typeof parseSchoolRegistryBuffer>;
 
     if (ct.includes('multipart/form-data')) {
-      const form = await request.formData();
+      let form: FormData;
+      try {
+        form = await request.formData();
+      } catch (e: unknown) {
+        return NextResponse.json(
+          {
+            error:
+              e instanceof Error
+                ? `Could not read upload (${e.message}). Try a smaller file or export CSV.`
+                : 'Could not read upload. Try CSV instead of xlsx.',
+          },
+          { status: 400 }
+        );
+      }
       companyId = Number(form.get('companyId'));
       province = String(form.get('province') || province);
-      dryRun = String(form.get('dryRun') || '') === '1' || form.get('dryRun') === 'true';
+      dryRun =
+        String(form.get('dryRun') || '') === '1' ||
+        form.get('dryRun') === 'true';
       createWorkspaces =
         String(form.get('create_workspaces') || '') === '1' ||
         form.get('create_workspaces') === 'true';
       const ls = String(form.get('link_status') || 'active');
       linkStatus = ls === 'pending' ? 'pending' : 'active';
       const file = form.get('file');
-      if (!(file instanceof File)) {
+      if (!(file instanceof Blob)) {
         return NextResponse.json({ error: 'file required' }, { status: 400 });
       }
-      const buf = Buffer.from(await file.arrayBuffer());
-      const name = file.name.toLowerCase();
-      if (name.endsWith('.csv') || name.endsWith('.txt')) {
-        parseResult = parseSchoolRegistryCsv(buf.toString('utf8'), {
-          provinceDefault: province,
-        });
-      } else {
-        parseResult = parseSchoolRegistryBuffer(buf, {
-          provinceDefault: province,
-        });
+      const fileName =
+        file instanceof File ? file.name.toLowerCase() : 'upload.xlsx';
+      const ab = await file.arrayBuffer();
+      if (!ab.byteLength) {
+        return NextResponse.json(
+          { error: 'Uploaded file is empty' },
+          { status: 400 }
+        );
+      }
+      // Soft limit ~12MB to avoid serverless OOM
+      if (ab.byteLength > 12 * 1024 * 1024) {
+        return NextResponse.json(
+          {
+            error:
+              'File too large (max 12MB). Split the sheet or upload as CSV.',
+          },
+          { status: 400 }
+        );
+      }
+      const buf = Buffer.from(ab);
+      try {
+        if (fileName.endsWith('.csv') || fileName.endsWith('.txt')) {
+          parseResult = parseSchoolRegistryCsv(buf.toString('utf8'), {
+            provinceDefault: province,
+          });
+        } else {
+          parseResult = parseSchoolRegistryBuffer(buf, {
+            provinceDefault: province,
+          });
+        }
+      } catch (e: unknown) {
+        return NextResponse.json(
+          {
+            error:
+              e instanceof Error
+                ? `Failed to parse spreadsheet: ${e.message}`
+                : 'Failed to parse spreadsheet. Save as CSV and try again.',
+          },
+          { status: 400 }
+        );
       }
     } else {
-      const body = await request.json();
+      let body: Record<string, unknown>;
+      try {
+        body = await request.json();
+      } catch {
+        return NextResponse.json(
+          {
+            error:
+              'Invalid request body. Use multipart file upload or JSON with csvText/base64.',
+          },
+          { status: 400 }
+        );
+      }
       companyId = Number(body.companyId);
       province = String(body.province || province);
       dryRun = Boolean(body.dryRun);
       createWorkspaces = Boolean(body.create_workspaces);
       linkStatus = body.link_status === 'pending' ? 'pending' : 'active';
-      if (body.csvText) {
-        parseResult = parseSchoolRegistryCsv(String(body.csvText), {
-          provinceDefault: province,
-        });
-      } else if (body.base64) {
-        const buf = Buffer.from(String(body.base64), 'base64');
-        parseResult = parseSchoolRegistryBuffer(buf, {
-          provinceDefault: province,
-        });
-      } else {
+      try {
+        if (body.csvText) {
+          parseResult = parseSchoolRegistryCsv(String(body.csvText), {
+            provinceDefault: province,
+          });
+        } else if (body.base64) {
+          const buf = Buffer.from(String(body.base64), 'base64');
+          parseResult = parseSchoolRegistryBuffer(buf, {
+            provinceDefault: province,
+          });
+        } else {
+          return NextResponse.json(
+            { error: 'file, csvText, or base64 required' },
+            { status: 400 }
+          );
+        }
+      } catch (e: unknown) {
         return NextResponse.json(
-          { error: 'file, csvText, or base64 required' },
+          {
+            error:
+              e instanceof Error
+                ? `Failed to parse spreadsheet: ${e.message}`
+                : 'Failed to parse spreadsheet',
+          },
           { status: 400 }
         );
       }
@@ -204,8 +272,21 @@ export async function POST(request: NextRequest) {
       message: `Imported ${inserted + updated} schools (${inserted} new, ${updated} updated), linked ${linked} to your department.`,
     });
   } catch (e: unknown) {
+    console.error('[registry-import]', e);
+    const msg =
+      e instanceof Error
+        ? e.message
+        : typeof e === 'string'
+          ? e
+          : 'Import failed';
+    // Always JSON so the browser never hits "Unexpected token"
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : 'Import failed' },
+      {
+        error: msg.startsWith('An error')
+          ? `${msg} — if this is a large xlsx, try Preview first or export CSV.`
+          : msg,
+        success: false,
+      },
       { status: 500 }
     );
   }
