@@ -457,7 +457,9 @@ async function fetchSchoolProfiles(
       }
       throw new Error(error.message);
     }
-    all.push(...((data || []) as Array<Record<string, unknown>>));
+    // Dynamic select string → client types as GenericStringError[]; cast via unknown.
+    const rows = (data || []) as unknown as Array<Record<string, unknown>>;
+    all.push(...rows);
   }
   return all;
 }
