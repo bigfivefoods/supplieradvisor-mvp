@@ -9,9 +9,12 @@ import { familyForAgencyType } from '@/lib/entities/programme-hierarchy';
 import {
   parseSpRegistryBuffer,
   parseSpRegistryCsv,
+  buildSpRegistryTemplateXlsx,
   SP_REGISTRY_BATCH_SIZE,
   type SpRegistryRow,
+  type SpTemplateRow,
 } from '@/lib/schools/sp-registry-import';
+import { fetchAllPaged } from '@/lib/schools/supabase-page';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -210,7 +213,111 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const companyId = Number(request.nextUrl.searchParams.get('companyId'));
+    const sp = request.nextUrl.searchParams;
+
+    // Blank or populated .xlsx template (no auth required for blank; export needs company)
+    if (sp.get('template') === '1') {
+      const exportExisting = sp.get('export') === '1';
+      const companyId = Number(sp.get('companyId'));
+
+      if (exportExisting) {
+        if (!Number.isFinite(companyId)) {
+          return NextResponse.json(
+            { error: 'companyId required for export', success: false },
+            { status: 400 }
+          );
+        }
+        const gate = await requireCompanyAccess(request, companyId, {
+          legacyPrivyUserId: legacyPrivyFrom(request),
+        });
+        if (!gate.ok) return gate.response;
+
+        const supabase = getSupabaseServer();
+        const agency = await getAgencyRegistration(supabase, companyId);
+        if (!agency) {
+          return NextResponse.json(
+            { error: 'Department only', success: false },
+            { status: 403 }
+          );
+        }
+
+        const links = await fetchAllPaged(
+          supabase,
+          'nsnp_isp_agency_links',
+          'isp_profile_id, status',
+          (q) => q.eq('agency_profile_id', companyId)
+        );
+
+        const ispIds = [
+          ...new Set(
+            (links || [])
+              .map((l) => Number(l.isp_profile_id))
+              .filter((n) => Number.isFinite(n))
+          ),
+        ];
+
+        const rows: SpTemplateRow[] = [];
+        if (ispIds.length) {
+          // Chunk .in() lookups
+          const chunk = 200;
+          for (let i = 0; i < ispIds.length; i += chunk) {
+            const slice = ispIds.slice(i, i + chunk);
+            const { data } = await supabase
+              .from('nsnp_isp_profiles')
+              .select(
+                'profile_id, trading_name, district, cluster_allocation, csd_number'
+              )
+              .in('profile_id', slice);
+            for (const r of data || []) {
+              rows.push({
+                name: String(r.trading_name || '').trim() || `SP ${r.profile_id}`,
+                district: r.district ? String(r.district) : null,
+                cluster_allocation: r.cluster_allocation
+                  ? String(r.cluster_allocation)
+                  : null,
+                csd_number: r.csd_number ? String(r.csd_number) : null,
+              });
+            }
+          }
+          rows.sort((a, b) =>
+            a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+          );
+        }
+
+        const buf = buildSpRegistryTemplateXlsx(rows, {
+          includeExamples: false,
+        });
+        const filename =
+          rows.length > 0
+            ? `NSNP_Service_Providers_Export_${rows.length}.xlsx`
+            : 'NSNP_Service_Providers_Import_Template.xlsx';
+
+        return new NextResponse(new Uint8Array(buf), {
+          headers: {
+            'Content-Type':
+              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition': `attachment; filename="${filename}"`,
+            'Cache-Control': 'no-store',
+          },
+        });
+      }
+
+      // Blank template with example rows
+      const buf = buildSpRegistryTemplateXlsx(undefined, {
+        includeExamples: true,
+      });
+      return new NextResponse(new Uint8Array(buf), {
+        headers: {
+          'Content-Type':
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'Content-Disposition':
+            'attachment; filename="NSNP_Service_Providers_Import_Template.xlsx"',
+          'Cache-Control': 'public, max-age=3600',
+        },
+      });
+    }
+
+    const companyId = Number(sp.get('companyId'));
     if (!Number.isFinite(companyId)) {
       return NextResponse.json(
         { error: 'companyId required', success: false },
@@ -258,7 +365,9 @@ export async function GET(request: NextRequest) {
         'Name of Service Provider',
         'CSD Number',
       ],
-      tip: 'Parse in browser, import in batches of 25. Upserts by CSD number; links SPs to your DBE as active.',
+      template_url: '/api/schools/sp-registry-import?template=1',
+      export_url: `/api/schools/sp-registry-import?template=1&export=1&companyId=${companyId}`,
+      tip: 'Download the .xlsx template, update rows, then Preview → Import. Upserts by CSD number.',
     });
   } catch (e: unknown) {
     return NextResponse.json(

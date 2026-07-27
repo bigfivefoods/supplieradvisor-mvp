@@ -281,3 +281,100 @@ export async function parseSpRegistryFile(
 
 /** Keep small under Vercel timeout. */
 export const SP_REGISTRY_BATCH_SIZE = 25;
+
+/** Canonical headers for the downloadable SP import template (must match parser). */
+export const SP_REGISTRY_TEMPLATE_HEADERS = [
+  'DISTRICT',
+  'CLUSTER ALLOCATION',
+  'NAME OF SERVICE PROVIDER',
+  'CSD NUMBER',
+] as const;
+
+export type SpTemplateRow = {
+  district?: string | null;
+  cluster_allocation?: string | null;
+  name: string;
+  csd_number?: string | null;
+};
+
+/**
+ * Build an .xlsx workbook buffer for the SP registry template.
+ * Include example rows when `rows` is empty so users see the expected shape.
+ */
+export function buildSpRegistryTemplateXlsx(
+  rows?: SpTemplateRow[],
+  opts?: { includeExamples?: boolean; sheetName?: string }
+): Buffer {
+  const XLSX = loadXlsx();
+  const headers = [...SP_REGISTRY_TEMPLATE_HEADERS];
+  const dataRows: string[][] = [];
+
+  if (rows?.length) {
+    for (const r of rows) {
+      dataRows.push([
+        String(r.district || ''),
+        String(r.cluster_allocation || ''),
+        String(r.name || ''),
+        String(r.csd_number || ''),
+      ]);
+    }
+  } else if (opts?.includeExamples !== false) {
+    dataRows.push(
+      [
+        'uMgungundlovu',
+        'Cluster A',
+        'Example Fresh Foods (Pty) Ltd',
+        'MAAA0000000',
+      ],
+      [
+        'eThekwini',
+        'Cluster B',
+        'Example School Meals CC',
+        'MAAA0000001',
+      ]
+    );
+  }
+
+  const aoa: string[][] = [headers, ...dataRows];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+  // Comfortable column widths for Excel
+  ws['!cols'] = [
+    { wch: 22 },
+    { wch: 20 },
+    { wch: 40 },
+    { wch: 16 },
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(
+    wb,
+    ws,
+    opts?.sheetName || 'Service Providers'
+  );
+
+  // Instructions sheet
+  const help = XLSX.utils.aoa_to_sheet([
+    ['NSNP Service Provider import template'],
+    [''],
+    ['How to use'],
+    ['1. Keep the header row on the "Service Providers" sheet exactly as provided.'],
+    ['2. Fill DISTRICT, CLUSTER ALLOCATION, NAME OF SERVICE PROVIDER, CSD NUMBER.'],
+    ['3. Delete the example rows before import (or leave them if you want test data).'],
+    ['4. Save as .xlsx and upload on Schools → Import SPs.'],
+    ['5. Import upserts by CSD NUMBER when present; name is required on every row.'],
+    [''],
+    ['Column', 'Required', 'Notes'],
+    ['DISTRICT', 'Recommended', 'Education district the SP is allocated to'],
+    ['CLUSTER ALLOCATION', 'Recommended', 'Cluster / allocation for NSNP supply'],
+    ['NAME OF SERVICE PROVIDER', 'Yes', 'Legal or trading name'],
+    ['CSD NUMBER', 'Recommended', 'Central Supplier Database number — used to update existing SPs'],
+    [''],
+    ['Optional: you may add a PROVINCE column; otherwise the province selected on the import page is used.'],
+  ]);
+  help['!cols'] = [{ wch: 28 }, { wch: 14 }, { wch: 56 }];
+  XLSX.utils.book_append_sheet(wb, help, 'Instructions');
+
+  const out = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+  return Buffer.isBuffer(out) ? out : Buffer.from(out as ArrayBuffer);
+}

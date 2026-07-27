@@ -14,6 +14,7 @@ import {
   Truck,
   CheckCircle2,
   AlertTriangle,
+  Download,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -30,6 +31,8 @@ import {
   type SpRegistryRow,
   type SpRegistryParseResult,
 } from '@/lib/schools/sp-registry-import';
+
+const SP_TEMPLATE_URL = '/api/schools/sp-registry-import?template=1';
 
 export default function SpRegistryImportPage() {
   return (
@@ -267,7 +270,23 @@ function Inner() {
         titleAccent="xlsx / csv · batched"
         description="Provincial SP list: district, cluster allocation, name, CSD number. Parsed in your browser and linked to DBE."
         action={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <a
+              href={SP_TEMPLATE_URL}
+              className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1.5"
+              download
+            >
+              <Download className="w-3.5 h-3.5" />
+              Blank template
+            </a>
+            <a
+              href={`/api/schools/sp-registry-import?template=1&export=1&companyId=${companyId}`}
+              className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1.5"
+              download
+            >
+              <Download className="w-3.5 h-3.5" />
+              Export current SPs
+            </a>
             <Link
               href="/dashboard/schools/join"
               className="btn-secondary !py-2 !px-3 text-xs"
@@ -292,10 +311,17 @@ function Inner() {
       />
 
       <div className="mb-4 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-        <strong>How it works:</strong> 1) Choose file → Preview (parses
-        locally). 2) Import in batches of {SP_REGISTRY_BATCH_SIZE} — keep this
-        tab open. Upserts by <strong>CSD number</strong>; SPs are linked to
-        your department as approved when “Active” is selected.
+        <strong>Workflow:</strong> Download the{' '}
+        <a
+          href={SP_TEMPLATE_URL}
+          className="font-bold underline underline-offset-2"
+          download
+        >
+          .xlsx template
+        </a>{' '}
+        (or export your current list), update rows in Excel, then Preview →
+        Import in batches of {SP_REGISTRY_BATCH_SIZE}. Upserts by{' '}
+        <strong>CSD number</strong>; keep the tab open during import.
       </div>
 
       <div className="grid sm:grid-cols-3 gap-3 mb-6">
@@ -328,6 +354,38 @@ function Inner() {
             District · Cluster Allocation · Name of Service Provider · CSD
             Number
           </p>
+        </div>
+      </div>
+
+      <div className="mb-6 rounded-3xl border border-slate-200 bg-white p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h3 className="text-sm font-black flex items-center gap-2">
+            <FileSpreadsheet className="w-4 h-4 text-emerald-700" />
+            Download template (.xlsx)
+          </h3>
+          <p className="text-xs text-slate-600 mt-1 max-w-xl">
+            Columns: District · Cluster Allocation · Name of Service Provider ·
+            CSD Number. Includes an Instructions sheet. Remove example rows
+            before a live import, or use Export to get your current DB list.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2 shrink-0">
+          <a
+            href={SP_TEMPLATE_URL}
+            className="btn-primary !py-2 !px-4 text-sm inline-flex items-center gap-2"
+            download
+          >
+            <Download className="w-4 h-4" />
+            Blank template
+          </a>
+          <a
+            href={`/api/schools/sp-registry-import?template=1&export=1&companyId=${companyId}`}
+            className="btn-secondary !py-2 !px-4 text-sm inline-flex items-center gap-2"
+            download
+          >
+            <Download className="w-4 h-4" />
+            Export current SPs
+          </a>
         </div>
       </div>
 
