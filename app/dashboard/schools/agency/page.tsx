@@ -251,12 +251,20 @@ function Inner() {
         action={
           <div className="flex flex-wrap gap-2">
             {role === 'agency' ? (
-              <Link
-                href="/dashboard/schools/agency-report"
-                className="btn-primary !py-2 !px-3 text-xs inline-flex items-center gap-1"
-              >
-                <BarChart3 className="w-3.5 h-3.5" /> Agency reports
-              </Link>
+              <>
+                <Link
+                  href="/dashboard/schools/registry-report"
+                  className="btn-primary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+                >
+                  <BarChart3 className="w-3.5 h-3.5" /> School register
+                </Link>
+                <Link
+                  href="/dashboard/schools/agency-report"
+                  className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+                >
+                  Programme reports
+                </Link>
+              </>
             ) : null}
             <button
               type="button"

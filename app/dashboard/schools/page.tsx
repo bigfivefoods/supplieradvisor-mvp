@@ -332,6 +332,11 @@ function Inner() {
               desc: 'Checklist scores for approved schools',
             },
             {
+              href: '/dashboard/schools/registry-report',
+              label: 'School register report',
+              desc: 'All schools · districts · municipalities · learners',
+            },
+            {
               href: '/dashboard/schools/agency-report',
               label: 'Multi-school pack',
               desc: 'Heatmaps, risks, nutrition, brand compliance',

@@ -312,10 +312,18 @@ function Inner() {
         }
       />
 
-      <div className="mb-4 rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3 text-sm text-sky-950">
-        <strong>How it works:</strong> 1) Choose file → Preview (parses locally).
-        2) Import runs in batches of {REGISTRY_BATCH_SIZE} — keep this tab open.
-        Avoids Vercel 504 timeouts on large files.
+      <div className="mb-4 rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3 text-sm text-sky-950 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <strong>How it works:</strong> 1) Choose file → Preview (parses locally).
+          2) Import runs in batches of {REGISTRY_BATCH_SIZE} — keep this tab open.
+          Avoids Vercel 504 timeouts on large files.
+        </div>
+        <Link
+          href="/dashboard/schools/registry-report"
+          className="btn-secondary !py-1.5 !px-3 text-xs shrink-0"
+        >
+          Open school register report →
+        </Link>
       </div>
 
       <div className="grid sm:grid-cols-3 gap-3 mb-6">

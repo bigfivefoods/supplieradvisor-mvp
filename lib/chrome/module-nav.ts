@@ -432,6 +432,12 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         group: 'DBE/DoH',
       },
       {
+        name: 'School register',
+        href: '/dashboard/schools/registry-report',
+        desc: 'Schools, districts, municipalities & learner enrolments',
+        group: 'DBE/DoH',
+      },
+      {
         name: 'Hierarchy',
         href: '/dashboard/schools/agency-report?report=hierarchy',
         desc: 'DBE/DoH → SPs → schools / clinics',
