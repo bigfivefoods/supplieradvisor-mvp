@@ -297,14 +297,17 @@ export type SpTemplateRow = {
   csd_number?: string | null;
 };
 
+export const SP_XLSX_MIME =
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
 /**
- * Build an .xlsx workbook buffer for the SP registry template.
+ * Build an .xlsx workbook as Uint8Array (works in Node and browser).
  * Include example rows when `rows` is empty so users see the expected shape.
  */
 export function buildSpRegistryTemplateXlsx(
   rows?: SpTemplateRow[],
   opts?: { includeExamples?: boolean; sheetName?: string }
-): Buffer {
+): Uint8Array {
   const XLSX = loadXlsx();
   const headers = [...SP_REGISTRY_TEMPLATE_HEADERS];
   const dataRows: string[][] = [];
@@ -375,6 +378,40 @@ export function buildSpRegistryTemplateXlsx(
   help['!cols'] = [{ wch: 28 }, { wch: 14 }, { wch: 56 }];
   XLSX.utils.book_append_sheet(wb, help, 'Instructions');
 
-  const out = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
-  return Buffer.isBuffer(out) ? out : Buffer.from(out as ArrayBuffer);
+  // type: 'array' is portable (browser + Node). Avoid Buffer-only APIs on the client.
+  const out = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as
+    | number[]
+    | Uint8Array;
+  return out instanceof Uint8Array ? out : new Uint8Array(out);
+}
+
+/** Trigger a browser download of the blank (or filled) SP template .xlsx. */
+export function downloadSpRegistryTemplateXlsx(
+  rows?: SpTemplateRow[],
+  opts?: {
+    includeExamples?: boolean;
+    filename?: string;
+  }
+): void {
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    throw new Error('downloadSpRegistryTemplateXlsx is browser-only');
+  }
+  const bytes = buildSpRegistryTemplateXlsx(rows, {
+    includeExamples: opts?.includeExamples,
+  });
+  // Copy into a fresh ArrayBuffer-backed Uint8Array so BlobPart typing is happy
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  const blob = new Blob([copy], { type: SP_XLSX_MIME });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download =
+    opts?.filename || 'NSNP_Service_Providers_Import_Template.xlsx';
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  // Revoke after the browser has started the download
+  window.setTimeout(() => URL.revokeObjectURL(url), 2000);
 }

@@ -284,7 +284,7 @@ export async function GET(request: NextRequest) {
           );
         }
 
-        const buf = buildSpRegistryTemplateXlsx(rows, {
+        const bytes = buildSpRegistryTemplateXlsx(rows, {
           includeExamples: false,
         });
         const filename =
@@ -292,27 +292,33 @@ export async function GET(request: NextRequest) {
             ? `NSNP_Service_Providers_Export_${rows.length}.xlsx`
             : 'NSNP_Service_Providers_Import_Template.xlsx';
 
-        return new NextResponse(new Uint8Array(buf), {
+        return new NextResponse(Buffer.from(bytes), {
+          status: 200,
           headers: {
             'Content-Type':
               'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             'Content-Disposition': `attachment; filename="${filename}"`,
             'Cache-Control': 'no-store',
+            'Content-Length': String(bytes.byteLength),
+            'X-Content-Type-Options': 'nosniff',
           },
         });
       }
 
       // Blank template with example rows
-      const buf = buildSpRegistryTemplateXlsx(undefined, {
+      const bytes = buildSpRegistryTemplateXlsx(undefined, {
         includeExamples: true,
       });
-      return new NextResponse(new Uint8Array(buf), {
+      return new NextResponse(Buffer.from(bytes), {
+        status: 200,
         headers: {
           'Content-Type':
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
           'Content-Disposition':
             'attachment; filename="NSNP_Service_Providers_Import_Template.xlsx"',
-          'Cache-Control': 'public, max-age=3600',
+          'Cache-Control': 'no-store',
+          'Content-Length': String(bytes.byteLength),
+          'X-Content-Type-Options': 'nosniff',
         },
       });
     }

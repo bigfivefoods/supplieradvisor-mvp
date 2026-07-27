@@ -27,12 +27,12 @@ import { useProgrammeRole } from '@/lib/schools/useProgrammeRole';
 import { SA_PROVINCES } from '@/lib/schools/types';
 import {
   parseSpRegistryFile,
+  downloadSpRegistryTemplateXlsx,
   SP_REGISTRY_BATCH_SIZE,
+  SP_XLSX_MIME,
   type SpRegistryRow,
   type SpRegistryParseResult,
 } from '@/lib/schools/sp-registry-import';
-
-const SP_TEMPLATE_URL = '/api/schools/sp-registry-import?template=1';
 
 export default function SpRegistryImportPage() {
   return (
@@ -81,7 +81,7 @@ function Inner() {
     try {
       const res = await fetch(
         `/api/schools/sp-registry-import?companyId=${companyId}`,
-        { cache: 'no-store' }
+        { cache: 'no-store', credentials: 'same-origin' }
       );
       const data = await readJson(res);
       if (res.ok) setStats(data);
@@ -93,6 +93,73 @@ function Inner() {
   useEffect(() => {
     if (programme.role === 'department') void loadStats();
   }, [programme.role, loadStats]);
+
+  /** Blank template is generated in-browser so auth/middleware never corrupt the file. */
+  const downloadBlankTemplate = () => {
+    try {
+      downloadSpRegistryTemplateXlsx(undefined, {
+        includeExamples: true,
+        filename: 'NSNP_Service_Providers_Import_Template.xlsx',
+      });
+      toast.success('Template downloaded — open in Excel and fill your SP list');
+    } catch (e: unknown) {
+      toast.error(
+        e instanceof Error ? e.message : 'Could not build template file'
+      );
+    }
+  };
+
+  /** Export current SPs via API → blob (checks content-type so JSON errors are not saved as .xlsx). */
+  const downloadExport = async () => {
+    setBusy(true);
+    try {
+      const res = await fetch(
+        `/api/schools/sp-registry-import?template=1&export=1&companyId=${companyId}`,
+        { cache: 'no-store', credentials: 'same-origin' }
+      );
+      const ct = (res.headers.get('content-type') || '').toLowerCase();
+      if (!res.ok || ct.includes('application/json') || ct.includes('text/')) {
+        let msg = `Export failed (${res.status})`;
+        try {
+          const j = (await res.json()) as { error?: string };
+          if (j.error) msg = j.error;
+        } catch {
+          /* ignore */
+        }
+        throw new Error(msg);
+      }
+      const blob = await res.blob();
+      if (blob.size < 32) {
+        throw new Error('Export file was empty — try again');
+      }
+      // Guard: real xlsx is a zip (PK…)
+      const head = new Uint8Array(await blob.slice(0, 2).arrayBuffer());
+      if (head[0] !== 0x50 || head[1] !== 0x4b) {
+        throw new Error(
+          'Server did not return a valid Excel file. Sign in again and retry.'
+        );
+      }
+      const url = URL.createObjectURL(
+        new Blob([blob], { type: SP_XLSX_MIME })
+      );
+      const a = document.createElement('a');
+      a.href = url;
+      a.download =
+        res.headers
+          .get('content-disposition')
+          ?.match(/filename="([^"]+)"/)?.[1] ||
+        'NSNP_Service_Providers_Export.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 2000);
+      toast.success('Current SPs exported — edit and re-upload when ready');
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Export failed');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const preview = async () => {
     if (!file) {
@@ -271,22 +338,23 @@ function Inner() {
         description="Provincial SP list: district, cluster allocation, name, CSD number. Parsed in your browser and linked to DBE."
         action={
           <div className="flex flex-wrap gap-2">
-            <a
-              href={SP_TEMPLATE_URL}
+            <button
+              type="button"
+              onClick={downloadBlankTemplate}
               className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1.5"
-              download
             >
               <Download className="w-3.5 h-3.5" />
               Blank template
-            </a>
-            <a
-              href={`/api/schools/sp-registry-import?template=1&export=1&companyId=${companyId}`}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void downloadExport()}
               className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1.5"
-              download
             >
               <Download className="w-3.5 h-3.5" />
               Export current SPs
-            </a>
+            </button>
             <Link
               href="/dashboard/schools/join"
               className="btn-secondary !py-2 !px-3 text-xs"
@@ -311,14 +379,14 @@ function Inner() {
       />
 
       <div className="mb-4 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-        <strong>Workflow:</strong> Download the{' '}
-        <a
-          href={SP_TEMPLATE_URL}
+        <strong>Workflow:</strong>{' '}
+        <button
+          type="button"
+          onClick={downloadBlankTemplate}
           className="font-bold underline underline-offset-2"
-          download
         >
-          .xlsx template
-        </a>{' '}
+          Download the .xlsx template
+        </button>{' '}
         (or export your current list), update rows in Excel, then Preview →
         Import in batches of {SP_REGISTRY_BATCH_SIZE}. Upserts by{' '}
         <strong>CSD number</strong>; keep the tab open during import.
@@ -370,22 +438,27 @@ function Inner() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2 shrink-0">
-          <a
-            href={SP_TEMPLATE_URL}
+          <button
+            type="button"
+            onClick={downloadBlankTemplate}
             className="btn-primary !py-2 !px-4 text-sm inline-flex items-center gap-2"
-            download
           >
             <Download className="w-4 h-4" />
             Blank template
-          </a>
-          <a
-            href={`/api/schools/sp-registry-import?template=1&export=1&companyId=${companyId}`}
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void downloadExport()}
             className="btn-secondary !py-2 !px-4 text-sm inline-flex items-center gap-2"
-            download
           >
-            <Download className="w-4 h-4" />
+            {busy ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Download className="w-4 h-4" />
+            )}
             Export current SPs
-          </a>
+          </button>
         </div>
       </div>
 
