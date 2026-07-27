@@ -428,7 +428,7 @@ async function insertRiadLog(
     payload.stakeholder_name || 'Programme'
   ).trim() || 'Programme';
 
-  const full = {
+  const full: Record<string, unknown> = {
     ...payload,
     stakeholder_type: stakeholderType,
     stakeholder_name: stakeholderName,
@@ -448,7 +448,7 @@ async function insertRiadLog(
   }
 
   // Minimal set of columns known to exist on all environments
-  const minimal = {
+  const minimal: Record<string, unknown> = {
     profile_id: full.profile_id,
     title: full.title,
     description: full.description ?? null,
@@ -473,7 +473,7 @@ async function insertRiadLog(
 
   if (retry.error) {
     // Last resort — barest insert that satisfies NOT NULL
-    const bare = {
+    const bare: Record<string, unknown> = {
       profile_id: full.profile_id,
       title: full.title,
       stakeholder_type: stakeholderType,
