@@ -120,7 +120,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // ── SP: my agency associations + directory to join ───────────────
+    // ── SP: my agency associations + school claims + directory to join ─
     if (mode === 'isp' || (mode === 'auto' && myIsp)) {
       const { data: myLinks } = await supabase
         .from('nsnp_isp_agency_links')
@@ -155,17 +155,97 @@ export async function GET(request: NextRequest) {
         province: agencyById[Number(l.agency_profile_id)]?.province,
       }));
 
+      const activeAgencyIds = (myLinks || [])
+        .filter((l) => String(l.status) === 'active')
+        .map((l) => Number(l.agency_profile_id))
+        .filter((n) => Number.isFinite(n) && n > 0);
+
+      // Existing school claims / links for this SP
+      const { data: schoolLinkRows } = await supabase
+        .from('school_isp_links')
+        .select('*')
+        .eq('isp_profile_id', companyId)
+        .order('updated_at', { ascending: false })
+        .limit(300);
+
+      const schoolProfileIds = [
+        ...new Set(
+          (schoolLinkRows || [])
+            .map((l) => Number(l.school_profile_id))
+            .filter(Boolean)
+        ),
+      ];
+      const schoolNameById: Record<
+        number,
+        { school_name: string; emis_number?: string | null; district?: string | null }
+      > = {};
+      if (schoolProfileIds.length) {
+        const chunk = 200;
+        for (let i = 0; i < schoolProfileIds.length; i += chunk) {
+          const slice = schoolProfileIds.slice(i, i + chunk);
+          const { data: schs } = await supabase
+            .from('school_profiles')
+            .select('id, school_name, emis_number, district, province')
+            .in('id', slice);
+          for (const s of schs || []) {
+            schoolNameById[Number(s.id)] = {
+              school_name: String(s.school_name || `School ${s.id}`),
+              emis_number: s.emis_number ? String(s.emis_number) : null,
+              district: s.district ? String(s.district) : null,
+            };
+          }
+        }
+      }
+
+      const mySchoolLinks = (schoolLinkRows || []).map((l) => {
+        const meta = schoolNameById[Number(l.school_profile_id)];
+        return {
+          ...l,
+          school_name: meta?.school_name || `School ${l.school_profile_id}`,
+          emis_number: meta?.emis_number || null,
+          district: meta?.district || null,
+        };
+      });
+
+      // Optional school search for claim directory (q= name or EMIS)
+      const q = String(
+        request.nextUrl.searchParams.get('q') ||
+          request.nextUrl.searchParams.get('search') ||
+          ''
+      )
+        .trim()
+        .slice(0, 80);
+      let claimableSchools: Array<Record<string, unknown>> = [];
+      if (q.length >= 2 && activeAgencyIds.length) {
+        claimableSchools = await searchClaimableSchools(
+          supabase,
+          q,
+          activeAgencyIds,
+          companyId
+        );
+      }
+
       return NextResponse.json({
         success: true,
         role: 'isp',
         myIsp,
         myAgencyLinks,
+        mySchoolLinks,
+        pendingSchoolClaims: mySchoolLinks.filter(
+          (l) => String(l.status) === 'pending'
+        ),
+        activeSchoolLinks: mySchoolLinks.filter(
+          (l) => String(l.status) === 'active'
+        ),
+        claimableSchools,
+        searchQuery: q || null,
+        activeAgencyCount: activeAgencyIds.length,
         agencies: (agencies || []).map((a) => ({
           ...a,
           already_joined: linkedAgencyIds.has(Number(a.profile_id)),
         })),
         policy:
-          'Request to join DBE/PEU/DoH. They must approve your association before schools under them can buy from you.',
+          '1) Join a DBE/PEU and get approved. 2) Claim schools under that department — each school must accept before you can supply them.',
       });
     }
 
@@ -220,6 +300,9 @@ export async function GET(request: NextRequest) {
       agency_approved: approvedIspIds.includes(Number(l.isp_profile_id)),
     }));
 
+    const pendingClaims = links.filter((l) => String(l.status) === 'pending');
+    const activeLinks = links.filter((l) => String(l.status) === 'active');
+
     // Agencies this school is under (for messaging)
     const { data: schoolAgencyLinks } = await supabase
       .from('school_agency_links')
@@ -231,12 +314,14 @@ export async function GET(request: NextRequest) {
       success: true,
       role: 'school',
       links,
+      pendingClaims,
+      activeLinks,
       directory,
       myIsp,
       schoolAgencies: schoolAgencyLinks || [],
       schoolAgencyActiveCount: schoolAgencies.length,
       policy:
-        'SPs must join your DBE/PEU/DoH and be approved. Schools must also be approved by that department. Only then can you link and order.',
+        'SPs approved under your department can claim your school. Accept claims below, or link a department-approved SP yourself. Only active links can trade.',
       warning: linksRes.error?.message,
     });
   } catch (e: unknown) {
@@ -245,6 +330,61 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+/** Schools under SP's approved agencies matching name/EMIS, not already linked. */
+async function searchClaimableSchools(
+  supabase: ReturnType<typeof getSupabaseServer>,
+  q: string,
+  activeAgencyIds: number[],
+  ispProfileId: number
+): Promise<Array<Record<string, unknown>>> {
+  const safe = q.replace(/[%_,]/g, ' ').trim();
+  if (safe.length < 2 || !activeAgencyIds.length) return [];
+
+  const pattern = `%${safe}%`;
+  const { data: candidates } = await supabase
+    .from('school_profiles')
+    .select('id, school_name, emis_number, district, province, profile_id')
+    .or(`school_name.ilike.${pattern},emis_number.ilike.${pattern}`)
+    .limit(40);
+
+  if (!candidates?.length) return [];
+
+  const schoolIds = candidates.map((s) => Number(s.id)).filter(Boolean);
+  const { data: agencyLinks } = await supabase
+    .from('school_agency_links')
+    .select('school_profile_id, agency_profile_id')
+    .in('school_profile_id', schoolIds)
+    .in('agency_profile_id', activeAgencyIds)
+    .eq('status', 'active');
+
+  const eligible = new Set(
+    (agencyLinks || []).map((l) => Number(l.school_profile_id))
+  );
+
+  const { data: existing } = await supabase
+    .from('school_isp_links')
+    .select('school_profile_id, status')
+    .eq('isp_profile_id', ispProfileId)
+    .in('school_profile_id', schoolIds);
+
+  const existingBySchool = new Map<number, string>();
+  for (const e of existing || []) {
+    existingBySchool.set(Number(e.school_profile_id), String(e.status));
+  }
+
+  return candidates
+    .filter((s) => eligible.has(Number(s.id)))
+    .map((s) => {
+      const st = existingBySchool.get(Number(s.id));
+      return {
+        ...s,
+        link_status: st || null,
+        already_linked: st === 'active' || st === 'pending',
+      };
+    })
+    .slice(0, 25);
 }
 
 export async function POST(request: NextRequest) {
@@ -450,7 +590,281 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
-    // School links to SP (SP must be approved under school's agency)
+    // ── SP claims a school (pending until school accepts) ────────────
+    if (
+      body.action === 'claim_school' ||
+      body.action === 'request_school' ||
+      body.action === 'connect_school'
+    ) {
+      const schoolProfileId = Number(
+        body.school_profile_id || body.schoolProfileId
+      );
+      if (!Number.isFinite(schoolProfileId)) {
+        return NextResponse.json(
+          { error: 'school_profile_id required' },
+          { status: 400 }
+        );
+      }
+
+      const { data: ispRow } = await supabase
+        .from('nsnp_isp_profiles')
+        .select('profile_id')
+        .eq('profile_id', companyId)
+        .maybeSingle();
+      if (!ispRow) {
+        return NextResponse.json(
+          { error: 'Register as SP before claiming schools' },
+          { status: 400 }
+        );
+      }
+
+      const { data: schoolRow } = await supabase
+        .from('school_profiles')
+        .select('id, school_name, profile_id, emis_number')
+        .eq('id', schoolProfileId)
+        .maybeSingle();
+      if (!schoolRow) {
+        return NextResponse.json(
+          { error: 'School not found' },
+          { status: 404 }
+        );
+      }
+
+      const may = await ispMaySupplySchool(
+        supabase,
+        schoolProfileId,
+        companyId
+      );
+      if (!may.ok) {
+        return NextResponse.json(
+          {
+            error:
+              may.reason ||
+              'You must be approved under the same department as this school',
+          },
+          { status: 400 }
+        );
+      }
+
+      const schoolCompanyId = Number(schoolRow.profile_id || 0);
+      if (!Number.isFinite(schoolCompanyId) || schoolCompanyId <= 0) {
+        return NextResponse.json(
+          {
+            error:
+              'School has no company profile yet — it must join the programme before claims',
+          },
+          { status: 400 }
+        );
+      }
+
+      const { data: existing } = await supabase
+        .from('school_isp_links')
+        .select('*')
+        .eq('school_profile_id', schoolProfileId)
+        .eq('isp_profile_id', companyId)
+        .maybeSingle();
+
+      if (existing && String(existing.status) === 'active') {
+        return NextResponse.json({
+          success: true,
+          link: existing,
+          message: `Already connected to ${schoolRow.school_name}`,
+        });
+      }
+      if (existing && String(existing.status) === 'pending') {
+        return NextResponse.json({
+          success: true,
+          link: existing,
+          message: `Claim already pending with ${schoolRow.school_name} — wait for the school to accept`,
+        });
+      }
+
+      const now = new Date().toISOString();
+      const { data, error: cErr } = await supabase
+        .from('school_isp_links')
+        .upsert(
+          {
+            school_profile_id: schoolProfileId,
+            school_company_id: schoolCompanyId,
+            isp_profile_id: companyId,
+            status: 'pending',
+            preferred: false,
+            notes: body.notes || 'SP claim / connect request',
+            requested_by: 'isp',
+            requested_at: now,
+            requested_by_user_id: gate.userId || null,
+            accepted_at: null,
+            updated_at: now,
+          },
+          { onConflict: 'school_profile_id,isp_profile_id' }
+        )
+        .select('*')
+        .single();
+
+      if (cErr) {
+        return NextResponse.json({ error: cErr.message }, { status: 400 });
+      }
+      return NextResponse.json({
+        success: true,
+        link: data,
+        message: `Claim sent to ${schoolRow.school_name}. The school must accept before you can supply them.`,
+      });
+    }
+
+    // ── School accepts / rejects an SP claim ─────────────────────────
+    if (
+      body.action === 'accept_school_claim' ||
+      body.action === 'accept_isp_claim' ||
+      body.action === 'reject_school_claim' ||
+      body.action === 'reject_isp_claim'
+    ) {
+      const accept =
+        body.action === 'accept_school_claim' ||
+        body.action === 'accept_isp_claim';
+      const ispProfileId = Number(body.isp_profile_id);
+      if (!Number.isFinite(ispProfileId)) {
+        return NextResponse.json(
+          { error: 'isp_profile_id required' },
+          { status: 400 }
+        );
+      }
+
+      const { school, error: schErr } = await getOrCreateSchoolProfile(
+        supabase,
+        companyId
+      );
+      if (schErr || !school) {
+        return NextResponse.json(
+          { error: schErr || 'No school profile for this company' },
+          { status: 503 }
+        );
+      }
+
+      const { data: existing } = await supabase
+        .from('school_isp_links')
+        .select('*')
+        .eq('school_profile_id', school.id)
+        .eq('isp_profile_id', ispProfileId)
+        .maybeSingle();
+
+      if (!existing) {
+        return NextResponse.json(
+          { error: 'No claim from this SP for your school' },
+          { status: 404 }
+        );
+      }
+
+      if (accept) {
+        const may = await ispMaySupplySchool(
+          supabase,
+          Number(school.id),
+          ispProfileId
+        );
+        if (!may.ok) {
+          return NextResponse.json(
+            {
+              error:
+                may.reason ||
+                'SP is no longer approved under your department — cannot accept',
+            },
+            { status: 400 }
+          );
+        }
+      }
+
+      const now = new Date().toISOString();
+      const { data, error: uErr } = await supabase
+        .from('school_isp_links')
+        .update({
+          status: accept ? 'active' : 'rejected',
+          accepted_at: accept ? now : null,
+          notes: body.notes || existing.notes || null,
+          updated_at: now,
+        })
+        .eq('id', existing.id)
+        .select('*')
+        .single();
+
+      if (uErr) {
+        return NextResponse.json({ error: uErr.message }, { status: 400 });
+      }
+      return NextResponse.json({
+        success: true,
+        link: data,
+        message: accept
+          ? 'SP claim accepted — they can supply your school'
+          : 'SP claim rejected',
+      });
+    }
+
+    // SP withdraws a pending claim
+    if (
+      body.action === 'withdraw_school_claim' ||
+      body.action === 'leave_school'
+    ) {
+      const schoolProfileId = Number(
+        body.school_profile_id || body.schoolProfileId
+      );
+      if (!Number.isFinite(schoolProfileId)) {
+        return NextResponse.json(
+          { error: 'school_profile_id required' },
+          { status: 400 }
+        );
+      }
+      const now = new Date().toISOString();
+      const { error } = await supabase
+        .from('school_isp_links')
+        .update({
+          status: 'left',
+          updated_at: now,
+        })
+        .eq('isp_profile_id', companyId)
+        .eq('school_profile_id', schoolProfileId);
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+      return NextResponse.json({
+        success: true,
+        message: 'School connection withdrawn',
+      });
+    }
+
+    // School unlinks an SP
+    if (body.action === 'unlink_isp' || body.action === 'block_isp') {
+      const ispProfileId = Number(body.isp_profile_id);
+      if (!Number.isFinite(ispProfileId)) {
+        return NextResponse.json(
+          { error: 'isp_profile_id required' },
+          { status: 400 }
+        );
+      }
+      const { school, error: schErr } = await getOrCreateSchoolProfile(
+        supabase,
+        companyId
+      );
+      if (schErr || !school) {
+        return NextResponse.json(
+          { error: schErr || 'No school' },
+          { status: 503 }
+        );
+      }
+      const status =
+        body.action === 'block_isp' ? 'blocked' : 'left';
+      const { error } = await supabase
+        .from('school_isp_links')
+        .update({
+          status,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('school_profile_id', school.id)
+        .eq('isp_profile_id', ispProfileId);
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+      return NextResponse.json({ success: true, status });
+    }
+
+    // School links to SP (immediate active — school is the acceptor)
     const { school, error } = await getOrCreateSchoolProfile(supabase, companyId);
     if (error || !school) {
       return NextResponse.json({ error: error || 'No school' }, { status: 503 });
@@ -459,7 +873,7 @@ export async function POST(request: NextRequest) {
     const ispProfileId = Number(body.isp_profile_id);
     if (!Number.isFinite(ispProfileId)) {
       return NextResponse.json(
-        { error: 'isp_profile_id required' },
+        { error: 'isp_profile_id required (or use action claim_school / accept_school_claim)' },
         { status: 400 }
       );
     }
@@ -476,6 +890,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const now = new Date().toISOString();
     const { data, error: lErr } = await supabase
       .from('school_isp_links')
       .upsert(
@@ -483,10 +898,14 @@ export async function POST(request: NextRequest) {
           school_profile_id: school.id,
           school_company_id: companyId,
           isp_profile_id: ispProfileId,
-          status: body.status || 'active',
+          status: body.status === 'pending' ? 'pending' : 'active',
           preferred: Boolean(body.preferred),
           notes: body.notes || null,
-          updated_at: new Date().toISOString(),
+          requested_by: 'school',
+          requested_at: now,
+          requested_by_user_id: gate.userId || null,
+          accepted_at: body.status === 'pending' ? null : now,
+          updated_at: now,
         },
         { onConflict: 'school_profile_id,isp_profile_id' }
       )
@@ -496,7 +915,14 @@ export async function POST(request: NextRequest) {
     if (lErr) {
       return NextResponse.json({ error: lErr.message }, { status: 400 });
     }
-    return NextResponse.json({ success: true, link: data });
+    return NextResponse.json({
+      success: true,
+      link: data,
+      message:
+        String(data.status) === 'active'
+          ? 'SP linked to school'
+          : 'Invite sent to SP',
+    });
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },

@@ -170,7 +170,7 @@ export async function POST(request: NextRequest) {
       body.po_number ||
       `NSNP-PO-${school.id}-${Date.now().toString(36).toUpperCase()}`;
 
-    // SP must be associated + approved by the school's DBE/PEU/DoH
+    // SP must be department-approved AND have an active school link (claim accepted)
     const ispProfileId = body.isp_profile_id
       ? Number(body.isp_profile_id)
       : null;
@@ -187,6 +187,22 @@ export async function POST(request: NextRequest) {
             error:
               may.reason ||
               'Orders only to SPs that joined and were approved by your department.',
+          },
+          { status: 400 }
+        );
+      }
+      const { data: schoolLink } = await supabase
+        .from('school_isp_links')
+        .select('id, status')
+        .eq('school_profile_id', school.id)
+        .eq('isp_profile_id', ispProfileId)
+        .eq('status', 'active')
+        .maybeSingle();
+      if (!schoolLink) {
+        return NextResponse.json(
+          {
+            error:
+              'SP must claim this school and you must accept the claim (or link them under Schools → SPs) before ordering.',
           },
           { status: 400 }
         );
