@@ -24,6 +24,22 @@ export const SCHOOL_RIAD_CATEGORIES = [
   'Other',
 ] as const;
 
+/** Categories when DBE raises a RIAD against a service provider */
+export const SP_RIAD_CATEGORIES = [
+  'NSNP delivery / OTIF',
+  'Food safety & quality',
+  'Approved brand / catalogue',
+  'POD & documentation',
+  'Pricing & claims',
+  'CSD / compliance',
+  'Cluster / district allocation',
+  'Contract / SLA breach',
+  'Communication',
+  'Other',
+] as const;
+
+export type RiadTargetType = 'school' | 'isp' | 'self';
+
 export const RIAD_PRIORITIES = [
   { value: 'low', label: 'Low' },
   { value: 'medium', label: 'Medium' },

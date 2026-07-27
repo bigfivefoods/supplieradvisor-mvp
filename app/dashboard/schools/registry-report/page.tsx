@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
+  AlertTriangle,
   Building2,
   Download,
   FileSpreadsheet,
@@ -27,6 +28,9 @@ import {
 } from '@/components/schools/SchoolsShell';
 import { useProgrammeRole } from '@/lib/schools/useProgrammeRole';
 import { SA_PROVINCES } from '@/lib/schools/types';
+import RaiseRiadModal, {
+  type RaiseRiadTarget,
+} from '@/components/schools/RaiseRiadModal';
 
 type Kpis = {
   schools: number;
@@ -68,6 +72,7 @@ type RollRow = {
 
 type SchoolRow = {
   school_profile_id: number;
+  company_id?: number | null;
   school_name: string;
   natemis: string | null;
   emis_number: string | null;
@@ -147,6 +152,7 @@ function Inner() {
   const [cmc, setCmc] = useState('');
   const [q, setQ] = useState('');
   const [qDraft, setQDraft] = useState('');
+  const [riadTarget, setRiadTarget] = useState<RaiseRiadTarget | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -409,6 +415,12 @@ function Inner() {
               className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1"
             >
               <FileSpreadsheet className="w-3.5 h-3.5" /> Import
+            </Link>
+            <Link
+              href="/dashboard/schools/agency-report?report=riad"
+              className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+            >
+              <AlertTriangle className="w-3.5 h-3.5" /> RIAD log
             </Link>
             <button
               type="button"
@@ -763,6 +775,7 @@ function Inner() {
                     {data?.schools_truncated
                       ? ' · use Full CSV for the complete list'
                       : ''}
+                    {' · raise RIAD from any row'}
                   </p>
                 </div>
                 <button
@@ -790,6 +803,7 @@ function Inner() {
                       <th className="px-3 py-2 text-right">Enrolled</th>
                       <th className="px-3 py-2 text-right">NSNP</th>
                       <th className="px-3 py-2 text-right">EMIS</th>
+                      <th className="px-3 py-2 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -837,12 +851,37 @@ function Inner() {
                         <td className="px-3 py-2 text-right tabular-nums">
                           {fmt(s.final_emis_enrol)}
                         </td>
+                        <td className="px-3 py-2 text-right">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setRiadTarget({
+                                type: 'school',
+                                id: s.school_profile_id,
+                                companyId: s.company_id,
+                                name: s.school_name,
+                                subtitle: [
+                                  s.natemis || s.emis_number
+                                    ? `NATEMIS ${s.natemis || s.emis_number}`
+                                    : null,
+                                  s.district,
+                                  s.province,
+                                ]
+                                  .filter(Boolean)
+                                  .join(' · '),
+                              })
+                            }
+                            className="btn-secondary !py-1 !px-2 text-[11px] inline-flex items-center gap-1 text-rose-800 border-rose-200"
+                          >
+                            <AlertTriangle className="w-3 h-3" /> RIAD
+                          </button>
+                        </td>
                       </tr>
                     ))}
                     {!schools.length && (
                       <tr>
                         <td
-                          colSpan={13}
+                          colSpan={14}
                           className="px-3 py-10 text-center text-slate-500"
                         >
                           No schools match these filters.
@@ -856,6 +895,14 @@ function Inner() {
           )}
         </>
       )}
+
+      {riadTarget ? (
+        <RaiseRiadModal
+          agencyCompanyId={companyId}
+          target={riadTarget}
+          onClose={() => setRiadTarget(null)}
+        />
+      ) : null}
     </SchoolsPage>
   );
 }

@@ -462,14 +462,21 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       {
         name: 'School register',
         href: '/dashboard/schools/registry-report',
-        desc: 'Full school list · geo · enrolments',
+        desc: 'Full school list · geo · enrolments · RIAD',
+        group: 'DBE',
+        section: 'Insights',
+      },
+      {
+        name: 'Service providers',
+        href: '/dashboard/schools/sp-register',
+        desc: 'SP directory · district · CSD · RIAD',
         group: 'DBE',
         section: 'Insights',
       },
       {
         name: 'Reports',
         href: '/dashboard/schools/agency-report',
-        desc: 'Slice & dice · coverage · claims · risks',
+        desc: 'Slice & dice · RIAD log · claims · risks',
         group: 'DBE',
         section: 'Insights',
       },

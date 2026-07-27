@@ -61,8 +61,13 @@ const REPORT_GROUPS: Array<{
     items: [
       { id: 'feeding', label: 'Feeding', hint: 'Meals & waste' },
       { id: 'prizes', label: 'Prize board' },
-      { id: 'risks', label: 'Risks' },
+      { id: 'risks', label: 'Risks', hint: 'Operational flags' },
       { id: 'isps', label: 'SPs', hint: 'Service providers' },
+      {
+        id: 'riad',
+        label: 'RIAD log',
+        hint: 'Risks · issues · actions · decisions',
+      },
     ],
   },
   {
@@ -143,6 +148,14 @@ function Inner() {
   const [q, setQ] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('learners_enrolled');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [riadItems, setRiadItems] = useState<Array<Record<string, unknown>>>(
+    []
+  );
+  const [riadSummary, setRiadSummary] = useState<Record<string, number>>({});
+  const [riadLoading, setRiadLoading] = useState(false);
+  const [riadTargetFilter, setRiadTargetFilter] = useState('all');
+  const [riadStatusFilter, setRiadStatusFilter] = useState('open');
+  const [riadQ, setRiadQ] = useState('');
 
   const setReport = useCallback(
     (id: string) => {
@@ -209,6 +222,36 @@ function Inner() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const loadRiad = useCallback(async () => {
+    setRiadLoading(true);
+    try {
+      const params = new URLSearchParams({
+        companyId: String(companyId),
+        scope: 'agency',
+        status: riadStatusFilter,
+        target: riadTargetFilter,
+      });
+      if (riadQ.trim()) params.set('q', riadQ.trim());
+      const res = await fetch(`/api/schools/riad?${params}`, {
+        cache: 'no-store',
+        credentials: 'same-origin',
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'RIAD load failed');
+      setRiadItems(json.items || []);
+      setRiadSummary(json.summary || {});
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'RIAD load failed');
+      setRiadItems([]);
+    } finally {
+      setRiadLoading(false);
+    }
+  }, [companyId, riadStatusFilter, riadTargetFilter, riadQ]);
+
+  useEffect(() => {
+    if (report === 'riad') void loadRiad();
+  }, [report, loadRiad]);
 
   const k = (data?.kpis || {}) as Record<string, number | null>;
   const agency = (data?.agency || {}) as Record<string, string>;
@@ -446,6 +489,38 @@ function Inner() {
       const a = document.createElement('a');
       a.href = url;
       a.download = `dbe-coverage-${report}-${period.from}_${period.to}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      return;
+    }
+
+    if (report === 'riad') {
+      const lines = [
+        'created_at,target_type,subject_name,riad_type,title,status,priority,category,district,emis_or_csd,raised_by_agency,owner',
+      ];
+      for (const it of riadItems) {
+        lines.push(
+          [
+            csv(String(it.created_at || '')),
+            String(it.target_type || ''),
+            csv(String(it.subject_name || '')),
+            String(it.riad_type || ''),
+            csv(String(it.title || '')),
+            String(it.status || ''),
+            String(it.priority || it.severity || ''),
+            csv(String(it.category || '')),
+            csv(String(it.district || '')),
+            csv(String(it.emis || it.csd_number || '')),
+            it.raised_by_agency ? 'yes' : 'no',
+            csv(String(it.owner_name || '')),
+          ].join(',')
+        );
+      }
+      const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `dbe-riad-log-${new Date().toISOString().slice(0, 10)}.csv`;
       a.click();
       URL.revokeObjectURL(url);
       return;
@@ -1069,6 +1144,21 @@ function Inner() {
           )}
           {report === 'isps' && (
             <IspDirectoryTable isps={ispList} byProvince={ispsByProvince} />
+          )}
+          {report === 'riad' && (
+            <AgencyRiadReport
+              items={riadItems}
+              summary={riadSummary}
+              loading={riadLoading}
+              targetFilter={riadTargetFilter}
+              statusFilter={riadStatusFilter}
+              q={riadQ}
+              onTargetFilter={setRiadTargetFilter}
+              onStatusFilter={setRiadStatusFilter}
+              onQ={setRiadQ}
+              onRefresh={() => void loadRiad()}
+              companyId={companyId}
+            />
           )}
           {report === 'quintile' && (
             <GroupTable
@@ -2011,4 +2101,304 @@ function RiskCard({
 function csv(s: string) {
   if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
   return s;
+}
+
+function AgencyRiadReport({
+  items,
+  summary,
+  loading,
+  targetFilter,
+  statusFilter,
+  q,
+  onTargetFilter,
+  onStatusFilter,
+  onQ,
+  onRefresh,
+  companyId,
+}: {
+  items: Array<Record<string, unknown>>;
+  summary: Record<string, number>;
+  loading: boolean;
+  targetFilter: string;
+  statusFilter: string;
+  q: string;
+  onTargetFilter: (v: string) => void;
+  onStatusFilter: (v: string) => void;
+  onQ: (v: string) => void;
+  onRefresh: () => void;
+  companyId: number;
+}) {
+  const [statusBusy, setStatusBusy] = useState<number | null>(null);
+
+  const patchStatus = async (id: number, status: string) => {
+    setStatusBusy(id);
+    try {
+      const res = await fetch('/api/schools/riad', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          companyId,
+          id,
+          status,
+          resolution: status === 'resolved' ? 'Closed by DBE' : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Update failed');
+      toast.success(status === 'resolved' ? 'RIAD closed' : 'Status updated');
+      onRefresh();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setStatusBusy(null);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl border border-rose-100 bg-rose-50/60 px-4 py-3 text-sm text-rose-950">
+        <strong>Programme RIAD log</strong> — risks, issues, actions and
+        decisions raised by DBE against schools/SPs, plus feedback logged by
+        schools and service providers under your department. Raise new RIADs
+        from{' '}
+        <Link
+          href="/dashboard/schools/registry-report"
+          className="font-bold underline underline-offset-2"
+        >
+          School register
+        </Link>{' '}
+        or{' '}
+        <Link
+          href="/dashboard/schools/sp-register"
+          className="font-bold underline underline-offset-2"
+        >
+          Service providers
+        </Link>
+        .
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+        {[
+          { label: 'Total', value: summary.total ?? items.length },
+          { label: 'Open', value: summary.open ?? 0 },
+          { label: 'In progress', value: summary.inProgress ?? 0 },
+          { label: 'Closed', value: summary.closed ?? 0 },
+          { label: 'Critical', value: summary.critical ?? 0 },
+          { label: 'Schools', value: summary.schools ?? 0 },
+          { label: 'SPs', value: summary.isps ?? 0 },
+        ].map((k) => (
+          <div
+            key={k.label}
+            className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5"
+          >
+            <p className="text-[10px] font-bold uppercase text-slate-400">
+              {k.label}
+            </p>
+            <p className="text-xl font-black tabular-nums">{k.value}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap gap-2 items-end">
+        <label className="text-xs font-semibold text-slate-600">
+          Target
+          <select
+            className="mt-1 block rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
+            value={targetFilter}
+            onChange={(e) => onTargetFilter(e.target.value)}
+          >
+            <option value="all">Schools + SPs</option>
+            <option value="school">Schools only</option>
+            <option value="isp">SPs only</option>
+          </select>
+        </label>
+        <label className="text-xs font-semibold text-slate-600">
+          Status
+          <select
+            className="mt-1 block rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
+            value={statusFilter}
+            onChange={(e) => onStatusFilter(e.target.value)}
+          >
+            <option value="open">Open (not closed)</option>
+            <option value="all">All</option>
+            <option value="in_progress">In progress</option>
+            <option value="closed">Closed</option>
+            <option value="resolved">Resolved</option>
+          </select>
+        </label>
+        <label className="text-xs font-semibold text-slate-600 flex-1 min-w-[160px]">
+          Search
+          <input
+            className="mt-1 block w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
+            placeholder="Subject, title, EMIS, CSD…"
+            value={q}
+            onChange={(e) => onQ(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') onRefresh();
+            }}
+          />
+        </label>
+        <button
+          type="button"
+          onClick={onRefresh}
+          className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+          Refresh
+        </button>
+      </div>
+
+      <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+        <div className="px-5 py-3 border-b text-xs font-bold uppercase text-slate-500 flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 text-rose-600" />
+          RIAD entries · {items.length}
+        </div>
+        {loading ? (
+          <div className="py-16 flex justify-center">
+            <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
+          </div>
+        ) : (
+          <div className="overflow-x-auto max-h-[70vh]">
+            <table className="w-full text-sm min-w-[900px]">
+              <thead className="bg-slate-50 text-left text-[10px] font-bold uppercase text-slate-400 sticky top-0">
+                <tr>
+                  <th className="px-4 py-2">When</th>
+                  <th className="px-3 py-2">Target</th>
+                  <th className="px-3 py-2">Subject</th>
+                  <th className="px-3 py-2">Type</th>
+                  <th className="px-3 py-2">Title</th>
+                  <th className="px-3 py-2">Status</th>
+                  <th className="px-3 py-2">Priority</th>
+                  <th className="px-3 py-2">Source</th>
+                  <th className="px-3 py-2 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={9}
+                      className="px-4 py-12 text-center text-slate-500"
+                    >
+                      No RIAD entries for this filter. Raise one from the school
+                      or SP register.
+                    </td>
+                  </tr>
+                ) : (
+                  items.map((it) => {
+                    const id = Number(it.id);
+                    const st = String(it.status || 'open');
+                    const closed = ['closed', 'resolved', 'done'].includes(
+                      st.toLowerCase()
+                    );
+                    return (
+                      <tr
+                        key={id}
+                        className="border-t border-slate-50 hover:bg-slate-50/60 align-top"
+                      >
+                        <td className="px-4 py-2 text-xs text-slate-500 whitespace-nowrap">
+                          {it.created_at
+                            ? new Date(String(it.created_at)).toLocaleString(
+                                'en-ZA'
+                              )
+                            : '—'}
+                        </td>
+                        <td className="px-3 py-2">
+                          <span
+                            className={`text-[10px] font-bold uppercase ${
+                              String(it.target_type) === 'isp'
+                                ? 'text-emerald-700'
+                                : 'text-sky-700'
+                            }`}
+                          >
+                            {String(it.target_type) === 'isp'
+                              ? 'SP'
+                              : String(it.target_type) === 'school'
+                                ? 'School'
+                                : '—'}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2">
+                          <span className="font-semibold">
+                            {String(it.subject_name || '—')}
+                          </span>
+                          <span className="block text-[10px] text-slate-500 font-mono">
+                            {it.emis
+                              ? `EMIS/NATEMIS ${String(it.emis)}`
+                              : it.csd_number
+                                ? `CSD ${String(it.csd_number)}`
+                                : it.district
+                                  ? String(it.district)
+                                  : ''}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 capitalize text-xs font-bold">
+                          {String(it.riad_type || '—')}
+                        </td>
+                        <td className="px-3 py-2 max-w-[240px]">
+                          <span className="font-medium">{String(it.title)}</span>
+                          {it.category ? (
+                            <span className="block text-[10px] text-slate-500">
+                              {String(it.category)}
+                            </span>
+                          ) : null}
+                          {it.description ? (
+                            <span className="block text-[11px] text-slate-600 line-clamp-2 mt-0.5">
+                              {String(it.description)}
+                            </span>
+                          ) : null}
+                        </td>
+                        <td className="px-3 py-2 text-xs capitalize font-semibold">
+                          {st.replace(/_/g, ' ')}
+                        </td>
+                        <td className="px-3 py-2 text-xs font-bold capitalize">
+                          {String(it.priority || it.severity || '—')}
+                        </td>
+                        <td className="px-3 py-2 text-[10px] font-bold uppercase">
+                          {it.raised_by_agency ? (
+                            <span className="text-rose-700">DBE raised</span>
+                          ) : (
+                            <span className="text-slate-500">Self / field</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          {!closed ? (
+                            <div className="flex flex-col gap-1 items-end">
+                              <button
+                                type="button"
+                                disabled={statusBusy === id}
+                                onClick={() =>
+                                  void patchStatus(id, 'in_progress')
+                                }
+                                className="btn-secondary !py-0.5 !px-2 text-[10px]"
+                              >
+                                In progress
+                              </button>
+                              <button
+                                type="button"
+                                disabled={statusBusy === id}
+                                onClick={() => void patchStatus(id, 'resolved')}
+                                className="btn-primary !py-0.5 !px-2 text-[10px]"
+                              >
+                                Close
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-emerald-700 font-bold">
+                              Done
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
