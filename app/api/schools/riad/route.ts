@@ -293,7 +293,9 @@ export async function POST(request: NextRequest) {
       }
 
       const now = new Date().toISOString();
+      // riad_logs.stakeholder_type is NOT NULL (legacy schema; use school|isp|internal)
       const entityType = isSchool ? 'school' : 'isp';
+      const stakeholderType = isSchool ? 'school' : 'isp';
       const payload: Record<string, unknown> = {
         profile_id: subjectCompanyId,
         module: isSchool ? 'schools' : 'isp',
@@ -308,8 +310,8 @@ export async function POST(request: NextRequest) {
         due_date: body.due_date || null,
         mitigation_plan: body.mitigation_plan || null,
         notes: body.notes || null,
-        stakeholder_name: subjectName,
-        stakeholder_type: entityType,
+        stakeholder_name: subjectName || 'Programme subject',
+        stakeholder_type: stakeholderType,
         related_entity_type: entityType,
         related_entity_id: isSchool ? schoolProfileId : ispProfileId,
         source: 'dbe_agency',
@@ -330,34 +332,12 @@ export async function POST(request: NextRequest) {
         created_by: gate.userId || null,
       };
 
-      let { data, error } = await supabase
-        .from('riad_logs')
-        .insert(payload)
-        .select('*')
-        .single();
-
-      if (error) {
-        const minimal = {
-          profile_id: subjectCompanyId,
-          title: payload.title,
-          description: payload.description,
-          status: payload.status,
-          riad_type: riadType,
-          module: isSchool ? 'schools' : 'isp',
-          metadata: payload.metadata,
-        };
-        const retry = await supabase
-          .from('riad_logs')
-          .insert(minimal)
-          .select('*')
-          .single();
-        if (retry.error) {
-          return NextResponse.json(
-            { error: retry.error.message },
-            { status: 400 }
-          );
-        }
-        data = retry.data;
+      const { data, error } = await insertRiadLog(supabase, payload);
+      if (error || !data) {
+        return NextResponse.json(
+          { error: error || 'Insert failed' },
+          { status: 400 }
+        );
       }
 
       return NextResponse.json({
@@ -376,6 +356,7 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
 
     const isIspSelf = Boolean(myIsp) && !school;
+    const stakeholderType = isIspSelf ? 'isp' : school ? 'school' : 'internal';
     const payload: Record<string, unknown> = {
       profile_id: companyId,
       module: isIspSelf ? 'isp' : 'schools',
@@ -390,13 +371,21 @@ export async function POST(request: NextRequest) {
       due_date: body.due_date || null,
       mitigation_plan: body.mitigation_plan || null,
       notes: body.notes || null,
-      stakeholder_name: body.category || (isIspSelf ? 'SP operations' : 'School operations'),
-      related_entity_type: isIspSelf ? 'isp' : school ? 'school' : null,
+      // NOT NULL on legacy schema
+      stakeholder_name:
+        body.category ||
+        (isIspSelf ? 'SP operations' : 'School operations'),
+      stakeholder_type: stakeholderType,
+      related_entity_type: isIspSelf
+        ? 'isp'
+        : school
+          ? 'school'
+          : 'internal',
       related_entity_id: isIspSelf
         ? companyId
         : school
           ? Number(school.id)
-          : null,
+          : companyId,
       metadata: {
         school_profile_id: school?.id ?? null,
         isp_profile_id: myIsp ? companyId : null,
@@ -407,30 +396,12 @@ export async function POST(request: NextRequest) {
       created_by: gate.userId || null,
     };
 
-    let { data, error } = await supabase
-      .from('riad_logs')
-      .insert(payload)
-      .select('*')
-      .single();
-
-    if (error) {
-      const minimal = {
-        profile_id: companyId,
-        title: payload.title,
-        description: payload.description,
-        status: payload.status,
-        riad_type: riadType,
-        module: payload.module,
-      };
-      const retry = await supabase
-        .from('riad_logs')
-        .insert(minimal)
-        .select('*')
-        .single();
-      if (retry.error) {
-        return NextResponse.json({ error: retry.error.message }, { status: 400 });
-      }
-      data = retry.data;
+    const { data, error } = await insertRiadLog(supabase, payload);
+    if (error || !data) {
+      return NextResponse.json(
+        { error: error || 'Insert failed' },
+        { status: 400 }
+      );
     }
 
     return NextResponse.json({ success: true, item: data });
@@ -440,6 +411,89 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+/**
+ * Insert riad_logs with required NOT NULL columns always present.
+ * Falls back to a minimal row if optional columns reject.
+ */
+async function insertRiadLog(
+  supabase: ReturnType<typeof getSupabaseServer>,
+  payload: Record<string, unknown>
+): Promise<{ data: Record<string, unknown> | null; error: string | null }> {
+  const stakeholderType = String(
+    payload.stakeholder_type || 'internal'
+  ).trim() || 'internal';
+  const stakeholderName = String(
+    payload.stakeholder_name || 'Programme'
+  ).trim() || 'Programme';
+
+  const full = {
+    ...payload,
+    stakeholder_type: stakeholderType,
+    stakeholder_name: stakeholderName,
+    status: payload.status || 'open',
+    riad_type: payload.riad_type || 'risk',
+    module: payload.module || 'schools',
+  };
+
+  const { data, error } = await supabase
+    .from('riad_logs')
+    .insert(full)
+    .select('*')
+    .single();
+
+  if (!error && data) {
+    return { data: data as Record<string, unknown>, error: null };
+  }
+
+  // Minimal set of columns known to exist on all environments
+  const minimal = {
+    profile_id: full.profile_id,
+    title: full.title,
+    description: full.description ?? null,
+    status: full.status,
+    riad_type: full.riad_type,
+    module: full.module,
+    stakeholder_type: stakeholderType,
+    stakeholder_name: stakeholderName,
+    severity: full.severity ?? 'medium',
+    priority: full.priority ?? 'medium',
+    category: full.category ?? null,
+    metadata: full.metadata ?? {},
+    source: full.source ?? null,
+    created_by: full.created_by ?? null,
+  };
+
+  const retry = await supabase
+    .from('riad_logs')
+    .insert(minimal)
+    .select('*')
+    .single();
+
+  if (retry.error) {
+    // Last resort — barest insert that satisfies NOT NULL
+    const bare = {
+      profile_id: full.profile_id,
+      title: full.title,
+      stakeholder_type: stakeholderType,
+      status: 'open',
+    };
+    const last = await supabase
+      .from('riad_logs')
+      .insert(bare)
+      .select('*')
+      .single();
+    if (last.error) {
+      return {
+        data: null,
+        error: retry.error.message || last.error.message,
+      };
+    }
+    return { data: last.data as Record<string, unknown>, error: null };
+  }
+
+  return { data: retry.data as Record<string, unknown>, error: null };
 }
 
 export async function PATCH(request: NextRequest) {
