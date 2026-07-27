@@ -244,24 +244,7 @@ export const PROCESS_STEPS: ProcessStep[] = [
     school: false,
     agency: true,
   },
-  {
-    id: 'claims_inbox',
-    stage: 'govern',
-    label: 'Claims inbox',
-    href: '/dashboard/schools/agency-report?report=claims',
-    desc: 'DBE email approval of claim packs',
-    school: false,
-    agency: true,
-  },
-  {
-    id: 'coverage',
-    stage: 'govern',
-    label: 'Coverage',
-    href: '/dashboard/schools/agency-report?report=coverage',
-    desc: 'Schools & SPs by geo',
-    school: false,
-    agency: true,
-  },
+
   {
     id: 'visits',
     stage: 'govern',

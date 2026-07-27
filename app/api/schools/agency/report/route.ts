@@ -159,6 +159,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const filterCircuit = String(sp.get('circuit') || '').trim();
+    const filterQuintile = String(sp.get('quintile') || '').trim();
+
     let filtered = schools;
     if (filterProvince) {
       filtered = filtered.filter(
@@ -174,14 +177,25 @@ export async function GET(request: NextRequest) {
           filterDistrict.toLowerCase()
       );
     }
+    if (filterCircuit) {
+      filtered = filtered.filter(
+        (s) =>
+          String(s.circuit || '').toLowerCase() === filterCircuit.toLowerCase()
+      );
+    }
+    if (filterQuintile) {
+      const qn = Number(filterQuintile);
+      filtered = filtered.filter((s) => Number(s.quintile) === qn);
+    }
 
     const filteredIds = filtered.map((s) => Number(s.id));
     const linkBySchool = new Map(
       links.map((l) => [Number(l.school_profile_id), l])
     );
 
-    // Aggregate ops data for period — skip on geo/hierarchy to stay under timeout for 5k+ schools
+    // Skip heavy feeding/prize history for geo/register-style reports (5k+ schools)
     const lightReport = new Set([
+      'overview',
       'hierarchy',
       'coverage',
       'province',
@@ -191,6 +205,7 @@ export async function GET(request: NextRequest) {
       'members',
       'map',
       'isps',
+      'register',
     ]);
     const needOps = !lightReport.has(report);
 
@@ -874,7 +889,20 @@ export async function GET(request: NextRequest) {
       risks,
       claims,
       claimsInbox,
-      facets: { provinces, districts },
+      facets: {
+        provinces,
+        districts,
+        circuits: [
+          ...new Set(
+            members
+              .map((m) => m.circuit)
+              .filter((x): x is string => Boolean(x))
+          ),
+        ].sort((a, b) => a.localeCompare(b)),
+        quintiles: [1, 2, 3, 4, 5].filter((q) =>
+          members.some((m) => m.quintile === q)
+        ),
+      },
       memberTypesSupported: ['school', 'hospital', 'clinic', 'ecd', 'organisation'],
     });
   } catch (e: unknown) {

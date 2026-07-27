@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   AlertTriangle,
   Download,
+  Filter,
   Landmark,
   Loader2,
   MapPinned,
@@ -15,6 +17,7 @@ import {
   Users,
   UtensilsCrossed,
   Wallet,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -29,22 +32,48 @@ import {
   SchoolsPage,
 } from '@/components/schools/SchoolsShell';
 
-const REPORTS = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'hierarchy', label: 'Hierarchy' },
-  { id: 'coverage', label: 'Coverage · geo' },
-  { id: 'claims', label: 'Claims inbox' },
-  { id: 'members', label: 'Facilities' },
-  { id: 'province', label: 'By province' },
-  { id: 'district', label: 'By district' },
-  { id: 'circuit', label: 'By circuit' },
-  { id: 'quintile', label: 'By quintile' },
-  { id: 'isps', label: 'SPs' },
-  { id: 'prizes', label: 'Prize board' },
-  { id: 'feeding', label: 'Feeding' },
-  { id: 'risks', label: 'Risks' },
-  { id: 'map', label: 'Map list' },
-] as const;
+/** All DBE programme reports — slice & dice hub */
+const REPORT_GROUPS: Array<{
+  label: string;
+  items: Array<{ id: string; label: string; hint?: string }>;
+}> = [
+  {
+    label: 'Overview',
+    items: [
+      { id: 'overview', label: 'Dashboard', hint: 'KPIs + school list' },
+      { id: 'hierarchy', label: 'Hierarchy', hint: 'DBE → SPs → schools' },
+      { id: 'members', label: 'School list', hint: 'Sortable directory' },
+    ],
+  },
+  {
+    label: 'Geography',
+    items: [
+      { id: 'coverage', label: 'Coverage', hint: 'Schools + SPs' },
+      { id: 'province', label: 'Province' },
+      { id: 'district', label: 'District' },
+      { id: 'circuit', label: 'Circuit' },
+      { id: 'quintile', label: 'Quintile' },
+      { id: 'map', label: 'Map list' },
+    ],
+  },
+  {
+    label: 'Operations',
+    items: [
+      { id: 'feeding', label: 'Feeding', hint: 'Meals & waste' },
+      { id: 'prizes', label: 'Prize board' },
+      { id: 'risks', label: 'Risks' },
+      { id: 'isps', label: 'SPs', hint: 'Service providers' },
+    ],
+  },
+  {
+    label: 'Funding',
+    items: [
+      { id: 'claims', label: 'Claims inbox', hint: 'DBE email approve' },
+    ],
+  },
+];
+
+const ALL_REPORTS = REPORT_GROUPS.flatMap((g) => g.items);
 
 type Member = {
   school_profile_id: number;
@@ -52,6 +81,7 @@ type Member = {
   emis: string | null;
   province: string | null;
   district: string | null;
+  circuit?: string | null;
   quintile: number | null;
   lat: number | null;
   lng: number | null;
@@ -71,6 +101,15 @@ type Member = {
   non_approved_receipts: number;
 };
 
+type SortKey =
+  | 'name'
+  | 'learners_enrolled'
+  | 'meals_served'
+  | 'prize_score'
+  | 'approved_brand_pct'
+  | 'verify_pct'
+  | 'district';
+
 export default function AgencyReportPage() {
   return (
     <CompanyRequired>
@@ -79,9 +118,18 @@ export default function AgencyReportPage() {
   );
 }
 
+// useSearchParams requires a client boundary; page is already client.
+
 function Inner() {
   const companyId = getSelectedCompanyId()!;
-  const [report, setReport] = useState<string>('overview');
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const reportFromUrl = searchParams.get('report') || 'overview';
+
+  const [report, setReportState] = useState<string>(
+    ALL_REPORTS.some((r) => r.id === reportFromUrl) ? reportFromUrl : 'overview'
+  );
   const [period, setPeriod] = useState<PeriodSlicerValue>(() =>
     initialPeriodSlicerValue('ytd', 3)
   );
@@ -90,7 +138,30 @@ function Inner() {
   const [data, setData] = useState<Record<string, unknown> | null>(null);
   const [province, setProvince] = useState('');
   const [district, setDistrict] = useState('');
+  const [circuit, setCircuit] = useState('');
+  const [quintile, setQuintile] = useState('');
   const [q, setQ] = useState('');
+  const [sortKey, setSortKey] = useState<SortKey>('learners_enrolled');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+  const setReport = useCallback(
+    (id: string) => {
+      setReportState(id);
+      const params = new URLSearchParams(searchParams.toString());
+      if (id === 'overview') params.delete('report');
+      else params.set('report', id);
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams]
+  );
+
+  useEffect(() => {
+    if (ALL_REPORTS.some((r) => r.id === reportFromUrl) && reportFromUrl !== report) {
+      setReportState(reportFromUrl);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync URL → state only
+  }, [reportFromUrl]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -105,6 +176,8 @@ function Inner() {
       });
       if (province) params.set('province', province);
       if (district) params.set('district', district);
+      if (circuit) params.set('circuit', circuit);
+      if (quintile) params.set('quintile', quintile);
       const res = await fetch(`/api/schools/agency/report?${params}`, {
         cache: 'no-store',
       });
@@ -122,7 +195,16 @@ function Inner() {
     } finally {
       setLoading(false);
     }
-  }, [companyId, period.from, period.to, report, province, district]);
+  }, [
+    companyId,
+    period.from,
+    period.to,
+    report,
+    province,
+    district,
+    circuit,
+    quintile,
+  ]);
 
   useEffect(() => {
     void load();
@@ -214,9 +296,16 @@ function Inner() {
   const claimsInbox = (data?.claimsInbox || []) as Array<
     Record<string, unknown>
   >;
-  const facets = (data?.facets || { provinces: [], districts: [] }) as {
+  const facets = (data?.facets || {
+    provinces: [],
+    districts: [],
+    circuits: [],
+    quintiles: [],
+  }) as {
     provinces: string[];
     districts: string[];
+    circuits?: string[];
+    quintiles?: number[];
   };
 
   const reviewClaim = async (
@@ -262,12 +351,61 @@ function Inner() {
 
   const filteredMembers = useMemo(() => {
     const qq = q.trim().toLowerCase();
-    if (!qq) return members;
-    return members.filter((m) => {
-      const hay = `${m.name} ${m.emis || ''} ${m.province || ''} ${m.district || ''}`.toLowerCase();
-      return hay.includes(qq);
+    let list = members;
+    if (qq) {
+      list = list.filter((m) => {
+        const hay =
+          `${m.name} ${m.emis || ''} ${m.province || ''} ${m.district || ''} ${m.circuit || ''}`.toLowerCase();
+        return hay.includes(qq);
+      });
+    }
+    const dir = sortDir === 'asc' ? 1 : -1;
+    return [...list].sort((a, b) => {
+      if (sortKey === 'name' || sortKey === 'district') {
+        return (
+          dir *
+          String(a[sortKey] || '').localeCompare(String(b[sortKey] || ''))
+        );
+      }
+      const av = Number(a[sortKey] ?? -Infinity);
+      const bv = Number(b[sortKey] ?? -Infinity);
+      return dir * (av - bv);
     });
-  }, [members, q]);
+  }, [members, q, sortKey, sortDir]);
+
+  const sliceKpis = useMemo(() => {
+    const list = filteredMembers;
+    const learners = list.reduce((n, m) => n + m.learners_enrolled, 0);
+    const meals = list.reduce((n, m) => n + m.meals_served, 0);
+    const waste = list.reduce((n, m) => n + m.meals_waste, 0);
+    const prizes = list
+      .map((m) => m.prize_score)
+      .filter((n): n is number => n != null);
+    return {
+      schools: list.length,
+      learners,
+      meals,
+      wastePct: meals > 0 ? Math.round((waste / meals) * 1000) / 10 : 0,
+      avgPrize: prizes.length
+        ? Math.round(
+            (prizes.reduce((a, b) => a + b, 0) / prizes.length) * 10
+          ) / 10
+        : null,
+      districts: new Set(list.map((m) => m.district).filter(Boolean)).size,
+    };
+  }, [filteredMembers]);
+
+  const clearFilters = () => {
+    setProvince('');
+    setDistrict('');
+    setCircuit('');
+    setQuintile('');
+    setQ('');
+  };
+
+  const hasFilters = Boolean(
+    province || district || circuit || quintile || q.trim()
+  );
 
   const exportCsv = () => {
     // Coverage export when on geo tabs
@@ -407,30 +545,33 @@ function Inner() {
     );
   }
 
+  const activeReportMeta =
+    ALL_REPORTS.find((r) => r.id === report) || ALL_REPORTS[0];
+
   return (
     <SchoolsPage>
       <SchoolsHeader
-        title="Agency reports"
-        titleAccent={agency.name || 'DBE / DoH'}
+        title="Programme reports"
+        titleAccent={agency.name || 'DBE'}
         description={
           hierarchyMeta?.chain
-            ? `${hierarchyMeta.chain.join(' → ')} · ${period.label} (${period.from} → ${period.to})`
-            : `Programme hierarchy & geo coverage · ${period.label} (${period.from} → ${period.to})`
+            ? `${hierarchyMeta.chain.join(' → ')} · slice by period, province, district, circuit, quintile · ${period.label}`
+            : `Slice & dice schools, coverage, feeding, claims and SPs · ${period.label}`
         }
         action={
           <div className="flex flex-wrap gap-2">
             <Link
-              href="/dashboard/schools/agency"
+              href="/dashboard/schools/registry-report"
               className="btn-secondary !py-2 !px-3 text-xs"
             >
-              Approve members
+              School register
             </Link>
             <button
               type="button"
               onClick={exportCsv}
               className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1"
             >
-              <Download className="w-3.5 h-3.5" /> CSV
+              <Download className="w-3.5 h-3.5" /> Export CSV
             </button>
             <button
               type="button"
@@ -443,64 +584,175 @@ function Inner() {
         }
       />
 
-      <PeriodSlicer
-        value={period}
-        onChange={setPeriod}
-        showTrailing
-        className="mb-4"
-      />
-
-      <div className="mb-4 flex flex-wrap gap-1.5">
-        {REPORTS.map((r) => (
-          <button
-            key={r.id}
-            type="button"
-            onClick={() => setReport(r.id)}
-            className={`text-xs font-semibold px-3 py-1.5 rounded-full border ${
-              report === r.id
-                ? 'border-[#00b4d8] bg-[#00b4d8] text-white'
-                : 'border-neutral-200 bg-white text-neutral-600'
-            }`}
-          >
-            {r.label}
-          </button>
-        ))}
+      {/* Report picker — grouped */}
+      <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-3">
+        <div className="flex flex-wrap gap-x-6 gap-y-3">
+          {REPORT_GROUPS.map((g) => (
+            <div key={g.label} className="min-w-0">
+              <p className="text-[9px] font-black uppercase tracking-wider text-slate-400 mb-1.5 px-1">
+                {g.label}
+              </p>
+              <div className="flex flex-wrap gap-1">
+                {g.items.map((r) => (
+                  <button
+                    key={r.id}
+                    type="button"
+                    title={r.hint || r.label}
+                    onClick={() => setReport(r.id)}
+                    className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition-all ${
+                      report === r.id
+                        ? 'border-sky-600 bg-sky-600 text-white shadow-sm'
+                        : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-sky-300 hover:bg-white'
+                    }`}
+                  >
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        <p className="mt-2 px-1 text-[11px] text-slate-500">
+          Viewing <strong className="text-slate-800">{activeReportMeta.label}</strong>
+          {activeReportMeta.hint ? ` — ${activeReportMeta.hint}` : ''}. Use
+          slicers below to filter the whole programme.
+        </p>
       </div>
 
-      <div className="mb-4 flex flex-wrap gap-2">
-        <select
-          value={province}
-          onChange={(e) => {
-            setProvince(e.target.value);
-            setDistrict('');
-          }}
-          className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
-        >
-          <option value="">All provinces</option>
-          {facets.provinces.map((p) => (
-            <option key={p} value={p}>
-              {p}
-            </option>
-          ))}
-        </select>
-        <select
-          value={district}
-          onChange={(e) => setDistrict(e.target.value)}
-          className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
-        >
-          <option value="">All districts</option>
-          {facets.districts.map((d) => (
-            <option key={d} value={d}>
-              {d}
-            </option>
-          ))}
-        </select>
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Search school / EMIS…"
-          className="rounded-xl border border-slate-200 px-3 py-2 text-sm w-52"
-        />
+      {/* Slice & dice bar */}
+      <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50/80 p-3">
+        <div className="flex items-center gap-2 mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+          <Filter className="w-3.5 h-3.5" /> Slice &amp; dice
+        </div>
+        <div className="flex flex-wrap gap-2 items-end">
+          <div className="min-w-[140px] flex-1 sm:flex-none">
+            <PeriodSlicer
+              value={period}
+              onChange={setPeriod}
+              showTrailing
+              className="!mb-0"
+            />
+          </div>
+          <label className="text-[10px] font-bold uppercase text-slate-400">
+            Province
+            <select
+              value={province}
+              onChange={(e) => {
+                setProvince(e.target.value);
+                setDistrict('');
+                setCircuit('');
+              }}
+              className="mt-0.5 block w-full min-w-[9rem] rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-sm"
+            >
+              <option value="">All</option>
+              {facets.provinces.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-[10px] font-bold uppercase text-slate-400">
+            District
+            <select
+              value={district}
+              onChange={(e) => {
+                setDistrict(e.target.value);
+                setCircuit('');
+              }}
+              className="mt-0.5 block w-full min-w-[9rem] rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-sm"
+            >
+              <option value="">All</option>
+              {facets.districts.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-[10px] font-bold uppercase text-slate-400">
+            Circuit
+            <select
+              value={circuit}
+              onChange={(e) => setCircuit(e.target.value)}
+              className="mt-0.5 block w-full min-w-[8rem] rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-sm"
+            >
+              <option value="">All</option>
+              {(facets.circuits || []).map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-[10px] font-bold uppercase text-slate-400">
+            Quintile
+            <select
+              value={quintile}
+              onChange={(e) => setQuintile(e.target.value)}
+              className="mt-0.5 block w-full min-w-[5rem] rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-sm"
+            >
+              <option value="">All</option>
+              {(facets.quintiles || [1, 2, 3, 4, 5]).map((qn) => (
+                <option key={qn} value={String(qn)}>
+                  Q{qn}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-[10px] font-bold uppercase text-slate-400 flex-1 min-w-[10rem]">
+            Search
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="School, EMIS, circuit…"
+              className="mt-0.5 block w-full rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-sm"
+            />
+          </label>
+          <label className="text-[10px] font-bold uppercase text-slate-400">
+            Sort schools
+            <select
+              value={`${sortKey}:${sortDir}`}
+              onChange={(e) => {
+                const [k, d] = e.target.value.split(':') as [SortKey, 'asc' | 'desc'];
+                setSortKey(k);
+                setSortDir(d);
+              }}
+              className="mt-0.5 block w-full min-w-[10rem] rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-sm"
+            >
+              <option value="learners_enrolled:desc">Learners ↓</option>
+              <option value="learners_enrolled:asc">Learners ↑</option>
+              <option value="meals_served:desc">Meals ↓</option>
+              <option value="prize_score:desc">Prize ↓</option>
+              <option value="approved_brand_pct:desc">Approved % ↓</option>
+              <option value="verify_pct:desc">Verify % ↓</option>
+              <option value="name:asc">Name A–Z</option>
+              <option value="district:asc">District A–Z</option>
+            </select>
+          </label>
+          {hasFilters ? (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50"
+            >
+              <X className="w-3.5 h-3.5" /> Clear
+            </button>
+          ) : null}
+        </div>
+        {hasFilters || q.trim() ? (
+          <p className="mt-2 text-[11px] text-slate-600">
+            Filtered view:{' '}
+            <strong>{sliceKpis.schools.toLocaleString('en-ZA')}</strong> schools
+            · <strong>{sliceKpis.learners.toLocaleString('en-ZA')}</strong>{' '}
+            learners ·{' '}
+            <strong>{sliceKpis.districts.toLocaleString('en-ZA')}</strong>{' '}
+            districts
+            {sliceKpis.meals > 0
+              ? ` · ${sliceKpis.meals.toLocaleString('en-ZA')} meals`
+              : ''}
+          </p>
+        ) : null}
       </div>
 
       {loading ? (
@@ -512,13 +764,21 @@ function Inner() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
             <Kpi
               icon={School}
-              label="Facilities"
-              value={String(k.organisations ?? 0)}
-              sub={`${k.schools ?? 0} schools · ${k.hospitals ?? 0} clinics/hospitals`}
+              label="Schools (filtered)"
+              value={String(
+                hasFilters || q.trim()
+                  ? sliceKpis.schools
+                  : k.organisations ?? members.length ?? 0
+              )}
+              sub={
+                hasFilters || q.trim()
+                  ? `${sliceKpis.districts} districts in slice`
+                  : `${k.schools ?? 0} on programme`
+              }
             />
             <Kpi
               icon={Truck}
-              label="SPs (middle tier)"
+              label="SPs"
               value={String(k.isps ?? ispList.length ?? 0)}
               sub={`${k.isps_active ?? 0} active · ${k.isps_pending ?? 0} pending`}
               tone="emerald"
@@ -526,7 +786,11 @@ function Inner() {
             <Kpi
               icon={Users}
               label="Learners"
-              value={String(k.totalLearners ?? 0)}
+              value={String(
+                hasFilters || q.trim()
+                  ? sliceKpis.learners
+                  : k.totalLearners ?? 0
+              )}
               sub={`${k.totalVerified ?? 0} verified · avg ${k.avgVerifyPct ?? '—'}%`}
             />
             <Kpi
