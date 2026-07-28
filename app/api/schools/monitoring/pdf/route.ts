@@ -41,9 +41,15 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseServer();
     const agency = await getAgencyRegistration(supabase, companyId);
-    const school = agency
-      ? null
-      : await getOrCreateSchoolProfile(supabase, companyId).catch(() => null);
+    let schoolRow: Record<string, unknown> | null = null;
+    if (!agency) {
+      const got = await getOrCreateSchoolProfile(supabase, companyId).catch(
+        () => null
+      );
+      schoolRow = got?.school ?? null;
+    }
+    const schoolId =
+      schoolRow?.id != null ? Number(schoolRow.id) : null;
 
     const { data, error } = await supabase
       .from('nsnp_monitoring_tools')
@@ -60,8 +66,9 @@ export async function GET(request: NextRequest) {
 
     const allowed =
       (agency && Number(data.agency_profile_id) === companyId) ||
-      (school &&
-        Number(data.school_profile_id) === Number(school.id) &&
+      (schoolId != null &&
+        Number.isFinite(schoolId) &&
+        Number(data.school_profile_id) === schoolId &&
         String(data.status) === 'submitted');
     if (!allowed) {
       return NextResponse.json({ error: 'Not authorised' }, { status: 403 });

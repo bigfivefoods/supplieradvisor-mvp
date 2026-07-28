@@ -38,9 +38,15 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseServer();
     const id = sp.get('id') ? Number(sp.get('id')) : null;
     const agency = await getAgencyRegistration(supabase, companyId);
-    const school = agency
-      ? null
-      : await getOrCreateSchoolProfile(supabase, companyId).catch(() => null);
+    let schoolRow: Record<string, unknown> | null = null;
+    if (!agency) {
+      const got = await getOrCreateSchoolProfile(supabase, companyId).catch(
+        () => null
+      );
+      schoolRow = got?.school ?? null;
+    }
+    const schoolId =
+      schoolRow?.id != null ? Number(schoolRow.id) : null;
 
     if (id != null && Number.isFinite(id)) {
       const { data, error } = await supabase
@@ -63,8 +69,9 @@ export async function GET(request: NextRequest) {
       }
       const allowed =
         (agency && Number(data.agency_profile_id) === companyId) ||
-        (school &&
-          Number(data.school_profile_id) === Number(school.id) &&
+        (schoolId != null &&
+          Number.isFinite(schoolId) &&
+          Number(data.school_profile_id) === schoolId &&
           String(data.status) === 'submitted');
       if (!allowed) {
         return NextResponse.json({ error: 'Not authorised' }, { status: 403 });
@@ -105,10 +112,8 @@ export async function GET(request: NextRequest) {
 
     if (agency) {
       q = q.eq('agency_profile_id', companyId);
-    } else if (school) {
-      q = q
-        .eq('school_profile_id', school.id)
-        .eq('status', 'submitted');
+    } else if (schoolId != null && Number.isFinite(schoolId)) {
+      q = q.eq('school_profile_id', schoolId).eq('status', 'submitted');
     } else {
       return NextResponse.json({
         success: true,
