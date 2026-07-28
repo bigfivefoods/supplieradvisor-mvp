@@ -634,7 +634,7 @@ function Inner() {
               {canCreate ? (
                 <button
                   type="button"
-                  onClick={openNew}
+                  onClick={() => openNew()}
                   className="btn-primary !py-2 !px-3 text-xs inline-flex items-center gap-1"
                 >
                   <Plus className="w-3.5 h-3.5" /> New visit form
@@ -670,7 +670,7 @@ function Inner() {
             {canCreate ? (
               <button
                 type="button"
-                onClick={openNew}
+                onClick={() => openNew()}
                 className="btn-primary !py-2.5 !px-4 text-sm mt-4 inline-flex items-center gap-2"
               >
                 <Plus className="w-4 h-4" /> Start monitoring visit
