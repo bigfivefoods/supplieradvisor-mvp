@@ -32,6 +32,7 @@ import {
   SchoolsPage,
 } from '@/components/schools/SchoolsShell';
 import type { SchoolReadiness } from '@/lib/schools/process';
+import GoldenPathStrip from '@/components/schools/GoldenPathStrip';
 
 export default function SchoolsHubPage() {
   return (
@@ -151,12 +152,13 @@ function Inner() {
             </button>
           }
         />
+        <GoldenPathStrip companyId={companyId} />
         <div className="rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-sky-50 p-6 mb-6">
           <p className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
             Service provider
           </p>
           <h2 className="text-xl font-black text-slate-900 mt-0.5">
-            {ispNext?.label || 'Deliveries workspace'}
+            {ispNext?.label || 'Fulfil queue'}
           </h2>
           <p className="text-sm text-slate-600 mt-1">
             {ispNext?.desc ||
@@ -164,10 +166,16 @@ function Inner() {
           </p>
           <div className="flex flex-wrap gap-2 mt-4">
             <Link
-              href={ispNext?.href || '/dashboard/schools/deliveries'}
+              href="/dashboard/schools/ops"
               className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center gap-2"
             >
-              Open deliveries <ArrowRight className="w-4 h-4" />
+              Open fulfil queue <ArrowRight className="w-4 h-4" />
+            </Link>
+            <Link
+              href={ispNext?.href || '/dashboard/schools/deliveries'}
+              className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-2"
+            >
+              Deliveries
             </Link>
             <Link
               href="/dashboard/schools/isps"
@@ -242,6 +250,15 @@ function Inner() {
             </button>
           }
         />
+        <GoldenPathStrip companyId={companyId} />
+        <div className="mb-4 flex flex-wrap gap-2">
+          <Link
+            href="/dashboard/schools/ops"
+            className="btn-primary !py-2 !px-3 text-xs"
+          >
+            Exception cockpit
+          </Link>
+        </div>
 
         <div className="rounded-3xl border border-slate-200 bg-gradient-to-br from-sky-50 via-white to-emerald-50 p-6 mb-6">
           <div className="flex items-start gap-3">
@@ -408,6 +425,16 @@ function Inner() {
           </button>
         }
       />
+
+      <GoldenPathStrip companyId={companyId} />
+      <div className="mb-4 flex flex-wrap gap-2">
+        <Link
+          href="/dashboard/schools/ops"
+          className="btn-secondary !py-1.5 !px-3 text-xs"
+        >
+          Supply ops · match · funding sim
+        </Link>
+      </div>
 
       {/* Hero — no second process nav; module chrome navbar owns navigation */}
       <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden flex flex-col sm:flex-row mb-6">

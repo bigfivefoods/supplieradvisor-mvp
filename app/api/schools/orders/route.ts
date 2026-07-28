@@ -244,6 +244,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: iErr.message }, { status: 400 });
     }
 
+    // Notify SP (in-app) — Sprint A
+    try {
+      const { logNsnpEvent } = await import('@/lib/schools/events');
+      await logNsnpEvent(supabase, {
+        companyId,
+        targetCompanyId: ispProfileId,
+        schoolProfileId: Number(school.id),
+        kind: 'po_submitted',
+        title: `New school PO ${poNumber}`,
+        body: `${school.school_name || 'School'} ordered ${lines.length} approved line(s) — open fulfil queue`,
+        href: '/dashboard/schools/ops',
+        metadata: { po_id: data.id, po_number: poNumber },
+      });
+    } catch {
+      /* soft */
+    }
+
     return NextResponse.json({
       success: true,
       order: data,
@@ -256,8 +273,8 @@ export async function POST(request: NextRequest) {
         'Approved-only PO logged — counts toward headmaster prize and full claim funding.',
       next: {
         label: 'Create delivery note',
-        href: '/dashboard/schools/deliveries',
-        hint: 'SP (or school) can one-click Create DN from this open PO',
+        href: '/dashboard/schools/ops',
+        hint: 'SP fulfil queue — one-click Create DN from this open PO',
         po_id: data.id,
       },
     });

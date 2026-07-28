@@ -9,11 +9,13 @@ import PeriodSlicer, {
   initialPeriodSlicerValue,
   type PeriodSlicerValue,
 } from '@/components/accounting/PeriodSlicer';
+import Link from 'next/link';
 import {
   CompanyRequired,
   SchoolsHeader,
   SchoolsPage,
 } from '@/components/schools/SchoolsShell';
+import GoldenPathStrip from '@/components/schools/GoldenPathStrip';
 
 export default function ClaimsPage() {
   return (
@@ -131,7 +133,20 @@ function Inner() {
         }
       />
 
+      <GoldenPathStrip companyId={companyId} compact />
       <PeriodSlicer value={period} onChange={setPeriod} className="mb-4" />
+      <div className="mb-4 rounded-2xl border border-emerald-100 bg-emerald-50/50 px-4 py-3 text-sm flex flex-wrap items-center justify-between gap-2">
+        <p className="text-emerald-950">
+          <strong>Funding simulator & three-way match</strong> — see claim
+          amount if you submit now vs 100% approved GRNs.
+        </p>
+        <Link
+          href="/dashboard/schools/ops"
+          className="btn-secondary !py-1.5 !px-3 text-xs"
+        >
+          Open supply ops
+        </Link>
+      </div>
 
       {loading ? (
         <div className="py-16 flex justify-center">

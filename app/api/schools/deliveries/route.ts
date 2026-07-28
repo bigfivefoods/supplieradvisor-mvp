@@ -8,6 +8,7 @@ import { getOrCreateSchoolProfile } from '@/lib/schools/school-context';
 import type { DeliveryLine } from '@/lib/schools/deliveries';
 import { logNsnpEvent } from '@/lib/schools/events';
 import { scoreDeliveryLines } from '@/lib/schools/incentives';
+import { podGate } from '@/lib/schools/golden-path';
 
 /**
  * SP → school deliveries with shared POD / invoice files.
@@ -243,13 +244,23 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: error.message }, { status: 400 });
       }
 
-      // Soft flag on delivery for SP prize POD pillar
-      if (isPodPhoto || body.as_pod) {
+      // Soft flags on delivery for SP prize POD + three-way match invoice
+      if (isPodPhoto || body.as_pod || kind === 'invoice') {
         const meta = {
           ...((d.metadata as Record<string, unknown>) || {}),
-          has_pod_photo: true,
-          pod_photo_at: new Date().toISOString(),
-          pod_uploaded_by: isIsp ? 'isp' : 'school',
+          ...(isPodPhoto || body.as_pod
+            ? {
+                has_pod_photo: true,
+                pod_photo_at: new Date().toISOString(),
+                pod_uploaded_by: isIsp ? 'isp' : 'school',
+              }
+            : {}),
+          ...(kind === 'invoice'
+            ? {
+                has_invoice: true,
+                invoice_at: new Date().toISOString(),
+              }
+            : {}),
         };
         await supabase
           .from('school_nsnp_deliveries')
@@ -502,6 +513,7 @@ export async function POST(request: NextRequest) {
       const now = new Date().toISOString();
       const isReceive =
         (action === 'receive' || action === 'receive_quick') && isSchool;
+      let podWarning: string | undefined;
 
       if (action === 'confirm' && isIsp) {
         patch.status = 'confirmed';
@@ -566,6 +578,37 @@ export async function POST(request: NextRequest) {
             message: 'Already received',
           });
         }
+
+        // Sprint A — POD gate (soft by default; hard if require_pod=1)
+        const meta = (d.metadata || {}) as Record<string, unknown>;
+        let hasPod = Boolean(meta.has_pod_photo);
+        if (!hasPod) {
+          const { count } = await supabase
+            .from('school_nsnp_delivery_files')
+            .select('*', { count: 'exact', head: true })
+            .eq('delivery_id', id)
+            .in('kind', ['pod', 'photo']);
+          hasPod = (count || 0) > 0;
+        }
+        const hard =
+          body.require_pod === true ||
+          body.require_pod === 1 ||
+          body.require_pod === '1' ||
+          process.env.NSNP_POD_HARD_GATE === '1';
+        const gatePod = podGate({ hasPod, requireHard: hard });
+        if (!gatePod.ok) {
+          return NextResponse.json(
+            {
+              error: gatePod.message,
+              pod_required: true,
+              success: false,
+            },
+            { status: 400 }
+          );
+        }
+        podWarning =
+          gatePod.mode === 'soft' ? gatePod.message : undefined;
+
         patch.status = 'received';
         patch.received_at = now;
         if (body.notes_school !== undefined) {
@@ -737,6 +780,7 @@ export async function POST(request: NextRequest) {
         delivery: updated,
         grn,
         prize: prizeDelta,
+        pod_warning: podWarning,
         message: isReceive
           ? grn
             ? `Received — kitchen GRN posted. ${String(prizeDelta?.message || '')}`

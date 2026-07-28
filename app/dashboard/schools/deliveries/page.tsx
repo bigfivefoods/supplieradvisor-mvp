@@ -27,6 +27,7 @@ import {
   deliveryStatusClass,
   fileKindLabel,
 } from '@/lib/schools/deliveries';
+import GoldenPathStrip from '@/components/schools/GoldenPathStrip';
 
 type Delivery = {
   id: number;
@@ -319,6 +320,9 @@ function Inner() {
         notes_school: notesSchool || null,
       });
       if (!data) return;
+      if (data.pod_warning) {
+        toast.message(String(data.pod_warning), { duration: 6000 });
+      }
       if (data.prize?.message) {
         toast.success(String(data.prize.message), { duration: 6000 });
       }
@@ -354,6 +358,9 @@ function Inner() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Receive failed');
+      if (data.pod_warning) {
+        toast.message(String(data.pod_warning), { duration: 6000 });
+      }
       if (data.prize?.message) {
         toast.success(String(data.prize.message), { duration: 7000 });
       } else {
@@ -487,6 +494,11 @@ function Inner() {
           </button>
         }
       />
+
+      <GoldenPathStrip companyId={companyId} compact />
+
+      {/* Offline POD queue (Sprint C) */}
+      <OfflinePodQueue companyId={companyId} />
 
       {/* Role banner */}
       <div
@@ -1247,5 +1259,204 @@ function Inner() {
         </div>
       ) : null}
     </SchoolsPage>
+  );
+}
+
+const OFFLINE_POD_KEY = 'nsnp_offline_pod_queue_v1';
+
+type OfflinePodItem = {
+  id: string;
+  companyId: number;
+  deliveryId: number;
+  fileName: string;
+  dataUrl: string;
+  createdAt: string;
+};
+
+/** Sprint C — queue POD photos when offline; flush when back online */
+function OfflinePodQueue({ companyId }: { companyId: number }) {
+  const [items, setItems] = useState<OfflinePodItem[]>([]);
+  const [online, setOnline] = useState(
+    typeof navigator !== 'undefined' ? navigator.onLine : true
+  );
+  const [flushing, setFlushing] = useState(false);
+  const offlineRef = useRef<HTMLInputElement>(null);
+
+  const readQueue = () => {
+    try {
+      const raw = localStorage.getItem(OFFLINE_POD_KEY);
+      const all = raw ? (JSON.parse(raw) as OfflinePodItem[]) : [];
+      setItems(all.filter((i) => i.companyId === companyId));
+    } catch {
+      setItems([]);
+    }
+  };
+
+  useEffect(() => {
+    readQueue();
+    const on = () => setOnline(true);
+    const off = () => setOnline(false);
+    window.addEventListener('online', on);
+    window.addEventListener('offline', off);
+    return () => {
+      window.removeEventListener('online', on);
+      window.removeEventListener('offline', off);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyId]);
+
+  useEffect(() => {
+    if (online && items.length) void flush();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [online]);
+
+  const saveQueue = (next: OfflinePodItem[]) => {
+    try {
+      const raw = localStorage.getItem(OFFLINE_POD_KEY);
+      const all = raw ? (JSON.parse(raw) as OfflinePodItem[]) : [];
+      const others = all.filter((i) => i.companyId !== companyId);
+      localStorage.setItem(
+        OFFLINE_POD_KEY,
+        JSON.stringify([...others, ...next])
+      );
+      setItems(next);
+    } catch {
+      toast.error('Could not save offline queue');
+    }
+  };
+
+  const queueFile = async (file: File | null) => {
+    if (!file) return;
+    const deliveryId = Number(
+      window.prompt('Delivery ID to attach this POD photo to?')
+    );
+    if (!Number.isFinite(deliveryId)) {
+      toast.error('Valid delivery id required');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = String(reader.result || '');
+      const next: OfflinePodItem[] = [
+        ...items,
+        {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          companyId,
+          deliveryId,
+          fileName: file.name,
+          dataUrl,
+          createdAt: new Date().toISOString(),
+        },
+      ];
+      saveQueue(next);
+      toast.success(
+        online
+          ? 'Queued — will upload now'
+          : 'Saved offline — will upload when you are back online'
+      );
+      if (online) void flush(next);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const flush = async (list?: OfflinePodItem[]) => {
+    const queue = list || items;
+    if (!queue.length || !navigator.onLine) return;
+    setFlushing(true);
+    const remaining: OfflinePodItem[] = [];
+    for (const item of queue) {
+      try {
+        // Convert data URL to blob and upload
+        const resBlob = await fetch(item.dataUrl);
+        const blob = await resBlob.blob();
+        const file = new File([blob], item.fileName || 'pod.jpg', {
+          type: blob.type || 'image/jpeg',
+        });
+        const up = await uploadCompanyAssetServerFirst({
+          file,
+          companyId,
+          kind: 'nsnp_pod',
+        });
+        if (!up.url) throw new Error(up.error || 'upload failed');
+        const res = await fetch('/api/schools/deliveries', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({
+            companyId,
+            action: 'attach',
+            delivery_id: item.deliveryId,
+            file_url: up.url,
+            file_name: item.fileName,
+            content_type: file.type,
+            kind: 'pod',
+            as_pod: true,
+          }),
+        });
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          throw new Error(j.error || 'attach failed');
+        }
+      } catch {
+        remaining.push(item);
+      }
+    }
+    saveQueue(remaining);
+    if (remaining.length < queue.length) {
+      toast.success(
+        `Uploaded ${queue.length - remaining.length} offline POD photo(s)`
+      );
+    }
+    if (remaining.length) {
+      toast.message(`${remaining.length} POD photo(s) still queued`);
+    }
+    setFlushing(false);
+  };
+
+  return (
+    <div
+      className={`mb-4 rounded-2xl border px-3 py-2.5 text-xs flex flex-wrap items-center gap-2 ${
+        online
+          ? 'border-slate-200 bg-white'
+          : 'border-amber-300 bg-amber-50 text-amber-950'
+      }`}
+    >
+      <span className="font-bold uppercase tracking-wide">
+        {online ? 'Online' : 'Offline'} · POD photo queue
+      </span>
+      <span className="text-slate-500">
+        {items.length} queued
+        {flushing ? ' · uploading…' : ''}
+      </span>
+      <button
+        type="button"
+        className="btn-secondary !py-1 !px-2 text-[11px] ml-auto"
+        onClick={() => offlineRef.current?.click()}
+      >
+        <Camera className="w-3 h-3 inline mr-1" />
+        Queue POD photo
+      </button>
+      {items.length > 0 && online ? (
+        <button
+          type="button"
+          className="btn-primary !py-1 !px-2 text-[11px]"
+          disabled={flushing}
+          onClick={() => void flush()}
+        >
+          Flush now
+        </button>
+      ) : null}
+      <input
+        ref={offlineRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(e) => {
+          void queueFile(e.target.files?.[0] || null);
+          e.target.value = '';
+        }}
+      />
+    </div>
   );
 }
