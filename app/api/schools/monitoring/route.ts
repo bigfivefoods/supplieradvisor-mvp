@@ -496,13 +496,15 @@ export async function POST(request: NextRequest) {
         },
         updated_at: new Date().toISOString(),
       };
-      await supabase
-        .from('nsnp_peu_visits')
-        .update(peuPatch)
-        .eq('id', peuVisitId)
-        .eq('agency_profile_id', companyId)
-        .then(() => null)
-        .catch(() => null);
+      try {
+        await supabase
+          .from('nsnp_peu_visits')
+          .update(peuPatch)
+          .eq('id', peuVisitId)
+          .eq('agency_profile_id', companyId);
+      } catch {
+        /* soft — monitoring save already succeeded */
+      }
     }
 
     if (status === 'submitted' && finalSchoolId) {
