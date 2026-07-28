@@ -203,6 +203,7 @@ function Inner() {
           file: imageFile,
           companyId,
           kind: 'nsnp_product',
+          privyUserId: privyUserId || null,
         });
         if (!up.url) throw new Error(up.error || 'Image upload failed');
         image_url = up.url;

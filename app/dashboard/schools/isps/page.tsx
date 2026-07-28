@@ -23,6 +23,7 @@ import {
   SchoolsHeader,
   SchoolsPage,
 } from '@/components/schools/SchoolsShell';
+import NsnpSystemFlow from '@/components/schools/NsnpSystemFlow';
 
 type ViewRole = 'school' | 'isp' | 'agency' | 'loading';
 
@@ -379,6 +380,10 @@ function Inner() {
         {policy ||
           'SPs join a department and claim schools. Schools accept claims. Both must share an approved department link.'}
       </div>
+
+      {!loading && role !== 'agency' ? (
+        <NsnpSystemFlow audience={isIsp ? 'isp' : 'school'} />
+      ) : null}
 
       {loading ? (
         <div className="py-16 flex justify-center">

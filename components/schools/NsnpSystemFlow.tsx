@@ -21,12 +21,38 @@ import {
   UtensilsCrossed,
 } from 'lucide-react';
 
+type Audience = 'dbe' | 'school' | 'isp';
+
 type Props = {
   /** Compact strip vs full command diagram */
   compact?: boolean;
+  /** Tailors intro copy for DBE, school, or service provider hubs */
+  audience?: Audience;
 };
 
-export default function NsnpSystemFlow({ compact }: Props) {
+const AUDIENCE_COPY: Record<
+  Audience,
+  { eyebrow: string; lead: string }
+> = {
+  dbe: {
+    eyebrow: 'How the programme works',
+    lead: 'Hard catalogue controls, delivery proof, PEU monitoring and fair prizes close the loop so every learner gets the nutrition they deserve — and compliant schools and SPs are rewarded.',
+  },
+  school: {
+    eyebrow: 'Your role in the nutrition chain',
+    lead: 'DBE sets the approved foods list and menu. You order only catalogue products from preferred SPs, receive into kitchen, feed learners, log serve-day — PEU verifies and prizes reward clean compliance.',
+  },
+  isp: {
+    eyebrow: 'Your role in the nutrition chain',
+    lead: 'DBE approves you and the catalogue. Schools order only approved brands from linked SPs. You fulfil with DN + POD photos, stay on-catalogue, climb preferred score — children eat what was authorised.',
+  },
+};
+
+export default function NsnpSystemFlow({
+  compact,
+  audience = 'dbe',
+}: Props) {
+  const copy = AUDIENCE_COPY[audience] || AUDIENCE_COPY.dbe;
   return (
     <section
       className={`rounded-3xl border border-slate-200 bg-white overflow-hidden ${
@@ -36,16 +62,12 @@ export default function NsnpSystemFlow({ compact }: Props) {
     >
       <div className="bg-gradient-to-r from-[#0077b6] via-[#00b4d8] to-emerald-600 px-5 py-4 text-white">
         <p className="text-[10px] font-bold uppercase tracking-widest text-white/80">
-          How the programme works
+          {copy.eyebrow}
         </p>
         <h2 className="text-lg sm:text-xl font-black mt-0.5">
           DBE → Schools → Service providers → Children fed
         </h2>
-        <p className="text-sm text-white/90 mt-1 max-w-3xl">
-          Hard catalogue controls, delivery proof, PEU monitoring and fair prizes
-          close the loop so every learner gets the nutrition they deserve — and
-          compliant schools and SPs are rewarded.
-        </p>
+        <p className="text-sm text-white/90 mt-1 max-w-3xl">{copy.lead}</p>
       </div>
 
       <div className="p-4 sm:p-6 space-y-6">

@@ -141,7 +141,7 @@ function Inner() {
         <SchoolsHeader
           title="SP command"
           titleAccent="Supply"
-          description="Fulfil school POs, dispatch trucks, attach POD & invoices — schools confirm receipt into kitchen stock."
+          description="See how you fit in DBE → schools → SPs → children fed. Fulfil school POs, dispatch trucks, attach POD & invoices — schools confirm receipt into kitchen stock."
           mode="isp"
           action={
             <button
@@ -154,6 +154,17 @@ function Inner() {
           }
         />
         <GoldenPathStrip companyId={companyId} />
+        <div className="mb-4">
+          <a
+            href="#nsnp-system-flow"
+            className="btn-secondary !py-1.5 !px-3 text-xs"
+          >
+            How the system works
+          </a>
+        </div>
+        <div id="nsnp-system-flow">
+          <NsnpSystemFlow audience="isp" />
+        </div>
         <div className="rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-sky-50 p-6 mb-6">
           <p className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
             Service provider
@@ -296,7 +307,7 @@ function Inner() {
         </div>
 
         <div id="nsnp-system-flow">
-          <NsnpSystemFlow />
+          <NsnpSystemFlow audience="dbe" />
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
@@ -460,6 +471,16 @@ function Inner() {
         >
           Supply ops · match · funding sim
         </Link>
+        <a
+          href="#nsnp-system-flow"
+          className="btn-secondary !py-1.5 !px-3 text-xs"
+        >
+          How the system works
+        </a>
+      </div>
+
+      <div id="nsnp-system-flow">
+        <NsnpSystemFlow audience="school" />
       </div>
 
       {/* Hero — no second process nav; module chrome navbar owns navigation */}

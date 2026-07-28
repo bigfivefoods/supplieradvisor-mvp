@@ -12,6 +12,7 @@ import {
   SchoolsHeader,
   SchoolsPage,
 } from '@/components/schools/SchoolsShell';
+import NsnpSystemFlow from '@/components/schools/NsnpSystemFlow';
 
 export default function SchoolProfilePage() {
   return (
@@ -210,6 +211,8 @@ function Inner() {
           <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
         </div>
       ) : (
+        <>
+        <NsnpSystemFlow audience="school" />
         <div className="space-y-4 max-w-3xl">
           {/* Photo hero */}
           <div className="rounded-3xl border border-slate-200 bg-white p-5 flex flex-col sm:flex-row gap-5 items-center sm:items-start">
@@ -617,6 +620,7 @@ function Inner() {
             </div>
           </div>
         </div>
+        </>
       )}
       <style jsx global>{`
         .input {
