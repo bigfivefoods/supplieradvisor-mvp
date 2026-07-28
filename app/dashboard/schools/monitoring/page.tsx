@@ -696,6 +696,12 @@ function Inner() {
           mode="agency"
           action={
             <div className="flex gap-2">
+              <Link
+                href="/dashboard/schools/monitoring-report"
+                className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+              >
+                Report & graphs
+              </Link>
               <button
                 type="button"
                 onClick={() => void loadList()}

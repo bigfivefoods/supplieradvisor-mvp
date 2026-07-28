@@ -395,6 +395,11 @@ function Inner() {
               desc: 'Field worker form · KPI · RKMP · health & gardens',
             },
             {
+              href: '/dashboard/schools/monitoring-report',
+              label: 'Monitoring report',
+              desc: 'Slice & dice · graphs · district & KPI analytics',
+            },
+            {
               href: '/dashboard/schools/visits',
               label: 'PEU visit planner',
               desc: 'Plan day routes · field pack · planned vs actual',

@@ -538,6 +538,13 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         section: 'Field',
       },
       {
+        name: 'Monitoring report',
+        href: '/dashboard/schools/monitoring-report',
+        desc: 'Filters · graphs · KPI analytics',
+        group: 'DBE',
+        section: 'Field',
+      },
+      {
         name: 'Prizes',
         href: '/dashboard/schools/prizes',
         desc: 'Headmaster prizes',
