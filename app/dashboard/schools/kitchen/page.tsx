@@ -56,16 +56,32 @@ export default function KitchenPage() {
   );
 }
 
+type LevelRow = {
+  approved_product_id: number;
+  product_name: string;
+  brand_name: string;
+  uom: string;
+  qty_on_hand: string;
+  reorder_level: string;
+  target_level: string;
+  stock_id?: number;
+  low_stock?: boolean;
+};
+
 function Inner() {
   const companyId = getSelectedCompanyId()!;
   const [loading, setLoading] = useState(true);
   const [stock, setStock] = useState<Array<Record<string, unknown>>>([]);
+  const [lowStock, setLowStock] = useState<Array<Record<string, unknown>>>([]);
   const [receipts, setReceipts] = useState<Array<Record<string, unknown>>>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [openOrders, setOpenOrders] = useState<OpenOrder[]>([]);
   const [poId, setPoId] = useState('');
   const [lines, setLines] = useState<GrnLine[]>([]);
   const [receiving, setReceiving] = useState(false);
+  const [levelRows, setLevelRows] = useState<LevelRow[]>([]);
+  const [savingLevels, setSavingLevels] = useState(false);
+  const [showLevels, setShowLevels] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -82,9 +98,54 @@ function Inner() {
       const p = await pRes.json();
       if (!kRes.ok) throw new Error(k.error || 'Failed');
       setStock(k.stock || []);
+      setLowStock(k.lowStock || []);
       setReceipts(k.receipts || []);
       setOpenOrders(k.openOrders || []);
       setProducts(p.products || []);
+
+      // Build inventory level rows: all catalogue products + existing stock
+      const stockByPid = new Map<number, Record<string, unknown>>();
+      for (const s of k.stock || []) {
+        const pid = Number(s.approved_product_id);
+        if (Number.isFinite(pid)) stockByPid.set(pid, s);
+      }
+      const rows: LevelRow[] = (p.products || []).map((prod: Product) => {
+        const s = stockByPid.get(prod.id);
+        return {
+          approved_product_id: prod.id,
+          product_name: prod.name,
+          brand_name: prod.brand_name,
+          uom: prod.uom || 'kg',
+          qty_on_hand:
+            s?.qty_on_hand != null ? String(s.qty_on_hand) : '0',
+          reorder_level:
+            s?.reorder_level != null ? String(s.reorder_level) : '',
+          target_level:
+            s?.target_level != null ? String(s.target_level) : '',
+          stock_id: s?.id != null ? Number(s.id) : undefined,
+          low_stock: Boolean(s?.low_stock),
+        };
+      });
+      // Include stock lines not on current catalogue
+      for (const s of k.stock || []) {
+        const pid = Number(s.approved_product_id);
+        if (!rows.some((r) => r.approved_product_id === pid)) {
+          rows.push({
+            approved_product_id: pid,
+            product_name: String(s.product_name || ''),
+            brand_name: String(s.brand_name || ''),
+            uom: String(s.uom || 'kg'),
+            qty_on_hand: String(s.qty_on_hand ?? 0),
+            reorder_level:
+              s.reorder_level != null ? String(s.reorder_level) : '',
+            target_level:
+              s.target_level != null ? String(s.target_level) : '',
+            stock_id: Number(s.id),
+            low_stock: Boolean(s.low_stock),
+          });
+        }
+      }
+      setLevelRows(rows);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Load failed');
     } finally {
@@ -177,6 +238,54 @@ function Inner() {
     }
   };
 
+  const saveLevels = async () => {
+    setSavingLevels(true);
+    try {
+      const linesPayload = levelRows
+        .filter(
+          (r) =>
+            r.reorder_level !== '' ||
+            r.target_level !== '' ||
+            Number(r.qty_on_hand) > 0 ||
+            r.stock_id
+        )
+        .map((r) => ({
+          approved_product_id: r.approved_product_id,
+          product_name: r.product_name,
+          brand_name: r.brand_name,
+          uom: r.uom,
+          qty_on_hand: r.qty_on_hand === '' ? undefined : r.qty_on_hand,
+          reorder_level: r.reorder_level === '' ? null : r.reorder_level,
+          target_level: r.target_level === '' ? null : r.target_level,
+        }));
+      if (!linesPayload.length) {
+        return toast.error('Set at least one on-hand or reorder level');
+      }
+      const res = await fetch('/api/schools/kitchen', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          companyId,
+          action: 'set_levels',
+          lines: linesPayload,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Save failed');
+      toast.success(data.message || 'Inventory levels saved');
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Save failed');
+    } finally {
+      setSavingLevels(false);
+    }
+  };
+
+  const orderLowStock = () => {
+    window.location.href = '/dashboard/schools/orders';
+  };
+
   const adjust = async (
     stockId: number,
     action: 'issue' | 'waste',
@@ -216,8 +325,8 @@ function Inner() {
     <SchoolsPage>
       <SchoolsHeader
         title="Kitchen stock"
-        titleAccent="PO → GRN"
-        description="Receive open purchase orders into stock — only NSNP-approved brands. Issue & waste keep the plate loop honest."
+        titleAccent="Levels · GRN"
+        description="Set inventory levels for approved foods, receive SP deliveries into stock, and order when on-hand hits reorder point."
         action={
           <div className="flex gap-2">
             <Link
@@ -236,6 +345,166 @@ function Inner() {
           </div>
         }
       />
+
+      {lowStock.length > 0 ? (
+        <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 flex flex-wrap items-center justify-between gap-2">
+          <span>
+            <strong>{lowStock.length} product(s)</strong> at or below reorder
+            level — order from your SP with a required delivery date.
+          </span>
+          <button
+            type="button"
+            onClick={orderLowStock}
+            className="btn-primary !py-1.5 !px-3 text-xs"
+          >
+            Order now
+          </button>
+        </div>
+      ) : null}
+
+      {/* Inventory levels */}
+      <div className="mb-6 rounded-3xl border border-slate-200 bg-white overflow-hidden">
+        <div className="px-4 py-3 border-b flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-sm font-black">Inventory levels · approved foods</p>
+            <p className="text-[11px] text-slate-500">
+              Set on-hand, reorder and target levels. When on-hand ≤ reorder,
+              place a PO to your SP.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setShowLevels((v) => !v)}
+              className="btn-secondary !py-1.5 !px-3 text-xs"
+            >
+              {showLevels ? 'Hide' : 'Show'}
+            </button>
+            <button
+              type="button"
+              disabled={savingLevels}
+              onClick={() => void saveLevels()}
+              className="btn-primary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
+            >
+              {savingLevels ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : null}
+              Save levels
+            </button>
+          </div>
+        </div>
+        {showLevels ? (
+          <div className="overflow-x-auto max-h-[28rem]">
+            <table className="w-full text-sm min-w-[720px]">
+              <thead className="sticky top-0 bg-slate-50">
+                <tr className="border-b text-left text-[10px] font-bold uppercase text-slate-400">
+                  <th className="px-3 py-2">Product</th>
+                  <th className="px-2 py-2">On hand</th>
+                  <th className="px-2 py-2">Reorder at</th>
+                  <th className="px-2 py-2">Target</th>
+                  <th className="px-2 py-2">UOM</th>
+                </tr>
+              </thead>
+              <tbody>
+                {levelRows.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={5}
+                      className="px-4 py-8 text-center text-slate-500"
+                    >
+                      No catalogue products yet — join DBE for the approved list.
+                    </td>
+                  </tr>
+                ) : (
+                  levelRows.map((r, idx) => {
+                    const onHand = Number(r.qty_on_hand) || 0;
+                    const reorder =
+                      r.reorder_level === ''
+                        ? null
+                        : Number(r.reorder_level);
+                    const low =
+                      reorder != null &&
+                      Number.isFinite(reorder) &&
+                      onHand <= reorder;
+                    return (
+                      <tr
+                        key={r.approved_product_id}
+                        className={`border-b border-slate-50 ${
+                          low ? 'bg-amber-50/60' : ''
+                        }`}
+                      >
+                        <td className="px-3 py-1.5">
+                          <div className="font-semibold text-xs">
+                            {r.product_name}
+                            {low ? (
+                              <span className="ml-1 text-[9px] font-bold uppercase text-amber-700">
+                                Low
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="text-[10px] font-bold text-emerald-700">
+                            {r.brand_name}
+                          </div>
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <input
+                            className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-xs font-bold tabular-nums"
+                            value={r.qty_on_hand}
+                            onChange={(e) =>
+                              setLevelRows((prev) =>
+                                prev.map((x, i) =>
+                                  i === idx
+                                    ? { ...x, qty_on_hand: e.target.value }
+                                    : x
+                                )
+                              )
+                            }
+                          />
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <input
+                            className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-xs tabular-nums"
+                            value={r.reorder_level}
+                            placeholder="e.g. 10"
+                            onChange={(e) =>
+                              setLevelRows((prev) =>
+                                prev.map((x, i) =>
+                                  i === idx
+                                    ? { ...x, reorder_level: e.target.value }
+                                    : x
+                                )
+                              )
+                            }
+                          />
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <input
+                            className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-xs tabular-nums"
+                            value={r.target_level}
+                            placeholder="e.g. 50"
+                            onChange={(e) =>
+                              setLevelRows((prev) =>
+                                prev.map((x, i) =>
+                                  i === idx
+                                    ? { ...x, target_level: e.target.value }
+                                    : x
+                                )
+                              )
+                            }
+                          />
+                        </td>
+                        <td className="px-2 py-1.5 text-xs text-slate-500">
+                          {r.uom}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+      </div>
 
       <div className="mb-6 rounded-3xl border border-slate-200 bg-white p-5 space-y-4">
         <div className="flex flex-wrap items-end gap-3">
@@ -408,14 +677,32 @@ function Inner() {
                   </tr>
                 ) : (
                   stock.map((s) => (
-                    <tr key={String(s.id)} className="border-b border-slate-50">
+                    <tr
+                      key={String(s.id)}
+                      className={`border-b border-slate-50 ${
+                        s.low_stock ? 'bg-amber-50/50' : ''
+                      }`}
+                    >
                       <td className="px-4 py-2">
                         <div className="font-semibold">
                           {String(s.product_name)}
+                          {s.low_stock ? (
+                            <span className="ml-1 text-[9px] font-bold uppercase text-amber-700">
+                              Reorder
+                            </span>
+                          ) : null}
                         </div>
                         <div className="text-[10px] font-bold text-emerald-700">
                           {String(s.brand_name)}
                         </div>
+                        {s.reorder_level != null ? (
+                          <div className="text-[10px] text-slate-400">
+                            Reorder ≤ {String(s.reorder_level)}
+                            {s.target_level != null
+                              ? ` · target ${String(s.target_level)}`
+                              : ''}
+                          </div>
+                        ) : null}
                       </td>
                       <td className="px-4 py-2 text-right">
                         <div className="font-black tabular-nums">

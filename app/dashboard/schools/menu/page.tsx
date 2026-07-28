@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import {
   Loader2,
   Plus,
@@ -12,6 +13,7 @@ import {
   School,
   Coffee,
   Sun,
+  ShoppingCart,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -239,9 +241,9 @@ function Inner() {
         titleAccent="Breakfast + lunch"
         description={
           canEdit
-            ? 'Set two meals a day (breakfast and lunch) for Mon–Fri. Pick approved products for each meal — schools and SPs use this as the daily feeding guide.'
+            ? 'DBE sets breakfast + lunch Mon–Fri from the approved product catalogue only. Schools inherit this menu live; SPs supply those foods from wholesalers.'
             : policy ||
-              'Your department sets breakfast and lunch for each school day. Follow the dishes and approved products listed.'
+              'Your DBE sets breakfast and lunch from the approved catalogue. This menu filters down to your school — order those products from your SP.'
         }
         action={
           <div className="flex gap-2">
@@ -253,7 +255,14 @@ function Inner() {
               >
                 <Plus className="w-3.5 h-3.5" /> New
               </button>
-            ) : null}
+            ) : (
+              <Link
+                href="/dashboard/schools/orders"
+                className="btn-primary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+              >
+                <ShoppingCart className="w-3.5 h-3.5" /> Order menu products
+              </Link>
+            )}
             <button
               type="button"
               onClick={() => void load()}
@@ -264,6 +273,37 @@ function Inner() {
           </div>
         }
       />
+
+      {!canEdit ? (
+        <div className="mb-4 rounded-2xl border border-violet-200 bg-violet-50/80 px-4 py-3 text-sm text-violet-950 flex gap-2">
+          <Landmark className="w-5 h-5 shrink-0 text-violet-700" />
+          <div>
+            <p className="font-black text-xs uppercase tracking-wide">
+              Live from DBE · catalogue products only
+            </p>
+            <p className="text-[13px] mt-0.5">
+              {agencyName || 'Your department'} publishes this menu from the
+              approved foods catalogue. You cannot change it here — order the
+              listed products from your service provider; they source from
+              wholesalers and deliver to school.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="mb-4 rounded-2xl border border-sky-200 bg-sky-50/80 px-4 py-3 text-sm text-sky-950 flex gap-2">
+          <Landmark className="w-5 h-5 shrink-0 text-sky-700" />
+          <div>
+            <p className="font-black text-xs uppercase tracking-wide">
+              DBE sets the programme menu
+            </p>
+            <p className="text-[13px] mt-0.5">
+              Select dishes and approved catalogue products for breakfast +
+              lunch. Associated schools inherit this menu live and are scored on
+              adherence; SPs supply those products from wholesalers.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Legend */}
       <div className="mb-4 grid sm:grid-cols-2 gap-2">

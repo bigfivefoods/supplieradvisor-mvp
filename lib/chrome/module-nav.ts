@@ -697,6 +697,20 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         section: 'Home',
       },
       {
+        name: 'School orders report',
+        href: '/dashboard/schools/sp-orders-report',
+        desc: 'Linked schools · required delivery dates',
+        group: 'SP',
+        section: 'Home',
+      },
+      {
+        name: 'Orders inbox',
+        href: '/dashboard/schools/orders',
+        desc: 'Incoming school POs',
+        group: 'SP',
+        section: 'Home',
+      },
+      {
         name: 'Profile',
         href: '/dashboard/schools/isps',
         desc: 'Register · profile',

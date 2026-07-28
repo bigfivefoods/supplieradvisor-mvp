@@ -189,10 +189,10 @@ function Inner() {
         titleAccent="Sprint A · B · C"
         description={
           role === 'isp'
-            ? 'Open POs by expected date — create DN, dispatch, POD.'
+            ? 'School POs (approved catalogue only) — buy from wholesalers, create DN, dispatch with POD; school receives into kitchen.'
             : role === 'agency'
               ? 'Exceptions, claims, stuck deliveries, district/cluster allocation.'
-              : 'Shopping list from menu, three-way match, funding simulator, audit pack.'
+              : 'Shopping list from DBE menu, three-way match, funding simulator, audit pack.'
         }
         action={
           <button

@@ -13,6 +13,7 @@ import {
 
 /**
  * School NSNP POs — every line must be on the approved product list.
+ * GET: schools see their POs; SPs see orders placed on them (wholesale supply inbox).
  */
 export async function GET(request: NextRequest) {
   try {
@@ -26,6 +27,61 @@ export async function GET(request: NextRequest) {
     if (!gate.ok) return gate.response;
 
     const supabase = getSupabaseServer();
+
+    // SP inbox: POs where this company is the service provider
+    const { data: ispRow } = await supabase
+      .from('nsnp_isp_profiles')
+      .select('id, profile_id, trading_name')
+      .eq('profile_id', companyId)
+      .maybeSingle();
+
+    if (ispRow) {
+      const { data, error: oErr } = await supabase
+        .from('school_purchase_orders')
+        .select('*')
+        .eq('isp_profile_id', companyId)
+        .order('created_at', { ascending: false })
+        .limit(500);
+      if (oErr) {
+        return NextResponse.json({ error: oErr.message }, { status: 400 });
+      }
+      const schoolIds = [
+        ...new Set(
+          (data || [])
+            .map((o) => Number(o.school_profile_id))
+            .filter((n) => Number.isFinite(n) && n > 0)
+        ),
+      ];
+      const nameMap = new Map<number, string>();
+      if (schoolIds.length) {
+        const { data: schools } = await supabase
+          .from('school_profiles')
+          .select('id, school_name, district, emis_number')
+          .in('id', schoolIds);
+        for (const s of schools || []) {
+          nameMap.set(
+            Number(s.id),
+            String(s.school_name || `School ${s.id}`)
+          );
+        }
+      }
+      const orders = (data || []).map((o) => ({
+        ...o,
+        school_name:
+          nameMap.get(Number(o.school_profile_id)) ||
+          `School ${o.school_profile_id}`,
+        role: 'isp',
+      }));
+      return NextResponse.json({
+        success: true,
+        role: 'isp',
+        orders,
+        process:
+          'Schools order approved catalogue products from you. Buy from wholesalers, create a DN, dispatch with POD, school receives into kitchen.',
+        next_href: '/dashboard/schools/ops',
+      });
+    }
+
     const { school, error } = await getOrCreateSchoolProfile(supabase, companyId);
     if (error || !school) {
       return NextResponse.json({ error: error || 'No school' }, { status: 503 });
@@ -42,7 +98,13 @@ export async function GET(request: NextRequest) {
     if (oErr) {
       return NextResponse.json({ error: oErr.message }, { status: 400 });
     }
-    return NextResponse.json({ success: true, orders: data || [] });
+    return NextResponse.json({
+      success: true,
+      role: 'school',
+      orders: data || [],
+      process:
+        'Order only DBE-approved products from your linked SP. The SP sources from wholesalers and delivers to your school with POD.',
+    });
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },
@@ -220,6 +282,22 @@ export async function POST(request: NextRequest) {
       body.po_number ||
       `NSNP-PO-${school.id}-${Date.now().toString(36).toUpperCase()}`;
 
+    // Required delivery date — SP must see this on their orders report
+    let expectedDate =
+      body.expected_date != null && String(body.expected_date).trim()
+        ? String(body.expected_date).slice(0, 10)
+        : null;
+    if (!expectedDate) {
+      return NextResponse.json(
+        {
+          error:
+            'Required delivery date is mandatory so your service provider can plan wholesale sourcing and delivery.',
+          hard_block: true,
+        },
+        { status: 400 }
+      );
+    }
+
     const { data, error: iErr } = await supabase
       .from('school_purchase_orders')
       .insert({
@@ -229,7 +307,7 @@ export async function POST(request: NextRequest) {
         po_number: poNumber,
         status: body.status || 'submitted',
         order_date: body.order_date || new Date().toISOString().slice(0, 10),
-        expected_date: body.expected_date || null,
+        expected_date: expectedDate,
         total_amount: Math.round(total * 100) / 100,
         currency: body.currency || 'ZAR',
         lines,
@@ -244,18 +322,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: iErr.message }, { status: 400 });
     }
 
-    // Notify SP (in-app) — Sprint A
+    // Notify SP (in-app) — lands on fulfil queue
     try {
       const { logNsnpEvent } = await import('@/lib/schools/events');
+      const schoolName = String(
+        (school as { school_name?: string }).school_name || 'School'
+      );
       await logNsnpEvent(supabase, {
         companyId,
         targetCompanyId: ispProfileId,
         schoolProfileId: Number(school.id),
         kind: 'po_submitted',
         title: `New school PO ${poNumber}`,
-        body: `${school.school_name || 'School'} ordered ${lines.length} approved line(s) — open fulfil queue`,
+        body: `${schoolName} ordered ${lines.length} approved line(s). Source from wholesalers → Create DN → dispatch with POD.`,
         href: '/dashboard/schools/ops',
-        metadata: { po_id: data.id, po_number: poNumber },
+        metadata: {
+          po_id: data.id,
+          po_number: poNumber,
+          supply_model: 'sp_wholesale_to_school',
+        },
       });
     } catch {
       /* soft */
@@ -271,10 +356,12 @@ export async function POST(request: NextRequest) {
       hard_block: true,
       incentive:
         'Approved-only PO logged — counts toward headmaster prize and full claim funding.',
+      process:
+        'SP receives this PO, buys from wholesalers, delivers to your school with POD; you receive into kitchen.',
       next: {
-        label: 'Create delivery note',
+        label: 'SP fulfil queue',
         href: '/dashboard/schools/ops',
-        hint: 'SP fulfil queue — one-click Create DN from this open PO',
+        hint: 'Service provider creates DN, buys stock, dispatches with photo POD',
         po_id: data.id,
       },
     });

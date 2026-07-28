@@ -1,8 +1,24 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+/**
+ * School: order approved catalogue products from linked SPs.
+ * SP: inbox of school POs to source from wholesalers and fulfil.
+ * Process: DBE catalogue + menu → school PO → SP wholesale buy → DN/POD → school GRN → serve.
+ */
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Loader2, Plus, RefreshCw, Trophy, ShieldCheck } from 'lucide-react';
+import {
+  Loader2,
+  Plus,
+  RefreshCw,
+  Trophy,
+  ShieldCheck,
+  Truck,
+  Package,
+  Utensils,
+  ArrowRight,
+  ShoppingCart,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { formatMoney } from '@/lib/accounting/types';
@@ -19,6 +35,16 @@ type Product = {
   uom?: string | null;
   image_url?: string | null;
   province?: string | null;
+  category?: string | null;
+};
+
+type Line = {
+  approved_product_id: number;
+  product_name: string;
+  brand_name: string;
+  qty: number;
+  unit_price: number;
+  uom: string;
 };
 
 export default function SchoolOrdersPage() {
@@ -32,60 +58,80 @@ export default function SchoolOrdersPage() {
 function Inner() {
   const companyId = getSelectedCompanyId()!;
   const [loading, setLoading] = useState(true);
+  const [role, setRole] = useState<'school' | 'isp'>('school');
   const [orders, setOrders] = useState<Array<Record<string, unknown>>>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [menuProductIds, setMenuProductIds] = useState<number[]>([]);
+  const [menuAgency, setMenuAgency] = useState<string | null>(null);
   const [links, setLinks] = useState<Array<Record<string, unknown>>>([]);
   const [showForm, setShowForm] = useState(false);
   const [productId, setProductId] = useState('');
   const [qty, setQty] = useState('1');
   const [price, setPrice] = useState('0');
   const [ispId, setIspId] = useState('');
-  const [lines, setLines] = useState<
-    Array<{
-      approved_product_id: number;
-      product_name: string;
-      brand_name: string;
-      qty: number;
-      unit_price: number;
-      uom: string;
-    }>
-  >([]);
+  const [notes, setNotes] = useState('');
+  const [expectedDate, setExpectedDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 3);
+    return d.toISOString().slice(0, 10);
+  });
+  const [lines, setLines] = useState<Line[]>([]);
   const [submitting, setSubmitting] = useState(false);
-  const [catalogueLabel, setCatalogueLabel] = useState('department approved list');
+  const [catalogueLabel, setCatalogueLabel] = useState(
+    'department approved list'
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [oRes, pRes, iRes] = await Promise.all([
+      const [oRes, pRes, iRes, mRes] = await Promise.all([
         fetch(`/api/schools/orders?companyId=${companyId}`, {
           cache: 'no-store',
+          credentials: 'same-origin',
         }),
         fetch(`/api/schools/approved?companyId=${companyId}`, {
           cache: 'no-store',
+          credentials: 'same-origin',
         }),
         fetch(`/api/schools/isps?companyId=${companyId}`, {
           cache: 'no-store',
+          credentials: 'same-origin',
+        }),
+        fetch(`/api/schools/menu?companyId=${companyId}`, {
+          cache: 'no-store',
+          credentials: 'same-origin',
         }),
       ]);
       const o = await oRes.json();
       const p = await pRes.json();
       const i = await iRes.json();
+      const m = await mRes.json().catch(() => ({}));
       if (!oRes.ok) throw new Error(o.error || 'Failed');
+
+      setRole(o.role === 'isp' ? 'isp' : 'school');
       setOrders(o.orders || []);
       setProducts(p.products || []);
-      // Only active SP links for ordering (preferred first from API)
-      const active = (i.links || []).filter(
-        (l: Record<string, unknown>) => String(l.status) === 'active'
-      );
-      setLinks(active);
-      setIspId((prev) => {
-        if (prev) return prev;
-        const preferred = active.find(
-          (l: Record<string, unknown>) => l.preferred
+
+      const ids = Array.isArray(m.weekly_approved_product_ids)
+        ? m.weekly_approved_product_ids.map(Number).filter((n: number) => n > 0)
+        : [];
+      setMenuProductIds(ids);
+      setMenuAgency(m.agencyName || m.mandated?.agency_name || null);
+
+      if (o.role !== 'isp') {
+        const active = (i.links || []).filter(
+          (l: Record<string, unknown>) => String(l.status) === 'active'
         );
-        const first = preferred || active[0];
-        return first ? String(first.isp_profile_id) : '';
-      });
+        setLinks(active);
+        setIspId((prev) => {
+          if (prev) return prev;
+          const preferred = active.find(
+            (l: Record<string, unknown>) => l.preferred
+          );
+          const first = preferred || active[0];
+          return first ? String(first.isp_profile_id) : '';
+        });
+      }
       if (p.catalogue?.agencyName) {
         setCatalogueLabel(`${p.catalogue.agencyName} approved foods`);
       } else if (p.agencyName) {
@@ -102,6 +148,12 @@ function Inner() {
     void load();
   }, [load]);
 
+  const menuProducts = useMemo(() => {
+    if (!menuProductIds.length) return [] as Product[];
+    const set = new Set(menuProductIds);
+    return products.filter((p) => set.has(p.id));
+  }, [products, menuProductIds]);
+
   const addLine = () => {
     const prod = products.find((p) => p.id === Number(productId));
     if (!prod) {
@@ -114,30 +166,80 @@ function Inner() {
     }
     const q = Number(qty);
     if (!(q > 0)) return toast.error('Qty must be > 0');
-    setLines((prev) => [
-      ...prev,
-      {
-        approved_product_id: prod.id,
-        product_name: prod.name,
-        brand_name: prod.brand_name,
-        qty: q,
-        unit_price: Number(price) || 0,
-        uom: prod.uom || 'kg',
-      },
-    ]);
+    setLines((prev) => {
+      const existing = prev.find((l) => l.approved_product_id === prod.id);
+      if (existing) {
+        return prev.map((l) =>
+          l.approved_product_id === prod.id
+            ? { ...l, qty: l.qty + q, unit_price: Number(price) || l.unit_price }
+            : l
+        );
+      }
+      return [
+        ...prev,
+        {
+          approved_product_id: prod.id,
+          product_name: prod.name,
+          brand_name: prod.brand_name,
+          qty: q,
+          unit_price: Number(price) || 0,
+          uom: prod.uom || 'kg',
+        },
+      ];
+    });
     setProductId('');
     setQty('1');
     setPrice('0');
   };
 
+  const addMenuWeek = () => {
+    if (!menuProducts.length) {
+      return toast.error(
+        'No DBE menu products yet — department must publish the mandated menu from the catalogue'
+      );
+    }
+    setLines((prev) => {
+      const map = new Map(prev.map((l) => [l.approved_product_id, l]));
+      for (const prod of menuProducts) {
+        if (!map.has(prod.id)) {
+          map.set(prod.id, {
+            approved_product_id: prod.id,
+            product_name: prod.name,
+            brand_name: prod.brand_name,
+            qty: 1,
+            unit_price: 0,
+            uom: prod.uom || 'kg',
+          });
+        }
+      }
+      return Array.from(map.values());
+    });
+    setShowForm(true);
+    toast.success(
+      `Added ${menuProducts.length} product(s) from the DBE weekly menu — set quantities and pick your SP`
+    );
+  };
+
+  const removeLine = (idx: number) => {
+    setLines((prev) => prev.filter((_, i) => i !== idx));
+  };
+
   const submit = async () => {
     if (!lines.length) return toast.error('Add approved product lines first');
     if (!ispId) {
-      return toast.error('Select a service provider (preferred SPs listed first)');
+      return toast.error(
+        'Select a service provider (preferred SPs listed first)'
+      );
     }
-    // Client hard-block: every line must have catalogue id
+    if (!expectedDate) {
+      return toast.error(
+        'Set the required delivery date — your SP must see this on their orders report'
+      );
+    }
     if (lines.some((l) => !l.approved_product_id)) {
-      return toast.error('Off-catalogue lines blocked — remove them before submit');
+      return toast.error(
+        'Off-catalogue lines blocked — remove them before submit'
+      );
     }
     setSubmitting(true);
     try {
@@ -149,6 +251,10 @@ function Inner() {
           companyId,
           isp_profile_id: Number(ispId),
           lines,
+          expected_date: expectedDate,
+          notes:
+            notes.trim() ||
+            'SP to source from wholesalers and deliver approved catalogue products to school by the required delivery date.',
         }),
       });
       const data = await res.json();
@@ -159,9 +265,10 @@ function Inner() {
         throw new Error(`${data.error || 'PO rejected'}${detail}`);
       }
       toast.success(
-        `PO ${data.order?.po_number} created — approved only · SP notified path ready`
+        `PO ${data.order?.po_number} sent to SP — they will source from wholesalers and deliver`
       );
       setLines([]);
+      setNotes('');
       setShowForm(false);
       void load();
     } catch (e: unknown) {
@@ -171,12 +278,166 @@ function Inner() {
     }
   };
 
+  // ── SP order inbox ────────────────────────────────────────────────
+  if (role === 'isp') {
+    return (
+      <SchoolsPage>
+        <SchoolsHeader
+          title="School orders"
+          titleAccent="SP inbox"
+          description="Schools order DBE-approved products from you. Source from wholesalers, create a delivery note, dispatch with POD — school receives into kitchen."
+          mode="isp"
+          action={
+            <div className="flex gap-2">
+              <Link
+                href="/dashboard/schools/sp-orders-report"
+                className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+              >
+                Schools report
+              </Link>
+              <Link
+                href="/dashboard/schools/ops"
+                className="btn-primary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+              >
+                <Package className="w-3.5 h-3.5" /> Fulfil queue
+              </Link>
+              <button
+                type="button"
+                onClick={() => void load()}
+                className="btn-secondary !py-2 !px-3 text-xs"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          }
+        />
+
+        <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-950 flex gap-2">
+          <Truck className="w-5 h-5 shrink-0 text-amber-700" />
+          <div>
+            <p className="font-black text-xs uppercase tracking-wide">
+              Wholesale supply model
+            </p>
+            <p className="text-[13px] mt-0.5">
+              School PO (approved catalogue only) with a required delivery date
+              → you buy from wholesalers → create DN &amp; dispatch with photo
+              POD by that date → school posts GRN → learners fed.
+            </p>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="py-16 flex justify-center">
+            <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
+          </div>
+        ) : orders.length === 0 ? (
+          <div className="rounded-3xl border border-dashed border-slate-200 bg-white p-10 text-center text-slate-500">
+            No school orders yet. When schools submit POs to you, they appear
+            here and on the fulfil queue.
+          </div>
+        ) : (
+          <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+            <table className="w-full text-sm min-w-[720px]">
+              <thead>
+                <tr className="border-b text-left text-[10px] font-bold uppercase text-slate-400">
+                  <th className="px-4 py-3">PO</th>
+                  <th className="px-3 py-3">School</th>
+                  <th className="px-3 py-3">Order date</th>
+                  <th className="px-3 py-3">Required delivery</th>
+                  <th className="px-3 py-3">Lines</th>
+                  <th className="px-3 py-3">Total</th>
+                  <th className="px-3 py-3">Status</th>
+                  <th className="px-3 py-3 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {orders.map((o) => {
+                  const lineCount = Array.isArray(o.lines)
+                    ? (o.lines as unknown[]).length
+                    : 0;
+                  const req = o.expected_date
+                    ? String(o.expected_date).slice(0, 10)
+                    : '—';
+                  const today = new Date().toISOString().slice(0, 10);
+                  const late =
+                    req !== '—' &&
+                    req < today &&
+                    !['received', 'cancelled', 'closed'].includes(
+                      String(o.status || '')
+                    );
+                  return (
+                    <tr
+                      key={String(o.id)}
+                      className={`border-b border-slate-50 ${
+                        late ? 'bg-rose-50/50' : 'hover:bg-amber-50/40'
+                      }`}
+                    >
+                      <td className="px-4 py-2.5 font-bold">
+                        {String(o.po_number || o.id)}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        {String(o.school_name || o.school_profile_id)}
+                      </td>
+                      <td className="px-3 py-2.5 text-xs">
+                        {String(o.order_date || '—').slice(0, 10)}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <span
+                          className={`text-xs font-black ${
+                            late ? 'text-rose-700' : ''
+                          }`}
+                        >
+                          {req}
+                        </span>
+                        {late ? (
+                          <span className="block text-[9px] font-bold uppercase text-rose-600">
+                            Late
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className="px-3 py-2.5 tabular-nums">{lineCount}</td>
+                      <td className="px-3 py-2.5 tabular-nums">
+                        {formatMoney(Number(o.total_amount || 0))}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <span className="text-[10px] font-bold uppercase rounded-full bg-slate-100 px-2 py-0.5">
+                          {String(o.status)}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 text-right">
+                        <div className="inline-flex flex-col items-end gap-0.5">
+                          <Link
+                            href="/dashboard/schools/ops"
+                            className="text-xs font-bold text-amber-800 hover:underline inline-flex items-center gap-1"
+                          >
+                            Fulfil <ArrowRight className="w-3 h-3" />
+                          </Link>
+                          <Link
+                            href="/dashboard/schools/sp-orders-report"
+                            className="text-[10px] font-bold text-slate-500 hover:underline"
+                          >
+                            Full report
+                          </Link>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </SchoolsPage>
+    );
+  }
+
+  // ── School order form ─────────────────────────────────────────────
   return (
     <SchoolsPage>
       <SchoolsHeader
         title="Kitchen orders"
-        titleAccent="Approved only"
-        description="Schools and clinics may only order products on their DBE/DoH approved list. That protects claim funding and headmaster prize score."
+        titleAccent="To your SP"
+        description="Order DBE-approved products from your linked service provider. They source from wholesalers and deliver to the school — only catalogue brands allowed."
         action={
           <div className="flex gap-2">
             <button
@@ -197,6 +458,45 @@ function Inner() {
         }
       />
 
+      <div className="mb-4 grid sm:grid-cols-3 gap-3">
+        <div className="rounded-2xl border border-sky-200 bg-sky-50/80 px-4 py-3 text-sm text-sky-950 flex gap-2">
+          <ShoppingCart className="w-5 h-5 shrink-0 text-sky-700" />
+          <div>
+            <p className="font-black text-xs uppercase tracking-wide">
+              1 · School orders
+            </p>
+            <p className="text-[13px] mt-0.5">
+              Pick products from the DBE approved catalogue (and mandated menu)
+              and send a PO to your linked SP.
+            </p>
+          </div>
+        </div>
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-950 flex gap-2">
+          <Truck className="w-5 h-5 shrink-0 text-amber-700" />
+          <div>
+            <p className="font-black text-xs uppercase tracking-wide">
+              2 · SP sources &amp; delivers
+            </p>
+            <p className="text-[13px] mt-0.5">
+              SP receives the PO, buys from wholesalers, creates a DN and
+              delivers with photo POD.
+            </p>
+          </div>
+        </div>
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 px-4 py-3 text-sm text-emerald-950 flex gap-2">
+          <Utensils className="w-5 h-5 shrink-0 text-emerald-700" />
+          <div>
+            <p className="font-black text-xs uppercase tracking-wide">
+              3 · School feeds
+            </p>
+            <p className="text-[13px] mt-0.5">
+              You receive into kitchen GRN, follow the DBE menu, log serve day —
+              prizes &amp; claims stay clean.
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div className="mb-4 grid sm:grid-cols-2 gap-3">
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 px-4 py-3 text-sm text-emerald-950 flex gap-2">
           <ShieldCheck className="w-5 h-5 shrink-0 text-emerald-700" />
@@ -210,27 +510,21 @@ function Inner() {
             </p>
           </div>
         </div>
-        <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-950 flex gap-2">
-          <Trophy className="w-5 h-5 shrink-0 text-amber-700" />
+        <div className="rounded-2xl border border-violet-200 bg-violet-50/80 px-4 py-3 text-sm text-violet-950 flex gap-2">
+          <Utensils className="w-5 h-5 shrink-0 text-violet-700" />
           <div>
             <p className="font-black text-xs uppercase tracking-wide">
-              Incentive · prizes & claims
+              DBE menu → school
             </p>
             <p className="text-[13px] mt-0.5">
-              Approved-brand spend is ~55% of the headmaster prize. Claims need
-              ≥98% on-catalogue GRNs for full funding.{' '}
+              {menuAgency
+                ? `${menuAgency} sets the mandated menu from the catalogue — it shows on Schools → Menu and drives this shopping list.`
+                : 'When DBE publishes the programme menu from the catalogue, those products appear here for one-click add.'}{' '}
               <Link
-                href="/dashboard/schools/prizes"
+                href="/dashboard/schools/menu"
                 className="font-bold underline"
               >
-                Prize score
-              </Link>
-              {' · '}
-              <Link
-                href="/dashboard/schools/claims"
-                className="font-bold underline"
-              >
-                Claims
+                View menu
               </Link>
             </p>
           </div>
@@ -239,6 +533,29 @@ function Inner() {
 
       {showForm ? (
         <div className="mb-6 rounded-3xl border border-sky-100 bg-sky-50/40 p-5 space-y-3">
+          {menuProducts.length > 0 ? (
+            <button
+              type="button"
+              onClick={addMenuWeek}
+              className="w-full sm:w-auto btn-secondary !py-2.5 !px-4 text-xs inline-flex items-center gap-2"
+            >
+              <ShoppingCart className="w-3.5 h-3.5" />
+              Add this week&apos;s menu products ({menuProducts.length})
+            </button>
+          ) : (
+            <p className="text-xs text-slate-500">
+              No mandated menu products yet — DBE must publish breakfast + lunch
+              from the approved catalogue under{' '}
+              <Link
+                href="/dashboard/schools/menu"
+                className="font-bold text-[#0077b6] underline"
+              >
+                Menu
+              </Link>
+              .
+            </p>
+          )}
+
           {(() => {
             const selected = products.find((p) => String(p.id) === productId);
             if (!selected) return null;
@@ -277,6 +594,7 @@ function Inner() {
                 <option key={p.id} value={p.id}>
                   {p.brand_name} — {p.name}
                   {p.province ? ` · ${p.province}` : ''}
+                  {menuProductIds.includes(p.id) ? ' · on menu' : ''}
                 </option>
               ))}
             </select>
@@ -290,12 +608,12 @@ function Inner() {
               className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
               value={price}
               onChange={(e) => setPrice(e.target.value)}
-              placeholder="Unit price"
+              placeholder="Unit price (est.)"
             />
           </div>
-          <div className="flex flex-wrap gap-2 items-center">
+          <div className="grid sm:grid-cols-2 gap-2">
             <select
-              className="rounded-xl border border-slate-200 px-3 py-2 text-sm min-w-[14rem]"
+              className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
               value={ispId}
               onChange={(e) => setIspId(e.target.value)}
               required
@@ -320,6 +638,30 @@ function Inner() {
                 );
               })}
             </select>
+            <label className="block text-xs">
+              <span className="block text-[10px] font-bold uppercase text-slate-500 mb-1">
+                Required delivery date *
+              </span>
+              <input
+                type="date"
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold"
+                value={expectedDate}
+                onChange={(e) => setExpectedDate(e.target.value)}
+                required
+              />
+            </label>
+          </div>
+          <p className="text-[11px] text-slate-500 -mt-1">
+            The SP sees this required date on their orders report and must
+            source from wholesalers in time.
+          </p>
+          <input
+            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Notes for SP (e.g. delivery gate, preferred pack sizes)…"
+          />
+          <div className="flex flex-wrap gap-2 items-center">
             {links.some((l) => l.preferred) ? (
               <span className="text-[10px] font-bold uppercase text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-1">
                 ★ Preferred SPs listed first
@@ -341,26 +683,44 @@ function Inner() {
               {submitting ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
               ) : (
-                'Submit PO'
+                'Send PO to SP'
               )}
             </button>
           </div>
           {links.length === 0 ? (
             <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
-              No active SP links. Accept an SP claim or link a department-approved
-              SP under{' '}
-              <Link href="/dashboard/schools/isps" className="font-bold underline">
+              No active SP links. Accept an SP claim or link a
+              department-approved SP under{' '}
+              <Link
+                href="/dashboard/schools/isps"
+                className="font-bold underline"
+              >
                 SPs
               </Link>
               .
             </p>
           ) : null}
           {lines.length > 0 ? (
-            <ul className="text-xs space-y-1">
+            <ul className="text-xs space-y-1.5">
               {lines.map((l, i) => (
-                <li key={i}>
-                  {l.brand_name} · {l.product_name} × {l.qty} @{' '}
-                  {formatMoney(l.unit_price)}
+                <li
+                  key={i}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-white border border-slate-100 px-3 py-2"
+                >
+                  <span>
+                    <span className="font-bold text-emerald-800">
+                      {l.brand_name}
+                    </span>{' '}
+                    · {l.product_name} × {l.qty} {l.uom} @{' '}
+                    {formatMoney(l.unit_price)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removeLine(i)}
+                    className="text-[10px] font-bold text-rose-600"
+                  >
+                    Remove
+                  </button>
                 </li>
               ))}
             </ul>
@@ -372,54 +732,109 @@ function Inner() {
         <div className="py-16 flex justify-center">
           <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
         </div>
+      ) : orders.length === 0 ? (
+        <div className="rounded-3xl border border-dashed border-slate-200 bg-white p-10 text-center">
+          <p className="font-bold text-slate-800">No orders yet</p>
+          <p className="text-sm text-slate-500 mt-1 max-w-md mx-auto">
+            Create a PO from the approved catalogue. Your SP will receive it,
+            buy from wholesalers, and deliver to school.
+          </p>
+          <button
+            type="button"
+            onClick={() => setShowForm(true)}
+            className="btn-primary !py-2.5 !px-4 text-sm mt-4"
+          >
+            New PO
+          </button>
+        </div>
       ) : (
         <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
-          <table className="w-full text-sm min-w-[640px]">
+          <table className="w-full text-sm min-w-[800px]">
             <thead>
               <tr className="border-b text-left text-[10px] font-bold uppercase text-slate-400">
                 <th className="px-4 py-3">PO</th>
-                <th className="px-3 py-3">Date</th>
+                <th className="px-3 py-3">Order date</th>
+                <th className="px-3 py-3">Required delivery</th>
+                <th className="px-3 py-3">SP</th>
+                <th className="px-3 py-3">Lines</th>
+                <th className="px-3 py-3">Total</th>
                 <th className="px-3 py-3">Status</th>
-                <th className="px-3 py-3 text-right">Total</th>
-                <th className="px-3 py-3">Compliance</th>
               </tr>
             </thead>
             <tbody>
-              {orders.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-4 py-12 text-center text-slate-500">
-                    No orders yet.
-                  </td>
-                </tr>
-              ) : (
-                orders.map((o) => (
-                  <tr key={String(o.id)} className="border-b border-slate-50">
-                    <td className="px-4 py-2.5 font-mono text-xs font-bold">
-                      {String(o.po_number)}
+              {orders.map((o) => {
+                const lineCount = Array.isArray(o.lines)
+                  ? (o.lines as unknown[]).length
+                  : 0;
+                const spName =
+                  links.find(
+                    (l) =>
+                      Number(l.isp_profile_id) === Number(o.isp_profile_id)
+                  )?.display_name || o.isp_profile_id;
+                return (
+                  <tr
+                    key={String(o.id)}
+                    className="border-b border-slate-50 hover:bg-sky-50/40"
+                  >
+                    <td className="px-4 py-2.5 font-bold">
+                      {String(o.po_number || o.id)}
                     </td>
                     <td className="px-3 py-2.5 text-xs">
-                      {String(o.order_date || '').slice(0, 10)}
+                      {String(o.order_date || '—').slice(0, 10)}
                     </td>
-                    <td className="px-3 py-2.5 capitalize text-xs">
-                      {String(o.status)}
+                    <td className="px-3 py-2.5 text-xs font-bold">
+                      {o.expected_date
+                        ? String(o.expected_date).slice(0, 10)
+                        : '—'}
                     </td>
-                    <td className="px-3 py-2.5 text-right font-bold tabular-nums">
+                    <td className="px-3 py-2.5 text-xs">{String(spName)}</td>
+                    <td className="px-3 py-2.5 tabular-nums">{lineCount}</td>
+                    <td className="px-3 py-2.5 tabular-nums">
                       {formatMoney(Number(o.total_amount || 0))}
                     </td>
-                    <td className="px-3 py-2.5 text-xs">
-                      {o.compliance_ok !== false ? (
-                        <span className="text-emerald-700 font-bold">OK</span>
-                      ) : (
-                        <span className="text-amber-700 font-bold">Flags</span>
-                      )}
+                    <td className="px-3 py-2.5">
+                      <span className="text-[10px] font-bold uppercase rounded-full bg-slate-100 px-2 py-0.5">
+                        {String(o.status)}
+                      </span>
                     </td>
                   </tr>
-                ))
-              )}
+                );
+              })}
             </tbody>
           </table>
         </div>
       )}
+
+      <div className="mt-4 flex flex-wrap gap-3 text-xs text-slate-500">
+        <Link
+          href="/dashboard/schools/approved-list"
+          className="font-bold text-[#0077b6] underline"
+        >
+          Approved catalogue
+        </Link>
+        <Link
+          href="/dashboard/schools/menu"
+          className="font-bold text-[#0077b6] underline"
+        >
+          DBE menu
+        </Link>
+        <Link
+          href="/dashboard/schools/isps"
+          className="font-bold text-[#0077b6] underline"
+        >
+          Service providers
+        </Link>
+        <Link
+          href="/dashboard/schools/deliveries"
+          className="font-bold text-[#0077b6] underline"
+        >
+          Deliveries / receive
+        </Link>
+        <span className="inline-flex items-center gap-1 text-amber-800">
+          <Trophy className="w-3 h-3" /> On-catalogue orders protect prize &amp;
+          claims
+        </span>
+      </div>
     </SchoolsPage>
   );
 }
