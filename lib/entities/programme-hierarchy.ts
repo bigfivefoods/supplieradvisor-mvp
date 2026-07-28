@@ -16,8 +16,7 @@ export type AgencyTypeKey =
   | 'provincial_nsnp'
   | 'district'
   | 'department_of_health'
-  | 'provincial_health'
-  | 'other';
+  | 'provincial_health';
 
 export type FacilityMemberType =
   | 'school'
@@ -46,8 +45,16 @@ export const AGENCY_TYPES: Array<{
     label: 'Provincial health department',
     family: 'health',
   },
-  { id: 'other', label: 'Other government agency', family: 'education' },
+  // Generic "other government" is not offered for self-registration —
+  // only Education and Health programme departments.
 ];
+
+/** Types shown in public registration UIs (education vs health). */
+export function publicAgencyTypesForFamily(
+  family: ProgrammeFamily
+): typeof AGENCY_TYPES {
+  return AGENCY_TYPES.filter((a) => a.family === family);
+}
 
 export const FACILITY_TYPES: Array<{
   id: FacilityMemberType;

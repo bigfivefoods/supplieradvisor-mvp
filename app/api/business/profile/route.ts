@@ -288,6 +288,75 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
+    // Government department modules are platform-controlled (education / health only)
+    if (safe.metadata != null) {
+      const {
+        isGovernmentOrgType,
+        isPlatformOperatorUserId,
+        clampGovernmentModules,
+        GOV_MODULE_LOCK_MESSAGE,
+      } = await import('@/lib/system/platform-control');
+      const orgType = String(existing.org_type || existing.business_type || '');
+      if (isGovernmentOrgType(orgType, String(existing.business_type || ''))) {
+        const operator = await isPlatformOperatorUserId(mem.userId);
+        if (!operator) {
+          // Non-operators cannot change enabled_modules on government orgs
+          const prevMeta =
+            existing.metadata && typeof existing.metadata === 'object'
+              ? (existing.metadata as Record<string, unknown>)
+              : {};
+          const incoming =
+            typeof safe.metadata === 'object' && safe.metadata
+              ? (safe.metadata as Record<string, unknown>)
+              : {};
+          const kind =
+            orgType.includes('health') ||
+            String(existing.business_type || '').includes('health')
+              ? 'health'
+              : 'education';
+          if (
+            incoming.enabled_modules &&
+            JSON.stringify(incoming.enabled_modules) !==
+              JSON.stringify(prevMeta.enabled_modules)
+          ) {
+            return NextResponse.json(
+              {
+                error: GOV_MODULE_LOCK_MESSAGE,
+                code: 'PLATFORM_CONTROL',
+              },
+              { status: 403 }
+            );
+          }
+          // Still clamp any other metadata write path
+          safe.metadata = {
+            ...prevMeta,
+            ...incoming,
+            enabled_modules: clampGovernmentModules(
+              (prevMeta.enabled_modules as Record<string, boolean>) || {},
+              kind
+            ),
+          };
+        } else {
+          const kind =
+            orgType.includes('health') ||
+            String(existing.business_type || '').includes('health')
+              ? 'health'
+              : 'education';
+          const incoming =
+            typeof safe.metadata === 'object' && safe.metadata
+              ? (safe.metadata as Record<string, unknown>)
+              : {};
+          if (incoming.enabled_modules) {
+            incoming.enabled_modules = clampGovernmentModules(
+              incoming.enabled_modules as Record<string, boolean>,
+              kind
+            );
+            safe.metadata = incoming;
+          }
+        }
+      }
+    }
+
     // export_licenses column may be missing — park in metadata
     if (
       expanded.export_licenses !== undefined &&

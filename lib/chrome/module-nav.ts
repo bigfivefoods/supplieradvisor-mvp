@@ -110,6 +110,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       {
         name: 'Modules',
         href: '/dashboard/my-business/modules',
+        // Platform control: /dashboard/my-business/platform (authorised accounts only)
         desc: 'Enable trade, ops, finance modules',
       },
       { name: 'Team', href: '/dashboard/my-business/team', desc: 'Invite people with roles' },

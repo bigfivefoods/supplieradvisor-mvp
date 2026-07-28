@@ -90,7 +90,14 @@ function Inner() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Register failed');
-      toast.success('Registered as Department of Health');
+      if (data.pending_activation) {
+        toast.message(
+          data.message ||
+            'Department registration submitted — programme tools unlock after platform activation.'
+        );
+      } else {
+        toast.success('Registered as Department of Health');
+      }
       void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed');

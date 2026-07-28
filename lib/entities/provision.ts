@@ -112,6 +112,12 @@ export async function provisionEntityWorkspace(
 
   if (entity.provision === 'agency_education') {
     try {
+      const { isPlatformOperatorUserId } = await import(
+        '@/lib/system/platform-control'
+      );
+      const autoActive = opts.userId
+        ? await isPlatformOperatorUserId(opts.userId)
+        : false;
       await supabase.from('nsnp_agency_profiles').upsert(
         {
           profile_id: opts.profileId,
@@ -121,7 +127,8 @@ export async function provisionEntityWorkspace(
           contact_name: opts.contactName || null,
           contact_email: opts.contactEmail || null,
           contact_phone: opts.contactPhone || null,
-          status: 'active',
+          // Government departments require platform activation
+          status: autoActive ? 'active' : 'pending',
           updated_at: now,
         },
         { onConflict: 'profile_id' }
@@ -134,6 +141,12 @@ export async function provisionEntityWorkspace(
   if (entity.provision === 'agency_health') {
     // Health uses same agency table with type marker when available
     try {
+      const { isPlatformOperatorUserId } = await import(
+        '@/lib/system/platform-control'
+      );
+      const autoActive = opts.userId
+        ? await isPlatformOperatorUserId(opts.userId)
+        : false;
       await supabase.from('nsnp_agency_profiles').upsert(
         {
           profile_id: opts.profileId,
@@ -143,7 +156,7 @@ export async function provisionEntityWorkspace(
           contact_name: opts.contactName || null,
           contact_email: opts.contactEmail || null,
           contact_phone: opts.contactPhone || null,
-          status: 'active',
+          status: autoActive ? 'active' : 'pending',
           updated_at: now,
         },
         { onConflict: 'profile_id' }

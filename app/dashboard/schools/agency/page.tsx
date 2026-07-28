@@ -124,11 +124,16 @@ function Inner() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
-      toast.success(
-        regType.includes('health')
-          ? 'Registered as Department of Health (DoH → SPs → clinics & hospitals)'
-          : 'Registered as education agency (DBE/PEU → SPs → schools)'
-      );
+      if (data.pending_activation) {
+        toast.message(
+          data.message ||
+            'Department registration submitted — programme tools unlock after platform activation.'
+        );
+      } else {
+        toast.success(
+          'Registered as education agency (DBE/PEU → SPs → schools)'
+        );
+      }
       void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed');
@@ -377,7 +382,7 @@ function Inner() {
                     <option value="peu">PEU · provincial education</option>
                     <option value="provincial_nsnp">Provincial NSNP office</option>
                     <option value="district">District education office</option>
-                    <option value="other">Other education agency</option>
+
                   </select>
                 </label>
                 <label className="text-xs">
@@ -975,8 +980,16 @@ function AgencyProfileEditor({
     }
   };
 
+  const pending = String(agency.status || '') === 'pending';
+
   return (
     <div className="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4 space-y-3">
+      {pending ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+          This department registration is pending platform activation. Programme
+          tools unlock after approval.
+        </div>
+      ) : null}
       <div className="flex items-center justify-between gap-2">
         <div>
           <p className="font-black text-slate-900">{String(agency.agency_name)}</p>

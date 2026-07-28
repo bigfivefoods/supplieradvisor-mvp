@@ -63,13 +63,19 @@ function ModulesInner() {
   );
   const [tradingName, setTradingName] = useState('');
   const [dirty, setDirty] = useState(false);
+  const [govLocked, setGovLocked] = useState(false);
+  const [platformOperator, setPlatformOperator] = useState(false);
+  const [lockMessage, setLockMessage] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({ companyId: String(companyId) });
       if (privyUserId) params.set('privyUserId', privyUserId);
-      const res = await fetch(`/api/business/profile?${params}`);
+      const [res, ctrlRes] = await Promise.all([
+        fetch(`/api/business/profile?${params}`),
+        fetch('/api/system/platform-control', { cache: 'no-store' }),
+      ]);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to load');
       const profile = data.profile || {};
@@ -80,6 +86,21 @@ function ModulesInner() {
           : {};
       setMetadata(meta);
       setEnabled(extractEnabledModulesFromMetadata(meta));
+      const org = `${profile.org_type || ''} ${profile.business_type || ''}`.toLowerCase();
+      const isGov =
+        org.includes('government') ||
+        org.includes('dbe') ||
+        org.includes('health');
+      let operator = false;
+      if (ctrlRes.ok) {
+        const ctrl = await ctrlRes.json();
+        operator = Boolean(ctrl.operator);
+        setPlatformOperator(operator);
+        if (ctrl.messages?.module_lock) {
+          setLockMessage(String(ctrl.messages.module_lock));
+        }
+      }
+      setGovLocked(isGov && !operator);
       setDirty(false);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed to load modules');
@@ -101,6 +122,13 @@ function ModulesInner() {
   const persist = async (map: EnabledModulesMap, silent?: boolean) => {
     if (!privyUserId) {
       toast.error('Sign in required');
+      return;
+    }
+    if (govLocked) {
+      toast.message(
+        lockMessage ||
+          'Programme modules for government departments are managed centrally.'
+      );
       return;
     }
     setSaving(true);
@@ -195,6 +223,14 @@ function ModulesInner() {
           </button>
         }
       />
+
+      {govLocked ? (
+        <div className="mb-4 rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-950">
+          {lockMessage ||
+            'Programme modules for government departments are managed centrally and cannot be changed here.'}
+          {platformOperator ? null : null}
+        </div>
+      ) : null}
 
       {/* Journey strip */}
       <div className="mb-6 rounded-3xl border border-cyan-100 bg-gradient-to-br from-white via-sky-50/60 to-cyan-50 p-5 sm:p-6">

@@ -316,13 +316,23 @@ export async function POST(request: NextRequest) {
         String(body.agency_name || body.name || '').trim() ||
         'Department of Health';
       let agencyType = String(body.agency_type || 'department_of_health');
+      const {
+        PUBLIC_HEALTH_AGENCY_TYPES,
+        isPlatformOperatorUserId,
+        GOV_PENDING_MESSAGE,
+        clampGovernmentModules,
+      } = await import('@/lib/system/platform-control');
       if (familyForAgencyType(agencyType) !== 'health') {
         agencyType = 'department_of_health';
       }
-      if (!HEALTH_AGENCY_TYPES.includes(agencyType as (typeof HEALTH_AGENCY_TYPES)[number]) && agencyType !== 'other') {
-        // allow only health family
+      if (
+        !(PUBLIC_HEALTH_AGENCY_TYPES as readonly string[]).includes(agencyType)
+      ) {
         agencyType = 'department_of_health';
       }
+
+      const autoActive = await isPlatformOperatorUserId(gate.userId);
+      const status = autoActive ? 'active' : 'pending';
 
       const { data, error } = await supabase
         .from('nsnp_agency_profiles')
@@ -337,7 +347,7 @@ export async function POST(request: NextRequest) {
             contact_email: body.contact_email || null,
             contact_phone: body.contact_phone || null,
             description: body.description || null,
-            status: 'active',
+            status,
             updated_at: new Date().toISOString(),
           },
           { onConflict: 'profile_id' }
@@ -348,16 +358,19 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: error.message }, { status: 400 });
       }
 
-      try {
-        const { cloneNationalIntoAgency } = await import(
-          '@/lib/schools/approved-catalogue'
-        );
-        await cloneNationalIntoAgency(supabase, companyId);
-      } catch {
-        /* soft */
+      if (status === 'active') {
+        try {
+          const { cloneNationalIntoAgency } = await import(
+            '@/lib/schools/approved-catalogue'
+          );
+          await cloneNationalIntoAgency(supabase, companyId);
+        } catch {
+          /* soft */
+        }
       }
 
       try {
+        const mods = clampGovernmentModules({}, 'health');
         await supabase
           .from('profiles')
           .update({
@@ -365,13 +378,8 @@ export async function POST(request: NextRequest) {
             business_type: 'government_health',
             trading_name: name,
             metadata: {
-              enabled_modules: {
-                health: true,
-                schools: false,
-                home: true,
-                guide: true,
-                network: true,
-              },
+              enabled_modules: mods,
+              entity_kind: 'government_health',
             },
           })
           .eq('id', companyId);
@@ -384,6 +392,76 @@ export async function POST(request: NextRequest) {
         agency: data,
         programme: 'health',
         hierarchy: programmeHierarchyBlurb(agencyType),
+        pending_activation: status === 'pending',
+        message:
+          status === 'pending'
+            ? GOV_PENDING_MESSAGE
+            : 'Department registered and active',
+      });
+    }
+
+    if (action === 'approve_agency' || action === 'activate_agency') {
+      const {
+        isPlatformOperatorUserId,
+        clampGovernmentModules,
+      } = await import('@/lib/system/platform-control');
+      if (!(await isPlatformOperatorUserId(gate.userId))) {
+        return NextResponse.json(
+          {
+            error: 'Department activation requires platform authorisation.',
+            code: 'PLATFORM_CONTROL',
+          },
+          { status: 403 }
+        );
+      }
+      const targetId = Number(
+        body.target_company_id || body.agency_profile_id || companyId
+      );
+      const { data, error } = await supabase
+        .from('nsnp_agency_profiles')
+        .update({
+          status: 'active',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('profile_id', targetId)
+        .select('*')
+        .single();
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+      try {
+        const { cloneNationalIntoAgency } = await import(
+          '@/lib/schools/approved-catalogue'
+        );
+        await cloneNationalIntoAgency(supabase, targetId);
+      } catch {
+        /* soft */
+      }
+      try {
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('metadata')
+          .eq('id', targetId)
+          .maybeSingle();
+        const meta =
+          prof?.metadata && typeof prof.metadata === 'object'
+            ? { ...(prof.metadata as Record<string, unknown>) }
+            : {};
+        meta.enabled_modules = clampGovernmentModules(
+          (meta.enabled_modules as Record<string, boolean>) || {},
+          'health'
+        );
+        await supabase
+          .from('profiles')
+          .update({ metadata: meta })
+          .eq('id', targetId);
+      } catch {
+        /* soft */
+      }
+      return NextResponse.json({
+        success: true,
+        agency: data,
+        message: 'Department activated',
       });
     }
 
