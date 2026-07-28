@@ -525,7 +525,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       {
         name: 'Visits',
         href: '/dashboard/schools/visits',
-        desc: 'PEU checklists',
+        desc: 'Plan · field pack · planned vs actual',
         group: 'DBE',
         section: 'Field',
       },
