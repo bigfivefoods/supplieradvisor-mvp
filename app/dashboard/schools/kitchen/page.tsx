@@ -21,6 +21,7 @@ type Product = {
   name: string;
   brand_name: string;
   uom?: string | null;
+  image_url?: string | null;
 };
 
 type OpenOrder = {
@@ -294,34 +295,49 @@ function Inner() {
                   <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
                     Product
                   </span>
-                  <select
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                    value={line.approved_product_id}
-                    onChange={(e) => {
+                  <div className="flex items-center gap-2">
+                    {(() => {
                       const p = products.find(
-                        (x) => x.id === Number(e.target.value)
+                        (x) => x.id === line.approved_product_id
                       );
-                      setLines((prev) =>
-                        prev.map((l, i) =>
-                          i === idx
-                            ? {
-                                ...l,
-                                approved_product_id: Number(e.target.value),
-                                product_name: p?.name || l.product_name,
-                                brand_name: p?.brand_name || l.brand_name,
-                                uom: p?.uom || l.uom,
-                              }
-                            : l
-                        )
-                      );
-                    }}
-                  >
-                    {products.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.brand_name} — {p.name}
-                      </option>
-                    ))}
-                  </select>
+                      return p?.image_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={p.image_url}
+                          alt={p.name}
+                          className="w-10 h-10 rounded-lg object-cover border border-slate-100 shrink-0"
+                        />
+                      ) : null;
+                    })()}
+                    <select
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                      value={line.approved_product_id}
+                      onChange={(e) => {
+                        const p = products.find(
+                          (x) => x.id === Number(e.target.value)
+                        );
+                        setLines((prev) =>
+                          prev.map((l, i) =>
+                            i === idx
+                              ? {
+                                  ...l,
+                                  approved_product_id: Number(e.target.value),
+                                  product_name: p?.name || l.product_name,
+                                  brand_name: p?.brand_name || l.brand_name,
+                                  uom: p?.uom || l.uom,
+                                }
+                              : l
+                          )
+                        );
+                      }}
+                    >
+                      {products.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.brand_name} — {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </label>
                 <label className="col-span-4 sm:col-span-2 text-xs">
                   <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">

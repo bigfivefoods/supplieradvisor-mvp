@@ -96,6 +96,8 @@ export async function uploadCompanyAssetServerFirst(opts: {
   const isLogo =
     kind === 'logo' ||
     kind === 'school_photo' ||
+    kind === 'nsnp_product' ||
+    kind === 'product_image' ||
     profileField === 'logo_url';
   if (isLogo) {
     const r = await uploadCompanyLogo(file, companyId);

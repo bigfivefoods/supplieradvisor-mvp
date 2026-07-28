@@ -10,9 +10,12 @@ import {
   Trash2,
   X,
   Save,
+  ImageIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
+import { uploadCompanyAssetServerFirst } from '@/lib/business/uploadCompanyAssets';
+import { SA_PROVINCES } from '@/lib/schools/types';
 import {
   CompanyRequired,
   SchoolsHeader,
@@ -32,6 +35,9 @@ type Product = {
   energy_kcal?: number | null;
   active?: boolean;
   notes?: string | null;
+  image_url?: string | null;
+  /** SA province where the food supplier / producer is based */
+  province?: string | null;
 };
 
 type Brand = {
@@ -53,6 +59,8 @@ const emptyProduct = {
   protein_g: '',
   notes: '',
   active: true,
+  image_url: '' as string,
+  province: '' as string,
 };
 
 export default function ApprovedListPage() {
@@ -69,8 +77,10 @@ function Inner() {
   const [products, setProducts] = useState<Product[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
+  const [provinces, setProvinces] = useState<string[]>([]);
   const [q, setQ] = useState('');
   const [category, setCategory] = useState('');
+  const [provinceFilter, setProvinceFilter] = useState('');
   const [showInactive, setShowInactive] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const [creating, setCreating] = useState(false);
@@ -78,6 +88,8 @@ function Inner() {
   const [brandForm, setBrandForm] = useState({ name: '', manufacturer: '' });
   const [showBrandForm, setShowBrandForm] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [catalogue, setCatalogue] = useState<{
     canEdit?: boolean;
     agencyName?: string | null;
@@ -91,6 +103,7 @@ function Inner() {
       const params = new URLSearchParams({ companyId: String(companyId) });
       if (q) params.set('q', q);
       if (category) params.set('category', category);
+      if (provinceFilter) params.set('province', provinceFilter);
       if (showInactive) params.set('all', '1');
       const res = await fetch(`/api/schools/approved?${params}`, {
         cache: 'no-store',
@@ -100,6 +113,7 @@ function Inner() {
       setProducts(data.products || []);
       setBrands(data.brands || []);
       setCategories(data.categories || []);
+      setProvinces(data.provinces || []);
       setCatalogue(data.catalogue || null);
       if (data.warning) toast.message(data.warning);
     } catch (e: unknown) {
@@ -107,7 +121,7 @@ function Inner() {
     } finally {
       setLoading(false);
     }
-  }, [companyId, q, category, showInactive]);
+  }, [companyId, q, category, provinceFilter, showInactive]);
 
   useEffect(() => {
     void load();
@@ -117,6 +131,8 @@ function Inner() {
     setCreating(true);
     setEditing(null);
     setForm({ ...emptyProduct });
+    setImageFile(null);
+    setImagePreview(null);
   };
 
   const openEdit = (p: Product) => {
@@ -134,12 +150,34 @@ function Inner() {
       protein_g: p.protein_g != null ? String(p.protein_g) : '',
       notes: p.notes || '',
       active: p.active !== false,
+      image_url: p.image_url || '',
+      province: p.province || '',
     });
+    setImageFile(null);
+    setImagePreview(p.image_url || null);
   };
 
   const closeForm = () => {
     setEditing(null);
     setCreating(false);
+    setImageFile(null);
+    setImagePreview(null);
+  };
+
+  const onImagePick = (file: File | null) => {
+    setImageFile(file);
+    if (file) {
+      const url = URL.createObjectURL(file);
+      setImagePreview(url);
+    } else {
+      setImagePreview(form.image_url || null);
+    }
+  };
+
+  const clearImage = () => {
+    setImageFile(null);
+    setImagePreview(null);
+    setForm((f) => ({ ...f, image_url: '' }));
   };
 
   const saveProduct = async () => {
@@ -149,6 +187,23 @@ function Inner() {
     }
     setSaving(true);
     try {
+      let image_url: string | null = form.image_url ? form.image_url : null;
+      if (imageFile) {
+        if (!imageFile.type.startsWith('image/')) {
+          throw new Error('Please choose an image file (JPG, PNG, WebP)');
+        }
+        if (imageFile.size > 8 * 1024 * 1024) {
+          throw new Error('Image must be under 8MB');
+        }
+        const up = await uploadCompanyAssetServerFirst({
+          file: imageFile,
+          companyId,
+          kind: 'nsnp_product',
+        });
+        if (!up.url) throw new Error(up.error || 'Image upload failed');
+        image_url = up.url;
+      }
+
       const payload: Record<string, unknown> = {
         companyId,
         name: form.name.trim(),
@@ -162,6 +217,8 @@ function Inner() {
         protein_g: form.protein_g ? Number(form.protein_g) : null,
         notes: form.notes || null,
         active: form.active,
+        image_url,
+        province: form.province.trim() || null,
       };
       const res = await fetch('/api/schools/approved', {
         method: editing ? 'PATCH' : 'POST',
@@ -291,9 +348,9 @@ function Inner() {
         }
         description={
           canEdit
-            ? 'Department-owned NSNP catalogue. Schools and SPs associated with you always inherit this live list — orders, GRNs, prizes and claims measure against it.'
+            ? 'Department-owned NSNP catalogue with product photos. Schools and SPs associated with you always inherit this live list — images pull through immediately for recognition when ordering and receiving.'
             : catalogue?.message ||
-              'Only foods on your department’s approved list may be ordered or received. That list is the prize and claims yardstick.'
+              'Only foods on your department’s approved list may be ordered or received. Product photos help kitchen and SP teams recognise approved brands.'
         }
         action={
           <div className="flex flex-wrap gap-2">
@@ -511,6 +568,26 @@ function Inner() {
                 }
               />
             </Field>
+            <Field label="Supplier province (SA)">
+              <select
+                className="field-input"
+                value={form.province}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, province: e.target.value }))
+                }
+              >
+                <option value="">— select province —</option>
+                {SA_PROVINCES.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-[10px] text-slate-500">
+                Where the food supplier / producer is based in South Africa.
+                Visible to schools and SPs.
+              </p>
+            </Field>
             <Field label="Notes">
               <input
                 className="field-input"
@@ -530,6 +607,48 @@ function Inner() {
               />
               Active (orderable)
             </label>
+            <div className="sm:col-span-2 lg:col-span-3">
+              <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                Product image (visible to schools &amp; SPs)
+              </span>
+              <div className="flex flex-wrap items-start gap-4">
+                <div className="w-24 h-24 rounded-2xl border border-slate-200 bg-white overflow-hidden flex items-center justify-center shrink-0">
+                  {imagePreview ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={imagePreview}
+                      alt="Product"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <ImageIcon className="w-8 h-8 text-slate-300" />
+                  )}
+                </div>
+                <div className="space-y-2 min-w-0">
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    className="block text-xs w-full max-w-xs"
+                    onChange={(e) =>
+                      onImagePick(e.target.files?.[0] || null)
+                    }
+                  />
+                  <p className="text-[11px] text-slate-500 max-w-md">
+                    JPG, PNG or WebP under 8MB. Schools and service providers
+                    see this photo on the approved catalogue and when ordering.
+                  </p>
+                  {(imagePreview || form.image_url) && (
+                    <button
+                      type="button"
+                      onClick={clearImage}
+                      className="text-[11px] font-bold text-rose-600 hover:underline"
+                    >
+                      Remove image
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
           <button
             type="button"
@@ -566,6 +685,21 @@ function Inner() {
             </option>
           ))}
         </select>
+        <select
+          value={provinceFilter}
+          onChange={(e) => setProvinceFilter(e.target.value)}
+          className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+        >
+          <option value="">All supplier provinces</option>
+          {(provinces.length
+            ? provinces
+            : [...SA_PROVINCES]
+          ).map((p) => (
+            <option key={p} value={p}>
+              {p}
+            </option>
+          ))}
+        </select>
         <label className="inline-flex items-center gap-2 text-xs font-semibold">
           <input
             type="checkbox"
@@ -585,11 +719,13 @@ function Inner() {
         </div>
       ) : (
         <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
-          <table className="w-full text-sm min-w-[800px]">
+          <table className="w-full text-sm min-w-[880px]">
             <thead>
               <tr className="border-b text-left text-[10px] font-bold uppercase text-slate-400">
-                <th className="px-4 py-3">Product</th>
+                <th className="px-4 py-3 w-16">Photo</th>
+                <th className="px-3 py-3">Product</th>
                 <th className="px-3 py-3">Brand</th>
+                <th className="px-3 py-3">Supplier province</th>
                 <th className="px-3 py-3">Category</th>
                 <th className="px-3 py-3">Pack</th>
                 <th className="px-3 py-3">Nutrition</th>
@@ -601,7 +737,7 @@ function Inner() {
               {products.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={9}
                     className="px-4 py-12 text-center text-slate-500"
                   >
                     No products — add one or run the seed migration.
@@ -615,9 +751,29 @@ function Inner() {
                       p.active === false ? 'opacity-50' : ''
                     }`}
                   >
-                    <td className="px-4 py-2.5 font-semibold">{p.name}</td>
+                    <td className="px-4 py-2">
+                      <div className="w-12 h-12 rounded-xl border border-slate-100 bg-slate-50 overflow-hidden flex items-center justify-center">
+                        {p.image_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={p.image_url}
+                            alt={p.name}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <ImageIcon className="w-5 h-5 text-slate-300" />
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5 font-semibold">{p.name}</td>
                     <td className="px-3 py-2.5 font-bold text-emerald-800">
                       {p.brand_name}
+                    </td>
+                    <td className="px-3 py-2.5 text-xs font-semibold text-slate-700">
+                      {p.province || (
+                        <span className="font-normal text-slate-400">—</span>
+                      )}
                     </td>
                     <td className="px-3 py-2.5 capitalize text-xs">
                       {(p.category || '').replace(/_/g, ' ')}

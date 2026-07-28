@@ -531,6 +531,13 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         section: 'Field',
       },
       {
+        name: 'Monitoring tool',
+        href: '/dashboard/schools/monitoring',
+        desc: 'KZN NSNP form · KPI · RKMP · gardens',
+        group: 'DBE',
+        section: 'Field',
+      },
+      {
         name: 'Prizes',
         href: '/dashboard/schools/prizes',
         desc: 'Headmaster prizes',
@@ -656,6 +663,13 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         name: 'PEU visits',
         href: '/dashboard/schools/visits',
         desc: 'Planned · audit results · RIAD',
+        group: 'School',
+        section: 'Fund',
+      },
+      {
+        name: 'Monitoring reports',
+        href: '/dashboard/schools/monitoring',
+        desc: 'DBE field monitoring KPI results',
         group: 'School',
         section: 'Fund',
       },

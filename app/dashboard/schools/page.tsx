@@ -378,6 +378,16 @@ function Inner() {
               label: 'Fair prizes',
               desc: 'Honest scores — menu & feeding completeness',
             },
+            {
+              href: '/dashboard/schools/monitoring',
+              label: 'NSNP Monitoring Tool',
+              desc: 'Field worker form · KPI · RKMP · health & gardens',
+            },
+            {
+              href: '/dashboard/schools/visits',
+              label: 'PEU visit planner',
+              desc: 'Plan day routes · field pack · planned vs actual',
+            },
           ].map((x) => (
             <Link
               key={x.href + x.label}

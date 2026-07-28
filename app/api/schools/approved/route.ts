@@ -33,6 +33,7 @@ export async function GET(request: NextRequest) {
     const activeOnly = sp.get('all') !== '1';
     const q = String(sp.get('q') || '').trim().toLowerCase();
     const category = String(sp.get('category') || '').trim();
+    const province = String(sp.get('province') || '').trim();
     // agency may force view of their own list via agencyProfileId=
     const forceAgency = sp.get('agencyProfileId')
       ? Number(sp.get('agencyProfileId'))
@@ -121,31 +122,44 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // Facets from the unfiltered list so dropdowns stay complete
+    const categories = [
+      ...new Set(
+        products.map((p) => String(p.category || '')).filter(Boolean)
+      ),
+    ].sort();
+    const provinces = [
+      ...new Set(
+        products.map((p) => String(p.province || '').trim()).filter(Boolean)
+      ),
+    ].sort((a, b) => a.localeCompare(b));
+
     if (category) {
       products = products.filter(
         (p) =>
           String(p.category || '').toLowerCase() === category.toLowerCase()
       );
     }
+    if (province) {
+      products = products.filter(
+        (p) =>
+          String(p.province || '').toLowerCase() === province.toLowerCase()
+      );
+    }
     if (q) {
       products = products.filter((p) => {
         const hay =
-          `${p.name} ${p.brand_name} ${p.category} ${p.sku || ''}`.toLowerCase();
+          `${p.name} ${p.brand_name} ${p.category} ${p.sku || ''} ${p.province || ''}`.toLowerCase();
         return hay.includes(q);
       });
     }
-
-    const categories = [
-      ...new Set(
-        products.map((p) => String(p.category || '')).filter(Boolean)
-      ),
-    ].sort();
 
     return NextResponse.json({
       success: true,
       brands,
       products,
       categories,
+      provinces,
       catalogue: {
         ...ctx,
         agencyProfileId,
@@ -255,6 +269,9 @@ export async function POST(request: NextRequest) {
         protein_g: body.protein_g ?? null,
         active: body.active !== false,
         notes: body.notes || null,
+        image_url: body.image_url ? String(body.image_url) : null,
+        // SA province where the food supplier / producer is based
+        province: body.province ? String(body.province) : null,
         agency_profile_id: companyId,
         published_at: new Date().toISOString(),
       })
@@ -335,6 +352,7 @@ export async function PATCH(request: NextRequest) {
       'active',
       'notes',
       'province',
+      'image_url',
     ] as const) {
       if (body[k] !== undefined) patch[k] = body[k];
     }

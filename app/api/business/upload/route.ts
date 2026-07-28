@@ -56,6 +56,8 @@ export async function POST(request: NextRequest) {
     const isLogo =
       kind === 'logo' ||
       kind === 'school_photo' ||
+      kind === 'nsnp_product' ||
+      kind === 'product_image' ||
       profileField === 'logo_url';
     if (isLogo && file.type && !file.type.startsWith('image/')) {
       return NextResponse.json(

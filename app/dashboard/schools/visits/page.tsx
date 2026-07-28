@@ -446,13 +446,22 @@ function AgencyVisits({ companyId }: { companyId: number }) {
         mode="agency"
         description="Plan multi-school circuit days, log GPS + photos + checklist offline, raise RIADs on site, report planned vs actual."
         action={
-          <button
-            type="button"
-            onClick={() => void load()}
-            className="btn-secondary !py-2 !px-3 text-xs"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/dashboard/schools/monitoring"
+              className="btn-primary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+            >
+              <ClipboardCheck className="w-3.5 h-3.5" />
+              NSNP Monitoring Tool
+            </Link>
+            <button
+              type="button"
+              onClick={() => void load()}
+              className="btn-secondary !py-2 !px-3 text-xs"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+            </button>
+          </div>
         }
       />
 
@@ -708,18 +717,29 @@ function AgencyVisits({ companyId }: { companyId: number }) {
             {plannedToday.length > 0 ? (
               <div className="rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3">
                 <p className="text-[10px] font-bold uppercase text-sky-800 mb-2">
-                  Planned today — tap to load field pack
+                  Planned today — field pack or full monitoring form
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   {plannedToday.map((v) => (
-                    <button
+                    <div
                       key={String(v.id)}
-                      type="button"
-                      onClick={() => startPlanned(v)}
-                      className="text-xs font-bold rounded-full bg-white border border-sky-200 px-2.5 py-1"
+                      className="inline-flex items-center gap-1 rounded-full bg-white border border-sky-200 pl-2.5 pr-1 py-0.5"
                     >
-                      {String(v.school_name || v.school_profile_id)}
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => startPlanned(v)}
+                        className="text-xs font-bold"
+                      >
+                        {String(v.school_name || v.school_profile_id)}
+                      </button>
+                      <Link
+                        href={`/dashboard/schools/monitoring?peuVisitId=${v.id}`}
+                        className="text-[10px] font-bold rounded-full bg-sky-600 text-white px-2 py-0.5"
+                        title="Open full NSNP monitoring tool"
+                      >
+                        Monitor
+                      </Link>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -985,13 +1005,21 @@ function AgencyVisits({ companyId }: { companyId: number }) {
                             ) : null}
                           </div>
                           {String(v.status) === 'planned' ? (
-                            <button
-                              type="button"
-                              onClick={() => startPlanned(v)}
-                              className="btn-secondary !py-1 !px-2 text-[10px] shrink-0"
-                            >
-                              Start
-                            </button>
+                            <div className="flex flex-col gap-1 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => startPlanned(v)}
+                                className="btn-secondary !py-1 !px-2 text-[10px]"
+                              >
+                                Field pack
+                              </button>
+                              <Link
+                                href={`/dashboard/schools/monitoring?peuVisitId=${v.id}`}
+                                className="btn-primary !py-1 !px-2 text-[10px] text-center"
+                              >
+                                Full monitoring
+                              </Link>
+                            </div>
                           ) : null}
                         </div>
                       </li>

@@ -17,6 +17,8 @@ type Product = {
   name: string;
   brand_name: string;
   uom?: string | null;
+  image_url?: string | null;
+  province?: string | null;
 };
 
 export default function SchoolOrdersPage() {
@@ -237,6 +239,33 @@ function Inner() {
 
       {showForm ? (
         <div className="mb-6 rounded-3xl border border-sky-100 bg-sky-50/40 p-5 space-y-3">
+          {(() => {
+            const selected = products.find((p) => String(p.id) === productId);
+            if (!selected) return null;
+            if (!selected.image_url && !selected.province) return null;
+            return (
+              <div className="flex items-center gap-3 rounded-2xl border border-white bg-white/80 px-3 py-2">
+                {selected.image_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={selected.image_url}
+                    alt={selected.name}
+                    className="w-14 h-14 rounded-xl object-cover border border-slate-100"
+                  />
+                ) : null}
+                <div className="min-w-0">
+                  <div className="text-sm font-bold truncate">
+                    {selected.brand_name} — {selected.name}
+                  </div>
+                  <div className="text-[11px] text-slate-500">
+                    {selected.province
+                      ? `Supplier province: ${selected.province}`
+                      : 'Approved catalogue (DBE)'}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
           <div className="grid sm:grid-cols-4 gap-2">
             <select
               className="rounded-xl border border-slate-200 px-3 py-2 text-sm sm:col-span-2"
@@ -247,6 +276,7 @@ function Inner() {
               {products.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.brand_name} — {p.name}
+                  {p.province ? ` · ${p.province}` : ''}
                 </option>
               ))}
             </select>
