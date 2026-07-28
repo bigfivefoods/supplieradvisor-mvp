@@ -50,12 +50,94 @@ const OFFLINE_SCOPE = 'nsnp-monitoring';
 
 type SchoolOpt = {
   id: number;
+  profile_id?: number | null;
   school_name: string;
   emis_number?: string | null;
+  natemis?: string | null;
+  province?: string | null;
   district?: string | null;
+  circuit?: string | null;
+  cmc?: string | null;
+  local_municipality?: string | null;
+  municipality_ward?: string | null;
   quintile?: number | string | null;
   phase?: string | null;
+  school_type?: string | null;
+  level_label?: string | null;
+  principal_name?: string | null;
+  principal_phone?: string | null;
+  principal_email?: string | null;
+  school_phone?: string | null;
+  urban_rural?: string | null;
+  learners?: number | null;
+  learner_count_enrolled?: number | null;
+  learner_count_nsnp_eligible?: number | null;
+  final_nsnp_approved_enrol?: number | null;
+  nsnp_approved_learners?: number | null;
+  label?: string | null;
+  status?: string | null;
 };
+
+function resolvePhaseBand(
+  s: Pick<SchoolOpt, 'phase' | 'level_label' | 'school_type' | 'quintile'>
+): MonitoringFormData['school_phase_band'] {
+  const phase = [
+    s.phase,
+    s.level_label,
+    s.school_type,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  const q = Number(s.quintile);
+  if (
+    (phase.includes('secondary') || phase.includes('high')) &&
+    Number.isFinite(q) &&
+    q >= 2
+  ) {
+    return 'secondary_q2_5';
+  }
+  return 'primary_combined_intermediate_sec_q1';
+}
+
+/** Map approved school registry row → Section A1 form fields */
+function fillFormFromSchool(
+  prev: MonitoringFormData,
+  s: SchoolOpt
+): MonitoringFormData {
+  const phone =
+    s.school_phone || s.principal_phone || prev.a3_school_phone || '';
+  const nsnpLearners =
+    s.nsnp_approved_learners ??
+    s.final_nsnp_approved_enrol ??
+    s.learner_count_nsnp_eligible ??
+    s.learners ??
+    s.learner_count_enrolled ??
+    null;
+  const emis = s.emis_number || s.natemis || prev.a2_emis || '';
+
+  return {
+    ...prev,
+    school_profile_id: s.id,
+    a1_school_name: s.school_name || prev.a1_school_name,
+    a2_emis: emis,
+    a3_school_phone: phone,
+    a4_district: s.district || prev.a4_district,
+    a5_quintile:
+      s.quintile != null && s.quintile !== ''
+        ? String(s.quintile)
+        : prev.a5_quintile,
+    school_phase_band: resolvePhaseBand(s),
+    a12_nsnp_learners:
+      nsnpLearners != null && Number(nsnpLearners) > 0
+        ? String(nsnpLearners)
+        : prev.a12_nsnp_learners,
+    // Prefill respondent 1 from principal if empty
+    a9_r1_name: prev.a9_r1_name || s.principal_name || '',
+    a9_r1_position: prev.a9_r1_position || (s.principal_name ? 'Principal' : ''),
+    a9_r1_contact: prev.a9_r1_contact || phone || '',
+  };
+}
 
 type VisitRow = {
   id: number;
@@ -137,7 +219,20 @@ function Inner() {
   );
   const [step, setStep] = useState(0);
   const [schools, setSchools] = useState<SchoolOpt[]>([]);
+  const [schoolFacets, setSchoolFacets] = useState<{
+    districts?: string[];
+    circuits?: string[];
+    cmcs?: string[];
+    quintiles?: string[];
+    phases?: string[];
+  }>({});
   const [schoolQ, setSchoolQ] = useState('');
+  const [filterDistrict, setFilterDistrict] = useState('');
+  const [filterCircuit, setFilterCircuit] = useState('');
+  const [filterQuintile, setFilterQuintile] = useState('');
+  const [schoolsLoading, setSchoolsLoading] = useState(false);
+  const [selectedSchoolMeta, setSelectedSchoolMeta] =
+    useState<SchoolOpt | null>(null);
   const [saving, setSaving] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [readOnly, setReadOnly] = useState(false);
@@ -169,18 +264,34 @@ function Inner() {
   }, [companyId]);
 
   const loadSchools = useCallback(async () => {
-    const params = new URLSearchParams({
-      companyId: String(companyId),
-      mode: 'schools',
-    });
-    if (schoolQ) params.set('q', schoolQ);
-    const res = await fetch(`/api/schools/visits?${params}`, {
-      cache: 'no-store',
-      credentials: 'same-origin',
-    });
-    const data = await res.json();
-    if (res.ok) setSchools(data.schools || []);
-  }, [companyId, schoolQ]);
+    setSchoolsLoading(true);
+    try {
+      const params = new URLSearchParams({
+        companyId: String(companyId),
+        mode: 'schools',
+      });
+      if (schoolQ.trim()) params.set('q', schoolQ.trim());
+      if (filterDistrict) params.set('district', filterDistrict);
+      if (filterCircuit) params.set('circuit', filterCircuit);
+      const res = await fetch(`/api/schools/visits?${params}`, {
+        cache: 'no-store',
+        credentials: 'same-origin',
+      });
+      const data = await res.json();
+      if (res.ok) {
+        let list = (data.schools || []) as SchoolOpt[];
+        if (filterQuintile) {
+          list = list.filter(
+            (s) => String(s.quintile ?? '') === filterQuintile
+          );
+        }
+        setSchools(list);
+        setSchoolFacets(data.facets || {});
+      }
+    } finally {
+      setSchoolsLoading(false);
+    }
+  }, [companyId, schoolQ, filterDistrict, filterCircuit, filterQuintile]);
 
   const loadPlannedVisits = useCallback(async () => {
     try {
@@ -248,41 +359,19 @@ function Inner() {
       setPeuVisitId(Number(v.id));
       const sid = Number(v.school_profile_id);
       const match = schoolsList.find((s) => s.id === sid);
+      if (match) setSelectedSchoolMeta(match);
       setForm((prev) => {
         let next = {
           ...prev,
-          a7_visit_date: String(v.planned_date || v.visit_date || prev.a7_visit_date).slice(
-            0,
-            10
-          ),
+          a7_visit_date: String(
+            v.planned_date || v.visit_date || prev.a7_visit_date
+          ).slice(0, 10),
           a6_monitor_name: v.visitor_name
             ? String(v.visitor_name)
             : prev.a6_monitor_name,
         };
         if (match) {
-          const phase = String(match.phase || '').toLowerCase();
-          const q = Number(match.quintile);
-          let band: MonitoringFormData['school_phase_band'] =
-            'primary_combined_intermediate_sec_q1';
-          if (
-            (phase.includes('secondary') || phase.includes('high')) &&
-            Number.isFinite(q) &&
-            q >= 2
-          ) {
-            band = 'secondary_q2_5';
-          }
-          next = {
-            ...next,
-            school_profile_id: match.id,
-            a1_school_name: match.school_name || next.a1_school_name,
-            a2_emis: match.emis_number || next.a2_emis,
-            a4_district: match.district || next.a4_district,
-            a5_quintile:
-              match.quintile != null && match.quintile !== ''
-                ? String(match.quintile)
-                : next.a5_quintile,
-            school_phase_band: band,
-          };
+          next = fillFormFromSchool(next, match);
         } else if (Number.isFinite(sid)) {
           next = {
             ...next,
@@ -441,29 +530,12 @@ function Inner() {
   };
 
   const pickSchool = (s: SchoolOpt) => {
-    const phase = String(s.phase || '').toLowerCase();
-    const q = Number(s.quintile);
-    let band: MonitoringFormData['school_phase_band'] =
-      'primary_combined_intermediate_sec_q1';
-    if (
-      (phase.includes('secondary') || phase.includes('high')) &&
-      Number.isFinite(q) &&
-      q >= 2
-    ) {
-      band = 'secondary_q2_5';
-    }
-    setForm((prev) => ({
-      ...prev,
-      school_profile_id: s.id,
-      a1_school_name: s.school_name || prev.a1_school_name,
-      a2_emis: s.emis_number || prev.a2_emis,
-      a4_district: s.district || prev.a4_district,
-      a5_quintile:
-        s.quintile != null && s.quintile !== ''
-          ? String(s.quintile)
-          : prev.a5_quintile,
-      school_phase_band: band,
-    }));
+    setSelectedSchoolMeta(s);
+    setForm((prev) => fillFormFromSchool(prev, s));
+    setSchoolQ(s.school_name || '');
+    toast.success(
+      `Loaded ${s.school_name} — EMIS, district, quintile, learners & principal filled`
+    );
   };
 
   const linkPeuVisit = (id: number | null) => {
@@ -922,6 +994,16 @@ function Inner() {
             plannedVisits={plannedVisits}
             peuVisitId={peuVisitId}
             linkPeuVisit={linkPeuVisit}
+            schoolFacets={schoolFacets}
+            filterDistrict={filterDistrict}
+            setFilterDistrict={setFilterDistrict}
+            filterCircuit={filterCircuit}
+            setFilterCircuit={setFilterCircuit}
+            filterQuintile={filterQuintile}
+            setFilterQuintile={setFilterQuintile}
+            schoolsLoading={schoolsLoading}
+            selectedSchoolMeta={selectedSchoolMeta}
+            reloadSchools={() => void loadSchools()}
           />
         )}
         {step === 1 && (
@@ -1151,6 +1233,16 @@ function SectionA1({
   plannedVisits,
   peuVisitId,
   linkPeuVisit,
+  schoolFacets,
+  filterDistrict,
+  setFilterDistrict,
+  filterCircuit,
+  setFilterCircuit,
+  filterQuintile,
+  setFilterQuintile,
+  schoolsLoading,
+  selectedSchoolMeta,
+  reloadSchools,
 }: {
   form: MonitoringFormData;
   setF: <K extends keyof MonitoringFormData>(
@@ -1165,13 +1257,29 @@ function SectionA1({
   plannedVisits: PlannedPeu[];
   peuVisitId: number | null;
   linkPeuVisit: (id: number | null) => void;
+  schoolFacets: {
+    districts?: string[];
+    circuits?: string[];
+    cmcs?: string[];
+    quintiles?: string[];
+    phases?: string[];
+  };
+  filterDistrict: string;
+  setFilterDistrict: (v: string) => void;
+  filterCircuit: string;
+  setFilterCircuit: (v: string) => void;
+  filterQuintile: string;
+  setFilterQuintile: (v: string) => void;
+  schoolsLoading: boolean;
+  selectedSchoolMeta: SchoolOpt | null;
+  reloadSchools: () => void;
 }) {
   return (
     <div className="space-y-4">
       <SectionTitle
         code="Section A1"
         title="Interview and school details"
-        sub="Select the school from your agency register or type details manually."
+        sub="Search your approved school register with deep metadata, select a school to auto-fill A1–A5 / A12 / principal, then complete the interview."
       />
 
       {!readOnly ? (
@@ -1211,38 +1319,199 @@ function SectionA1({
       ) : null}
 
       {!readOnly ? (
-        <div className="rounded-2xl border border-sky-100 bg-sky-50/50 p-3 space-y-2">
-          <Field label="Find approved school">
+        <div className="rounded-2xl border border-sky-200 bg-sky-50/60 p-4 space-y-3">
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-[#0077b6]">
+                Find approved school
+              </p>
+              <p className="text-[11px] text-slate-600 mt-0.5">
+                Deep search: school name, EMIS, NATEMIS, district, circuit, CMC,
+                municipality, ward, phase, quintile, principal, phone…
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={reloadSchools}
+              className="btn-secondary !py-1.5 !px-2.5 text-[11px] inline-flex items-center gap-1"
+            >
+              {schoolsLoading ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : (
+                <RefreshCw className="w-3 h-3" />
+              )}
+              Search
+            </button>
+          </div>
+          <Field label="Metadata search">
             <input
               className={inputCls()}
               value={schoolQ}
               onChange={(e) => setSchoolQ(e.target.value)}
-              placeholder="Search name / EMIS / district…"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  reloadSchools();
+                }
+              }}
+              placeholder="e.g. Umlazi Q3 primary 50012… or principal name"
+              autoComplete="off"
             />
           </Field>
-          <div className="max-h-40 overflow-y-auto space-y-1">
-            {schools.slice(0, 40).map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => pickSchool(s)}
-                className={`w-full text-left rounded-xl px-3 py-2 text-sm border ${
-                  form.school_profile_id === s.id
-                    ? 'border-[#00b4d8] bg-white font-semibold'
-                    : 'border-transparent hover:bg-white'
-                }`}
+          <div className="grid sm:grid-cols-3 gap-2">
+            <Field label="District">
+              <select
+                className={inputCls()}
+                value={filterDistrict}
+                onChange={(e) => setFilterDistrict(e.target.value)}
               >
-                {s.school_name}
-                <span className="text-[11px] text-slate-400 ml-2">
-                  {[s.emis_number, s.district, s.quintile != null ? `Q${s.quintile}` : '']
-                    .filter(Boolean)
-                    .join(' · ')}
-                </span>
-              </button>
-            ))}
+                <option value="">All districts</option>
+                {(schoolFacets.districts || []).map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Circuit">
+              <select
+                className={inputCls()}
+                value={filterCircuit}
+                onChange={(e) => setFilterCircuit(e.target.value)}
+              >
+                <option value="">All circuits</option>
+                {(schoolFacets.circuits || []).map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Quintile">
+              <select
+                className={inputCls()}
+                value={filterQuintile}
+                onChange={(e) => setFilterQuintile(e.target.value)}
+              >
+                <option value="">All quintiles</option>
+                {(schoolFacets.quintiles || ['1', '2', '3', '4', '5']).map(
+                  (q) => (
+                    <option key={q} value={q}>
+                      Q{q}
+                    </option>
+                  )
+                )}
+              </select>
+            </Field>
           </div>
+          <div className="max-h-56 overflow-y-auto space-y-1 rounded-xl border border-sky-100 bg-white p-1">
+            {schoolsLoading ? (
+              <div className="py-8 flex justify-center text-slate-400">
+                <Loader2 className="w-5 h-5 animate-spin" />
+              </div>
+            ) : schools.length === 0 ? (
+              <p className="px-3 py-6 text-center text-xs text-slate-500">
+                No approved schools match. Clear filters or widen your search.
+              </p>
+            ) : (
+              schools.slice(0, 80).map((s) => {
+                const selected = form.school_profile_id === s.id;
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => pickSchool(s)}
+                    className={`w-full text-left rounded-xl px-3 py-2.5 border transition-colors ${
+                      selected
+                        ? 'border-[#00b4d8] bg-sky-50 ring-1 ring-[#00b4d8]/30'
+                        : 'border-transparent hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-1">
+                      <span className="text-sm font-bold text-slate-900">
+                        {s.school_name}
+                      </span>
+                      {selected ? (
+                        <span className="text-[10px] font-bold uppercase text-emerald-700">
+                          Selected
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                      {[
+                        s.emis_number || s.natemis
+                          ? `EMIS ${s.emis_number || s.natemis}`
+                          : null,
+                        s.district,
+                        s.circuit,
+                        s.cmc ? `CMC ${s.cmc}` : null,
+                        s.local_municipality,
+                        s.quintile != null ? `Q${s.quintile}` : null,
+                        s.phase || s.level_label,
+                        s.nsnp_approved_learners != null
+                          ? `${s.nsnp_approved_learners} NSNP learners`
+                          : s.learners
+                            ? `${s.learners} enrolled`
+                            : null,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </div>
+                    {s.principal_name ? (
+                      <div className="text-[10px] text-slate-400 mt-0.5">
+                        Principal: {s.principal_name}
+                        {s.principal_phone || s.school_phone
+                          ? ` · ${s.principal_phone || s.school_phone}`
+                          : ''}
+                      </div>
+                    ) : null}
+                  </button>
+                );
+              })
+            )}
+          </div>
+          <p className="text-[10px] text-slate-500">
+            Showing {Math.min(schools.length, 80)} of {schools.length} approved
+            school{schools.length === 1 ? '' : 's'}. Tap a row to populate the
+            form below.
+          </p>
         </div>
       ) : null}
+
+      {(selectedSchoolMeta || form.school_profile_id) && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 px-4 py-3">
+          <div className="flex items-start gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+            <div className="min-w-0 text-sm">
+              <p className="font-black text-emerald-950">
+                {selectedSchoolMeta?.school_name || form.a1_school_name}
+              </p>
+              <p className="text-[11px] text-emerald-900/80 mt-0.5 leading-snug">
+                {[
+                  form.a2_emis ? `EMIS ${form.a2_emis}` : null,
+                  form.a4_district,
+                  form.a5_quintile ? `Q${form.a5_quintile}` : null,
+                  form.a3_school_phone,
+                  form.a12_nsnp_learners
+                    ? `${form.a12_nsnp_learners} NSNP approved learners`
+                    : null,
+                  selectedSchoolMeta?.circuit,
+                  selectedSchoolMeta?.cmc
+                    ? `CMC ${selectedSchoolMeta.cmc}`
+                    : null,
+                  selectedSchoolMeta?.local_municipality,
+                  selectedSchoolMeta?.phase || selectedSchoolMeta?.level_label,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </p>
+              <p className="text-[10px] text-emerald-800/70 mt-1">
+                Registry details loaded — complete A6–A14 and continue the form.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid sm:grid-cols-2 gap-3">
         <Field label="A1 Name of school *">

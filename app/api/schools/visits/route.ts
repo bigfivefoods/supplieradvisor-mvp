@@ -70,18 +70,18 @@ export async function GET(request: NextRequest) {
         });
       }
 
+      const fullSelect =
+        'id, profile_id, school_name, emis_number, natemis, province, district, circuit, cmc, local_municipality, municipality_ward, quintile, phase, school_type, level_label, principal_name, principal_phone, principal_email, learner_count_enrolled, learner_count_nsnp_eligible, learner_count_verified, final_nsnp_approved_enrol, status, urban_rural';
+      const basicSelect =
+        'id, profile_id, school_name, emis_number, province, district, circuit, quintile, phase, principal_name, principal_phone, learner_count_enrolled, learner_count_nsnp_eligible, status';
+
       let schools = await fetchByIds(
         supabase,
         'school_profiles',
-        'id, profile_id, school_name, emis_number, natemis, province, district, circuit, cmc, local_municipality, municipality_ward, quintile, phase, level_label, learner_count_enrolled, learner_count_nsnp_eligible, status',
+        fullSelect,
         schoolIds
       ).catch(async () =>
-        fetchByIds(
-          supabase,
-          'school_profiles',
-          'id, profile_id, school_name, emis_number, province, district, circuit, quintile, phase, learner_count_enrolled, status',
-          schoolIds
-        )
+        fetchByIds(supabase, 'school_profiles', basicSelect, schoolIds)
       );
 
       if (province) {
@@ -115,11 +115,17 @@ export async function GET(request: NextRequest) {
         );
       }
       if (q) {
+        // Deep multi-token metadata search (name, EMIS, NATEMIS, geo, phase, principal…)
+        const tokens = q
+          .split(/[\s,;/|]+/)
+          .map((t) => t.trim().toLowerCase())
+          .filter((t) => t.length > 0);
         schools = schools.filter((s) => {
           const hay = [
             s.school_name,
             s.emis_number,
             s.natemis,
+            s.province,
             s.district,
             s.circuit,
             s.cmc,
@@ -127,11 +133,23 @@ export async function GET(request: NextRequest) {
             s.municipality_ward,
             s.phase,
             s.level_label,
+            s.school_type,
+            s.quintile != null ? `q${s.quintile}` : '',
+            s.quintile != null ? `quintile ${s.quintile}` : '',
+            s.principal_name,
+            s.principal_phone,
+            s.principal_email,
+            s.urban_rural,
+            s.learner_count_enrolled,
+            s.learner_count_nsnp_eligible,
+            s.final_nsnp_approved_enrol,
+            s.status,
           ]
-            .filter(Boolean)
+            .filter((x) => x != null && x !== '')
             .join(' ')
             .toLowerCase();
-          return hay.includes(q);
+          if (!tokens.length) return true;
+          return tokens.every((t) => hay.includes(t));
         });
       }
 
@@ -145,34 +163,62 @@ export async function GET(request: NextRequest) {
         circuits: uniq(schools.map((s) => s.circuit)),
         cmcs: uniq(schools.map((s) => s.cmc)),
         municipalities: uniq(schools.map((s) => s.local_municipality)),
+        quintiles: uniq(
+          schools.map((s) => (s.quintile != null ? String(s.quintile) : null))
+        ),
+        phases: uniq(schools.map((s) => s.phase || s.level_label)),
       };
 
       return NextResponse.json({
         success: true,
-        schools: schools.slice(0, 500).map((s) => ({
-          id: Number(s.id),
-          profile_id: s.profile_id != null ? Number(s.profile_id) : null,
-          school_name: s.school_name,
-          emis_number: s.emis_number,
-          natemis: s.natemis,
-          province: s.province,
-          district: s.district,
-          circuit: s.circuit,
-          cmc: s.cmc,
-          local_municipality: s.local_municipality,
-          quintile: s.quintile,
-          learners: Number(
-            s.learner_count_enrolled || s.learner_count_nsnp_eligible || 0
-          ),
-          label: [
-            s.school_name,
-            s.natemis || s.emis_number,
-            s.district,
-            s.circuit,
-          ]
-            .filter(Boolean)
-            .join(' · '),
-        })),
+        schools: schools.slice(0, 500).map((s) => {
+          const nsnpApproved = Number(
+            s.final_nsnp_approved_enrol ||
+              s.learner_count_nsnp_eligible ||
+              s.learner_count_enrolled ||
+              0
+          );
+          return {
+            id: Number(s.id),
+            profile_id: s.profile_id != null ? Number(s.profile_id) : null,
+            school_name: s.school_name,
+            emis_number: s.emis_number,
+            natemis: s.natemis,
+            province: s.province,
+            district: s.district,
+            circuit: s.circuit,
+            cmc: s.cmc,
+            local_municipality: s.local_municipality,
+            municipality_ward: s.municipality_ward,
+            quintile: s.quintile,
+            phase: s.phase,
+            school_type: s.school_type,
+            level_label: s.level_label,
+            principal_name: s.principal_name,
+            principal_phone: s.principal_phone,
+            principal_email: s.principal_email,
+            urban_rural: s.urban_rural,
+            learner_count_enrolled: s.learner_count_enrolled,
+            learner_count_nsnp_eligible: s.learner_count_nsnp_eligible,
+            learner_count_verified: s.learner_count_verified,
+            final_nsnp_approved_enrol: s.final_nsnp_approved_enrol,
+            learners: Number(
+              s.learner_count_enrolled || s.learner_count_nsnp_eligible || 0
+            ),
+            nsnp_approved_learners: nsnpApproved,
+            school_phone: s.principal_phone || null,
+            status: s.status,
+            label: [
+              s.school_name,
+              s.natemis || s.emis_number,
+              s.district,
+              s.circuit,
+              s.quintile != null ? `Q${s.quintile}` : null,
+            ]
+              .filter(Boolean)
+              .join(' · '),
+          };
+        }),
         total: schools.length,
         facets,
       });
