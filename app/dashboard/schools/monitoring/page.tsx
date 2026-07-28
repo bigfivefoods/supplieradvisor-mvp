@@ -20,6 +20,7 @@ import {
   Send,
   ShieldAlert,
   WifiOff,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -530,12 +531,38 @@ function Inner() {
   };
 
   const pickSchool = (s: SchoolOpt) => {
+    // Tap selected school again → unselect
+    if (form.school_profile_id === s.id) {
+      clearSchoolSelection();
+      return;
+    }
     setSelectedSchoolMeta(s);
     setForm((prev) => fillFormFromSchool(prev, s));
     setSchoolQ(s.school_name || '');
     toast.success(
       `Loaded ${s.school_name} — EMIS, district, quintile, learners & principal filled`
     );
+  };
+
+  const clearSchoolSelection = () => {
+    setSelectedSchoolMeta(null);
+    setForm((prev) => ({
+      ...prev,
+      school_profile_id: null,
+      a1_school_name: '',
+      a2_emis: '',
+      a3_school_phone: '',
+      a4_district: '',
+      a5_quintile: '',
+      school_phase_band: 'primary_combined_intermediate_sec_q1',
+      a12_nsnp_learners: '',
+      // Clear principal prefill if it still looks like auto-filled respondent
+      a9_r1_name: '',
+      a9_r1_position: '',
+      a9_r1_contact: '',
+    }));
+    setSchoolQ('');
+    toast.message('School unselected — search again or enter details manually');
   };
 
   const linkPeuVisit = (id: number | null) => {
@@ -996,6 +1023,7 @@ function Inner() {
             schoolQ={schoolQ}
             setSchoolQ={setSchoolQ}
             pickSchool={pickSchool}
+            clearSchoolSelection={clearSchoolSelection}
             readOnly={readOnly}
             plannedVisits={plannedVisits}
             peuVisitId={peuVisitId}
@@ -1235,6 +1263,7 @@ function SectionA1({
   schoolQ,
   setSchoolQ,
   pickSchool,
+  clearSchoolSelection,
   readOnly,
   plannedVisits,
   peuVisitId,
@@ -1259,6 +1288,7 @@ function SectionA1({
   schoolQ: string;
   setSchoolQ: (q: string) => void;
   pickSchool: (s: SchoolOpt) => void;
+  clearSchoolSelection: () => void;
   readOnly: boolean;
   plannedVisits: PlannedPeu[];
   peuVisitId: number | null;
@@ -1439,7 +1469,7 @@ function SectionA1({
                       </span>
                       {selected ? (
                         <span className="text-[10px] font-bold uppercase text-emerald-700">
-                          Selected
+                          Selected · tap to unselect
                         </span>
                       ) : null}
                     </div>
@@ -1479,16 +1509,16 @@ function SectionA1({
           <p className="text-[10px] text-slate-500">
             Showing {Math.min(schools.length, 80)} of {schools.length} approved
             school{schools.length === 1 ? '' : 's'}. Tap a row to populate the
-            form below.
+            form below. Tap the selected school again to unselect.
           </p>
         </div>
       ) : null}
 
       {(selectedSchoolMeta || form.school_profile_id) && (
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 px-4 py-3">
-          <div className="flex items-start gap-2">
+          <div className="flex items-start gap-3">
             <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
-            <div className="min-w-0 text-sm">
+            <div className="min-w-0 flex-1 text-sm">
               <p className="font-black text-emerald-950">
                 {selectedSchoolMeta?.school_name || form.a1_school_name}
               </p>
@@ -1515,6 +1545,17 @@ function SectionA1({
                 Registry details loaded — complete A6–A14 and continue the form.
               </p>
             </div>
+            {!readOnly ? (
+              <button
+                type="button"
+                onClick={clearSchoolSelection}
+                className="shrink-0 inline-flex items-center gap-1 rounded-xl border border-rose-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-rose-700 hover:bg-rose-50"
+                title="Unselect this school and clear auto-filled fields"
+              >
+                <X className="w-3.5 h-3.5" />
+                Unselect school
+              </button>
+            ) : null}
           </div>
         </div>
       )}
