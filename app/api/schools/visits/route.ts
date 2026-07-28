@@ -385,7 +385,7 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
-      const schoolIds = (
+      const schoolIds: number[] = (
         Array.isArray(body.school_ids) ? body.school_ids : []
       )
         .map((n: unknown) => Number(n))
@@ -404,10 +404,12 @@ export async function POST(request: NextRequest) {
         .eq('agency_profile_id', companyId)
         .eq('status', 'active')
         .in('school_profile_id', schoolIds);
-      const allowed = new Set(
+      const allowed = new Set<number>(
         (links || []).map((l) => Number(l.school_profile_id))
       );
-      const okIds = schoolIds.filter((id) => allowed.has(id));
+      const okIds: number[] = schoolIds.filter((id: number) =>
+        allowed.has(id)
+      );
       if (!okIds.length) {
         return NextResponse.json(
           { error: 'None of the schools are active under your department' },
