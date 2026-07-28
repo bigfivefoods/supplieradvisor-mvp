@@ -4,6 +4,7 @@
  * DBE command-center flowchart: how DBE → Schools → SPs deliver nutrition
  * with compliance gates and prize incentives.
  */
+import { useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowDown,
@@ -12,6 +13,7 @@ import {
   Building2,
   CheckCircle2,
   ChefHat,
+  ChevronDown,
   ClipboardCheck,
   Landmark,
   Package,
@@ -28,6 +30,8 @@ type Props = {
   compact?: boolean;
   /** Tailors intro copy for DBE, school, or service provider hubs */
   audience?: Audience;
+  /** Start collapsed (recommended on school/SP daily hubs) */
+  defaultCollapsed?: boolean;
 };
 
 const AUDIENCE_COPY: Record<
@@ -51,8 +55,13 @@ const AUDIENCE_COPY: Record<
 export default function NsnpSystemFlow({
   compact,
   audience = 'dbe',
+  defaultCollapsed,
 }: Props) {
   const copy = AUDIENCE_COPY[audience] || AUDIENCE_COPY.dbe;
+  const startCollapsed =
+    defaultCollapsed ?? (audience === 'school' || audience === 'isp');
+  const [open, setOpen] = useState(!startCollapsed);
+
   return (
     <section
       className={`rounded-3xl border border-slate-200 bg-white overflow-hidden ${
@@ -60,16 +69,33 @@ export default function NsnpSystemFlow({
       }`}
       aria-label="NSNP system flow diagram"
     >
-      <div className="bg-gradient-to-r from-[#0077b6] via-[#00b4d8] to-emerald-600 px-5 py-4 text-white">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-white/80">
-          {copy.eyebrow}
-        </p>
-        <h2 className="text-lg sm:text-xl font-black mt-0.5">
-          DBE → Schools → Service providers → Children fed
-        </h2>
-        <p className="text-sm text-white/90 mt-1 max-w-3xl">{copy.lead}</p>
-      </div>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full text-left bg-gradient-to-r from-[#0077b6] via-[#00b4d8] to-emerald-600 px-5 py-4 text-white"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-white/80">
+              {copy.eyebrow}
+            </p>
+            <h2 className="text-lg sm:text-xl font-black mt-0.5">
+              DBE → Schools → Service providers → Children fed
+            </h2>
+            <p className="text-sm text-white/90 mt-1 max-w-3xl">{copy.lead}</p>
+          </div>
+          <span className="shrink-0 mt-1 inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider">
+            {open ? 'Hide' : 'Show'} diagram
+            <ChevronDown
+              className={`w-3.5 h-3.5 transition-transform ${
+                open ? 'rotate-180' : ''
+              }`}
+            />
+          </span>
+        </div>
+      </button>
 
+      {open ? (
       <div className="p-4 sm:p-6 space-y-6">
         {/* Role swimlanes */}
         <div className="grid lg:grid-cols-3 gap-3">
@@ -252,6 +278,7 @@ export default function NsnpSystemFlow({
           </div>
         </div>
       </div>
+      ) : null}
     </section>
   );
 }

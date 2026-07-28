@@ -382,48 +382,92 @@ export async function GET(request: NextRequest) {
     const firstTodo = checks.find((c) => c.required && !c.done) ||
       checks.find((c) => !c.done);
 
-    const nextAction =
-      deliveriesAwaiting > 0
-        ? {
-            label: `Receive ${deliveriesAwaiting} delivery(ies)`,
-            href: '/dashboard/schools/deliveries',
-            desc: 'Confirm SP drop-offs, adjust quantities, post kitchen GRN',
-          }
-        : !serveComplete
-          ? {
-              label: readyForServeDay ? 'Start serve day' : 'Finish setup first',
-              href: readyForServeDay
-                ? '/dashboard/schools/serve-day'
-                : firstTodo?.href || '/dashboard/schools/profile',
-              desc: readyForServeDay
-                ? 'Log present, meals served & waste for today'
-                : firstTodo?.hint || firstTodo?.label || 'Complete setup',
-            }
-          : firstTodo
-            ? {
-                label: firstTodo.label,
-                href: firstTodo.href,
-                desc: firstTodo.hint || 'Complete your NSNP golden path',
-              }
-            : {
-                label: 'Share food survey',
-                href: '/dashboard/schools/surveys',
-                desc: 'Collect learner & parent feedback',
-              };
-
-    // Menu dish today
+    // Menu dish today (needed for next-action copy)
     let menuDish: string | null = null;
     const menu = (menuRes.data || [])[0];
     if (menu && Array.isArray(menu.items)) {
       const dayOfWeek = new Date(today + 'T12:00:00').getDay();
       const menuDay = dayOfWeek === 0 ? 7 : dayOfWeek;
-      const dish = (menu.items as Array<{ day?: number; meal_type?: string; dish?: string }>).find(
+      const dish = (
+        menu.items as Array<{
+          day?: number;
+          meal_type?: string;
+          dish?: string;
+        }>
+      ).find(
         (it) =>
           Number(it.day) === menuDay &&
           String(it.meal_type || 'lunch') === 'lunch'
       );
       menuDish = dish?.dish || null;
     }
+
+    // Operational priority: unblock food first, then feed kids, then fund
+    const nextAction =
+      deliveriesAwaiting > 0
+        ? {
+            label: `Receive ${deliveriesAwaiting} delivery${
+              deliveriesAwaiting === 1 ? '' : 'ies'
+            }`,
+            href: '/dashboard/schools/deliveries',
+            desc: 'One-tap confirm POD → kitchen GRN so stock is ready for serve day',
+          }
+        : !agencyActive
+          ? {
+              label: agencyAny
+                ? 'Wait for DBE approval'
+                : 'Join your DBE / PEU',
+              href: '/dashboard/schools/agency',
+              desc: agencyAny
+                ? 'Claims and full catalogue unlock after department approval'
+                : 'Link your school so approved foods and funding work',
+            }
+          : ispLinks === 0
+            ? {
+                label: 'Link a service provider',
+                href: '/dashboard/schools/isps',
+                desc: 'Accept an SP claim or link a preferred on-catalogue supplier',
+              }
+            : !serveComplete
+              ? {
+                  label: readyForServeDay
+                    ? 'Log today’s serve day'
+                    : 'Finish setup first',
+                  href: readyForServeDay
+                    ? '/dashboard/schools/serve-day'
+                    : firstTodo?.href || '/dashboard/schools/profile',
+                  desc: readyForServeDay
+                    ? menuDish
+                      ? `Menu today: ${menuDish} — present → meals → waste`
+                      : 'Present → meals served → waste (2 minutes)'
+                    : firstTodo?.hint ||
+                      firstTodo?.label ||
+                      'Complete setup',
+                }
+              : openOrders === 0 && stockPositive === 0
+                ? {
+                    label: 'Place catalogue order',
+                    href: '/dashboard/schools/orders',
+                    desc: 'Order only approved foods from your preferred SP before stock runs out',
+                  }
+                : readyForClaims && agencyActive
+                  ? {
+                      label: 'Submit claim pack',
+                      href: '/dashboard/schools/claims',
+                      desc: 'Feeding logged — package funding for DBE approval',
+                    }
+                  : firstTodo
+                    ? {
+                        label: firstTodo.label,
+                        href: firstTodo.href,
+                        desc:
+                          firstTodo.hint || 'Complete your NSNP golden path',
+                      }
+                    : {
+                        label: 'Share food survey',
+                        href: '/dashboard/schools/surveys',
+                        desc: 'Collect learner & parent feedback',
+                      };
 
     const readiness: SchoolReadiness = {
       role: 'school',

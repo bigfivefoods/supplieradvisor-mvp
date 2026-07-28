@@ -162,12 +162,9 @@ function Inner() {
             How the system works
           </a>
         </div>
-        <div id="nsnp-system-flow">
-          <NsnpSystemFlow audience="isp" />
-        </div>
         <div className="rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-sky-50 p-6 mb-6">
           <p className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
-            Service provider
+            Service provider · do this next
           </p>
           <h2 className="text-xl font-black text-slate-900 mt-0.5">
             {ispNext?.label || 'Fulfil queue'}
@@ -179,31 +176,31 @@ function Inner() {
           <div className="flex flex-wrap gap-2 mt-4">
             <Link
               href="/dashboard/schools/ops"
-              className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center gap-2"
+              className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center gap-2 min-h-[44px]"
             >
               Open fulfil queue <ArrowRight className="w-4 h-4" />
             </Link>
             <Link
               href={ispNext?.href || '/dashboard/schools/deliveries'}
-              className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-2"
+              className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-2 min-h-[44px]"
             >
               Deliveries
             </Link>
             <Link
               href="/dashboard/schools/isps"
-              className="btn-secondary !py-2.5 !px-4 text-sm"
+              className="btn-secondary !py-2.5 !px-4 text-sm min-h-[44px] inline-flex items-center"
             >
               SP profile
             </Link>
             <Link
               href="/dashboard/schools/isp-sla"
-              className="btn-secondary !py-2.5 !px-4 text-sm"
+              className="btn-secondary !py-2.5 !px-4 text-sm min-h-[44px] inline-flex items-center"
             >
               SLA scores
             </Link>
           </div>
         </div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
           {[
             {
               label: 'Open POs',
@@ -239,6 +236,9 @@ function Inner() {
               </p>
             </Link>
           ))}
+        </div>
+        <div id="nsnp-system-flow">
+          <NsnpSystemFlow audience="isp" defaultCollapsed />
         </div>
       </SchoolsPage>
     );
@@ -479,12 +479,8 @@ function Inner() {
         </a>
       </div>
 
-      <div id="nsnp-system-flow">
-        <NsnpSystemFlow audience="school" />
-      </div>
-
-      {/* Hero — no second process nav; module chrome navbar owns navigation */}
-      <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden flex flex-col sm:flex-row mb-6">
+      {/* Hero — ops first so principals act in seconds */}
+      <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden flex flex-col sm:flex-row mb-4">
         <div className="sm:w-36 h-32 sm:h-auto shrink-0 bg-gradient-to-br from-sky-100 to-emerald-50 relative">
           {school?.photo_url ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -508,27 +504,54 @@ function Inner() {
         <div className="p-5 flex-1 flex flex-col sm:flex-row sm:items-start gap-4">
           <div className="flex-1">
             <p className="text-[10px] font-bold uppercase tracking-wider text-[#0077b6]">
-              Today at your school
+              Do this next
             </p>
             <h2 className="text-lg font-black text-slate-900 mt-0.5">
-              {r?.today.serveComplete
-                ? `✓ Served ${r.today.served ?? 0} meals`
-                : r?.today.menuDish
-                  ? `Menu: ${r.today.menuDish}`
-                  : 'Ready to feed children?'}
+              {next?.label ||
+                (r?.today.serveComplete
+                  ? `✓ Served ${r.today.served ?? 0} meals`
+                  : r?.today.menuDish
+                    ? `Menu: ${r.today.menuDish}`
+                    : 'Ready to feed children?')}
             </h2>
             <p className="text-sm text-slate-500 mt-1">
               {next?.desc ||
-                'Use the Schools navbar for every function — this screen is your status and next action only.'}
+                (r?.today.serveComplete
+                  ? 'Serve day done — check deliveries, stock or claims.'
+                  : 'Fast path: receive SP drops → kitchen stock → log serve day → claim.')}
             </p>
             <div className="flex flex-wrap gap-2 mt-3">
               <Link
                 href={next?.href || '/dashboard/schools/serve-day'}
-                className="btn-primary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+                className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center gap-1 min-h-[44px]"
               >
                 {next?.label || 'Serve day'}{' '}
                 <ArrowRight className="w-3.5 h-3.5" />
               </Link>
+              {(k?.deliveriesAwaiting || 0) > 0 ? (
+                <Link
+                  href="/dashboard/schools/deliveries"
+                  className="btn-secondary !py-2.5 !px-3 text-sm inline-flex items-center gap-1 min-h-[44px]"
+                >
+                  <Truck className="w-3.5 h-3.5" />
+                  Receive {k!.deliveriesAwaiting}
+                </Link>
+              ) : null}
+              {!r?.today.serveComplete ? (
+                <Link
+                  href="/dashboard/schools/serve-day"
+                  className="btn-secondary !py-2.5 !px-3 text-sm min-h-[44px] inline-flex items-center"
+                >
+                  Serve day
+                </Link>
+              ) : (
+                <Link
+                  href="/dashboard/schools/claims"
+                  className="btn-secondary !py-2.5 !px-3 text-sm min-h-[44px] inline-flex items-center"
+                >
+                  Claims
+                </Link>
+              )}
             </div>
           </div>
           {typeof r?.score === 'number' ? (
@@ -617,37 +640,128 @@ function Inner() {
         </div>
       ) : null}
 
-      {/* Daily path — includes deliveries */}
+      {/* Efficient daily ops — ordered process */}
       <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
-        Daily school path
+        Efficient daily process · order → receive → stock → feed → fund
       </p>
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 mb-6">
         {[
           {
-            href: '/dashboard/schools/serve-day',
-            icon: UtensilsCrossed,
-            label: 'Serve day',
-            desc: r?.today.serveComplete
-              ? `${r.today.served} meals logged`
-              : 'Present → meals → waste',
-            accent: 'from-sky-500 to-cyan-400',
+            step: 1,
+            href: '/dashboard/schools/orders',
+            icon: Truck,
+            label: 'Order',
+            desc:
+              (k?.openOrders || 0) > 0
+                ? `${k!.openOrders} open PO(s)`
+                : 'Approved catalogue only',
+            urgent: false,
+            accent: 'from-indigo-500 to-violet-400',
           },
           {
+            step: 2,
             href: '/dashboard/schools/deliveries',
             icon: Truck,
-            label: 'Deliveries',
+            label: 'Receive',
             desc:
               (k?.deliveriesAwaiting || 0) > 0
-                ? `${k!.deliveriesAwaiting} to receive`
-                : 'SP drops & POD',
+                ? `${k!.deliveriesAwaiting} waiting now`
+                : 'SP DN + POD → GRN',
+            urgent: (k?.deliveriesAwaiting || 0) > 0,
             accent: 'from-amber-500 to-orange-400',
           },
           {
+            step: 3,
             href: '/dashboard/schools/kitchen',
             icon: ChefHat,
             label: 'Kitchen',
             desc: `${k?.stockLines ?? 0} stock lines`,
+            urgent: false,
             accent: 'from-rose-500 to-orange-400',
+          },
+          {
+            step: 4,
+            href: '/dashboard/schools/serve-day',
+            icon: UtensilsCrossed,
+            label: 'Serve',
+            desc: r?.today.serveComplete
+              ? `✓ ${r.today.served} meals`
+              : 'Present → meals → waste',
+            urgent: !r?.today.serveComplete,
+            accent: 'from-sky-500 to-cyan-400',
+          },
+          {
+            step: 5,
+            href: '/dashboard/schools/claims',
+            icon: FileText,
+            label: 'Claim',
+            desc: r?.readyForClaims
+              ? 'Submit funding pack'
+              : 'After serve days',
+            urgent: Boolean(r?.readyForClaims && r?.today.serveComplete),
+            accent: 'from-emerald-500 to-teal-400',
+          },
+          {
+            step: 6,
+            href: '/dashboard/schools/prizes',
+            icon: Award,
+            label: 'Prizes',
+            desc:
+              prizeScore != null
+                ? `Score ${prizeScore.toFixed(0)}`
+                : 'Compliance rank',
+            urgent: false,
+            accent: 'from-amber-400 to-yellow-300',
+          },
+        ].map((a) => (
+          <Link
+            key={a.href + a.label}
+            href={a.href}
+            className={`group relative overflow-hidden rounded-2xl border bg-white p-3 hover:shadow-md transition-all min-h-[7.5rem] ${
+              a.urgent
+                ? 'border-amber-300 ring-2 ring-amber-200/60'
+                : 'border-slate-200'
+            }`}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="w-6 h-6 rounded-full bg-slate-900 text-white text-[10px] font-black flex items-center justify-center">
+                {a.step}
+              </span>
+              {a.urgent ? (
+                <span className="text-[9px] font-bold uppercase text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-1.5 py-0.5">
+                  Now
+                </span>
+              ) : null}
+            </div>
+            <div
+              className={`w-8 h-8 rounded-lg bg-gradient-to-br ${a.accent} text-white flex items-center justify-center mb-2 shadow-sm`}
+            >
+              <a.icon className="w-3.5 h-3.5" />
+            </div>
+            <p className="font-black text-slate-900 text-sm">{a.label}</p>
+            <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+              {a.desc}
+            </p>
+          </Link>
+        ))}
+      </div>
+
+      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+        Also useful today
+      </p>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-6">
+        {[
+          {
+            href: '/dashboard/schools/isps',
+            icon: Users,
+            label: 'SPs',
+            desc: `${k?.ispLinks ?? 0} linked · preferred first`,
+          },
+          {
+            href: '/dashboard/schools/approved-list',
+            icon: ClipboardCheck,
+            label: 'Catalogue',
+            desc: k?.agencyActive ? 'Order only these foods' : 'Join DBE first',
           },
           {
             href: '/dashboard/schools/surveys',
@@ -657,39 +771,24 @@ function Inner() {
               (k?.surveyResponses || 0) > 0
                 ? `${k!.surveyResponses} · ${k?.surveyAvg ?? '—'}★`
                 : 'Learner feedback',
-            accent: 'from-violet-500 to-fuchsia-400',
-          },
-          {
-            href: '/dashboard/schools/claims',
-            icon: FileText,
-            label: 'Claims',
-            desc: r?.readyForClaims
-              ? 'Submit funding pack'
-              : 'Need DBE + feeding',
-            accent: 'from-emerald-500 to-teal-400',
           },
           {
             href: '/dashboard/schools/nutrition',
             icon: BarChart3,
             label: 'Nutrition',
             desc: 'vs DBE average',
-            accent: 'from-lime-500 to-emerald-400',
           },
         ].map((a) => (
           <Link
             key={a.href}
             href={a.href}
-            className="group relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-4 hover:shadow-md transition-all"
+            className="rounded-2xl border border-slate-200 bg-white p-3 hover:border-[#00b4d8]/40 transition-all"
           >
-            <div
-              className={`w-9 h-9 rounded-xl bg-gradient-to-br ${a.accent} text-white flex items-center justify-center mb-3 shadow-sm`}
-            >
-              <a.icon className="w-4 h-4" />
+            <div className="flex items-center gap-2 mb-1">
+              <a.icon className="w-3.5 h-3.5 text-[#0077b6]" />
+              <p className="font-bold text-sm text-slate-900">{a.label}</p>
             </div>
-            <p className="font-black text-slate-900 text-sm">{a.label}</p>
-            <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
-              {a.desc}
-            </p>
+            <p className="text-[11px] text-slate-500">{a.desc}</p>
           </Link>
         ))}
       </div>
@@ -757,7 +856,11 @@ function Inner() {
         ))}
       </div>
 
-      <p className="mt-2 text-xs text-slate-400 flex items-center gap-1">
+      <div id="nsnp-system-flow" className="mt-6">
+        <NsnpSystemFlow audience="school" defaultCollapsed />
+      </div>
+
+      <p className="mt-4 text-xs text-slate-400 flex items-center gap-1">
         <MapPin className="w-3.5 h-3.5" />
         End-to-end process: profile → DBE approve → learners → menu → SP →
         order → GRN → serve day → survey → claims → audit. Run migration{' '}

@@ -212,7 +212,7 @@ function Inner() {
         </div>
       ) : (
         <>
-        <NsnpSystemFlow audience="school" />
+        <NsnpSystemFlow audience="school" defaultCollapsed />
         <div className="space-y-4 max-w-3xl">
           {/* Photo hero */}
           <div className="rounded-3xl border border-slate-200 bg-white p-5 flex flex-col sm:flex-row gap-5 items-center sm:items-start">
