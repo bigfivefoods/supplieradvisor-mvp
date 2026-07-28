@@ -41,10 +41,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'companyId is required' }, { status: 400 });
     }
 
-    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    const _gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request) || privyUserId || null,
+    });
     if (!_gate.ok) return _gate.response;
 
-    const mem = await assertCompanyMember(privyUserId, companyId);
+    // Prefer form privyUserId; fall back to session user from requireCompanyAccess
+    // so catalogue / school uploads work without every page wiring Privy.
+    const memberUserId = String(privyUserId || _gate.userId || '').trim();
+    const mem = await assertCompanyMember(memberUserId, companyId);
     if (!mem.ok) {
       return NextResponse.json({ error: mem.error }, { status: mem.status });
     }

@@ -12,8 +12,10 @@ import {
   Save,
   ImageIcon,
 } from 'lucide-react';
+import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
+import { getCanonicalUserId } from '@/lib/auth/identity';
 import { uploadCompanyAssetServerFirst } from '@/lib/business/uploadCompanyAssets';
 import { SA_PROVINCES } from '@/lib/schools/types';
 import {
@@ -73,6 +75,8 @@ export default function ApprovedListPage() {
 
 function Inner() {
   const companyId = getSelectedCompanyId()!;
+  const { user } = usePrivy();
+  const privyUserId = getCanonicalUserId(user?.id);
   const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
