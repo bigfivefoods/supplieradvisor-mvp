@@ -33,6 +33,7 @@ import {
 } from '@/components/schools/SchoolsShell';
 import type { SchoolReadiness } from '@/lib/schools/process';
 import GoldenPathStrip from '@/components/schools/GoldenPathStrip';
+import NsnpSystemFlow from '@/components/schools/NsnpSystemFlow';
 
 export default function SchoolsHubPage() {
   return (
@@ -238,7 +239,7 @@ function Inner() {
         <SchoolsHeader
           title="DBE / PEU command"
           titleAccent="Programme"
-          description="Approve schools, own the approved foods list, run PEU visits, review claims — revolutionise how nutrition reaches every child."
+          description="See how DBE → schools → service providers feed every child with compliance and prizes. Approve schools, own the catalogue, run PEU visits, review claims."
           mode="agency"
           action={
             <button
@@ -258,6 +259,12 @@ function Inner() {
           >
             Exception cockpit
           </Link>
+          <a
+            href="#nsnp-system-flow"
+            className="btn-secondary !py-2 !px-3 text-xs"
+          >
+            How the system works
+          </a>
         </div>
 
         <div className="rounded-3xl border border-slate-200 bg-gradient-to-br from-sky-50 via-white to-emerald-50 p-6 mb-6">
@@ -286,6 +293,10 @@ function Inner() {
               ) : null}
             </div>
           </div>
+        </div>
+
+        <div id="nsnp-system-flow">
+          <NsnpSystemFlow />
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
