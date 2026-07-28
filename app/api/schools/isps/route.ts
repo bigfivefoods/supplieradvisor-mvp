@@ -286,19 +286,85 @@ export async function GET(request: NextRequest) {
     ].filter(Boolean);
     const names = await enrichIspNames(supabase, ispIds);
 
-    const directory = (directoryRows.data || []).map((i) => ({
-      ...i,
-      display_name:
-        (i as { trading_name?: string }).trading_name ||
-        names[Number((i as { profile_id?: number }).profile_id)] ||
-        `SP ${(i as { profile_id?: number }).profile_id}`,
-    }));
+    // SP preferred / compliance badges (kitchen GRNs for this school)
+    const { computeIspIncentive } = await import('@/lib/schools/incentives');
+    const incentiveByIsp = new Map<
+      number,
+      ReturnType<typeof computeIspIncentive>
+    >();
+    const { data: schoolReceipts } = await supabase
+      .from('school_kitchen_receipts')
+      .select('isp_profile_id, compliance_ok')
+      .eq('school_profile_id', school.id)
+      .not('isp_profile_id', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(400);
+    const tally = new Map<number, { n: number; ok: number }>();
+    for (const r of schoolReceipts || []) {
+      const id = Number(r.isp_profile_id);
+      if (!Number.isFinite(id)) continue;
+      const t = tally.get(id) || { n: 0, ok: 0 };
+      t.n += 1;
+      if (r.compliance_ok !== false) t.ok += 1;
+      tally.set(id, t);
+    }
+    for (const ispId of approvedIspIds) {
+      const t = tally.get(ispId) || { n: 0, ok: 0 };
+      incentiveByIsp.set(
+        ispId,
+        computeIspIncentive({
+          deliveries: t.n,
+          approved_ok: t.ok,
+          wrong_brand: Math.max(0, t.n - t.ok),
+        })
+      );
+    }
 
-    const links = (linksRes.data || []).map((l) => ({
-      ...l,
-      display_name: names[Number(l.isp_profile_id)] || `SP ${l.isp_profile_id}`,
-      agency_approved: approvedIspIds.includes(Number(l.isp_profile_id)),
-    }));
+    const directory = (directoryRows.data || []).map((i) => {
+      const id = Number((i as { profile_id?: number }).profile_id);
+      const inc = incentiveByIsp.get(id);
+      return {
+        ...i,
+        display_name:
+          (i as { trading_name?: string }).trading_name ||
+          names[id] ||
+          `SP ${id}`,
+        incentive: inc || null,
+        preferred: inc?.status === 'preferred' || inc?.status === 'excellent',
+        incentive_badge: inc?.badge || null,
+        incentive_score: inc?.score ?? null,
+      };
+    });
+    directory.sort((a, b) => {
+      const pa = a.preferred ? 1 : 0;
+      const pb = b.preferred ? 1 : 0;
+      if (pb !== pa) return pb - pa;
+      return Number(b.incentive_score || 0) - Number(a.incentive_score || 0);
+    });
+
+    const links = (linksRes.data || []).map((l) => {
+      const id = Number(l.isp_profile_id);
+      const inc = incentiveByIsp.get(id);
+      return {
+        ...l,
+        display_name: names[id] || `SP ${id}`,
+        agency_approved: approvedIspIds.includes(id),
+        incentive: inc || null,
+        preferred: inc?.status === 'preferred' || inc?.status === 'excellent',
+        incentive_badge: inc?.badge || null,
+        incentive_score: inc?.score ?? null,
+      };
+    });
+    // Active preferred first for order pickers
+    links.sort((a, b) => {
+      const sa = String(a.status) === 'active' ? 1 : 0;
+      const sb = String(b.status) === 'active' ? 1 : 0;
+      if (sb !== sa) return sb - sa;
+      const pa = a.preferred ? 1 : 0;
+      const pb = b.preferred ? 1 : 0;
+      if (pb !== pa) return pb - pa;
+      return Number(b.incentive_score || 0) - Number(a.incentive_score || 0);
+    });
 
     const pendingClaims = links.filter((l) => String(l.status) === 'pending');
     const activeLinks = links.filter((l) => String(l.status) === 'active');

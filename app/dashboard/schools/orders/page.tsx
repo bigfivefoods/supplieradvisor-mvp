@@ -71,7 +71,19 @@ function Inner() {
       if (!oRes.ok) throw new Error(o.error || 'Failed');
       setOrders(o.orders || []);
       setProducts(p.products || []);
-      setLinks(i.links || []);
+      // Only active SP links for ordering (preferred first from API)
+      const active = (i.links || []).filter(
+        (l: Record<string, unknown>) => String(l.status) === 'active'
+      );
+      setLinks(active);
+      setIspId((prev) => {
+        if (prev) return prev;
+        const preferred = active.find(
+          (l: Record<string, unknown>) => l.preferred
+        );
+        const first = preferred || active[0];
+        return first ? String(first.isp_profile_id) : '';
+      });
       if (p.catalogue?.agencyName) {
         setCatalogueLabel(`${p.catalogue.agencyName} approved foods`);
       } else if (p.agencyName) {
@@ -90,7 +102,14 @@ function Inner() {
 
   const addLine = () => {
     const prod = products.find((p) => p.id === Number(productId));
-    if (!prod) return toast.error('Select an approved product');
+    if (!prod) {
+      return toast.error(
+        'Select a product from the department approved list only'
+      );
+    }
+    if (!Number.isFinite(prod.id) || prod.id <= 0) {
+      return toast.error('Invalid product — off-catalogue items are blocked');
+    }
     const q = Number(qty);
     if (!(q > 0)) return toast.error('Qty must be > 0');
     setLines((prev) => [
@@ -110,21 +129,36 @@ function Inner() {
   };
 
   const submit = async () => {
-    if (!lines.length) return toast.error('Add lines first');
+    if (!lines.length) return toast.error('Add approved product lines first');
+    if (!ispId) {
+      return toast.error('Select a service provider (preferred SPs listed first)');
+    }
+    // Client hard-block: every line must have catalogue id
+    if (lines.some((l) => !l.approved_product_id)) {
+      return toast.error('Off-catalogue lines blocked — remove them before submit');
+    }
     setSubmitting(true);
     try {
       const res = await fetch('/api/schools/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify({
           companyId,
-          isp_profile_id: ispId ? Number(ispId) : null,
+          isp_profile_id: Number(ispId),
           lines,
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed');
-      toast.success(`PO ${data.order?.po_number} created (approved only)`);
+      if (!res.ok) {
+        const detail = Array.isArray(data.rejected)
+          ? ` ${data.rejected.slice(0, 2).join('; ')}`
+          : '';
+        throw new Error(`${data.error || 'PO rejected'}${detail}`);
+      }
+      toast.success(
+        `PO ${data.order?.po_number} created — approved only · SP notified path ready`
+      );
       setLines([]);
       setShowForm(false);
       void load();
@@ -229,33 +263,49 @@ function Inner() {
               placeholder="Unit price"
             />
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 items-center">
             <select
-              className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+              className="rounded-xl border border-slate-200 px-3 py-2 text-sm min-w-[14rem]"
               value={ispId}
               onChange={(e) => setIspId(e.target.value)}
+              required
             >
-              <option value="">SP (optional)</option>
-              {links.map((l) => (
-                <option
-                  key={String(l.id)}
-                  value={String(l.isp_profile_id)}
-                >
-                  {String(l.display_name || l.isp_profile_id)}
-                </option>
-              ))}
+              <option value="">Service provider (required)…</option>
+              {links.map((l) => {
+                const badge = l.preferred
+                  ? '★ Preferred'
+                  : l.incentive_badge
+                    ? String(l.incentive_badge).split('·')[0].trim()
+                    : 'Active';
+                return (
+                  <option
+                    key={String(l.id)}
+                    value={String(l.isp_profile_id)}
+                  >
+                    {badge} · {String(l.display_name || l.isp_profile_id)}
+                    {l.incentive_score != null
+                      ? ` (${Number(l.incentive_score).toFixed(0)}%)`
+                      : ''}
+                  </option>
+                );
+              })}
             </select>
+            {links.some((l) => l.preferred) ? (
+              <span className="text-[10px] font-bold uppercase text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-1">
+                ★ Preferred SPs listed first
+              </span>
+            ) : null}
             <button
               type="button"
               onClick={addLine}
               className="btn-secondary !py-2 !px-3 text-xs"
             >
-              Add line
+              Add approved line
             </button>
             <button
               type="button"
               onClick={() => void submit()}
-              disabled={submitting}
+              disabled={submitting || !lines.length || !ispId}
               className="btn-primary !py-2 !px-3 text-xs"
             >
               {submitting ? (
@@ -265,6 +315,16 @@ function Inner() {
               )}
             </button>
           </div>
+          {links.length === 0 ? (
+            <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+              No active SP links. Accept an SP claim or link a department-approved
+              SP under{' '}
+              <Link href="/dashboard/schools/isps" className="font-bold underline">
+                SPs
+              </Link>
+              .
+            </p>
+          ) : null}
           {lines.length > 0 ? (
             <ul className="text-xs space-y-1">
               {lines.map((l, i) => (

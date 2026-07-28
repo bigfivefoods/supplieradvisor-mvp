@@ -207,6 +207,7 @@ function Inner() {
       const res = await fetch('/api/schools/deliveries', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify({
           companyId,
           action,
@@ -223,22 +224,28 @@ function Inner() {
     }
   };
 
-  const createFromPo = async () => {
-    if (!poId) return toast.error('Select a purchase order');
+  const createFromPo = async (explicitPoId?: number) => {
+    const id = explicitPoId ?? (poId ? Number(poId) : NaN);
+    if (!Number.isFinite(id)) return toast.error('Select a purchase order');
     setBusy(true);
     try {
       const res = await fetch('/api/schools/deliveries', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify({
           companyId,
-          po_id: Number(poId),
+          action: 'create_from_po',
+          po_id: id,
           status: 'confirmed',
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
-      toast.success('Delivery note ready — dispatch when the truck leaves');
+      toast.success(
+        data.message ||
+          'Delivery note ready — one-click from PO · dispatch when truck leaves'
+      );
       setPoId('');
       void load();
       if (data.delivery) void openDetail(data.delivery);
@@ -308,9 +315,12 @@ function Inner() {
         notes_school: notesSchool || null,
       });
       if (!data) return;
+      if (data.prize?.message) {
+        toast.success(String(data.prize.message), { duration: 6000 });
+      }
       toast.success(
         data.grn
-          ? 'Received — kitchen stock updated (GRN posted)'
+          ? 'Received — kitchen GRN posted to stock'
           : 'Delivery received'
       );
       setShowReceive(false);
@@ -318,6 +328,42 @@ function Inner() {
       if (data.delivery) void openDetail(data.delivery);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed');
+    }
+  };
+
+  /** One-tap: accept delivered qty → receive → kitchen GRN + prize delta */
+  const doReceiveQuick = async (deliveryId?: number) => {
+    const id = deliveryId || selected?.id;
+    if (!id) return;
+    setBusy(true);
+    try {
+      const res = await fetch('/api/schools/deliveries', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          companyId,
+          action: 'receive_quick',
+          id,
+          delivery_id: id,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Receive failed');
+      if (data.prize?.message) {
+        toast.success(String(data.prize.message), { duration: 7000 });
+      } else {
+        toast.success(
+          data.message || 'Received — kitchen GRN posted in one tap'
+        );
+      }
+      setShowReceive(false);
+      void load();
+      if (data.delivery) void openDetail(data.delivery);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -441,51 +487,75 @@ function Inner() {
         ))}
       </div>
 
-      {/* Create from PO */}
-      <div className="rounded-3xl border border-slate-200 bg-white p-4 mb-4 flex flex-wrap gap-2 items-end">
-        <label className="text-xs flex-1 min-w-[12rem]">
-          <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
-            New delivery from open PO
-          </span>
-          <select
-            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
-            value={poId}
-            onChange={(e) => setPoId(e.target.value)}
+      {/* One-click create from PO */}
+      <div className="rounded-3xl border border-slate-200 bg-white p-4 mb-4 space-y-3">
+        <div className="flex flex-wrap gap-2 items-end">
+          <label className="text-xs flex-1 min-w-[12rem]">
+            <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+              One-click delivery from open PO
+            </span>
+            <select
+              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
+              value={poId}
+              onChange={(e) => setPoId(e.target.value)}
+            >
+              <option value="">Select PO…</option>
+              {openOrders.map((o) => (
+                <option key={String(o.id)} value={String(o.id)}>
+                  {String(o.po_number || `PO #${o.id}`)} · {String(o.status)} ·{' '}
+                  {String(o.order_date || '')}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            disabled={busy || !poId}
+            onClick={() => void createFromPo()}
+            className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center gap-1.5 min-h-[44px]"
           >
-            <option value="">Select PO…</option>
-            {openOrders.map((o) => (
-              <option key={String(o.id)} value={String(o.id)}>
-                {String(o.po_number || `PO #${o.id}`)} · {String(o.status)} ·{' '}
-                {String(o.order_date || '')}
-              </option>
+            {busy ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Truck className="w-4 h-4" />
+            )}
+            Create DN
+          </button>
+          <Link
+            href="/dashboard/schools/orders"
+            className="btn-secondary !py-2.5 !px-3 text-xs min-h-[44px] inline-flex items-center"
+          >
+            Orders
+          </Link>
+          <Link
+            href="/dashboard/schools/kitchen"
+            className="btn-secondary !py-2.5 !px-3 text-xs min-h-[44px] inline-flex items-center"
+          >
+            Kitchen
+          </Link>
+          <Link
+            href="/dashboard/schools/prizes"
+            className="btn-secondary !py-2.5 !px-3 text-xs min-h-[44px] inline-flex items-center"
+          >
+            Prize score
+          </Link>
+        </div>
+        {openOrders.length > 0 ? (
+          <ul className="flex flex-wrap gap-2">
+            {openOrders.slice(0, 6).map((o) => (
+              <li key={String(o.id)}>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void createFromPo(Number(o.id))}
+                  className="text-xs font-bold rounded-full border border-sky-200 bg-sky-50 text-sky-900 px-3 py-1.5 hover:bg-sky-100 disabled:opacity-40"
+                >
+                  + DN {String(o.po_number || o.id)}
+                </button>
+              </li>
             ))}
-          </select>
-        </label>
-        <button
-          type="button"
-          disabled={busy || !poId}
-          onClick={() => void createFromPo()}
-          className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center gap-1.5 min-h-[44px]"
-        >
-          {busy ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Truck className="w-4 h-4" />
-          )}
-          Create DN
-        </button>
-        <Link
-          href="/dashboard/schools/orders"
-          className="btn-secondary !py-2.5 !px-3 text-xs min-h-[44px] inline-flex items-center"
-        >
-          Orders
-        </Link>
-        <Link
-          href="/dashboard/schools/kitchen"
-          className="btn-secondary !py-2.5 !px-3 text-xs min-h-[44px] inline-flex items-center"
-        >
-          Kitchen
-        </Link>
+          </ul>
+        ) : null}
       </div>
 
       {loading ? (
@@ -505,15 +575,18 @@ function Inner() {
               </li>
             ) : (
               filtered.map((d) => (
-                <li key={d.id}>
+                <li
+                  key={d.id}
+                  className={`rounded-2xl border p-4 transition-all min-h-[72px] ${
+                    selected?.id === d.id
+                      ? 'border-[#00b4d8] bg-sky-50/50 shadow-sm'
+                      : 'border-slate-200 bg-white hover:border-[#00b4d8]/40'
+                  }`}
+                >
                   <button
                     type="button"
                     onClick={() => void openDetail(d)}
-                    className={`w-full text-left rounded-2xl border p-4 transition-all min-h-[72px] ${
-                      selected?.id === d.id
-                        ? 'border-[#00b4d8] bg-sky-50/50 shadow-sm'
-                        : 'border-slate-200 bg-white hover:border-[#00b4d8]/40'
-                    }`}
+                    className="w-full text-left"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div>
@@ -533,6 +606,19 @@ function Inner() {
                       </span>
                     </div>
                   </button>
+                  {role === 'school' &&
+                  ['dispatched', 'delivered', 'confirmed'].includes(
+                    String(d.status)
+                  ) ? (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void doReceiveQuick(d.id)}
+                      className="mt-2 text-[10px] font-bold uppercase text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-2 py-1.5 disabled:opacity-40"
+                    >
+                      One-tap receive → GRN
+                    </button>
+                  ) : null}
                 </li>
               ))
             )}
@@ -685,15 +771,25 @@ function Inner() {
                   ['dispatched', 'delivered', 'confirmed'].includes(
                     String(selected.status)
                   ) ? (
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={startReceive}
-                      className="min-h-[52px] rounded-2xl font-bold text-sm bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 inline-flex items-center justify-center gap-2"
-                    >
-                      <CheckCircle2 className="w-5 h-5" />
-                      Receive into kitchen
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void doReceiveQuick()}
+                        className="min-h-[52px] rounded-2xl font-bold text-sm bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 inline-flex items-center justify-center gap-2 sm:col-span-2"
+                      >
+                        <CheckCircle2 className="w-5 h-5" />
+                        One-tap receive → kitchen GRN
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={startReceive}
+                        className="min-h-[44px] rounded-2xl font-bold text-xs border-2 border-emerald-200 text-emerald-900 bg-emerald-50"
+                      >
+                        Adjust quantities first
+                      </button>
+                    </>
                   ) : null}
                   {role === 'school' &&
                   !['received', 'cancelled'].includes(

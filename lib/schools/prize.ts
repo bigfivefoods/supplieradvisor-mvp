@@ -1,7 +1,9 @@
 /**
  * Headmaster prize scorecard — incentivise approved-brand procurement.
  */
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { PRIZE_WEIGHTS } from '@/lib/schools/types';
+import { computeFeedingCompletenessPct } from '@/lib/schools/process';
 
 export type PrizeInputs = {
   /** % of kitchen spend / receipts on approved brands (0–100) */
@@ -108,5 +110,107 @@ export function currentQuarterPeriod(d = new Date()): {
     starts_on: iso(starts),
     ends_on: iso(ends),
     name: `Q${quarter} ${year} Headmaster Prize`,
+  };
+}
+
+/**
+ * Live prize snapshot for a school in the current quarter (lightweight).
+ * Used after GRN receive to show score delta without full prizes page.
+ */
+export async function livePrizeSnapshot(
+  supabase: SupabaseClient,
+  opts: { schoolProfileId: number; companyId: number }
+): Promise<{
+  total: number;
+  approvedBrandPct: number;
+  nonApprovedEvents: number;
+  periodName: string;
+} | null> {
+  try {
+    const q = currentQuarterPeriod();
+    const from = q.starts_on;
+    const to = q.ends_on;
+
+    const [receiptsRes, feedingRes] = await Promise.all([
+      supabase
+        .from('school_kitchen_receipts')
+        .select('compliance_ok, lines, received_at')
+        .eq('school_profile_id', opts.schoolProfileId)
+        .gte('received_at', from)
+        .lte('received_at', to)
+        .limit(500),
+      supabase
+        .from('school_feeding_days')
+        .select('feed_date, served_meals, planned_meals')
+        .eq('school_profile_id', opts.schoolProfileId)
+        .gte('feed_date', from)
+        .lte('feed_date', to)
+        .limit(500),
+    ]);
+
+    const receipts = receiptsRes.data || [];
+    let approvedLines = 0;
+    let totalLines = 0;
+    let nonApprovedEvents = 0;
+    for (const r of receipts) {
+      if (r.compliance_ok === false) nonApprovedEvents += 1;
+      const lines = Array.isArray(r.lines) ? r.lines : [];
+      for (const l of lines as Array<{ approved?: boolean }>) {
+        totalLines += 1;
+        if (l.approved !== false) approvedLines += 1;
+      }
+    }
+    const approvedBrandPct =
+      totalLines > 0 ? (approvedLines / totalLines) * 100 : 100;
+
+    const feedingCompletenessPct = computeFeedingCompletenessPct(
+      feedingRes.data || [],
+      from,
+      to
+    );
+
+    const breakdown = computePrizeScore({
+      approvedBrandPct,
+      nonApprovedEvents,
+      menuAdherencePct: 100,
+      feedingCompletenessPct,
+      stockDisciplinePct: nonApprovedEvents === 0 ? 100 : 70,
+      dataQualityPct: 50,
+    });
+
+    return {
+      total: breakdown.total,
+      approvedBrandPct: Math.round(approvedBrandPct * 10) / 10,
+      nonApprovedEvents,
+      periodName: q.name,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function formatPrizeDelta(before: number | null, after: number | null): {
+  delta: number | null;
+  message: string;
+} {
+  if (before == null || after == null) {
+    return { delta: null, message: 'Prize score updated' };
+  }
+  const delta = Math.round((after - before) * 10) / 10;
+  if (delta > 0) {
+    return {
+      delta,
+      message: `Prize +${delta.toFixed(1)} pts this quarter (now ${after.toFixed(1)})`,
+    };
+  }
+  if (delta < 0) {
+    return {
+      delta,
+      message: `Prize ${delta.toFixed(1)} pts this quarter (now ${after.toFixed(1)}) — off-catalogue hurts score`,
+    };
+  }
+  return {
+    delta: 0,
+    message: `Prize score holds at ${after.toFixed(1)} pts this quarter`,
   };
 }

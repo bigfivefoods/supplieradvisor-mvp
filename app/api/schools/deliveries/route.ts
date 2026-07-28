@@ -278,6 +278,33 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, file });
     }
 
+    // ── One-click delivery note from open PO ─────────────────────────
+    if (action === 'create_from_po') {
+      const poIdOnly = Number(body.po_id);
+      if (!Number.isFinite(poIdOnly)) {
+        return NextResponse.json({ error: 'po_id required' }, { status: 400 });
+      }
+      const created = await createDeliveryFromPo(supabase, {
+        poId: poIdOnly,
+        companyId,
+        userId: gate.userId,
+        expectedDate: body.expected_date || null,
+        status: body.status || 'confirmed',
+      });
+      if (!created.ok) {
+        return NextResponse.json(
+          { error: created.error, success: false },
+          { status: created.status || 400 }
+        );
+      }
+      return NextResponse.json({
+        success: true,
+        delivery: created.delivery,
+        message: 'Delivery note created from PO — dispatch when the truck leaves',
+        one_click: true,
+      });
+    }
+
     // ── Status transitions ─────────────────────────────────────────────
     if (
       [
@@ -285,6 +312,7 @@ export async function POST(request: NextRequest) {
         'dispatch',
         'mark_delivered',
         'receive',
+        'receive_quick',
         'dispute',
         'cancel',
       ].includes(action)
@@ -311,6 +339,8 @@ export async function POST(request: NextRequest) {
         updated_at: new Date().toISOString(),
       };
       const now = new Date().toISOString();
+      const isReceive =
+        (action === 'receive' || action === 'receive_quick') && isSchool;
 
       if (action === 'confirm' && isIsp) {
         patch.status = 'confirmed';
@@ -336,14 +366,44 @@ export async function POST(request: NextRequest) {
               ? 'On-time (delivered on/before expected date)'
               : `Late vs expected ${exp}`;
         }
-      } else if (action === 'receive' && isSchool) {
+      } else if (isReceive) {
+        if (String(d.status) === 'received') {
+          return NextResponse.json({
+            success: true,
+            delivery: d,
+            message: 'Already received',
+          });
+        }
         patch.status = 'received';
         patch.received_at = now;
-        if (body.notes_school !== undefined) patch.notes_school = body.notes_school;
-        if (Array.isArray(body.lines)) {
-          // Merge qty_received into lines
-          patch.lines = body.lines;
+        if (body.notes_school !== undefined) {
+          patch.notes_school = body.notes_school;
         }
+        // One-tap: accept delivered qty as received
+        const baseLines = (
+          Array.isArray(body.lines)
+            ? body.lines
+            : Array.isArray(d.lines)
+              ? d.lines
+              : []
+        ) as Array<Record<string, unknown>>;
+        patch.lines = baseLines.map((l) => {
+          const ordered = Number(l.qty_ordered ?? l.qty ?? 0);
+          const delivered = Number(l.qty_delivered ?? ordered);
+          const received =
+            action === 'receive_quick'
+              ? delivered
+              : Number(l.qty_received ?? delivered);
+          return {
+            approved_product_id: l.approved_product_id ?? null,
+            product_name: String(l.product_name || ''),
+            brand_name: String(l.brand_name || ''),
+            qty_ordered: ordered,
+            qty_delivered: delivered,
+            qty_received: received,
+            uom: String(l.uom || 'kg'),
+          };
+        });
         if (d.expected_date && d.otif == null) {
           const exp = String(d.expected_date).slice(0, 10);
           const day = now.slice(0, 10);
@@ -362,6 +422,18 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // Prize snapshot before GRN (for live delta)
+      let prizeBefore: Awaited<
+        ReturnType<typeof import('@/lib/schools/prize').livePrizeSnapshot>
+      > = null;
+      if (isReceive) {
+        const { livePrizeSnapshot } = await import('@/lib/schools/prize');
+        prizeBefore = await livePrizeSnapshot(supabase, {
+          schoolProfileId: Number(d.school_profile_id),
+          companyId,
+        });
+      }
+
       const { data: updated, error } = await supabase
         .from('school_nsnp_deliveries')
         .update(patch)
@@ -374,7 +446,8 @@ export async function POST(request: NextRequest) {
 
       // School receive → post GRN into kitchen stock (approved brands only)
       let grn: Record<string, unknown> | null = null;
-      if (action === 'receive' && isSchool) {
+      let prizeDelta: Record<string, unknown> | null = null;
+      if (isReceive) {
         grn = await postGrnFromDelivery(supabase, updated, companyId, gate.userId);
         if (grn?.id) {
           await supabase
@@ -396,6 +469,28 @@ export async function POST(request: NextRequest) {
             })
             .eq('id', updated.po_id);
         }
+
+        const { livePrizeSnapshot, formatPrizeDelta } = await import(
+          '@/lib/schools/prize'
+        );
+        const prizeAfter = await livePrizeSnapshot(supabase, {
+          schoolProfileId: Number(d.school_profile_id),
+          companyId,
+        });
+        const fmt = formatPrizeDelta(
+          prizeBefore?.total ?? null,
+          prizeAfter?.total ?? null
+        );
+        prizeDelta = {
+          before: prizeBefore?.total ?? null,
+          after: prizeAfter?.total ?? null,
+          delta: fmt.delta,
+          message: fmt.message,
+          approved_brand_pct: prizeAfter?.approvedBrandPct ?? null,
+          non_approved_events: prizeAfter?.nonApprovedEvents ?? null,
+          period: prizeAfter?.periodName ?? null,
+          grn_compliance_ok: grn?.compliance_ok ?? null,
+        };
       }
 
       if (
@@ -428,7 +523,7 @@ export async function POST(request: NextRequest) {
           metadata: { delivery_id: d.id, action },
         });
       }
-      if (action === 'receive') {
+      if (isReceive) {
         await logNsnpEvent(supabase, {
           companyId,
           targetCompanyId: Number(d.isp_profile_id),
@@ -437,14 +532,31 @@ export async function POST(request: NextRequest) {
           title: 'School received your delivery',
           body: `Delivery ${d.delivery_number || d.id} confirmed into kitchen stock`,
           href: '/dashboard/schools/deliveries',
-          metadata: { delivery_id: d.id, grn_id: grn?.id },
+          metadata: {
+            delivery_id: d.id,
+            grn_id: grn?.id,
+            prize_delta: prizeDelta?.delta ?? null,
+          },
         });
       }
 
-      return NextResponse.json({ success: true, delivery: updated, grn });
+      return NextResponse.json({
+        success: true,
+        delivery: updated,
+        grn,
+        prize: prizeDelta,
+        message: isReceive
+          ? grn
+            ? `Received — kitchen GRN posted. ${String(prizeDelta?.message || '')}`
+            : 'Delivery received'
+          : undefined,
+      });
     }
 
     // ── Create delivery (SP or school on behalf of linked SP) ────────
+    if (body.action === 'create' || !body.action) {
+      /* fall through */
+    }
     const poId = body.po_id != null ? Number(body.po_id) : null;
     let schoolProfileId = body.school_profile_id
       ? Number(body.school_profile_id)
@@ -580,6 +692,128 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+async function createDeliveryFromPo(
+  supabase: ReturnType<typeof getSupabaseServer>,
+  opts: {
+    poId: number;
+    companyId: number;
+    userId?: string | null;
+    expectedDate?: string | null;
+    status?: string;
+  }
+): Promise<
+  | { ok: true; delivery: Record<string, unknown> }
+  | { ok: false; error: string; status?: number }
+> {
+  const { data: po } = await supabase
+    .from('school_purchase_orders')
+    .select('*')
+    .eq('id', opts.poId)
+    .maybeSingle();
+  if (!po) {
+    return { ok: false, error: 'PO not found', status: 404 };
+  }
+
+  const schoolOwns = Number(po.profile_id) === opts.companyId;
+  const ispOwns = Number(po.isp_profile_id) === opts.companyId;
+  if (!schoolOwns && !ispOwns) {
+    return { ok: false, error: 'Forbidden for this PO', status: 403 };
+  }
+
+  if (!po.isp_profile_id) {
+    return {
+      ok: false,
+      error: 'PO has no service provider — school must assign an SP first',
+      status: 400,
+    };
+  }
+
+  // Idempotent: if open DN already exists for this PO, return it
+  const { data: existingRows } = await supabase
+    .from('school_nsnp_deliveries')
+    .select('*')
+    .eq('po_id', opts.poId)
+    .in('status', [
+      'draft',
+      'confirmed',
+      'dispatched',
+      'delivered',
+      'disputed',
+    ])
+    .order('created_at', { ascending: false })
+    .limit(1);
+  const existing = existingRows?.[0];
+  if (existing) {
+    return { ok: true, delivery: existing as Record<string, unknown> };
+  }
+
+  const lines = (Array.isArray(po.lines) ? po.lines : []).map(
+    (l: Record<string, unknown>) => ({
+      approved_product_id: Number(l.approved_product_id) || null,
+      product_name: String(l.product_name || ''),
+      brand_name: String(l.brand_name || ''),
+      qty_ordered: Number(l.qty || 0),
+      qty_delivered: Number(l.qty || 0),
+      qty_received: 0,
+      uom: String(l.uom || 'kg'),
+    })
+  );
+
+  if (!lines.length) {
+    return { ok: false, error: 'PO has no lines to deliver', status: 400 };
+  }
+
+  // Hard gate: only catalogue lines (product id present)
+  const missing = lines.filter((l) => !l.approved_product_id);
+  if (missing.length) {
+    return {
+      ok: false,
+      error:
+        'PO has lines without approved product ids — only catalogue POs can become deliveries',
+      status: 400,
+    };
+  }
+
+  const status = opts.status || 'confirmed';
+  const payload = {
+    school_profile_id: Number(po.school_profile_id),
+    school_company_id: Number(po.profile_id),
+    isp_profile_id: Number(po.isp_profile_id),
+    po_id: opts.poId,
+    delivery_number: `DN-${opts.poId}-${Date.now().toString(36).toUpperCase()}`,
+    status,
+    expected_date: opts.expectedDate || po.expected_date || null,
+    lines,
+    notes_isp: 'Created from PO (one-click)',
+    created_by: null as string | null,
+  };
+
+  const { data, error } = await supabase
+    .from('school_nsnp_deliveries')
+    .insert(payload)
+    .select('*')
+    .single();
+
+  if (error || !data) {
+    return {
+      ok: false,
+      error: error?.message || 'Could not create delivery',
+      status: 400,
+    };
+  }
+
+  await supabase
+    .from('school_purchase_orders')
+    .update({
+      delivery_status: status,
+      status: status === 'confirmed' ? 'confirmed' : String(po.status),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', opts.poId);
+
+  return { ok: true, delivery: data as Record<string, unknown> };
 }
 
 async function postGrnFromDelivery(

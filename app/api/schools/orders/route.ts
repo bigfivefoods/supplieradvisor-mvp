@@ -130,11 +130,11 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Strict: entire PO rejected if any line is off-catalogue (no partial POs)
+    // Strict hard-block: entire PO rejected if any line is off-catalogue
     if (rejected.length > 0 || lines.length !== rawLines.length) {
       return NextResponse.json(
         {
-          error: `PO rejected — schools may only order products on the ${listLabel}. Every line must be approved (protects claims & headmaster prize).`,
+          error: `PO rejected — schools may only order products on the ${listLabel}. Off-catalogue lines are hard-blocked (no partial POs).`,
           rejected:
             rejected.length > 0
               ? rejected
@@ -145,7 +145,8 @@ export async function POST(request: NextRequest) {
             source: catalogue.source,
           },
           incentive:
-            'Approved-only orders raise prize score (55% weight) and keep claim funding at 100%.',
+            'Approved-only orders raise prize score (~55% weight) and keep claim funding at 100%.',
+          hard_block: true,
         },
         { status: 400 }
       );
@@ -156,6 +157,7 @@ export async function POST(request: NextRequest) {
         {
           error: `No approved lines — schools may only buy from the ${listLabel}`,
           rejected,
+          hard_block: true,
           catalogue: {
             agencyName: catalogue.agencyName,
             source: catalogue.source,
@@ -165,49 +167,58 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // SP is required — no orphan POs without a linked supplier
+    const ispProfileId = Number(body.isp_profile_id);
+    if (!Number.isFinite(ispProfileId) || ispProfileId <= 0) {
+      return NextResponse.json(
+        {
+          error:
+            'Select a service provider. Only SPs with an active link to your school can receive orders.',
+          hard_block: true,
+        },
+        { status: 400 }
+      );
+    }
+
+    const { ispMaySupplySchool } = await import('@/lib/schools/isp-access');
+    const may = await ispMaySupplySchool(
+      supabase,
+      Number(school.id),
+      ispProfileId
+    );
+    if (!may.ok) {
+      return NextResponse.json(
+        {
+          error:
+            may.reason ||
+            'Orders only to SPs that joined and were approved by your department.',
+          hard_block: true,
+        },
+        { status: 400 }
+      );
+    }
+    const { data: schoolLink } = await supabase
+      .from('school_isp_links')
+      .select('id, status')
+      .eq('school_profile_id', school.id)
+      .eq('isp_profile_id', ispProfileId)
+      .eq('status', 'active')
+      .maybeSingle();
+    if (!schoolLink) {
+      return NextResponse.json(
+        {
+          error:
+            'SP must claim this school and you must accept the claim (or link them under Schools → SPs) before ordering.',
+          hard_block: true,
+        },
+        { status: 400 }
+      );
+    }
+
     const total = lines.reduce((s, l) => s + l.qty * l.unit_price, 0);
     const poNumber =
       body.po_number ||
       `NSNP-PO-${school.id}-${Date.now().toString(36).toUpperCase()}`;
-
-    // SP must be department-approved AND have an active school link (claim accepted)
-    const ispProfileId = body.isp_profile_id
-      ? Number(body.isp_profile_id)
-      : null;
-    if (ispProfileId && Number.isFinite(ispProfileId)) {
-      const { ispMaySupplySchool } = await import('@/lib/schools/isp-access');
-      const may = await ispMaySupplySchool(
-        supabase,
-        Number(school.id),
-        ispProfileId
-      );
-      if (!may.ok) {
-        return NextResponse.json(
-          {
-            error:
-              may.reason ||
-              'Orders only to SPs that joined and were approved by your department.',
-          },
-          { status: 400 }
-        );
-      }
-      const { data: schoolLink } = await supabase
-        .from('school_isp_links')
-        .select('id, status')
-        .eq('school_profile_id', school.id)
-        .eq('isp_profile_id', ispProfileId)
-        .eq('status', 'active')
-        .maybeSingle();
-      if (!schoolLink) {
-        return NextResponse.json(
-          {
-            error:
-              'SP must claim this school and you must accept the claim (or link them under Schools → SPs) before ordering.',
-          },
-          { status: 400 }
-        );
-      }
-    }
 
     const { data, error: iErr } = await supabase
       .from('school_purchase_orders')
@@ -224,7 +235,7 @@ export async function POST(request: NextRequest) {
         lines,
         compliance_ok: true,
         notes: body.notes || null,
-        created_by: gate.userId || null,
+        // created_by is bigint on some schemas — never store Privy DID
       })
       .select('*')
       .single();
@@ -232,6 +243,7 @@ export async function POST(request: NextRequest) {
     if (iErr) {
       return NextResponse.json({ error: iErr.message }, { status: 400 });
     }
+
     return NextResponse.json({
       success: true,
       order: data,
@@ -239,8 +251,15 @@ export async function POST(request: NextRequest) {
         agencyName: catalogue.agencyName,
         agencyProfileId: catalogue.agencyProfileId,
       },
+      hard_block: true,
       incentive:
         'Approved-only PO logged — counts toward headmaster prize and full claim funding.',
+      next: {
+        label: 'Create delivery note',
+        href: '/dashboard/schools/deliveries',
+        hint: 'SP (or school) can one-click Create DN from this open PO',
+        po_id: data.id,
+      },
     });
   } catch (e: unknown) {
     return NextResponse.json(
