@@ -7,6 +7,7 @@ import {
 import { getOrCreateSchoolProfile } from '@/lib/schools/school-context';
 import type { DeliveryLine } from '@/lib/schools/deliveries';
 import { logNsnpEvent } from '@/lib/schools/events';
+import { scoreDeliveryLines } from '@/lib/schools/incentives';
 
 /**
  * SP → school deliveries with shared POD / invoice files.
@@ -210,6 +211,13 @@ export async function POST(request: NextRequest) {
       if (!isSchool && !isIsp) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
+      const kind = String(body.kind || 'other').slice(0, 40);
+      const isPodPhoto =
+        kind === 'pod' ||
+        kind === 'photo' ||
+        Boolean(body.as_pod) ||
+        (body.content_type || '').toString().startsWith('image');
+
       const { data: file, error } = await supabase
         .from('school_nsnp_delivery_files')
         .insert({
@@ -218,19 +226,172 @@ export async function POST(request: NextRequest) {
           isp_profile_id: d.isp_profile_id,
           uploaded_by_company_id: companyId,
           uploaded_by_role: isIsp ? 'isp' : 'school',
-          kind: String(body.kind || 'other').slice(0, 40),
+          kind: body.as_pod ? 'pod' : kind,
           file_name: body.file_name || null,
           file_url: String(body.file_url),
           file_size: body.file_size != null ? Number(body.file_size) : null,
           content_type: body.content_type || null,
-          notes: body.notes || null,
+          notes:
+            body.notes ||
+            (body.as_pod
+              ? `POD photo · ${isIsp ? 'SP' : 'school'}`
+              : null),
         })
         .select('*')
         .single();
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 400 });
       }
-      return NextResponse.json({ success: true, file });
+
+      // Soft flag on delivery for SP prize POD pillar
+      if (isPodPhoto || body.as_pod) {
+        const meta = {
+          ...((d.metadata as Record<string, unknown>) || {}),
+          has_pod_photo: true,
+          pod_photo_at: new Date().toISOString(),
+          pod_uploaded_by: isIsp ? 'isp' : 'school',
+        };
+        await supabase
+          .from('school_nsnp_deliveries')
+          .update({
+            metadata: meta,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', deliveryId);
+      }
+
+      return NextResponse.json({
+        success: true,
+        file,
+        pod: Boolean(body.as_pod || isPodPhoto),
+        message: body.as_pod
+          ? 'POD photo attached — counts toward SP prize POD discipline'
+          : 'File attached',
+      });
+    }
+
+    // ── SP adds/updates lines (catalogue + optional other items) ─────
+    if (action === 'update_lines' || action === 'add_extra_lines') {
+      const deliveryId = Number(body.id || body.delivery_id);
+      if (!Number.isFinite(deliveryId)) {
+        return NextResponse.json({ error: 'id required' }, { status: 400 });
+      }
+      const { data: d } = await supabase
+        .from('school_nsnp_deliveries')
+        .select('*')
+        .eq('id', deliveryId)
+        .maybeSingle();
+      if (!d) {
+        return NextResponse.json({ error: 'Not found' }, { status: 404 });
+      }
+      const isIsp = Number(d.isp_profile_id) === companyId;
+      const isSchool = Number(d.school_company_id) === companyId;
+      if (!isIsp && !isSchool) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+      if (String(d.status) === 'received') {
+        return NextResponse.json(
+          { error: 'Cannot change lines after school receive' },
+          { status: 400 }
+        );
+      }
+
+      let lines = Array.isArray(body.lines)
+        ? (body.lines as Array<Record<string, unknown>>)
+        : Array.isArray(d.lines)
+          ? ([...(d.lines as Array<Record<string, unknown>>)] as Array<
+              Record<string, unknown>
+            >)
+          : [];
+
+      if (Array.isArray(body.extra_lines) && body.extra_lines.length) {
+        for (const x of body.extra_lines as Array<Record<string, unknown>>) {
+          const name = String(x.product_name || x.name || '').trim();
+          const qty = Number(x.qty_delivered ?? x.qty ?? 0);
+          if (!name || !(qty > 0)) continue;
+          lines.push({
+            approved_product_id: x.approved_product_id
+              ? Number(x.approved_product_id)
+              : null,
+            product_name: name,
+            brand_name: String(x.brand_name || x.brand || 'Other'),
+            qty_ordered: 0,
+            qty_delivered: qty,
+            qty_received: 0,
+            uom: String(x.uom || 'unit'),
+            approved: false,
+            other_item: true,
+            notes: x.notes || 'Additional item (not on DBE list)',
+          });
+        }
+      }
+
+      // Re-validate catalogue flags for product ids
+      const schoolCompanyId = Number(d.school_company_id);
+      const {
+        resolveCatalogueContext,
+        filterApprovedProductIds,
+      } = await import('@/lib/schools/approved-catalogue');
+      const catalogue = await resolveCatalogueContext(
+        supabase,
+        schoolCompanyId,
+        { schoolProfileId: Number(d.school_profile_id) }
+      );
+      const pids = lines
+        .map((l) => Number(l.approved_product_id))
+        .filter((n) => Number.isFinite(n) && n > 0);
+      const byId = await filterApprovedProductIds(
+        supabase,
+        catalogue.agencyProfileId,
+        pids
+      );
+      lines = lines.map((l) => {
+        const pid = Number(l.approved_product_id);
+        const prod = Number.isFinite(pid) ? byId.get(pid) : undefined;
+        const approved = Boolean(prod && prod.active !== false);
+        return {
+          ...l,
+          approved,
+          other_item: approved ? false : Boolean(l.other_item) || !approved,
+          product_name: approved
+            ? String(prod?.name || l.product_name || '')
+            : String(l.product_name || ''),
+          brand_name: approved
+            ? String(prod?.brand_name || l.brand_name || '')
+            : String(l.brand_name || 'Other'),
+        };
+      });
+
+      const scored = scoreDeliveryLines(lines);
+      const meta = {
+        ...((d.metadata as Record<string, unknown>) || {}),
+        compliance_pct: scored.compliance_pct,
+        full_compliance: scored.full_compliance,
+        other_item_count: lines.filter((l) => l.other_item || l.approved === false)
+          .length,
+      };
+
+      const { data: updated, error } = await supabase
+        .from('school_nsnp_deliveries')
+        .update({
+          lines,
+          metadata: meta,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', deliveryId)
+        .select('*')
+        .single();
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+      return NextResponse.json({
+        success: true,
+        delivery: updated,
+        compliance: scored,
+        message: scored.full_compliance
+          ? 'Lines updated — 100% DBE-approved (max SP prize points on this DN)'
+          : `Lines updated — ${scored.compliance_pct}% on-catalogue (other items allowed; full compliance earns more SP points)`,
+      });
     }
 
     // ── Attach to PO ───────────────────────────────────────────────────
@@ -354,7 +515,38 @@ export async function POST(request: NextRequest) {
       } else if (action === 'mark_delivered' && isIsp) {
         patch.status = 'delivered';
         patch.delivered_at = now;
-        if (Array.isArray(body.lines)) patch.lines = body.lines;
+        let linesForScore = Array.isArray(d.lines)
+          ? (d.lines as Array<Record<string, unknown>>)
+          : [];
+        if (Array.isArray(body.lines)) {
+          linesForScore = body.lines as Array<Record<string, unknown>>;
+          patch.lines = body.lines;
+        }
+        if (Array.isArray(body.extra_lines) && body.extra_lines.length) {
+          for (const x of body.extra_lines as Array<Record<string, unknown>>) {
+            const name = String(x.product_name || '').trim();
+            const qty = Number(x.qty_delivered ?? x.qty ?? 0);
+            if (!name || !(qty > 0)) continue;
+            linesForScore.push({
+              approved_product_id: null,
+              product_name: name,
+              brand_name: String(x.brand_name || 'Other'),
+              qty_ordered: 0,
+              qty_delivered: qty,
+              qty_received: 0,
+              uom: String(x.uom || 'unit'),
+              approved: false,
+              other_item: true,
+            });
+          }
+          patch.lines = linesForScore;
+        }
+        const scored = scoreDeliveryLines(linesForScore);
+        patch.metadata = {
+          ...((d.metadata as Record<string, unknown>) || {}),
+          compliance_pct: scored.compliance_pct,
+          full_compliance: scored.full_compliance,
+        };
         if (body.notes_isp !== undefined) patch.notes_isp = body.notes_isp;
         // OTIF: delivered on/before expected_date
         if (d.expected_date) {
@@ -858,18 +1050,25 @@ async function postGrnFromDelivery(
         if (!(qty > 0)) return null;
         const pid = Number(l.approved_product_id);
         const prod = Number.isFinite(pid) ? byId.get(pid) : undefined;
-        const approved = Boolean(prod && prod.active !== false);
+        // Explicit false/other_item = off-catalogue (allowed on DN, not stocked)
+        const explicitOther =
+          (l as { other_item?: boolean; approved?: boolean }).other_item ===
+            true ||
+          (l as { approved?: boolean }).approved === false;
+        const approved =
+          !explicitOther && Boolean(prod && prod.active !== false);
         return {
           approved_product_id: approved ? pid : null,
           product_name: String(
             (prod?.name as string) || l.product_name || 'Unknown'
           ),
           brand_name: String(
-            (prod?.brand_name as string) || l.brand_name || 'Unknown'
+            (prod?.brand_name as string) || l.brand_name || 'Other'
           ),
           qty,
           uom: String(l.uom || prod?.uom || 'kg'),
           approved,
+          other_item: !approved,
         };
       })
       .filter(Boolean) as Array<{
@@ -879,13 +1078,20 @@ async function postGrnFromDelivery(
       qty: number;
       uom: string;
       approved: boolean;
+      other_item?: boolean;
     }>;
 
     if (!grnLines.length) return null;
 
-    // Stock only approved lines — off-catalogue never enters kitchen stock
+    // Stock only approved lines — other items stay on the DN for audit only
     const approvedStockLines = grnLines.filter((l) => l.approved);
     const complianceOk = grnLines.every((l) => l.approved);
+    const scored = scoreDeliveryLines(
+      grnLines.map((l) => ({
+        approved: l.approved,
+        qty_received: l.qty,
+      }))
+    );
 
     if (!complianceOk) {
       try {
@@ -911,6 +1117,24 @@ async function postGrnFromDelivery(
       }
     }
 
+    // Update delivery metadata with compliance for SP prize scoring
+    try {
+      await supabase
+        .from('school_nsnp_deliveries')
+        .update({
+          metadata: {
+            ...((delivery.metadata as Record<string, unknown>) || {}),
+            compliance_pct: scored.compliance_pct,
+            full_compliance: scored.full_compliance,
+            received_compliance_pct: scored.compliance_pct,
+          },
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', delivery.id);
+    } catch {
+      /* soft */
+    }
+
     const receiptPayload = {
       school_profile_id: schoolId,
       profile_id: schoolCompanyId,
@@ -926,9 +1150,11 @@ async function postGrnFromDelivery(
       // Persist all lines for audit; stock only uses approved
       lines: grnLines,
       notes: `From delivery ${delivery.delivery_number || delivery.id}${
-        complianceOk ? '' : ' · OFF-CATALOGUE LINES FLAGGED'
+        complianceOk
+          ? ' · 100% DBE-approved (max SP + school prize impact)'
+          : ` · ${scored.compliance_pct}% on-catalogue · other items not stocked`
       }`,
-      created_by: userId || null,
+      created_by: null as string | null,
     };
 
     const { data: receipt, error } = await supabase

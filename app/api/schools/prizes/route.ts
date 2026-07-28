@@ -11,6 +11,18 @@ import {
 } from '@/lib/schools/prize';
 import { computeFeedingCompletenessPct } from '@/lib/schools/process';
 import { schoolMenuAdherenceForPeriod } from '@/lib/schools/agency-menu';
+import {
+  SCHOOL_PRIZE_CRITERIA,
+  SCHOOL_PRIZE_SUMMARY,
+  SP_PRIZE_CRITERIA,
+  SP_PRIZE_SUMMARY,
+  POD_PHOTO_TIP,
+} from '@/lib/schools/prize-criteria';
+import {
+  computeIspIncentive,
+  scoreDeliveryLines,
+} from '@/lib/schools/incentives';
+import { PRIZE_WEIGHTS } from '@/lib/schools/types';
 
 async function ensurePeriod(
   supabase: ReturnType<typeof getSupabaseServer>
@@ -55,6 +67,145 @@ export async function GET(request: NextRequest) {
     if (!gate.ok) return gate.response;
 
     const supabase = getSupabaseServer();
+
+    // ── SP prize scorecard ────────────────────────────────────────────
+    const { data: myIsp } = await supabase
+      .from('nsnp_isp_profiles')
+      .select('profile_id, trading_name')
+      .eq('profile_id', companyId)
+      .maybeSingle();
+
+    if (myIsp) {
+      const q = currentQuarterPeriod();
+      const from = q.starts_on;
+      const to = q.ends_on;
+
+      const { data: deliveries } = await supabase
+        .from('school_nsnp_deliveries')
+        .select('id, status, otif, metadata, lines, expected_date')
+        .eq('isp_profile_id', companyId)
+        .gte('created_at', `${from}T00:00:00`)
+        .lte('created_at', `${to}T23:59:59`)
+        .limit(500);
+
+      const { data: receipts } = await supabase
+        .from('school_kitchen_receipts')
+        .select('id, compliance_ok, lines')
+        .eq('isp_profile_id', companyId)
+        .gte('received_at', from)
+        .lte('received_at', to)
+        .limit(500);
+
+      const dels = deliveries || [];
+      let approved_ok = 0;
+      let wrong_brand = 0;
+      let full_compliance_deliveries = 0;
+      let deliveries_with_pod = 0;
+      let otif_ok = 0;
+      let otif_known = 0;
+
+      for (const d of dels) {
+        const meta = (d.metadata || {}) as Record<string, unknown>;
+        if (meta.has_pod_photo) deliveries_with_pod += 1;
+        if (d.otif === true) {
+          otif_known += 1;
+          otif_ok += 1;
+        } else if (d.otif === false) {
+          otif_known += 1;
+        }
+        if (meta.full_compliance === true) full_compliance_deliveries += 1;
+        else if (Array.isArray(d.lines)) {
+          const sc = scoreDeliveryLines(
+            d.lines as Array<Record<string, unknown>>
+          );
+          if (sc.full_compliance) full_compliance_deliveries += 1;
+        }
+      }
+
+      // Prefer receipt-level compliance for approved_ok counts
+      const recs = receipts || [];
+      if (recs.length) {
+        for (const r of recs) {
+          if (r.compliance_ok === false) wrong_brand += 1;
+          else approved_ok += 1;
+        }
+      } else {
+        // Fallback: delivery metadata / line score
+        for (const d of dels) {
+          const meta = (d.metadata || {}) as Record<string, unknown>;
+          if (meta.full_compliance === true || Number(meta.compliance_pct) >= 99.9) {
+            approved_ok += 1;
+          } else if (meta.compliance_pct != null) {
+            if (Number(meta.compliance_pct) >= 80) approved_ok += 1;
+            else wrong_brand += 1;
+          } else {
+            approved_ok += 1;
+          }
+        }
+      }
+
+      // POD files count (if metadata missing)
+      if (dels.length && deliveries_with_pod === 0) {
+        const delIds = dels.map((d) => Number(d.id)).filter(Boolean);
+        if (delIds.length) {
+          const { data: pods } = await supabase
+            .from('school_nsnp_delivery_files')
+            .select('delivery_id, kind')
+            .in('delivery_id', delIds.slice(0, 200))
+            .in('kind', ['pod', 'photo']);
+          const withPod = new Set(
+            (pods || []).map((p) => Number(p.delivery_id))
+          );
+          deliveries_with_pod = withPod.size;
+        }
+      }
+
+      const totalDel = Math.max(recs.length, dels.length, 1);
+      const incentive = computeIspIncentive({
+        deliveries: recs.length || dels.length,
+        approved_ok,
+        wrong_brand,
+        full_compliance_deliveries,
+        deliveries_with_pod,
+        otif_ok,
+        otif_known,
+      });
+
+      return NextResponse.json({
+        success: true,
+        role: 'isp',
+        period: {
+          name: q.name,
+          starts_on: from,
+          ends_on: to,
+          year: q.year,
+          quarter: q.quarter,
+        },
+        score: {
+          total: incentive.score,
+          ...incentive.pillars,
+          compliance_pct: incentive.compliance_pct,
+          status: incentive.status,
+          badge: incentive.badge,
+        },
+        incentive,
+        stats: {
+          deliveries: recs.length || dels.length,
+          full_compliance_deliveries,
+          deliveries_with_pod,
+          otif_ok,
+          otif_known,
+          approved_ok,
+          wrong_brand,
+        },
+        criteria: SP_PRIZE_CRITERIA,
+        summary: SP_PRIZE_SUMMARY,
+        pod_tip: POD_PHOTO_TIP,
+        fairPlay:
+          'Other items may appear on a delivery note, but full-compliance (100% DBE-approved) DNs earn the full-compliance pillar. Photo POD on every drop raises POD points.',
+      });
+    }
+
     const { school, error } = await getOrCreateSchoolProfile(supabase, companyId);
     if (error || !school) {
       return NextResponse.json({ error: error || 'No school' }, { status: 503 });
@@ -298,6 +449,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      role: 'school',
       period,
       score: {
         ...breakdown,
@@ -307,16 +459,14 @@ export async function GET(request: NextRequest) {
       leaderboard,
       bands,
       certificates: certs,
-      weights: {
-        approvedBrand: 40,
-        zeroNonapproved: 15,
-        menuAdherence: 15,
-        feedingCompleteness: 15,
-        stockDiscipline: 10,
-        dataQuality: 5,
-      },
+      weights: { ...PRIZE_WEIGHTS },
+      criteria: SCHOOL_PRIZE_CRITERIA,
+      summary: SCHOOL_PRIZE_SUMMARY,
+      sp_criteria: SP_PRIZE_CRITERIA,
+      sp_summary: SP_PRIZE_SUMMARY,
+      pod_tip: POD_PHOTO_TIP,
       fairPlay:
-        'Ranks are shown nationally and fairly within province, district, and quintile so Q1 schools compete with peers.',
+        'Ranks are shown nationally and fairly within province, district, and quintile so Q1 schools compete with peers. Prefer SPs with full-compliance deliveries and photo POD.',
     });
   } catch (e: unknown) {
     return NextResponse.json(

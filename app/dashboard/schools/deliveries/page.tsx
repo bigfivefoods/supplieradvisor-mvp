@@ -124,6 +124,10 @@ function Inner() {
   const [showReceive, setShowReceive] = useState(false);
   const [receiveLines, setReceiveLines] = useState<LineEdit[]>([]);
   const [notesSchool, setNotesSchool] = useState('');
+  const [extraName, setExtraName] = useState('');
+  const [extraBrand, setExtraBrand] = useState('');
+  const [extraQty, setExtraQty] = useState('1');
+  const [extraUom, setExtraUom] = useState('unit');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -367,20 +371,25 @@ function Inner() {
     }
   };
 
-  const onUpload = async (file: File | null, kindOverride?: string) => {
+  const onUpload = async (
+    file: File | null,
+    opts?: { kind?: string; asPod?: boolean }
+  ) => {
     if (!file || !selected) return;
-    const kind = kindOverride || fileKind;
+    const kind = opts?.kind || fileKind;
+    const asPod = Boolean(opts?.asPod || kind === 'pod');
     setBusy(true);
     try {
       const up = await uploadCompanyAssetServerFirst({
         file,
         companyId,
-        kind: `nsnp_${kind}`,
+        kind: `nsnp_${asPod ? 'pod' : kind}`,
       });
       if (!up.url) throw new Error(up.error || 'Upload failed');
       const res = await fetch('/api/schools/deliveries', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify({
           companyId,
           action: 'attach',
@@ -389,12 +398,17 @@ function Inner() {
           file_name: file.name,
           file_size: file.size,
           content_type: file.type,
-          kind,
+          kind: asPod ? 'pod' : kind,
+          as_pod: asPod,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Attach failed');
-      toast.success(`${fileKindLabel(kind)} attached`);
+      toast.success(
+        asPod
+          ? 'POD photo attached — counts for SP prize POD points'
+          : `${fileKindLabel(kind)} attached`
+      );
       void openDetail(selected);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Upload failed');
@@ -402,6 +416,50 @@ function Inner() {
       setBusy(false);
       if (fileRef.current) fileRef.current.value = '';
       if (cameraRef.current) cameraRef.current.value = '';
+    }
+  };
+
+  const addExtraItem = async () => {
+    if (!selected) return;
+    const name = extraName.trim();
+    const qty = Number(extraQty);
+    if (!name) return toast.error('Product name required');
+    if (!(qty > 0)) return toast.error('Qty must be > 0');
+    setBusy(true);
+    try {
+      const res = await fetch('/api/schools/deliveries', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          companyId,
+          action: 'add_extra_lines',
+          id: selected.id,
+          extra_lines: [
+            {
+              product_name: name,
+              brand_name: extraBrand.trim() || 'Other',
+              qty_delivered: qty,
+              uom: extraUom || 'unit',
+            },
+          ],
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      toast.message(
+        data.message ||
+          'Extra item on DN — full-compliance SP points only when all lines are DBE-approved'
+      );
+      setExtraName('');
+      setExtraBrand('');
+      setExtraQty('1');
+      if (data.delivery) void openDetail(data.delivery);
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -693,7 +751,7 @@ function Inner() {
                 {/* Lines */}
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
-                    Product lines
+                    Product lines · DBE-approved earn full SP points
                   </p>
                   <ul className="rounded-2xl border border-slate-100 divide-y text-sm">
                     {(selected.lines || []).length === 0 ? (
@@ -701,43 +759,103 @@ function Inner() {
                         No lines
                       </li>
                     ) : (
-                      (selected.lines || []).map((l, i) => (
-                        <li
-                          key={i}
-                          className="px-3 py-2.5 flex justify-between gap-2"
-                        >
-                          <div>
-                            <p className="font-semibold">
-                              {String(l.product_name)}
-                            </p>
-                            <p className="text-[10px] font-bold text-emerald-700">
-                              {String(l.brand_name || '')}
-                            </p>
-                          </div>
-                          <div className="text-right tabular-nums shrink-0">
-                            <p className="font-black">
-                              {Number(
-                                l.qty_received ??
-                                  l.qty_delivered ??
-                                  l.qty_ordered ??
-                                  0
-                              )}{' '}
-                              {String(l.uom || '')}
-                            </p>
-                            {l.qty_received != null &&
-                            Number(l.qty_received) !==
-                              Number(l.qty_delivered ?? l.qty_ordered) ? (
-                              <p className="text-[10px] text-amber-700 font-bold">
-                                ordered{' '}
-                                {Number(l.qty_ordered ?? l.qty_delivered)}
+                      (selected.lines || []).map((l, i) => {
+                        const other =
+                          l.other_item === true ||
+                          l.approved === false ||
+                          !l.approved_product_id;
+                        return (
+                          <li
+                            key={i}
+                            className="px-3 py-2.5 flex justify-between gap-2"
+                          >
+                            <div>
+                              <p className="font-semibold">
+                                {String(l.product_name)}
                               </p>
-                            ) : null}
-                          </div>
-                        </li>
-                      ))
+                              <p
+                                className={`text-[10px] font-bold ${
+                                  other
+                                    ? 'text-amber-700'
+                                    : 'text-emerald-700'
+                                }`}
+                              >
+                                {String(l.brand_name || '')}
+                                {other
+                                  ? ' · Other (not on DBE list)'
+                                  : ' · Approved'}
+                              </p>
+                            </div>
+                            <div className="text-right tabular-nums shrink-0">
+                              <p className="font-black">
+                                {Number(
+                                  l.qty_received ??
+                                    l.qty_delivered ??
+                                    l.qty_ordered ??
+                                    0
+                                )}{' '}
+                                {String(l.uom || '')}
+                              </p>
+                            </div>
+                          </li>
+                        );
+                      })
                     )}
                   </ul>
                 </div>
+
+                {/* SP: add other items on DN */}
+                {role === 'isp' &&
+                !['received', 'cancelled'].includes(
+                  String(selected.status)
+                ) ? (
+                  <div className="rounded-2xl border border-amber-100 bg-amber-50/50 p-3 space-y-2">
+                    <p className="text-[10px] font-bold uppercase text-amber-900">
+                      Add other item on delivery note
+                    </p>
+                    <p className="text-[11px] text-amber-900/80">
+                      Allowed for commercial extras — kitchen will not stock
+                      them as NSNP approved. Full SP prize points need 100%
+                      DBE-approved lines.
+                    </p>
+                    <div className="grid sm:grid-cols-4 gap-2">
+                      <input
+                        className="rounded-xl border border-slate-200 px-2 py-2 text-xs sm:col-span-2"
+                        placeholder="Product name"
+                        value={extraName}
+                        onChange={(e) => setExtraName(e.target.value)}
+                      />
+                      <input
+                        className="rounded-xl border border-slate-200 px-2 py-2 text-xs"
+                        placeholder="Brand"
+                        value={extraBrand}
+                        onChange={(e) => setExtraBrand(e.target.value)}
+                      />
+                      <div className="flex gap-1">
+                        <input
+                          className="rounded-xl border border-slate-200 px-2 py-2 text-xs w-16"
+                          value={extraQty}
+                          onChange={(e) => setExtraQty(e.target.value)}
+                          placeholder="Qty"
+                        />
+                        <input
+                          className="rounded-xl border border-slate-200 px-2 py-2 text-xs w-16"
+                          value={extraUom}
+                          onChange={(e) => setExtraUom(e.target.value)}
+                          placeholder="uom"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void addExtraItem()}
+                      className="btn-secondary !py-1.5 !px-3 text-xs"
+                    >
+                      Add to DN
+                    </button>
+                  </div>
+                ) : null}
 
                 {/* Primary actions — huge touch targets */}
                 <div className="grid sm:grid-cols-2 gap-2">
@@ -832,10 +950,41 @@ function Inner() {
                   </p>
                 ) : null}
 
-                {/* Documents — camera + file */}
+                {/* POD photo — school + SP */}
                 <div className="border-t pt-4">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
-                    Documents — POD · invoice · photos
+                    Proof of delivery — photo POD (school or SP)
+                  </p>
+                  <div className="grid sm:grid-cols-2 gap-2 mb-3">
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => {
+                        setFileKind('pod');
+                        cameraRef.current?.click();
+                      }}
+                      className="min-h-[52px] rounded-2xl font-bold text-sm bg-[#0077b6] text-white hover:bg-[#023e8a] disabled:opacity-40 inline-flex items-center justify-center gap-2"
+                    >
+                      <Camera className="w-5 h-5" />
+                      Photo POD (camera)
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => {
+                        setFileKind('pod');
+                        fileRef.current?.click();
+                      }}
+                      className="min-h-[52px] rounded-2xl font-bold text-sm border-2 border-sky-200 text-sky-900 bg-sky-50 inline-flex items-center justify-center gap-2"
+                    >
+                      <Upload className="w-5 h-5" />
+                      Upload POD photo
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mb-3">
+                    {role === 'isp'
+                      ? 'Snap the signed POD at the gate — earns SP prize POD points (15%). Schools can also attach.'
+                      : 'You can photo the POD / goods at the door if the SP has not yet. Helps disputes and SP scoring.'}
                   </p>
                   <div className="flex flex-wrap gap-2 mb-3">
                     <select
@@ -853,10 +1002,10 @@ function Inner() {
                       type="button"
                       disabled={busy}
                       onClick={() => cameraRef.current?.click()}
-                      className="btn-primary !py-2.5 !px-4 text-xs inline-flex items-center gap-1.5 min-h-[44px]"
+                      className="btn-secondary !py-2.5 !px-4 text-xs inline-flex items-center gap-1.5 min-h-[44px]"
                     >
                       <Camera className="w-4 h-4" />
-                      Take photo
+                      Other photo
                     </button>
                     <button
                       type="button"
@@ -865,8 +1014,14 @@ function Inner() {
                       className="btn-secondary !py-2.5 !px-4 text-xs inline-flex items-center gap-1.5 min-h-[44px]"
                     >
                       <Upload className="w-4 h-4" />
-                      Upload file
+                      Invoice / file
                     </button>
+                    <Link
+                      href="/dashboard/schools/prizes"
+                      className="btn-secondary !py-2.5 !px-3 text-xs min-h-[44px] inline-flex items-center"
+                    >
+                      Prize criteria
+                    </Link>
                     <input
                       ref={cameraRef}
                       type="file"
@@ -874,10 +1029,10 @@ function Inner() {
                       capture="environment"
                       className="hidden"
                       onChange={(e) =>
-                        void onUpload(
-                          e.target.files?.[0] || null,
-                          fileKind === 'other' ? 'photo' : fileKind
-                        )
+                        void onUpload(e.target.files?.[0] || null, {
+                          kind: fileKind === 'pod' ? 'pod' : 'photo',
+                          asPod: fileKind === 'pod',
+                        })
                       }
                     />
                     <input
@@ -886,15 +1041,18 @@ function Inner() {
                       className="hidden"
                       accept="image/*,.pdf,.doc,.docx"
                       onChange={(e) =>
-                        void onUpload(e.target.files?.[0] || null)
+                        void onUpload(e.target.files?.[0] || null, {
+                          kind: fileKind,
+                          asPod: fileKind === 'pod',
+                        })
                       }
                     />
                   </div>
                   {files.length === 0 ? (
                     <p className="text-xs text-slate-500 rounded-xl bg-slate-50 border border-slate-100 px-3 py-3">
                       {role === 'isp'
-                        ? 'After delivery: photo the POD and upload the invoice so the school can receive with confidence.'
-                        : 'SP should attach POD + invoice. You can add photos of what landed at the kitchen door.'}
+                        ? 'Photo the POD and upload the invoice so the school can receive with confidence.'
+                        : 'SP should attach POD + invoice. You can add a POD photo of what landed at the kitchen door.'}
                     </p>
                   ) : (
                     <ul className="grid sm:grid-cols-2 gap-2">
