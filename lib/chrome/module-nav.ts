@@ -651,6 +651,13 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         group: 'School',
         section: 'Fund',
       },
+      {
+        name: 'PEU visits',
+        href: '/dashboard/schools/visits',
+        desc: 'Planned · audit results · RIAD',
+        group: 'School',
+        section: 'Fund',
+      },
 
       // ── SP (concise) ─────────────────────────────────────────────────
       {
