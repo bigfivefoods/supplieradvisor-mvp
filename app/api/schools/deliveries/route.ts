@@ -941,24 +941,34 @@ async function createDeliveryFromPo(
     return { ok: true, delivery: existing as Record<string, unknown> };
   }
 
-  const lines = (Array.isArray(po.lines) ? po.lines : []).map(
-    (l: Record<string, unknown>) => ({
-      approved_product_id: Number(l.approved_product_id) || null,
-      product_name: String(l.product_name || ''),
-      brand_name: String(l.brand_name || ''),
-      qty_ordered: Number(l.qty || 0),
-      qty_delivered: Number(l.qty || 0),
-      qty_received: 0,
-      uom: String(l.uom || 'kg'),
-    })
-  );
+  type DnLine = {
+    approved_product_id: number | null;
+    product_name: string;
+    brand_name: string;
+    qty_ordered: number;
+    qty_delivered: number;
+    qty_received: number;
+    uom: string;
+  };
+  const rawPoLines = Array.isArray(po.lines)
+    ? (po.lines as Array<Record<string, unknown>>)
+    : [];
+  const lines: DnLine[] = rawPoLines.map((l) => ({
+    approved_product_id: Number(l.approved_product_id) || null,
+    product_name: String(l.product_name || ''),
+    brand_name: String(l.brand_name || ''),
+    qty_ordered: Number(l.qty || 0),
+    qty_delivered: Number(l.qty || 0),
+    qty_received: 0,
+    uom: String(l.uom || 'kg'),
+  }));
 
   if (!lines.length) {
     return { ok: false, error: 'PO has no lines to deliver', status: 400 };
   }
 
   // Hard gate: only catalogue lines (product id present)
-  const missing = lines.filter((l) => !l.approved_product_id);
+  const missing = lines.filter((l: DnLine) => !l.approved_product_id);
   if (missing.length) {
     return {
       ok: false,
