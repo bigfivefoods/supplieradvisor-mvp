@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
       if (!agency) {
         return NextResponse.json(
           {
-            error: 'Only a registered DBE / PEU / DoH can import schools',
+            error: 'Only a registered DBE / PEU can import schools',
             success: false,
           },
           { status: 403 }
@@ -151,7 +151,7 @@ export async function POST(request: NextRequest) {
     if (!agency) {
       return NextResponse.json(
         {
-          error: 'Only a registered DBE / PEU / DoH can import schools',
+          error: 'Only a registered DBE / PEU can import schools',
           success: false,
         },
         { status: 403 }

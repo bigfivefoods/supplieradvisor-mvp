@@ -681,7 +681,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, isp: data });
     }
 
-    // SP requests association with DBE/PEU/DoH (same pattern as school join)
+    // SP requests association with DBE/PEU (same pattern as school join)
     if (body.action === 'join_agency' || body.action === 'request_agency') {
       const agencyProfileId = Number(body.agency_profile_id);
       if (!Number.isFinite(agencyProfileId)) {

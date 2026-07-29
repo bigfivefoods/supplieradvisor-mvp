@@ -270,7 +270,7 @@ function Inner() {
           description="Only the department can bulk-import the provincial school list."
         />
         <div className="rounded-3xl border border-amber-200 bg-amber-50 p-8 text-center">
-          <p className="font-bold">Switch to your DBE / DoH company</p>
+          <p className="font-bold">Switch to your DBE / PEU company</p>
           <Link
             href="/dashboard/schools/join"
             className="btn-primary !py-2 !px-4 text-sm mt-4 inline-flex"

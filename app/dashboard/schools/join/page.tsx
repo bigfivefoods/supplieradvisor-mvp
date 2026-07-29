@@ -2,8 +2,8 @@
 
 /**
  * Simple join hub — role-aware:
- * - School / facility: request to join DBE/DoH
- * - SP: request to join DBE/DoH
+ * - School / facility: request to join DBE/PEU
+ * - SP: request to join DBE/PEU
  * - Department: search & add schools/SPs, approve pending
  */
 import { useCallback, useEffect, useState } from 'react';
@@ -111,7 +111,9 @@ function Inner() {
         const ispData = await ispRes.json().catch(() => ({}));
         const candData = await candRes.json().catch(() => ({}));
         if (agencyRes.status === 403 && agencyData.redirect) {
-          toast.message(agencyData.error || 'Use Health module for DoH');
+          toast.message(
+            agencyData.error || 'This company is not a Schools department'
+          );
           window.location.href = agencyData.redirect;
           return;
         }
@@ -766,12 +768,8 @@ function JoinDirectory({
         </p>
         {agencies.length === 0 ? (
           <p className="text-sm text-slate-500">
-            No education departments registered yet. Ask DBE to register under
-            Schools → Desk. For clinics/hospitals use the{' '}
-            <Link href="/dashboard/health" className="font-bold underline">
-              Health module
-            </Link>
-            .
+            No education departments registered yet. Ask your DBE / PEU to
+            register under Schools → DBE desk.
           </p>
         ) : (
           <ul className="space-y-2">

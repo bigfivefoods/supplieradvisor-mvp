@@ -2,7 +2,7 @@
  * Programme role under the Schools module (education / NSNP only):
  *   department (DBE / PEU) · school · sp (service provider)
  *
- * Department of Health is a separate module: /dashboard/health
+ * Schools module is DBE / PEU / schools / SPs only.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { familyForAgencyType } from '@/lib/entities/programme-hierarchy';
@@ -27,7 +27,7 @@ export function programmeRoleFromOrgType(
     .toLowerCase()
     .replace(/\s+/g, '_');
 
-  // Health departments belong in the Health module — not Schools department
+  // Non-education government types are not Schools departments
   if (
     t === 'doh' ||
     t === 'department_of_health' ||
@@ -62,7 +62,7 @@ export function programmeRoleFromOrgType(
   ) {
     return 'school';
   }
-  // Hospitals/clinics are Health module facilities
+  // Non-school facility org types are not Schools nav
   if (t === 'hospital' || t === 'clinic' || t.includes('hospital') || t.includes('clinic')) {
     return null;
   }
@@ -97,7 +97,7 @@ export function infoForProgrammeRole(role: ProgrammeRole): ProgrammeRoleInfo {
 /**
  * Resolve which Schools-module navigation the company should see.
  * Prefers domain tables (education agency / SP / school profile), then org_type.
- * Health (DoH) agencies do NOT resolve as Schools department.
+ * Non-education agencies do NOT resolve as Schools department.
  */
 export async function resolveProgrammeRole(
   supabase: SupabaseClient,
@@ -140,13 +140,10 @@ export async function resolveProgrammeRole(
     return infoForProgrammeRole('sp');
   }
 
-  // School facilities only (not hospital/clinic)
+  // School profiles only
   if (school) {
     const mt = String(school.member_type || 'school').toLowerCase();
-    if (['hospital', 'clinic', 'shelter'].includes(mt)) {
-      // Health facility — default school nav would be wrong; still allow SP/school fallback
-      // Prefer not treating as school department
-    } else {
+    if (!['hospital', 'clinic', 'shelter'].includes(mt)) {
       return infoForProgrammeRole('school');
     }
   }
@@ -163,7 +160,7 @@ export async function resolveProgrammeRole(
 
 /** Which nav groups a role may see (only their own tool). */
 export function navGroupsForRole(role: ProgrammeRole): string[] {
-  if (role === 'department') return ['DBE', 'DBE/DoH']; // keep legacy group match during transition
+  if (role === 'department') return ['DBE', 'DBE/PEU']; // keep legacy group match during transition
   if (role === 'sp') return ['SP'];
   return ['School'];
 }

@@ -57,7 +57,7 @@ export async function ispMaySupplySchool(
     return {
       ok: false,
       reason:
-        'School must join and be approved by a DBE/PEU/DoH agency before ordering from SPs.',
+        'School must join and be approved by a DBE/PEU agency before ordering from SPs.',
     };
   }
 
@@ -88,7 +88,7 @@ export async function ispMaySupplySchool(
     return {
       ok: false,
       reason:
-        'SP must request to join your department (DBE/PEU/DoH) and be approved before schools can trade with them.',
+        'SP must request to join your department (DBE/PEU) and be approved before schools can trade with them.',
     };
   }
 

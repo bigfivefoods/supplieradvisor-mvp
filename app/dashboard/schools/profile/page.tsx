@@ -295,7 +295,7 @@ function Inner() {
                   </>
                 ) : (
                   <p className="text-sm text-slate-600 mt-1">
-                    No mandated menu yet — join DBE/DoH and wait for them to
+                    No mandated menu yet — join DBE/PEU and wait for them to
                     publish under Schools → Menu.
                   </p>
                 )}

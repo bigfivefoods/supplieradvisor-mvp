@@ -81,8 +81,8 @@ export async function GET(request: NextRequest) {
         return NextResponse.json(
           {
             error:
-              'This company is Department of Health. Use the Health module.',
-            redirect: '/dashboard/health/agency',
+              'This company is not a Schools (DBE / PEU) department.',
+            redirect: '/dashboard',
           },
           { status: 403 }
         );
@@ -350,7 +350,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Education join: only DBE/PEU (not DoH)
+    // Education join: only DBE/PEU
     const educationAgencies = (dirRes.data || []).filter(
       (a) =>
         familyForAgencyType(String(a.agency_type || 'dbe')) === 'education'
@@ -414,7 +414,7 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseServer();
     const action = String(body.action || '');
 
-    // Register this company as DBE / PEU only (DoH uses /api/health/agency)
+    // Register this company as DBE / PEU only
     if (action === 'register_agency') {
       const name =
         String(body.agency_name || body.name || '').trim() ||
@@ -433,8 +433,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           {
             error:
-              'Department of Health registers under the Health module (not Schools). Open Health → DoH desk.',
-            redirect: '/dashboard/health/agency',
+              'Only DBE / PEU education departments register on the Schools desk.',
+            redirect: '/dashboard/schools/agency',
           },
           { status: 400 }
         );
@@ -822,7 +822,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           {
             error:
-              'Only a registered DBE / PEU / DoH agency can approve or suspend SPs',
+              'Only a registered DBE / PEU agency can approve or suspend SPs',
           },
           { status: 403 }
         );
@@ -1011,8 +1011,8 @@ export async function POST(request: NextRequest) {
       ) {
         return NextResponse.json(
           {
-            error: 'Use Health module for clinics & hospitals',
-            redirect: '/dashboard/health/join',
+            error: 'Schools module is for schools only (not other facility types)',
+            redirect: '/dashboard/schools/join',
           },
           { status: 403 }
         );
@@ -1390,7 +1390,7 @@ export async function POST(request: NextRequest) {
         'health'
       ) {
         return NextResponse.json(
-          { error: 'Use Health module for clinics/hospitals' },
+          { error: 'Schools module is for schools only' },
           { status: 403 }
         );
       }
@@ -1755,7 +1755,7 @@ export async function POST(request: NextRequest) {
         .maybeSingle();
       if (!agencyGate || agencyGate.status !== 'active') {
         return NextResponse.json(
-          { error: 'Only a registered DBE/DoH can add SPs' },
+          { error: 'Only a registered DBE/PEU can add SPs' },
           { status: 403 }
         );
       }

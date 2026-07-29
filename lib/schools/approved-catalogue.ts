@@ -2,7 +2,7 @@
  * Resolve and load the DBE/agency-owned NSNP approved catalogue.
  *
  * Inheritance model (live pull-through):
- * - DBE/DoH owns products with agency_profile_id = their company id
+ * - DBE/PEU owns products with agency_profile_id = their company id
  * - Schools & SPs with an active association always read THAT list
  * - When the department edits the catalogue, all associates see it next load
  * - National rows (agency_profile_id IS NULL) are a template only until cloned

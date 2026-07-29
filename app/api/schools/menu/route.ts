@@ -19,7 +19,7 @@ import { currentQuarterPeriod } from '@/lib/schools/prize';
 import { MEAL_TYPES } from '@/lib/schools/meal-guide';
 
 /**
- * Department menu (DBE/DoH sets) + school view of mandated cycle.
+ * Department menu (DBE/PEU sets) + school view of mandated cycle.
  * GET ?companyId=  → mandated menu for associates; full edit list for agency
  * POST            → agency publishes/updates mandated menu
  *                   (schools cannot override the department cycle)
@@ -203,7 +203,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error:
-            'Only DBE / PEU / DoH can set the programme menu. Schools and SPs follow the department menu.',
+            'Only DBE / PEU can set the programme menu. Schools and SPs follow the department menu.',
         },
         { status: 403 }
       );

@@ -375,7 +375,7 @@ function Inner() {
           <Landmark className="w-10 h-10 text-amber-600 mx-auto mb-3" />
           <p className="font-bold text-slate-900">Department access required</p>
           <p className="text-sm text-slate-600 mt-1 max-w-md mx-auto">
-            Switch to your DBE / DoH company, register as an agency if needed,
+            Switch to your DBE / PEU company, register as an agency if needed,
             then import or approve schools.
           </p>
           <div className="flex justify-center gap-2 mt-4">

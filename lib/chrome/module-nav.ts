@@ -420,7 +420,6 @@ export const MODULE_NAV: readonly ModuleNav[] = [
      * 1) DBE / PEU — department governs programme
      * 2) School — kitchen & learners
      * 3) SP — service provider
-     * Health (DoH / clinics / hospitals) is the separate Health module.
      */
     steps: [
       // ── DBE / PEU (concise, sectioned) ───────────────────────────────

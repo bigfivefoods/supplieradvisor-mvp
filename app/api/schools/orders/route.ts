@@ -854,12 +854,12 @@ export async function POST(request: NextRequest) {
       schoolProfileId: Number(school.id),
     });
 
-    // Schools/clinics under a programme must be agency-linked to order
+    // Schools under a programme must be agency-linked to order
     if (!catalogue.agencyProfileId) {
       return NextResponse.json(
         {
           error:
-            'Join and get approved by your DBE / PEU / DoH before ordering. Orders only use that department’s approved foods list.',
+            'Join and get approved by your DBE / PEU before ordering. Orders only use that department’s approved foods list.',
           catalogue: { source: catalogue.source },
         },
         { status: 400 }

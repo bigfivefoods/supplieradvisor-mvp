@@ -256,7 +256,7 @@ function Inner() {
       <SchoolsHeader
         title="DBE / PEU desk"
         titleAccent="Education only"
-        description="DBE / PEU → SPs → Schools. Department of Health is a separate module under Health."
+        description="DBE / PEU → service providers → schools. National School Nutrition Programme only."
         action={
           <div className="flex flex-wrap gap-2">
             {role === 'agency' ? (
@@ -275,12 +275,6 @@ function Inner() {
                 </Link>
               </>
             ) : null}
-            <Link
-              href="/dashboard/health/agency"
-              className="btn-secondary !py-2 !px-3 text-xs"
-            >
-              DoH (Health) →
-            </Link>
             <button
               type="button"
               onClick={() => void load()}
@@ -303,37 +297,17 @@ function Inner() {
             <h3 className="text-sm font-black text-slate-900 mb-3">
               Programme hierarchy
             </h3>
-            <div className="grid sm:grid-cols-2 gap-3 text-sm">
-              <div className="rounded-2xl bg-white/80 border border-violet-100 px-4 py-3">
-                <p className="text-[10px] font-bold uppercase text-violet-700 mb-1">
-                  Education
-                </p>
-                <p className="font-black text-slate-900 tracking-tight">
-                  DBE / PEU → SPs → Schools
-                </p>
-                <p className="text-xs text-slate-600 mt-1">
-                  Department approves SPs and schools. Schools order only
-                  approved foods from those SPs.
-                </p>
-              </div>
-              <div className="rounded-2xl bg-white/80 border border-rose-100 px-4 py-3">
-                <p className="text-[10px] font-bold uppercase text-rose-700 mb-1">
-                  Health (separate module)
-                </p>
-                <p className="font-black text-slate-900 tracking-tight">
-                  DoH → SPs → Clinics &amp; hospitals
-                </p>
-                <p className="text-xs text-slate-600 mt-1">
-                  Not part of Schools — open the{' '}
-                  <Link
-                    href="/dashboard/health"
-                    className="font-bold text-rose-700 underline"
-                  >
-                    Health module
-                  </Link>
-                  .
-                </p>
-              </div>
+            <div className="rounded-2xl bg-white/80 border border-violet-100 px-4 py-3 text-sm max-w-xl">
+              <p className="text-[10px] font-bold uppercase text-violet-700 mb-1">
+                National School Nutrition Programme
+              </p>
+              <p className="font-black text-slate-900 tracking-tight">
+                DBE / PEU → SPs → Schools
+              </p>
+              <p className="text-xs text-slate-600 mt-1">
+                Department approves service providers and schools. Schools order
+                only approved foods from those SPs for learners.
+              </p>
             </div>
           </div>
 
@@ -344,12 +318,9 @@ function Inner() {
               Register this company as DBE / PEU
             </h3>
             <p className="text-xs text-slate-500 mb-3">
-              Education department only. Schools and SPs request to join; you
-              approve them. For Department of Health, use{' '}
-              <Link href="/dashboard/health/agency" className="font-bold underline">
-                Health → DoH desk
-              </Link>
-              .
+              Education department only. Schools and service providers request
+              to join; you approve them, publish the approved foods catalogue,
+              menu and recipes.
             </p>
             {myAgency ? (
               <AgencyProfileEditor
@@ -419,12 +390,8 @@ function Inner() {
               <div className="rounded-2xl border border-sky-100 bg-sky-50/70 px-4 py-3 text-sm flex flex-wrap items-center justify-between gap-3">
                 <p className="text-slate-700">
                   <strong>Hierarchy:</strong> approve <em>SPs</em> and{' '}
-                  <em>schools</em> under DBE/PEU. Only active associations
-                  appear in reports. Clinics &amp; hospitals →{' '}
-                  <Link href="/dashboard/health" className="font-bold underline">
-                    Health module
-                  </Link>
-                  .
+                  <em>schools</em> under DBE / PEU. Only active associations
+                  appear in reports and claims.
                 </p>
                 <Link
                   href="/dashboard/schools/agency-report"
@@ -525,7 +492,7 @@ function Inner() {
                 {pendingIsps.length === 0 && compliantIsps.length === 0 ? (
                   <p className="px-5 py-6 text-sm text-slate-500">
                     No SP join requests yet. Providers register as SP, then
-                    request association with your department (DBE/PEU/DoH).
+                    request association with your department (DBE/PEU).
                     Pending requests appear here until you approve — same as
                     schools.
                   </p>

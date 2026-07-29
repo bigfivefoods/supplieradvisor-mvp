@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
     await ensureNationalNsnpSeed(supabase);
 
     if (ctx.canEdit) {
-      // Agency editor: live catalogue for this DBE/DoH only
+      // Agency editor: live catalogue for this DBE/PEU only
       // Auto-import NSNP starter list once so schools have something to measure against
       let bq = supabase
         .from('nsnp_approved_brands')
@@ -217,7 +217,7 @@ export async function GET(request: NextRequest) {
           ? 'You own this NSNP catalogue. Schools and SPs associated with you always see the live list — edits pull through immediately for orders, GRNs, prizes and claims.'
           : ctx.source === 'agency'
             ? `Live catalogue from ${ctx.agencyName || 'your department'}. You are measured only against these approved foods (orders, GRNs, prizes, claims).`
-            : 'Not yet associated with a department — join DBE/DoH to inherit their approved foods list.',
+            : 'Not yet associated with a department — join DBE/PEU to inherit their approved foods list.',
       },
     });
   } catch (e: unknown) {

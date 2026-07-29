@@ -147,7 +147,7 @@ function Inner() {
       if (!res.ok) throw new Error(data.error || 'Failed');
       toast.success(
         data.message ||
-          'Registered as SP — now request to join a DBE/PEU/DoH department'
+          'Registered as SP — now request to join a DBE/PEU department'
       );
       void load();
     } catch (e: unknown) {
@@ -479,7 +479,7 @@ function IspJoinView({
         <Building2 className="w-10 h-10 mx-auto text-slate-400 mb-3" />
         <p className="font-black">Register as an SP first</p>
         <p className="text-sm text-slate-500 mt-1 max-w-md mx-auto">
-          Then request to join each department (DBE / PEU / DoH) you want to
+          Then request to join each department (DBE / PEU) you want to
           supply. After they approve, claim schools under that department.
         </p>
         <button
@@ -738,7 +738,7 @@ function IspJoinView({
 
       <div className="rounded-3xl border border-slate-200 bg-white p-5">
         <h3 className="text-sm font-black mb-1">
-          Join DBE / PEU / DoH directory
+          Join DBE / PEU directory
         </h3>
         <p className="text-[11px] text-slate-500 mb-3">
           Request association. The department must approve before you can claim
@@ -821,7 +821,7 @@ function SchoolIspView({
     <div className="space-y-4">
       {schoolAgencyActiveCount === 0 ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-          Your school must <strong>join and be approved</strong> by a DBE/PEU/DoH
+          Your school must <strong>join and be approved</strong> by a DBE/PEU
           before SP claims unlock.{' '}
           <Link
             href="/dashboard/schools/join"
@@ -934,7 +934,7 @@ function SchoolIspView({
           {directory.length === 0 ? (
             <p className="text-sm text-slate-500">
               No approved SPs for your department yet. Providers register,
-              request to join the same DBE/PEU/DoH, and await approval.
+              request to join the same DBE/PEU, and await approval.
             </p>
           ) : (
             <ul className="space-y-2">

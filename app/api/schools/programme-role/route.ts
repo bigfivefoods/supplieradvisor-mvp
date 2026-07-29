@@ -9,7 +9,7 @@ import { resolveProgrammeRole } from '@/lib/schools/programme-role';
 /**
  * GET ?companyId=
  * Returns which Schools-module navigation this company should use:
- * department (DBE/DoH) | school | sp
+ * department (DBE/PEU) | school | sp
  */
 export async function GET(request: NextRequest) {
   try {

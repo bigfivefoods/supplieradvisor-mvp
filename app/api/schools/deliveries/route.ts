@@ -1457,7 +1457,7 @@ async function postGrnFromDelivery(
       Array.isArray(delivery.lines) ? delivery.lines : []
     ) as DeliveryLine[];
 
-    // Re-validate every line against the school's DBE/DoH approved catalogue
+    // Re-validate every line against the school's DBE/PEU approved catalogue
     const {
       resolveCatalogueContext,
       filterApprovedProductIds,

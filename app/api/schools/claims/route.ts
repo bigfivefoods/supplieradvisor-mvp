@@ -209,7 +209,7 @@ export async function GET(request: NextRequest) {
         : agencyClaimsLocked
           ? 'Agency has claims locked'
           : !agencyLink
-            ? 'Need active DBE/PEU/DoH association'
+            ? 'Need active DBE/PEU association'
             : mealsServed <= 0
               ? 'No meals served in period'
               : approvedBlocked

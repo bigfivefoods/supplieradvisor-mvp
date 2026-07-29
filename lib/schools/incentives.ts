@@ -1,5 +1,5 @@
 /**
- * Incentives for schools & SPs to only buy/deliver DBE/DoH approved products.
+ * Incentives for schools & SPs to only buy/deliver DBE/PEU approved products.
  *
  * Schools: headmaster prize pillars + claim eligibility / amount.
  * SPs: preferred-supplier score (0–100) with full-compliance bonus.
@@ -162,7 +162,7 @@ export function applyApprovedProductClaimIncentive(opts: {
       clawback_pct: 0,
       block_reason: null,
       incentive_note:
-        'Full claim — GRNs are on the DBE/DoH approved foods list. Keeps headmaster prize score high.',
+        'Full claim — GRNs are on the DBE/PEU approved foods list. Keeps headmaster prize score high.',
     };
   }
 
@@ -179,12 +179,12 @@ export function applyApprovedProductClaimIncentive(opts: {
       pct < 80
         ? `Approved foods only ${pct}% — claim blocked until kitchen receipts use the department list (min ${CLAIM_APPROVED_MIN_PCT}%)`
         : null,
-    incentive_note: `Only ${pct}% of receipts are on the approved list. Claim reduced by ~${clawback}% — order only DBE/DoH approved products to unlock full funding and prizes.`,
+    incentive_note: `Only ${pct}% of receipts are on the approved list. Claim reduced by ~${clawback}% — order only DBE/PEU approved products to unlock full funding and prizes.`,
   };
 }
 
 export const SCHOOL_APPROVED_INCENTIVE_COPY =
-  'Schools that order and receive only DBE/DoH approved foods earn higher headmaster prize scores (55% of points) and full claim funding.';
+  'Schools that order and receive only DBE/PEU approved foods earn higher headmaster prize scores (55% of points) and full claim funding.';
 
 export const ISP_APPROVED_INCENTIVE_COPY =
   'SPs may add other items on a delivery note, but preferred status and max prize points require full compliance to the DBE approved list, photo POD, and on-time delivery.';

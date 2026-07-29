@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         {
           error:
-            'Only a registered DBE / PEU / DoH can view the school register report',
+            'Only a registered DBE / PEU can view the school register report',
           success: false,
         },
         { status: 403 }

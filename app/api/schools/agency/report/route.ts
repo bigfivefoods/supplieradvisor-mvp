@@ -445,14 +445,14 @@ export async function GET(request: NextRequest) {
     // Sort by learners desc for overview
     members.sort((a, b) => b.learners_enrolled - a.learners_enrolled);
 
+    const schoolMembers = members.filter(
+      (m) => !['hospital', 'clinic', 'shelter'].includes(m.member_type)
+    );
     const kpis = {
-      organisations: members.length,
-      schools: members.filter(
-        (m) => !['hospital', 'clinic', 'shelter'].includes(m.member_type)
-      ).length,
-      hospitals: members.filter((m) =>
-        ['hospital', 'clinic', 'shelter'].includes(m.member_type)
-      ).length,
+      organisations: schoolMembers.length,
+      schools: schoolMembers.length,
+      // legacy key kept for UI compatibility — always 0 (schools module only)
+      hospitals: 0,
       other_orgs: 0,
       totalLearners: members.reduce((n, m) => n + m.learners_enrolled, 0),
       totalVerified: members.reduce((n, m) => n + m.learners_verified, 0),
@@ -903,7 +903,7 @@ export async function GET(request: NextRequest) {
           members.some((m) => m.quintile === q)
         ),
       },
-      memberTypesSupported: ['school', 'hospital', 'clinic', 'ecd', 'organisation'],
+      memberTypesSupported: ['school', 'ecd', 'organisation'],
     });
   } catch (e: unknown) {
     return NextResponse.json(
@@ -914,7 +914,7 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * SP associations for this DBE/DoH, rolled up by province and by district.
+ * SP associations for this DBE/PEU, rolled up by province and by district.
  * Province comes from SP.provinces[]; district is derived from schools they
  * supply in this agency network (POs / school_isp_links).
  */

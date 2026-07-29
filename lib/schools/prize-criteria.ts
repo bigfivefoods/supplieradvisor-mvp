@@ -18,7 +18,7 @@ export const SCHOOL_PRIZE_CRITERIA: PrizeCriterion[] = [
     id: 'approvedBrand',
     label: 'Approved brand procurement',
     weight: PRIZE_WEIGHTS.approvedBrand,
-    how: '% of kitchen GRN lines on the DBE/DoH approved foods list this quarter.',
+    how: '% of kitchen GRN lines on the DBE/PEU approved foods list this quarter.',
     tip: 'Order only catalogue products from preferred SPs. Off-list lines never enter prize-friendly stock.',
   },
   {

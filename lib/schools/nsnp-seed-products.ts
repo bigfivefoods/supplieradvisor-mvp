@@ -1,6 +1,6 @@
 /**
  * Canonical NSNP-style approved foods seed (national template).
- * Cloned into each DBE/DoH agency catalogue so schools & SPs measure against it.
+ * Cloned into each DBE/PEU agency catalogue so schools & SPs measure against it.
  * Agency edits remain on their agency_profile_id rows — live for all associates.
  */
 

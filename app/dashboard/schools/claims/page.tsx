@@ -254,7 +254,7 @@ function Inner() {
               </code>
               .
               {pack.agency_linked
-                ? ' DBE/PEU/DoH link: active.'
+                ? ' DBE/PEU link: active.'
                 : ' Join & get department approval before submit.'}
             </p>
             {pack.incentive_note ? (

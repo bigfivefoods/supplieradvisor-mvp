@@ -1,5 +1,5 @@
 /**
- * Department-mandated NSNP menu: DBE/DoH sets it; schools & SPs follow it live.
+ * Department-mandated NSNP menu: DBE/PEU sets it; schools & SPs follow it live.
  * Menu adherence % rates schools on how closely serve days match the prescribed cycle.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';

@@ -1,6 +1,5 @@
 /**
- * Resolve / ensure school_profiles row for a company workspace.
- * Also used for clinics/hospitals (member_type = hospital | clinic).
+ * Resolve / ensure school_profiles row for a company workspace (NSNP schools).
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { resolveEntityKind } from '@/lib/entities/entity-kinds';
@@ -75,15 +74,11 @@ export async function getOrCreateSchoolProfile(
     return { school: null, error: e2.message };
   }
 
-  // Soft: mark org_type on profile (school vs hospital)
+  // Soft: mark org_type on profile
   try {
     await supabase
       .from('profiles')
-      .update({
-        org_type: memberType === 'hospital' || memberType === 'clinic'
-          ? 'hospital'
-          : 'school',
-      })
+      .update({ org_type: 'school' })
       .eq('id', companyId);
   } catch {
     /* soft */
@@ -92,10 +87,7 @@ export async function getOrCreateSchoolProfile(
   // Soft: try create kitchen warehouse
   let kitchenWarehouseId: number | null = null;
   try {
-    const kitchenLabel =
-      memberType === 'hospital' || memberType === 'clinic'
-        ? 'Kitchen'
-        : 'Kitchen';
+    const kitchenLabel = 'Kitchen';
     const { data: wh } = await supabase
       .from('warehouses')
       .insert({
