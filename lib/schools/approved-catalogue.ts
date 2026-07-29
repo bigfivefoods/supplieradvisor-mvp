@@ -12,6 +12,7 @@ import {
   NSNP_SEED_BRANDS,
   NSNP_SEED_PRODUCTS,
 } from '@/lib/schools/nsnp-seed-products';
+import { defaultMealFlagsFromCategory } from '@/lib/schools/meal-guide';
 
 export type CatalogueContext = {
   /** Company id of owning agency (DBE), or null for national fallback */
@@ -597,6 +598,9 @@ export async function cloneNationalIntoAgency(
       continue;
     }
     const brandId = brandMap.get(brandName.toLowerCase()) || null;
+    const meal = defaultMealFlagsFromCategory(
+      p.category != null ? String(p.category) : null
+    );
     const { error } = await supabase.from('nsnp_approved_products').insert({
       brand_id: brandId,
       category: p.category || 'commodity',
@@ -613,6 +617,10 @@ export async function cloneNationalIntoAgency(
       notes:
         p.notes ||
         'NSNP catalogue — owned by department; schools & SPs inherit live',
+      metadata: {
+        for_breakfast: meal.for_breakfast,
+        for_lunch: meal.for_lunch,
+      },
     });
     if (!error) {
       imported += 1;

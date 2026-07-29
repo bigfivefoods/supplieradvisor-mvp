@@ -40,6 +40,10 @@ type Product = {
   image_url?: string | null;
   /** SA province where the food supplier / producer is based */
   province?: string | null;
+  /** Show under Breakfast on mandated menu */
+  for_breakfast?: boolean;
+  /** Show under Lunch on mandated menu */
+  for_lunch?: boolean;
 };
 
 type Brand = {
@@ -63,6 +67,8 @@ const emptyProduct = {
   active: true,
   image_url: '' as string,
   province: '' as string,
+  for_breakfast: true,
+  for_lunch: true,
 };
 
 export default function ApprovedListPage() {
@@ -156,6 +162,8 @@ function Inner() {
       active: p.active !== false,
       image_url: p.image_url || '',
       province: p.province || '',
+      for_breakfast: p.for_breakfast !== false,
+      for_lunch: p.for_lunch !== false,
     });
     setImageFile(null);
     setImagePreview(p.image_url || null);
@@ -224,6 +232,8 @@ function Inner() {
         active: form.active,
         image_url,
         province: form.province.trim() || null,
+        for_breakfast: form.for_breakfast,
+        for_lunch: form.for_lunch,
       };
       const res = await fetch('/api/schools/approved', {
         method: editing ? 'PATCH' : 'POST',
@@ -313,6 +323,50 @@ function Inner() {
   const formOpen = creating || editing;
   const canEdit = Boolean(catalogue?.canEdit);
 
+  /** Quick toggle breakfast / lunch eligibility on catalogue */
+  const toggleMeal = async (
+    p: Product,
+    field: 'for_breakfast' | 'for_lunch'
+  ) => {
+    if (!canEdit) return;
+    const next = !(p[field] !== false);
+    setProducts((prev) =>
+      prev.map((x) => (x.id === p.id ? { ...x, [field]: next } : x))
+    );
+    try {
+      const res = await fetch('/api/schools/approved', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          id: p.id,
+          kind: 'product',
+          for_breakfast:
+            field === 'for_breakfast' ? next : p.for_breakfast !== false,
+          for_lunch: field === 'for_lunch' ? next : p.for_lunch !== false,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      if (data.product) {
+        setProducts((prev) =>
+          prev.map((x) =>
+            x.id === p.id
+              ? {
+                  ...x,
+                  for_breakfast: data.product.for_breakfast !== false,
+                  for_lunch: data.product.for_lunch !== false,
+                }
+              : x
+          )
+        );
+      }
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+      void load();
+    }
+  };
+
   const cloneNational = async () => {
     if (
       !confirm(
@@ -353,7 +407,7 @@ function Inner() {
         }
         description={
           canEdit
-            ? 'Department-owned NSNP catalogue with product photos. Schools and SPs associated with you always inherit this live list — images pull through immediately for recognition when ordering and receiving.'
+            ? 'Department-owned NSNP catalogue with product photos. Tag each food Breakfast and/or Lunch so it appears on the mandated menu under that meal. Schools and SPs inherit this list live.'
             : catalogue?.message ||
               'Only foods on your department’s approved list may be ordered or received. Product photos help kitchen and SP teams recognise approved brands.'
         }
@@ -612,6 +666,43 @@ function Inner() {
               />
               Active (orderable)
             </label>
+            <div className="sm:col-span-2 lg:col-span-3 rounded-2xl border border-amber-100 bg-amber-50/50 px-3 py-3">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-amber-900/70 mb-2">
+                Menu meals — show on mandated breakfast / lunch
+              </p>
+              <div className="flex flex-wrap gap-4">
+                <label className="inline-flex items-center gap-2 text-sm font-semibold text-amber-950">
+                  <input
+                    type="checkbox"
+                    checked={form.for_breakfast}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        for_breakfast: e.target.checked,
+                      }))
+                    }
+                  />
+                  Breakfast
+                </label>
+                <label className="inline-flex items-center gap-2 text-sm font-semibold text-sky-950">
+                  <input
+                    type="checkbox"
+                    checked={form.for_lunch}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        for_lunch: e.target.checked,
+                      }))
+                    }
+                  />
+                  Lunch
+                </label>
+              </div>
+              <p className="mt-1.5 text-[11px] text-slate-600">
+                Only tagged, active products appear under that meal on the
+                department menu.
+              </p>
+            </div>
             <div className="sm:col-span-2 lg:col-span-3">
               <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
                 Product image (visible to schools &amp; SPs)
@@ -724,7 +815,7 @@ function Inner() {
         </div>
       ) : (
         <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
-          <table className="w-full text-sm min-w-[880px]">
+          <table className="w-full text-sm min-w-[960px]">
             <thead>
               <tr className="border-b text-left text-[10px] font-bold uppercase text-slate-400">
                 <th className="px-4 py-3 w-16">Photo</th>
@@ -733,7 +824,7 @@ function Inner() {
                 <th className="px-3 py-3">Supplier province</th>
                 <th className="px-3 py-3">Category</th>
                 <th className="px-3 py-3">Pack</th>
-                <th className="px-3 py-3">Nutrition</th>
+                <th className="px-3 py-3">Menu meals</th>
                 <th className="px-3 py-3">Status</th>
                 <th className="px-3 py-3 text-right">Actions</th>
               </tr>
@@ -786,9 +877,46 @@ function Inner() {
                     <td className="px-3 py-2.5 text-xs">
                       {p.pack_size || '—'} {p.uom || ''}
                     </td>
-                    <td className="px-3 py-2.5 text-xs text-slate-500">
-                      {p.energy_kcal != null ? `${p.energy_kcal} kcal` : ''}
-                      {p.protein_g != null ? ` · ${p.protein_g}g P` : ''}
+                    <td className="px-3 py-2.5">
+                      <div className="flex flex-wrap gap-1">
+                        {canEdit ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => void toggleMeal(p, 'for_breakfast')}
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                p.for_breakfast !== false
+                                  ? 'bg-amber-100 border-amber-300 text-amber-950'
+                                  : 'bg-white border-slate-200 text-slate-400'
+                              }`}
+                              title="Show under Breakfast on menu"
+                            >
+                              Breakfast
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void toggleMeal(p, 'for_lunch')}
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                p.for_lunch !== false
+                                  ? 'bg-sky-100 border-sky-300 text-sky-950'
+                                  : 'bg-white border-slate-200 text-slate-400'
+                              }`}
+                              title="Show under Lunch on menu"
+                            >
+                              Lunch
+                            </button>
+                          </>
+                        ) : (
+                          <span className="text-[10px] font-semibold text-slate-600">
+                            {[
+                              p.for_breakfast !== false ? 'Breakfast' : null,
+                              p.for_lunch !== false ? 'Lunch' : null,
+                            ]
+                              .filter(Boolean)
+                              .join(' · ') || '—'}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-3 py-2.5 text-[10px] font-bold uppercase">
                       {p.active === false ? 'Inactive' : 'Active'}

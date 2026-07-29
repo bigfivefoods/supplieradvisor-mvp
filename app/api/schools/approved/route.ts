@@ -11,6 +11,50 @@ import {
   loadApprovedProducts,
   resolveCatalogueContext,
 } from '@/lib/schools/approved-catalogue';
+import {
+  defaultMealFlagsFromCategory,
+  enrichProductsWithMealFlags,
+} from '@/lib/schools/meal-guide';
+
+/** Persist breakfast/lunch tags on product metadata (+ columns when present). */
+function mealPatchFromBody(
+  body: Record<string, unknown>,
+  existingMeta?: unknown,
+  category?: string | null
+): {
+  metadata: Record<string, unknown>;
+  for_breakfast: boolean;
+  for_lunch: boolean;
+} {
+  const base =
+    existingMeta && typeof existingMeta === 'object'
+      ? { ...(existingMeta as Record<string, unknown>) }
+      : {};
+  const defaults = defaultMealFlagsFromCategory(
+    category != null ? String(category) : body.category != null ? String(body.category) : null
+  );
+  const for_breakfast =
+    body.for_breakfast === undefined
+      ? base.for_breakfast !== undefined
+        ? Boolean(base.for_breakfast)
+        : defaults.for_breakfast
+      : Boolean(body.for_breakfast);
+  const for_lunch =
+    body.for_lunch === undefined
+      ? base.for_lunch !== undefined
+        ? Boolean(base.for_lunch)
+        : defaults.for_lunch
+      : Boolean(body.for_lunch);
+  return {
+    for_breakfast,
+    for_lunch,
+    metadata: {
+      ...base,
+      for_breakfast,
+      for_lunch,
+    },
+  };
+}
 
 /**
  * DBE-owned NSNP approved catalogue.
@@ -154,6 +198,11 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // Surface for_breakfast / for_lunch for menu + catalogue UI
+    products = enrichProductsWithMealFlags(
+      products as Array<Record<string, unknown>>
+    );
+
     return NextResponse.json({
       success: true,
       brands,
@@ -255,32 +304,56 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    const { data, error } = await supabase
+    const category = String(body.category || 'commodity');
+    const meal = mealPatchFromBody(body as Record<string, unknown>, {}, category);
+    const insertRow: Record<string, unknown> = {
+      brand_id: body.brand_id || null,
+      category,
+      name: String(body.name),
+      brand_name: String(body.brand_name),
+      sku: body.sku || null,
+      pack_size: body.pack_size || null,
+      uom: body.uom || 'kg',
+      energy_kcal: body.energy_kcal ?? null,
+      protein_g: body.protein_g ?? null,
+      active: body.active !== false,
+      notes: body.notes || null,
+      image_url: body.image_url ? String(body.image_url) : null,
+      // SA province where the food supplier / producer is based
+      province: body.province ? String(body.province) : null,
+      agency_profile_id: companyId,
+      published_at: new Date().toISOString(),
+      metadata: meal.metadata,
+      for_breakfast: meal.for_breakfast,
+      for_lunch: meal.for_lunch,
+    };
+    let { data, error } = await supabase
       .from('nsnp_approved_products')
-      .insert({
-        brand_id: body.brand_id || null,
-        category: body.category || 'commodity',
-        name: String(body.name),
-        brand_name: String(body.brand_name),
-        sku: body.sku || null,
-        pack_size: body.pack_size || null,
-        uom: body.uom || 'kg',
-        energy_kcal: body.energy_kcal ?? null,
-        protein_g: body.protein_g ?? null,
-        active: body.active !== false,
-        notes: body.notes || null,
-        image_url: body.image_url ? String(body.image_url) : null,
-        // SA province where the food supplier / producer is based
-        province: body.province ? String(body.province) : null,
-        agency_profile_id: companyId,
-        published_at: new Date().toISOString(),
-      })
+      .insert(insertRow)
       .select('*')
       .single();
+    // Soft-retry without meal columns if migration not applied yet
+    if (
+      error &&
+      /for_breakfast|for_lunch|column|schema cache/i.test(error.message || '')
+    ) {
+      delete insertRow.for_breakfast;
+      delete insertRow.for_lunch;
+      const retry = await supabase
+        .from('nsnp_approved_products')
+        .insert(insertRow)
+        .select('*')
+        .single();
+      data = retry.data;
+      error = retry.error;
+    }
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
-    return NextResponse.json({ success: true, product: data });
+    const product = enrichProductsWithMealFlags([
+      (data || {}) as Record<string, unknown>,
+    ])[0];
+    return NextResponse.json({ success: true, product });
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },
@@ -336,6 +409,14 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ success: true, brand: data });
     }
 
+    // Load existing metadata so we merge meal flags cleanly
+    const { data: existing } = await supabase
+      .from('nsnp_approved_products')
+      .select('id, metadata, category')
+      .eq('id', id)
+      .eq('agency_profile_id', companyId)
+      .maybeSingle();
+
     const patch: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
     };
@@ -356,13 +437,49 @@ export async function PATCH(request: NextRequest) {
     ] as const) {
       if (body[k] !== undefined) patch[k] = body[k];
     }
-    const { data, error } = await supabase
+
+    if (
+      body.for_breakfast !== undefined ||
+      body.for_lunch !== undefined ||
+      body.metadata !== undefined
+    ) {
+      const meal = mealPatchFromBody(
+        body as Record<string, unknown>,
+        existing?.metadata,
+        body.category != null
+          ? String(body.category)
+          : existing?.category != null
+            ? String(existing.category)
+            : null
+      );
+      patch.metadata = meal.metadata;
+      patch.for_breakfast = meal.for_breakfast;
+      patch.for_lunch = meal.for_lunch;
+    }
+
+    let { data, error } = await supabase
       .from('nsnp_approved_products')
       .update(patch)
       .eq('id', id)
       .eq('agency_profile_id', companyId)
       .select('*')
       .single();
+    if (
+      error &&
+      /for_breakfast|for_lunch|column|schema cache/i.test(error.message || '')
+    ) {
+      delete patch.for_breakfast;
+      delete patch.for_lunch;
+      const retry = await supabase
+        .from('nsnp_approved_products')
+        .update(patch)
+        .eq('id', id)
+        .eq('agency_profile_id', companyId)
+        .select('*')
+        .single();
+      data = retry.data;
+      error = retry.error;
+    }
     if (error) {
       return NextResponse.json(
         {
@@ -373,7 +490,10 @@ export async function PATCH(request: NextRequest) {
         { status: 400 }
       );
     }
-    return NextResponse.json({ success: true, product: data });
+    const product = enrichProductsWithMealFlags([
+      (data || {}) as Record<string, unknown>,
+    ])[0];
+    return NextResponse.json({ success: true, product });
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },

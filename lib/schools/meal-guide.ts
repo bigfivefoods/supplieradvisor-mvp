@@ -63,17 +63,107 @@ export const MEAL_CATEGORY_HINTS: Record<MealTypeKey, string[]> = {
   ],
 };
 
+export type MealSlotProduct = {
+  id: number;
+  category?: string | null;
+  name?: string;
+  /** DBE catalogue flag — product allowed on breakfast menu */
+  for_breakfast?: boolean | null;
+  /** DBE catalogue flag — product allowed on lunch menu */
+  for_lunch?: boolean | null;
+};
+
+/**
+ * Products eligible for a menu meal slot.
+ * Prefer explicit catalogue flags (for_breakfast / for_lunch).
+ * When flags are null/undefined (legacy), fall back to category hints.
+ * Only returns products tagged for that meal (or legacy untagged).
+ */
 export function productsForMealHint(
-  products: Array<{ id: number; category?: string | null; name?: string }>,
+  products: MealSlotProduct[],
   meal: MealTypeKey
-): Array<{ id: number; category?: string | null; name?: string }> {
+): MealSlotProduct[] {
+  // Only products tagged for this meal (after resolveProductMealFlags enrichment)
+  const flagged = products.filter((p) => {
+    const flags = resolveProductMealFlags(p);
+    return meal === 'breakfast' ? flags.for_breakfast : flags.for_lunch;
+  });
+
   const hints = MEAL_CATEGORY_HINTS[meal];
-  const preferred = products.filter((p) =>
+  const preferred = flagged.filter((p) =>
     hints.some((h) => String(p.category || '').toLowerCase().includes(h))
   );
-  // Always allow full list after preferred
-  const rest = products.filter((p) => !preferred.includes(p));
+  const rest = flagged.filter((p) => !preferred.includes(p));
   return [...preferred, ...rest];
+}
+
+/** Default meal tags from category (used when cloning / creating products). */
+export function defaultMealFlagsFromCategory(category?: string | null): {
+  for_breakfast: boolean;
+  for_lunch: boolean;
+} {
+  const cat = String(category || '').toLowerCase();
+  if (/(porridge|cereal|oats)/.test(cat)) {
+    return { for_breakfast: true, for_lunch: false };
+  }
+  if (
+    /(samp|rice|beans|lentils|peas|soya|oil|vegetables|stock|soup|ready_meal|flour|salt)/.test(
+      cat
+    )
+  ) {
+    return { for_breakfast: false, for_lunch: true };
+  }
+  // Milk, fruit, protein, spreads can appear in either meal
+  return { for_breakfast: true, for_lunch: true };
+}
+
+/**
+ * Resolve breakfast/lunch tags from product row.
+ * Order: explicit columns → metadata → category defaults.
+ */
+export function resolveProductMealFlags(p: {
+  category?: string | null;
+  for_breakfast?: boolean | null;
+  for_lunch?: boolean | null;
+  metadata?: unknown;
+}): { for_breakfast: boolean; for_lunch: boolean } {
+  const meta =
+    p.metadata && typeof p.metadata === 'object'
+      ? (p.metadata as Record<string, unknown>)
+      : {};
+  const hasCol =
+    typeof p.for_breakfast === 'boolean' || typeof p.for_lunch === 'boolean';
+  const hasMeta =
+    typeof meta.for_breakfast === 'boolean' ||
+    typeof meta.for_lunch === 'boolean';
+  if (hasCol) {
+    return {
+      for_breakfast: p.for_breakfast !== false,
+      for_lunch: p.for_lunch !== false,
+    };
+  }
+  if (hasMeta) {
+    return {
+      for_breakfast: meta.for_breakfast !== false,
+      for_lunch: meta.for_lunch !== false,
+    };
+  }
+  return defaultMealFlagsFromCategory(p.category);
+}
+
+/** Attach resolved meal flags onto catalogue product rows for UI / menu. */
+export function enrichProductsWithMealFlags<T extends Record<string, unknown>>(
+  products: T[]
+): Array<T & { for_breakfast: boolean; for_lunch: boolean }> {
+  return products.map((p) => {
+    const flags = resolveProductMealFlags(p as {
+      category?: string | null;
+      for_breakfast?: boolean | null;
+      for_lunch?: boolean | null;
+      metadata?: unknown;
+    });
+    return { ...p, ...flags };
+  });
 }
 
 export type DayMealSlot = {

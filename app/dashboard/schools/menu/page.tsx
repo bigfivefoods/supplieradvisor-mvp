@@ -48,6 +48,8 @@ type Product = {
   name: string;
   brand_name: string;
   category?: string | null;
+  for_breakfast?: boolean;
+  for_lunch?: boolean;
 };
 
 export default function SchoolMenuPage() {
@@ -285,7 +287,7 @@ function Inner() {
         titleAccent="Breakfast + lunch"
         description={
           canEdit
-            ? 'DBE sets breakfast + lunch Mon–Fri from the approved product catalogue only. Schools inherit this menu live; SPs supply those foods from wholesalers.'
+            ? 'DBE sets breakfast + lunch Mon–Fri. Only active catalogue products tagged Breakfast and/or Lunch appear under each meal. Schools inherit this menu live; SPs supply those foods.'
             : policy ||
               'Your DBE sets breakfast and lunch from the approved catalogue. This menu filters down to your school — order those products from your SP.'
         }
