@@ -358,8 +358,12 @@ export default function InviteClaimFlow({ token, kind }: InviteClaimFlowProps) {
             </h2>
             <p className="text-neutral-600 mb-8">
               {authenticated
-                ? 'Confirm your details, then accept the invitation to join this workspace.'
-                : 'Use the invited email for the smoothest experience. You will receive a secure one-time code (or continue with Google / Apple).'}
+                ? kind === 'team'
+                  ? 'Confirm your details, then accept to join this company as a team member. You do not need to register a new organisation.'
+                  : kind === 'customer'
+                    ? 'Confirm your details, then accept to connect as a customer. If you also need your own company workspace later, you can register a normal company from onboarding.'
+                    : 'Confirm your details, then claim this business profile on SupplierAdvisor.'
+                : 'Use the invited email for the smoothest experience. You will receive a secure one-time code (or continue with Google / Apple). Normal companies join in a few minutes after sign-in.'}
             </p>
 
             {authenticated && (

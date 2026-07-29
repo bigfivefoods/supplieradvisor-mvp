@@ -58,15 +58,15 @@ export const ENTITY_DEFINITIONS: readonly EntityDefinition[] = [
     id: 'business',
     business_type: 'business',
     org_type: 'business',
-    label: 'Business / wholesaler',
-    shortLabel: 'Business',
+    label: 'Company / business',
+    shortLabel: 'Company',
     description:
-      'Manufacturer, distributor, wholesaler or retailer — sell to SPs and other companies on the network.',
+      'A normal company — manufacturer, distributor, wholesaler or retailer. Default for most people joining SupplierAdvisor.',
     group: 'trade',
     homePath: '/dashboard',
     modulePreset: 'trading',
     provision: 'none',
-    badge: 'Trade',
+    badge: 'Company',
     badgeClass: 'bg-sky-100 text-sky-900 border-sky-200',
   },
   {
@@ -85,28 +85,13 @@ export const ENTITY_DEFINITIONS: readonly EntityDefinition[] = [
     badgeClass: 'bg-emerald-100 text-emerald-900 border-emerald-200',
   },
   {
-    id: 'government_education',
-    business_type: 'government_education',
-    org_type: 'government_education',
-    label: 'Department of Education (DBE / PEU)',
-    shortLabel: 'DBE / PEU',
-    description:
-      'Top of the education chain: approve SPs and schools, publish the approved foods list, PEU visits, claims & nutrition.',
-    group: 'education',
-    homePath: '/dashboard/schools',
-    modulePreset: 'dbe_agency',
-    provision: 'agency_education',
-    badge: 'Gov · Education',
-    badgeClass: 'bg-violet-100 text-violet-900 border-violet-200',
-  },
-  {
     id: 'school',
     business_type: 'school',
     org_type: 'school',
     label: 'School',
     shortLabel: 'School',
     description:
-      'Under DBE/PEU: join the department, order only approved foods from approved SPs, kitchen, serve day, claims.',
+      'NSNP school: join DBE/PEU, order approved foods from linked SPs, kitchen, serve day, claims.',
     group: 'education',
     homePath: '/dashboard/schools',
     modulePreset: 'school_nsnp',
@@ -121,7 +106,7 @@ export const ENTITY_DEFINITIONS: readonly EntityDefinition[] = [
     label: 'Service Provider (SP)',
     shortLabel: 'SP',
     description:
-      'Middle of the chain: join DBE and/or DoH, then supply schools (education) or clinics & hospitals (health) with approved products. Buy from wholesalers on the trade network.',
+      'NSNP service provider: join DBE/PEU, supply schools with approved products. Buy stock from wholesalers on the trade network.',
     group: 'education',
     homePath: '/dashboard/schools/isp',
     modulePreset: 'nsnp_isp',
@@ -130,30 +115,15 @@ export const ENTITY_DEFINITIONS: readonly EntityDefinition[] = [
     badgeClass: 'bg-amber-100 text-amber-900 border-amber-200',
   },
   {
-    id: 'government_health',
-    business_type: 'government_health',
-    org_type: 'government_health',
-    label: 'Department of Health',
-    shortLabel: 'DoH',
-    description:
-      'Top of the health chain: approve SPs and clinics/hospitals, publish approved foods, same association model as DBE.',
-    group: 'health',
-    homePath: '/dashboard/schools',
-    modulePreset: 'dbe_agency',
-    provision: 'agency_health',
-    badge: 'Gov · Health',
-    badgeClass: 'bg-rose-100 text-rose-900 border-rose-200',
-  },
-  {
     id: 'hospital',
     business_type: 'hospital',
     org_type: 'hospital',
     label: 'Hospital / clinic',
     shortLabel: 'Clinic / hospital',
     description:
-      'Under DoH: join the department, order only approved foods from approved SPs (same operating model as schools).',
+      'Health facility workspace (separate Health module flows where configured).',
     group: 'health',
-    homePath: '/dashboard/schools',
+    homePath: '/dashboard/health',
     modulePreset: 'school_nsnp',
     provision: 'facility_health',
     badge: 'Health facility',
@@ -186,6 +156,37 @@ export const ENTITY_DEFINITIONS: readonly EntityDefinition[] = [
     provision: 'none',
     badge: 'Impact',
     badgeClass: 'bg-lime-100 text-lime-900 border-lime-200',
+  },
+  // Government last — only for official programme offices
+  {
+    id: 'government_education',
+    business_type: 'government_education',
+    org_type: 'government_education',
+    label: 'Department of Education (DBE / PEU)',
+    shortLabel: 'DBE / PEU',
+    description:
+      'Government education office: approve SPs and schools, publish the approved foods list, PEU visits, claims & nutrition.',
+    group: 'education',
+    homePath: '/dashboard/schools',
+    modulePreset: 'dbe_agency',
+    provision: 'agency_education',
+    badge: 'Gov · Education',
+    badgeClass: 'bg-violet-100 text-violet-900 border-violet-200',
+  },
+  {
+    id: 'government_health',
+    business_type: 'government_health',
+    org_type: 'government_health',
+    label: 'Department of Health',
+    shortLabel: 'DoH',
+    description:
+      'Government health office (Health module): approve facilities and SPs for the health food programme.',
+    group: 'health',
+    homePath: '/dashboard/health',
+    modulePreset: 'dbe_agency',
+    provision: 'agency_health',
+    badge: 'Gov · Health',
+    badgeClass: 'bg-rose-100 text-rose-900 border-rose-200',
   },
 ] as const;
 
@@ -239,39 +240,54 @@ export function homePathForEntity(
   return resolveEntityKind(businessType || orgType).homePath;
 }
 
+/**
+ * Signup / invite picker order:
+ * 1) Normal company & trade (default)
+ * 2) Schools programme operators (school, SP)
+ * 3) Health facilities
+ * 4) Other orgs
+ * 5) Government agencies last
+ */
 export function entityGroups(): Array<{
   id: string;
   title: string;
   blurb: string;
   entities: EntityDefinition[];
 }> {
+  const byId = (id: EntityKind) => BY_ID.get(id)!;
   return [
     {
-      id: 'education',
-      title: 'Education · DBE → SPs → Schools',
+      id: 'trade',
+      title: 'Company & trade network',
       blurb:
-        'Chain: Department of Education approves SPs and schools. Schools order only approved foods from those SPs.',
-      entities: ENTITY_DEFINITIONS.filter((e) => e.group === 'education'),
+        'Start here if you are a normal company. Most invitations register a company that trades on SupplierAdvisor.',
+      entities: [byId('business'), byId('supplier')],
+    },
+    {
+      id: 'education',
+      title: 'Schools programme',
+      blurb:
+        'Schools and service providers on the National School Nutrition Programme (under DBE / PEU).',
+      entities: [byId('school'), byId('nsnp_isp')],
     },
     {
       id: 'health',
-      title: 'Health · DoH → SPs → Clinics & hospitals',
-      blurb:
-        'Same chain for health: Department of Health approves SPs and clinics/hospitals. Facilities order only approved foods from those SPs.',
-      entities: ENTITY_DEFINITIONS.filter((e) => e.group === 'health'),
-    },
-    {
-      id: 'trade',
-      title: 'Trade network',
-      blurb:
-        'Wholesalers, manufacturers and suppliers that SPs (and others) buy from.',
-      entities: ENTITY_DEFINITIONS.filter((e) => e.group === 'trade'),
+      title: 'Health facilities',
+      blurb: 'Clinics and hospitals on a health food programme.',
+      entities: [byId('hospital')],
     },
     {
       id: 'other',
       title: 'Other organisations',
-      blurb: 'Associations, NGOs and impact organisations.',
-      entities: ENTITY_DEFINITIONS.filter((e) => e.group === 'other'),
+      blurb: 'Associations, co-ops, NGOs and impact organisations.',
+      entities: [byId('association'), byId('consumer_org')],
+    },
+    {
+      id: 'government',
+      title: 'Government agencies',
+      blurb:
+        'Only for official government programme offices (education or health). Not for private companies.',
+      entities: [byId('government_education'), byId('government_health')],
     },
   ];
 }

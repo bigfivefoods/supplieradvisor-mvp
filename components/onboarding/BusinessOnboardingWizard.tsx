@@ -411,22 +411,40 @@ export default function BusinessOnboardingWizard() {
               <h1 className="text-3xl font-black tracking-[-1.5px] text-[#00b4d8] mb-3">
                 Who is registering?
               </h1>
-              <p className="text-neutral-600 mb-6">
-                Separate workspaces: Department of Education (DBE), schools, SPs,
-                health, and trade businesses each get their own login path and
-                modules.
+              <p className="text-neutral-600 mb-2">
+                <strong className="text-slate-900">Most people join as a normal company</strong>
+                {' '}— that option is first below. Schools, SPs and government
+                offices use specialised workspaces further down.
+              </p>
+              <p className="text-sm text-neutral-500 mb-6">
+                You can change modules later; pick the type that best matches
+                this invitation or your organisation.
               </p>
               <div className="space-y-8">
                 {entityGroups().map((group) => (
                   <div key={group.id}>
-                    <h2 className="text-xs font-black uppercase tracking-wider text-slate-500 mb-1">
+                    <h2
+                      className={`text-xs font-black uppercase tracking-wider mb-1 ${
+                        group.id === 'trade'
+                          ? 'text-[#0077b6]'
+                          : group.id === 'government'
+                            ? 'text-slate-400'
+                            : 'text-slate-500'
+                      }`}
+                    >
                       {group.title}
+                      {group.id === 'trade' ? (
+                        <span className="ml-2 normal-case tracking-normal font-bold text-[10px] bg-sky-100 text-sky-800 px-2 py-0.5 rounded-full">
+                          Recommended
+                        </span>
+                      ) : null}
                     </h2>
                     <p className="text-xs text-slate-500 mb-3">{group.blurb}</p>
                     <div className="grid sm:grid-cols-2 gap-3">
                       {group.entities.map((type) => {
                         const Icon = ENTITY_ICONS[type.id] || Building2;
                         const selected = form.business_type === type.business_type;
+                        const isCompany = type.id === 'business';
                         return (
                           <button
                             key={type.id}
@@ -436,21 +454,28 @@ export default function BusinessOnboardingWizard() {
                             }
                             className={`text-left p-4 rounded-2xl border transition-all ${
                               selected
-                                ? 'border-[#00b4d8] bg-[#00b4d8]/5 shadow-sm'
-                                : 'border-neutral-200 hover:border-neutral-300 bg-white'
+                                ? 'border-[#00b4d8] bg-[#00b4d8]/5 shadow-sm ring-2 ring-[#00b4d8]/20'
+                                : isCompany
+                                  ? 'border-sky-200 bg-sky-50/40 hover:border-sky-300'
+                                  : 'border-neutral-200 hover:border-neutral-300 bg-white'
                             }`}
                           >
                             <div className="flex items-start gap-3">
                               <Icon
                                 className={`w-6 h-6 shrink-0 ${
-                                  selected
+                                  selected || isCompany
                                     ? 'text-[#00b4d8]'
                                     : 'text-neutral-500'
                                 }`}
                               />
                               <div>
-                                <div className="font-semibold text-slate-900 text-sm">
+                                <div className="font-semibold text-slate-900 text-sm flex items-center gap-2">
                                   {type.label}
+                                  {isCompany ? (
+                                    <span className="text-[9px] font-black uppercase tracking-wide text-sky-700 bg-sky-100 px-1.5 py-0.5 rounded">
+                                      Default
+                                    </span>
+                                  ) : null}
                                 </div>
                                 <div className="text-xs text-neutral-600 mt-1 leading-relaxed">
                                   {type.description}
