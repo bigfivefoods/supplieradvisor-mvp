@@ -12,13 +12,15 @@ import {
 } from '@/lib/schools/incentives';
 import { fetchAgencySchoolLinks } from '@/lib/schools/supabase-page';
 import { computeClaimAmount, countWeekdays } from '@/lib/schools/process';
+import { computeOtifRisk } from '@/lib/schools/brand-pick-gate';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 /**
  * Schools ops hub — Sprint A/B/C
- * GET ?companyId=&view=path|fulfil|exceptions|districts|shopping|match|audit
+ * GET ?companyId=&view=path|fulfil|exceptions|districts|shopping|match|audit|consistency|buylist
+ * GET view=audit&format=pdf · sealed audit pack PDF
  */
 export async function GET(request: NextRequest) {
   try {
@@ -33,6 +35,7 @@ export async function GET(request: NextRequest) {
     if (!gate.ok) return gate.response;
 
     const view = String(sp.get('view') || 'path').toLowerCase();
+    const format = String(sp.get('format') || 'json').toLowerCase();
     const supabase = getSupabaseServer();
 
     const { data: agency } = await supabase
@@ -82,8 +85,17 @@ export async function GET(request: NextRequest) {
       }
       return NextResponse.json(await districtView(supabase, companyId));
     }
-    if (view === 'shopping') {
+    if (view === 'shopping' || view === 'buylist' || view === 'buy-list') {
       return NextResponse.json(await shoppingView(supabase, companyId, role));
+    }
+    if (view === 'consistency' || view === 'catalogue_health') {
+      if (role !== 'agency') {
+        return NextResponse.json(
+          { error: 'Consistency report is for DBE / PEU' },
+          { status: 403 }
+        );
+      }
+      return NextResponse.json(await consistencyView(supabase, companyId));
     }
     if (view === 'match') {
       const from = sp.get('from') || monthAgo();
@@ -95,9 +107,30 @@ export async function GET(request: NextRequest) {
     if (view === 'audit') {
       const from = sp.get('from') || monthAgo();
       const to = sp.get('to') || today();
-      return NextResponse.json(
-        await auditPack(supabase, companyId, role, from, to)
-      );
+      const pack = await auditPack(supabase, companyId, role, from, to);
+      if (
+        (format === 'pdf' || format === 'print' || format === 'download') &&
+        pack.success &&
+        pack.pack
+      ) {
+        const { buildAuditPackPdf, auditPackPdfFilename } = await import(
+          '@/lib/schools/audit-pack-pdf'
+        );
+        const pdf = await buildAuditPackPdf(pack.pack, pack.content_hash);
+        const filename = auditPackPdfFilename(pack.pack, from, to);
+        const disposition =
+          format === 'download' ? 'attachment' : 'inline';
+        return new NextResponse(new Uint8Array(pdf), {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': `${disposition}; filename="${filename}"`,
+            'Cache-Control': 'no-store',
+            'X-Content-Hash': String(pack.content_hash || ''),
+          },
+        });
+      }
+      return NextResponse.json(pack);
     }
     if (view === 'sim' || view === 'funding') {
       const from = sp.get('from') || monthAgo();
@@ -116,6 +149,8 @@ export async function GET(request: NextRequest) {
         'exceptions',
         'districts',
         'shopping',
+        'buylist',
+        'consistency',
         'match',
         'audit',
         'sim',
@@ -391,19 +426,30 @@ async function fulfilView(
     const expected = p.expected_date
       ? String(p.expected_date).slice(0, 10)
       : null;
-    const late =
-      expected &&
-      expected < today() &&
-      !['received', 'cancelled'].includes(String(dn?.status || p.status));
+    const done = ['received', 'cancelled'].includes(
+      String(dn?.status || p.status)
+    );
+    const risk = computeOtifRisk({
+      requiredDate: expected,
+      fulfilled: done && String(dn?.status || p.status) === 'received',
+      cancelled: String(p.status) === 'cancelled',
+    });
+    const late = risk.otif_risk === 'late';
     return {
       po_id: p.id,
       po_number: p.po_number,
       status: p.status,
       order_date: p.order_date,
       expected_date: expected,
+      required_delivery_date: expected,
+      days_to_required: risk.days_to_required,
+      otif_risk: risk.otif_risk,
+      otif_risk_label: risk.otif_risk_label,
       total_amount: p.total_amount,
       school_profile_id: p.school_profile_id,
-      school_name: names[Number(p.school_profile_id)] || `School ${p.school_profile_id}`,
+      school_name:
+        names[Number(p.school_profile_id)] ||
+        `School ${p.school_profile_id}`,
       line_count: Array.isArray(p.lines) ? p.lines.length : 0,
       delivery_id: dn?.id || null,
       delivery_number: dn?.delivery_number || null,
@@ -424,9 +470,19 @@ async function fulfilView(
     };
   });
 
-  // Sort late first, then by expected date
+  // Sort: late → at_risk → due_soon → on_track, then by expected date
+  const riskRank: Record<string, number> = {
+    late: 0,
+    at_risk: 1,
+    due_soon: 2,
+    on_track: 3,
+    unknown: 4,
+    done: 5,
+  };
   queue.sort((a, b) => {
-    if (a.late !== b.late) return a.late ? -1 : 1;
+    const ra = riskRank[String(a.otif_risk)] ?? 9;
+    const rb = riskRank[String(b.otif_risk)] ?? 9;
+    if (ra !== rb) return ra - rb;
     return String(a.expected_date || '9999').localeCompare(
       String(b.expected_date || '9999')
     );
@@ -447,6 +503,9 @@ async function fulfilView(
       need_dn: queue.filter((q) => q.action === 'create_dn').length,
       need_dispatch: queue.filter((q) => q.action === 'dispatch').length,
       late: queue.filter((q) => q.late).length,
+      at_risk: queue.filter((q) =>
+        ['at_risk', 'due_soon'].includes(String(q.otif_risk))
+      ).length,
       missing_pod: queue.filter((q) => q.delivery_id && !q.has_pod).length,
     },
   };
@@ -614,6 +673,43 @@ async function exceptionsView(
     });
   }
 
+  // Sprint C1 — disputed deliveries + open credit notes across linked schools
+  if (schoolIds.length) {
+    for (let i = 0; i < Math.min(schoolIds.length, 400); i += 100) {
+      const slice = schoolIds.slice(i, i + 100);
+      const { data: disputed } = await supabase
+        .from('school_nsnp_deliveries')
+        .select(
+          'id, school_profile_id, isp_profile_id, status, delivery_number, metadata, dispute_reason, updated_at'
+        )
+        .in('school_profile_id', slice)
+        .eq('status', 'disputed')
+        .limit(80);
+      for (const d of disputed || []) {
+        const meta = (d.metadata || {}) as Record<string, unknown>;
+        const cnStatus = String(meta.credit_note_status || '');
+        exceptions.push({
+          kind:
+            cnStatus === 'requested' || meta.credit_note_requested
+              ? 'credit_note_open'
+              : 'delivery_disputed',
+          severity: 'high',
+          title:
+            cnStatus === 'issued'
+              ? `Credit note issued · ${d.delivery_number || d.id}`
+              : meta.credit_note_requested
+                ? `Credit note requested · ${d.delivery_number || d.id}`
+                : `Disputed delivery ${d.delivery_number || d.id}`,
+          school_profile_id: d.school_profile_id,
+          isp_profile_id: d.isp_profile_id,
+          delivery_id: d.id,
+          reason: d.dispute_reason,
+          href: '/dashboard/schools/deliveries',
+        });
+      }
+    }
+  }
+
   const severityRank: Record<string, number> = {
     critical: 0,
     high: 1,
@@ -647,6 +743,202 @@ async function exceptionsView(
       riads: exceptions.filter((e) => e.kind === 'open_riad').length,
       off_catalogue: exceptions.filter((e) => e.kind === 'off_catalogue_grn')
         .length,
+      disputed: exceptions.filter(
+        (e) =>
+          e.kind === 'delivery_disputed' || e.kind === 'credit_note_open'
+      ).length,
+    },
+  };
+}
+
+/** Sprint A3 — DBE catalogue / menu / recipe consistency */
+async function consistencyView(
+  supabase: ReturnType<typeof getSupabaseServer>,
+  companyId: number
+) {
+  const issues: Array<Record<string, unknown>> = [];
+
+  const { data: products } = await supabase
+    .from('nsnp_approved_products')
+    .select('id, name, brand_name, category, active, metadata')
+    .eq('agency_profile_id', companyId)
+    .limit(1000);
+  const active = (products || []).filter((p) => p.active !== false);
+  const inactive = (products || []).filter((p) => p.active === false);
+  const byId = new Map(
+    (products || []).map((p) => [Number(p.id), p as Record<string, unknown>])
+  );
+
+  // Menu product ids
+  const menuIds = new Set<number>();
+  const { data: menus } = await supabase
+    .from('school_menu_cycles')
+    .select('id, name, weekly_approved_product_ids, cycle_json, metadata, active')
+    .eq('agency_profile_id', companyId)
+    .limit(50);
+  for (const m of menus || []) {
+    const ids = Array.isArray(m.weekly_approved_product_ids)
+      ? m.weekly_approved_product_ids
+      : [];
+    for (const raw of ids) {
+      const id = Number(raw);
+      if (!Number.isFinite(id)) continue;
+      menuIds.add(id);
+      const prod = byId.get(id);
+      if (!prod) {
+        issues.push({
+          kind: 'menu_unknown_product',
+          severity: 'high',
+          title: `Menu references product #${id} not on catalogue`,
+          menu_id: m.id,
+          product_id: id,
+        });
+      } else if (prod.active === false) {
+        issues.push({
+          kind: 'menu_inactive_product',
+          severity: 'medium',
+          title: `Menu includes inactive product: ${prod.name}`,
+          menu_id: m.id,
+          product_id: id,
+        });
+      }
+    }
+  }
+
+  // Recipe lines
+  const { data: recipes } = await supabase
+    .from('nsnp_recipes')
+    .select('id, name, active')
+    .eq('agency_profile_id', companyId)
+    .limit(100);
+  const recipeIds = (recipes || []).map((r) => Number(r.id));
+  const recipeName = new Map(
+    (recipes || []).map((r) => [Number(r.id), String(r.name || r.id)])
+  );
+  if (recipeIds.length) {
+    const { data: lines } = await supabase
+      .from('nsnp_recipe_lines')
+      .select('id, recipe_id, approved_product_id, product_name, category')
+      .in('recipe_id', recipeIds)
+      .limit(800);
+    for (const l of lines || []) {
+      const pid = l.approved_product_id ? Number(l.approved_product_id) : null;
+      if (!pid) {
+        issues.push({
+          kind: 'recipe_line_no_product',
+          severity: 'medium',
+          title: `BOM line without product: ${l.product_name || l.id}`,
+          recipe_id: l.recipe_id,
+          recipe_name: recipeName.get(Number(l.recipe_id)),
+          line_id: l.id,
+        });
+        continue;
+      }
+      const prod = byId.get(pid);
+      if (!prod) {
+        issues.push({
+          kind: 'recipe_unknown_product',
+          severity: 'high',
+          title: `Recipe BOM product #${pid} not on catalogue`,
+          recipe_id: l.recipe_id,
+          recipe_name: recipeName.get(Number(l.recipe_id)),
+          product_id: pid,
+        });
+      } else if (prod.active === false) {
+        issues.push({
+          kind: 'recipe_inactive_product',
+          severity: 'medium',
+          title: `Recipe uses inactive product: ${prod.name}`,
+          recipe_id: l.recipe_id,
+          recipe_name: recipeName.get(Number(l.recipe_id)),
+          product_id: pid,
+        });
+      }
+    }
+  }
+
+  // Orphan catalogue products (not on menu and not on any recipe) — info only
+  const usedIds = new Set<number>(menuIds);
+  if (recipeIds.length) {
+    const { data: lines2 } = await supabase
+      .from('nsnp_recipe_lines')
+      .select('approved_product_id')
+      .in('recipe_id', recipeIds)
+      .limit(800);
+    for (const l of lines2 || []) {
+      if (l.approved_product_id) usedIds.add(Number(l.approved_product_id));
+    }
+  }
+  let orphanCount = 0;
+  for (const p of active) {
+    if (!usedIds.has(Number(p.id))) orphanCount += 1;
+  }
+
+  // Breakfast/lunch tags coverage (metadata fallback)
+  let missingMealTag = 0;
+  for (const p of active) {
+    const meta =
+      p.metadata && typeof p.metadata === 'object'
+        ? (p.metadata as Record<string, unknown>)
+        : {};
+    const hasB =
+      meta.for_breakfast === true ||
+      meta.for_breakfast === 'true' ||
+      meta.meal_slot === 'breakfast' ||
+      meta.meal_slots === 'breakfast' ||
+      (Array.isArray(meta.meal_slots) &&
+        meta.meal_slots.includes('breakfast'));
+    const hasL =
+      meta.for_lunch === true ||
+      meta.for_lunch === 'true' ||
+      meta.meal_slot === 'lunch' ||
+      (Array.isArray(meta.meal_slots) && meta.meal_slots.includes('lunch'));
+    if (!hasB && !hasL) missingMealTag += 1;
+  }
+  if (missingMealTag > 0 && active.length > 0) {
+    issues.push({
+      kind: 'missing_meal_tags',
+      severity: 'low',
+      title: `${missingMealTag} active product(s) lack breakfast/lunch tags`,
+      count: missingMealTag,
+      href: '/dashboard/schools/approved-list',
+    });
+  }
+
+  const severityRank: Record<string, number> = {
+    high: 0,
+    medium: 1,
+    low: 2,
+  };
+  issues.sort(
+    (a, b) =>
+      (severityRank[String(a.severity)] ?? 9) -
+      (severityRank[String(b.severity)] ?? 9)
+  );
+
+  return {
+    success: true,
+    role: 'agency',
+    issues: issues.slice(0, 100),
+    summary: {
+      catalogue_active: active.length,
+      catalogue_inactive: inactive.length,
+      menus: (menus || []).length,
+      recipes: (recipes || []).length,
+      issues: issues.length,
+      high: issues.filter((i) => i.severity === 'high').length,
+      medium: issues.filter((i) => i.severity === 'medium').length,
+      orphan_products: orphanCount,
+      missing_meal_tags: missingMealTag,
+    },
+    tip:
+      issues.length === 0
+        ? 'Catalogue, menus and recipes look consistent.'
+        : 'Fix high issues first — menu/recipe products must exist and be active on the approved list.',
+    hrefs: {
+      catalogue: '/dashboard/schools/approved-list',
+      menu: '/dashboard/schools/menu',
+      recipes: '/dashboard/schools/recipes',
     },
   };
 }
@@ -762,12 +1054,187 @@ async function districtView(
   };
 }
 
-/** Sprint C — menu → shopping list */
+/** Sprint C — menu → shopping list · SP wholesale buy-list from open school POs */
 async function shoppingView(
   supabase: ReturnType<typeof getSupabaseServer>,
   companyId: number,
   role: string
 ) {
+  // Sprint C2 — SP buy-list: aggregate open school PO lines for wholesale buy
+  if (role === 'isp') {
+    const { data: pos } = await supabase
+      .from('school_purchase_orders')
+      .select(
+        'id, po_number, status, expected_date, school_profile_id, lines, total_amount'
+      )
+      .eq('isp_profile_id', companyId)
+      .in('status', [
+        'submitted',
+        'confirmed',
+        'open',
+        'dispatched',
+        'partially_received',
+      ])
+      .limit(120);
+
+    const schoolIds = [
+      ...new Set(
+        (pos || []).map((p) => Number(p.school_profile_id)).filter(Boolean)
+      ),
+    ];
+    const names: Record<number, string> = {};
+    if (schoolIds.length) {
+      const { data: schools } = await supabase
+        .from('school_profiles')
+        .select('id, school_name')
+        .in('id', schoolIds);
+      for (const s of schools || []) {
+        names[Number(s.id)] = String(s.school_name);
+      }
+    }
+
+    // Already shipped qty per product from received/partial DNs
+    const poIds = (pos || []).map((p) => Number(p.id));
+    const shippedByKey = new Map<string, number>();
+    if (poIds.length) {
+      const { data: dns } = await supabase
+        .from('school_nsnp_deliveries')
+        .select('po_id, status, lines')
+        .eq('isp_profile_id', companyId)
+        .in('po_id', poIds.slice(0, 100))
+        .limit(200);
+      for (const d of dns || []) {
+        if (String(d.status) === 'cancelled') continue;
+        const dLines = Array.isArray(d.lines)
+          ? (d.lines as Array<Record<string, unknown>>)
+          : [];
+        for (const l of dLines) {
+          const pid = l.approved_product_id
+            ? Number(l.approved_product_id)
+            : null;
+          const key = pid
+            ? `id:${pid}`
+            : `n:${String(l.product_name || '').toLowerCase()}`;
+          const qty = Number(
+            l.qty_delivered ?? l.qty_ordered ?? l.qty ?? 0
+          );
+          // Only count as shipped if left school warehouse (dispatched+)
+          if (
+            ['dispatched', 'delivered', 'received', 'partially_received'].includes(
+              String(d.status)
+            )
+          ) {
+            shippedByKey.set(key, (shippedByKey.get(key) || 0) + qty);
+          }
+        }
+      }
+    }
+
+    type BuyLine = {
+      key: string;
+      approved_product_id: number | null;
+      product_name: string;
+      brand_name: string;
+      uom: string;
+      qty_ordered: number;
+      qty_shipped: number;
+      qty_to_buy: number;
+      po_count: number;
+      schools: string[];
+      earliest_required: string | null;
+    };
+    const agg = new Map<string, BuyLine>();
+
+    for (const p of pos || []) {
+      const schoolName =
+        names[Number(p.school_profile_id)] || `School ${p.school_profile_id}`;
+      const expected = p.expected_date
+        ? String(p.expected_date).slice(0, 10)
+        : null;
+      const lines = Array.isArray(p.lines)
+        ? (p.lines as Array<Record<string, unknown>>)
+        : [];
+      for (const l of lines) {
+        const pid = l.approved_product_id
+          ? Number(l.approved_product_id)
+          : null;
+        const name = String(l.product_name || 'Product');
+        const key = pid ? `id:${pid}` : `n:${name.toLowerCase()}`;
+        const qty = Number(l.qty || 0);
+        if (!(qty > 0)) continue;
+        const row = agg.get(key) || {
+          key,
+          approved_product_id: pid && Number.isFinite(pid) ? pid : null,
+          product_name: name,
+          brand_name: String(l.brand_name || ''),
+          uom: String(l.uom || 'kg'),
+          qty_ordered: 0,
+          qty_shipped: 0,
+          qty_to_buy: 0,
+          po_count: 0,
+          schools: [] as string[],
+          earliest_required: null as string | null,
+        };
+        row.qty_ordered += qty;
+        row.po_count += 1;
+        if (!row.schools.includes(schoolName)) row.schools.push(schoolName);
+        if (
+          expected &&
+          (!row.earliest_required || expected < row.earliest_required)
+        ) {
+          row.earliest_required = expected;
+        }
+        agg.set(key, row);
+      }
+    }
+
+    const buy_list = [...agg.values()]
+      .map((row) => {
+        const shipped = shippedByKey.get(row.key) || 0;
+        const toBuy = Math.max(0, Math.round((row.qty_ordered - shipped) * 1000) / 1000);
+        return {
+          ...row,
+          qty_shipped: shipped,
+          qty_to_buy: toBuy,
+          otif_risk: computeOtifRisk({
+            requiredDate: row.earliest_required,
+            fulfilled: toBuy <= 0,
+          }),
+        };
+      })
+      .filter((r) => r.qty_to_buy > 0)
+      .sort((a, b) => {
+        const da = a.earliest_required || '9999';
+        const db = b.earliest_required || '9999';
+        return da.localeCompare(db);
+      });
+
+    return {
+      success: true,
+      role: 'isp',
+      mode: 'wholesale_buy_list',
+      buy_list,
+      shopping_list: buy_list.map((b) => ({
+        name: b.product_name,
+        brand: b.brand_name,
+        approved_product_id: b.approved_product_id,
+        suggested_qty: b.qty_to_buy,
+        uom: b.uom,
+        days: b.earliest_required ? [b.earliest_required] : [],
+        schools: b.schools,
+        po_count: b.po_count,
+      })),
+      open_pos: (pos || []).length,
+      tip:
+        buy_list.length === 0
+          ? 'No open school PO lines to buy — when schools order, aggregate here for wholesale.'
+          : 'Buy these quantities from wholesalers to cover open school POs (remaining after DNs already dispatched).',
+      href_fulfil: '/dashboard/schools/ops',
+      href_orders: '/dashboard/schools/orders',
+      href_wholesalers: '/dashboard/schools/wholesalers',
+    };
+  }
+
   const { school } = await getOrCreateSchoolProfile(supabase, companyId);
   let agencyId: number | null = null;
   let schoolId: number | null = school ? Number(school.id) : null;

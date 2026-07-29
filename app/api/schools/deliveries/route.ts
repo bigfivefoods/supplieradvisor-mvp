@@ -586,7 +586,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         delivery: created.delivery,
-        message: 'Delivery note created from PO — dispatch when the truck leaves',
+        remaining: created.remaining || null,
+        message: created.remaining?.partial
+          ? 'Partial delivery note created — only remaining PO qty on lines'
+          : 'Delivery note created from PO — dispatch when the truck leaves',
         one_click: true,
       });
     }
@@ -600,6 +603,7 @@ export async function POST(request: NextRequest) {
         'receive',
         'receive_quick',
         'dispute',
+        'credit_note',
         'cancel',
       ].includes(action)
     ) {
@@ -638,6 +642,10 @@ export async function POST(request: NextRequest) {
         if (body.driver_name) patch.driver_name = body.driver_name;
         if (body.notes_isp !== undefined) patch.notes_isp = body.notes_isp;
         if (body.expected_date) patch.expected_date = body.expected_date;
+        // Sprint B2 — allow line qty edits on dispatch for partial ship
+        if (Array.isArray(body.lines)) {
+          patch.lines = body.lines;
+        }
       } else if (action === 'mark_delivered' && isIsp) {
         patch.status = 'delivered';
         patch.delivered_at = now;
@@ -760,8 +768,50 @@ export async function POST(request: NextRequest) {
         }
       } else if (action === 'dispute' && isSchool) {
         patch.status = 'disputed';
-        patch.dispute_reason = body.dispute_reason || body.notes_school || 'Disputed';
+        patch.dispute_reason =
+          body.dispute_reason || body.notes_school || 'Disputed';
         if (body.notes_school) patch.notes_school = body.notes_school;
+        // Sprint B3 — optional line-level dispute qtys + credit note request
+        const meta: Record<string, unknown> = {
+          ...((d.metadata as Record<string, unknown>) || {}),
+          dispute: {
+            reason: patch.dispute_reason,
+            at: now,
+            by_role: 'school',
+            credit_note_requested: Boolean(body.credit_note_requested),
+            disputed_lines: Array.isArray(body.disputed_lines)
+              ? body.disputed_lines
+              : null,
+          },
+        };
+        if (body.credit_note_requested) {
+          meta.credit_note_requested = true;
+          meta.credit_note_status = 'requested';
+        }
+        patch.metadata = meta;
+        if (Array.isArray(body.lines)) {
+          patch.lines = body.lines;
+        }
+      } else if (action === 'credit_note' && isIsp) {
+        // SP attaches / records credit note against disputed delivery
+        const meta = {
+          ...((d.metadata as Record<string, unknown>) || {}),
+          credit_note: {
+            number: body.credit_note_number || body.number || null,
+            amount: body.credit_note_amount ?? body.amount ?? null,
+            notes: body.notes_isp || body.notes || null,
+            at: now,
+            status: 'issued',
+          },
+          credit_note_status: 'issued',
+          credit_note_requested: false,
+        };
+        patch.metadata = meta;
+        if (body.notes_isp) patch.notes_isp = body.notes_isp;
+        // Keep disputed status unless school already received
+        if (String(d.status) === 'disputed') {
+          patch.status = 'disputed';
+        }
       } else if (action === 'cancel') {
         patch.status = 'cancelled';
       } else {
@@ -889,17 +939,103 @@ export async function POST(request: NextRequest) {
         });
       }
 
+      // Sprint B2 — matching report snapshot on dispatch / deliver / dispute
+      let matching: ReturnType<typeof buildMatchingReport> | null = null;
+      if (
+        action === 'dispatch' ||
+        action === 'mark_delivered' ||
+        action === 'dispute' ||
+        action === 'credit_note' ||
+        isReceive
+      ) {
+        try {
+          const linesArr = (
+            Array.isArray(updated.lines) ? updated.lines : []
+          ) as Array<Record<string, unknown>>;
+          matching = buildMatchingReport({
+            delivery_number: String(
+              updated.delivery_number || updated.id || ''
+            ),
+            po_id: updated.po_id != null ? Number(updated.po_id) : null,
+            status: String(updated.status || ''),
+            lines: linesArr.map((l) => ({
+              product_name: String(l.product_name || ''),
+              brand_name: String(l.brand_name || ''),
+              qty_ordered: Number(l.qty_ordered ?? l.qty ?? 0),
+              qty_delivered: Number(
+                l.qty_delivered ?? l.qty_ordered ?? l.qty ?? 0
+              ),
+              qty_received: Number(
+                l.qty_received ??
+                  (isReceive
+                    ? l.qty_delivered ?? l.qty_ordered ?? 0
+                    : 0)
+              ),
+              uom: String(l.uom || 'kg'),
+              approved: l.approved !== false && !l.other_item,
+              other_item: Boolean(l.other_item),
+              approved_product_id:
+                l.approved_product_id != null
+                  ? Number(l.approved_product_id)
+                  : null,
+            })),
+            has_pod: Boolean(
+              (updated.metadata as { has_pod_photo?: boolean } | null)
+                ?.has_pod_photo
+            ),
+            grn_id:
+              updated.grn_receipt_id != null
+                ? Number(updated.grn_receipt_id)
+                : grn?.id != null
+                  ? Number(grn.id)
+                  : null,
+            otif:
+              updated.otif === true || updated.otif === false
+                ? Boolean(updated.otif)
+                : null,
+            expected_date:
+              updated.expected_date != null
+                ? String(updated.expected_date)
+                : null,
+            delivered_at:
+              updated.delivered_at != null
+                ? String(updated.delivered_at)
+                : null,
+            received_at:
+              updated.received_at != null
+                ? String(updated.received_at)
+                : null,
+          });
+        } catch {
+          matching = null;
+        }
+      }
+
+      let message: string | undefined;
+      if (isReceive) {
+        message = grn
+          ? `Received — kitchen GRN posted. ${String(prizeDelta?.message || '')}`
+          : 'Delivery received';
+      } else if (action === 'dispatch') {
+        message = matching?.summary.clean
+          ? 'Dispatched — matching report clean so far (await school GRN)'
+          : 'Dispatched — review matching report for short/over lines';
+      } else if (action === 'dispute') {
+        message = body.credit_note_requested
+          ? 'Disputed — credit note requested from SP'
+          : 'Disputed — SP will be notified';
+      } else if (action === 'credit_note') {
+        message = 'Credit note recorded against delivery';
+      }
+
       return NextResponse.json({
         success: true,
         delivery: updated,
         grn,
         prize: prizeDelta,
         pod_warning: podWarning,
-        message: isReceive
-          ? grn
-            ? `Received — kitchen GRN posted. ${String(prizeDelta?.message || '')}`
-            : 'Delivery received'
-          : undefined,
+        matching,
+        message,
       });
     }
 
@@ -1054,7 +1190,14 @@ async function createDeliveryFromPo(
     status?: string;
   }
 ): Promise<
-  | { ok: true; delivery: Record<string, unknown> }
+  | {
+      ok: true;
+      delivery: Record<string, unknown>;
+      remaining?: {
+        partial: boolean;
+        lines: Array<Record<string, unknown>>;
+      };
+    }
   | { ok: false; error: string; status?: number }
 > {
   const { data: po } = await supabase
@@ -1080,23 +1223,30 @@ async function createDeliveryFromPo(
     };
   }
 
-  // Idempotent: if open DN already exists for this PO, return it
-  const { data: existingRows } = await supabase
+  // Sprint B1 — remaining qty: sum qty already on non-cancelled DNs for this PO
+  const { data: priorDns } = await supabase
     .from('school_nsnp_deliveries')
-    .select('*')
+    .select('id, status, lines')
     .eq('po_id', opts.poId)
-    .in('status', [
-      'draft',
-      'confirmed',
-      'dispatched',
-      'delivered',
-      'disputed',
-    ])
-    .order('created_at', { ascending: false })
-    .limit(1);
-  const existing = existingRows?.[0];
-  if (existing) {
-    return { ok: true, delivery: existing as Record<string, unknown> };
+    .neq('status', 'cancelled')
+    .limit(50);
+
+  // Open (not yet received) DN → return it (idempotent)
+  const openExisting = (priorDns || []).find((d) =>
+    ['draft', 'confirmed', 'dispatched', 'delivered', 'disputed'].includes(
+      String(d.status)
+    )
+  );
+  if (openExisting) {
+    const { data: full } = await supabase
+      .from('school_nsnp_deliveries')
+      .select('*')
+      .eq('id', openExisting.id)
+      .maybeSingle();
+    return {
+      ok: true,
+      delivery: (full || openExisting) as Record<string, unknown>,
+    };
   }
 
   type DnLine = {
@@ -1107,21 +1257,64 @@ async function createDeliveryFromPo(
     qty_delivered: number;
     qty_received: number;
     uom: string;
+    qty_already_delivered?: number;
+    qty_remaining?: number;
   };
+
+  const alreadyByProduct = new Map<string, number>();
+  for (const d of priorDns || []) {
+    if (!['received', 'partially_received'].includes(String(d.status))) continue;
+    const dLines = Array.isArray(d.lines)
+      ? (d.lines as Array<Record<string, unknown>>)
+      : [];
+    for (const l of dLines) {
+      const key =
+        l.approved_product_id != null
+          ? `id:${Number(l.approved_product_id)}`
+          : `n:${String(l.product_name || '').toLowerCase()}`;
+      const qty = Number(
+        l.qty_delivered ?? l.qty_received ?? l.qty_ordered ?? 0
+      );
+      alreadyByProduct.set(key, (alreadyByProduct.get(key) || 0) + qty);
+    }
+  }
+
   const rawPoLines = Array.isArray(po.lines)
     ? (po.lines as Array<Record<string, unknown>>)
     : [];
-  const lines: DnLine[] = rawPoLines.map((l) => ({
-    approved_product_id: Number(l.approved_product_id) || null,
-    product_name: String(l.product_name || ''),
-    brand_name: String(l.brand_name || ''),
-    qty_ordered: Number(l.qty || 0),
-    qty_delivered: Number(l.qty || 0),
-    qty_received: 0,
-    uom: String(l.uom || 'kg'),
-  }));
+  const lines: DnLine[] = [];
+  for (const l of rawPoLines) {
+    const ordered = Number(l.qty || 0);
+    const pid = Number(l.approved_product_id) || null;
+    const key = pid
+      ? `id:${pid}`
+      : `n:${String(l.product_name || '').toLowerCase()}`;
+    const already = alreadyByProduct.get(key) || 0;
+    const remaining = Math.max(0, ordered - already);
+    if (!(remaining > 0)) continue; // fully delivered line — skip
+    lines.push({
+      approved_product_id: pid,
+      product_name: String(l.product_name || ''),
+      brand_name: String(l.brand_name || ''),
+      qty_ordered: ordered,
+      qty_already_delivered: already,
+      qty_remaining: remaining,
+      qty_delivered: remaining, // default this DN ships remaining
+      qty_received: 0,
+      uom: String(l.uom || 'kg'),
+    });
+  }
 
   if (!lines.length) {
+    // Fully fulfilled already
+    if ((priorDns || []).length) {
+      return {
+        ok: false,
+        error:
+          'PO is fully delivered — no remaining quantity for a new delivery note',
+        status: 400,
+      };
+    }
     return { ok: false, error: 'PO has no lines to deliver', status: 400 };
   }
 
@@ -1136,6 +1329,9 @@ async function createDeliveryFromPo(
     };
   }
 
+  const partial = lines.some(
+    (l) => (l.qty_already_delivered || 0) > 0 || l.qty_delivered < l.qty_ordered
+  );
   const status = opts.status || 'confirmed';
   const payload = {
     school_profile_id: Number(po.school_profile_id),
@@ -1146,7 +1342,13 @@ async function createDeliveryFromPo(
     status,
     expected_date: opts.expectedDate || po.expected_date || null,
     lines,
-    notes_isp: 'Created from PO (one-click)',
+    notes_isp: partial
+      ? 'Created from PO (partial remaining qty)'
+      : 'Created from PO (one-click)',
+    metadata: {
+      partial_fulfilment: partial,
+      remaining_lines: lines.length,
+    },
     created_by: null as string | null,
   };
 
@@ -1168,12 +1370,28 @@ async function createDeliveryFromPo(
     .from('school_purchase_orders')
     .update({
       delivery_status: status,
-      status: status === 'confirmed' ? 'confirmed' : String(po.status),
+      status: partial
+        ? 'partially_received'
+        : status === 'confirmed'
+          ? 'confirmed'
+          : String(po.status),
       updated_at: new Date().toISOString(),
     })
     .eq('id', opts.poId);
 
-  return { ok: true, delivery: data as Record<string, unknown> };
+  return {
+    ok: true,
+    delivery: data as Record<string, unknown>,
+    remaining: {
+      partial,
+      lines: lines.map((l) => ({
+        product_name: l.product_name,
+        qty_ordered: l.qty_ordered,
+        qty_already_delivered: l.qty_already_delivered,
+        qty_remaining: l.qty_remaining,
+      })),
+    },
+  };
 }
 
 async function postGrnFromDelivery(

@@ -392,9 +392,32 @@ function Inner() {
         vehicle_reg: vehicleReg || null,
         expected_date: expectedDate || null,
         notes_isp: notesIsp || null,
+        lines: dnLines.length
+          ? (selected?.lines || []).map((l, i) => {
+              const edit = dnLines[i];
+              return {
+                ...l,
+                qty_ordered: Number(
+                  edit?.qty_ordered ?? l.qty_ordered ?? l.qty ?? 0
+                ),
+                qty_delivered: Number(
+                  edit?.qty_delivered ?? l.qty_delivered ?? l.qty_ordered ?? 0
+                ),
+              };
+            })
+          : undefined,
       });
       if (!data) return;
-      toast.success('On the way — attach POD when delivered');
+      const m = data.matching as
+        | { summary?: { clean?: boolean; red?: number; amber?: number } }
+        | undefined;
+      toast.success(
+        data.message ||
+          (m?.summary?.clean
+            ? 'Dispatched — matching clean so far (await school GRN)'
+            : 'On the way — review matching report for short/over lines')
+      );
+      if (m) setMatching(m as MatchingReport);
       setShowDispatch(false);
       void load();
       if (data.delivery) void openDetail(data.delivery);
@@ -1256,13 +1279,21 @@ function Inner() {
                         const reason = window.prompt(
                           'What is wrong with this delivery?'
                         );
-                        if (reason == null) return;
+                        if (reason == null || !String(reason).trim()) return;
+                        const wantCredit = window.confirm(
+                          'Request a credit note from the SP for the shortfall / issue?'
+                        );
                         void postAction('dispute', {
                           dispute_reason: reason,
+                          credit_note_requested: wantCredit,
                         })
                           .then((data) => {
                             if (!data) return;
-                            toast.message('Disputed — SP will be notified');
+                            toast.message(
+                              wantCredit
+                                ? 'Disputed — credit note requested from SP'
+                                : 'Disputed — SP will be notified'
+                            );
                             void load();
                             if (data.delivery) void openDetail(data.delivery);
                           })
@@ -1274,7 +1305,46 @@ function Inner() {
                       }}
                       className="min-h-[52px] rounded-2xl font-bold text-sm border-2 border-rose-200 text-rose-800 bg-rose-50"
                     >
-                      Dispute quantities
+                      Dispute · request credit note
+                    </button>
+                  ) : null}
+                  {role === 'isp' &&
+                  String(selected.status) === 'disputed' ? (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => {
+                        const number = window.prompt(
+                          'Credit note number (optional)'
+                        );
+                        if (number == null) return;
+                        const amountStr = window.prompt(
+                          'Credit note amount ZAR (optional)',
+                          ''
+                        );
+                        void postAction('credit_note', {
+                          credit_note_number: number || null,
+                          credit_note_amount: amountStr
+                            ? Number(amountStr)
+                            : null,
+                        })
+                          .then((data) => {
+                            if (!data) return;
+                            toast.success(
+                              data.message || 'Credit note recorded'
+                            );
+                            void load();
+                            if (data.delivery) void openDetail(data.delivery);
+                          })
+                          .catch((e: unknown) =>
+                            toast.error(
+                              e instanceof Error ? e.message : 'Failed'
+                            )
+                          );
+                      }}
+                      className="min-h-[52px] rounded-2xl font-bold text-sm border-2 border-violet-200 text-violet-900 bg-violet-50"
+                    >
+                      Issue credit note
                     </button>
                   ) : null}
                 </div>

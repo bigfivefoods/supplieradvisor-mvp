@@ -59,6 +59,11 @@ function Inner() {
   );
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState('main');
+  const [consistency, setConsistency] = useState<Record<
+    string,
+    unknown
+  > | null>(null);
+  const [buyList, setBuyList] = useState<Record<string, unknown> | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -72,15 +77,21 @@ function Inner() {
       setRole(r);
 
       if (r === 'isp') {
-        const res = await fetch(
-          `/api/schools/ops?companyId=${companyId}&view=fulfil`,
-          { cache: 'no-store', credentials: 'same-origin' }
-        );
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed');
-        setFulfil(data);
+        const [res, buy] = await Promise.all([
+          fetch(`/api/schools/ops?companyId=${companyId}&view=fulfil`, {
+            cache: 'no-store',
+            credentials: 'same-origin',
+          }).then((x) => x.json()),
+          fetch(`/api/schools/ops?companyId=${companyId}&view=buylist`, {
+            cache: 'no-store',
+            credentials: 'same-origin',
+          }).then((x) => x.json()),
+        ]);
+        if (res.error) throw new Error(res.error || 'Failed');
+        setFulfil(res);
+        setBuyList(buy);
       } else if (r === 'agency') {
-        const [ex, dist] = await Promise.all([
+        const [ex, dist, cons] = await Promise.all([
           fetch(
             `/api/schools/ops?companyId=${companyId}&view=exceptions`,
             { cache: 'no-store', credentials: 'same-origin' }
@@ -89,9 +100,14 @@ function Inner() {
             `/api/schools/ops?companyId=${companyId}&view=districts`,
             { cache: 'no-store', credentials: 'same-origin' }
           ).then((x) => x.json()),
+          fetch(
+            `/api/schools/ops?companyId=${companyId}&view=consistency`,
+            { cache: 'no-store', credentials: 'same-origin' }
+          ).then((x) => x.json()),
         ]);
         setExceptions(ex);
         setDistricts(dist);
+        setConsistency(cons);
       } else {
         const qs = `companyId=${companyId}&from=${period.from}&to=${period.to}`;
         const [sh, m, s] = await Promise.all([
@@ -138,7 +154,12 @@ function Inner() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
-      toast.success('Delivery note created');
+      toast.success(
+        data.message ||
+          (data.remaining?.partial
+            ? 'Partial DN created (remaining PO qty)'
+            : 'Delivery note created')
+      );
       void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed');
@@ -147,9 +168,18 @@ function Inner() {
     }
   };
 
-  const downloadAudit = async () => {
+  const downloadAudit = async (fmt: 'json' | 'pdf' = 'json') => {
     setBusy(true);
     try {
+      if (fmt === 'pdf') {
+        window.open(
+          `/api/schools/ops?companyId=${companyId}&view=audit&format=pdf&from=${period.from}&to=${period.to}`,
+          '_blank',
+          'noopener,noreferrer'
+        );
+        toast.success('Opening sealed audit pack PDF');
+        return;
+      }
       const res = await fetch(
         `/api/schools/ops?companyId=${companyId}&view=audit&from=${period.from}&to=${period.to}`,
         { cache: 'no-store', credentials: 'same-origin' }
@@ -167,7 +197,9 @@ function Inner() {
         `NSNP_Audit_${period.from}_${period.to}.json`;
       a.click();
       URL.revokeObjectURL(url);
-      toast.success(`Audit pack sealed · ${String(data.content_hash).slice(0, 20)}…`);
+      toast.success(
+        `Audit pack sealed · ${String(data.content_hash).slice(0, 20)}…`
+      );
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed');
     } finally {
@@ -218,13 +250,17 @@ function Inner() {
       ) : role === 'isp' ? (
         <FulfilQueue
           data={fulfil}
+          buyList={buyList}
           busy={busy}
           onCreateDn={createDn}
+          tab={tab}
+          setTab={setTab}
         />
       ) : role === 'agency' ? (
         <AgencyCockpit
           exceptions={exceptions}
           districts={districts}
+          consistency={consistency}
           tab={tab}
           setTab={setTab}
         />
@@ -234,7 +270,8 @@ function Inner() {
           match={match}
           sim={sim}
           busy={busy}
-          onAudit={() => void downloadAudit()}
+          onAuditJson={() => void downloadAudit('json')}
+          onAuditPdf={() => void downloadAudit('pdf')}
         />
       )}
     </SchoolsPage>
@@ -243,24 +280,54 @@ function Inner() {
 
 function FulfilQueue({
   data,
+  buyList,
   busy,
   onCreateDn,
+  tab,
+  setTab,
 }: {
   data: Record<string, unknown> | null;
+  buyList: Record<string, unknown> | null;
   busy: boolean;
   onCreateDn: (poId: number) => void;
+  tab: string;
+  setTab: (t: string) => void;
 }) {
   const queue = (data?.queue || []) as Array<Record<string, unknown>>;
   const summary = (data?.summary || {}) as Record<string, number>;
+  const buys = (buyList?.buy_list ||
+    buyList?.shopping_list ||
+    []) as Array<Record<string, unknown>>;
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      <div className="flex flex-wrap gap-2">
+        {[
+          { id: 'main', label: 'Fulfil queue' },
+          { id: 'buy', label: 'Wholesale buy-list' },
+        ].map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setTab(t.id)}
+            className={`rounded-full px-3 py-1.5 text-xs font-bold border ${
+              tab === t.id
+                ? 'bg-slate-900 text-white border-slate-900'
+                : 'bg-white border-slate-200'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
         {[
           { l: 'Open POs', v: summary.total },
           { l: 'Need DN', v: summary.need_dn },
           { l: 'Need dispatch', v: summary.need_dispatch },
           { l: 'Late', v: summary.late },
+          { l: 'At risk', v: summary.at_risk },
         ].map((k) => (
           <div
             key={k.l}
@@ -274,64 +341,165 @@ function FulfilQueue({
         ))}
       </div>
 
-      <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
-        <div className="px-4 py-3 border-b text-xs font-bold uppercase text-slate-500 flex items-center gap-2">
-          <Truck className="w-4 h-4" /> Fulfil queue · expected date first
-        </div>
-        {queue.length === 0 ? (
-          <p className="px-4 py-10 text-center text-sm text-slate-500">
-            No open school POs. When schools order, they appear here.
+      {tab === 'buy' ? (
+        <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+          <div className="px-4 py-3 border-b text-xs font-bold uppercase text-slate-500 flex items-center gap-2">
+            <ShoppingCart className="w-4 h-4" /> Wholesale buy-list · remaining
+            PO qty
+          </div>
+          <p className="px-4 py-2 text-xs text-slate-500">
+            {String(buyList?.tip || '')}
           </p>
-        ) : (
-          <ul className="divide-y divide-slate-50">
-            {queue.map((q) => (
-              <li
-                key={String(q.po_id)}
-                className={`px-4 py-3 flex flex-wrap items-center justify-between gap-2 ${
-                  q.late ? 'bg-rose-50/50' : ''
-                }`}
-              >
-                <div>
-                  <p className="font-bold text-sm">
-                    {String(q.po_number || q.po_id)}
-                    {q.late ? (
-                      <span className="ml-2 text-[10px] font-bold uppercase text-rose-700">
-                        Late
-                      </span>
-                    ) : null}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    {String(q.school_name)} · {String(q.line_count)} lines ·{' '}
-                    {q.expected_date
-                      ? `due ${String(q.expected_date)}`
-                      : 'no expected date'}
-                    {q.has_pod ? ' · POD ✓' : q.delivery_id ? ' · no POD' : ''}
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  {q.action === 'create_dn' ? (
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => onCreateDn(Number(q.po_id))}
-                      className="btn-primary !py-1.5 !px-3 text-xs"
+          {buys.length === 0 ? (
+            <p className="px-4 py-10 text-center text-sm text-slate-500">
+              No open lines to buy.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[640px]">
+                <thead>
+                  <tr className="border-b text-left text-[10px] font-bold uppercase text-slate-400">
+                    <th className="px-4 py-2">Product</th>
+                    <th className="px-3 py-2">Brand</th>
+                    <th className="px-3 py-2">To buy</th>
+                    <th className="px-3 py-2">Ordered</th>
+                    <th className="px-3 py-2">Shipped</th>
+                    <th className="px-3 py-2">Schools</th>
+                    <th className="px-3 py-2">Earliest due</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {buys.map((b, i) => (
+                    <tr
+                      key={String(b.key || b.approved_product_id || i)}
+                      className="border-b border-slate-50"
                     >
-                      Create DN
-                    </button>
-                  ) : (
-                    <Link
-                      href="/dashboard/schools/deliveries"
-                      className="btn-secondary !py-1.5 !px-3 text-xs"
-                    >
-                      {String(q.action).replace(/_/g, ' ')} →
-                    </Link>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+                      <td className="px-4 py-2 font-semibold">
+                        {String(b.product_name || b.name)}
+                      </td>
+                      <td className="px-3 py-2 text-xs">
+                        {String(b.brand_name || b.brand || '—')}
+                      </td>
+                      <td className="px-3 py-2 font-black tabular-nums">
+                        {Number(b.qty_to_buy ?? b.suggested_qty ?? 0)}{' '}
+                        <span className="text-[10px] font-bold text-slate-400">
+                          {String(b.uom || '')}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 tabular-nums text-xs">
+                        {b.qty_ordered != null ? Number(b.qty_ordered) : '—'}
+                      </td>
+                      <td className="px-3 py-2 tabular-nums text-xs">
+                        {b.qty_shipped != null ? Number(b.qty_shipped) : '—'}
+                      </td>
+                      <td className="px-3 py-2 text-xs text-slate-600">
+                        {Array.isArray(b.schools)
+                          ? (b.schools as string[]).slice(0, 3).join(', ')
+                          : '—'}
+                      </td>
+                      <td className="px-3 py-2 text-xs font-bold">
+                        {String(b.earliest_required || '—')}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <div className="px-4 py-3 border-t flex flex-wrap gap-2">
+            <Link
+              href="/dashboard/schools/wholesalers"
+              className="btn-secondary !py-1.5 !px-3 text-xs"
+            >
+              Wholesalers
+            </Link>
+            <Link
+              href="/dashboard/schools/orders"
+              className="btn-secondary !py-1.5 !px-3 text-xs"
+            >
+              School POs
+            </Link>
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+          <div className="px-4 py-3 border-b text-xs font-bold uppercase text-slate-500 flex items-center gap-2">
+            <Truck className="w-4 h-4" /> Fulfil queue · OTIF risk first
+          </div>
+          {queue.length === 0 ? (
+            <p className="px-4 py-10 text-center text-sm text-slate-500">
+              No open school POs. When schools order, they appear here.
+            </p>
+          ) : (
+            <ul className="divide-y divide-slate-50">
+              {queue.map((q) => {
+                const risk = String(q.otif_risk || '');
+                const riskCls =
+                  risk === 'late'
+                    ? 'text-rose-700 bg-rose-100'
+                    : risk === 'at_risk'
+                      ? 'text-orange-800 bg-orange-100'
+                      : risk === 'due_soon'
+                        ? 'text-amber-800 bg-amber-100'
+                        : risk === 'on_track'
+                          ? 'text-emerald-800 bg-emerald-100'
+                          : 'text-slate-600 bg-slate-100';
+                return (
+                  <li
+                    key={String(q.po_id)}
+                    className={`px-4 py-3 flex flex-wrap items-center justify-between gap-2 ${
+                      q.late ? 'bg-rose-50/50' : ''
+                    }`}
+                  >
+                    <div>
+                      <p className="font-bold text-sm flex flex-wrap items-center gap-2">
+                        {String(q.po_number || q.po_id)}
+                        {q.otif_risk_label ? (
+                          <span
+                            className={`text-[10px] font-black uppercase rounded-full px-2 py-0.5 ${riskCls}`}
+                          >
+                            {String(q.otif_risk_label)}
+                          </span>
+                        ) : null}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {String(q.school_name)} · {String(q.line_count)} lines ·{' '}
+                        {q.expected_date
+                          ? `due ${String(q.expected_date)}`
+                          : 'no expected date'}
+                        {q.has_pod
+                          ? ' · POD ✓'
+                          : q.delivery_id
+                            ? ' · no POD'
+                            : ''}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      {q.action === 'create_dn' ? (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => onCreateDn(Number(q.po_id))}
+                          className="btn-primary !py-1.5 !px-3 text-xs"
+                        >
+                          Create DN
+                        </button>
+                      ) : (
+                        <Link
+                          href="/dashboard/schools/deliveries"
+                          className="btn-secondary !py-1.5 !px-3 text-xs"
+                        >
+                          {String(q.action).replace(/_/g, ' ')} →
+                        </Link>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -339,11 +507,13 @@ function FulfilQueue({
 function AgencyCockpit({
   exceptions,
   districts,
+  consistency,
   tab,
   setTab,
 }: {
   exceptions: Record<string, unknown> | null;
   districts: Record<string, unknown> | null;
+  consistency: Record<string, unknown> | null;
   tab: string;
   setTab: (t: string) => void;
 }) {
@@ -352,6 +522,8 @@ function AgencyCockpit({
   const byDistrict = (districts?.byDistrict || []) as Array<Record<string, unknown>>;
   const byCluster = (districts?.byCluster || []) as Array<Record<string, unknown>>;
   const gaps = (districts?.gaps || []) as Array<Record<string, unknown>>;
+  const issues = (consistency?.issues || []) as Array<Record<string, unknown>>;
+  const csum = (consistency?.summary || {}) as Record<string, number>;
 
   return (
     <div className="space-y-4">
@@ -359,6 +531,7 @@ function AgencyCockpit({
         {[
           { id: 'main', label: 'Exceptions' },
           { id: 'geo', label: 'District · cluster' },
+          { id: 'consistency', label: 'Catalogue consistency' },
         ].map((t) => (
           <button
             key={t.id}
@@ -377,13 +550,14 @@ function AgencyCockpit({
 
       {tab === 'main' ? (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
             {[
               { l: 'Total', v: summary.total },
               { l: 'Critical', v: summary.critical },
               { l: 'High', v: summary.high },
               { l: 'Claims', v: summary.claims },
               { l: 'Stuck DNs', v: summary.deliveries },
+              { l: 'Disputes', v: summary.disputed },
               { l: 'RIADs', v: summary.riads },
             ].map((k) => (
               <div
@@ -444,7 +618,7 @@ function AgencyCockpit({
             )}
           </div>
         </>
-      ) : (
+      ) : tab === 'geo' ? (
         <div className="grid lg:grid-cols-2 gap-4">
           <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
             <div className="px-4 py-3 border-b text-xs font-bold uppercase text-slate-500 flex items-center gap-2">
@@ -491,6 +665,85 @@ function AgencyCockpit({
             ) : null}
           </div>
         </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {[
+              { l: 'Active products', v: csum.catalogue_active },
+              { l: 'Menus', v: csum.menus },
+              { l: 'Recipes', v: csum.recipes },
+              { l: 'Issues', v: csum.issues },
+            ].map((k) => (
+              <div
+                key={k.l}
+                className="rounded-2xl border border-slate-200 bg-white px-3 py-2"
+              >
+                <p className="text-[10px] font-bold uppercase text-slate-400">
+                  {k.l}
+                </p>
+                <p className="text-lg font-black tabular-nums">{k.v ?? 0}</p>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-slate-600">
+            {String(consistency?.tip || '')}
+          </p>
+          <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+            <div className="px-4 py-3 border-b text-xs font-bold uppercase text-slate-500">
+              Catalogue · menu · recipe consistency
+            </div>
+            {issues.length === 0 ? (
+              <p className="px-4 py-10 text-center text-sm text-slate-500">
+                No consistency issues found.
+              </p>
+            ) : (
+              <ul className="divide-y max-h-[60vh] overflow-y-auto">
+                {issues.map((iss, i) => (
+                  <li key={i} className="px-4 py-2.5 text-sm">
+                    <span
+                      className={`text-[10px] font-bold uppercase mr-2 ${
+                        iss.severity === 'high'
+                          ? 'text-rose-700'
+                          : iss.severity === 'medium'
+                            ? 'text-amber-700'
+                            : 'text-slate-500'
+                      }`}
+                    >
+                      {String(iss.severity)} ·{' '}
+                      {String(iss.kind).replace(/_/g, ' ')}
+                    </span>
+                    <p className="font-semibold">{String(iss.title)}</p>
+                    {iss.recipe_name ? (
+                      <p className="text-xs text-slate-500">
+                        {String(iss.recipe_name)}
+                      </p>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="px-4 py-3 border-t flex flex-wrap gap-2">
+              <Link
+                href="/dashboard/schools/approved-list"
+                className="btn-secondary !py-1 !px-2 text-[11px]"
+              >
+                Catalogue
+              </Link>
+              <Link
+                href="/dashboard/schools/menu"
+                className="btn-secondary !py-1 !px-2 text-[11px]"
+              >
+                Menu
+              </Link>
+              <Link
+                href="/dashboard/schools/recipes"
+                className="btn-secondary !py-1 !px-2 text-[11px]"
+              >
+                Recipes
+              </Link>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -501,13 +754,15 @@ function SchoolOps({
   match,
   sim,
   busy,
-  onAudit,
+  onAuditJson,
+  onAuditPdf,
 }: {
   shopping: Record<string, unknown> | null;
   match: Record<string, unknown> | null;
   sim: Record<string, unknown> | null;
   busy: boolean;
-  onAudit: () => void;
+  onAuditJson: () => void;
+  onAuditPdf: () => void;
 }) {
   const list = (shopping?.shopping_list || []) as Array<Record<string, unknown>>;
   const matches = (match?.matches || []) as Array<Record<string, unknown>>;
@@ -534,10 +789,18 @@ function SchoolOps({
         <button
           type="button"
           disabled={busy}
-          onClick={onAudit}
+          onClick={onAuditPdf}
+          className="btn-primary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+        >
+          <Download className="w-3.5 h-3.5" /> Audit pack PDF
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={onAuditJson}
           className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1"
         >
-          <Download className="w-3.5 h-3.5" /> Audit pack JSON
+          <Download className="w-3.5 h-3.5" /> Audit JSON
         </button>
       </div>
 

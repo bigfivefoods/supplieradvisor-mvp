@@ -16,6 +16,10 @@ import {
   type PoDocumentInput,
   type PoParty,
 } from '@/lib/schools/po-document';
+import {
+  checkSchoolBrandPickGate,
+  computeOtifRisk,
+} from '@/lib/schools/brand-pick-gate';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -272,6 +276,12 @@ export async function GET(request: NextRequest) {
           ratingsBySchool.get(Number(o.school_profile_id)) ??
           null;
 
+        const risk = computeOtifRisk({
+          requiredDate: expected,
+          fulfilled,
+          cancelled: status === 'cancelled',
+        });
+
         return {
           ...o,
           school_name:
@@ -288,6 +298,11 @@ export async function GET(request: NextRequest) {
           order_on_time: on_time,
           order_in_full: in_full,
           order_error_free: error_free,
+          // Sprint A2 — required-date countdown + OTIF risk
+          required_delivery_date: expected,
+          days_to_required: risk.days_to_required,
+          otif_risk: risk.otif_risk,
+          otif_risk_label: risk.otif_risk_label,
           // Rolling SP scores (from profile / SLA)
           sp_otifef_pct: spOtifef,
           sp_on_time_pct:
@@ -316,7 +331,7 @@ export async function GET(request: NextRequest) {
         role: 'isp',
         orders,
         process:
-          'Schools order approved catalogue products from you. Buy from wholesalers, create a DN, dispatch with POD, school receives into kitchen. Received orders show Fulfilled with OTIFEF & rating.',
+          'Schools order approved catalogue products from you. Buy from wholesalers, create a DN, dispatch with POD, school receives into kitchen. Received orders show Fulfilled with OTIFEF & rating. Countdown shows days to required delivery for OTIF risk.',
         next_href: '/dashboard/schools/ops',
       });
     }
@@ -398,12 +413,31 @@ export async function GET(request: NextRequest) {
       };
     });
 
+    // Sprint A1 — brand-pick readiness for UI gate
+    let brand_pick: Awaited<
+      ReturnType<typeof checkSchoolBrandPickGate>
+    > | null = null;
+    try {
+      const catalogue = await resolveCatalogueContext(supabase, companyId, {
+        schoolProfileId: Number(school.id),
+      });
+      if (catalogue.agencyProfileId) {
+        brand_pick = await checkSchoolBrandPickGate(supabase, {
+          schoolProfileId: Number(school.id),
+          agencyProfileId: catalogue.agencyProfileId,
+        });
+      }
+    } catch {
+      brand_pick = null;
+    }
+
     return NextResponse.json({
       success: true,
       role: 'school',
       orders,
+      brand_pick,
       process:
-        'Order only DBE-approved products from your linked SP. The SP sources from wholesalers and delivers to your school with POD.',
+        'Order only DBE-approved products from your linked SP. The SP sources from wholesalers and delivers to your school with POD. Multi-brand recipe lines must be brand-picked first.',
     });
   } catch (e: unknown) {
     return NextResponse.json(
@@ -827,6 +861,25 @@ export async function POST(request: NextRequest) {
           error:
             'Join and get approved by your DBE / PEU / DoH before ordering. Orders only use that department’s approved foods list.',
           catalogue: { source: catalogue.source },
+        },
+        { status: 400 }
+      );
+    }
+
+    // Sprint A1 — brand-pick gate (multi-brand BOM lines must be chosen)
+    const brandGate = await checkSchoolBrandPickGate(supabase, {
+      schoolProfileId: Number(school.id),
+      agencyProfileId: catalogue.agencyProfileId,
+    });
+    if (!brandGate.ok) {
+      return NextResponse.json(
+        {
+          error: brandGate.message || 'Complete brand picks before ordering',
+          brand_pick_gate: true,
+          missing_brand_picks: brandGate.missing,
+          multi_brand_lines: brandGate.multi_brand_lines,
+          href: brandGate.href || '/dashboard/schools/recipes',
+          hard_block: true,
         },
         { status: 400 }
       );
