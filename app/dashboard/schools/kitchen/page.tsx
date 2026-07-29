@@ -153,6 +153,8 @@ function Inner() {
     dir: 'asc' | 'desc';
   }>({ key: 'product', dir: 'asc' });
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  /** School can tick any stock lines to build a PO (not only suggested) */
+  const [orderSelect, setOrderSelect] = useState<Set<number>>(() => new Set());
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -470,44 +472,46 @@ function Inner() {
     }
   };
 
-  const orderSuggested = (onlyReorder = false) => {
-    // Banner "at reorder" uses status; must not require suggested_order_qty > 0 only
-    // (whole-UOM rounding can zero suggest while days-left still flags reorder).
-    const source = onlyReorder
-      ? reorderPlanLines
-      : suggestedLines.length
-        ? suggestedLines
-        : reorderPlanLines;
-    if (!source.length) {
-      return toast.message(
-        onlyReorder
-          ? 'Nothing at reorder point right now — refresh after saving cover/levels'
-          : 'No suggested order qty — check cover days and menu recipes'
+  /** Build PO lines from kitchen stock — any product, not only system-suggested. */
+  const orderQtyForRow = (p: {
+    suggested_order_qty?: number;
+    target_qty?: number;
+    qty_on_hand?: number;
+    status?: string;
+    uom: string;
+  }) => {
+    let qty = Number(p.suggested_order_qty) || 0;
+    if (!(qty > 0)) {
+      const gap = Math.max(
+        0,
+        Number(p.target_qty || 0) - Number(p.qty_on_hand || 0)
       );
+      qty = gap > 0 ? gap : 1;
     }
-    const payload = source
-      .map((p) => {
-        let qty = Number(p.suggested_order_qty) || 0;
-        if (!(qty > 0) && (p.status === 'reorder' || p.status === 'critical')) {
-          // Fall back: top up to target, or at least 1 whole UOM
-          const gap = Math.max(0, Number(p.target_qty) - Number(p.qty_on_hand));
-          qty = roundStockQty(gap > 0 ? gap : 1, p.uom, 'ceil') || 1;
-        }
-        qty = roundStockQty(qty, p.uom, 'ceil') || 0;
-        return {
-          approved_product_id: p.approved_product_id,
-          product_name: p.product_name,
-          brand_name: p.brand_name,
-          qty,
-          uom: p.uom,
-          unit_price: 0,
-        };
-      })
-      .filter((l) => l.qty > 0);
+    return roundStockQty(qty, p.uom, 'ceil') || 1;
+  };
+
+  const pushOrderPayload = (
+    rows: Array<{
+      approved_product_id: number;
+      product_name: string;
+      brand_name: string;
+      uom: string;
+      qty: number;
+    }>
+  ) => {
+    const payload = rows
+      .map((r) => ({
+        approved_product_id: r.approved_product_id,
+        product_name: r.product_name,
+        brand_name: r.brand_name,
+        qty: roundStockQty(r.qty, r.uom, 'ceil') || 0,
+        uom: r.uom,
+        unit_price: 0,
+      }))
+      .filter((l) => l.qty > 0 && l.approved_product_id > 0);
     if (!payload.length) {
-      return toast.message(
-        'Could not compute order quantities — check on-hand levels and cover days'
-      );
+      return toast.message('No order lines to send — pick products and set qty');
     }
     try {
       sessionStorage.setItem(SUGGESTED_PO_KEY, JSON.stringify(payload));
@@ -518,6 +522,119 @@ function Inner() {
       `${payload.length} line(s) ready on Orders — review qty, delivery date & SP, then submit`
     );
     window.location.href = '/dashboard/schools/orders?suggested=1';
+  };
+
+  const orderSuggested = (mode: 'suggested' | 'reorder' | 'selected' | 'all') => {
+    const planById = new Map(
+      (stockPlan?.products || []).map((p) => [p.approved_product_id, p])
+    );
+
+    if (mode === 'selected') {
+      if (!orderSelect.size) {
+        return toast.message(
+          'Tick products in the inventory list (or use Order on a row), then try again'
+        );
+      }
+      const rows = levelRows
+        .filter((r) => orderSelect.has(r.approved_product_id))
+        .map((r) => {
+          const plan = planById.get(r.approved_product_id);
+          return {
+            approved_product_id: r.approved_product_id,
+            product_name: r.product_name,
+            brand_name: r.brand_name,
+            uom: r.uom,
+            qty: orderQtyForRow({
+              suggested_order_qty:
+                plan?.suggested_order_qty ?? r.suggested_order_qty,
+              target_qty: plan?.target_qty ?? (Number(r.target_level) || 0),
+              qty_on_hand: Number(r.qty_on_hand) || 0,
+              status: plan?.status || r.cover_status,
+              uom: r.uom,
+            }),
+          };
+        });
+      return pushOrderPayload(rows);
+    }
+
+    if (mode === 'all') {
+      if (!levelRows.length) {
+        return toast.message('No catalogue products to order');
+      }
+      const rows = levelRows.map((r) => {
+        const plan = planById.get(r.approved_product_id);
+        return {
+          approved_product_id: r.approved_product_id,
+          product_name: r.product_name,
+          brand_name: r.brand_name,
+          uom: r.uom,
+          qty: orderQtyForRow({
+            suggested_order_qty:
+              plan?.suggested_order_qty ?? r.suggested_order_qty,
+            target_qty: plan?.target_qty ?? (Number(r.target_level) || 0),
+            qty_on_hand: Number(r.qty_on_hand) || 0,
+            status: plan?.status || r.cover_status,
+            uom: r.uom,
+          }),
+        };
+      });
+      return pushOrderPayload(rows);
+    }
+
+    // suggested | reorder from stock plan
+    const source =
+      mode === 'reorder'
+        ? reorderPlanLines
+        : suggestedLines.length
+          ? suggestedLines
+          : reorderPlanLines;
+    if (!source.length) {
+      return toast.message(
+        mode === 'reorder'
+          ? 'Nothing at reorder point — select products below and use Order selected, or Order any product'
+          : 'No auto-suggested lines — select products in the list and Order selected (any product is allowed)'
+      );
+    }
+    pushOrderPayload(
+      source.map((p) => ({
+        approved_product_id: p.approved_product_id,
+        product_name: p.product_name,
+        brand_name: p.brand_name,
+        uom: p.uom,
+        qty: orderQtyForRow(p),
+      }))
+    );
+  };
+
+  const toggleOrderSelect = (pid: number) => {
+    setOrderSelect((prev) => {
+      const next = new Set(prev);
+      if (next.has(pid)) next.delete(pid);
+      else next.add(pid);
+      return next;
+    });
+  };
+
+  const orderOneProduct = (r: LevelRow) => {
+    const plan = (stockPlan?.products || []).find(
+      (p) => p.approved_product_id === r.approved_product_id
+    );
+    pushOrderPayload([
+      {
+        approved_product_id: r.approved_product_id,
+        product_name: r.product_name,
+        brand_name: r.brand_name,
+        uom: r.uom,
+        qty: orderQtyForRow({
+          suggested_order_qty:
+            plan?.suggested_order_qty ?? r.suggested_order_qty,
+          target_qty: plan?.target_qty ?? (Number(r.target_level) || 0),
+          qty_on_hand: Number(r.qty_on_hand) || 0,
+          status: plan?.status || r.cover_status,
+          uom: r.uom,
+        }),
+      },
+    ]);
   };
 
   const adjust = async (
@@ -799,12 +916,22 @@ function Inner() {
           </button>
           <button
             type="button"
-            onClick={() => orderSuggested(false)}
+            onClick={() => orderSuggested('suggested')}
             className="btn-secondary !py-2.5 !px-3 text-xs inline-flex items-center justify-center gap-1"
-            disabled={!suggestedLines.length}
+            title="Products with a system-suggested top-up qty"
           >
             <ShoppingCart className="w-3.5 h-3.5" />
             Suggested PO ({suggestedLines.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => orderSuggested('selected')}
+            className="btn-primary !py-2.5 !px-3 text-xs inline-flex items-center justify-center gap-1"
+            disabled={!orderSelect.size}
+            title="Order any products you ticked in the inventory list"
+          >
+            <ShoppingCart className="w-3.5 h-3.5" />
+            Order selected ({orderSelect.size})
           </button>
         </div>
       </div>
@@ -832,10 +959,18 @@ function Inner() {
           </span>
           <button
             type="button"
-            onClick={() => orderSuggested(true)}
+            onClick={() => orderSuggested('reorder')}
             className="btn-primary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
           >
             <ShoppingCart className="w-3.5 h-3.5" /> Order reorder list
+          </button>
+          <button
+            type="button"
+            onClick={() => orderSuggested('selected')}
+            className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
+            disabled={!orderSelect.size}
+          >
+            Order selected ({orderSelect.size})
           </button>
         </div>
       )}
@@ -848,17 +983,47 @@ function Inner() {
               Inventory levels · estimated holding
             </p>
             <p className="text-[11px] text-slate-500">
-              Daily use from recipes × learners. Target = daily × cover days.
-              Suggested PO = target − on hand.
+              Daily use from recipes × learners. Tick any product to order from
+              your SP — not only system-suggested lines. Suggested PO = target −
+              on hand.
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               type="button"
               onClick={() => setShowLevels((v) => !v)}
               className="btn-secondary !py-1.5 !px-3 text-xs"
             >
               {showLevels ? 'Hide' : 'Show'}
+            </button>
+            <button
+              type="button"
+              onClick={() => orderSuggested('selected')}
+              disabled={!orderSelect.size}
+              className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1 disabled:opacity-40"
+            >
+              <ShoppingCart className="w-3.5 h-3.5" />
+              Order selected ({orderSelect.size})
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setOrderSelect(
+                  new Set(sortedFilteredLevels.map((r) => r.approved_product_id))
+                );
+              }}
+              className="btn-secondary !py-1.5 !px-3 text-xs"
+              title="Select all products currently visible in the list"
+            >
+              Select visible
+            </button>
+            <button
+              type="button"
+              onClick={() => setOrderSelect(new Set())}
+              className="btn-secondary !py-1.5 !px-3 text-xs"
+              disabled={!orderSelect.size}
+            >
+              Clear
             </button>
             <button
               type="button"
@@ -914,6 +1079,9 @@ function Inner() {
             <table className="w-full text-sm min-w-[960px]">
               <thead className="sticky top-0 bg-slate-50 z-10">
                 <tr className="border-b text-left">
+                  <th className="px-2 py-2 w-8">
+                    <span className="sr-only">Select for PO</span>
+                  </th>
                   <SortTh label="Product" sortKey="product" className="px-3" />
                   <SortTh label="Daily use" sortKey="daily_usage" />
                   <SortTh label="Days left" sortKey="days_on_hand" />
@@ -922,13 +1090,16 @@ function Inner() {
                   <SortTh label="Target hold" sortKey="target_level" />
                   <SortTh label="Suggest PO" sortKey="suggested_order_qty" />
                   <SortTh label="UOM" sortKey="uom" />
+                  <th className="px-2 py-2 text-[10px] font-bold uppercase text-slate-400">
+                    Order
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {levelRows.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={8}
+                      colSpan={10}
                       className="px-4 py-8 text-center text-slate-500"
                     >
                       No catalogue products yet — join DBE for the approved list.
@@ -937,7 +1108,7 @@ function Inner() {
                 ) : sortedFilteredLevels.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={8}
+                      colSpan={10}
                       className="px-4 py-8 text-center text-slate-500"
                     >
                       No products in this category.
@@ -951,7 +1122,7 @@ function Inner() {
                         className="bg-slate-100/90 border-y border-slate-200"
                       >
                         <td
-                          colSpan={8}
+                          colSpan={10}
                           className="px-3 py-1.5 text-[11px] font-black uppercase tracking-wide text-slate-700"
                         >
                           {group.category.replace(/_/g, ' ')}
@@ -976,6 +1147,7 @@ function Inner() {
                         onHand <= reorder);
                     const critical = r.cover_status === 'critical';
                     const pid = r.approved_product_id;
+                    const selected = orderSelect.has(pid);
                     return (
                       <tr
                         key={r.approved_product_id}
@@ -984,9 +1156,21 @@ function Inner() {
                             ? 'bg-rose-50/70'
                             : low
                               ? 'bg-amber-50/60'
-                              : ''
+                              : selected
+                                ? 'bg-sky-50/50'
+                                : ''
                         }`}
                       >
+                        <td className="px-2 py-1.5">
+                          <input
+                            type="checkbox"
+                            className="rounded border-slate-300"
+                            checked={selected}
+                            onChange={() => toggleOrderSelect(pid)}
+                            title="Include on next SP order"
+                            aria-label={`Select ${r.product_name} for order`}
+                          />
+                        </td>
                         <td className="px-3 py-1.5">
                           <div className="font-semibold text-xs">
                             {r.product_name}
@@ -1126,6 +1310,17 @@ function Inner() {
                         </td>
                         <td className="px-2 py-1.5 text-xs text-slate-500">
                           {r.uom}
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <button
+                            type="button"
+                            onClick={() => orderOneProduct(r)}
+                            className="text-[10px] font-bold text-sky-800 border border-sky-200 bg-sky-50 hover:bg-sky-100 rounded-lg px-2 py-1 inline-flex items-center gap-0.5"
+                            title="Add this product to a new SP order (any product — not only suggested)"
+                          >
+                            <ShoppingCart className="w-3 h-3" />
+                            Order
+                          </button>
                         </td>
                       </tr>
                     );
