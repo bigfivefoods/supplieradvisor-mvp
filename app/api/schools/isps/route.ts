@@ -27,6 +27,140 @@ async function enrichIspNames(
   return names;
 }
 
+const CLAIM_COLS = [
+  'accepted_at',
+  'requested_at',
+  'requested_by',
+  'requested_by_user_id',
+] as const;
+
+function isMissingColumnError(message: string): boolean {
+  return (
+    /schema cache/i.test(message) ||
+    /could not find.*column/i.test(message) ||
+    /column .* does not exist/i.test(message)
+  );
+}
+
+function missingClaimColumn(message: string): boolean {
+  return (
+    isMissingColumnError(message) &&
+    CLAIM_COLS.some((c) => message.toLowerCase().includes(c))
+  );
+}
+
+const MIGRATION_HINT =
+  'Run Supabase migration 20260729_school_isp_links_claim_columns.sql (adds accepted_at / requested_at on school_isp_links), then reload the schema cache.';
+
+/**
+ * Upsert school↔SP link. If claim-flow columns are missing in DB, retry with
+ * core columns only so linking still works until migration is applied.
+ */
+async function upsertSchoolIspLink(
+  supabase: ReturnType<typeof getSupabaseServer>,
+  row: {
+    school_profile_id: number;
+    school_company_id: number;
+    isp_profile_id: number;
+    status: string;
+    preferred?: boolean;
+    notes?: string | null;
+    requested_by?: string | null;
+    requested_at?: string | null;
+    requested_by_user_id?: string | null;
+    accepted_at?: string | null;
+    updated_at: string;
+  }
+): Promise<{ data: Record<string, unknown> | null; error: string | null }> {
+  const full = { ...row };
+  let { data, error } = await supabase
+    .from('school_isp_links')
+    .upsert(full, { onConflict: 'school_profile_id,isp_profile_id' })
+    .select('*')
+    .single();
+
+  if (error && missingClaimColumn(error.message)) {
+    const core = {
+      school_profile_id: row.school_profile_id,
+      school_company_id: row.school_company_id,
+      isp_profile_id: row.isp_profile_id,
+      status: row.status,
+      preferred: row.preferred ?? false,
+      notes: row.notes ?? null,
+      updated_at: row.updated_at,
+    };
+    const retry = await supabase
+      .from('school_isp_links')
+      .upsert(core, { onConflict: 'school_profile_id,isp_profile_id' })
+      .select('*')
+      .single();
+    data = retry.data;
+    error = retry.error;
+    if (!error) {
+      return {
+        data: data as Record<string, unknown>,
+        error: null,
+      };
+    }
+    return {
+      data: null,
+      error: `${error.message}. ${MIGRATION_HINT}`,
+    };
+  }
+
+  if (error) {
+    return {
+      data: null,
+      error: missingClaimColumn(error.message)
+        ? `${error.message}. ${MIGRATION_HINT}`
+        : error.message,
+    };
+  }
+  return { data: data as Record<string, unknown>, error: null };
+}
+
+async function updateSchoolIspLink(
+  supabase: ReturnType<typeof getSupabaseServer>,
+  id: number,
+  patch: Record<string, unknown>
+): Promise<{ data: Record<string, unknown> | null; error: string | null }> {
+  let { data, error } = await supabase
+    .from('school_isp_links')
+    .update(patch)
+    .eq('id', id)
+    .select('*')
+    .single();
+
+  if (error && missingClaimColumn(error.message)) {
+    const core = { ...patch };
+    for (const c of CLAIM_COLS) delete core[c];
+    const retry = await supabase
+      .from('school_isp_links')
+      .update(core)
+      .eq('id', id)
+      .select('*')
+      .single();
+    data = retry.data;
+    error = retry.error;
+    if (error) {
+      return {
+        data: null,
+        error: `${error.message}. ${MIGRATION_HINT}`,
+      };
+    }
+  }
+
+  if (error) {
+    return {
+      data: null,
+      error: missingClaimColumn(error.message)
+        ? `${error.message}. ${MIGRATION_HINT}`
+        : error.message,
+    };
+  }
+  return { data: data as Record<string, unknown>, error: null };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const companyId = Number(request.nextUrl.searchParams.get('companyId'));
@@ -746,29 +880,22 @@ export async function POST(request: NextRequest) {
       }
 
       const now = new Date().toISOString();
-      const { data, error: cErr } = await supabase
-        .from('school_isp_links')
-        .upsert(
-          {
-            school_profile_id: schoolProfileId,
-            school_company_id: schoolCompanyId,
-            isp_profile_id: companyId,
-            status: 'pending',
-            preferred: false,
-            notes: body.notes || 'SP claim / connect request',
-            requested_by: 'isp',
-            requested_at: now,
-            requested_by_user_id: gate.userId || null,
-            accepted_at: null,
-            updated_at: now,
-          },
-          { onConflict: 'school_profile_id,isp_profile_id' }
-        )
-        .select('*')
-        .single();
+      const { data, error: cErr } = await upsertSchoolIspLink(supabase, {
+        school_profile_id: schoolProfileId,
+        school_company_id: schoolCompanyId,
+        isp_profile_id: companyId,
+        status: 'pending',
+        preferred: false,
+        notes: body.notes || 'SP claim / connect request',
+        requested_by: 'isp',
+        requested_at: now,
+        requested_by_user_id: gate.userId || null,
+        accepted_at: null,
+        updated_at: now,
+      });
 
       if (cErr) {
-        return NextResponse.json({ error: cErr.message }, { status: 400 });
+        return NextResponse.json({ error: cErr }, { status: 400 });
       }
       return NextResponse.json({
         success: true,
@@ -839,20 +966,19 @@ export async function POST(request: NextRequest) {
       }
 
       const now = new Date().toISOString();
-      const { data, error: uErr } = await supabase
-        .from('school_isp_links')
-        .update({
+      const { data, error: uErr } = await updateSchoolIspLink(
+        supabase,
+        Number(existing.id),
+        {
           status: accept ? 'active' : 'rejected',
           accepted_at: accept ? now : null,
           notes: body.notes || existing.notes || null,
           updated_at: now,
-        })
-        .eq('id', existing.id)
-        .select('*')
-        .single();
+        }
+      );
 
       if (uErr) {
-        return NextResponse.json({ error: uErr.message }, { status: 400 });
+        return NextResponse.json({ error: uErr }, { status: 400 });
       }
       return NextResponse.json({
         success: true,
@@ -957,35 +1083,28 @@ export async function POST(request: NextRequest) {
     }
 
     const now = new Date().toISOString();
-    const { data, error: lErr } = await supabase
-      .from('school_isp_links')
-      .upsert(
-        {
-          school_profile_id: school.id,
-          school_company_id: companyId,
-          isp_profile_id: ispProfileId,
-          status: body.status === 'pending' ? 'pending' : 'active',
-          preferred: Boolean(body.preferred),
-          notes: body.notes || null,
-          requested_by: 'school',
-          requested_at: now,
-          requested_by_user_id: gate.userId || null,
-          accepted_at: body.status === 'pending' ? null : now,
-          updated_at: now,
-        },
-        { onConflict: 'school_profile_id,isp_profile_id' }
-      )
-      .select('*')
-      .single();
+    const { data, error: lErr } = await upsertSchoolIspLink(supabase, {
+      school_profile_id: Number(school.id),
+      school_company_id: companyId,
+      isp_profile_id: ispProfileId,
+      status: body.status === 'pending' ? 'pending' : 'active',
+      preferred: Boolean(body.preferred),
+      notes: body.notes || null,
+      requested_by: 'school',
+      requested_at: now,
+      requested_by_user_id: gate.userId || null,
+      accepted_at: body.status === 'pending' ? null : now,
+      updated_at: now,
+    });
 
     if (lErr) {
-      return NextResponse.json({ error: lErr.message }, { status: 400 });
+      return NextResponse.json({ error: lErr }, { status: 400 });
     }
     return NextResponse.json({
       success: true,
       link: data,
       message:
-        String(data.status) === 'active'
+        String(data?.status) === 'active'
           ? 'SP linked to school'
           : 'Invite sent to SP',
     });
