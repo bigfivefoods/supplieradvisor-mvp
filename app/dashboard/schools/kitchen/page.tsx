@@ -197,14 +197,14 @@ function Inner() {
                 : '',
           stock_id: s?.id != null ? Number(s.id) : undefined,
           low_stock: Boolean(s?.low_stock),
-          daily_usage: plan?.daily_usage ?? Number(s?.daily_usage) || 0,
+          daily_usage:
+            plan?.daily_usage ?? (Number(s?.daily_usage) || 0),
           days_on_hand:
             plan?.days_on_hand ??
             (s?.days_on_hand != null ? Number(s.days_on_hand) : null),
           suggested_order_qty:
             plan?.suggested_order_qty ??
-            Number(s?.suggested_order_qty) ||
-            0,
+            (Number(s?.suggested_order_qty) || 0),
           cover_status: plan?.status || String(s?.cover_status || ''),
           cover_message: plan?.message || String(s?.cover_message || ''),
         };
