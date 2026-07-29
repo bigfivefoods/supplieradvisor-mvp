@@ -401,6 +401,11 @@ function Inner() {
               desc: 'Honest scores — menu & feeding completeness',
             },
             {
+              href: '/dashboard/schools/recipes',
+              label: 'Recipes · MPS / MRP',
+              desc: 'BOM from catalogue · meals & product requirements',
+            },
+            {
               href: '/dashboard/schools/monitoring',
               label: 'NSNP Monitoring Tool',
               desc: 'Field worker form · KPI · RKMP · health & gardens',
