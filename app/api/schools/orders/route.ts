@@ -151,7 +151,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: oErr.message }, { status: 400 });
     }
 
-    // Enrich SP display names for school list
+    // Enrich SP display names for school list (profile_id or isp row id)
     const ispIds = [
       ...new Set(
         (data || [])
@@ -163,13 +163,16 @@ export async function GET(request: NextRequest) {
     if (ispIds.length) {
       const { data: isps } = await supabase
         .from('nsnp_isp_profiles')
-        .select('profile_id, trading_name')
-        .in('profile_id', ispIds);
-      for (const i of isps || []) {
-        ispNames.set(
-          Number(i.profile_id),
-          String(i.trading_name || `SP ${i.profile_id}`)
+        .select('id, profile_id, trading_name')
+        .or(
+          `profile_id.in.(${ispIds.join(',')}),id.in.(${ispIds.join(',')})`
         );
+      for (const i of isps || []) {
+        const name = String(i.trading_name || '').trim();
+        if (name) {
+          ispNames.set(Number(i.profile_id), name);
+          ispNames.set(Number(i.id), name);
+        }
       }
       const missing = ispIds.filter((id) => !ispNames.has(id));
       if (missing.length) {
@@ -180,21 +183,33 @@ export async function GET(request: NextRequest) {
         for (const p of profs || []) {
           ispNames.set(
             Number(p.id),
-            String(p.trading_name || p.legal_name || `SP ${p.id}`)
+            String(p.trading_name || p.legal_name || '').trim() ||
+              `SP ${p.id}`
           );
         }
       }
     }
 
-    const orders = (data || []).map((o) => ({
-      ...o,
-      isp_name:
-        ispNames.get(Number(o.isp_profile_id)) ||
-        (o.isp_profile_id ? `SP ${o.isp_profile_id}` : '—'),
-      school_name: String(
-        (school as { school_name?: string }).school_name || 'School'
-      ),
-    }));
+    const orders = (data || []).map((o) => {
+      const meta =
+        o.metadata && typeof o.metadata === 'object'
+          ? (o.metadata as Record<string, unknown>)
+          : {};
+      const fromMeta =
+        meta.isp_name != null ? String(meta.isp_name).trim() : '';
+      return {
+        ...o,
+        isp_name:
+          fromMeta ||
+          ispNames.get(Number(o.isp_profile_id)) ||
+          (o.isp_profile_id ? `SP ${o.isp_profile_id}` : '—'),
+        school_name: String(
+          meta.school_name ||
+            (school as { school_name?: string }).school_name ||
+            'School'
+        ),
+      };
+    });
 
     return NextResponse.json({
       success: true,
@@ -209,6 +224,116 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+/** Resolve SP display name + CSD by company profile_id or nsnp_isp_profiles.id */
+async function resolveIspParty(
+  supabase: ReturnType<typeof getSupabaseServer>,
+  ispKey: number | null | undefined
+): Promise<PoParty> {
+  if (!ispKey || !Number.isFinite(Number(ispKey))) {
+    return { kind: 'isp', name: 'Service provider' };
+  }
+  const key = Number(ispKey);
+
+  // 1) Lookup ISP registry by company profile_id
+  let isp: Record<string, unknown> | null = null;
+  {
+    const { data } = await supabase
+      .from('nsnp_isp_profiles')
+      .select(
+        'id, profile_id, trading_name, contact_name, contact_phone, contact_email, csd_number, province, district, metadata'
+      )
+      .eq('profile_id', key)
+      .maybeSingle();
+    isp = (data as Record<string, unknown>) || null;
+  }
+  // 2) Fallback: key might be nsnp_isp_profiles.id (serial), not profile_id
+  if (!isp) {
+    const { data } = await supabase
+      .from('nsnp_isp_profiles')
+      .select(
+        'id, profile_id, trading_name, contact_name, contact_phone, contact_email, csd_number, province, district, metadata'
+      )
+      .eq('id', key)
+      .maybeSingle();
+    isp = (data as Record<string, unknown>) || null;
+  }
+
+  const companyId =
+    isp?.profile_id != null && Number.isFinite(Number(isp.profile_id))
+      ? Number(isp.profile_id)
+      : key;
+
+  // 3) Company profile (trading / legal name)
+  const { data: ispProf } = await supabase
+    .from('profiles')
+    .select(
+      'id, trading_name, legal_name, city, province, phone, email, address, contact_name, contact_phone'
+    )
+    .eq('id', companyId)
+    .maybeSingle();
+
+  const meta =
+    isp?.metadata && typeof isp.metadata === 'object'
+      ? (isp.metadata as Record<string, unknown>)
+      : {};
+
+  const pickName = (...vals: unknown[]) => {
+    for (const v of vals) {
+      const s = v != null ? String(v).trim() : '';
+      if (
+        s &&
+        !/^service provider\s+\d+$/i.test(s) &&
+        !/^sp\s+\d+$/i.test(s)
+      ) {
+        return s;
+      }
+    }
+    return '';
+  };
+
+  const spName =
+    pickName(
+      isp?.trading_name,
+      ispProf?.trading_name,
+      ispProf?.legal_name,
+      meta.trading_name,
+      meta.name,
+      meta.registered_name,
+      meta.company_name,
+      meta.supplier_name
+    ) || `Service provider ${companyId}`;
+
+  const csdRaw = pickName(
+    isp?.csd_number,
+    meta.csd_number,
+    meta.csd,
+    meta.CSD_NUMBER
+  );
+
+  return {
+    kind: 'isp',
+    name: spName,
+    trading_name: pickName(isp?.trading_name, ispProf?.trading_name) || null,
+    legal_name: pickName(ispProf?.legal_name) || null,
+    csd_number: csdRaw || null,
+    district: isp?.district != null ? String(isp.district) : null,
+    province:
+      isp?.province != null
+        ? String(isp.province)
+        : ispProf?.province != null
+          ? String(ispProf.province)
+          : null,
+    address: ispProf?.address != null ? String(ispProf.address) : null,
+    contact_name:
+      pickName(isp?.contact_name, ispProf?.contact_name) || null,
+    contact_phone:
+      pickName(isp?.contact_phone, ispProf?.phone, ispProf?.contact_phone) ||
+      null,
+    contact_email:
+      pickName(isp?.contact_email, ispProf?.email) || null,
+  };
 }
 
 async function loadPoDetail(
@@ -340,104 +465,46 @@ async function loadPoDetail(
     }
   }
 
-  let ispParty: PoParty = {
-    kind: 'isp',
-    name: ispProfileId ? `Service provider ${ispProfileId}` : 'Service provider',
-  };
-  if (ispProfileId) {
-    // Prefer full SP registry row (name + CSD)
-    let isp: Record<string, unknown> | null = null;
-    {
-      const { data } = await supabase
-        .from('nsnp_isp_profiles')
-        .select(
-          'profile_id, trading_name, contact_name, contact_phone, contact_email, csd_number, province, district, metadata'
-        )
-        .eq('profile_id', ispProfileId)
-        .maybeSingle();
-      isp = data as Record<string, unknown> | null;
-    }
-    const { data: ispProf } = await supabase
-      .from('profiles')
-      .select(
-        'trading_name, legal_name, city, province, phone, email, address, contact_name, contact_phone'
-      )
-      .eq('id', ispProfileId)
-      .maybeSingle();
+  // Snapshot from PO metadata (set at create) wins over live lookup
+  const orderMeta =
+    order.metadata && typeof order.metadata === 'object'
+      ? (order.metadata as Record<string, unknown>)
+      : {};
 
-    const meta =
-      isp?.metadata && typeof isp.metadata === 'object'
-        ? (isp.metadata as Record<string, unknown>)
-        : {};
-    const metaName = [
-      meta.trading_name,
-      meta.name,
-      meta.registered_name,
-      meta.company_name,
-    ]
-      .map((v) => (v != null ? String(v).trim() : ''))
-      .find((v) => v.length > 0);
-
-    const spName =
-      [
-        isp?.trading_name,
-        ispProf?.trading_name,
-        ispProf?.legal_name,
-        metaName,
-      ]
-        .map((v) => (v != null ? String(v).trim() : ''))
-        .find((v) => v.length > 0) || `Service provider ${ispProfileId}`;
-
-    const csdRaw =
-      isp?.csd_number != null
-        ? String(isp.csd_number).trim()
-        : meta.csd_number != null
-          ? String(meta.csd_number).trim()
-          : meta.csd != null
-            ? String(meta.csd).trim()
-            : '';
-
+  let ispParty = await resolveIspParty(supabase, ispProfileId);
+  if (
+    orderMeta.isp_name &&
+    String(orderMeta.isp_name).trim() &&
+    (!ispParty.name ||
+      /^service provider\s+\d+$/i.test(ispParty.name) ||
+      /^sp\s+\d+$/i.test(ispParty.name))
+  ) {
     ispParty = {
-      kind: 'isp',
-      name: spName,
-      trading_name:
-        isp?.trading_name != null
-          ? String(isp.trading_name)
-          : ispProf?.trading_name != null
-            ? String(ispProf.trading_name)
-            : null,
-      legal_name:
-        ispProf?.legal_name != null ? String(ispProf.legal_name) : null,
-      csd_number: csdRaw || null,
-      district: isp?.district != null ? String(isp.district) : null,
-      province:
-        isp?.province != null
-          ? String(isp.province)
-          : ispProf?.province != null
-            ? String(ispProf.province)
-            : null,
-      address: ispProf?.address != null ? String(ispProf.address) : null,
-      contact_name:
-        isp?.contact_name != null
-          ? String(isp.contact_name)
-          : ispProf?.contact_name != null
-            ? String(ispProf.contact_name)
-            : null,
-      contact_phone:
-        isp?.contact_phone != null
-          ? String(isp.contact_phone)
-          : ispProf?.phone != null
-            ? String(ispProf.phone)
-            : ispProf?.contact_phone != null
-              ? String(ispProf.contact_phone)
-              : null,
-      contact_email:
-        isp?.contact_email != null
-          ? String(isp.contact_email)
-          : ispProf?.email != null
-            ? String(ispProf.email)
-            : null,
+      ...ispParty,
+      name: String(orderMeta.isp_name).trim(),
     };
+  }
+  if (
+    orderMeta.isp_csd_number &&
+    String(orderMeta.isp_csd_number).trim() &&
+    !ispParty.csd_number
+  ) {
+    ispParty = {
+      ...ispParty,
+      csd_number: String(orderMeta.isp_csd_number).trim(),
+    };
+  }
+  if (
+    orderMeta.school_name &&
+    String(orderMeta.school_name).trim()
+  ) {
+    // keep live school party but fill blank name from snapshot
+    if (!schoolParty.name || schoolParty.name.startsWith('School ')) {
+      schoolParty.name = String(orderMeta.school_name).trim();
+    }
+  }
+  if (orderMeta.school_natemis && !schoolParty.natemis) {
+    schoolParty.natemis = String(orderMeta.school_natemis).trim();
   }
 
   let agency_name: string | null = null;
@@ -673,6 +740,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Snapshot school + SP names onto the PO so PDF always shows them
+    const ispPartySnap = await resolveIspParty(supabase, ispProfileId);
+    const schoolNameSnap = String(
+      (school as { school_name?: string }).school_name || 'School'
+    );
+    const schoolNatemisSnap =
+      (school as { natemis?: string | null }).natemis != null
+        ? String((school as { natemis?: string }).natemis)
+        : null;
+    const poMeta = {
+      isp_name: ispPartySnap.name,
+      isp_csd_number: ispPartySnap.csd_number,
+      school_name: schoolNameSnap,
+      school_natemis: schoolNatemisSnap,
+      school_emis:
+        (school as { emis_number?: string | null }).emis_number != null
+          ? String((school as { emis_number?: string }).emis_number)
+          : null,
+    };
+
     const { data, error: iErr } = await supabase
       .from('school_purchase_orders')
       .insert({
@@ -688,6 +775,7 @@ export async function POST(request: NextRequest) {
         lines,
         compliance_ok: true,
         notes: body.notes || null,
+        metadata: poMeta,
         // created_by is bigint on some schemas — never store Privy DID
       })
       .select('*')
