@@ -128,18 +128,22 @@ export async function GET(request: NextRequest) {
 
     const recipes = await loadRecipes(supabase, agencyProfileId);
     const activeRecipes = recipes.filter((r) => r.active !== false);
-    // Default schedule: each active recipe serves 5x/week if meal_type set
-    // breakfast recipes 5/week, lunch 5/week — if multiple per type, split evenly
-    const byMeal = new Map<string, Recipe[]>();
-    for (const r of activeRecipes) {
-      const mt = String(r.meal_type || 'lunch');
-      const list = byMeal.get(mt) || [];
-      list.push(r);
-      byMeal.set(mt, list);
-    }
+    // Schedule: weekday-assigned recipes serve 1×/week; unassigned split across 5 days by meal type
+    const byMealUnassigned = new Map<string, Recipe[]>();
     const recipeSchedule: Array<{ recipe: Recipe; servesPerWeek: number }> =
       [];
-    for (const [, list] of byMeal) {
+    for (const r of activeRecipes) {
+      const wd = r.weekday != null ? Number(r.weekday) : null;
+      if (wd != null && wd >= 1 && wd <= 5) {
+        recipeSchedule.push({ recipe: r, servesPerWeek: 1 });
+      } else {
+        const mt = String(r.meal_type || 'lunch');
+        const list = byMealUnassigned.get(mt) || [];
+        list.push(r);
+        byMealUnassigned.set(mt, list);
+      }
+    }
+    for (const [, list] of byMealUnassigned) {
       const each = list.length ? 5 / list.length : 0;
       for (const recipe of list) {
         recipeSchedule.push({
@@ -571,10 +575,17 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    let weekday: number | null = null;
+    if (body.weekday != null && body.weekday !== '' && body.weekday !== 'any') {
+      const w = Number(body.weekday);
+      if (Number.isFinite(w) && w >= 1 && w <= 5) weekday = w;
+    }
+
     const recipeRow = {
       agency_profile_id: companyId,
       name,
       meal_type: String(body.meal_type || 'lunch'),
+      weekday,
       dish_code: body.dish_code || null,
       description: body.description || null,
       portion_learners: Number(body.portion_learners || 1) || 1,
@@ -585,21 +596,46 @@ export async function POST(request: NextRequest) {
 
     let recipeId = body.id ? Number(body.id) : null;
     if (recipeId && Number.isFinite(recipeId)) {
-      const { error } = await supabase
+      let { error } = await supabase
         .from('nsnp_recipes')
         .update(recipeRow)
         .eq('id', recipeId)
         .eq('agency_profile_id', companyId);
+      // Retry without weekday if column not migrated yet
+      if (error && /weekday/i.test(error.message)) {
+        const { weekday: _w, ...withoutWeekday } = recipeRow;
+        void _w;
+        const retry = await supabase
+          .from('nsnp_recipes')
+          .update(withoutWeekday)
+          .eq('id', recipeId)
+          .eq('agency_profile_id', companyId);
+        error = retry.error;
+        if (!error) {
+          // still ok — weekday needs migration 20260729_nsnp_recipe_weekday.sql
+        }
+      }
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 400 });
       }
       await supabase.from('nsnp_recipe_lines').delete().eq('recipe_id', recipeId);
     } else {
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('nsnp_recipes')
         .insert(recipeRow)
         .select('id')
         .single();
+      if (error && /weekday/i.test(error.message)) {
+        const { weekday: _w, ...withoutWeekday } = recipeRow;
+        void _w;
+        const retry = await supabase
+          .from('nsnp_recipes')
+          .insert(withoutWeekday)
+          .select('id')
+          .single();
+        data = retry.data;
+        error = retry.error;
+      }
       if (error) {
         if (/does not exist|schema cache/i.test(error.message)) {
           return NextResponse.json(
@@ -612,7 +648,7 @@ export async function POST(request: NextRequest) {
         }
         return NextResponse.json({ error: error.message }, { status: 400 });
       }
-      recipeId = Number(data.id);
+      recipeId = Number(data!.id);
     }
 
     const lineRows = lines.map((l, i) => ({
@@ -656,7 +692,7 @@ async function loadRecipes(
   supabase: ReturnType<typeof getSupabaseServer>,
   agencyProfileId: number
 ): Promise<Recipe[]> {
-  const { data: recipes, error } = await supabase
+  let { data: recipes, error } = await supabase
     .from('nsnp_recipes')
     .select('*')
     .eq('agency_profile_id', agencyProfileId)
@@ -667,6 +703,24 @@ async function loadRecipes(
     if (/does not exist|schema cache/i.test(error.message)) return [];
     return [];
   }
+  // Sort in app: weekday Mon–Fri, then breakfast before lunch
+  recipes = [...(recipes || [])].sort((a, b) => {
+    const wa =
+      a.weekday != null && Number(a.weekday) >= 1 && Number(a.weekday) <= 5
+        ? Number(a.weekday)
+        : 99;
+    const wb =
+      b.weekday != null && Number(b.weekday) >= 1 && Number(b.weekday) <= 5
+        ? Number(b.weekday)
+        : 99;
+    if (wa !== wb) return wa - wb;
+    const ma =
+      String(a.meal_type || '').toLowerCase() === 'breakfast' ? 0 : 1;
+    const mb =
+      String(b.meal_type || '').toLowerCase() === 'breakfast' ? 0 : 1;
+    if (ma !== mb) return ma - mb;
+    return String(a.name || '').localeCompare(String(b.name || ''));
+  });
   const ids = (recipes || []).map((r) => Number(r.id));
   if (!ids.length) return [];
   const { data: lines } = await supabase
@@ -694,17 +748,25 @@ async function loadRecipes(
     });
     byRecipe.set(rid, arr);
   }
-  return (recipes || []).map((r) => ({
-    id: Number(r.id),
-    agency_profile_id: Number(r.agency_profile_id),
-    name: String(r.name),
-    meal_type: String(r.meal_type || 'lunch'),
-    dish_code: r.dish_code != null ? String(r.dish_code) : null,
-    description: r.description != null ? String(r.description) : null,
-    portion_learners: Number(r.portion_learners || 1),
-    active: r.active !== false,
-    lines: byRecipe.get(Number(r.id)) || [],
-  }));
+  return (recipes || []).map((r) => {
+    const wd =
+      r.weekday != null && r.weekday !== ''
+        ? Number(r.weekday)
+        : null;
+    return {
+      id: Number(r.id),
+      agency_profile_id: Number(r.agency_profile_id),
+      name: String(r.name),
+      meal_type: String(r.meal_type || 'lunch'),
+      weekday:
+        wd != null && Number.isFinite(wd) && wd >= 1 && wd <= 5 ? wd : null,
+      dish_code: r.dish_code != null ? String(r.dish_code) : null,
+      description: r.description != null ? String(r.description) : null,
+      portion_learners: Number(r.portion_learners || 1),
+      active: r.active !== false,
+      lines: byRecipe.get(Number(r.id)) || [],
+    };
+  });
 }
 
 async function loadBudgets(

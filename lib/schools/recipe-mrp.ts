@@ -21,6 +21,8 @@ export type Recipe = {
   agency_profile_id: number;
   name: string;
   meal_type: string;
+  /** 1=Mon … 5=Fri; null = unassigned / any day */
+  weekday?: number | null;
   dish_code?: string | null;
   description?: string | null;
   portion_learners: number;

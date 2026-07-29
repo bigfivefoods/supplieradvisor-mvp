@@ -8,10 +8,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   Calculator,
+  Coffee,
   Loader2,
   Plus,
   RefreshCw,
   Save,
+  Sun,
   Trash2,
   Utensils,
   Wallet,
@@ -28,6 +30,7 @@ import {
   SchoolsHeader,
   SchoolsPage,
 } from '@/components/schools/SchoolsShell';
+import { SCHOOL_WEEK_DAYS } from '@/lib/schools/meal-guide';
 
 type Product = {
   id: number;
@@ -51,6 +54,8 @@ type Recipe = {
   id: number;
   name: string;
   meal_type: string;
+  /** 1=Mon … 5=Fri */
+  weekday?: number | null;
   portion_learners: number;
   active?: boolean;
   description?: string | null;
@@ -152,6 +157,7 @@ function Inner() {
   const [editId, setEditId] = useState<number | null>(null);
   const [name, setName] = useState('');
   const [mealType, setMealType] = useState('lunch');
+  const [weekday, setWeekday] = useState<string>('1'); // 1–5 Mon–Fri
   const [description, setDescription] = useState('');
   const [bomLines, setBomLines] = useState<BomLine[]>([]);
   const [productId, setProductId] = useState('');
@@ -220,6 +226,7 @@ function Inner() {
     setEditId(null);
     setName('');
     setMealType('lunch');
+    setWeekday('1');
     setDescription('');
     setBomLines([]);
   };
@@ -228,6 +235,11 @@ function Inner() {
     setEditId(r.id);
     setName(r.name);
     setMealType(r.meal_type || 'lunch');
+    setWeekday(
+      r.weekday != null && r.weekday >= 1 && r.weekday <= 5
+        ? String(r.weekday)
+        : ''
+    );
     setDescription(r.description || '');
     setBomLines(
       (r.lines || []).map((l) => ({
@@ -242,6 +254,51 @@ function Inner() {
     );
     setTab('recipes');
   };
+
+  /** Group recipes Mon→Fri, breakfast then lunch within each day */
+  const recipesByWeekday = useMemo(() => {
+    const mealRank = (mt: string) =>
+      String(mt || '').toLowerCase() === 'breakfast' ? 0 : 1;
+    const sortInDay = (a: Recipe, b: Recipe) => {
+      const mr = mealRank(a.meal_type) - mealRank(b.meal_type);
+      if (mr !== 0) return mr;
+      return String(a.name).localeCompare(String(b.name));
+    };
+
+    const days = SCHOOL_WEEK_DAYS.map((d) => ({
+      day: d.day as number,
+      label: d.label,
+      short: d.short,
+      breakfast: [] as Recipe[],
+      lunch: [] as Recipe[],
+      other: [] as Recipe[],
+    }));
+    const unassigned: Recipe[] = [];
+
+    for (const r of recipes) {
+      const wd = r.weekday != null ? Number(r.weekday) : NaN;
+      const bucket = days.find((d) => d.day === wd);
+      if (!bucket) {
+        unassigned.push(r);
+        continue;
+      }
+      const mt = String(r.meal_type || '').toLowerCase();
+      if (mt === 'breakfast') bucket.breakfast.push(r);
+      else if (mt === 'lunch') bucket.lunch.push(r);
+      else bucket.other.push(r);
+    }
+    for (const d of days) {
+      d.breakfast.sort(sortInDay);
+      d.lunch.sort(sortInDay);
+      d.other.sort(sortInDay);
+    }
+    unassigned.sort((a, b) => {
+      const mr = mealRank(a.meal_type) - mealRank(b.meal_type);
+      if (mr !== 0) return mr;
+      return String(a.name).localeCompare(String(b.name));
+    });
+    return { days, unassigned };
+  }, [recipes]);
 
   const addBomLine = () => {
     const prod = products.find((p) => p.id === Number(productId));
@@ -291,6 +348,7 @@ function Inner() {
           id: editId,
           name: name.trim(),
           meal_type: mealType,
+          weekday: weekday === '' ? null : Number(weekday),
           description: description || null,
           portion_learners: 1,
           lines: bomLines.map((l) => ({
@@ -515,19 +573,38 @@ function Inner() {
                   placeholder="e.g. Sample samp & beans lunch"
                 />
               </label>
-              <label className="block text-xs">
-                <span className="text-[10px] font-bold uppercase text-slate-400">
-                  Meal type
-                </span>
-                <select
-                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                  value={mealType}
-                  onChange={(e) => setMealType(e.target.value)}
-                >
-                  <option value="breakfast">Breakfast</option>
-                  <option value="lunch">Lunch</option>
-                </select>
-              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="block text-xs">
+                  <span className="text-[10px] font-bold uppercase text-slate-400">
+                    Weekday
+                  </span>
+                  <select
+                    className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold"
+                    value={weekday}
+                    onChange={(e) => setWeekday(e.target.value)}
+                  >
+                    <option value="1">Monday</option>
+                    <option value="2">Tuesday</option>
+                    <option value="3">Wednesday</option>
+                    <option value="4">Thursday</option>
+                    <option value="5">Friday</option>
+                    <option value="">Unassigned</option>
+                  </select>
+                </label>
+                <label className="block text-xs">
+                  <span className="text-[10px] font-bold uppercase text-slate-400">
+                    Meal type
+                  </span>
+                  <select
+                    className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold"
+                    value={mealType}
+                    onChange={(e) => setMealType(e.target.value)}
+                  >
+                    <option value="breakfast">Breakfast</option>
+                    <option value="lunch">Lunch</option>
+                  </select>
+                </label>
+              </div>
               <label className="block text-xs">
                 <span className="text-[10px] font-bold uppercase text-slate-400">
                   Description
@@ -703,56 +780,109 @@ function Inner() {
           </div>
 
           <div className="lg:col-span-3 rounded-3xl border border-slate-200 bg-white overflow-hidden">
-            <div className="px-4 py-3 border-b text-sm font-black flex items-center gap-2">
-              <Utensils className="w-4 h-4 text-[#0077b6]" />
-              Saved recipes ({recipes.length})
+            <div className="px-4 py-3 border-b text-sm font-black flex flex-wrap items-center justify-between gap-2">
+              <span className="inline-flex items-center gap-2">
+                <Utensils className="w-4 h-4 text-[#0077b6]" />
+                Saved recipes ({recipes.length})
+              </span>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Mon–Fri · breakfast then lunch
+              </span>
             </div>
             {recipes.length === 0 ? (
               <p className="px-4 py-12 text-center text-slate-500 text-sm">
                 No recipes yet. Create a BOM using approved catalogue products.
+                Assign a weekday so the weekly menu groups correctly.
               </p>
             ) : (
-              <ul className="divide-y">
-                {recipes.map((r) => (
-                  <li
-                    key={r.id}
-                    className="px-4 py-3 flex flex-wrap items-start justify-between gap-2"
-                  >
-                    <div>
-                      <p className="font-bold text-sm">
-                        {r.name}{' '}
-                        <span className="text-[10px] font-bold uppercase text-slate-400">
-                          {r.meal_type}
+              <div className="divide-y divide-slate-100">
+                {recipesByWeekday.days.map((day) => {
+                  const dayRecipes = [
+                    ...day.breakfast,
+                    ...day.lunch,
+                    ...day.other,
+                  ];
+                  return (
+                    <section key={day.day} className="bg-white">
+                      <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between gap-2 sticky top-0">
+                        <p className="text-sm font-black text-slate-900">
+                          <span className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-sky-100 text-sky-900 text-xs font-black mr-2">
+                            {day.short}
+                          </span>
+                          {day.label}
+                        </p>
+                        <span className="text-[11px] font-semibold text-slate-500 tabular-nums">
+                          {dayRecipes.length} recipe
+                          {dayRecipes.length === 1 ? '' : 's'}
+                          {day.breakfast.length || day.lunch.length
+                            ? ` · ${day.breakfast.length}B / ${day.lunch.length}L`
+                            : ''}
                         </span>
+                      </div>
+                      {dayRecipes.length === 0 ? (
+                        <p className="px-4 py-3 text-xs text-slate-400 italic">
+                          No recipes for {day.label} yet
+                        </p>
+                      ) : (
+                        <div className="divide-y divide-slate-50">
+                          {day.breakfast.length > 0 ? (
+                            <MealGroup
+                              label="Breakfast"
+                              icon="breakfast"
+                              recipes={day.breakfast}
+                              editId={editId}
+                              onEdit={openEdit}
+                              onDelete={deleteRecipe}
+                            />
+                          ) : null}
+                          {day.lunch.length > 0 ? (
+                            <MealGroup
+                              label="Lunch"
+                              icon="lunch"
+                              recipes={day.lunch}
+                              editId={editId}
+                              onEdit={openEdit}
+                              onDelete={deleteRecipe}
+                            />
+                          ) : null}
+                          {day.other.length > 0 ? (
+                            <MealGroup
+                              label="Other meals"
+                              icon="lunch"
+                              recipes={day.other}
+                              editId={editId}
+                              onEdit={openEdit}
+                              onDelete={deleteRecipe}
+                            />
+                          ) : null}
+                        </div>
+                      )}
+                    </section>
+                  );
+                })}
+                {recipesByWeekday.unassigned.length > 0 ? (
+                  <section className="bg-amber-50/40">
+                    <div className="px-4 py-2.5 border-b border-amber-100 flex items-center justify-between">
+                      <p className="text-sm font-black text-amber-950">
+                        Unassigned weekday
                       </p>
-                      <p className="text-[11px] text-slate-500 mt-0.5">
-                        {(r.lines || [])
-                          .map(
-                            (l) =>
-                              `${l.product_name} ${l.qty_per_portion}${l.uom}`
-                          )
-                          .join(' · ') || 'No lines'}
-                      </p>
+                      <span className="text-[11px] text-amber-800 font-semibold">
+                        {recipesByWeekday.unassigned.length} · set weekday on
+                        edit
+                      </span>
                     </div>
-                    <div className="flex gap-1">
-                      <button
-                        type="button"
-                        onClick={() => openEdit(r)}
-                        className="text-[11px] font-bold text-[#0077b6] px-2 py-1"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void deleteRecipe(r.id)}
-                        className="text-[11px] font-bold text-rose-600 px-2 py-1"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+                    <MealGroup
+                      label="Any day"
+                      icon="lunch"
+                      recipes={recipesByWeekday.unassigned}
+                      editId={editId}
+                      onEdit={openEdit}
+                      onDelete={deleteRecipe}
+                      bare
+                    />
+                  </section>
+                ) : null}
+              </div>
             )}
           </div>
         </div>
@@ -1288,6 +1418,93 @@ function Stat({
         {label}
       </div>
       <div className="text-lg font-black tabular-nums">{value}</div>
+    </div>
+  );
+}
+
+function MealGroup({
+  label,
+  icon,
+  recipes,
+  editId,
+  onEdit,
+  onDelete,
+  bare,
+}: {
+  label: string;
+  icon: 'breakfast' | 'lunch';
+  recipes: Recipe[];
+  editId: number | null;
+  onEdit: (r: Recipe) => void;
+  onDelete: (id: number) => void;
+  bare?: boolean;
+}) {
+  const Icon = icon === 'breakfast' ? Coffee : Sun;
+  const tone =
+    icon === 'breakfast'
+      ? 'text-amber-800 bg-amber-50 border-amber-100'
+      : 'text-sky-800 bg-sky-50 border-sky-100';
+
+  return (
+    <div className={bare ? '' : ''}>
+      {!bare ? (
+        <div
+          className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-wider border-b flex items-center gap-1.5 ${tone}`}
+        >
+          <Icon className="w-3 h-3" />
+          {label}
+        </div>
+      ) : null}
+      <ul>
+        {recipes.map((r) => (
+          <li
+            key={r.id}
+            className={`px-4 py-3 flex flex-wrap items-start justify-between gap-2 ${
+              editId === r.id ? 'bg-sky-50/70' : 'hover:bg-slate-50/80'
+            }`}
+          >
+            <div className="min-w-0">
+              <p className="font-bold text-sm">
+                {r.name}{' '}
+                <span
+                  className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-md ${
+                    String(r.meal_type).toLowerCase() === 'breakfast'
+                      ? 'bg-amber-100 text-amber-900'
+                      : 'bg-sky-100 text-sky-900'
+                  }`}
+                >
+                  {r.meal_type || 'meal'}
+                </span>
+              </p>
+              <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                {(r.lines || [])
+                  .map(
+                    (l) =>
+                      `${l.product_name} ${l.qty_per_portion}${l.uom}`
+                  )
+                  .join(' · ') || 'No lines'}
+              </p>
+            </div>
+            <div className="flex gap-1 shrink-0">
+              <button
+                type="button"
+                onClick={() => onEdit(r)}
+                className="text-[11px] font-bold text-[#0077b6] px-2 py-1 hover:underline"
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                onClick={() => void onDelete(r.id)}
+                className="text-[11px] font-bold text-rose-600 px-2 py-1"
+                aria-label={`Delete ${r.name}`}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

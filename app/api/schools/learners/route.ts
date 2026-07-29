@@ -9,20 +9,45 @@ import {
   refreshSchoolCounts,
 } from '@/lib/schools/school-context';
 import {
+  buildLearnerTemplateAXlsx,
+  LEARNER_XLSX_MIME,
   learnerTemplateCsv,
-  parseLearnerCsv,
+  parseLearnerFile,
 } from '@/lib/schools/import';
 import { maskName, privacyEnabled } from '@/lib/schools/privacy';
+
+export const runtime = 'nodejs';
+export const maxDuration = 60;
 
 export async function GET(request: NextRequest) {
   try {
     const sp = request.nextUrl.searchParams;
-    if (sp.get('template') === '1') {
-      return new NextResponse(learnerTemplateCsv(), {
+    const template = String(sp.get('template') || '');
+
+    // Template A — Excel .xlsx (preferred)
+    if (
+      template === '1' ||
+      template === 'xlsx' ||
+      template === 'a' ||
+      template === 'A'
+    ) {
+      const format = String(sp.get('format') || 'xlsx').toLowerCase();
+      if (format === 'csv') {
+        return new NextResponse(learnerTemplateCsv(), {
+          headers: {
+            'Content-Type': 'text/csv; charset=utf-8',
+            'Content-Disposition':
+              'attachment; filename="NSNP_Learners_Template_A.csv"',
+          },
+        });
+      }
+      const bytes = buildLearnerTemplateAXlsx({ includeExamples: true });
+      return new NextResponse(Buffer.from(bytes), {
         headers: {
-          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Type': LEARNER_XLSX_MIME,
           'Content-Disposition':
-            'attachment; filename="NSNP_Learners_Import_Template.csv"',
+            'attachment; filename="NSNP_Learners_Template_A.xlsx"',
+          'Cache-Control': 'no-store',
         },
       });
     }
@@ -66,8 +91,9 @@ export async function GET(request: NextRequest) {
     if (q) {
       const qq = q.toLowerCase();
       learners = learners.filter((l) => {
-        const hay = `${l.first_name} ${l.last_name} ${l.external_id || ''} ${l.grade || ''}`
-          .toLowerCase();
+        const hay =
+          `${l.first_name} ${l.last_name} ${l.external_id || ''} ${l.grade || ''} ${l.class_name || ''}`
+            .toLowerCase();
         return hay.includes(qq);
       });
     }
@@ -133,9 +159,18 @@ export async function POST(request: NextRequest) {
     }
     const schoolId = Number(school.id);
 
-    // Bulk CSV import
-    if (body.csv != null || body.import === true) {
-      const parsed = parseLearnerCsv(String(body.csv || ''));
+    // Bulk CSV / Template A (.xlsx) import
+    if (
+      body.csv != null ||
+      body.xlsxBase64 != null ||
+      body.import === true
+    ) {
+      const parsed = parseLearnerFile({
+        fileName: body.fileName,
+        csvText: body.csv != null ? String(body.csv) : null,
+        xlsxBase64:
+          body.xlsxBase64 != null ? String(body.xlsxBase64) : null,
+      });
       if (!parsed.rows.length) {
         return NextResponse.json(
           {
@@ -152,7 +187,7 @@ export async function POST(request: NextRequest) {
           school_profile_id: schoolId,
           profile_id: companyId,
           kind: 'learners',
-          file_name: body.fileName || 'import.csv',
+          file_name: body.fileName || 'import.xlsx',
           row_count: parsed.rows.length,
           error_count: parsed.errors.length,
           errors: parsed.errors,
@@ -181,7 +216,6 @@ export async function POST(request: NextRequest) {
         import_batch_id: batchId,
       }));
 
-      // chunk insert
       let success = 0;
       const insertErrors: string[] = [];
       for (let i = 0; i < inserts.length; i += 200) {
@@ -229,8 +263,8 @@ export async function POST(request: NextRequest) {
         school_profile_id: schoolId,
         profile_id: companyId,
         external_id: body.external_id || null,
-        first_name: String(body.first_name),
-        last_name: String(body.last_name),
+        first_name: String(body.first_name).trim(),
+        last_name: String(body.last_name).trim(),
         date_of_birth: body.date_of_birth || null,
         grade: body.grade || null,
         class_name: body.class_name || null,
@@ -240,7 +274,7 @@ export async function POST(request: NextRequest) {
         guardian_name: body.guardian_name || null,
         guardian_phone: body.guardian_phone || null,
         verification_status: body.verification_status || 'draft',
-        status: 'active',
+        status: body.status || 'active',
       })
       .select('*')
       .single();
@@ -262,12 +296,8 @@ export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
     const companyId = Number(body.companyId);
-    const id = Number(body.id);
-    if (!Number.isFinite(companyId) || !Number.isFinite(id)) {
-      return NextResponse.json(
-        { error: 'companyId and id required' },
-        { status: 400 }
-      );
+    if (!Number.isFinite(companyId)) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
     const gate = await requireCompanyAccess(request, companyId, {
       legacyPrivyUserId: legacyPrivyFrom(request),
@@ -280,9 +310,17 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'No school' }, { status: 503 });
     }
 
-    // Bulk verify
+    // Bulk verify / attestation
     if (Array.isArray(body.ids) && body.verification_status) {
-      const ids = body.ids.map(Number).filter((n: number) => Number.isFinite(n));
+      const ids = body.ids
+        .map(Number)
+        .filter((n: number) => Number.isFinite(n));
+      if (!ids.length) {
+        return NextResponse.json(
+          { error: 'ids required for bulk update' },
+          { status: 400 }
+        );
+      }
       const st = String(body.verification_status);
       const { error: bErr } = await supabase
         .from('school_learners')
@@ -304,24 +342,55 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ success: true, updated: ids.length });
     }
 
+    // Single learner update
+    const id = Number(body.id);
+    if (!Number.isFinite(id)) {
+      return NextResponse.json(
+        { error: 'id required (or ids for bulk verification)' },
+        { status: 400 }
+      );
+    }
+
     const patch: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
     };
-    for (const k of [
+    const strFields = [
       'first_name',
       'last_name',
       'grade',
       'class_name',
       'gender',
-      'nsnp_eligible',
       'special_diet',
       'status',
       'external_id',
       'guardian_name',
       'guardian_phone',
       'date_of_birth',
-    ]) {
-      if (body[k] !== undefined) patch[k] = body[k];
+    ] as const;
+    for (const k of strFields) {
+      if (body[k] !== undefined) {
+        const v = body[k];
+        if (v === null || v === '') {
+          // first/last must stay non-empty when provided
+          if (k === 'first_name' || k === 'last_name') {
+            return NextResponse.json(
+              { error: `${k} cannot be empty` },
+              { status: 400 }
+            );
+          }
+          patch[k] = null;
+        } else {
+          patch[k] = String(v).trim();
+        }
+      }
+    }
+    if (body.nsnp_eligible !== undefined) {
+      const v = body.nsnp_eligible;
+      if (v === false || v === 'N' || v === 'n' || v === 'no' || v === 0 || v === '0') {
+        patch.nsnp_eligible = false;
+      } else {
+        patch.nsnp_eligible = true;
+      }
     }
     if (body.verification_status) {
       patch.verification_status = body.verification_status;
@@ -340,6 +409,7 @@ export async function PATCH(request: NextRequest) {
       .update(patch)
       .eq('id', id)
       .eq('profile_id', companyId)
+      .eq('school_profile_id', school.id)
       .select('*')
       .single();
 
