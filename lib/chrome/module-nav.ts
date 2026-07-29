@@ -537,16 +537,16 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         section: 'Field',
       },
       {
-        name: 'Visits',
+        name: 'Trip calendar',
         href: '/dashboard/schools/visits',
-        desc: 'Plan · field pack · planned vs actual',
+        desc: 'Plan PEU circuits · calendar · planned vs actual',
         group: 'DBE',
         section: 'Field',
       },
       {
-        name: 'Monitoring tool',
+        name: 'Monitoring form',
         href: '/dashboard/schools/monitoring',
-        desc: 'KZN NSNP form · KPI · RKMP · gardens',
+        desc: 'Full KZN tool · open from planned stops',
         group: 'DBE',
         section: 'Field',
       },
@@ -717,6 +717,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       {
         name: 'PEU visits',
         href: '/dashboard/schools/visits',
+        // school view of planned/completed department visits
         desc: 'Planned · audit results · RIAD',
         group: 'School',
         section: 'Fund',

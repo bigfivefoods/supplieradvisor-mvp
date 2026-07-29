@@ -10,9 +10,14 @@ import {
   AlertTriangle,
   CalendarDays,
   Camera,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   ClipboardCheck,
+  ExternalLink,
   Loader2,
   MapPin,
+  Plus,
   RefreshCw,
   Search,
   Upload,
@@ -83,13 +88,25 @@ function Inner() {
 
 function AgencyVisits({ companyId }: { companyId: number }) {
   const cameraRef = useRef<HTMLInputElement>(null);
-  const [tab, setTab] = useState<'plan' | 'field' | 'report'>('field');
+  const [tab, setTab] = useState<'calendar' | 'plan' | 'field' | 'report'>(
+    'calendar'
+  );
   const [loading, setLoading] = useState(true);
   const [visits, setVisits] = useState<Array<Record<string, unknown>>>([]);
   const [plans, setPlans] = useState<Array<Record<string, unknown>>>([]);
   const [report, setReport] = useState<Record<string, unknown> | null>(null);
   const [period, setPeriod] = useState<PeriodSlicerValue>(() =>
     initialPeriodSlicerValue('this_month', 3)
+  );
+  // Trip calendar (feeding-calendar style)
+  const [viewYear, setViewYear] = useState(() => new Date().getFullYear());
+  const [viewMonth, setViewMonth] = useState(() => new Date().getMonth() + 1);
+  const [calDays, setCalDays] = useState<
+    Record<string, Record<string, unknown>>
+  >({});
+  const [calSummary, setCalSummary] = useState<Record<string, number>>({});
+  const [selectedDate, setSelectedDate] = useState(() =>
+    new Date().toISOString().slice(0, 10)
   );
 
   // Smart school filter
@@ -159,6 +176,22 @@ function AgencyVisits({ companyId }: { companyId: number }) {
     }
   }, [companyId, q, district, circuit, cmc, municipality]);
 
+  const loadCalendar = useCallback(async () => {
+    try {
+      const res = await fetch(
+        `/api/schools/visits?companyId=${companyId}&mode=calendar&year=${viewYear}&month=${viewMonth}`,
+        { cache: 'no-store', credentials: 'same-origin' }
+      );
+      const data = await res.json();
+      if (res.ok) {
+        setCalDays((data.days || {}) as Record<string, Record<string, unknown>>);
+        setCalSummary((data.summary || {}) as Record<string, number>);
+      }
+    } catch {
+      /* soft */
+    }
+  }, [companyId, viewYear, viewMonth]);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -175,6 +208,7 @@ function AgencyVisits({ companyId }: { companyId: number }) {
           `/api/schools/visits?companyId=${companyId}&mode=report&from=${period.from}&to=${period.to}`,
           { cache: 'no-store', credentials: 'same-origin' }
         ),
+        loadCalendar(),
       ]);
       const v = await vRes.json();
       const p = await pRes.json();
@@ -216,16 +250,25 @@ function AgencyVisits({ companyId }: { companyId: number }) {
     } finally {
       setLoading(false);
     }
-  }, [companyId, period.from, period.to, loadSchools]);
+  }, [companyId, period.from, period.to, loadSchools, loadCalendar]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
   useEffect(() => {
+    void loadCalendar();
+  }, [loadCalendar]);
+
+  useEffect(() => {
     const t = setTimeout(() => void loadSchools(), 300);
     return () => clearTimeout(t);
   }, [loadSchools]);
+
+  useEffect(() => {
+    // Keep plan form date in sync with calendar selection
+    setPlanDate(selectedDate);
+  }, [selectedDate]);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -413,7 +456,8 @@ function AgencyVisits({ companyId }: { companyId: number }) {
       setPlanNotes('');
       setPlanTitle('');
       void load();
-      setTab('field');
+      void loadCalendar();
+      setTab('calendar');
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed');
     } finally {
@@ -438,13 +482,58 @@ function AgencyVisits({ companyId }: { companyId: number }) {
     toast.message(`Field pack loaded for ${v.school_name || v.school_profile_id}`);
   };
 
+  const openMonitoring = (peuVisitId: number) => {
+    window.location.href = `/dashboard/schools/monitoring?peuVisitId=${peuVisitId}`;
+  };
+
+  const monthGrid = useMemo(() => {
+    const first = new Date(viewYear, viewMonth - 1, 1, 12, 0, 0);
+    const startPad = (first.getDay() + 6) % 7; // Monday-first
+    const daysInMonth = new Date(viewYear, viewMonth, 0).getDate();
+    const cells: Array<{ date: string | null; day: number | null }> = [];
+    for (let i = 0; i < startPad; i++) cells.push({ date: null, day: null });
+    for (let d = 1; d <= daysInMonth; d++) {
+      const iso = `${viewYear}-${String(viewMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      cells.push({ date: iso, day: d });
+    }
+    while (cells.length % 7 !== 0) cells.push({ date: null, day: null });
+    return cells;
+  }, [viewYear, viewMonth]);
+
+  const selectedCell = calDays[selectedDate] as
+    | {
+        planned?: Array<Record<string, unknown>>;
+        completed?: Array<Record<string, unknown>>;
+        monitoring?: Array<Record<string, unknown>>;
+      }
+    | undefined;
+
+  const shiftMonth = (delta: number) => {
+    let m = viewMonth + delta;
+    let y = viewYear;
+    if (m < 1) {
+      m = 12;
+      y -= 1;
+    } else if (m > 12) {
+      m = 1;
+      y += 1;
+    }
+    setViewMonth(m);
+    setViewYear(y);
+  };
+
+  const monthLabel = new Date(viewYear, viewMonth - 1, 1).toLocaleString(
+    'en-ZA',
+    { month: 'long', year: 'numeric' }
+  );
+
   return (
     <SchoolsPage>
       <SchoolsHeader
-        title="PEU monitor visits"
-        titleAccent="Field pack · plans"
+        title="Monitoring trips"
+        titleAccent="Calendar · form · report"
         mode="agency"
-        description="Plan multi-school circuit days, log GPS + photos + checklist offline, raise RIADs on site, report planned vs actual."
+        description="Plan PEU circuit days on the calendar (like the feeding calendar), run the full NSNP Monitoring Tool on site, and track planned vs actual."
         action={
           <div className="flex flex-wrap gap-2">
             <Link
@@ -452,7 +541,13 @@ function AgencyVisits({ companyId }: { companyId: number }) {
               className="btn-primary !py-2 !px-3 text-xs inline-flex items-center gap-1"
             >
               <ClipboardCheck className="w-3.5 h-3.5" />
-              NSNP Monitoring Tool
+              Monitoring form
+            </Link>
+            <Link
+              href="/dashboard/schools/monitoring-report"
+              className="btn-secondary !py-2 !px-3 text-xs"
+            >
+              KPI report
             </Link>
             <button
               type="button"
@@ -468,8 +563,9 @@ function AgencyVisits({ companyId }: { companyId: number }) {
       <div className="flex flex-wrap gap-2 mb-4">
         {(
           [
-            { id: 'field', label: 'Field pack', icon: ClipboardCheck },
-            { id: 'plan', label: 'Visit plan', icon: CalendarDays },
+            { id: 'calendar', label: 'Trip calendar', icon: CalendarDays },
+            { id: 'plan', label: 'Build day plan', icon: Plus },
+            { id: 'field', label: 'Quick field pack', icon: ClipboardCheck },
             { id: 'report', label: 'Planned vs actual', icon: Search },
           ] as const
         ).map((t) => (
@@ -489,7 +585,273 @@ function AgencyVisits({ companyId }: { companyId: number }) {
         ))}
       </div>
 
-      {/* Shared smart school filters */}
+      {/* KPI strip */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-4">
+        {[
+          { l: 'Planned (month)', v: calSummary.planned ?? 0 },
+          { l: 'Completed', v: calSummary.completed ?? 0 },
+          { l: 'Monitoring forms', v: calSummary.monitoring_forms ?? 0 },
+          { l: 'Trip days', v: calSummary.trip_days ?? 0 },
+          { l: 'Schools touched', v: calSummary.schools ?? 0 },
+        ].map((k) => (
+          <div
+            key={k.l}
+            className="rounded-2xl border border-slate-200 bg-white px-3 py-2"
+          >
+            <p className="text-[10px] font-bold uppercase text-slate-400">
+              {k.l}
+            </p>
+            <p className="text-xl font-black tabular-nums">{k.v}</p>
+          </div>
+        ))}
+      </div>
+
+      {tab === 'calendar' ? (
+        <div className="grid lg:grid-cols-5 gap-4 mb-4">
+          <div className="lg:col-span-3 rounded-3xl border border-slate-200 bg-white overflow-hidden">
+            <div className="px-4 py-3 border-b flex flex-wrap items-center justify-between gap-2 bg-gradient-to-r from-sky-50 to-violet-50">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => shiftMonth(-1)}
+                  className="rounded-xl border border-slate-200 bg-white p-1.5 hover:bg-slate-50"
+                  aria-label="Previous month"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <h3 className="text-sm font-black min-w-[9rem] text-center">
+                  {monthLabel}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => shiftMonth(1)}
+                  className="rounded-xl border border-slate-200 bg-white p-1.5 hover:bg-slate-50"
+                  aria-label="Next month"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2 text-[10px] font-bold">
+                <span className="inline-flex items-center gap-1">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-400" /> Planned
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Done
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="w-2.5 h-2.5 rounded-full bg-violet-500" /> Form
+                </span>
+              </div>
+            </div>
+            <div className="grid grid-cols-7 border-b text-[10px] font-bold uppercase text-slate-400 text-center">
+              {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
+                <div key={d} className="py-2">
+                  {d}
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-7">
+              {monthGrid.map((c, i) => {
+                if (!c.date) {
+                  return (
+                    <div
+                      key={`e-${i}`}
+                      className="min-h-[72px] border-b border-r border-slate-50 bg-slate-50/40"
+                    />
+                  );
+                }
+                const cell = calDays[c.date] as
+                  | {
+                      planned?: unknown[];
+                      completed?: unknown[];
+                      monitoring?: unknown[];
+                    }
+                  | undefined;
+                const p = cell?.planned?.length || 0;
+                const d = cell?.completed?.length || 0;
+                const mon = cell?.monitoring?.length || 0;
+                const isSel = c.date === selectedDate;
+                const isToday =
+                  c.date === new Date().toISOString().slice(0, 10);
+                const hasTrip = p + d + mon > 0;
+                return (
+                  <button
+                    key={c.date}
+                    type="button"
+                    onClick={() => {
+                      setSelectedDate(c.date!);
+                      setPlanDate(c.date!);
+                    }}
+                    className={`min-h-[72px] border-b border-r border-slate-100 p-1.5 text-left transition-colors ${
+                      isSel
+                        ? 'bg-sky-100 ring-2 ring-inset ring-[#00b4d8]'
+                        : hasTrip
+                          ? 'bg-amber-50/50 hover:bg-amber-50'
+                          : 'hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span
+                        className={`text-xs font-black tabular-nums ${
+                          isToday
+                            ? 'bg-slate-900 text-white rounded-full w-6 h-6 flex items-center justify-center'
+                            : 'text-slate-700'
+                        }`}
+                      >
+                        {c.day}
+                      </span>
+                      {hasTrip ? (
+                        <span className="text-[9px] font-bold text-slate-500">
+                          {p + d}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-0.5">
+                      {p > 0 ? (
+                        <span className="text-[9px] font-bold bg-amber-200 text-amber-950 rounded px-1">
+                          {p} plan
+                        </span>
+                      ) : null}
+                      {d > 0 ? (
+                        <span className="text-[9px] font-bold bg-emerald-200 text-emerald-950 rounded px-1">
+                          {d} done
+                        </span>
+                      ) : null}
+                      {mon > 0 ? (
+                        <span className="text-[9px] font-bold bg-violet-200 text-violet-950 rounded px-1">
+                          {mon} form
+                        </span>
+                      ) : null}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="lg:col-span-2 space-y-3">
+            <div className="rounded-3xl border border-slate-200 bg-white p-4">
+              <p className="text-[10px] font-bold uppercase text-slate-400">
+                Selected day
+              </p>
+              <h3 className="text-lg font-black mt-0.5">{selectedDate}</h3>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPlanDate(selectedDate);
+                    setTab('plan');
+                  }}
+                  className="btn-primary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Plan schools this day
+                </button>
+                <Link
+                  href={`/dashboard/schools/monitoring`}
+                  className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+                >
+                  <ClipboardCheck className="w-3.5 h-3.5" /> Full form
+                </Link>
+              </div>
+            </div>
+
+            <div className="rounded-3xl border border-amber-100 bg-amber-50/40 overflow-hidden">
+              <div className="px-4 py-2.5 border-b border-amber-100 text-xs font-bold uppercase text-amber-900">
+                Planned · {selectedCell?.planned?.length || 0}
+              </div>
+              <ul className="max-h-48 overflow-y-auto divide-y divide-amber-100/80">
+                {(selectedCell?.planned || []).length === 0 ? (
+                  <li className="px-4 py-6 text-sm text-slate-500 text-center">
+                    No schools planned — click Plan schools this day
+                  </li>
+                ) : (
+                  (selectedCell?.planned || []).map((v) => (
+                    <li
+                      key={String(v.id)}
+                      className="px-4 py-2.5 flex flex-wrap items-center justify-between gap-2"
+                    >
+                      <div className="min-w-0">
+                        <p className="font-semibold text-sm truncate">
+                          {String(v.school_name || v.school_profile_id)}
+                        </p>
+                        <p className="text-[11px] text-slate-500">
+                          {v.visitor_name
+                            ? String(v.visitor_name)
+                            : 'Unassigned officer'}
+                          {v.district ? ` · ${String(v.district)}` : ''}
+                        </p>
+                      </div>
+                      <div className="flex gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => openMonitoring(Number(v.id))}
+                          className="rounded-lg bg-violet-600 text-white text-[10px] font-bold px-2 py-1.5 inline-flex items-center gap-1"
+                        >
+                          Monitoring form
+                          <ExternalLink className="w-3 h-3" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => startPlanned(v)}
+                          className="rounded-lg border border-slate-200 bg-white text-[10px] font-bold px-2 py-1.5"
+                        >
+                          Quick pack
+                        </button>
+                      </div>
+                    </li>
+                  ))
+                )}
+              </ul>
+            </div>
+
+            <div className="rounded-3xl border border-emerald-100 bg-emerald-50/40 overflow-hidden">
+              <div className="px-4 py-2.5 border-b border-emerald-100 text-xs font-bold uppercase text-emerald-900 flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5" /> Completed ·{' '}
+                {(selectedCell?.completed?.length || 0) +
+                  (selectedCell?.monitoring?.length || 0)}
+              </div>
+              <ul className="max-h-40 overflow-y-auto divide-y text-sm">
+                {(selectedCell?.completed || []).map((v) => (
+                  <li key={`c-${v.id}`} className="px-4 py-2">
+                    <span className="font-semibold">
+                      {String(v.school_name || v.school_profile_id)}
+                    </span>
+                    <span className="text-xs text-slate-500 ml-2">
+                      PEU pack
+                      {v.overall_score != null
+                        ? ` · score ${v.overall_score}`
+                        : ''}
+                    </span>
+                  </li>
+                ))}
+                {(selectedCell?.monitoring || []).map((v) => (
+                  <li key={`m-${v.id}`} className="px-4 py-2 flex justify-between gap-2">
+                    <span className="font-semibold">
+                      {String(v.school_name || v.school_profile_id)}
+                    </span>
+                    <Link
+                      href={`/dashboard/schools/monitoring?id=${v.id}`}
+                      className="text-[10px] font-bold text-violet-700 underline"
+                    >
+                      Open form
+                    </Link>
+                  </li>
+                ))}
+                {(selectedCell?.completed?.length || 0) +
+                  (selectedCell?.monitoring?.length || 0) ===
+                0 ? (
+                  <li className="px-4 py-4 text-xs text-slate-500 text-center">
+                    Nothing completed this day yet
+                  </li>
+                ) : null}
+              </ul>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Shared smart school filters — plan/field */}
+      {tab === 'plan' || tab === 'field' ? (
       <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
         <p className="text-[10px] font-bold uppercase text-slate-400">
           Smart school filter · metadata
@@ -551,13 +913,14 @@ function AgencyVisits({ companyId }: { companyId: number }) {
           {schools.length.toLocaleString('en-ZA')} school(s) match filters
         </p>
       </div>
+      ) : null}
 
       {tab === 'plan' ? (
         <div className="grid lg:grid-cols-2 gap-4">
           <div className="rounded-3xl border border-slate-200 bg-white p-5 space-y-3">
             <h3 className="text-sm font-black flex items-center gap-2">
               <CalendarDays className="w-4 h-4 text-sky-700" />
-              Plan a circuit day
+              Plan a circuit day · {planDate}
             </h3>
             <label className="text-xs block">
               <span className="text-[10px] font-bold uppercase text-slate-400">

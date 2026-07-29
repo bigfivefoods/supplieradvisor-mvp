@@ -15,7 +15,7 @@ export const maxDuration = 60;
 /**
  * PEU / monitor visits + day plans
  *
- * GET  ?companyId=&mode=agency|school|plan|report|schools
+ * GET  ?companyId=&mode=agency|school|plan|report|schools|calendar
  * POST action: log_visit | complete_visit | create_plan | cancel_plan | notify_plan
  * PATCH update planned visit / cancel
  */
@@ -240,6 +240,179 @@ export async function GET(request: NextRequest) {
           district,
         })
       );
+    }
+
+    // ── Month calendar for trip planning ─────────────────────────────
+    if (mode === 'calendar') {
+      const agency = await getAgencyRegistration(supabase, companyId);
+      if (!agency) {
+        return NextResponse.json(
+          { error: 'DBE / PEU only', success: false },
+          { status: 403 }
+        );
+      }
+      const year = Number(sp.get('year') || new Date().getFullYear());
+      const month = Number(sp.get('month') || new Date().getMonth() + 1);
+      const y = Number.isFinite(year) ? year : new Date().getFullYear();
+      const m =
+        Number.isFinite(month) && month >= 1 && month <= 12
+          ? month
+          : new Date().getMonth() + 1;
+      const fromDay = `${y}-${String(m).padStart(2, '0')}-01`;
+      const lastDay = new Date(y, m, 0).getDate();
+      const toDay = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+      const { data: peuRows, error: peuErr } = await supabase
+        .from('nsnp_peu_visits')
+        .select('*')
+        .eq('agency_profile_id', companyId)
+        .or(
+          `and(planned_date.gte.${fromDay},planned_date.lte.${toDay}),and(visit_date.gte.${fromDay},visit_date.lte.${toDay})`
+        )
+        .limit(800);
+
+      if (peuErr && /does not exist|schema cache/i.test(peuErr.message)) {
+        return NextResponse.json({
+          success: true,
+          year: y,
+          month: m,
+          from: fromDay,
+          to: toDay,
+          days: {},
+          summary: { planned: 0, completed: 0, cancelled: 0, schools: 0 },
+          warning: 'Run PEU visits migration',
+        });
+      }
+
+      // Monitoring tool forms in period (for completeness)
+      let monRows: Array<Record<string, unknown>> = [];
+      try {
+        const { data: mon } = await supabase
+          .from('nsnp_monitoring_visits')
+          .select(
+            'id, school_profile_id, visit_date, status, total_score, kpi_score, peu_visit_id, visitor_name, school_name'
+          )
+          .eq('agency_profile_id', companyId)
+          .gte('visit_date', fromDay)
+          .lte('visit_date', toDay)
+          .limit(400);
+        monRows = (mon || []) as Array<Record<string, unknown>>;
+      } catch {
+        try {
+          const { data: mon2 } = await supabase
+            .from('school_nsnp_monitoring_visits')
+            .select(
+              'id, school_profile_id, visit_date, status, total_score, peu_visit_id'
+            )
+            .gte('visit_date', fromDay)
+            .lte('visit_date', toDay)
+            .limit(400);
+          monRows = (mon2 || []) as Array<Record<string, unknown>>;
+        } catch {
+          monRows = [];
+        }
+      }
+
+      const schoolIds = new Set<number>();
+      for (const v of peuRows || []) {
+        if (v.school_profile_id) schoolIds.add(Number(v.school_profile_id));
+      }
+      for (const v of monRows) {
+        if (v.school_profile_id) schoolIds.add(Number(v.school_profile_id));
+      }
+      const nameMap = await schoolNameMap(supabase, [...schoolIds]);
+
+      type DayCell = {
+        date: string;
+        planned: Array<Record<string, unknown>>;
+        completed: Array<Record<string, unknown>>;
+        monitoring: Array<Record<string, unknown>>;
+        cancelled: number;
+      };
+      const days: Record<string, DayCell> = {};
+      const ensure = (date: string): DayCell => {
+        if (!days[date]) {
+          days[date] = {
+            date,
+            planned: [],
+            completed: [],
+            monitoring: [],
+            cancelled: 0,
+          };
+        }
+        return days[date];
+      };
+
+      let plannedN = 0;
+      let completedN = 0;
+      let cancelledN = 0;
+      for (const v of peuRows || []) {
+        const st = String(v.status || '');
+        const d = String(
+          st === 'planned' || st === 'cancelled'
+            ? v.planned_date || v.visit_date
+            : v.visit_date || v.planned_date
+        ).slice(0, 10);
+        if (!d || d < fromDay || d > toDay) continue;
+        const cell = ensure(d);
+        const row = {
+          ...v,
+          school_name:
+            nameMap[Number(v.school_profile_id)] ||
+            (v as { school_name?: string }).school_name ||
+            null,
+        };
+        if (st === 'planned' || st === 'in_progress') {
+          cell.planned.push(row);
+          plannedN += 1;
+        } else if (st === 'completed') {
+          cell.completed.push(row);
+          completedN += 1;
+        } else if (st === 'cancelled') {
+          cell.cancelled += 1;
+          cancelledN += 1;
+        }
+      }
+      for (const v of monRows) {
+        const d = String(v.visit_date || '').slice(0, 10);
+        if (!d || d < fromDay || d > toDay) continue;
+        const cell = ensure(d);
+        cell.monitoring.push({
+          ...v,
+          school_name:
+            nameMap[Number(v.school_profile_id)] ||
+            (v.school_name != null ? String(v.school_name) : null),
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        role: 'agency',
+        year: y,
+        month: m,
+        from: fromDay,
+        to: toDay,
+        days,
+        summary: {
+          planned: plannedN,
+          completed: completedN,
+          cancelled: cancelledN,
+          monitoring_forms: monRows.length,
+          schools: schoolIds.size,
+          trip_days: Object.keys(days).filter(
+            (d) =>
+              (days[d].planned.length || 0) +
+                (days[d].completed.length || 0) +
+                (days[d].monitoring.length || 0) >
+              0
+          ).length,
+        },
+        links: {
+          monitoring: '/dashboard/schools/monitoring',
+          report: '/dashboard/schools/monitoring-report',
+          visits: '/dashboard/schools/visits',
+        },
+      });
     }
 
     // ── Day plans (grouped planned visits) ───────────────────────────

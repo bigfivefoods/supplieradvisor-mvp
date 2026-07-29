@@ -316,6 +316,10 @@ function Inner() {
   }, [loadList]);
 
   useEffect(() => {
+    if (canCreate) void loadPlannedVisits();
+  }, [canCreate, loadPlannedVisits]);
+
+  useEffect(() => {
     if (mode === 'form' && canCreate) {
       void loadSchools();
       void loadPlannedVisits();
@@ -718,11 +722,17 @@ function Inner() {
       <SchoolsPage>
         <SchoolsHeader
           title="NSNP Monitoring Tool"
-          titleAccent="2026-27"
-          description="KZN field-worker monitoring form for DBE/PEU. Live scoring for KPI, record keeping, health & safety, and food gardens."
+          titleAccent="2026-27 · field form"
+          description="Full KZN monitoring form (KPI · RKMP · health & gardens). Plan multi-school trip days on the visit calendar, then open a form from a planned stop."
           mode="agency"
           action={
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
+              <Link
+                href="/dashboard/schools/visits"
+                className="btn-primary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+              >
+                Trip calendar
+              </Link>
               <Link
                 href="/dashboard/schools/monitoring-report"
                 className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1"
@@ -740,7 +750,7 @@ function Inner() {
                 <button
                   type="button"
                   onClick={() => openNew()}
-                  className="btn-primary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+                  className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1"
                 >
                   <Plus className="w-3.5 h-3.5" /> New visit form
                 </button>
@@ -748,6 +758,54 @@ function Inner() {
             </div>
           }
         />
+
+        {canCreate && plannedVisits.length > 0 ? (
+          <div className="mb-4 rounded-3xl border border-amber-200 bg-amber-50/70 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+              <p className="text-sm font-black text-amber-950">
+                Planned circuit stops · {plannedVisits.length}
+              </p>
+              <Link
+                href="/dashboard/schools/visits"
+                className="text-xs font-bold text-amber-900 underline"
+              >
+                Open trip calendar →
+              </Link>
+            </div>
+            <ul className="flex flex-wrap gap-2">
+              {plannedVisits.slice(0, 12).map((p) => (
+                <li key={String(p.id)}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      openNew({ peuVisitId: Number(p.id) });
+                      applyPlannedPeu(p, schools);
+                    }}
+                    className="rounded-full border border-amber-300 bg-white px-3 py-1.5 text-xs font-bold text-amber-950 hover:bg-amber-100"
+                  >
+                    {String(p.school_name || p.school_profile_id)}
+                    {p.planned_date
+                      ? ` · ${String(p.planned_date).slice(0, 10)}`
+                      : ''}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : canCreate ? (
+          <div className="mb-4 rounded-2xl border border-sky-100 bg-sky-50/60 px-4 py-3 text-sm text-sky-950 flex flex-wrap items-center justify-between gap-2">
+            <span>
+              Plan PEU circuit days on the calendar, then run this form at each
+              school.
+            </span>
+            <Link
+              href="/dashboard/schools/visits"
+              className="font-bold underline shrink-0"
+            >
+              Trip calendar →
+            </Link>
+          </div>
+        ) : null}
 
         {!canCreate && role === 'school' ? (
           <div className="mb-4 rounded-2xl border border-sky-100 bg-sky-50/60 px-4 py-3 text-sm text-sky-950">
