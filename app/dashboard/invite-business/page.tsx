@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import {
   Building2,
   CheckCircle2,
@@ -60,21 +61,31 @@ type FormState = {
   message: string;
 };
 
-const emptyForm = (): FormState => ({
+const emptyForm = (relationship = 'business'): FormState => ({
   trading_name: '',
   contact_name: '',
   contact_email: '',
   contact_phone: '',
   website: '',
   category: '',
-  relationship_type: 'business',
+  relationship_type: relationship,
   message: '',
 });
 
 export default function InviteBusinessPage() {
   return (
     <CompanyRequired>
-      <InviteInner />
+      <Suspense
+        fallback={
+          <ConnectionsPage>
+            <div className="py-20 flex justify-center">
+              <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
+            </div>
+          </ConnectionsPage>
+        }
+      >
+        <InviteInner />
+      </Suspense>
     </CompanyRequired>
   );
 }
@@ -82,14 +93,36 @@ export default function InviteBusinessPage() {
 function InviteInner() {
   const companyId = getSelectedCompanyId();
   const companyName = getSelectedCompanyName();
+  const searchParams = useSearchParams();
+  const typeParam = String(searchParams.get('type') || '').toLowerCase();
+  const fromNsnpSp = searchParams.get('from') === 'nsnp-sp';
+  const initialType =
+    typeParam === 'supplier' || typeParam === 'customer' || typeParam === 'business'
+      ? typeParam
+      : 'business';
 
-  const [form, setForm] = useState<FormState>(emptyForm);
+  const [form, setForm] = useState<FormState>(() => emptyForm(initialType));
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{
     inviteLink: string;
     warning?: string;
     profileId?: number;
   } | null>(null);
+
+  const headerCopy = useMemo(() => {
+    if (fromNsnpSp || initialType === 'supplier') {
+      return {
+        title: 'Invite a supplier',
+        description:
+          'Same business invitation as the rest of SupplierAdvisor. They get a claim link by email, complete onboarding, and can receive POs and send quotes. They may never join — the invite is still worth sending.',
+      };
+    }
+    return {
+      title: 'Invite a business',
+      description:
+        'Invite partners, suppliers, or customers onto SupplierAdvisor. They claim a company profile and connect with you on the network.',
+    };
+  }, [fromNsnpSp, initialType]);
 
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((p) => ({ ...p, [key]: value }));
@@ -151,15 +184,21 @@ function InviteInner() {
 
   const reset = () => {
     setResult(null);
-    setForm(emptyForm());
+    setForm(emptyForm(initialType));
   };
 
   return (
     <ConnectionsPage>
       <ConnectionsHeader
-        title="Invite a"
-        titleAccent="company"
-        description="Onboard a partner, supplier, or customer onto SupplierAdvisor. They claim a secure link, complete verification, and join your integrated trade graph."
+        title={headerCopy.title.startsWith('Invite a ') ? 'Invite a' : headerCopy.title}
+        titleAccent={
+          initialType === 'supplier'
+            ? 'supplier'
+            : initialType === 'customer'
+              ? 'customer'
+              : 'company'
+        }
+        description={headerCopy.description}
         action={
           <Link
             href="/dashboard/connections"
@@ -169,6 +208,17 @@ function InviteInner() {
           </Link>
         }
       />
+
+      {fromNsnpSp ? (
+        <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          <strong>NSNP service provider:</strong> invite wholesalers the same
+          way any company invites a supplier. After they join, raise POs under{' '}
+          <Link href="/dashboard/suppliers/po" className="font-bold underline">
+            Suppliers → Order
+          </Link>
+          .
+        </div>
+      ) : null}
 
       {!result ? (
         <div className="grid lg:grid-cols-5 gap-4 sm:gap-5">

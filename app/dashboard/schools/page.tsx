@@ -199,10 +199,10 @@ function Inner() {
               SLA scores
             </Link>
             <Link
-              href="/dashboard/schools/wholesalers"
+              href="/dashboard/invite-business?type=supplier&from=nsnp-sp"
               className="btn-secondary !py-2.5 !px-4 text-sm min-h-[44px] inline-flex items-center gap-1.5 border-amber-200 bg-amber-50 text-amber-950"
             >
-              Invite wholesalers
+              Invite supplier
             </Link>
           </div>
         </div>
@@ -211,19 +211,19 @@ function Inner() {
             Source stock · wholesalers
           </p>
           <h3 className="text-base font-black text-slate-900 mt-0.5">
-            Invite your food suppliers onto the platform
+            Invite suppliers with a standard business invite
           </h3>
           <p className="text-sm text-slate-600 mt-1 max-w-2xl">
-            Schools order from you. You buy from wholesalers. Invite them so they
-            can receive POs and send quotes — even if they never join, you keep a
-            supplier book entry for offline follow-up.
+            Same invitation as the rest of SupplierAdvisor: email + claim link.
+            They join the network as a supplier so you can send POs and get
+            quotes. Worth sending even if they never accept.
           </p>
           <div className="flex flex-wrap gap-2 mt-3">
             <Link
-              href="/dashboard/schools/wholesalers"
+              href="/dashboard/invite-business?type=supplier&from=nsnp-sp"
               className="btn-primary !py-2 !px-3 text-xs"
             >
-              Invite wholesaler
+              Invite business (supplier)
             </Link>
             <Link
               href="/dashboard/suppliers/po"
@@ -232,10 +232,10 @@ function Inner() {
               Raise PO
             </Link>
             <Link
-              href="/dashboard/suppliers/network"
+              href="/dashboard/connections"
               className="btn-secondary !py-2 !px-3 text-xs"
             >
-              Supplier book
+              Network hub
             </Link>
           </div>
         </div>

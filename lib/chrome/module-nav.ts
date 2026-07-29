@@ -809,9 +809,9 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         section: 'Ops',
       },
       {
-        name: 'Invite wholesalers',
-        href: '/dashboard/schools/wholesalers',
-        desc: 'Invite suppliers · quotes · POs',
+        name: 'Invite supplier',
+        href: '/dashboard/invite-business?type=supplier&from=nsnp-sp',
+        desc: 'Business invite · wholesalers',
         group: 'SP',
         section: 'Trade',
       },
