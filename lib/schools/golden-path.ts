@@ -1,6 +1,9 @@
 /**
- * Golden path: PO → DN → Dispatch → POD → Receive/GRN → Serve → Claim
- * Shared status model for school, SP, and DBE surfaces.
+ * Golden path (supply loop):
+ * PO → DN → Dispatch → POD → GRN/kitchen → Serve → Claim
+ *
+ * Upstream programme plan (calendar · recipes · stock cover) is shown on
+ * NsnpSystemFlow; this strip is the live operational bottleneck path.
  */
 
 export type GoldenStepId =
@@ -43,10 +46,10 @@ const STEPS_META: Array<{
 }> = [
   {
     id: 'po',
-    label: 'PO submitted',
+    label: 'PO to SP',
     short: 'PO',
     hrefSchool: '/dashboard/schools/orders',
-    hrefIsp: '/dashboard/schools/ops',
+    hrefIsp: '/dashboard/schools/sp-orders-report',
     hrefAgency: '/dashboard/schools/ops',
   },
   {
@@ -54,7 +57,7 @@ const STEPS_META: Array<{
     label: 'Delivery note',
     short: 'DN',
     hrefSchool: '/dashboard/schools/deliveries',
-    hrefIsp: '/dashboard/schools/ops',
+    hrefIsp: '/dashboard/schools/deliveries',
     hrefAgency: '/dashboard/schools/ops',
   },
   {
@@ -62,7 +65,7 @@ const STEPS_META: Array<{
     label: 'Dispatched',
     short: 'Truck',
     hrefSchool: '/dashboard/schools/deliveries',
-    hrefIsp: '/dashboard/schools/ops',
+    hrefIsp: '/dashboard/schools/deliveries',
     hrefAgency: '/dashboard/schools/ops',
   },
   {
@@ -75,9 +78,9 @@ const STEPS_META: Array<{
   },
   {
     id: 'receive',
-    label: 'Received · GRN',
+    label: 'GRN · kitchen',
     short: 'GRN',
-    hrefSchool: '/dashboard/schools/deliveries',
+    hrefSchool: '/dashboard/schools/kitchen',
     hrefIsp: '/dashboard/schools/deliveries',
     hrefAgency: '/dashboard/schools/ops',
   },
@@ -86,7 +89,7 @@ const STEPS_META: Array<{
     label: 'Serve day',
     short: 'Feed',
     hrefSchool: '/dashboard/schools/serve-day',
-    hrefIsp: '/dashboard/schools/prizes',
+    hrefIsp: '/dashboard/schools/recipes',
     hrefAgency: '/dashboard/schools/agency-report?report=feeding',
   },
   {
@@ -175,8 +178,9 @@ export function buildGoldenPath(
     if (m.id === 'dispatch' && c.dispatched) detail = `${c.dispatched}`;
     if (m.id === 'pod' && c.withPod) detail = `${c.withPod} with photo`;
     if (m.id === 'receive' && c.awaitingReceive)
-      detail = `${c.awaitingReceive} to receive`;
-    if (m.id === 'serve') detail = c.serveToday ? 'Logged today' : 'Due today';
+      detail = `${c.awaitingReceive} to GRN`;
+    if (m.id === 'serve')
+      detail = c.serveToday ? 'Logged today' : 'Due (calendar day)';
     if (m.id === 'claim')
       detail = c.claimsBlocked
         ? 'Blocked'

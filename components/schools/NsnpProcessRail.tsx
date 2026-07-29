@@ -30,11 +30,14 @@ export default function NsnpProcessRail({
         ? 'setup'
         : c.id === 'learners' || c.id === 'verify'
           ? 'register'
-          : c.id === 'menu'
+          : c.id === 'menu' ||
+              c.id === 'calendar' ||
+              c.id === 'recipes' ||
+              c.id === 'approved'
             ? 'catalogue'
             : c.id === 'isp'
               ? 'supply'
-              : c.id === 'stock'
+              : c.id === 'stock' || c.id === 'kitchen' || c.id === 'cover'
                 ? 'kitchen'
                 : c.id === 'serve'
                   ? 'serve'

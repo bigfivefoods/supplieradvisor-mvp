@@ -870,14 +870,11 @@ function Inner() {
         <NsnpSystemFlow audience="school" defaultCollapsed />
       </div>
 
-      <p className="mt-4 text-xs text-slate-400 flex items-center gap-1">
-        <MapPin className="w-3.5 h-3.5" />
-        End-to-end process: profile → DBE approve → learners → menu → SP →
-        order → GRN → serve day → survey → claims → audit. Run migration{' '}
-        <code className="text-[10px]">
-          20260726_schools_photo_survey_riad_maintenance.sql
-        </code>
-        .
+      <p className="mt-4 text-xs text-slate-400 flex items-center gap-1 flex-wrap">
+        <MapPin className="w-3.5 h-3.5 shrink-0" />
+        End-to-end: profile → DBE approve → learners (Template A) → catalogue /
+        calendar / recipes → kitchen stock cover → SP order → DN/POD → GRN →
+        serve day → survey → claims → audit.
       </p>
     </SchoolsPage>
   );

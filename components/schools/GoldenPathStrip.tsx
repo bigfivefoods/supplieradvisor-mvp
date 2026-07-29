@@ -53,7 +53,8 @@ export default function GoldenPathStrip({ companyId, compact }: Props) {
     <div className={`mb-4 rounded-2xl border ${healthRing} px-3 py-3`}>
       <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
         <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-          Golden path · {path.role === 'isp' ? 'SP' : path.role === 'agency' ? 'DBE' : 'School'}
+          Golden path · PO → GRN → feed ·{' '}
+          {path.role === 'isp' ? 'SP' : path.role === 'agency' ? 'DBE' : 'School'}
         </p>
         <Link
           href={path.nextHref}
