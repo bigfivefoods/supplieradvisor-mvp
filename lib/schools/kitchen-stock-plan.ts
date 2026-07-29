@@ -40,7 +40,7 @@ export function isCountableUom(uom?: string | null): boolean {
 
 /** Round stock qty to a whole number for the UOM. mode: floor | round | ceil */
 export function roundStockQty(
-  qty: number,
+  qty: number | string | null | undefined,
   uom?: string | null,
   mode: 'floor' | 'round' | 'ceil' = 'round'
 ): number {
