@@ -187,7 +187,6 @@ export function buildMatchingReport(input: {
   let perfect = 0;
   let amber = 0;
   let red = 0;
-  let pending = 0;
   let short_delivered = 0;
   let over_delivered = 0;
   let short_received = 0;
@@ -264,32 +263,33 @@ export function buildMatchingReport(input: {
       }
     }
 
+    // Line status: qty first, then off-catalogue forces at least amber
+    // (perfect only when on-catalogue AND qty matches ordered / received)
     let match_status: MatchLine['match_status'] = 'perfect';
-    if (!receivedDone) {
-      // Pre-receive: score on delivery vs ordered only
+    if (receivedDone) {
+      const worst = worseTone(vDel.tone, vRec.tone);
+      if (worst === 'red') match_status = 'red';
+      else if (worst === 'amber') match_status = 'amber';
+      else match_status = 'perfect';
+    } else {
+      // Pre-receive: score on delivered vs ordered (not "pending" when exact)
       if (vDel.tone === 'red') match_status = 'red';
       else if (vDel.tone === 'amber') match_status = 'amber';
-      else match_status = 'pending';
-      if (match_status === 'pending') pending += 1;
-      else if (match_status === 'amber') amber += 1;
-      else if (match_status === 'red') red += 1;
-      overall = worseTone(
-        overall,
-        match_status === 'pending' ? vDel.tone : match_status
-      );
+      else match_status = 'perfect';
+    }
+    if (off && match_status === 'perfect') {
+      match_status = 'amber';
+    }
+
+    if (match_status === 'red') {
+      red += 1;
+      overall = worseTone(overall, 'red');
+    } else if (match_status === 'amber') {
+      amber += 1;
+      overall = worseTone(overall, 'amber');
     } else {
-      const worst = worseTone(vDel.tone, vRec.tone);
-      if (worst === 'red') {
-        match_status = 'red';
-        red += 1;
-      } else if (worst === 'amber') {
-        match_status = 'amber';
-        amber += 1;
-      } else {
-        match_status = 'perfect';
-        perfect += 1;
-      }
-      overall = worseTone(overall, worst);
+      perfect += 1;
+      overall = worseTone(overall, 'green');
     }
 
     lines.push({
@@ -316,7 +316,7 @@ export function buildMatchingReport(input: {
     });
   });
 
-  // Header-level exceptions
+  // Header-level exceptions (do not inflate line perfect/amber chips)
   if (!input.has_pod) {
     exceptions.push({
       code: 'POD_MISSING',
@@ -364,7 +364,7 @@ export function buildMatchingReport(input: {
   const lines_total = lines.length;
   if (overall === 'neutral' && lines_total > 0) overall = 'green';
 
-  // Clean only if no red/amber qty exceptions, no off-cat lines, not disputed
+  // Clean only if every line is perfect (on-catalogue + qty match) and not disputed
   const qtyClean =
     red === 0 && amber === 0 && off_catalogue === 0 && status !== 'disputed';
 
@@ -375,10 +375,11 @@ export function buildMatchingReport(input: {
     lines,
     summary: {
       lines_total,
-      perfect: receivedDone ? perfect : 0,
+      // Count perfect as soon as DN qtys match ordered (not only after school receive)
+      perfect,
       amber,
       red,
-      pending: receivedDone ? 0 : Math.max(pending, lines_total - amber - red),
+      pending: receivedDone ? 0 : 0,
       short_delivered,
       over_delivered,
       short_received,
