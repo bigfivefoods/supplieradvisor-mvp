@@ -20,6 +20,8 @@ import {
   ShoppingCart,
   ExternalLink,
   Printer,
+  CheckCircle2,
+  Star,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';

@@ -103,6 +103,9 @@ export async function GET(request: NextRequest) {
             .filter((n) => Number.isFinite(n) && n > 0)
         ),
       ];
+      const poIds = (data || [])
+        .map((o) => Number(o.id))
+        .filter((n) => Number.isFinite(n));
       const nameMap = new Map<number, string>();
       if (schoolIds.length) {
         const { data: schools } = await supabase
@@ -116,20 +119,204 @@ export async function GET(request: NextRequest) {
           );
         }
       }
-      const orders = (data || []).map((o) => ({
-        ...o,
-        school_name:
-          nameMap.get(Number(o.school_profile_id)) ||
-          `School ${o.school_profile_id}`,
-        isp_name: String(ispRow.trading_name || 'Your SP'),
-        role: 'isp',
-      }));
+
+      // SP profile OTIFEF + school ratings for fulfilled orders
+      const { data: ispMetrics } = await supabase
+        .from('nsnp_isp_profiles')
+        .select(
+          'profile_id, trading_name, delivery_otifef_pct, otif_on_time_pct, otif_in_full_pct, otif_error_free_pct, avg_school_rating'
+        )
+        .eq('profile_id', companyId)
+        .maybeSingle();
+
+      // GRNs linked to these POs
+      const grnByPo = new Map<number, Record<string, unknown>>();
+      if (poIds.length) {
+        for (let i = 0; i < poIds.length; i += 100) {
+          const chunk = poIds.slice(i, i + 100);
+          const { data: grns } = await supabase
+            .from('school_kitchen_receipts')
+            .select('id, po_id, received_at, compliance_ok, lines')
+            .in('po_id', chunk)
+            .order('received_at', { ascending: false })
+            .limit(500);
+          for (const g of grns || []) {
+            const pid = Number(g.po_id);
+            if (!grnByPo.has(pid)) grnByPo.set(pid, g as Record<string, unknown>);
+          }
+        }
+      }
+
+      // Deliveries for OTIF flags
+      const dnByPo = new Map<number, Record<string, unknown>>();
+      if (poIds.length) {
+        for (let i = 0; i < poIds.length; i += 100) {
+          const chunk = poIds.slice(i, i + 100);
+          const { data: dns } = await supabase
+            .from('school_nsnp_deliveries')
+            .select(
+              'id, po_id, otif, expected_date, delivered_at, received_at, status, compliance_ok, pod_photo_url'
+            )
+            .in('po_id', chunk)
+            .limit(500);
+          for (const d of dns || []) {
+            const pid = Number(d.po_id);
+            if (Number.isFinite(pid) && !dnByPo.has(pid)) {
+              dnByPo.set(pid, d as Record<string, unknown>);
+            }
+          }
+        }
+      }
+
+      // School ratings of this SP (latest per school + any linked to PO)
+      const ratingsBySchool = new Map<number, number>();
+      const ratingsByPo = new Map<number, number>();
+      if (schoolIds.length) {
+        const { data: ratings } = await supabase
+          .from('school_isp_ratings')
+          .select(
+            'school_profile_id, overall_rating, po_id, created_at'
+          )
+          .eq('isp_profile_id', companyId)
+          .in('school_profile_id', schoolIds)
+          .order('created_at', { ascending: false })
+          .limit(500);
+        for (const r of ratings || []) {
+          const sid = Number(r.school_profile_id);
+          const stars = Number(r.overall_rating);
+          if (!Number.isFinite(stars)) continue;
+          if (r.po_id != null && Number.isFinite(Number(r.po_id))) {
+            const poid = Number(r.po_id);
+            if (!ratingsByPo.has(poid)) ratingsByPo.set(poid, stars);
+          }
+          if (!ratingsBySchool.has(sid)) ratingsBySchool.set(sid, stars);
+        }
+      }
+
+      const spOtifef =
+        ispMetrics?.delivery_otifef_pct != null
+          ? Number(ispMetrics.delivery_otifef_pct)
+          : null;
+
+      const orders = (data || []).map((o) => {
+        const status = String(o.status || '').toLowerCase();
+        const fulfilled = [
+          'received',
+          'partially_received',
+          'closed',
+          'complete',
+        ].includes(status);
+        const grn = grnByPo.get(Number(o.id));
+        const dn = dnByPo.get(Number(o.id));
+        const expected = o.expected_date
+          ? String(o.expected_date).slice(0, 10)
+          : dn?.expected_date
+            ? String(dn.expected_date).slice(0, 10)
+            : null;
+        const receivedDay = grn?.received_at
+          ? String(grn.received_at).slice(0, 10)
+          : dn?.received_at
+            ? String(dn.received_at).slice(0, 10)
+            : dn?.delivered_at
+              ? String(dn.delivered_at).slice(0, 10)
+              : null;
+
+        // Per-order OTIFEF dimensions
+        let on_time: boolean | null = null;
+        if (dn?.otif === true || dn?.otif === false) {
+          on_time = Boolean(dn.otif);
+        } else if (expected && receivedDay) {
+          on_time = receivedDay <= expected;
+        }
+
+        const orderedQty = Array.isArray(o.lines)
+          ? (o.lines as Array<{ qty?: number }>).reduce(
+              (n, l) => n + Number(l.qty || 0),
+              0
+            )
+          : 0;
+        const receivedQty = grn && Array.isArray(grn.lines)
+          ? (grn.lines as Array<{ qty?: number }>).reduce(
+              (n, l) => n + Number(l.qty || 0),
+              0
+            )
+          : null;
+        let in_full: boolean | null = null;
+        if (fulfilled && orderedQty > 0 && receivedQty != null) {
+          in_full = receivedQty + 1e-6 >= orderedQty * 0.98;
+        } else if (fulfilled) {
+          in_full = status === 'received' || status === 'closed';
+        }
+
+        let error_free: boolean | null = null;
+        if (grn && grn.compliance_ok !== undefined) {
+          error_free = grn.compliance_ok !== false;
+        } else if (dn && dn.compliance_ok !== undefined) {
+          error_free = dn.compliance_ok !== false;
+        } else if (o.compliance_ok !== undefined) {
+          error_free = o.compliance_ok !== false;
+        }
+
+        const dims = [on_time, in_full, error_free].filter(
+          (x) => x === true || x === false
+        ) as boolean[];
+        const order_otifef_pct =
+          dims.length > 0
+            ? Math.round(
+                (dims.filter(Boolean).length / dims.length) * 1000
+              ) / 10
+            : null;
+
+        const school_rating =
+          ratingsByPo.get(Number(o.id)) ??
+          ratingsBySchool.get(Number(o.school_profile_id)) ??
+          null;
+
+        return {
+          ...o,
+          school_name:
+            nameMap.get(Number(o.school_profile_id)) ||
+            `School ${o.school_profile_id}`,
+          isp_name: String(
+            ispMetrics?.trading_name || ispRow.trading_name || 'Your SP'
+          ),
+          role: 'isp',
+          fulfilled,
+          action_label: fulfilled ? 'Fulfilled' : 'Fulfil',
+          // Per-order OTIFEF
+          order_otifef_pct,
+          order_on_time: on_time,
+          order_in_full: in_full,
+          order_error_free: error_free,
+          // Rolling SP scores (from profile / SLA)
+          sp_otifef_pct: spOtifef,
+          sp_on_time_pct:
+            ispMetrics?.otif_on_time_pct != null
+              ? Number(ispMetrics.otif_on_time_pct)
+              : null,
+          sp_in_full_pct:
+            ispMetrics?.otif_in_full_pct != null
+              ? Number(ispMetrics.otif_in_full_pct)
+              : null,
+          sp_error_free_pct:
+            ispMetrics?.otif_error_free_pct != null
+              ? Number(ispMetrics.otif_error_free_pct)
+              : null,
+          sp_avg_rating:
+            ispMetrics?.avg_school_rating != null
+              ? Number(ispMetrics.avg_school_rating)
+              : null,
+          school_rating,
+          received_at: receivedDay,
+          has_grn: Boolean(grn),
+        };
+      });
       return NextResponse.json({
         success: true,
         role: 'isp',
         orders,
         process:
-          'Schools order approved catalogue products from you. Buy from wholesalers, create a DN, dispatch with POD, school receives into kitchen.',
+          'Schools order approved catalogue products from you. Buy from wholesalers, create a DN, dispatch with POD, school receives into kitchen. Received orders show Fulfilled with OTIFEF & rating.',
         next_href: '/dashboard/schools/ops',
       });
     }
