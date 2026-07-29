@@ -722,7 +722,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const productIds = rawLines
+    const productIds: number[] = rawLines
       .map((l: { approved_product_id?: number }) => Number(l.approved_product_id))
       .filter((n: number) => Number.isFinite(n) && n > 0);
     // Prefer active catalogue; for edits, also accept agency-owned inactive products
@@ -732,7 +732,7 @@ export async function POST(request: NextRequest) {
       companyId,
       productIds
     );
-    const missing = productIds.filter((id) => !byId.has(id));
+    const missing = productIds.filter((id: number) => !byId.has(id));
     if (missing.length) {
       const { data: owned } = await supabase
         .from('nsnp_approved_products')
