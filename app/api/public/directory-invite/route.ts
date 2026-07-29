@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
     if (ref) inviteQ.set('ref', ref);
     if (note) inviteQ.set('message', note);
     const inviteHref = `${base}/invite?${inviteQ.toString()}`;
-    const dirHref = `${base}/directory`;
+    const dirHref = `${base}/`;
 
     const resend = getResend();
     const { error } = await resend.emails.send({

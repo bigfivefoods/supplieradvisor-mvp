@@ -64,7 +64,7 @@ export function companyPublicPath(c: {
   legal_name?: string | null;
 }): string {
   const id = Number(c.id);
-  if (!Number.isFinite(id) || id <= 0) return '/directory';
+  if (!Number.isFinite(id) || id <= 0) return '/';
   const slug = slugifyCompanyName(
     String(c.trading_name || c.legal_name || '').trim() || `company-${id}`
   );
@@ -316,35 +316,10 @@ export function companyJsonLdGraph(
     {
       '@type': 'ListItem',
       position: 2,
-      name: 'Directory',
-      item: `${SITE_URL}/directory`,
+      name,
+      item: url,
     },
   ];
-  let pos = 3;
-  if (industry) {
-    crumbItems.push({
-      '@type': 'ListItem',
-      position: pos,
-      name: industry,
-      item: `${SITE_URL}/directory/industry/${slugifyCompanyName(industry)}`,
-    });
-    pos += 1;
-  }
-  if (city) {
-    crumbItems.push({
-      '@type': 'ListItem',
-      position: pos,
-      name: city,
-      item: `${SITE_URL}/directory/city/${slugifyCompanyName(city)}`,
-    });
-    pos += 1;
-  }
-  crumbItems.push({
-    '@type': 'ListItem',
-    position: pos,
-    name,
-    item: url,
-  });
 
   const breadcrumb = {
     '@type': 'BreadcrumbList',
@@ -398,7 +373,7 @@ export function companyJsonLdGraph(
         city || country
           ? ` and serves buyers from ${[city, country].filter(Boolean).join(', ')}`
           : ''
-      }. Browse more ${industry} companies at ${SITE_URL}/directory/industry/${slugifyCompanyName(industry)}.`,
+      }.`,
     });
   }
   if (verified) {

@@ -68,10 +68,10 @@ export default function PublicMarketplacePage() {
           </Link>
           <div className="flex gap-2">
             <Link
-              href="/directory"
+              href="/onboarding?type=business"
               className="text-xs font-bold text-slate-600 hover:text-[#0077b6]"
             >
-              Company directory
+              Join as a business
             </Link>
             <Link
               href="/login?next=/dashboard/connections/marketplace"
@@ -122,14 +122,14 @@ export default function PublicMarketplacePage() {
             <Store className="w-8 h-8 text-neutral-400 mx-auto mb-3" />
             <p className="font-bold text-slate-800">No public listings yet</p>
             <p className="text-xs text-neutral-500 mt-1 max-w-md mx-auto">
-              Sellers publish from inventory → Network marketplace. Check the verified
-              company directory meanwhile.
+              Sellers publish from inventory → Network marketplace. Join as a
+              business to list products and trade.
             </p>
             <Link
-              href="/directory"
+              href="/onboarding?type=business"
               className="inline-flex items-center gap-1 mt-4 text-sm font-bold text-[#0077b6]"
             >
-              Browse directory <ArrowRight className="w-4 h-4" />
+              Join as a business <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
         ) : (

@@ -40,7 +40,6 @@ import { useEffect, useState } from 'react';
 import LandingNav from '@/components/marketing/LandingNav';
 import HomePricing from '@/components/marketing/HomePricing';
 import FoundingCounterStrip from '@/components/marketing/FoundingCounterStrip';
-import CompanyNetworkSection from '@/components/marketing/CompanyNetworkSection';
 import ComparePlatforms from '@/components/marketing/ComparePlatforms';
 import SocialProofStrip from '@/components/marketing/SocialProofStrip';
 import ProductVideo from '@/components/marketing/ProductVideo';
@@ -417,10 +416,10 @@ export default function LandingPage() {
                   <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-0.5" />
                 </Link>
                 <Link
-                  href="/directory"
+                  href="/demo"
                   className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-7 py-3.5 text-base font-semibold text-slate-800 shadow-sm transition-all hover:border-[#00b4d8] hover:text-[#0077b6]"
                 >
-                  Browse company directory
+                  Book a demo
                 </Link>
               </div>
 
@@ -1047,9 +1046,6 @@ export default function LandingPage() {
 
       {/* ═══════════ PRICING + REFERRAL (same site) ═══════════ */}
       <HomePricing />
-
-      {/* ═══════════ COMPANIES DIRECTORY (browse + rich search) ═══════════ */}
-      <CompanyNetworkSection />
 
       {/* ═══════════ AUDIENCES ═══════════ */}
       <section id="audiences" className="border-t border-slate-200 bg-[#f8fafc] py-20 sm:py-28">

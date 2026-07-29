@@ -21,8 +21,6 @@ import {
   parseCompanyRouteParam,
   SITE_URL,
 } from '@/lib/seo/company-public';
-import { facetSlug, loadDirectory } from '@/lib/seo/directory-data';
-import DirectoryInviteForm from '@/components/seo/DirectoryInviteForm';
 import VerifiedSlaBadge from '@/components/seo/VerifiedSlaBadge';
 
 /** Aggregate public ratings (quote QR + invoice feedback). Soft if table missing. */
@@ -306,24 +304,6 @@ export default async function PublicCompanyPage({
   const beeLevel = c.bee_level;
   const website = c.website;
   const publicRatings = await loadPublicRatingStats(c.id);
-  // Similar companies (same industry or city) for SEO internal links
-  let similar: Array<{ id: number; name: string; href: string }> = [];
-  try {
-    const hub = await loadDirectory({
-      industry: c.industry || undefined,
-      city: !c.industry ? c.city || undefined : undefined,
-    });
-    similar = (hub.companies || [])
-      .filter((x) => Number(x.id) !== Number(c.id))
-      .slice(0, 6)
-      .map((x) => ({
-        id: Number(x.id),
-        name: String(x.trading_name || x.legal_name || `Company #${x.id}`),
-        href: companyPublicPath(x),
-      }));
-  } catch {
-    similar = [];
-  }
   const showBankBadge = (() => {
     const meta =
       c.metadata && typeof c.metadata === 'object'
@@ -363,20 +343,13 @@ export default async function PublicCompanyPage({
               SupplierAdvisor
             </Link>
             <ChevronRight className="w-3 h-3" aria-hidden />
-            <Link
-              href="/directory"
-              className="font-semibold hover:text-[#0077b6]"
-            >
-              Directory
-            </Link>
-            <ChevronRight className="w-3 h-3" aria-hidden />
             <span className="font-bold text-slate-700 truncate max-w-[12rem]">
               {name}
             </span>
           </nav>
           <div className="flex items-center justify-between">
-            <Link href="/directory" className="text-sm font-bold text-[#0077b6]">
-              ← Directory
+            <Link href="/" className="text-sm font-bold text-[#0077b6]">
+              ← Home
             </Link>
             <Link href="/" className="text-xs font-semibold text-neutral-500">
               SupplierAdvisor®
@@ -593,10 +566,10 @@ export default async function PublicCompanyPage({
               </a>
             ) : null}
             <Link
-              href="/directory"
+              href="/onboarding?type=business"
               className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-1.5"
             >
-              <Building2 className="w-4 h-4" /> Browse directory
+              <Building2 className="w-4 h-4" /> Join network
             </Link>
           </div>
 
@@ -622,92 +595,7 @@ export default async function PublicCompanyPage({
                 Sign in to manage
               </Link>
             </div>
-            <div className="mt-4">
-              <DirectoryInviteForm
-                companyId={c.id}
-                companyName={name}
-                compact
-              />
-            </div>
           </aside>
-
-          {similar.length > 0 ? (
-            <section
-              className="mt-8 rounded-2xl border border-neutral-200 bg-white px-4 py-4"
-              aria-labelledby="similar-heading"
-            >
-              <h2
-                id="similar-heading"
-                className="text-[10px] font-bold uppercase tracking-wide text-neutral-400 mb-2"
-              >
-                Similar companies
-              </h2>
-              <ul className="flex flex-wrap gap-2">
-                {similar.map((s) => (
-                  <li key={s.id}>
-                    <Link
-                      href={s.href}
-                      className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800 hover:border-[#00b4d8] hover:text-[#0077b6]"
-                    >
-                      {s.name}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
-
-          {(industry || c.city) ? (
-            <section
-              className="mt-8 rounded-2xl border border-sky-100 bg-sky-50/60 px-4 py-4"
-              aria-labelledby="related-hubs"
-            >
-              <h2
-                id="related-hubs"
-                className="text-[10px] font-bold uppercase tracking-wide text-[#0077b6] mb-2"
-              >
-                More companies like {name}
-              </h2>
-              <div className="flex flex-wrap gap-2">
-                {industry ? (
-                  <Link
-                    href={`/directory/industry/${facetSlug(industry)}`}
-                    className="rounded-full border border-sky-200 bg-white px-3 py-1.5 text-xs font-bold text-sky-900 hover:border-[#00b4d8]"
-                  >
-                    More in {industry} →
-                  </Link>
-                ) : null}
-                {c.city ? (
-                  <Link
-                    href={`/directory/city/${facetSlug(c.city)}`}
-                    className="rounded-full border border-violet-200 bg-white px-3 py-1.5 text-xs font-bold text-violet-900 hover:border-violet-400"
-                  >
-                    More in {c.city} →
-                  </Link>
-                ) : null}
-                {industry && c.city ? (
-                  <Link
-                    href={`/directory/industry/${facetSlug(industry)}/in/${facetSlug(c.city)}`}
-                    className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-950 hover:border-amber-400"
-                  >
-                    {industry} in {c.city} →
-                  </Link>
-                ) : null}
-                {c.country ? (
-                  <Link
-                    href={`/directory/country/${facetSlug(c.country)}`}
-                    className="rounded-full border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-900 hover:border-emerald-400"
-                  >
-                    More in {c.country} →
-                  </Link>
-                ) : null}
-              </div>
-              <p className="mt-2 text-[11px] text-neutral-500 leading-relaxed">
-                Explore related suppliers and partners on SupplierAdvisor by
-                industry and city — every listing has a public SEO profile.
-              </p>
-            </section>
-          ) : null}
 
           <section
             className="mt-8 rounded-2xl border border-neutral-200 bg-white px-4 py-4"
@@ -771,43 +659,20 @@ export default async function PublicCompanyPage({
 
           <footer className="mt-8 pt-4 border-t border-neutral-100 text-[11px] text-neutral-400 leading-relaxed">
             <p>
-              {name} is listed in the SupplierAdvisor public directory at{' '}
+              {name} public profile on SupplierAdvisor:{' '}
               <a href={pageUrl} className="text-[#0077b6] hover:underline">
                 {pageUrl.replace(/^https?:\/\//, '')}
               </a>
-              . SupplierAdvisor helps buyers and suppliers discover verified
-              trade partners across Africa and beyond.
+              . SupplierAdvisor is the supply-chain OS for verified trade.
             </p>
             <p className="mt-1">
               <Link href={SITE_URL} className="hover:underline">
                 Home
               </Link>
               {' · '}
-              <Link href="/directory" className="hover:underline">
-                Company directory
+              <Link href="/marketplace" className="hover:underline">
+                Marketplace
               </Link>
-              {industry ? (
-                <>
-                  {' · '}
-                  <Link
-                    href={`/directory/industry/${facetSlug(industry)}`}
-                    className="hover:underline"
-                  >
-                    {industry}
-                  </Link>
-                </>
-              ) : null}
-              {c.city ? (
-                <>
-                  {' · '}
-                  <Link
-                    href={`/directory/city/${facetSlug(c.city)}`}
-                    className="hover:underline"
-                  >
-                    {c.city}
-                  </Link>
-                </>
-              ) : null}
               {' · '}
               <Link href="/pricing" className="hover:underline">
                 Pricing

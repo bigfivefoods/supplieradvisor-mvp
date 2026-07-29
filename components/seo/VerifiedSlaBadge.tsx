@@ -78,10 +78,6 @@ export default function VerifiedSlaBadge({
               className="font-semibold text-[#0077b6] hover:underline"
             >
               paid CIPC verification SLA
-            </Link>{' '}
-            or browse the{' '}
-            <Link href="/directory" className="font-semibold text-[#0077b6] hover:underline">
-              verified directory
             </Link>
             .
           </p>

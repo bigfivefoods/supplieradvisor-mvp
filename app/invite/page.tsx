@@ -118,10 +118,10 @@ function InviteInner() {
           Redirecting in {seconds}s…
         </p>
         <Link
-          href="/directory"
+          href="/"
           className="mt-4 block text-xs font-semibold text-[#0077b6] hover:underline"
         >
-          Browse directory first
+          Back to home
         </Link>
       </div>
     </div>

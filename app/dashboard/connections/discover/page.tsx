@@ -224,8 +224,8 @@ export default function OpenToTradeDiscoverPage() {
           ← Connections
         </Link>
         {' · '}
-        <Link href="/directory" className="font-bold text-[#0077b6]">
-          Public directory
+        <Link href="/dashboard/network" className="font-bold text-[#0077b6]">
+          Network invites
         </Link>
       </p>
     </RelationshipPage>

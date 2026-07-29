@@ -31,7 +31,6 @@ export const STATIC_SEO_ROUTES: Array<{
   priority: number;
 }> = [
   { path: '/', changeFrequency: 'daily', priority: 1 },
-  { path: '/directory', changeFrequency: 'daily', priority: 0.98 },
   { path: '/marketplace', changeFrequency: 'daily', priority: 0.9 },
   { path: '/pricing', changeFrequency: 'weekly', priority: 0.85 },
   { path: '/demo', changeFrequency: 'weekly', priority: 0.85 },
@@ -65,7 +64,6 @@ export const SITE_KEYWORDS = [
   'operations control tower',
   'trade network',
   'verified suppliers',
-  'supplier directory',
   'B2B suppliers Africa',
   'South Africa suppliers',
   'CIPC verified suppliers',

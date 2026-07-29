@@ -36,11 +36,12 @@ test.describe('Golden path smoke (public)', () => {
     }
   });
 
-  test('SEO directory page open', async ({ request }) => {
-    const res = await request.get(`${base}/directory`);
-    expect(res.status()).toBe(200);
-    const html = await res.text();
-    expect(html.toLowerCase()).toMatch(/director|supplier|company/);
+  test('retired directory redirects home', async ({ request }) => {
+    const res = await request.get(`${base}/directory`, { maxRedirects: 0 });
+    // Permanent redirect away from public directory
+    expect([301, 302, 307, 308]).toContain(res.status());
+    const loc = res.headers()['location'] || '';
+    expect(loc === '/' || loc.endsWith('/') || loc.includes(base)).toBeTruthy();
   });
 
   test('sitemap.xml present', async ({ request }) => {

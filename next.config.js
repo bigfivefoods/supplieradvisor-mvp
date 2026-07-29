@@ -34,6 +34,21 @@ const nextConfig = {
       },
     ];
   },
+  async redirects() {
+    // Public company directory retired — permanent redirect to home
+    return [
+      {
+        source: '/directory',
+        destination: '/',
+        permanent: true,
+      },
+      {
+        source: '/directory/:path*',
+        destination: '/',
+        permanent: true,
+      },
+    ];
+  },
 };
 
 module.exports = nextConfig;

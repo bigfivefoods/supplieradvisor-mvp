@@ -2,10 +2,9 @@ import type { MetadataRoute } from 'next';
 import { SITE_URL } from '@/lib/seo/site';
 
 /**
- * Crawl policy for massive public exposure:
- * - Allow marketing, directory hubs, and every /c/* company profile
- * - Disallow private app areas and ephemeral share/rate tokens
- * - Product passports /p/* stay private (QR share links)
+ * Crawl policy:
+ * - Allow marketing + every /c/* company profile
+ * - Disallow private app areas, ephemeral tokens, and retired /directory
  */
 export default function robots(): MetadataRoute.Robots {
   return {
@@ -15,10 +14,6 @@ export default function robots(): MetadataRoute.Robots {
         allow: [
           '/',
           '/c/',
-          '/directory',
-          '/directory/industry/',
-          '/directory/city/',
-          '/directory/country/',
           '/marketplace',
           '/industries',
           '/pricing',
@@ -40,8 +35,10 @@ export default function robots(): MetadataRoute.Robots {
           '/sales/',
           '/reseller/',
           '/embed/',
-          '/r/', // public rate forms — thin / spam-prone for SERP
-          '/p/', // product passport tokens
+          '/directory',
+          '/directory/',
+          '/r/',
+          '/p/',
           '/t/',
           '/i/',
           '/actions/',
@@ -53,7 +50,6 @@ export default function robots(): MetadataRoute.Robots {
         allow: [
           '/',
           '/c/',
-          '/directory',
           '/marketplace',
           '/industries',
           '/pricing',
@@ -65,6 +61,7 @@ export default function robots(): MetadataRoute.Robots {
           '/dashboard/',
           '/login',
           '/onboarding',
+          '/directory',
           '/r/',
           '/p/',
           '/t/',
@@ -73,39 +70,38 @@ export default function robots(): MetadataRoute.Robots {
       },
       {
         userAgent: 'Bingbot',
-        allow: ['/', '/c/', '/directory', '/marketplace', '/industries'],
-        disallow: ['/api/', '/dashboard/', '/login', '/r/', '/p/'],
+        allow: ['/', '/c/', '/marketplace', '/industries'],
+        disallow: ['/api/', '/dashboard/', '/login', '/directory', '/r/', '/p/'],
       },
       {
-        // AI crawlers — welcome to public business listings
         userAgent: 'GPTBot',
-        allow: ['/', '/c/', '/directory', '/marketplace', '/industries', '/llms.txt'],
-        disallow: ['/api/', '/dashboard/', '/login'],
+        allow: ['/', '/c/', '/marketplace', '/industries', '/llms.txt'],
+        disallow: ['/api/', '/dashboard/', '/login', '/directory'],
       },
       {
         userAgent: 'ChatGPT-User',
-        allow: ['/', '/c/', '/directory', '/marketplace', '/llms.txt'],
-        disallow: ['/api/', '/dashboard/'],
+        allow: ['/', '/c/', '/marketplace', '/llms.txt'],
+        disallow: ['/api/', '/dashboard/', '/directory'],
       },
       {
         userAgent: 'Google-Extended',
-        allow: ['/', '/c/', '/directory', '/marketplace', '/industries', '/llms.txt'],
-        disallow: ['/api/', '/dashboard/'],
+        allow: ['/', '/c/', '/marketplace', '/industries', '/llms.txt'],
+        disallow: ['/api/', '/dashboard/', '/directory'],
       },
       {
         userAgent: 'anthropic-ai',
-        allow: ['/', '/c/', '/directory', '/llms.txt'],
-        disallow: ['/api/', '/dashboard/'],
+        allow: ['/', '/c/', '/llms.txt'],
+        disallow: ['/api/', '/dashboard/', '/directory'],
       },
       {
         userAgent: 'ClaudeBot',
-        allow: ['/', '/c/', '/directory', '/llms.txt'],
-        disallow: ['/api/', '/dashboard/'],
+        allow: ['/', '/c/', '/llms.txt'],
+        disallow: ['/api/', '/dashboard/', '/directory'],
       },
       {
         userAgent: 'PerplexityBot',
-        allow: ['/', '/c/', '/directory', '/marketplace', '/llms.txt'],
-        disallow: ['/api/', '/dashboard/'],
+        allow: ['/', '/c/', '/marketplace', '/llms.txt'],
+        disallow: ['/api/', '/dashboard/', '/directory'],
       },
     ],
     sitemap: `${SITE_URL}/sitemap.xml`,

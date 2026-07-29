@@ -41,7 +41,7 @@ const STEPS = [
   {
     icon: BadgeCheck,
     title: 'Public badge',
-    body: 'On success, verification_status becomes verified and the directory shows your trust badge.',
+    body: 'On success, verification_status becomes verified and your public profile shows the trust badge.',
   },
   {
     icon: Clock,
@@ -106,10 +106,10 @@ export default function VerificationSlaPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             <Link
-              href="/directory"
+              href="/"
               className="btn-secondary !py-2.5 !px-4 text-sm"
             >
-              Directory
+              Home
             </Link>
             <Link
               href="/onboarding?type=business"
@@ -128,9 +128,9 @@ export default function VerificationSlaPage() {
           </p>
           <p className="text-sm text-emerald-900/90 mt-2 leading-relaxed">
             A <strong>CIPC-verified</strong> badge on your public company
-            profile and directory listing after a live company match. Buyers can
-            trust that the legal identity was checked against CIPC data — not
-            just a free form checkbox.
+            profile after a live company match. Buyers can trust that the legal
+            identity was checked against CIPC data — not just a free form
+            checkbox.
           </p>
           <ul className="mt-4 grid sm:grid-cols-2 gap-2 text-xs text-slate-700">
             <li className="rounded-xl bg-white/80 border border-emerald-100 px-3 py-2">
@@ -183,12 +183,12 @@ export default function VerificationSlaPage() {
             For partners evaluating trust
           </h2>
           <p>
-            Verified companies on the{' '}
-            <Link href="/directory" className="font-bold text-[#0077b6] hover:underline">
-              SupplierAdvisor directory
+            Verified companies on{' '}
+            <Link href="/" className="font-bold text-[#0077b6] hover:underline">
+              SupplierAdvisor
             </Link>{' '}
             completed this paid path. Look for the CIPC-verified badge and the
-            “24h paid SLA” marker on public profiles. Unverified listings may
+            “24h paid SLA” marker on public profiles. Unverified profiles may
             still trade, but verified identity is the trust default for serious
             B2B deals.
           </p>

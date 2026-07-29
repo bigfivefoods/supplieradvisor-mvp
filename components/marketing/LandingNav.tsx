@@ -14,9 +14,6 @@ const LINKS = [
   { id: 'pricing', label: 'Pricing' },
   { id: 'industries', label: 'Industries', href: '/industries' as const },
   { id: 'demo', label: 'Demo', href: '/demo' as const },
-  { id: 'network', label: 'Companies' },
-  /** SEO directory — full page, not just in-page hash */
-  { id: 'directory', label: 'Directory', href: '/directory' as const },
 ] as const;
 
 

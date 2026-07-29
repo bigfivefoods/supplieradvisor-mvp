@@ -124,8 +124,8 @@ export default function InteractiveDemoPage() {
                 <Link href="/industries" className="text-[#0077b6] hover:underline">
                   Industry pages
                 </Link>
-                <Link href="/directory" className="text-[#0077b6] hover:underline">
-                  Company directory
+                <Link href="/onboarding?type=business" className="text-[#0077b6] hover:underline">
+                  Start free trial
                 </Link>
               </div>
             </div>

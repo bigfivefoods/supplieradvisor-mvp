@@ -22,7 +22,7 @@ export default function JsonLd() {
     },
     image: `${site}/og-image.png`,
     description:
-      'The verified supply-chain operating system for B2B, B2G and B2C — network trade, inventory, manufacturing, distribution, accounting, and AI intelligence. Public company directory of verified suppliers and buyers.',
+      'The verified supply-chain operating system for B2B, B2G and B2C — network trade, inventory, manufacturing, distribution, accounting, and AI intelligence.',
     foundingLocation: {
       '@type': 'Place',
       address: {
@@ -40,7 +40,6 @@ export default function JsonLd() {
       'Supplier relationship management',
       'B2B trade networks',
       'Inventory and manufacturing',
-      'Verified supplier directories',
     ],
     sameAs: ['https://x.com/supplieradvisa'],
     contactPoint: {
@@ -58,18 +57,9 @@ export default function JsonLd() {
     name: 'SupplierAdvisor®',
     alternateName: 'Supplier Advisor',
     description:
-      'Supply chain operating system and public directory of verified B2B, B2G and B2C trade partners.',
+      'Supply chain operating system for B2B, B2G and B2C trade partners.',
     publisher: { '@id': `${site}/#organization` },
     inLanguage: 'en',
-    // Public directory search — crawlable, no login required
-    potentialAction: {
-      '@type': 'SearchAction',
-      target: {
-        '@type': 'EntryPoint',
-        urlTemplate: `${site}/directory?q={search_term_string}`,
-      },
-      'query-input': 'required name=search_term_string',
-    },
   };
 
   const software = {
@@ -94,7 +84,7 @@ export default function JsonLd() {
     },
     featureList: [
       'Verified supplier & customer network (SRM / CRM)',
-      'Public company directory & SEO profiles',
+      'Public company SEO profiles',
       'Operations control tower',
       'Inventory & warehouse',
       'Manufacturing MPS / MRP / BOM',
@@ -114,23 +104,11 @@ export default function JsonLd() {
     isPartOf: { '@id': `${site}/#website` },
     about: { '@id': `${site}/#software` },
     description:
-      'Verified trade, inventory, manufacturing, distribution, and intelligence in one company workspace. Browse the public supplier directory.',
+      'Verified trade, inventory, manufacturing, distribution, and intelligence in one company workspace.',
     primaryImageOfPage: {
       '@type': 'ImageObject',
       url: `${site}/og-image.png`,
     },
-    inLanguage: 'en',
-  };
-
-  const directory = {
-    '@type': 'CollectionPage',
-    '@id': `${site}/directory#collection`,
-    url: `${site}/directory`,
-    name: 'SupplierAdvisor company directory',
-    description:
-      'Public directory of discoverable B2B suppliers and trade partners. Filter by industry, city, and country. CIPC-verified listings with SEO company profiles.',
-    isPartOf: { '@id': `${site}/#website` },
-    about: { '@id': `${site}/#organization` },
     inLanguage: 'en',
   };
 
@@ -143,23 +121,15 @@ export default function JsonLd() {
         name: 'What is SupplierAdvisor?',
         acceptedAnswer: {
           '@type': 'Answer',
-          text: 'SupplierAdvisor® is a supply-chain operating system and verified trade network for B2B, B2G and B2C — SRM, CRM, inventory, manufacturing, finance, SHEQ, and a public company directory so every listed business can be found on the web.',
+          text: 'SupplierAdvisor® is a supply-chain operating system and verified trade network for B2B, B2G and B2C — SRM, CRM, inventory, manufacturing, finance, and SHEQ.',
         },
       },
       {
         '@type': 'Question',
-        name: 'How do I find verified suppliers on SupplierAdvisor?',
+        name: 'How do I list my business?',
         acceptedAnswer: {
           '@type': 'Answer',
-          text: `Browse the public directory at ${site}/directory. Filter by industry, city, or country. Each company has a public SEO profile under /c/ with verification badges, location, and connect actions.`,
-        },
-      },
-      {
-        '@type': 'Question',
-        name: 'How do I list my business for free?',
-        acceptedAnswer: {
-          '@type': 'Answer',
-          text: `Register at ${site}/onboarding?type=business, complete your profile (logo, city, industry, description), turn on discoverability, and optionally verify with CIPC. Your company gets a public /c/ page and appears in sitemap.xml for Google.`,
+          text: `Register at ${site}/onboarding?type=business, complete your profile, and optionally verify with CIPC. Your company can get a public /c/ page.`,
         },
       },
       {
@@ -175,7 +145,7 @@ export default function JsonLd() {
 
   const graph = {
     '@context': 'https://schema.org',
-    '@graph': [organization, website, software, webPage, directory, faq],
+    '@graph': [organization, website, software, webPage, faq],
   };
 
   return (

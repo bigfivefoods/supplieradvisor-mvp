@@ -94,7 +94,7 @@ export default function SearchVisibilityCard({
         trading_name: (profile.trading_name as string | null) || null,
         legal_name: (profile.legal_name as string | null) || null,
       })
-    : '/directory';
+    : '/';
 
   const toggle = (
     <label className="flex items-center gap-2 cursor-pointer select-none shrink-0">
@@ -126,13 +126,13 @@ export default function SearchVisibilityCard({
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-2 text-sm font-bold text-slate-800">
             <EyeOff className="w-4 h-4 text-neutral-500" />
-            Hidden from Discover & directory
+            Hidden from Discover
           </div>
           {toggle}
         </div>
         <p className="text-xs text-neutral-600">
           Discoverability is off. Turn the switch on so partners can find you in
-          search and the public directory.
+          network search.
         </p>
       </div>
     );
@@ -144,7 +144,7 @@ export default function SearchVisibilityCard({
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-2 text-sm font-bold text-emerald-900">
             <Eye className="w-4 h-4" />
-            Visible in Discover & Google directory
+            Visible in Discover & public profile
           </div>
           {toggle}
         </div>
@@ -153,8 +153,7 @@ export default function SearchVisibilityCard({
           {isRegistered
             ? ' · registered workspace'
             : ` · min ${DISCOVERABLE_MIN_COMPLETENESS_PCT}% or country/email/industry`}
-          . Your public SEO page can appear in Google via the SupplierAdvisor
-          directory.
+          . Your public SEO page can appear in Google when discoverable.
         </p>
         {seoMissing.length > 0 ? (
           <div className="rounded-xl border border-sky-200 bg-white/80 px-3 py-2">
@@ -182,12 +181,6 @@ export default function SearchVisibilityCard({
             className="inline-flex items-center gap-1 text-xs font-bold text-emerald-800 hover:underline"
           >
             View public SEO page <ArrowRight className="w-3 h-3" />
-          </Link>
-          <Link
-            href="/directory"
-            className="inline-flex items-center gap-1 text-xs font-bold text-[#0077b6] hover:underline"
-          >
-            Open directory
           </Link>
         </div>
       </div>
