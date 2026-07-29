@@ -3,12 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
+  AlertTriangle,
   Camera,
   CheckCircle2,
   Circle,
   FileUp,
   Loader2,
   Package,
+  Printer,
   RefreshCw,
   Truck,
   Upload,
@@ -24,9 +26,16 @@ import {
 } from '@/components/schools/SchoolsShell';
 import {
   FILE_KINDS,
+  QTY_VARIANCE_AMBER_PCT,
+  deliveryQtyTone,
   deliveryStatusClass,
   fileKindLabel,
+  qtyVariance,
+  qtyVarianceClass,
+  qtyVarianceDotClass,
+  type QtyVarianceTone,
 } from '@/lib/schools/deliveries';
+import type { MatchingReport } from '@/lib/schools/delivery-documents';
 import GoldenPathStrip from '@/components/schools/GoldenPathStrip';
 
 type Delivery = {
@@ -67,6 +76,8 @@ type LineEdit = {
   qty_delivered: number;
   qty_received: number;
   uom: string;
+  approved?: boolean;
+  other_item?: boolean;
 };
 
 const TIMELINE = [
@@ -129,6 +140,11 @@ function Inner() {
   const [extraBrand, setExtraBrand] = useState('');
   const [extraQty, setExtraQty] = useState('1');
   const [extraUom, setExtraUom] = useState('unit');
+  /** SP-editable planned/actual delivery qtys on the DN */
+  const [dnLines, setDnLines] = useState<LineEdit[]>([]);
+  const [savingLines, setSavingLines] = useState(false);
+  /** PO · DN · GRN matching + exceptions (shared school / SP) */
+  const [matching, setMatching] = useState<MatchingReport | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -181,6 +197,7 @@ function Inner() {
     setSelected(d);
     setShowDispatch(false);
     setShowReceive(false);
+    setMatching(null);
     setDetailLoading(true);
     try {
       const res = await fetch(
@@ -191,16 +208,104 @@ function Inner() {
       if (!res.ok) throw new Error(data.error || 'Failed');
       setSelected(data.delivery);
       setFiles(data.files || []);
+      setMatching(
+        data.matching && typeof data.matching === 'object'
+          ? (data.matching as MatchingReport)
+          : null
+      );
       setDriverName(String(data.delivery?.driver_name || ''));
       setVehicleReg(String(data.delivery?.vehicle_reg || ''));
       setNotesIsp(String(data.delivery?.notes_isp || ''));
       setNotesSchool(String(data.delivery?.notes_school || ''));
+      // Seed editable DN line qtys (SP plans what they will deliver)
+      const lines = (Array.isArray(data.delivery?.lines)
+        ? data.delivery.lines
+        : []) as Array<Record<string, unknown>>;
+      setDnLines(
+        lines.map((l) => {
+          const ordered = Number(l.qty_ordered ?? l.qty ?? 0);
+          const delivered = Number(l.qty_delivered ?? ordered);
+          const approved = l.approved !== false && Boolean(l.approved_product_id);
+          return {
+            approved_product_id:
+              l.approved_product_id != null
+                ? Number(l.approved_product_id)
+                : null,
+            product_name: String(l.product_name || ''),
+            brand_name: String(l.brand_name || ''),
+            qty_ordered: ordered,
+            qty_delivered: delivered,
+            qty_received: Number(l.qty_received ?? 0),
+            uom: String(l.uom || 'kg'),
+            approved,
+            other_item:
+              l.other_item === true || l.approved === false || !l.approved_product_id,
+          };
+        })
+      );
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed');
     } finally {
       setDetailLoading(false);
     }
   };
+
+  /** Open printable PDF: dn (SP delivery note) · grn (school) · match */
+  const printDoc = (kind: 'dn' | 'grn' | 'match') => {
+    if (!selected) return;
+    if (
+      kind === 'grn' &&
+      String(selected.status) !== 'received' &&
+      !selected.grn_receipt_id
+    ) {
+      toast.message('GRN is available after the school receives the delivery');
+      return;
+    }
+    const url = `/api/schools/deliveries?companyId=${companyId}&id=${selected.id}&format=${kind}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const saveDnQtys = async () => {
+    if (!selected) return;
+    setSavingLines(true);
+    try {
+      const merged = (selected.lines || []).map((l, i) => {
+        const edit = dnLines[i];
+        const ordered = Number(
+          edit?.qty_ordered ?? l.qty_ordered ?? l.qty ?? 0
+        );
+        const delivered = Number(
+          edit?.qty_delivered ?? l.qty_delivered ?? ordered
+        );
+        return {
+          ...l,
+          qty_ordered: ordered,
+          qty_delivered: delivered,
+          uom: edit?.uom || l.uom || 'kg',
+        };
+      });
+      const data = await postAction('update_lines', { lines: merged });
+      if (!data) return;
+      toast.success('Delivery quantities saved on DN');
+      void load();
+      if (data.delivery) void openDetail(data.delivery);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Save failed');
+    } finally {
+      setSavingLines(false);
+    }
+  };
+
+  const dnTone = useMemo(() => {
+    const lines =
+      dnLines.length > 0
+        ? dnLines
+        : (selected?.lines || []).map((l) => ({
+            qty_ordered: Number(l.qty_ordered ?? 0),
+            qty_delivered: Number(l.qty_delivered ?? l.qty_ordered ?? 0),
+          }));
+    return deliveryQtyTone(lines, 'delivered');
+  }, [dnLines, selected?.lines]);
 
   const postAction = async (
     action: string,
@@ -263,6 +368,25 @@ function Inner() {
 
   const doDispatch = async () => {
     try {
+      // Persist any edited delivery qtys before marking dispatched
+      if (dnLines.length > 0 && selected) {
+        const merged = (selected.lines || []).map((l, i) => {
+          const edit = dnLines[i];
+          const ordered = Number(
+            edit?.qty_ordered ?? l.qty_ordered ?? l.qty ?? 0
+          );
+          const delivered = Number(
+            edit?.qty_delivered ?? l.qty_delivered ?? ordered
+          );
+          return {
+            ...l,
+            qty_ordered: ordered,
+            qty_delivered: delivered,
+            uom: edit?.uom || l.uom || 'kg',
+          };
+        });
+        await postAction('update_lines', { lines: merged });
+      }
       const data = await postAction('dispatch', {
         driver_name: driverName || null,
         vehicle_reg: vehicleReg || null,
@@ -724,6 +848,41 @@ function Inner() {
                   </span>
                 </div>
 
+                {/* Print documents — school GRN, SP DN, shared matching */}
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => printDoc('dn')}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-bold text-sky-900 hover:bg-sky-100"
+                    title="Print delivery note (hard copy for school)"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    Print DN
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => printDoc('grn')}
+                    disabled={
+                      String(selected.status) !== 'received' &&
+                      !selected.grn_receipt_id
+                    }
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-900 hover:bg-emerald-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                    title="Print goods received note (copy for SP)"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    Print GRN
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => printDoc('match')}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-bold text-violet-900 hover:bg-violet-100"
+                    title="PO · DN · GRN matching report with exceptions"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    Matching report
+                  </button>
+                </div>
+
                 {/* Timeline */}
                 <div className="flex items-center gap-1 overflow-x-auto pb-1">
                   {TIMELINE.map((step, i) => {
@@ -760,29 +919,104 @@ function Inner() {
                   })}
                 </div>
 
-                {/* Lines */}
+                {/* Lines — SP sets planned/actual delivery qty; colour = variance vs ordered */}
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
-                    Product lines · DBE-approved earn full SP points
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      Product lines · qty vs ordered
+                    </p>
+                    {dnTone !== 'neutral' ? (
+                      <span
+                        className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full border ${qtyVarianceClass(dnTone)}`}
+                      >
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${qtyVarianceDotClass(dnTone)}`}
+                        />
+                        {dnTone === 'green'
+                          ? 'Perfect match'
+                          : dnTone === 'amber'
+                            ? `Within ${QTY_VARIANCE_AMBER_PCT}%`
+                            : `> ${QTY_VARIANCE_AMBER_PCT}% off`}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="text-[11px] text-slate-500 mb-2">
+                    Enter how many items you are delivering (or plan to).{' '}
+                    <span className="text-emerald-700 font-semibold">
+                      Green
+                    </span>{' '}
+                    = exact match ·{' '}
+                    <span className="text-amber-700 font-semibold">
+                      Amber
+                    </span>{' '}
+                    = up to {QTY_VARIANCE_AMBER_PCT}% short/over ·{' '}
+                    <span className="text-rose-700 font-semibold">Red</span> =
+                    more than {QTY_VARIANCE_AMBER_PCT}% off.
                   </p>
                   <ul className="rounded-2xl border border-slate-100 divide-y text-sm">
-                    {(selected.lines || []).length === 0 ? (
+                    {dnLines.length === 0 &&
+                    (selected.lines || []).length === 0 ? (
                       <li className="px-3 py-4 text-slate-500 text-center">
                         No lines
                       </li>
                     ) : (
-                      (selected.lines || []).map((l, i) => {
+                      (dnLines.length > 0
+                        ? dnLines
+                        : (selected.lines || []).map((l): LineEdit => {
+                            const ordered = Number(
+                              l.qty_ordered ?? l.qty ?? 0
+                            );
+                            return {
+                              approved_product_id:
+                                l.approved_product_id != null
+                                  ? Number(l.approved_product_id)
+                                  : null,
+                              product_name: String(l.product_name || ''),
+                              brand_name: String(l.brand_name || ''),
+                              qty_ordered: ordered,
+                              qty_delivered: Number(
+                                l.qty_delivered ?? ordered
+                              ),
+                              qty_received: Number(l.qty_received ?? 0),
+                              uom: String(l.uom || 'kg'),
+                              other_item:
+                                l.other_item === true ||
+                                l.approved === false ||
+                                !l.approved_product_id,
+                              approved:
+                                l.approved !== false &&
+                                Boolean(l.approved_product_id),
+                            };
+                          })
+                      ).map((l, i) => {
                         const other =
                           l.other_item === true ||
                           l.approved === false ||
                           !l.approved_product_id;
+                        const v = qtyVariance(
+                          Number(l.qty_ordered || 0),
+                          Number(l.qty_delivered || 0)
+                        );
+                        const canEdit =
+                          role === 'isp' &&
+                          !['received', 'cancelled'].includes(
+                            String(selected.status)
+                          );
                         return (
                           <li
                             key={i}
-                            className="px-3 py-2.5 flex justify-between gap-2"
+                            className={`px-3 py-2.5 flex flex-wrap items-center justify-between gap-3 border-l-4 ${
+                              v.tone === 'green'
+                                ? 'border-l-emerald-500 bg-emerald-50/40'
+                                : v.tone === 'amber'
+                                  ? 'border-l-amber-400 bg-amber-50/50'
+                                  : v.tone === 'red'
+                                    ? 'border-l-rose-500 bg-rose-50/50'
+                                    : 'border-l-slate-200'
+                            }`}
                           >
-                            <div>
-                              <p className="font-semibold">
+                            <div className="min-w-0 flex-1">
+                              <p className="font-semibold truncate">
                                 {String(l.product_name)}
                               </p>
                               <p
@@ -796,24 +1030,114 @@ function Inner() {
                                 {other
                                   ? ' · Other (not on DBE list)'
                                   : ' · Approved'}
-                              </p>
-                            </div>
-                            <div className="text-right tabular-nums shrink-0">
-                              <p className="font-black">
-                                {Number(
-                                  l.qty_received ??
-                                    l.qty_delivered ??
-                                    l.qty_ordered ??
-                                    0
-                                )}{' '}
+                                {' · '}
+                                ordered {Number(l.qty_ordered || 0)}{' '}
                                 {String(l.uom || '')}
                               </p>
+                              {v.tone !== 'green' && v.tone !== 'neutral' ? (
+                                <p
+                                  className={`text-[10px] font-bold mt-0.5 ${
+                                    v.tone === 'red'
+                                      ? 'text-rose-700'
+                                      : 'text-amber-800'
+                                  }`}
+                                >
+                                  {v.label}
+                                </p>
+                              ) : null}
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              {canEdit ? (
+                                <label className="text-right">
+                                  <span className="block text-[9px] font-bold uppercase text-slate-400 mb-0.5">
+                                    Delivering
+                                  </span>
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    step="any"
+                                    className={`w-24 rounded-xl border px-2 py-2 text-base font-black tabular-nums text-right ${
+                                      v.tone === 'green'
+                                        ? 'border-emerald-300 bg-white'
+                                        : v.tone === 'amber'
+                                          ? 'border-amber-300 bg-white'
+                                          : v.tone === 'red'
+                                            ? 'border-rose-300 bg-white'
+                                            : 'border-slate-200 bg-white'
+                                    }`}
+                                    value={
+                                      Number.isFinite(l.qty_delivered)
+                                        ? l.qty_delivered
+                                        : ''
+                                    }
+                                    onChange={(e) => {
+                                      const raw = e.target.value;
+                                      const n =
+                                        raw === ''
+                                          ? 0
+                                          : Number(raw);
+                                      setDnLines((prev) =>
+                                        (prev.length > 0
+                                          ? prev
+                                          : []
+                                        ).map((row, ri) =>
+                                          ri === i
+                                            ? {
+                                                ...row,
+                                                qty_delivered:
+                                                  Number.isFinite(n) ? n : 0,
+                                              }
+                                            : row
+                                        )
+                                      );
+                                    }}
+                                  />
+                                </label>
+                              ) : (
+                                <div className="text-right tabular-nums">
+                                  <p className="text-[9px] font-bold uppercase text-slate-400">
+                                    Delivering
+                                  </p>
+                                  <p className="font-black text-base">
+                                    {Number(l.qty_delivered || 0)}{' '}
+                                    <span className="text-xs font-semibold text-slate-500">
+                                      {String(l.uom || '')}
+                                    </span>
+                                  </p>
+                                  {Number(l.qty_received || 0) > 0 ? (
+                                    <p className="text-[10px] text-slate-500 mt-0.5">
+                                      received {Number(l.qty_received)}
+                                    </p>
+                                  ) : null}
+                                </div>
+                              )}
+                              <span
+                                title={v.label}
+                                className={`w-2.5 h-2.5 rounded-full shrink-0 ${qtyVarianceDotClass(v.tone)}`}
+                              />
                             </div>
                           </li>
                         );
                       })
                     )}
                   </ul>
+                  {role === 'isp' &&
+                  !['received', 'cancelled'].includes(
+                    String(selected.status)
+                  ) &&
+                  dnLines.length > 0 ? (
+                    <button
+                      type="button"
+                      disabled={busy || savingLines}
+                      onClick={() => void saveDnQtys()}
+                      className="mt-2 w-full sm:w-auto min-h-[40px] rounded-xl px-4 text-xs font-bold border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 inline-flex items-center justify-center gap-2"
+                    >
+                      {savingLines ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : null}
+                      Save delivery quantities
+                    </button>
+                  ) : null}
                 </div>
 
                 {/* SP: add other items on DN */}
@@ -956,10 +1280,174 @@ function Inner() {
                 </div>
 
                 {selected.grn_receipt_id ? (
-                  <p className="text-sm text-emerald-700 font-bold flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4" />
-                    Kitchen GRN #{selected.grn_receipt_id} posted to stock
-                  </p>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm text-emerald-700 font-bold flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4" />
+                      Kitchen GRN #{selected.grn_receipt_id} posted to stock
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => printDoc('grn')}
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 underline-offset-2 hover:underline"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                      Print GRN for SP
+                    </button>
+                  </div>
+                ) : null}
+
+                {/* Matching report + exceptions (school & SP) */}
+                {matching ? (
+                  <div
+                    className={`rounded-2xl border p-3 space-y-3 ${qtyVarianceClass(
+                      (matching.summary.overall_tone ||
+                        'neutral') as QtyVarianceTone
+                    )}`}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">
+                          Matching report · PO · DN · GRN
+                        </p>
+                        <p className="font-black text-sm mt-0.5">
+                          {matching.summary.clean
+                            ? 'Clean match'
+                            : matching.summary.red > 0
+                              ? 'Exceptions need attention'
+                              : matching.summary.amber > 0 ||
+                                  matching.exceptions.length > 0
+                                ? 'Minor exceptions'
+                                : 'In progress'}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => printDoc('match')}
+                        className="inline-flex items-center gap-1 rounded-lg border border-current/20 bg-white/60 px-2 py-1 text-[10px] font-bold"
+                      >
+                        <Printer className="w-3 h-3" />
+                        Print
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+                      {[
+                        {
+                          label: 'Lines',
+                          value: matching.summary.lines_total,
+                        },
+                        {
+                          label: 'Perfect',
+                          value: matching.summary.perfect,
+                        },
+                        {
+                          label: 'Amber',
+                          value: matching.summary.amber,
+                        },
+                        {
+                          label: 'Red',
+                          value: matching.summary.red,
+                        },
+                      ].map((c) => (
+                        <div
+                          key={c.label}
+                          className="rounded-xl bg-white/70 border border-black/5 px-2 py-1.5"
+                        >
+                          <p className="text-lg font-black tabular-nums">
+                            {c.value}
+                          </p>
+                          <p className="text-[9px] font-bold uppercase opacity-60">
+                            {c.label}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="text-[11px] space-y-0.5 opacity-90">
+                      <p>
+                        Short DN: {matching.summary.short_delivered} · Over DN:{' '}
+                        {matching.summary.over_delivered}
+                        {String(selected.status) === 'received'
+                          ? ` · Short GRN: ${matching.summary.short_received} · Over GRN: ${matching.summary.over_received}`
+                          : ''}
+                      </p>
+                      <p>
+                        Off-catalogue: {matching.summary.off_catalogue} · POD:{' '}
+                        {matching.meta.has_pod ? 'yes' : 'missing'}
+                        {matching.meta.grn_id
+                          ? ` · GRN #${matching.meta.grn_id}`
+                          : ''}
+                      </p>
+                    </div>
+                    {matching.exceptions.length > 0 ? (
+                      <ul className="space-y-1.5 max-h-48 overflow-y-auto">
+                        {matching.exceptions.map((ex, i) => (
+                          <li
+                            key={`${ex.code}-${i}`}
+                            className={`flex gap-2 rounded-xl border px-2.5 py-2 text-xs bg-white/80 ${
+                              ex.severity === 'red'
+                                ? 'border-rose-200 text-rose-900'
+                                : ex.severity === 'amber'
+                                  ? 'border-amber-200 text-amber-950'
+                                  : 'border-slate-200 text-slate-700'
+                            }`}
+                          >
+                            <AlertTriangle
+                              className={`w-3.5 h-3.5 shrink-0 mt-0.5 ${
+                                ex.severity === 'red'
+                                  ? 'text-rose-600'
+                                  : ex.severity === 'amber'
+                                    ? 'text-amber-600'
+                                    : 'text-slate-400'
+                              }`}
+                            />
+                            <div className="min-w-0">
+                              <p className="font-bold text-[10px] uppercase tracking-wide opacity-70">
+                                {ex.code.replace(/_/g, ' ')}
+                              </p>
+                              <p className="font-medium leading-snug">
+                                {ex.message}
+                              </p>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-xs font-semibold flex items-center gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        No exceptions — quantities and docs align
+                        {String(selected.status) !== 'received'
+                          ? ' so far (GRN pending)'
+                          : ''}
+                      </p>
+                    )}
+                    {matching.lines.some((l) => l.exceptions.length > 0) ? (
+                      <div className="border-t border-black/5 pt-2">
+                        <p className="text-[10px] font-bold uppercase opacity-60 mb-1.5">
+                          Line variances
+                        </p>
+                        <ul className="space-y-1 text-xs">
+                          {matching.lines
+                            .filter((l) => l.exceptions.length > 0)
+                            .map((l, i) => (
+                              <li
+                                key={i}
+                                className="flex justify-between gap-2 tabular-nums"
+                              >
+                                <span className="font-semibold truncate">
+                                  {l.product_name}
+                                </span>
+                                <span className="shrink-0 opacity-80">
+                                  {l.qty_ordered} → DN {l.qty_delivered}
+                                  {String(selected.status) === 'received'
+                                    ? ` → GRN ${l.qty_received}`
+                                    : ''}{' '}
+                                  · {l.match_status}
+                                </span>
+                              </li>
+                            ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                  </div>
                 ) : null}
 
                 {/* POD photo — school + SP */}
@@ -1193,43 +1681,74 @@ function Inner() {
               uses <strong>received</strong> qty only.
             </p>
             <ul className="space-y-3">
-              {receiveLines.map((line, idx) => (
-                <li
-                  key={idx}
-                  className="rounded-2xl border border-slate-100 bg-slate-50 p-3"
-                >
-                  <p className="font-bold text-sm">{line.product_name}</p>
-                  <p className="text-[10px] font-bold text-emerald-700 mb-2">
-                    {line.brand_name} · ordered {line.qty_ordered}{' '}
-                    {line.uom}
-                  </p>
-                  <label className="text-xs block">
-                    <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
-                      Qty received
-                    </span>
-                    <input
-                      type="number"
-                      min={0}
-                      step="any"
-                      className="w-full rounded-xl border border-slate-200 px-3 py-3 text-lg font-black tabular-nums bg-white"
-                      value={line.qty_received}
-                      onChange={(e) => {
-                        const v = Number(e.target.value);
-                        setReceiveLines((prev) =>
-                          prev.map((l, i) =>
-                            i === idx
-                              ? {
-                                  ...l,
-                                  qty_received: Number.isFinite(v) ? v : 0,
-                                }
-                              : l
-                          )
-                        );
-                      }}
-                    />
-                  </label>
-                </li>
-              ))}
+              {receiveLines.map((line, idx) => {
+                const v = qtyVariance(line.qty_ordered, line.qty_received);
+                return (
+                  <li
+                    key={idx}
+                    className={`rounded-2xl border p-3 border-l-4 ${
+                      v.tone === 'green'
+                        ? 'border-emerald-200 border-l-emerald-500 bg-emerald-50/40'
+                        : v.tone === 'amber'
+                          ? 'border-amber-200 border-l-amber-400 bg-amber-50/50'
+                          : v.tone === 'red'
+                            ? 'border-rose-200 border-l-rose-500 bg-rose-50/50'
+                            : 'border-slate-100 border-l-slate-200 bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div>
+                        <p className="font-bold text-sm">{line.product_name}</p>
+                        <p className="text-[10px] font-bold text-emerald-700">
+                          {line.brand_name} · ordered {line.qty_ordered}{' '}
+                          {line.uom}
+                          {line.qty_delivered !== line.qty_ordered
+                            ? ` · SP delivered ${line.qty_delivered}`
+                            : ''}
+                        </p>
+                      </div>
+                      <span
+                        className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md border ${qtyVarianceClass(v.tone)}`}
+                      >
+                        {v.label}
+                      </span>
+                    </div>
+                    <label className="text-xs block">
+                      <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                        Qty received
+                      </span>
+                      <input
+                        type="number"
+                        min={0}
+                        step="any"
+                        className={`w-full rounded-xl border px-3 py-3 text-lg font-black tabular-nums bg-white ${
+                          v.tone === 'green'
+                            ? 'border-emerald-300'
+                            : v.tone === 'amber'
+                              ? 'border-amber-300'
+                              : v.tone === 'red'
+                                ? 'border-rose-300'
+                                : 'border-slate-200'
+                        }`}
+                        value={line.qty_received}
+                        onChange={(e) => {
+                          const n = Number(e.target.value);
+                          setReceiveLines((prev) =>
+                            prev.map((l, i) =>
+                              i === idx
+                                ? {
+                                    ...l,
+                                    qty_received: Number.isFinite(n) ? n : 0,
+                                  }
+                                : l
+                            )
+                          );
+                        }}
+                      />
+                    </label>
+                  </li>
+                );
+              })}
             </ul>
             <label className="text-xs block">
               <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">

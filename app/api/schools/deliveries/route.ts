@@ -9,11 +9,25 @@ import type { DeliveryLine } from '@/lib/schools/deliveries';
 import { logNsnpEvent } from '@/lib/schools/events';
 import { scoreDeliveryLines } from '@/lib/schools/incentives';
 import { podGate } from '@/lib/schools/golden-path';
+import {
+  buildDeliveryNotePdf,
+  buildGrnPdf,
+  buildMatchingReport,
+  buildMatchingReportPdf,
+  deliveryDocFilename,
+  type DeliveryDocumentInput,
+  type DocParty,
+} from '@/lib/schools/delivery-documents';
+
+export const runtime = 'nodejs';
+export const maxDuration = 60;
 
 /**
  * SP → school deliveries with shared POD / invoice files.
  *
  * GET ?companyId=&role=school|isp|auto&status=
+ * GET ?companyId=&id= · detail + matching report JSON
+ * GET ?companyId=&id=&format=dn|grn|match|print · PDF (inline / print)
  * POST create / dispatch / deliver / receive / dispute / attach
  */
 export async function GET(request: NextRequest) {
@@ -32,6 +46,7 @@ export async function GET(request: NextRequest) {
     const roleParam = String(sp.get('role') || 'auto');
     const status = sp.get('status');
     const deliveryId = sp.get('id') ? Number(sp.get('id')) : null;
+    const format = String(sp.get('format') || 'json').toLowerCase();
 
     const { data: ispRow } = await supabase
       .from('nsnp_isp_profiles')
@@ -69,11 +84,110 @@ export async function GET(request: NextRequest) {
         .eq('delivery_id', deliveryId)
         .order('created_at', { ascending: false })
         .limit(100);
+
+      const hasPod = Boolean(
+        (files || []).some(
+          (f) =>
+            String(f.kind || '').toLowerCase() === 'pod' ||
+            String(f.kind || '').toLowerCase() === 'photo'
+        ) || d.pod_photo_url
+      );
+
+      const lines = (
+        Array.isArray(d.lines) ? d.lines : []
+      ) as Array<Record<string, unknown>>;
+
+      const matching = buildMatchingReport({
+        delivery_number: String(d.delivery_number || `DN-${d.id}`),
+        po_id: d.po_id != null ? Number(d.po_id) : null,
+        status: String(d.status || 'draft'),
+        lines: lines.map((l) => ({
+          product_name: String(l.product_name || ''),
+          brand_name: String(l.brand_name || ''),
+          qty_ordered: Number(l.qty_ordered ?? l.qty ?? 0),
+          qty_delivered: Number(
+            l.qty_delivered ?? l.qty_ordered ?? l.qty ?? 0
+          ),
+          qty_received: Number(
+            l.qty_received ?? l.qty_delivered ?? l.qty_ordered ?? 0
+          ),
+          uom: String(l.uom || 'kg'),
+          approved: l.approved !== false,
+          other_item:
+            l.other_item === true ||
+            l.approved === false ||
+            !l.approved_product_id,
+          approved_product_id:
+            l.approved_product_id != null
+              ? Number(l.approved_product_id)
+              : null,
+        })),
+        has_pod: hasPod,
+        grn_id: d.grn_receipt_id != null ? Number(d.grn_receipt_id) : null,
+        otif: d.otif == null ? null : Boolean(d.otif),
+        expected_date: d.expected_date ? String(d.expected_date) : null,
+        delivered_at: d.delivered_at ? String(d.delivered_at) : null,
+        received_at: d.received_at ? String(d.received_at) : null,
+        vehicle_reg: d.vehicle_reg ? String(d.vehicle_reg) : null,
+        driver_name: d.driver_name ? String(d.driver_name) : null,
+      });
+
+      const wantsPdf = ['dn', 'grn', 'match', 'print', 'pdf'].includes(format);
+      if (wantsPdf) {
+        const kind: 'dn' | 'grn' | 'match' =
+          format === 'grn'
+            ? 'grn'
+            : format === 'match'
+              ? 'match'
+              : 'dn';
+
+        if (kind === 'grn') {
+          const st = String(d.status || '').toLowerCase();
+          if (st !== 'received' && !d.grn_receipt_id) {
+            return NextResponse.json(
+              {
+                error:
+                  'GRN not available until the school receives this delivery',
+              },
+              { status: 400 }
+            );
+          }
+        }
+
+        const doc = await buildDeliveryDocumentInput(supabase, d, {
+          hasPod,
+          matching,
+          files: files || [],
+        });
+        doc.kind = kind;
+
+        let pdf: Buffer;
+        if (kind === 'grn') pdf = await buildGrnPdf(doc);
+        else if (kind === 'match') pdf = await buildMatchingReportPdf(doc);
+        else pdf = await buildDeliveryNotePdf(doc);
+
+        const filename = deliveryDocFilename(
+          kind,
+          String(d.delivery_number || d.id)
+        );
+        const disposition =
+          sp.get('download') === '1' ? 'attachment' : 'inline';
+        return new NextResponse(new Uint8Array(pdf), {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': `${disposition}; filename="${filename}"`,
+            'Cache-Control': 'no-store',
+          },
+        });
+      }
+
       return NextResponse.json({
         success: true,
         role,
         delivery: d,
         files: files || [],
+        matching,
         isp: ispRow,
       });
     }
@@ -1286,4 +1400,260 @@ async function upsertStock(
       });
     }
   }
+}
+
+// ── Document party + PDF payload helpers ─────────────────────────────────
+
+type Sb = ReturnType<typeof getSupabaseServer>;
+
+async function resolveSchoolParty(
+  supabase: Sb,
+  schoolProfileId: number
+): Promise<DocParty> {
+  let schoolRow: Record<string, unknown> | null = null;
+  const full = await supabase
+    .from('school_profiles')
+    .select(
+      'id, school_name, emis_number, natemis, district, province, address, city, principal_name, principal_phone, principal_email, nsnp_coordinator_name, nsnp_coordinator_email, profile_id, primary_agency_profile_id'
+    )
+    .eq('id', schoolProfileId)
+    .maybeSingle();
+  if (full.error && /natemis|column/i.test(full.error.message)) {
+    const soft = await supabase
+      .from('school_profiles')
+      .select(
+        'id, school_name, emis_number, district, province, address, city, principal_name, principal_phone, principal_email, nsnp_coordinator_name, nsnp_coordinator_email, profile_id, primary_agency_profile_id'
+      )
+      .eq('id', schoolProfileId)
+      .maybeSingle();
+    schoolRow = (soft.data as Record<string, unknown>) || null;
+  } else {
+    schoolRow = (full.data as Record<string, unknown>) || null;
+  }
+
+  const address = [schoolRow?.address, schoolRow?.city]
+    .filter(Boolean)
+    .map(String)
+    .join(', ');
+
+  return {
+    kind: 'school',
+    name: String(schoolRow?.school_name || `School ${schoolProfileId}`),
+    emis_number:
+      schoolRow?.emis_number != null ? String(schoolRow.emis_number) : null,
+    natemis:
+      schoolRow?.natemis != null && String(schoolRow.natemis).trim()
+        ? String(schoolRow.natemis).trim()
+        : null,
+    district: schoolRow?.district != null ? String(schoolRow.district) : null,
+    province: schoolRow?.province != null ? String(schoolRow.province) : null,
+    address: address || null,
+    contact_name:
+      schoolRow?.principal_name != null
+        ? String(schoolRow.principal_name)
+        : schoolRow?.nsnp_coordinator_name != null
+          ? String(schoolRow.nsnp_coordinator_name)
+          : null,
+    contact_phone:
+      schoolRow?.principal_phone != null
+        ? String(schoolRow.principal_phone)
+        : null,
+    contact_email:
+      schoolRow?.principal_email != null
+        ? String(schoolRow.principal_email)
+        : schoolRow?.nsnp_coordinator_email != null
+          ? String(schoolRow.nsnp_coordinator_email)
+          : null,
+  };
+}
+
+async function resolveIspPartyDoc(
+  supabase: Sb,
+  ispKey: number | null | undefined
+): Promise<DocParty> {
+  if (!ispKey || !Number.isFinite(Number(ispKey))) {
+    return { kind: 'isp', name: 'Service provider' };
+  }
+  const key = Number(ispKey);
+  let isp: Record<string, unknown> | null = null;
+  {
+    const { data } = await supabase
+      .from('nsnp_isp_profiles')
+      .select(
+        'id, profile_id, trading_name, contact_name, contact_phone, contact_email, csd_number, province, district, metadata'
+      )
+      .eq('profile_id', key)
+      .maybeSingle();
+    isp = (data as Record<string, unknown>) || null;
+  }
+  if (!isp) {
+    const { data } = await supabase
+      .from('nsnp_isp_profiles')
+      .select(
+        'id, profile_id, trading_name, contact_name, contact_phone, contact_email, csd_number, province, district, metadata'
+      )
+      .eq('id', key)
+      .maybeSingle();
+    isp = (data as Record<string, unknown>) || null;
+  }
+
+  const companyId =
+    isp?.profile_id != null && Number.isFinite(Number(isp.profile_id))
+      ? Number(isp.profile_id)
+      : key;
+
+  const { data: ispProf } = await supabase
+    .from('profiles')
+    .select(
+      'id, trading_name, legal_name, city, province, phone, email, address, contact_name, contact_phone'
+    )
+    .eq('id', companyId)
+    .maybeSingle();
+
+  const meta =
+    isp?.metadata && typeof isp.metadata === 'object'
+      ? (isp.metadata as Record<string, unknown>)
+      : {};
+
+  const pick = (...vals: unknown[]) => {
+    for (const v of vals) {
+      const s = v != null ? String(v).trim() : '';
+      if (s && !/^service provider\s+\d+$/i.test(s) && !/^sp\s+\d+$/i.test(s)) {
+        return s;
+      }
+    }
+    return '';
+  };
+
+  const name =
+    pick(
+      isp?.trading_name,
+      ispProf?.trading_name,
+      ispProf?.legal_name,
+      meta.trading_name,
+      meta.name,
+      meta.company_name
+    ) || `Service provider ${companyId}`;
+
+  return {
+    kind: 'isp',
+    name,
+    trading_name: pick(isp?.trading_name, ispProf?.trading_name) || null,
+    legal_name: pick(ispProf?.legal_name) || null,
+    csd_number:
+      pick(isp?.csd_number, meta.csd_number, meta.csd, meta.CSD_NUMBER) || null,
+    district: isp?.district != null ? String(isp.district) : null,
+    province:
+      isp?.province != null
+        ? String(isp.province)
+        : ispProf?.province != null
+          ? String(ispProf.province)
+          : null,
+    address: ispProf?.address != null ? String(ispProf.address) : null,
+    contact_name: pick(isp?.contact_name, ispProf?.contact_name) || null,
+    contact_phone: pick(
+      isp?.contact_phone,
+      ispProf?.phone,
+      ispProf?.contact_phone
+    ) || null,
+    contact_email: pick(isp?.contact_email, ispProf?.email) || null,
+  };
+}
+
+async function buildDeliveryDocumentInput(
+  supabase: Sb,
+  d: Record<string, unknown>,
+  opts: {
+    hasPod: boolean;
+    matching: ReturnType<typeof buildMatchingReport>;
+    files: Array<Record<string, unknown>>;
+  }
+): Promise<DeliveryDocumentInput> {
+  const schoolProfileId = Number(d.school_profile_id);
+  const ispKey = Number(d.isp_profile_id);
+  const school = await resolveSchoolParty(supabase, schoolProfileId);
+  const isp = await resolveIspPartyDoc(supabase, ispKey);
+
+  let po_number: string | null = null;
+  if (d.po_id != null && Number.isFinite(Number(d.po_id))) {
+    const { data: po } = await supabase
+      .from('school_purchase_orders')
+      .select('po_number')
+      .eq('id', Number(d.po_id))
+      .maybeSingle();
+    if (po?.po_number) po_number = String(po.po_number);
+  }
+
+  let grn_number: string | null = null;
+  if (d.grn_receipt_id != null) {
+    const { data: grn } = await supabase
+      .from('school_kitchen_receipts')
+      .select('id, receipt_number')
+      .eq('id', Number(d.grn_receipt_id))
+      .maybeSingle();
+    if (grn?.receipt_number) grn_number = String(grn.receipt_number);
+    else grn_number = `GRN-${d.delivery_number || d.id}`;
+  }
+
+  let agency_name: string | null = null;
+  try {
+    const { resolveCatalogueContext } = await import(
+      '@/lib/schools/approved-catalogue'
+    );
+    const cat = await resolveCatalogueContext(
+      supabase,
+      Number(d.school_company_id) || 0,
+      { schoolProfileId }
+    );
+    agency_name = cat.agencyName;
+  } catch {
+    /* soft */
+  }
+
+  const lines = (Array.isArray(d.lines) ? d.lines : []) as Array<
+    Record<string, unknown>
+  >;
+
+  return {
+    kind: 'dn',
+    delivery_number: String(d.delivery_number || `DN-${d.id}`),
+    status: String(d.status || 'draft'),
+    po_id: d.po_id != null ? Number(d.po_id) : null,
+    po_number,
+    expected_date: d.expected_date ? String(d.expected_date) : null,
+    dispatched_at: d.dispatched_at ? String(d.dispatched_at) : null,
+    delivered_at: d.delivered_at ? String(d.delivered_at) : null,
+    received_at: d.received_at ? String(d.received_at) : null,
+    vehicle_reg: d.vehicle_reg ? String(d.vehicle_reg) : null,
+    driver_name: d.driver_name ? String(d.driver_name) : null,
+    notes_isp: d.notes_isp ? String(d.notes_isp) : null,
+    notes_school: d.notes_school ? String(d.notes_school) : null,
+    grn_receipt_id:
+      d.grn_receipt_id != null ? Number(d.grn_receipt_id) : null,
+    grn_number,
+    school,
+    isp,
+    agency_name,
+    lines: lines.map((l) => ({
+      product_name: String(l.product_name || ''),
+      brand_name: String(l.brand_name || ''),
+      qty_ordered: Number(l.qty_ordered ?? l.qty ?? 0),
+      qty_delivered: Number(l.qty_delivered ?? l.qty_ordered ?? l.qty ?? 0),
+      qty_received: Number(
+        l.qty_received ?? l.qty_delivered ?? l.qty_ordered ?? 0
+      ),
+      uom: String(l.uom || 'kg'),
+      approved: l.approved !== false,
+      other_item:
+        l.other_item === true ||
+        l.approved === false ||
+        !l.approved_product_id,
+      approved_product_id:
+        l.approved_product_id != null ? Number(l.approved_product_id) : null,
+    })),
+    matching: opts.matching,
+    has_pod: opts.hasPod,
+    otif: d.otif == null ? null : Boolean(d.otif),
+    generated_at: new Date().toISOString().replace('T', ' ').slice(0, 19),
+  };
 }
