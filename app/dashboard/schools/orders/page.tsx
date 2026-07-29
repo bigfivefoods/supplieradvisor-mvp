@@ -872,8 +872,18 @@ function Inner() {
             <button
               type="button"
               onClick={() => void submit()}
-              disabled={submitting || !lines.length || !ispId}
-              className="btn-primary !py-2 !px-3 text-xs"
+              disabled={
+                submitting ||
+                !lines.length ||
+                !ispId ||
+                !expectedDate
+              }
+              className="btn-primary !py-2 !px-3 text-xs disabled:opacity-40"
+              title={
+                !expectedDate
+                  ? 'Set required delivery date first (OTIF on-time)'
+                  : undefined
+              }
             >
               {submitting ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
