@@ -41,6 +41,7 @@ const ENTITY_ICONS: Record<string, typeof Building2> = {
   nsnp_isp: Truck,
   association: Users2,
   consumer_org: Leaf,
+  consumer: Globe2,
 };
 
 type FormState = {
@@ -412,30 +413,39 @@ export default function BusinessOnboardingWizard() {
                 Who is registering?
               </h1>
               <p className="text-neutral-600 mb-2">
-                <strong className="text-slate-900">Most people join as a normal company</strong>
-                {' '}— that option is first below. Schools, SPs and government
-                offices use specialised workspaces further down.
+                Choose your lane:{' '}
+                <strong className="text-slate-900">B2B businesses first</strong>
+                , then{' '}
+                <strong className="text-slate-900">B2C consumers</strong>{' '}
+                (marketplace), then{' '}
+                <strong className="text-slate-900">B2G government</strong>{' '}
+                agencies last.
               </p>
               <p className="text-sm text-neutral-500 mb-6">
-                You can change modules later; pick the type that best matches
-                this invitation or your organisation.
+                Most invitations register a normal company (B2B). Government
+                offices only if you represent an official department.
               </p>
               <div className="space-y-8">
                 {entityGroups().map((group) => (
                   <div key={group.id}>
                     <h2
                       className={`text-xs font-black uppercase tracking-wider mb-1 ${
-                        group.id === 'trade'
+                        group.lane === 'b2b'
                           ? 'text-[#0077b6]'
-                          : group.id === 'government'
-                            ? 'text-slate-400'
-                            : 'text-slate-500'
+                          : group.lane === 'b2c'
+                            ? 'text-fuchsia-700'
+                            : 'text-slate-400'
                       }`}
                     >
                       {group.title}
-                      {group.id === 'trade' ? (
+                      {group.lane === 'b2b' ? (
                         <span className="ml-2 normal-case tracking-normal font-bold text-[10px] bg-sky-100 text-sky-800 px-2 py-0.5 rounded-full">
-                          Recommended
+                          First · recommended
+                        </span>
+                      ) : null}
+                      {group.lane === 'b2c' ? (
+                        <span className="ml-2 normal-case tracking-normal font-bold text-[10px] bg-fuchsia-100 text-fuchsia-800 px-2 py-0.5 rounded-full">
+                          Marketplace
                         </span>
                       ) : null}
                     </h2>
@@ -469,7 +479,7 @@ export default function BusinessOnboardingWizard() {
                                 }`}
                               />
                               <div>
-                                <div className="font-semibold text-slate-900 text-sm flex items-center gap-2">
+                                <div className="font-semibold text-slate-900 text-sm flex items-center gap-2 flex-wrap">
                                   {type.label}
                                   {isCompany ? (
                                     <span className="text-[9px] font-black uppercase tracking-wide text-sky-700 bg-sky-100 px-1.5 py-0.5 rounded">

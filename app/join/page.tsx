@@ -26,11 +26,12 @@ const ICONS: Record<string, typeof Building2> = {
   nsnp_isp: Truck,
   association: Users2,
   consumer_org: Leaf,
+  consumer: Leaf,
 };
 
 /**
  * /join — choose organisation kind before Privy onboarding.
- * Creates separate workspaces: DBE, School, SP, Health, Trade, etc.
+ * Lanes: B2B businesses → B2C consumer marketplace → B2G government last.
  */
 export default function JoinPage() {
   const groups = entityGroups();
@@ -61,15 +62,18 @@ export default function JoinPage() {
 
         <div className="mb-10">
           <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#0077b6] mb-2">
-            Register organisation
+            Join SupplierAdvisor
           </p>
           <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-slate-900 mb-3">
             Who are you joining as?
           </h1>
           <p className="text-slate-600 max-w-2xl leading-relaxed">
-            <strong className="text-slate-900">Most people join as a normal company</strong>
-            {' '}— that option is first. Each type is a separate workspace with
-            its own members and modules. Government agencies are listed last.
+            <strong className="text-slate-900">1 · Businesses (B2B)</strong>
+            {' '}first ·{' '}
+            <strong className="text-slate-900">2 · Consumer (B2C)</strong>
+            {' '}marketplace ·{' '}
+            <strong className="text-slate-900">3 · Government (B2G)</strong>
+            {' '}last. Most invitations register a normal company.
           </p>
         </div>
 
@@ -78,13 +82,22 @@ export default function JoinPage() {
             <section key={group.id}>
               <h2
                 className={`text-sm font-black mb-1 ${
-                  group.id === 'trade' ? 'text-[#0077b6]' : 'text-slate-900'
+                  group.lane === 'b2b'
+                    ? 'text-[#0077b6]'
+                    : group.lane === 'b2c'
+                      ? 'text-fuchsia-700'
+                      : 'text-slate-500'
                 }`}
               >
                 {group.title}
-                {group.id === 'trade' ? (
+                {group.lane === 'b2b' ? (
                   <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-sky-800 bg-sky-100 px-2 py-0.5 rounded-full">
-                    Recommended
+                    First · recommended
+                  </span>
+                ) : null}
+                {group.lane === 'b2c' ? (
+                  <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-fuchsia-800 bg-fuchsia-100 px-2 py-0.5 rounded-full">
+                    Marketplace
                   </span>
                 ) : null}
               </h2>

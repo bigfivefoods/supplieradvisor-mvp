@@ -1,14 +1,10 @@
 /**
- * Separate organisation kinds on SupplierAdvisor.
+ * Organisation kinds on SupplierAdvisor.
  *
- * Programme hierarchy:
- *
- *   DBE / PEU  →  SPs  →  Schools
- *   DoH        →  SPs  →  Clinics & hospitals
- *
- * Agency owns the approved catalogue and must approve SPs + facilities.
- * Facilities order only from SPs associated under the same agency.
- * SPs buy stock from normal wholesalers/businesses on the trade network.
+ * Signup lanes (order matters for UX):
+ *   1) B2B — businesses trading on the network
+ *   2) B2C — consumers buying on the marketplace
+ *   3) B2G — government programme offices (last)
  */
 
 import type { ModulePresetId } from '@/lib/business/company-modules';
@@ -16,13 +12,14 @@ import type { ModulePresetId } from '@/lib/business/company-modules';
 export const ENTITY_KINDS = [
   'business',
   'supplier',
+  'association',
+  'school',
+  'nsnp_isp',
+  'hospital',
+  'consumer_org',
+  'consumer',
   'government_education',
   'government_health',
-  'school',
-  'hospital',
-  'nsnp_isp',
-  'association',
-  'consumer_org',
 ] as const;
 
 export type EntityKind = (typeof ENTITY_KINDS)[number];
@@ -36,8 +33,8 @@ export type EntityDefinition = {
   label: string;
   shortLabel: string;
   description: string;
-  /** Signup grouping */
-  group: 'trade' | 'education' | 'health' | 'other';
+  /** Signup grouping (legacy field; UI uses entityGroups lanes) */
+  group: 'trade' | 'education' | 'health' | 'other' | 'consumer' | 'government';
   /** After login / select company */
   homePath: string;
   modulePreset: ModulePresetId;
@@ -54,6 +51,7 @@ export type EntityDefinition = {
 };
 
 export const ENTITY_DEFINITIONS: readonly EntityDefinition[] = [
+  // ── B2B ────────────────────────────────────────────────────────────
   {
     id: 'business',
     business_type: 'business',
@@ -61,12 +59,12 @@ export const ENTITY_DEFINITIONS: readonly EntityDefinition[] = [
     label: 'Company / business',
     shortLabel: 'Company',
     description:
-      'A normal company — manufacturer, distributor, wholesaler or retailer. Default for most people joining SupplierAdvisor.',
+      'B2B company — manufacturer, distributor, wholesaler or retailer. Default for most people joining SupplierAdvisor.',
     group: 'trade',
     homePath: '/dashboard',
     modulePreset: 'trading',
     provision: 'none',
-    badge: 'Company',
+    badge: 'B2B',
     badgeClass: 'bg-sky-100 text-sky-900 border-sky-200',
   },
   {
@@ -76,13 +74,27 @@ export const ENTITY_DEFINITIONS: readonly EntityDefinition[] = [
     label: 'Supplier (farm / raw materials)',
     shortLabel: 'Supplier',
     description:
-      'Primary producer or raw-materials supplier selling into the trade network.',
+      'B2B primary producer or raw-materials supplier selling into the trade network.',
     group: 'trade',
     homePath: '/dashboard',
     modulePreset: 'trading',
     provision: 'none',
-    badge: 'Supply',
+    badge: 'B2B',
     badgeClass: 'bg-emerald-100 text-emerald-900 border-emerald-200',
+  },
+  {
+    id: 'association',
+    business_type: 'association',
+    org_type: 'association',
+    label: 'Association / co-op',
+    shortLabel: 'Association',
+    description: 'B2B industry body, co-operative or member group.',
+    group: 'other',
+    homePath: '/dashboard',
+    modulePreset: 'starter',
+    provision: 'none',
+    badge: 'B2B',
+    badgeClass: 'bg-slate-100 text-slate-700 border-slate-200',
   },
   {
     id: 'school',
@@ -91,12 +103,12 @@ export const ENTITY_DEFINITIONS: readonly EntityDefinition[] = [
     label: 'School',
     shortLabel: 'School',
     description:
-      'NSNP school: join DBE/PEU, order approved foods from linked SPs, kitchen, serve day, claims.',
+      'School workspace: join DBE/PEU, order approved foods from SPs, kitchen, serve day, claims.',
     group: 'education',
     homePath: '/dashboard/schools',
     modulePreset: 'school_nsnp',
     provision: 'school',
-    badge: 'School',
+    badge: 'B2B · School',
     badgeClass: 'bg-sky-100 text-sky-900 border-sky-200',
   },
   {
@@ -106,12 +118,12 @@ export const ENTITY_DEFINITIONS: readonly EntityDefinition[] = [
     label: 'Service Provider (SP)',
     shortLabel: 'SP',
     description:
-      'NSNP service provider: join DBE/PEU, supply schools with approved products. Buy stock from wholesalers on the trade network.',
+      'Programme service provider: supply schools with approved products; buy from wholesalers on the trade network.',
     group: 'education',
     homePath: '/dashboard/schools/isp',
     modulePreset: 'nsnp_isp',
     provision: 'isp',
-    badge: 'SP',
+    badge: 'B2B · SP',
     badgeClass: 'bg-amber-100 text-amber-900 border-amber-200',
   },
   {
@@ -120,28 +132,13 @@ export const ENTITY_DEFINITIONS: readonly EntityDefinition[] = [
     org_type: 'hospital',
     label: 'Hospital / clinic',
     shortLabel: 'Clinic / hospital',
-    description:
-      'Health facility workspace (separate Health module flows where configured).',
+    description: 'Health facility workspace on a health food programme.',
     group: 'health',
     homePath: '/dashboard/health',
     modulePreset: 'school_nsnp',
     provision: 'facility_health',
-    badge: 'Health facility',
+    badge: 'B2B · Facility',
     badgeClass: 'bg-rose-50 text-rose-800 border-rose-200',
-  },
-  {
-    id: 'association',
-    business_type: 'association',
-    org_type: 'association',
-    label: 'Association / co-op',
-    shortLabel: 'Association',
-    description: 'Industry body, co-operative or member group.',
-    group: 'other',
-    homePath: '/dashboard',
-    modulePreset: 'starter',
-    provision: 'none',
-    badge: 'Association',
-    badgeClass: 'bg-slate-100 text-slate-700 border-slate-200',
   },
   {
     id: 'consumer_org',
@@ -149,15 +146,31 @@ export const ENTITY_DEFINITIONS: readonly EntityDefinition[] = [
     org_type: 'consumer_org',
     label: 'Impact / NGO',
     shortLabel: 'NGO',
-    description: 'Non-profit or regenerative initiative.',
+    description: 'Non-profit or regenerative organisation on the network.',
     group: 'other',
     homePath: '/dashboard',
     modulePreset: 'starter',
     provision: 'none',
-    badge: 'Impact',
+    badge: 'B2B · Impact',
     badgeClass: 'bg-lime-100 text-lime-900 border-lime-200',
   },
-  // Government last — only for official programme offices
+  // ── B2C ────────────────────────────────────────────────────────────
+  {
+    id: 'consumer',
+    business_type: 'consumer',
+    org_type: 'consumer',
+    label: 'Consumer (marketplace)',
+    shortLabel: 'Consumer',
+    description:
+      'B2C — shop the marketplace as a buyer. Discover verified brands and buy products.',
+    group: 'consumer',
+    homePath: '/marketplace',
+    modulePreset: 'starter',
+    provision: 'none',
+    badge: 'B2C',
+    badgeClass: 'bg-fuchsia-100 text-fuchsia-900 border-fuchsia-200',
+  },
+  // ── B2G last ───────────────────────────────────────────────────────
   {
     id: 'government_education',
     business_type: 'government_education',
@@ -165,12 +178,12 @@ export const ENTITY_DEFINITIONS: readonly EntityDefinition[] = [
     label: 'Department of Education (DBE / PEU)',
     shortLabel: 'DBE / PEU',
     description:
-      'Government education office: approve SPs and schools, publish the approved foods list, PEU visits, claims & nutrition.',
-    group: 'education',
+      'B2G government education office: approve SPs and schools, catalogue, PEU visits, claims.',
+    group: 'government',
     homePath: '/dashboard/schools',
     modulePreset: 'dbe_agency',
     provision: 'agency_education',
-    badge: 'Gov · Education',
+    badge: 'B2G',
     badgeClass: 'bg-violet-100 text-violet-900 border-violet-200',
   },
   {
@@ -180,12 +193,12 @@ export const ENTITY_DEFINITIONS: readonly EntityDefinition[] = [
     label: 'Department of Health',
     shortLabel: 'DoH',
     description:
-      'Government health office (Health module): approve facilities and SPs for the health food programme.',
-    group: 'health',
+      'B2G government health office: approve facilities and SPs for the health food programme.',
+    group: 'government',
     homePath: '/dashboard/health',
     modulePreset: 'dbe_agency',
     provision: 'agency_health',
-    badge: 'Gov · Health',
+    badge: 'B2G',
     badgeClass: 'bg-rose-100 text-rose-900 border-rose-200',
   },
 ] as const;
@@ -219,11 +232,19 @@ export function resolveEntityKind(
   if (t === 'education' || t === 'school_nsnp') {
     return BY_ID.get('school')!;
   }
-  if (t === 'doh' || t === 'health') {
+  if (t === 'doh' || t === 'health' || t === 'government_health') {
     return BY_ID.get('government_health')!;
   }
   if (t === 'clinic' || t === 'health_facility') {
     return BY_ID.get('hospital')!;
+  }
+  if (
+    t === 'consumer' ||
+    t === 'b2c' ||
+    t === 'marketplace_buyer' ||
+    t === 'shopper'
+  ) {
+    return BY_ID.get('consumer')!;
   }
 
   return BY_ID.get('business')!;
@@ -241,52 +262,50 @@ export function homePathForEntity(
 }
 
 /**
- * Signup / invite picker order:
- * 1) Normal company & trade (default)
- * 2) Schools programme operators (school, SP)
- * 3) Health facilities
- * 4) Other orgs
- * 5) Government agencies last
+ * Signup / invite picker — strict order:
+ * 1) B2B businesses
+ * 2) B2C consumer marketplace
+ * 3) B2G government agencies (last)
  */
 export function entityGroups(): Array<{
   id: string;
   title: string;
   blurb: string;
+  lane: 'b2b' | 'b2c' | 'b2g';
   entities: EntityDefinition[];
 }> {
   const byId = (id: EntityKind) => BY_ID.get(id)!;
   return [
     {
-      id: 'trade',
-      title: 'Company & trade network',
+      id: 'b2b',
+      lane: 'b2b',
+      title: 'Businesses (B2B)',
       blurb:
-        'Start here if you are a normal company. Most invitations register a company that trades on SupplierAdvisor.',
-      entities: [byId('business'), byId('supplier')],
+        'Companies, suppliers, schools, SPs and other organisations that buy and sell on the network. Most invitations start here.',
+      entities: [
+        byId('business'),
+        byId('supplier'),
+        byId('association'),
+        byId('school'),
+        byId('nsnp_isp'),
+        byId('hospital'),
+        byId('consumer_org'),
+      ],
     },
     {
-      id: 'education',
-      title: 'Schools programme',
+      id: 'b2c',
+      lane: 'b2c',
+      title: 'Consumer (B2C)',
       blurb:
-        'Schools and service providers on the National School Nutrition Programme (under DBE / PEU).',
-      entities: [byId('school'), byId('nsnp_isp')],
+        'Join as a consumer to buy on the marketplace — discover verified brands and shop products.',
+      entities: [byId('consumer')],
     },
     {
-      id: 'health',
-      title: 'Health facilities',
-      blurb: 'Clinics and hospitals on a health food programme.',
-      entities: [byId('hospital')],
-    },
-    {
-      id: 'other',
-      title: 'Other organisations',
-      blurb: 'Associations, co-ops, NGOs and impact organisations.',
-      entities: [byId('association'), byId('consumer_org')],
-    },
-    {
-      id: 'government',
-      title: 'Government agencies',
+      id: 'b2g',
+      lane: 'b2g',
+      title: 'Government agencies (B2G)',
       blurb:
-        'Only for official government programme offices (education or health). Not for private companies.',
+        'Only for official government programme offices. Not for private companies.',
       entities: [byId('government_education'), byId('government_health')],
     },
   ];

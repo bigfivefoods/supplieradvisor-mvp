@@ -246,9 +246,13 @@ export async function POST(request: NextRequest) {
           ? 'supplier'
           : entityKind.id === 'nsnp_isp'
             ? 'supplier'
-            : entityKind.group === 'education' || entityKind.group === 'health'
-              ? 'programme'
-              : 'business',
+            : entityKind.id === 'consumer'
+              ? 'consumer'
+              : entityKind.group === 'education' ||
+                  entityKind.group === 'health' ||
+                  entityKind.group === 'government'
+                ? 'programme'
+                : 'business',
       is_discoverable: true,
       user_id: userId,
       created_at: now,
