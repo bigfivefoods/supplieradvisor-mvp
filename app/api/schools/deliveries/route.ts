@@ -909,6 +909,14 @@ export async function POST(request: NextRequest) {
           period: prizeAfter?.periodName ?? null,
           grn_compliance_ok: grn?.compliance_ok ?? null,
         };
+
+        // Preferred / probation SP rules
+        try {
+          const { recomputeSpTier } = await import('@/lib/schools/sp-tier');
+          await recomputeSpTier(supabase, Number(d.isp_profile_id));
+        } catch {
+          /* soft */
+        }
       }
 
       if (

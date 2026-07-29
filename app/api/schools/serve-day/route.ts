@@ -137,11 +137,67 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
       .limit(20);
 
-    const enrolled = Number(school.learner_count_enrolled || 0);
+    const enrolled = Number(
+      school.learner_count_nsnp_eligible ||
+        school.learner_count_enrolled ||
+        0
+    );
     const present =
       attendance?.present != null
         ? Number(attendance.present)
         : enrolled;
+
+    // Attendance-scaled recipe portions (present learners preferred)
+    let portion_plan: {
+      portions: number;
+      basis: string;
+      lines: Array<Record<string, unknown>>;
+      recipe_name?: string | null;
+    } | null = null;
+    try {
+      if (catalogue.agencyProfileId) {
+        const { data: recipes } = await supabase
+          .from('nsnp_recipes')
+          .select('id, name, meal_type, active, metadata')
+          .eq('agency_profile_id', catalogue.agencyProfileId)
+          .limit(50);
+        const active = (recipes || []).filter((r) => r.active !== false);
+        // Prefer lunch/breakfast match
+        const recipe =
+          active.find(
+            (r) =>
+              String(r.meal_type || '').toLowerCase() ===
+              String(mealType).toLowerCase()
+          ) || active[0];
+        if (recipe) {
+          const { data: lines } = await supabase
+            .from('nsnp_recipe_lines')
+            .select(
+              'approved_product_id, product_name, brand_name, category, qty_per_portion, uom, wastage_pct'
+            )
+            .eq('recipe_id', recipe.id)
+            .limit(40);
+          const { scaleRecipeLines } = await import(
+            '@/lib/schools/attendance-portions'
+          );
+          const scaled = scaleRecipeLines(lines || [], {
+            present,
+            enrolled,
+            planned: feeding?.planned_meals != null
+              ? Number(feeding.planned_meals)
+              : null,
+          });
+          portion_plan = {
+            portions: scaled.portions,
+            basis: scaled.basis,
+            lines: scaled.lines as unknown as Array<Record<string, unknown>>,
+            recipe_name: String(recipe.name || ''),
+          };
+        }
+      }
+    } catch {
+      portion_plan = null;
+    }
 
     return NextResponse.json({
       success: true,
@@ -165,6 +221,8 @@ export async function GET(request: NextRequest) {
       nutrition,
       norm,
       suggestedServed: present,
+      /** Scale BOM by present learners (not enrolment) */
+      portion_plan,
       alerts: alerts || [],
       catalogue: {
         agencyName: catalogue.agencyName,

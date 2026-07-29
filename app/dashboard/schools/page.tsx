@@ -810,6 +810,12 @@ function Inner() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-6">
         {[
           {
+            href: '/dashboard/schools/kitchen-pack',
+            icon: ChefHat,
+            label: 'Kitchen pack',
+            desc: 'Mobile POD · GRN · serve',
+          },
+          {
             href: '/dashboard/schools/isps',
             icon: Users,
             label: 'SPs',

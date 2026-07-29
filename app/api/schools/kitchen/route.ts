@@ -166,10 +166,32 @@ export async function GET(request: NextRequest) {
     });
     const lowStock = stock.filter((s) => s.low_stock);
 
+    const { listSubstitutions, resolveSubstitution } = await import(
+      '@/lib/schools/substitutions'
+    );
+    const meta =
+      school.metadata && typeof school.metadata === 'object'
+        ? (school.metadata as Record<string, unknown>)
+        : {};
+    const substitutions = listSubstitutions(meta);
+    const stock_with_subs = stock.map((s) => {
+      const pid = Number(s.approved_product_id);
+      const qty = Number(s.qty_on_hand || 0);
+      const res = Number.isFinite(pid)
+        ? resolveSubstitution(pid, qty, substitutions)
+        : { product_id: pid, substituted: false };
+      return {
+        ...s,
+        substitute_product_id: res.substituted ? res.product_id : null,
+        use_substitute: res.substituted,
+        substitute_rule: res.rule || null,
+      };
+    });
+
     return NextResponse.json({
       success: true,
       school,
-      stock,
+      stock: stock_with_subs,
       lowStock,
       receipts: receiptsRes.data || [],
       openOrders: ordersRes.data || [],
@@ -177,6 +199,7 @@ export async function GET(request: NextRequest) {
       learners,
       stock_plan: stockPlan,
       recipes_count: recipes.length,
+      substitutions,
       warning:
         stockRes.error?.message ||
         receiptsRes.error?.message ||
@@ -802,6 +825,95 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: uErr.message }, { status: 400 });
       }
       return NextResponse.json({ success: true, stock: data });
+    }
+
+    // Substitution protocol
+    if (
+      body.action === 'save_substitution' ||
+      body.action === 'add_substitution'
+    ) {
+      const fromId = Number(body.from_product_id);
+      const toId = Number(body.to_product_id);
+      if (!Number.isFinite(fromId) || !Number.isFinite(toId)) {
+        return NextResponse.json(
+          { error: 'from_product_id and to_product_id required' },
+          { status: 400 }
+        );
+      }
+      const catalogue = await resolveCatalogueContext(supabase, companyId, {
+        schoolProfileId: schoolId,
+      });
+      const byId = await filterApprovedProductIds(
+        supabase,
+        catalogue.agencyProfileId,
+        [fromId, toId]
+      );
+      if (!byId.get(toId)) {
+        return NextResponse.json(
+          { error: 'Alternate product must be on the department approved list' },
+          { status: 400 }
+        );
+      }
+      const { upsertSubstitution } = await import(
+        '@/lib/schools/substitutions'
+      );
+      const meta =
+        school.metadata && typeof school.metadata === 'object'
+          ? { ...(school.metadata as Record<string, unknown>) }
+          : {};
+      const nextMeta = upsertSubstitution(meta, {
+        from_product_id: fromId,
+        from_name: String(byId.get(fromId)?.name || body.from_name || ''),
+        to_product_id: toId,
+        to_name: String(byId.get(toId)?.name || body.to_name || ''),
+        to_brand: String(byId.get(toId)?.brand_name || ''),
+        category: String(
+          byId.get(fromId)?.category || body.category || ''
+        ),
+        reason: body.reason != null ? String(body.reason) : 'stock-out',
+        active: true,
+      });
+      const { error: mErr } = await supabase
+        .from('school_profiles')
+        .update({
+          metadata: nextMeta,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', schoolId);
+      if (mErr) {
+        return NextResponse.json({ error: mErr.message }, { status: 400 });
+      }
+      return NextResponse.json({
+        success: true,
+        substitutions: nextMeta.substitutions,
+        message: 'Substitution saved — alternate used when primary stock is 0',
+      });
+    }
+
+    if (body.action === 'remove_substitution') {
+      const id = String(body.id || '');
+      if (!id) {
+        return NextResponse.json({ error: 'id required' }, { status: 400 });
+      }
+      const { removeSubstitution, listSubstitutions } = await import(
+        '@/lib/schools/substitutions'
+      );
+      const meta =
+        school.metadata && typeof school.metadata === 'object'
+          ? { ...(school.metadata as Record<string, unknown>) }
+          : {};
+      const nextMeta = removeSubstitution(meta, id);
+      await supabase
+        .from('school_profiles')
+        .update({
+          metadata: nextMeta,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', schoolId);
+      return NextResponse.json({
+        success: true,
+        substitutions: listSubstitutions(nextMeta),
+      });
     }
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 });

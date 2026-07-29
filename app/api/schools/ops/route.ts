@@ -142,6 +142,33 @@ export async function GET(request: NextRequest) {
         await fundingSim(supabase, companyId, from, to)
       );
     }
+    if (view === 'day_plan' || view === 'route_plan') {
+      if (role !== 'isp') {
+        return NextResponse.json(
+          { error: 'Day plan is for service providers' },
+          { status: 403 }
+        );
+      }
+      return NextResponse.json(await dayPlanView(supabase, companyId));
+    }
+    if (view === 'budget_burn' || view === 'budgets') {
+      return NextResponse.json(
+        await budgetBurnView(supabase, companyId, role, sp)
+      );
+    }
+    if (view === 'provincial_export' || view === 'export_pack') {
+      if (role !== 'agency') {
+        return NextResponse.json(
+          { error: 'Provincial export is for DBE / PEU' },
+          { status: 403 }
+        );
+      }
+      const from = sp.get('from') || monthAgo();
+      const to = sp.get('to') || today();
+      return NextResponse.json(
+        await provincialExportView(supabase, companyId, from, to)
+      );
+    }
 
     return NextResponse.json({
       success: true,
@@ -150,6 +177,9 @@ export async function GET(request: NextRequest) {
         'path',
         'today',
         'fulfil',
+        'day_plan',
+        'budget_burn',
+        'provincial_export',
         'exceptions',
         'districts',
         'shopping',
@@ -1884,5 +1914,243 @@ async function auditPack(
       mime: 'application/json',
     },
     tip: 'Download JSON for auditors. Includes PO, DN, POD files, GRN, feed days, three-way match and funding simulation.',
+  };
+}
+
+/** SP multi-school day plan — cluster open POs by district + required date */
+async function dayPlanView(
+  supabase: ReturnType<typeof getSupabaseServer>,
+  companyId: number
+) {
+  const fulfil = await fulfilView(supabase, companyId);
+  const queue = (fulfil.queue || []) as Array<Record<string, unknown>>;
+
+  // Enrich district from schools
+  const schoolIds = [
+    ...new Set(
+      queue.map((q) => Number(q.school_profile_id)).filter(Boolean)
+    ),
+  ];
+  const districts = new Map<number, string>();
+  if (schoolIds.length) {
+    const { data: schools } = await supabase
+      .from('school_profiles')
+      .select('id, district, school_name')
+      .in('id', schoolIds);
+    for (const s of schools || []) {
+      districts.set(Number(s.id), String(s.district || 'Unknown'));
+    }
+  }
+
+  type DayBucket = {
+    required_date: string;
+    districts: Array<{
+      district: string;
+      schools: Array<Record<string, unknown>>;
+      po_count: number;
+      line_count: number;
+    }>;
+    po_count: number;
+    late: number;
+  };
+  const byDate = new Map<string, DayBucket>();
+
+  for (const q of queue) {
+    const d = q.expected_date
+      ? String(q.expected_date).slice(0, 10)
+      : 'unscheduled';
+    const bucket = byDate.get(d) || {
+      required_date: d,
+      districts: [],
+      po_count: 0,
+      late: 0,
+    };
+    const dist = districts.get(Number(q.school_profile_id)) || 'Unknown';
+    let distRow = bucket.districts.find((x) => x.district === dist);
+    if (!distRow) {
+      distRow = { district: dist, schools: [], po_count: 0, line_count: 0 };
+      bucket.districts.push(distRow);
+    }
+    distRow.schools.push({
+      school_name: q.school_name,
+      po_id: q.po_id,
+      po_number: q.po_number,
+      line_count: q.line_count,
+      otif_risk: q.otif_risk,
+      action: q.action,
+      late: q.late,
+    });
+    distRow.po_count += 1;
+    distRow.line_count += Number(q.line_count || 0);
+    bucket.po_count += 1;
+    if (q.late) bucket.late += 1;
+    byDate.set(d, bucket);
+  }
+
+  const days = [...byDate.values()].sort((a, b) =>
+    String(a.required_date).localeCompare(String(b.required_date))
+  );
+  for (const day of days) {
+    day.districts.sort((a, b) => b.po_count - a.po_count);
+  }
+
+  return {
+    success: true,
+    role: 'isp',
+    days,
+    summary: {
+      days: days.length,
+      open_pos: queue.length,
+      late: queue.filter((q) => q.late).length,
+    },
+    tip: 'Plan one truck run per district on each required date. Create DNs from fulfil queue.',
+    href_buy: '/dashboard/schools/ops?tab=buy',
+    href_fulfil: '/dashboard/schools/ops',
+  };
+}
+
+/** Budget burn vs remaining feeding days */
+async function budgetBurnView(
+  supabase: ReturnType<typeof getSupabaseServer>,
+  companyId: number,
+  role: string,
+  sp: URLSearchParams
+) {
+  const from = sp.get('from') || monthAgo();
+  const to = sp.get('to') || today();
+  let agencyId: number | null = null;
+  let schoolId: number | null = null;
+
+  if (role === 'agency') {
+    agencyId = companyId;
+  } else {
+    const { school } = await getOrCreateSchoolProfile(supabase, companyId);
+    if (school) {
+      schoolId = Number(school.id);
+      const { data: link } = await supabase
+        .from('school_agency_links')
+        .select('agency_profile_id')
+        .eq('school_profile_id', school.id)
+        .eq('status', 'active')
+        .maybeSingle();
+      agencyId = link ? Number(link.agency_profile_id) : null;
+    }
+  }
+  if (!agencyId) {
+    return {
+      success: false,
+      error: 'Join a DBE / PEU to see category budget burn',
+    };
+  }
+  const { buildBudgetBurn } = await import('@/lib/schools/budget-burn');
+  const burn = await buildBudgetBurn(supabase, {
+    agencyProfileId: agencyId,
+    schoolProfileId: role === 'school' ? schoolId : null,
+    from,
+    to,
+  });
+  return {
+    success: true,
+    role,
+    period: { from, to },
+    ...burn,
+  };
+}
+
+/** Provincial monthly export pack (JSON index + audit-ready sections) */
+async function provincialExportView(
+  supabase: ReturnType<typeof getSupabaseServer>,
+  companyId: number,
+  from: string,
+  to: string
+) {
+  const ex = await exceptionsView(supabase, companyId);
+  const dist = await districtView(supabase, companyId);
+  const cons = await consistencyView(supabase, companyId);
+
+  const links = await fetchAgencySchoolLinks(supabase, companyId, [
+    'active',
+  ]).catch(() => []);
+  const schoolIds = [
+    ...new Set(
+      links.map((l) => Number(l.school_profile_id)).filter(Boolean)
+    ),
+  ];
+
+  // Sample schools for claim readiness (cap)
+  const sampleIds = schoolIds.slice(0, 40);
+  const schoolRows: Array<Record<string, unknown>> = [];
+  if (sampleIds.length) {
+    const { data: schools } = await supabase
+      .from('school_profiles')
+      .select('id, school_name, emis_number, district, province')
+      .in('id', sampleIds);
+    for (const s of schools || []) {
+      const { count: feedDays } = await supabase
+        .from('school_feeding_days')
+        .select('*', { count: 'exact', head: true })
+        .eq('school_profile_id', s.id)
+        .gte('feed_date', from)
+        .lte('feed_date', to);
+      schoolRows.push({
+        id: s.id,
+        name: s.school_name,
+        emis: s.emis_number,
+        district: s.district,
+        province: s.province,
+        feed_days_in_period: feedDays || 0,
+      });
+    }
+  }
+
+  const { data: claims } = await supabase
+    .from('nsnp_claim_packs')
+    .select(
+      'id, school_profile_id, status, claim_amount, period_from, period_to, approved_brand_pct, created_at'
+    )
+    .eq('agency_profile_id', companyId)
+    .gte('period_from', from)
+    .lte('period_to', to)
+    .limit(200);
+
+  const pack = {
+    generated_at: new Date().toISOString(),
+    programme: 'NSNP',
+    agency_profile_id: companyId,
+    period: { from, to },
+    kpis: {
+      schools: schoolIds.length,
+      districts: (dist.kpis as { districts?: number } | undefined)?.districts,
+      exceptions: (ex.summary as { total?: number } | undefined)?.total,
+      claims: (claims || []).length,
+      consistency_issues: (cons.summary as { issues?: number } | undefined)
+        ?.issues,
+    },
+    districts: dist.byDistrict || [],
+    exceptions_summary: ex.summary,
+    consistency_summary: cons.summary,
+    claims: claims || [],
+    schools_sample: schoolRows,
+  };
+
+  let hash = 'sha256:';
+  try {
+    const { createHash } = await import('crypto');
+    hash += createHash('sha256').update(JSON.stringify(pack)).digest('hex');
+  } catch {
+    hash += String(JSON.stringify(pack).length);
+  }
+
+  return {
+    success: true,
+    role: 'agency',
+    pack,
+    content_hash: hash,
+    export: {
+      filename: `NSNP_Provincial_${from}_${to}.json`,
+      mime: 'application/json',
+      note: 'Download JSON for PEU / Treasury. Pair with school audit pack PDFs for full evidence.',
+    },
+    tip: 'Share with PEU / Treasury. For each school needing deep audit, open Ops → Audit pack PDF.',
   };
 }

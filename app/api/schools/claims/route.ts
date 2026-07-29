@@ -388,6 +388,7 @@ export async function POST(request: NextRequest) {
     // Rebuild pack then save
     const from = body.from;
     const to = body.to;
+    const action = String(body.action || 'submit').toLowerCase();
     const url = new URL(request.url);
     url.searchParams.set('companyId', String(companyId));
     if (from) url.searchParams.set('from', from);
@@ -414,9 +415,111 @@ export async function POST(request: NextRequest) {
 
     // Priority 3 — one-click from clean match still requires declaration
     const oneClick =
-      body.action === 'one_click' ||
-      body.action === 'submit_from_match' ||
+      action === 'one_click' ||
+      action === 'submit_from_match' ||
       body.one_click === true;
+
+    // Auto draft claim when match clean (no declaration yet — principal signs later)
+    if (action === 'draft_from_match' || action === 'auto_draft') {
+      if (!pack.one_click_ready && pack.submit_ready === false) {
+        return NextResponse.json(
+          {
+            error:
+              String(pack.submit_block_reason) ||
+              'Cannot draft claim — fix match, feed days, or approved brands first',
+            pack,
+          },
+          { status: 400 }
+        );
+      }
+      const catalogueDraft = await resolveCatalogueContext(supabase, companyId, {
+        schoolProfileId: Number(school.id),
+      });
+      if (!catalogueDraft.agencyProfileId) {
+        return NextResponse.json(
+          { error: 'No DBE agency linked' },
+          { status: 400 }
+        );
+      }
+      const nowDraft = new Date().toISOString();
+      const draftRow: Record<string, unknown> = {
+        school_profile_id: school.id,
+        profile_id: companyId,
+        agency_profile_id: catalogueDraft.agencyProfileId,
+        period_from: (pack.period as { from: string }).from,
+        period_to: (pack.period as { to: string }).to,
+        school_days: pack.school_days,
+        days_fed: pack.days_fed,
+        meals_served: pack.meals_served,
+        learners_avg_present: pack.learners_avg_present,
+        food_spend: pack.food_spend,
+        cost_per_meal: pack.cost_per_meal,
+        claim_amount: pack.claim_amount,
+        nutrition_pass_pct: pack.nutrition_pass_pct,
+        approved_brand_pct: pack.approved_brand_pct,
+        status: 'draft',
+        pack_json: {
+          ...pack,
+          draft_reason: 'auto_from_clean_match',
+          drafted_at: nowDraft,
+        },
+        tariff_zar: pack.claim_tariff_zar,
+        audit_log: [
+          {
+            at: nowDraft,
+            by: gate.userId || null,
+            action: 'auto_draft',
+            note: 'Draft created because three-way match and funding gates look ready. Principal must declare and submit.',
+          },
+        ],
+        created_by: gate.userId || null,
+      };
+      const { data: draft, error: dErr } = await supabase
+        .from('nsnp_claim_packs')
+        .insert(draftRow)
+        .select('*')
+        .single();
+      if (dErr) {
+        // Soft fallback without audit columns
+        const retry = await supabase
+          .from('nsnp_claim_packs')
+          .insert({
+            school_profile_id: school.id,
+            profile_id: companyId,
+            agency_profile_id: catalogueDraft.agencyProfileId,
+            period_from: (pack.period as { from: string }).from,
+            period_to: (pack.period as { to: string }).to,
+            days_fed: pack.days_fed,
+            meals_served: pack.meals_served,
+            claim_amount: pack.claim_amount,
+            approved_brand_pct: pack.approved_brand_pct,
+            status: 'draft',
+            pack_json: pack,
+          })
+          .select('*')
+          .single();
+        if (retry.error) {
+          return NextResponse.json(
+            { error: retry.error.message || dErr.message },
+            { status: 400 }
+          );
+        }
+        return NextResponse.json({
+          success: true,
+          claim: retry.data,
+          message:
+            'Draft claim ready — open Claims, declare, then submit to DBE',
+          pack,
+        });
+      }
+      return NextResponse.json({
+        success: true,
+        claim: draft,
+        message:
+          'Draft claim ready — open Claims, declare, then submit to DBE',
+        pack,
+      });
+    }
 
     if (pack.submit_ready === false) {
       return NextResponse.json(

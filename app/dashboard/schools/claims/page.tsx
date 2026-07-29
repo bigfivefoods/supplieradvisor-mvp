@@ -391,6 +391,40 @@ function Inner() {
             >
               Submit claim pack to DBE
             </button>
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={async () => {
+                setSubmitting(true);
+                try {
+                  const res = await fetch('/api/schools/claims', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                      companyId,
+                      from: period.from,
+                      to: period.to,
+                      action: 'draft_from_match',
+                    }),
+                  });
+                  const data = await res.json();
+                  if (!res.ok) throw new Error(data.error || 'Failed');
+                  toast.success(
+                    data.message ||
+                      'Draft claim created — declare then submit'
+                  );
+                  void load();
+                } catch (e: unknown) {
+                  toast.error(e instanceof Error ? e.message : 'Failed');
+                } finally {
+                  setSubmitting(false);
+                }
+              }}
+              className="btn-secondary !py-2.5 !px-4 text-sm min-h-[44px]"
+            >
+              Auto-draft from clean match
+            </button>
           </div>
 
           {history.length > 0 ? (

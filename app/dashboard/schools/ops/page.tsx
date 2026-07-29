@@ -64,6 +64,13 @@ function Inner() {
     unknown
   > | null>(null);
   const [buyList, setBuyList] = useState<Record<string, unknown> | null>(null);
+  const [dayPlan, setDayPlan] = useState<Record<string, unknown> | null>(null);
+  const [budgetBurn, setBudgetBurn] = useState<Record<string, unknown> | null>(
+    null
+  );
+  const [provincial, setProvincial] = useState<Record<string, unknown> | null>(
+    null
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -77,7 +84,7 @@ function Inner() {
       setRole(r);
 
       if (r === 'isp') {
-        const [res, buy] = await Promise.all([
+        const [res, buy, day] = await Promise.all([
           fetch(`/api/schools/ops?companyId=${companyId}&view=fulfil`, {
             cache: 'no-store',
             credentials: 'same-origin',
@@ -86,12 +93,18 @@ function Inner() {
             cache: 'no-store',
             credentials: 'same-origin',
           }).then((x) => x.json()),
+          fetch(`/api/schools/ops?companyId=${companyId}&view=day_plan`, {
+            cache: 'no-store',
+            credentials: 'same-origin',
+          }).then((x) => x.json()),
         ]);
         if (res.error) throw new Error(res.error || 'Failed');
         setFulfil(res);
         setBuyList(buy);
+        setDayPlan(day);
       } else if (r === 'agency') {
-        const [ex, dist, cons] = await Promise.all([
+        const qs = `companyId=${companyId}&from=${period.from}&to=${period.to}`;
+        const [ex, dist, cons, exp, burn] = await Promise.all([
           fetch(
             `/api/schools/ops?companyId=${companyId}&view=exceptions`,
             { cache: 'no-store', credentials: 'same-origin' }
@@ -104,13 +117,23 @@ function Inner() {
             `/api/schools/ops?companyId=${companyId}&view=consistency`,
             { cache: 'no-store', credentials: 'same-origin' }
           ).then((x) => x.json()),
+          fetch(`/api/schools/ops?${qs}&view=provincial_export`, {
+            cache: 'no-store',
+            credentials: 'same-origin',
+          }).then((x) => x.json()),
+          fetch(`/api/schools/ops?${qs}&view=budget_burn`, {
+            cache: 'no-store',
+            credentials: 'same-origin',
+          }).then((x) => x.json()),
         ]);
         setExceptions(ex);
         setDistricts(dist);
         setConsistency(cons);
+        setProvincial(exp);
+        setBudgetBurn(burn);
       } else {
         const qs = `companyId=${companyId}&from=${period.from}&to=${period.to}`;
-        const [sh, m, s] = await Promise.all([
+        const [sh, m, s, burn] = await Promise.all([
           fetch(`/api/schools/ops?${qs}&view=shopping`, {
             cache: 'no-store',
             credentials: 'same-origin',
@@ -123,10 +146,15 @@ function Inner() {
             cache: 'no-store',
             credentials: 'same-origin',
           }).then((x) => x.json()),
+          fetch(`/api/schools/ops?${qs}&view=budget_burn`, {
+            cache: 'no-store',
+            credentials: 'same-origin',
+          }).then((x) => x.json()),
         ]);
         setShopping(sh);
         setMatch(m);
         setSim(s);
+        setBudgetBurn(burn);
       }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Load failed');
@@ -251,6 +279,7 @@ function Inner() {
         <FulfilQueue
           data={fulfil}
           buyList={buyList}
+          dayPlan={dayPlan}
           busy={busy}
           onCreateDn={createDn}
           tab={tab}
@@ -261,15 +290,38 @@ function Inner() {
           exceptions={exceptions}
           districts={districts}
           consistency={consistency}
+          provincial={provincial}
+          budgetBurn={budgetBurn}
           tab={tab}
           setTab={setTab}
+          onProvincialDownload={() => {
+            if (!provincial?.pack) return;
+            const blob = new Blob(
+              [JSON.stringify(provincial.pack, null, 2)],
+              { type: 'application/json' }
+            );
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download =
+              (provincial.export as { filename?: string } | undefined)
+                ?.filename || 'NSNP_Provincial.json';
+            a.click();
+            URL.revokeObjectURL(url);
+            toast.success(
+              `Export sealed · ${String(provincial.content_hash || '').slice(0, 18)}…`
+            );
+          }}
         />
       ) : (
         <SchoolOps
           shopping={shopping}
           match={match}
           sim={sim}
+          budgetBurn={budgetBurn}
           busy={busy}
+          companyId={companyId}
+          period={period}
           onAuditJson={() => void downloadAudit('json')}
           onAuditPdf={() => void downloadAudit('pdf')}
         />
@@ -281,6 +333,7 @@ function Inner() {
 function FulfilQueue({
   data,
   buyList,
+  dayPlan,
   busy,
   onCreateDn,
   tab,
@@ -288,6 +341,7 @@ function FulfilQueue({
 }: {
   data: Record<string, unknown> | null;
   buyList: Record<string, unknown> | null;
+  dayPlan: Record<string, unknown> | null;
   busy: boolean;
   onCreateDn: (poId: number) => void;
   tab: string;
@@ -298,6 +352,7 @@ function FulfilQueue({
   const buys = (buyList?.buy_list ||
     buyList?.shopping_list ||
     []) as Array<Record<string, unknown>>;
+  const planDays = (dayPlan?.days || []) as Array<Record<string, unknown>>;
 
   return (
     <div className="space-y-4">
@@ -305,6 +360,7 @@ function FulfilQueue({
         {[
           { id: 'main', label: 'Fulfil queue' },
           { id: 'buy', label: 'Wholesale buy-list' },
+          { id: 'day', label: 'Day · district plan' },
         ].map((t) => (
           <button
             key={t.id}
@@ -341,7 +397,59 @@ function FulfilQueue({
         ))}
       </div>
 
-      {tab === 'buy' ? (
+      {tab === 'day' ? (
+        <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+          <div className="px-4 py-3 border-b text-xs font-bold uppercase text-slate-500">
+            Multi-school day plan · required date × district
+          </div>
+          <p className="px-4 py-2 text-xs text-slate-500">
+            {String(dayPlan?.tip || '')}
+          </p>
+          {planDays.length === 0 ? (
+            <p className="px-4 py-10 text-center text-sm text-slate-500">
+              No open POs to plan.
+            </p>
+          ) : (
+            <ul className="divide-y max-h-[70vh] overflow-y-auto">
+              {planDays.map((day) => (
+                <li key={String(day.required_date)} className="px-4 py-3">
+                  <p className="font-black text-sm">
+                    {String(day.required_date)} · {Number(day.po_count)} PO(s)
+                    {Number(day.late) > 0 ? (
+                      <span className="ml-2 text-rose-700 text-xs">
+                        {Number(day.late)} late
+                      </span>
+                    ) : null}
+                  </p>
+                  <ul className="mt-2 space-y-2">
+                    {(
+                      (day.districts || []) as Array<Record<string, unknown>>
+                    ).map((d) => (
+                      <li
+                        key={String(d.district)}
+                        className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-sm"
+                      >
+                        <p className="font-bold">
+                          {String(d.district)} · {Number(d.po_count)} PO ·{' '}
+                          {Number(d.line_count)} lines
+                        </p>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {(
+                            (d.schools || []) as Array<Record<string, unknown>>
+                          )
+                            .slice(0, 6)
+                            .map((s) => String(s.school_name))
+                            .join(' · ')}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : tab === 'buy' ? (
         <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
           <div className="px-4 py-3 border-b text-xs font-bold uppercase text-slate-500 flex items-center gap-2">
             <ShoppingCart className="w-4 h-4" /> Wholesale buy-list · remaining
@@ -508,14 +616,20 @@ function AgencyCockpit({
   exceptions,
   districts,
   consistency,
+  provincial,
+  budgetBurn,
   tab,
   setTab,
+  onProvincialDownload,
 }: {
   exceptions: Record<string, unknown> | null;
   districts: Record<string, unknown> | null;
   consistency: Record<string, unknown> | null;
+  provincial: Record<string, unknown> | null;
+  budgetBurn: Record<string, unknown> | null;
   tab: string;
   setTab: (t: string) => void;
+  onProvincialDownload: () => void;
 }) {
   const list = (exceptions?.exceptions || []) as Array<Record<string, unknown>>;
   const summary = (exceptions?.summary || {}) as Record<string, number>;
@@ -532,6 +646,8 @@ function AgencyCockpit({
           { id: 'main', label: 'Exceptions' },
           { id: 'geo', label: 'District · cluster' },
           { id: 'consistency', label: 'Catalogue consistency' },
+          { id: 'export', label: 'Provincial export' },
+          { id: 'budget', label: 'Budget burn' },
         ].map((t) => (
           <button
             key={t.id}
@@ -665,6 +781,31 @@ function AgencyCockpit({
             ) : null}
           </div>
         </div>
+      ) : tab === 'export' ? (
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 space-y-3">
+          <h3 className="font-black text-sm">Provincial monthly export</h3>
+          <p className="text-xs text-slate-600">
+            {String(provincial?.tip || '')}
+          </p>
+          <pre className="text-[11px] bg-slate-50 rounded-xl p-3 overflow-auto max-h-48">
+            {JSON.stringify(
+              (provincial?.pack as { kpis?: unknown } | undefined)?.kpis ||
+                provincial?.kpis ||
+                {},
+              null,
+              2
+            )}
+          </pre>
+          <button
+            type="button"
+            onClick={onProvincialDownload}
+            className="btn-primary !py-2 !px-3 text-xs"
+          >
+            Download provincial JSON pack
+          </button>
+        </div>
+      ) : tab === 'budget' ? (
+        <BudgetBurnPanel data={budgetBurn} />
       ) : (
         <div className="space-y-4">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -749,18 +890,87 @@ function AgencyCockpit({
   );
 }
 
+function BudgetBurnPanel({ data }: { data: Record<string, unknown> | null }) {
+  const rows = (data?.rows || []) as Array<Record<string, unknown>>;
+  return (
+    <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+      <div className="px-4 py-3 border-b text-xs font-bold uppercase text-slate-500">
+        Category budget burn vs feeding days
+      </div>
+      <p className="px-4 py-2 text-xs text-slate-500">{String(data?.tip || '')}</p>
+      {rows.length === 0 ? (
+        <p className="px-4 py-8 text-center text-sm text-slate-500">
+          No budgets yet — set them under Recipes → Budgets.
+        </p>
+      ) : (
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b text-left text-[10px] font-bold uppercase text-slate-400">
+              <th className="px-4 py-2">Category</th>
+              <th className="px-3 py-2">Spent</th>
+              <th className="px-3 py-2">Budget</th>
+              <th className="px-3 py-2">Burn %</th>
+              <th className="px-3 py-2">Days left</th>
+              <th className="px-3 py-2">R/day left</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr
+                key={String(r.category)}
+                className={`border-b border-slate-50 ${
+                  r.status === 'over'
+                    ? 'bg-rose-50'
+                    : r.status === 'watch'
+                      ? 'bg-amber-50/50'
+                      : ''
+                }`}
+              >
+                <td className="px-4 py-2 font-semibold">{String(r.category)}</td>
+                <td className="px-3 py-2 tabular-nums">
+                  {Number(r.spent_amount || 0).toLocaleString('en-ZA')}
+                </td>
+                <td className="px-3 py-2 tabular-nums">
+                  {Number(r.budget_amount || 0).toLocaleString('en-ZA')}
+                </td>
+                <td className="px-3 py-2 font-black tabular-nums">
+                  {Number(r.burn_pct || 0)}%
+                </td>
+                <td className="px-3 py-2 tabular-nums">
+                  {Number(r.feeding_days_left || 0)}
+                </td>
+                <td className="px-3 py-2 tabular-nums">
+                  {r.per_day_left != null
+                    ? Number(r.per_day_left).toLocaleString('en-ZA')
+                    : '—'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
 function SchoolOps({
   shopping,
   match,
   sim,
+  budgetBurn,
   busy,
+  companyId,
+  period,
   onAuditJson,
   onAuditPdf,
 }: {
   shopping: Record<string, unknown> | null;
   match: Record<string, unknown> | null;
   sim: Record<string, unknown> | null;
+  budgetBurn: Record<string, unknown> | null;
   busy: boolean;
+  companyId: number;
+  period: { from: string; to: string };
   onAuditJson: () => void;
   onAuditPdf: () => void;
 }) {
@@ -790,8 +1000,41 @@ function SchoolOps({
           href="/dashboard/schools/claims"
           className="btn-primary !py-2 !px-3 text-xs inline-flex items-center gap-1"
         >
-          One-click claim
+          Claims
         </Link>
+        <Link
+          href="/dashboard/schools/kitchen-pack"
+          className="btn-secondary !py-2 !px-3 text-xs"
+        >
+          Kitchen pack
+        </Link>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={async () => {
+            try {
+              const res = await fetch('/api/schools/claims', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                  companyId,
+                  from: period.from,
+                  to: period.to,
+                  action: 'draft_from_match',
+                }),
+              });
+              const data = await res.json();
+              if (!res.ok) throw new Error(data.error || 'Failed');
+              toast.success(data.message || 'Draft claim ready');
+            } catch (e: unknown) {
+              toast.error(e instanceof Error ? e.message : 'Failed');
+            }
+          }}
+          className="btn-secondary !py-2 !px-3 text-xs"
+        >
+          Auto-draft claim
+        </button>
         <button
           type="button"
           disabled={busy}
@@ -809,6 +1052,8 @@ function SchoolOps({
           <Download className="w-3.5 h-3.5" /> Audit JSON
         </button>
       </div>
+
+      <BudgetBurnPanel data={budgetBurn} />
 
       {/* Funding simulator */}
       <div className="rounded-3xl border border-emerald-100 bg-emerald-50/40 p-5">

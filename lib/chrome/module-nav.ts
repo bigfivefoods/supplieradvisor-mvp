@@ -675,14 +675,21 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       {
         name: 'Kitchen',
         href: '/dashboard/schools/kitchen',
-        desc: 'GRN · issue · waste',
+        desc: 'GRN · issue · waste · substitutions',
+        group: 'School',
+        section: 'Kitchen',
+      },
+      {
+        name: 'Kitchen pack',
+        href: '/dashboard/schools/kitchen-pack',
+        desc: 'Mobile · POD · serve offline',
         group: 'School',
         section: 'Kitchen',
       },
       {
         name: 'Serve day',
         href: '/dashboard/schools/serve-day',
-        desc: 'Meals today',
+        desc: 'Meals today · attendance scale',
         group: 'School',
         section: 'Kitchen',
       },

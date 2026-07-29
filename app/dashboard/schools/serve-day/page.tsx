@@ -279,6 +279,39 @@ function Inner() {
                 {menu?.dish?.dish || menu?.name || 'No active menu dish today'}
               </strong>
             </p>
+            {data?.portion_plan ? (
+              <div className="mt-3 rounded-2xl border border-sky-100 bg-sky-50/60 px-3 py-2.5 text-xs text-sky-950">
+                <p className="font-bold">
+                  Portions from{' '}
+                  {String(
+                    (data.portion_plan as { basis?: string }).basis || 'present'
+                  )}{' '}
+                  ·{' '}
+                  {Number(
+                    (data.portion_plan as { portions?: number }).portions || 0
+                  )}{' '}
+                  learners
+                  {(data.portion_plan as { recipe_name?: string }).recipe_name
+                    ? ` · ${String((data.portion_plan as { recipe_name?: string }).recipe_name)}`
+                    : ''}
+                </p>
+                <ul className="mt-1.5 space-y-0.5 max-h-28 overflow-y-auto">
+                  {(
+                    ((data.portion_plan as { lines?: Array<Record<string, unknown>> })
+                      .lines || []) as Array<Record<string, unknown>>
+                  )
+                    .slice(0, 8)
+                    .map((l, i) => (
+                      <li key={i} className="flex justify-between gap-2">
+                        <span>{String(l.product_name)}</span>
+                        <span className="font-bold tabular-nums">
+                          {Number(l.qty_with_wastage || 0)} {String(l.uom || '')}
+                        </span>
+                      </li>
+                    ))}
+                </ul>
+              </div>
+            ) : null}
             {completeFlag ? (
               <div className="mt-3 space-y-2">
                 <p className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700">
